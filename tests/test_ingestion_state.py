@@ -1,4 +1,4 @@
-"""Concurrency guarantees for the persisted GitHub ingestion cursor."""
+"""Concurrency and integrity guarantees for the persisted GitHub ingestion cursor."""
 
 from __future__ import annotations
 
@@ -6,7 +6,9 @@ import os
 import threading
 import time
 
-from sidra_ai.ingestion.state import StateStore
+import pytest
+
+from sidra_ai.ingestion.state import StateStore, StateStoreError
 
 
 REPO_A = "tukemen-rgb/site"
@@ -91,3 +93,32 @@ def test_stale_state_lock_is_recovered_without_losing_state(tmp_path) -> None:
     assert state.get(REPO_A).last_commit_sha == "a" * 40
     assert state.get(REPO_B).last_commit_sha == "b" * 40
     assert not lock_path.exists()
+
+
+def test_corrupt_existing_state_fails_closed_without_overwrite(tmp_path) -> None:
+    """A malformed cursor file must never be replaced by a partial fresh state."""
+
+    path = tmp_path / "state.json"
+    store = StateStore(path)
+    store.mark_ingested(REPO_A, commit_sha="a" * 40, document_count=1)
+
+    corrupt = '{"version": 1, "repositories":'
+    path.write_text(corrupt, encoding="utf-8")
+
+    with pytest.raises(StateStoreError, match="invalid JSON"):
+        store.mark_ingested(REPO_B, commit_sha="b" * 40, document_count=2)
+
+    assert path.read_text(encoding="utf-8") == corrupt
+    assert not path.with_name(path.name + ".lock").exists()
+
+
+def test_invalid_state_shape_fails_closed(tmp_path) -> None:
+    """Existing non-object JSON is not silently treated as a first run."""
+
+    path = tmp_path / "state.json"
+    path.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(StateStoreError, match="top-level shape"):
+        StateStore(path).load()
+
+    assert path.read_text(encoding="utf-8") == "[]"
