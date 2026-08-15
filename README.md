@@ -16,6 +16,30 @@ GAMEYARD / CreatorYard / 全社経営 / marketing を支援し、外部 LLM API 
 - explicit separation of read and write privileges
 - human approval for deploy, external communication, billing, secrets and destructive operations
 
+## Getting started
+
+Python 3.11+. No model weights, no API key, and no network are needed to run
+the tests or start the API.
+
+```bash
+pip install -e ".[dev]"
+pytest                      # 124 tests, all offline
+sidra-evals                 # security regression suite (15 gate cases)
+sidra-api                   # serves http://127.0.0.1:8787 (loopback only)
+```
+
+```bash
+curl http://127.0.0.1:8787/health
+curl -X POST http://127.0.0.1:8787/v1/github/analyze \
+  -H 'content-type: application/json' -d '{"repositories":["tukemen-rgb/site"]}'
+curl -X POST http://127.0.0.1:8787/v1/chat \
+  -H 'content-type: application/json' -d '{"message":"What changed recently?"}'
+```
+
+Configuration is environment-only; copy `.env.example` and fill it in
+locally. See `docs/ARCHITECTURE.md` for the module map and
+`docs/SECURITY.md` for the threat model and known gaps.
+
 ## Collaboration
 
 ChatGPT/Codex and Claude may both contribute through GitHub. Do not assume another AI is connected merely because its name appears in a commit or document. Every contribution must be independently reviewed through Git diff, tests, security checks, and policy consistency before integration.

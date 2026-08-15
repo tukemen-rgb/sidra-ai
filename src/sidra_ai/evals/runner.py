@@ -1,0 +1,105 @@
+"""Run the eval suite.
+
+Usable from pytest and from the command line::
+
+    python -m sidra_ai.evals.runner
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from dataclasses import dataclass, field
+from typing import Sequence
+
+from sidra_ai.evals.cases import GATE_CASES, EvalOutcome, GateCase
+from sidra_ai.security.gate import GatePolicy, SecurityGate
+
+
+@dataclass
+class EvalReport:
+    outcomes: list[EvalOutcome] = field(default_factory=list)
+
+    @property
+    def passed(self) -> int:
+        return sum(1 for o in self.outcomes if o.passed)
+
+    @property
+    def failed(self) -> int:
+        return sum(1 for o in self.outcomes if not o.passed)
+
+    @property
+    def ok(self) -> bool:
+        return self.failed == 0
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "total": len(self.outcomes),
+            "passed": self.passed,
+            "failed": self.failed,
+            "failures": [
+                {"case": o.case_name, "failures": list(o.failures)}
+                for o in self.outcomes
+                if not o.passed
+            ],
+        }
+
+
+def _make_gate() -> SecurityGate:
+    return SecurityGate(
+        GatePolicy(max_input_bytes=512 * 1024),
+        allowed_repositories=(
+            "tukemen-rgb/site",
+            "tukemen-rgb/creater-yard",
+            "tukemen-rgb/Fg",
+            "tukemen-rgb/marketing",
+            "tukemen-rgb/sidra-ai",
+        ),
+    )
+
+
+def run_gate_case(case: GateCase, gate: SecurityGate | None = None) -> EvalOutcome:
+    gate = gate or _make_gate()
+    result = gate.inspect(case.content, source=case.source, repository=case.repository)
+
+    failures: list[str] = []
+    if result.decision is not case.expected_decision:
+        failures.append(
+            f"expected decision {case.expected_decision.value}, "
+            f"got {result.decision.value} ({'; '.join(result.reasons) or 'no reason'})"
+        )
+
+    for category in case.expected_categories:
+        if not result.has(category):
+            failures.append(f"expected a {category.value} finding, none reported")
+
+    for forbidden in case.must_not_appear:
+        if forbidden in result.content:
+            failures.append(
+                f"sensitive value survived into gate output ({len(forbidden)} chars)"
+            )
+
+    return EvalOutcome(
+        case_name=case.name,
+        passed=not failures,
+        detail=result.decision.value,
+        failures=tuple(failures),
+    )
+
+
+def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
+    gate = _make_gate()
+    report = EvalReport()
+    for case in cases:
+        report.outcomes.append(run_gate_case(case, gate))
+    return report
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    report = run_all()
+    print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+    return 0 if report.ok else 1
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())

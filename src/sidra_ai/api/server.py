@@ -1,0 +1,61 @@
+"""Entry point. Refuses to start in an unsafe posture."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+from sidra_ai.api.app import create_app
+from sidra_ai.config.settings import Settings, UnsafeConfigurationError, get_settings
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="sidra-api", description="Run the private SIDRA AI API (localhost by default)"
+    )
+    parser.add_argument("--host", default=None, help="override SIDRA_HOST")
+    parser.add_argument("--port", type=int, default=None, help="override SIDRA_PORT")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    try:
+        settings = get_settings()
+        if args.host or args.port:
+            from dataclasses import replace
+
+            settings = replace(
+                settings,
+                host=args.host or settings.host,
+                port=args.port or settings.port,
+            )
+            settings.validate()
+    except UnsafeConfigurationError as exc:
+        print(f"refusing to start: {exc}", file=sys.stderr)
+        return 2
+
+    _print_banner(settings)
+
+    try:
+        import uvicorn
+    except ImportError:
+        print("uvicorn is required to serve the API: pip install uvicorn", file=sys.stderr)
+        return 2
+
+    uvicorn.run(create_app(settings=settings), host=settings.host, port=settings.port)
+    return 0
+
+
+def _print_banner(settings: Settings) -> None:
+    scope = "loopback only" if settings.is_localhost_only else "EXPOSED BEYOND LOOPBACK"
+    print(f"SIDRA AI  http://{settings.host}:{settings.port}  ({scope})")
+    print(f"  model backend : {settings.model_backend} ({settings.model_name})")
+    print(f"  repositories  : {len(settings.allowed_repositories)} allowlisted")
+    print("  github access : read-only")
+    print(f"  auth token    : {'configured' if settings.api_token else 'not set'}")
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

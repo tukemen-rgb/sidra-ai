@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sidra-ai"
+version = "0.1.0"
+description = "Self-hosted, local-first AI platform for SIDRA STUDIO"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+
+# Deliberately minimal. No LLM SDK is a dependency: v0.1 must run with zero
+# external API spend, and the default model backend needs nothing at all.
+dependencies = [
+    "fastapi>=0.110",
+    "pydantic>=2.6",
+    "httpx>=0.27",
+    "uvicorn>=0.29",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+# Local inference stacks are opt-in; none is required to run or test.
+transformers = ["transformers>=4.40", "torch>=2.2"]
+
+[project.scripts]
+sidra-api = "sidra_ai.api.server:main"
+sidra-evals = "sidra_ai.evals.runner:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
