@@ -31,6 +31,10 @@ ALLOWED_HTTP_METHODS = frozenset({"GET"})
 #: an incomplete fetch, never as a complete source snapshot.
 MAX_PAGINATION_PAGES = 50
 
+#: Bound process-local conditional representations so a long-running poller
+#: cannot accumulate one cached body for every historical ref/compare URL.
+MAX_ETAG_CACHE_ENTRIES = 256
+
 
 class WriteOperationForbiddenError(RuntimeError):
     """Raised when anything attempts a non-GET GitHub request."""
@@ -155,6 +159,36 @@ class GitHubReadOnlyClient:
                 url = f"{url}?{urlencode(filtered)}"
         return url
 
+    @staticmethod
+    def _header(headers: Mapping[str, str], name: str) -> str:
+        """Return a response header case-insensitively."""
+
+        target = name.lower()
+        for key, value in headers.items():
+            if str(key).lower() == target:
+                return str(value)
+        return ""
+
+    def _remember_representation(self, url: str, response: Response) -> None:
+        """Keep one bounded process-local ETag representation for ``url``."""
+
+        etag = self._header(response.headers, "etag")
+        if not etag:
+            self._etag_cache.pop(url, None)
+            return
+
+        # Refresh insertion order for an existing URL so frequently-polled
+        # metadata survives ahead of one-off historical ref/compare entries.
+        self._etag_cache.pop(url, None)
+        self._etag_cache[url] = _CachedRepresentation(
+            etag=etag,
+            headers=dict(response.headers),
+            body=response.body,
+        )
+        while len(self._etag_cache) > MAX_ETAG_CACHE_ENTRIES:
+            oldest_url = next(iter(self._etag_cache))
+            self._etag_cache.pop(oldest_url, None)
+
     def _request(
         self,
         path: str,
@@ -189,17 +223,7 @@ class GitHubReadOnlyClient:
                 raise
 
             if response.status == 200:
-                etag = self._header(response.headers, "etag")
-                if etag:
-                    self._etag_cache[url] = _CachedRepresentation(
-                        etag=etag,
-                        headers=dict(response.headers),
-                        body=response.body,
-                    )
-                else:
-                    # Do not keep an old validator if the latest successful
-                    # representation no longer supplied one.
-                    self._etag_cache.pop(url, None)
+                self._remember_representation(url, response)
                 return response
             if response.status == 304:
                 cached = self._etag_cache.get(url)
@@ -210,8 +234,23 @@ class GitHubReadOnlyClient:
                     )
                 merged_headers = dict(cached.headers)
                 merged_headers.update(response.headers)
-                return Response(status=200, headers=merged_headers, body=cached.body)
+                cached_response = Response(
+                    status=200,
+                    headers=merged_headers,
+                    body=cached.body,
+                )
+                etag = self._header(merged_headers, "etag") or cached.etag
+                self._remember_representation(
+                    url,
+                    Response(
+                        status=200,
+                        headers={**merged_headers, "ETag": etag},
+                        body=cached.body,
+                    ),
+                )
+                return cached_response
             if response.status == 404:
+                self._etag_cache.pop(url, None)
                 raise GitHubAPIError(f"not found: {path}", status=404)
             if response.status in (403, 429):
                 # Secondary rate limit. Back off rather than hammering.
@@ -229,16 +268,6 @@ class GitHubReadOnlyClient:
 
     def _get_json(self, path: str, params: Mapping[str, Any] | None = None) -> Any:
         return self._request(path, params).body
-
-    @staticmethod
-    def _header(headers: Mapping[str, str], name: str) -> str:
-        """Return a response header case-insensitively."""
-
-        target = name.lower()
-        for key, value in headers.items():
-            if str(key).lower() == target:
-                return str(value)
-        return ""
 
     @classmethod
     def _next_link(cls, headers: Mapping[str, str]) -> str | None:
@@ -298,7 +327,7 @@ class GitHubReadOnlyClient:
         return self._get_json(f"repos/{repository}")
 
     def get_license(self, repository: str) -> str:
-        """Return an SPDX id, ``\"proprietary\"``, or ``\"unknown\"``.
+        """Return an SPDX id, ``"proprietary"``, or ``"unknown"``.
 
         Never raises: a missing license must not stop ingestion, it must be
         recorded honestly in provenance.
