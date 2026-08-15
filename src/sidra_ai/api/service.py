@@ -24,6 +24,7 @@ from sidra_ai.retrieval.store import DocumentStore
 from sidra_ai.security.data_envelope import build_data_context
 from sidra_ai.security.decisions import Decision, GateResult
 from sidra_ai.security.gate import QuarantineStore, SecurityGate
+from sidra_ai.security.output_guard import OutputGuard
 
 SYSTEM_PROMPT = """You are SIDRA AI, the self-hosted assistant for SIDRA STUDIO.
 
@@ -49,6 +50,7 @@ class SidraService:
         model: LocalModelAdapter | None = None,
         store: DocumentStore | None = None,
         gate: SecurityGate | None = None,
+        output_guard: OutputGuard | None = None,
         client: GitHubReadOnlyClient | None = None,
         state_store: StateStore | None = None,
     ) -> None:
@@ -58,6 +60,7 @@ class SidraService:
         self.gate = gate or SecurityGate(
             quarantine_store=QuarantineStore(data_dir / "quarantine.jsonl")
         )
+        self.output_guard = output_guard or OutputGuard()
         self.store = store or DocumentStore(self.gate)
         self.retriever = BM25Retriever(self.store)
         self.model = model or adapter_from_settings(self.settings)
@@ -82,21 +85,69 @@ class SidraService:
 
     # ------------------------------------------------------------------
     def health(self) -> dict[str, Any]:
+        """Return only minimal liveness/readiness data safe for an open probe.
+
+        ``/health`` is intentionally unauthenticated so local supervisors can
+        probe it. It therefore must not disclose repository names, model names,
+        endpoints, token-presence flags, index contents/counts, or exception
+        details that reveal runtime topology.
+        """
+
         try:
             model_health = self.model.health()
-        except Exception as exc:  # noqa: BLE001 - health must never raise
-            model_health = {
-                "backend": self.settings.model_backend,
-                "available": False,
-                "error": str(exc)[:200],
-            }
+            model_available = bool(model_health.get("available", False))
+        except Exception:  # noqa: BLE001 - health must never raise or expose details
+            model_available = False
         return {
-            "status": "ok",
+            "status": "ok" if model_available else "degraded",
             "version": _version(),
-            "model": model_health,
-            "index": self.store.stats(),
-            "config": self.settings.redacted_dict(),
+            "model_available": model_available,
             "github_write_enabled": False,
+        }
+
+    # ------------------------------------------------------------------
+    def retrieve(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        repositories: Sequence[str] | None = None,
+    ) -> dict[str, Any]:
+        """Return citation metadata without invoking any language model.
+
+        The operator query passes through the same security gate as chat. Only
+        ``ALLOW`` input may proceed: ``QUARANTINE`` is intentionally treated
+        as a refusal rather than as sanitized-but-usable input. The response
+        omits retrieved chunk content: callers receive provenance and ranking
+        only, keeping this endpoint useful for source discovery without
+        creating another content-export surface.
+        """
+
+        gate_result = self.gate.inspect(query, source="operator", repository="")
+        if gate_result.decision is not Decision.ALLOW:
+            return {
+                "refused": True,
+                "reason": "; ".join(gate_result.reasons) or "blocked by security gate",
+                "results": [],
+                "security": gate_result.to_dict(),
+                "model_invoked": False,
+                "external_api_cost_usd": 0.0,
+            }
+
+        results: list[SearchResult] = self.retriever.search(
+            gate_result.content, top_k=top_k, repositories=repositories
+        )
+        _, citations = build_data_context([result.chunk for result in results])
+        return {
+            "refused": False,
+            "reason": "" if results else "no indexed evidence matched the query",
+            "results": [
+                {"score": round(result.score, 4), "citation": citation}
+                for result, citation in zip(results, citations, strict=True)
+            ],
+            "security": gate_result.to_dict(),
+            "model_invoked": False,
+            "external_api_cost_usd": 0.0,
         }
 
     # ------------------------------------------------------------------
@@ -111,10 +162,23 @@ class SidraService:
 
         The operator's own message is screened too: an operator can paste a
         secret by accident, and it should not reach the model or the logs.
+        Only an ``ALLOW`` decision may proceed; ``QUARANTINE`` remains held
+        for review and is never converted into model input.
+
+        Raw retrieved chunk content is intentionally not returned. The HTTP
+        chat schema already exposes only citations, and keeping the service
+        result equally narrow prevents callers such as ``analyze_github``
+        from accidentally turning retrieval DATA into a content-export path.
+
+        Model output crosses a second trust boundary. It is therefore scanned
+        immediately after generation and before any caller can receive it. A
+        secret/PII finding (or a detector failure) withholds the entire model
+        answer with a constant safe message; the original model output is not
+        copied into the response, reason, or audit metadata.
         """
 
         gate_result = self.gate.inspect(message, source="operator", repository="")
-        if gate_result.decision is Decision.BLOCK:
+        if gate_result.decision is not Decision.ALLOW:
             return {
                 "answer": "",
                 "refused": True,
@@ -147,20 +211,31 @@ class SidraService:
                 "citations": citations,
             }
 
+        model_metadata = {
+            "backend": generation.backend,
+            "name": generation.model,
+            "input_tokens_estimate": generation.input_tokens_estimate,
+            "output_tokens_estimate": generation.output_tokens_estimate,
+            "external_api_cost_usd": 0.0,
+        }
+        guarded_output = self.output_guard.scan(generation.text)
+        if guarded_output.blocked:
+            return {
+                "answer": guarded_output.content,
+                "refused": True,
+                "reason": guarded_output.reason or "model output withheld by security guard",
+                "citations": citations,
+                "security": gate_result.to_dict(),
+                "model": model_metadata,
+            }
+
         return {
-            "answer": generation.text,
+            "answer": guarded_output.content,
             "refused": False,
             "reason": "",
             "citations": citations,
-            "retrieved": [r.to_dict() for r in results],
             "security": gate_result.to_dict(),
-            "model": {
-                "backend": generation.backend,
-                "name": generation.model,
-                "input_tokens_estimate": generation.input_tokens_estimate,
-                "output_tokens_estimate": generation.output_tokens_estimate,
-                "external_api_cost_usd": 0.0,
-            },
+            "model": model_metadata,
         }
 
     # ------------------------------------------------------------------
@@ -174,7 +249,9 @@ class SidraService:
         """Ingest changes and, only if something changed, summarize them.
 
         The ``requires_inference`` check is the cost control: an unchanged
-        repository never reaches the model.
+        repository never reaches the model. When inference does run, the
+        nested analysis delegates through :meth:`chat`, so the same output
+        security guard is applied before model text enters this response.
         """
 
         report: IngestionReport = self._pipeline().ingest_all(repositories, force=force)
