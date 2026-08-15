@@ -15,7 +15,10 @@ Order of operations, and why:
    be silently missed.
 4. Screen every document through the security gate.
 5. Index only ``ALLOW`` documents; quarantine the rest with reasons.
-6. Advance the persisted SHA only after a **complete** collection and indexing
+6. After a complete collection, retire README/docs paths that GitHub reports
+   removed or renamed-away so an older commit cannot remain retrievable as
+   current knowledge.
+7. Advance the persisted SHA only after a **complete** collection and indexing
    pass. Any source-fetch error preserves the previous cursor so the next run
    retries instead of making a partial RAG snapshot look current.
 """
@@ -26,7 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from sidra_ai.config.settings import Settings, get_settings
-from sidra_ai.documents import Document
+from sidra_ai.documents import Document, SourceType
 from sidra_ai.ingestion import normalize
 from sidra_ai.ingestion.github_client import (
     GitHubAPIError,
@@ -67,6 +70,48 @@ def _comparison_may_be_truncated(comparison: dict[str, Any]) -> bool:
         or len(commits) >= COMPARE_COMMIT_CEILING
         or len(files) >= COMPARE_FILE_CEILING
     )
+
+
+def _documentation_retirements(
+    comparison: dict[str, Any],
+) -> list[tuple[str, SourceType]]:
+    """Return exact README/docs logical sources removed by a GitHub diff.
+
+    Only exact paths are returned.  ``renamed`` retires the previous filename;
+    the new path is collected normally and becomes a distinct current source.
+    Other repository files are intentionally ignored because L1's retirement
+    contract is being consumed here only for RAG documentation sources.
+    """
+
+    retirements: list[tuple[str, SourceType]] = []
+    seen: set[tuple[str, SourceType]] = set()
+
+    for file_info in comparison.get("files") or []:
+        status = str(file_info.get("status") or "").strip().lower()
+        candidates: list[str] = []
+        if status == "removed":
+            candidates.append(str(file_info.get("filename") or ""))
+        elif status == "renamed":
+            candidates.append(str(file_info.get("previous_filename") or ""))
+
+        for path in candidates:
+            path = path.strip()
+            if not path:
+                continue
+            lowered = path.lower()
+            if lowered.startswith("readme"):
+                source_type = SourceType.README
+            elif lowered == "docs" or lowered.startswith("docs/"):
+                source_type = SourceType.DOCS
+            else:
+                continue
+
+            key = (path, source_type)
+            if key not in seen:
+                seen.add(key)
+                retirements.append(key)
+
+    return retirements
 
 
 @dataclass
@@ -222,7 +267,7 @@ class GitHubIngestionPipeline:
             )
 
         license_id = self._license_for(repo_meta)
-        documents, error = self._collect(
+        documents, error, retirements = self._collect(
             repository,
             head_sha=head_sha,
             previous_sha=previous_sha,
@@ -262,11 +307,20 @@ class GitHubIngestionPipeline:
         # Never advance the differential cursor after a partial collection.
         # Some safe documents may already have been re-indexed, but keeping the
         # old SHA and last_ingested_at makes the next run repeat the collection
-        # idempotently instead of skipping missing knowledge forever.
+        # idempotently instead of skipping missing knowledge forever. Deleted
+        # source retirement is also withheld until collection is complete so a
+        # transient fetch failure cannot make the local view more incomplete.
         if error:
             self.state_store.mark_error(repository, error)
             report.skipped_reason = "partial_fetch"
             return report
+
+        for path, source_type in retirements:
+            self.store.retire_source(
+                repository=repository,
+                path=path,
+                source_type=source_type,
+            )
 
         self.state_store.mark_ingested(
             repository,
@@ -296,11 +350,12 @@ class GitHubIngestionPipeline:
         license_id: str,
         first_run: bool,
         since: str | None,
-    ) -> tuple[list[Document], str]:
+    ) -> tuple[list[Document], str, list[tuple[str, SourceType]]]:
         """Gather documents for this run. Errors degrade, never abort."""
 
         documents: list[Document] = []
         errors: list[str] = []
+        retirements: list[tuple[str, SourceType]] = []
 
         changed_paths: set[str] = set()
         commits: list[dict[str, Any]] = []
@@ -313,6 +368,7 @@ class GitHubIngestionPipeline:
                 changed_paths = {
                     str(f.get("filename", "")) for f in comparison.get("files", [])
                 }
+                retirements = _documentation_retirements(comparison)
                 if _comparison_may_be_truncated(comparison):
                     # A capped file list cannot prove README/docs were
                     # untouched, so refresh both roots at HEAD instead of
@@ -399,7 +455,7 @@ class GitHubIngestionPipeline:
         except GitHubAPIError as exc:
             errors.append(f"issues: {exc}")
 
-        return documents, "; ".join(errors)
+        return documents, "; ".join(errors), retirements
 
     # ------------------------------------------------------------------
     def _screen_and_index(
