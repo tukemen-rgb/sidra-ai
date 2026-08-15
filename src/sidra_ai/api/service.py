@@ -82,20 +82,23 @@ class SidraService:
 
     # ------------------------------------------------------------------
     def health(self) -> dict[str, Any]:
+        """Return only minimal liveness/readiness data safe for an open probe.
+
+        ``/health`` is intentionally unauthenticated so local supervisors can
+        probe it. It therefore must not disclose repository names, model names,
+        endpoints, token-presence flags, index contents/counts, or exception
+        details that reveal runtime topology.
+        """
+
         try:
             model_health = self.model.health()
-        except Exception as exc:  # noqa: BLE001 - health must never raise
-            model_health = {
-                "backend": self.settings.model_backend,
-                "available": False,
-                "error": str(exc)[:200],
-            }
+            model_available = bool(model_health.get("available", False))
+        except Exception:  # noqa: BLE001 - health must never raise or expose details
+            model_available = False
         return {
-            "status": "ok",
+            "status": "ok" if model_available else "degraded",
             "version": _version(),
-            "model": model_health,
-            "index": self.store.stats(),
-            "config": self.settings.redacted_dict(),
+            "model_available": model_available,
             "github_write_enabled": False,
         }
 
