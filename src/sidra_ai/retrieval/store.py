@@ -10,6 +10,13 @@ The store is the last line of defense before content becomes retrievable.
 The third check is deliberate duplication. The gate already redacts; the
 store re-checks because "a secret reached the index" is the failure mode
 worth paying twice to prevent.
+
+For repository-backed knowledge, the store also enforces a *current-source*
+view.  A new revision of the same logical source (origin + repository + source
+type + path) retires older revisions before the new chunks become retrievable.
+Deletion/quarantine paths can call :meth:`DocumentStore.retire_source`
+explicitly.  This prevents an old, correctly cited document from continuing
+to masquerade as current knowledge merely because its commit SHA differs.
 """
 
 from __future__ import annotations
@@ -20,7 +27,7 @@ import threading
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
-from sidra_ai.documents import Chunk, Document, is_instruction_authority
+from sidra_ai.documents import Chunk, Document, SourceType, is_instruction_authority
 from sidra_ai.retrieval.chunker import chunk_document
 from sidra_ai.security.decisions import Decision, GateResult
 from sidra_ai.security.gate import SecurityGate
@@ -57,8 +64,51 @@ class DocumentStore:
         self._chunks_by_document: dict[str, list[str]] = {}
 
     # ------------------------------------------------------------------
+    @staticmethod
+    def _logical_source_key(document: Document) -> tuple[str, str, SourceType, str]:
+        provenance = document.provenance
+        return (
+            provenance.source,
+            provenance.repository.lower(),
+            provenance.source_type,
+            provenance.path,
+        )
+
+    def _remove_document_locked(self, doc_id: str) -> bool:
+        """Remove one document and all of its chunks while ``_lock`` is held."""
+
+        document = self._documents.pop(doc_id, None)
+        if document is None:
+            return False
+        for chunk_id in self._chunks_by_document.pop(doc_id, []):
+            self._chunks.pop(chunk_id, None)
+        return True
+
+    def _retire_logical_source_locked(
+        self,
+        logical_key: tuple[str, str, SourceType, str],
+        *,
+        keep_doc_id: str | None = None,
+    ) -> int:
+        retired = 0
+        for doc_id, existing in tuple(self._documents.items()):
+            if doc_id == keep_doc_id:
+                continue
+            if self._logical_source_key(existing) != logical_key:
+                continue
+            retired += 1 if self._remove_document_locked(doc_id) else 0
+        return retired
+
     def add(self, document: Document, *, gate_result: GateResult | None = None) -> str:
-        """Index ``document``. Raises rather than indexing anything unsafe."""
+        """Index ``document``. Raises rather than indexing anything unsafe.
+
+        Once the candidate has passed every safety check, older revisions of
+        the same logical source are retired under the same store lock before
+        the new chunks are installed.  Safety failures therefore never delete
+        the previously indexed revision implicitly; ingestion must call
+        :meth:`retire_source` explicitly when the upstream source was deleted
+        or its newest revision is intentionally not retrievable.
+        """
 
         document.provenance.validate()
 
@@ -98,6 +148,9 @@ class DocumentStore:
 
         with self._lock:
             doc_id = document.doc_id
+            logical_key = self._logical_source_key(document)
+            self._retire_logical_source_locked(logical_key, keep_doc_id=doc_id)
+
             self._documents[doc_id] = document
             for chunk_id in self._chunks_by_document.pop(doc_id, []):
                 self._chunks.pop(chunk_id, None)
@@ -116,6 +169,52 @@ class DocumentStore:
         self, documents: Iterable[Document], *, gate_result: GateResult | None = None
     ) -> list[str]:
         return [self.add(d, gate_result=gate_result) for d in documents]
+
+    def retire_source(
+        self,
+        *,
+        repository: str,
+        path: str,
+        source: str = "github",
+        source_type: SourceType | None = None,
+    ) -> int:
+        """Remove retrievable revisions for one exact logical source.
+
+        This is intentionally exact-match only: no glob, prefix, or repository-
+        wide deletion is accepted.  L3 ingestion can use it when GitHub reports
+        a path deleted, or when the newest revision is BLOCK/QUARANTINE and an
+        older revision must not remain retrievable as if it were current.
+
+        Returns the number of retired document revisions.
+        """
+
+        repository = repository.strip()
+        path = path.strip()
+        source = source.strip()
+        if not repository or "/" not in repository:
+            raise ValueError("repository must be in 'owner/name' form")
+        if not path:
+            raise ValueError("path must not be empty")
+        if not source:
+            raise ValueError("source must not be empty")
+        if source_type is not None and not isinstance(source_type, SourceType):
+            raise TypeError("source_type must be a SourceType or None")
+
+        key_repository = repository.lower()
+        with self._lock:
+            retired = 0
+            for doc_id, document in tuple(self._documents.items()):
+                provenance = document.provenance
+                if provenance.source != source:
+                    continue
+                if provenance.repository.lower() != key_repository:
+                    continue
+                if provenance.path != path:
+                    continue
+                if source_type is not None and provenance.source_type is not source_type:
+                    continue
+                retired += 1 if self._remove_document_locked(doc_id) else 0
+            return retired
 
     # ------------------------------------------------------------------
     def _append(self, document: Document) -> None:
