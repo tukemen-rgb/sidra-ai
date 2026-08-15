@@ -14,6 +14,8 @@ redacting and accidentally leaking surrounding sensitive context.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -39,6 +41,14 @@ _SAFE_BLOCK_MESSAGE = (
 # Strip them only in the detector copy; never mutate text that is returned when
 # the output is safe.
 _INVISIBLE_OR_BIDI = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]")
+
+# A model can exfiltrate a credential without printing its literal shape by
+# returning a reversible base64/base64url representation. Only bounded,
+# token-like candidates are decoded, and decoded content is never retained.
+_BASE64_CANDIDATE = re.compile(
+    r"(?<![A-Za-z0-9+/_\-=])[A-Za-z0-9+/_\-]{16,8192}={0,2}(?![A-Za-z0-9+/_\-=])"
+)
+_MAX_DECODED_BYTES = 4096
 
 
 @dataclass(frozen=True)
@@ -68,6 +78,12 @@ class OutputGuard:
     character obfuscation from bypassing provider-token and PII patterns while
     preserving the original safe output byte-for-byte when no finding exists.
 
+    The guard also performs one bounded decode pass over base64/base64url-like
+    output tokens. This catches reversible exfiltration such as a credential or
+    personal email wrapped in base64 without turning arbitrary model output
+    into an unbounded decoding workload. Decoded values are inspected in
+    memory only and are never included in the result, logs, or exceptions.
+
     Detector failures fail closed: returning an unchecked answer is less safe
     than returning a constant withholding message.
     """
@@ -89,13 +105,42 @@ class OutputGuard:
         normalized = unicodedata.normalize("NFKC", content)
         return _INVISIBLE_OR_BIDI.sub("", normalized)
 
+    @staticmethod
+    def _decoded_detection_variants(content: str) -> tuple[str, ...]:
+        """Return bounded textual base64/base64url decodes for detector use.
+
+        Invalid, binary, oversized, or empty candidates are ignored. The
+        decoded strings are intentionally ephemeral and never leave ``scan``.
+        """
+
+        decoded: list[str] = []
+        for match in _BASE64_CANDIDATE.finditer(content):
+            candidate = match.group()
+            padded = candidate + "=" * (-len(candidate) % 4)
+            try:
+                raw = base64.b64decode(padded, altchars=b"-_", validate=True)
+            except (binascii.Error, ValueError):
+                continue
+            if not raw or len(raw) > _MAX_DECODED_BYTES:
+                continue
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            decoded.append(OutputGuard._normalize_for_detection(text))
+        return tuple(decoded)
+
+    def _scan_text(self, content: str) -> tuple[Finding, ...]:
+        secret_findings = self._blocking(self._secret.detect(content).findings)
+        pii_findings = self._blocking(self._pii.detect(content).findings)
+        return secret_findings + pii_findings
+
     def scan(self, content: str) -> OutputGuardResult:
         try:
             detector_content = self._normalize_for_detection(content)
-            secret_findings = self._blocking(
-                self._secret.detect(detector_content).findings
-            )
-            pii_findings = self._blocking(self._pii.detect(detector_content).findings)
+            findings = list(self._scan_text(detector_content))
+            for decoded_content in self._decoded_detection_variants(detector_content):
+                findings.extend(self._scan_text(decoded_content))
         except Exception:
             return OutputGuardResult(
                 blocked=True,
@@ -103,7 +148,6 @@ class OutputGuard:
                 reason="output security detector failed closed",
             )
 
-        findings = secret_findings + pii_findings
         if not findings:
             return OutputGuardResult(blocked=False, content=content)
 
