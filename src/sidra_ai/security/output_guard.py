@@ -19,6 +19,7 @@ import binascii
 import re
 import unicodedata
 from dataclasses import dataclass
+from urllib.parse import unquote_to_bytes
 
 from sidra_ai.security.decisions import Finding, Severity
 from sidra_ai.security.detectors import PIIDetector, SecretDetector
@@ -51,6 +52,16 @@ _BASE64_CANDIDATE = re.compile(
 _MAX_DECODED_BYTES = 4096
 _MAX_DECODE_CANDIDATES = 32
 
+# Percent-encoding is another reversible text-only exfiltration path that can
+# hide a provider token or a single critical PII delimiter such as the '@' in
+# an email address. Keep matching bounded and detector-only; do not rewrite
+# safe output. A single valid %HH escape is enough to merit one decode pass.
+_PERCENT_CANDIDATE = re.compile(
+    r"(?<![A-Za-z0-9%._~\-])[A-Za-z0-9%._~\-]{4,8192}(?![A-Za-z0-9%._~\-])"
+)
+_PERCENT_ESCAPE = re.compile(r"%[0-9A-Fa-f]{2}")
+_MAX_PERCENT_CANDIDATES = 32
+
 
 @dataclass(frozen=True)
 class OutputGuardResult:
@@ -80,10 +91,10 @@ class OutputGuard:
     preserving the original safe output byte-for-byte when no finding exists.
 
     The guard also performs one bounded decode pass over base64/base64url-like
-    output tokens. This catches reversible exfiltration such as a credential or
-    personal email wrapped in base64 without turning arbitrary model output
-    into an unbounded decoding workload. Decoded values are inspected in
-    memory only and are never included in the result, logs, or exceptions.
+    and percent-encoded output tokens. This catches reversible exfiltration
+    without turning arbitrary model output into an unbounded decoding workload.
+    Decoded values are inspected in memory only and are never included in the
+    result, logs, or exceptions.
 
     Detector failures fail closed: returning an unchecked answer is less safe
     than returning a constant withholding message.
@@ -135,6 +146,38 @@ class OutputGuard:
             decoded.append(OutputGuard._normalize_for_detection(text))
         return tuple(decoded)
 
+    @staticmethod
+    def _percent_decoded_detection_variants(content: str) -> tuple[str, ...]:
+        """Return bounded percent-decoded textual variants for detector use.
+
+        A single encoded delimiter can hide personal information, for example
+        ``person%40example.invalid``. Decode only compact token-like candidates,
+        inspect at most a fixed number, and never retain decoded values.
+        """
+
+        decoded: list[str] = []
+        for match in _PERCENT_CANDIDATE.finditer(content):
+            if len(decoded) >= _MAX_PERCENT_CANDIDATES:
+                break
+            candidate = match.group()
+            if _PERCENT_ESCAPE.search(candidate) is None:
+                continue
+            try:
+                raw = unquote_to_bytes(candidate)
+            except (TypeError, ValueError):
+                continue
+            if not raw or len(raw) > _MAX_DECODED_BYTES:
+                continue
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            normalized = OutputGuard._normalize_for_detection(text)
+            if normalized == candidate:
+                continue
+            decoded.append(normalized)
+        return tuple(decoded)
+
     def _scan_text(self, content: str) -> tuple[Finding, ...]:
         secret_findings = self._blocking(self._secret.detect(content).findings)
         pii_findings = self._blocking(self._pii.detect(content).findings)
@@ -145,6 +188,10 @@ class OutputGuard:
             detector_content = self._normalize_for_detection(content)
             findings = list(self._scan_text(detector_content))
             for decoded_content in self._decoded_detection_variants(detector_content):
+                findings.extend(self._scan_text(decoded_content))
+            for decoded_content in self._percent_decoded_detection_variants(
+                detector_content
+            ):
                 findings.extend(self._scan_text(decoded_content))
         except Exception:
             return OutputGuardResult(
