@@ -50,9 +50,9 @@ Capability-level, not prompt-level:
 Prompt-level defenses are treated as advisory. The guarantee is the absent
 capability.
 
-### 3. Secrets and PII never reach the index
+### 3. Secrets and PII never reach the index or become a quarantine secret store
 
-The gate runs three detector families over every input:
+The gate runs three detector families over every permitted, size-bounded input:
 
 - **Secrets** — provider prefixes (GitHub, AWS, Anthropic, OpenAI-shaped,
   Slack, Google), PEM private-key blocks, JWTs, credentials in URLs,
@@ -70,8 +70,15 @@ delete:
 | Decision | Meaning |
 | --- | --- |
 | `ALLOW` | indexable; secret/PII spans already replaced with `[REDACTED:label:fingerprint]` |
-| `QUARANTINE` | kept in full in `.sidra/quarantine.jsonl` (mode 0600) with findings, out of the index until a human releases it |
-| `BLOCK` | not indexed and not passed to the model at all |
+| `QUARANTINE` | kept out of the index; only the sanitized review copy plus findings/provenance/hash is persisted |
+| `BLOCK` | not indexed or passed to the model; quarantine audit retains metadata/hash only, not content |
+
+The quarantine file remains mode 0600, but file permissions are defense in
+depth rather than permission to create a second plaintext credential store.
+A SHA-256 digest and original length let operators correlate repeated blocked
+inputs without retaining their source text. Prompt-injection-only quarantine
+can retain its text because it contains no detected secret/PII; if secret/PII
+is also present, the persisted copy is redacted first.
 
 `DocumentStore.add` re-runs the secret check as defense in depth: even a
 hand-forged `ALLOW` verdict cannot smuggle a credential into the index
@@ -105,9 +112,12 @@ properties read from the environment on access, so they cannot appear in a
   repository is synthetic and built by repetition
   (`"ghp_" + "0" * 36`), never pasted whole — asserted by
   `test_eval_cases_contain_no_real_credentials`.
-- `.sidra/` is gitignored: it holds quarantined content and indexed text.
+- `.sidra/` is gitignored: it holds quarantine audit data and indexed text.
 - Files that may hold sensitive material (`quarantine.jsonl`, a persisted
   index) are created mode 0600.
+- Quarantine records must not persist raw credentials or high-severity PII.
+  BLOCK records are metadata-only because source/size rejection happens before
+  the content detectors are intentionally allowed to process the payload.
 
 ## Known gaps in v0.1
 
@@ -123,8 +133,9 @@ These are real and should be closed before the API leaves loopback:
    Reported at medium severity and does not quarantine on its own.
 5. **No secret scanning of the model's output.** The system prompt forbids
    emitting credentials; nothing enforces it yet.
-6. **Quarantine has no release workflow.** Content accumulates; a human must
-   read the JSONL directly.
+6. **Quarantine has no release workflow.** Sanitized content accumulates; a
+   human must read the JSONL directly. Raw blocked content is intentionally not
+   recoverable from quarantine.
 7. **No signature verification of GitHub responses** beyond TLS.
 8. **Chunk-level trust is inherited from the document**, so a doc that quotes
    a hostile issue is trusted at document level.
