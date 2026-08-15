@@ -70,15 +70,18 @@ delete:
 | Decision | Meaning |
 | --- | --- |
 | `ALLOW` | indexable; secret/PII spans already replaced with `[REDACTED:label:fingerprint]` |
-| `QUARANTINE` | kept out of the index; only the sanitized review copy plus findings/provenance/hash is persisted |
-| `BLOCK` | not indexed or passed to the model; quarantine audit retains metadata/hash only, not content |
+| `QUARANTINE` | kept out of the index; only the sanitized review copy plus findings/provenance is persisted |
+| `BLOCK` | not indexed or passed to the model; quarantine audit retains metadata only, not content |
 
 The quarantine file remains mode 0600, but file permissions are defense in
 depth rather than permission to create a second plaintext credential store.
-A SHA-256 digest and original length let operators correlate repeated blocked
-inputs without retaining their source text. Prompt-injection-only quarantine
-can retain its text because it contains no detected secret/PII; if secret/PII
-is also present, the persisted copy is redacted first.
+No raw-content digest is stored either: an unkeyed hash can still disclose
+low-entropy PII through offline guessing. The audit retains original length,
+decision, reasons, findings and provenance where available.
+
+Prompt-injection-only quarantine can retain its text because it contains no
+detected secret/PII; if secret/PII is also present, the persisted copy is
+redacted first.
 
 `DocumentStore.add` re-runs the secret check as defense in depth: even a
 hand-forged `ALLOW` verdict cannot smuggle a credential into the index
@@ -115,9 +118,10 @@ properties read from the environment on access, so they cannot appear in a
 - `.sidra/` is gitignored: it holds quarantine audit data and indexed text.
 - Files that may hold sensitive material (`quarantine.jsonl`, a persisted
   index) are created mode 0600.
-- Quarantine records must not persist raw credentials or high-severity PII.
-  BLOCK records are metadata-only because source/size rejection happens before
-  the content detectors are intentionally allowed to process the payload.
+- Quarantine records must not persist raw credentials, high-severity PII, or
+  reversible/guessable derivatives of the rejected source content. BLOCK
+  records are metadata-only because source/size rejection happens before the
+  content detectors are intentionally allowed to process the payload.
 
 ## Known gaps in v0.1
 
