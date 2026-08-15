@@ -68,6 +68,10 @@ def test_eval_sources_contain_no_literal_provider_credentials() -> None:
 def test_output_security_regression_passes_offline() -> None:
     outcomes = run_output_security_suite()
     assert outcomes
+    assert {outcome.case_name for outcome in outcomes} >= {
+        "output_guard_reversible_exfiltration",
+        "output_guard_service_boundary",
+    }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
     ]
