@@ -85,7 +85,7 @@ _RULES = (
     _PolicyRule(
         name="verification_status",
         negative=_patterns(
-            r"(?:pytest|tests?|test suite|ci|checks?).{0,40}(?:not (?:run|executed|verified|green|passed)|not claimed green|unverified|pending|failed|failing|has not run|have not run)",
+            r"(?:pytest|tests?|test suite|ci|checks?).{0,40}(?:(?:has|have|is|are|was|were)?\s*not\s+(?:yet\s+)?(?:been\s+)?(?:run|executed|verified|green|passed)|not claimed green|unverified|pending|failed|failing)",
             r"(?:pytest|テスト|ci|チェック).{0,40}(?:未実行|未確認|未検証|未通過|未完了|失敗|通っていない|greenではない|グリーンではない|成功扱いではない)",
         ),
         positive=_patterns(
