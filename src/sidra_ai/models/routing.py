@@ -182,10 +182,18 @@ def route_and_create_adapter(
 ) -> RoutedAdapter:
     """Route first, then construct one budget-enforced local adapter.
 
-    The selected candidate's declared ``max_context_tokens`` is always passed
-    into ``create_adapter``. Callers cannot override it through adapter options;
-    the manifest/measurement used for routing remains the source of truth.
+    ``planned_context_tokens`` is not only an admission hint. It is the maximum
+    runtime context allowed for this routed adapter, because the VRAM decision
+    was calculated from that KV-cache budget. A caller that needs a larger
+    context must route again with the larger plan instead of silently using the
+    candidate's wider architectural context window.
+
+    Callers cannot override ``max_context_tokens`` through adapter options; the
+    route decision remains the source of truth.
     """
+
+    if planned_context_tokens <= 0:
+        raise ValueError("planned_context_tokens must be positive when creating an adapter")
 
     decision = select_local_model(
         candidates,
@@ -194,12 +202,12 @@ def route_and_create_adapter(
     )
     options = dict(adapter_options or {})
     if "max_context_tokens" in options:
-        raise ValueError("max_context_tokens comes from the selected model candidate")
+        raise ValueError("max_context_tokens comes from the route decision")
 
     adapter = create_adapter(
         decision.candidate.backend,
         decision.candidate.model,
-        max_context_tokens=decision.candidate.max_context_tokens,
+        max_context_tokens=planned_context_tokens,
         **options,
     )
     if adapter.requires_paid_api:
