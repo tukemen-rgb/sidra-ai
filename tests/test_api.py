@@ -204,7 +204,12 @@ def test_analyze_ingests_then_skips_when_unchanged(
 ) -> None:
     first = api.post("/v1/github/analyze", json={"repositories": ["tukemen-rgb/site"]})
     assert first.status_code == 200
-    assert first.json()["ingestion"]["changed"] is True
+    first_body = first.json()
+    assert first_body["ingestion"]["changed"] is True
+    assert first_body["analysis"] is not None
+    assert "retrieved" not in first_body["analysis"], (
+        "analyze must not export raw retrieved chunks through its nested response"
+    )
     calls = model.calls
 
     second = api.post("/v1/github/analyze", json={"repositories": ["tukemen-rgb/site"]})
