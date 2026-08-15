@@ -157,6 +157,11 @@ class SidraService:
 
         The operator's own message is screened too: an operator can paste a
         secret by accident, and it should not reach the model or the logs.
+
+        Raw retrieved chunk content is intentionally not returned. The HTTP
+        chat schema already exposes only citations, and keeping the service
+        result equally narrow prevents callers such as ``analyze_github``
+        from accidentally turning retrieval DATA into a content-export path.
         """
 
         gate_result = self.gate.inspect(message, source="operator", repository="")
@@ -198,7 +203,6 @@ class SidraService:
             "refused": False,
             "reason": "",
             "citations": citations,
-            "retrieved": [r.to_dict() for r in results],
             "security": gate_result.to_dict(),
             "model": {
                 "backend": generation.backend,
