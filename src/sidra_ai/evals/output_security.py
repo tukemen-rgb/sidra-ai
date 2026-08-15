@@ -32,6 +32,12 @@ def _high_entropy_secret() -> str:
     return "A1b2C3d4E5f6G7h8I9j0K_l-MnOpQrStUvWxYz1234567890"
 
 
+def _safe_commit_sha() -> str:
+    """Synthetic provenance identifier that must not be mistaken for PII."""
+
+    return "0123456789abcdef" * 2 + "01234567"
+
+
 class _FixedOutputModel(LocalModelAdapter):
     """Dependency-free model stub used to verify the service trust boundary."""
 
@@ -52,16 +58,19 @@ class _FixedOutputModel(LocalModelAdapter):
 
 
 def _run_service_boundary_case(token: str) -> EvalOutcome:
-    """Prove the L5 composition root actually applies the L2 output guard.
+    """Prove the L5 composition root applies L2 without destroying provenance.
 
     Direct ``OutputGuard`` tests can stay green even if a future API/service
     refactor forgets to call the guard. This case injects a deterministic model
     result through ``SidraService.chat`` and fails if the sensitive text reaches
-    any returned field. A safe model result must still pass through unchanged.
+    any returned field. A safe provenance-shaped result containing a commit SHA
+    must pass through unchanged; otherwise security precision regressions can
+    make grounded GitHub answers unusable even when the detector unit tests pass.
     """
 
     failures: list[str] = []
-    safe_text = "SIDRA AI uses a local model and returns ordinary safe text."
+    safe_commit = _safe_commit_sha()
+    safe_text = f"Verified checkpoint {safe_commit} from the indexed repository."
 
     with TemporaryDirectory(prefix="sidra-evals-") as data_dir:
         blocked_model = _FixedOutputModel(token)
@@ -92,16 +101,18 @@ def _run_service_boundary_case(token: str) -> EvalOutcome:
                 f"service boundary: safe case expected one model call, got {safe_model.calls}"
             )
         if safe_response.get("refused") is not False:
-            failures.append("service boundary: ordinary safe model output was refused")
+            failures.append("service boundary: safe provenance output was refused")
         if safe_response.get("answer") != safe_text:
-            failures.append("service boundary: ordinary safe model output was mutated")
+            failures.append("service boundary: safe provenance output was mutated")
+        if safe_commit not in str(safe_response.get("answer", "")):
+            failures.append("service boundary: safe commit provenance was not preserved")
 
     return EvalOutcome(
         case_name="output_guard_service_boundary",
         passed=not failures,
         detail=(
             "SidraService.chat must withhold sensitive model output before returning "
-            "any field while preserving ordinary safe output"
+            "any field while preserving safe commit provenance byte-for-byte"
         ),
         failures=tuple(failures),
     )
@@ -127,7 +138,7 @@ def run_output_security_suite() -> tuple[EvalOutcome, ...]:
     allowed_cases = {
         "ordinary_output": "SIDRA AI uses a local model and cites retrieved evidence.",
         "role_email": "For service support, use support@example.com.",
-        "commit_sha": "Checkpoint " + ("0123456789abcdef" * 2 + "01234567") + ".",
+        "commit_sha": "Checkpoint " + _safe_commit_sha() + ".",
     }
 
     failures: list[str] = []
@@ -152,7 +163,7 @@ def run_output_security_suite() -> tuple[EvalOutcome, ...]:
         passed=not failures,
         detail=(
             "raw/fullwidth/base64/percent/hex/escaped/high-entropy output must "
-            "fail closed while ordinary output remains byte-for-byte unchanged"
+            "fail closed while ordinary/provenance output remains byte-for-byte unchanged"
         ),
         failures=tuple(failures),
     )
