@@ -49,6 +49,7 @@ _BASE64_CANDIDATE = re.compile(
     r"(?<![A-Za-z0-9+/_\-=])[A-Za-z0-9+/_\-]{16,8192}={0,2}(?![A-Za-z0-9+/_\-=])"
 )
 _MAX_DECODED_BYTES = 4096
+_MAX_DECODE_CANDIDATES = 32
 
 
 @dataclass(frozen=True)
@@ -109,12 +110,16 @@ class OutputGuard:
     def _decoded_detection_variants(content: str) -> tuple[str, ...]:
         """Return bounded textual base64/base64url decodes for detector use.
 
-        Invalid, binary, oversized, or empty candidates are ignored. The
-        decoded strings are intentionally ephemeral and never leave ``scan``.
+        Invalid, binary, oversized, or empty candidates are ignored. At most
+        ``_MAX_DECODE_CANDIDATES`` are inspected so crafted model output cannot
+        turn the guard into an unbounded decoder. Decoded strings are
+        intentionally ephemeral and never leave ``scan``.
         """
 
         decoded: list[str] = []
         for match in _BASE64_CANDIDATE.finditer(content):
+            if len(decoded) >= _MAX_DECODE_CANDIDATES:
+                break
             candidate = match.group()
             padded = candidate + "=" * (-len(candidate) % 4)
             try:
