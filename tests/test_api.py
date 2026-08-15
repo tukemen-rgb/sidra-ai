@@ -36,18 +36,52 @@ def test_health_works_with_no_weights_and_no_api_key(api: TestClient) -> None:
     response = api.get("/health")
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "ok"
-    assert body["github_write_enabled"] is False
-    assert body["config"]["localhost_only"] is True
-    assert body["model"]["requires_paid_api"] is False
+    assert body == {
+        "status": "ok",
+        "version": "0.1.0",
+        "model_available": True,
+        "github_write_enabled": False,
+    }
 
 
-def test_health_never_leaks_a_token(api: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_health_never_leaks_runtime_topology(
+    api: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The open probe must not inventory SIDRA internals for a remote caller."""
+
     monkeypatch.setenv("SIDRA_API_TOKEN", "leaky-token-value")
     monkeypatch.setenv("SIDRA_GITHUB_TOKEN", "leaky-github-value")
     body = api.get("/health").text
-    assert "leaky-token-value" not in body
-    assert "leaky-github-value" not in body
+
+    for forbidden in (
+        "leaky-token-value",
+        "leaky-github-value",
+        settings.model_name,
+        "tukemen-rgb",
+        "allowed_repositories",
+        "api_token_configured",
+        "github_token_configured",
+        '"config"',
+        '"index"',
+        '"model"',
+        "endpoint",
+    ):
+        assert forbidden not in body
+
+
+def test_health_degrades_without_exposing_model_error(
+    service: SidraService, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_health():
+        raise RuntimeError("private-backend-host.internal:9999 refused secret topology")
+
+    monkeypatch.setattr(service.model, "health", fail_health)
+    response = TestClient(create_app(service, settings)).get("/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "degraded"
+    assert response.json()["model_available"] is False
+    assert "private-backend-host" not in response.text
+    assert "refused secret topology" not in response.text
 
 
 def test_app_starts_without_a_paid_api_key(settings: Settings) -> None:
@@ -171,6 +205,12 @@ def test_health_stays_open_but_reveals_nothing_sensitive(
     guarded = TestClient(create_app(service, settings))
     body = guarded.get("/health")
     assert body.status_code == 200
+    assert set(body.json()) == {
+        "status",
+        "version",
+        "model_available",
+        "github_write_enabled",
+    }
     assert "configured-token" not in body.text
 
 
