@@ -41,6 +41,15 @@ def test_answer_with_evidence_but_no_citation_fails() -> None:
     assert any("cited none" in failure for failure in result.failures)
 
 
+def test_abstention_is_allowed_when_retrieved_chunks_are_irrelevant() -> None:
+    result = evaluate_grounding(
+        "The evidence does not answer this question.",
+        _citations("S1", "S2"),
+    )
+    assert result.passed
+    assert result.used_labels == ()
+
+
 def test_no_evidence_must_abstain() -> None:
     grounded = evaluate_grounding("No indexed evidence matched this question.", [])
     assert grounded.passed
