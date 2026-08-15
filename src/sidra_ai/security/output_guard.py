@@ -62,6 +62,16 @@ _PERCENT_CANDIDATE = re.compile(
 _PERCENT_ESCAPE = re.compile(r"%[0-9A-Fa-f]{2}")
 _MAX_PERCENT_CANDIDATES = 32
 
+# Plain hexadecimal is also a reversible exfiltration form. Provider prefixes
+# and email delimiters disappear completely after hex encoding, while the
+# resulting 0-9/a-f alphabet often falls below the generic entropy threshold.
+# Only contiguous, even-length byte strings are considered, and decoding is
+# bounded exactly like the other detector-only variants.
+_HEX_CANDIDATE = re.compile(
+    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}){16,4096}(?![0-9A-Fa-f])"
+)
+_MAX_HEX_CANDIDATES = 32
+
 
 @dataclass(frozen=True)
 class OutputGuardResult:
@@ -93,11 +103,11 @@ class OutputGuard:
     character obfuscation from bypassing provider-token and PII patterns while
     preserving the original safe output byte-for-byte when no finding exists.
 
-    The guard also performs one bounded decode pass over base64/base64url-like
-    and percent-encoded output tokens. This catches reversible exfiltration
-    without turning arbitrary model output into an unbounded decoding workload.
-    Decoded values are inspected in memory only and are never included in the
-    result, logs, or exceptions.
+    The guard also performs one bounded decode pass over base64/base64url-like,
+    percent-encoded, and hexadecimal output tokens. This catches reversible
+    exfiltration without turning arbitrary model output into an unbounded
+    decoding workload. Decoded values are inspected in memory only and are
+    never included in the result, logs, or exceptions.
 
     Detector failures fail closed: returning an unchecked answer is less safe
     than returning a constant withholding message.
@@ -183,6 +193,37 @@ class OutputGuard:
             decoded.append(normalized)
         return tuple(decoded)
 
+    @staticmethod
+    def _hex_decoded_detection_variants(content: str) -> tuple[str, ...]:
+        """Return bounded textual hex decodes for detector use.
+
+        Hex encoding removes provider prefixes and punctuation while remaining
+        trivially reversible. Decode only contiguous byte strings, inspect at
+        most a fixed number, and discard binary/non-UTF-8 candidates without
+        retaining the decoded material.
+        """
+
+        decoded: list[str] = []
+        for match in _HEX_CANDIDATE.finditer(content):
+            if len(decoded) >= _MAX_HEX_CANDIDATES:
+                break
+            candidate = match.group()
+            try:
+                raw = bytes.fromhex(candidate)
+            except ValueError:
+                continue
+            if not raw or len(raw) > _MAX_DECODED_BYTES:
+                continue
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            normalized = OutputGuard._normalize_for_detection(text)
+            if normalized == candidate:
+                continue
+            decoded.append(normalized)
+        return tuple(decoded)
+
     def _scan_text(self, content: str) -> tuple[Finding, ...]:
         # Ingestion can tolerate a MEDIUM high-entropy finding after redaction
         # and human review. Output cannot: returning an unknown random-looking
@@ -203,6 +244,10 @@ class OutputGuard:
             for decoded_content in self._decoded_detection_variants(detector_content):
                 findings.extend(self._scan_text(decoded_content))
             for decoded_content in self._percent_decoded_detection_variants(
+                detector_content
+            ):
+                findings.extend(self._scan_text(decoded_content))
+            for decoded_content in self._hex_decoded_detection_variants(
                 detector_content
             ):
                 findings.extend(self._scan_text(decoded_content))
