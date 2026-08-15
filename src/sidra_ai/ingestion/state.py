@@ -20,6 +20,10 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
+class StateStoreError(RuntimeError):
+    """Raised when persisted ingestion cursor state cannot be trusted."""
+
+
 @dataclass
 class RepositoryState:
     """What we know about one repository's last ingestion."""
@@ -80,6 +84,10 @@ class StateStore:
     lock around read-modify-write updates prevents two repository workers from
     overwriting each other's cursor state. The lock contains no state or
     credentials and is held only for the local file update.
+
+    An existing state file is part of the correctness boundary. If it cannot
+    be read or decoded, this store fails closed instead of silently replacing
+    every repository cursor with a fresh empty state.
     """
 
     _LOCK_TIMEOUT_SECONDS = 5.0
@@ -95,11 +103,31 @@ class StateStore:
             return IngestionState()
         try:
             with self.path.open("r", encoding="utf-8") as handle:
-                return IngestionState.from_dict(json.load(handle))
-        except (json.JSONDecodeError, OSError):
-            # A corrupt state file must not wedge ingestion; the worst case
-            # is one full re-ingest, which is idempotent.
+                raw = json.load(handle)
+        except FileNotFoundError:
+            # The state may have been removed between exists() and open().
+            # Treat an actually missing file like first run, but never collapse
+            # other read/parse failures into an empty multi-repository state.
             return IngestionState()
+        except json.JSONDecodeError as exc:
+            raise StateStoreError(
+                "persisted ingestion state is invalid JSON; refusing to reset cursors"
+            ) from exc
+        except OSError as exc:
+            raise StateStoreError(
+                "persisted ingestion state could not be read; refusing to reset cursors"
+            ) from exc
+
+        if not isinstance(raw, dict):
+            raise StateStoreError(
+                "persisted ingestion state has an invalid top-level shape"
+            )
+        try:
+            return IngestionState.from_dict(raw)
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise StateStoreError(
+                "persisted ingestion state has an invalid schema"
+            ) from exc
 
     @contextmanager
     def _locked_update(self) -> Iterator[None]:
