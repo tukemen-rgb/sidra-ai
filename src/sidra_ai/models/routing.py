@@ -94,6 +94,7 @@ class RouteDecision:
     candidate: LocalModelCandidate
     required_vram_mib: int
     usable_vram_mib: int
+    planned_context_tokens: int
     rejected: tuple[RejectedRoute, ...]
 
 
@@ -112,8 +113,10 @@ def select_local_model(
     """Select the safest highest-priority direct-GPU candidate.
 
     The caller supplies the *planned total context* used for KV-cache admission.
-    Request-level budgeting remains enforced independently by
-    :class:`BudgetedLocalModelAdapter` after a route is selected.
+    The exact value is retained in the decision so downstream audit/benchmark
+    code can verify the assumption that admitted the route. Request-level
+    budgeting remains enforced independently by :class:`BudgetedLocalModelAdapter`
+    after a route is selected.
     """
 
     if planned_context_tokens < 0:
@@ -169,6 +172,7 @@ def select_local_model(
         candidate=selected,
         required_vram_mib=required_vram,
         usable_vram_mib=hardware.usable_vram_mib,
+        planned_context_tokens=planned_context_tokens,
         rejected=tuple(rejected),
     )
 
@@ -189,7 +193,10 @@ def route_and_create_adapter(
     candidate's wider architectural context window.
 
     Callers cannot override ``max_context_tokens`` through adapter options; the
-    route decision remains the source of truth.
+    route decision remains the source of truth. After construction, the router
+    also verifies that the adapter actually exposes the admitted cap. This
+    catches future registry/backend refactors that accidentally drop budgeting
+    before an oversized request reaches a 6GB-class device.
     """
 
     if planned_context_tokens <= 0:
@@ -212,4 +219,10 @@ def route_and_create_adapter(
     )
     if adapter.requires_paid_api:
         raise NoLocalModelRouteError("selected adapter unexpectedly requires a paid API")
+
+    runtime_cap = getattr(adapter, "max_context_tokens", None)
+    if runtime_cap != decision.planned_context_tokens:
+        raise NoLocalModelRouteError(
+            "selected adapter did not enforce the context cap used for VRAM admission"
+        )
     return RoutedAdapter(decision=decision, adapter=adapter)
