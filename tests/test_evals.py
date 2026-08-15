@@ -128,3 +128,47 @@ def test_grounding_allows_abstention_when_versions_conflict() -> None:
     result = evaluate_grounding("十分な根拠がありません", citations)
 
     assert result.passed is True, result.failures
+
+
+def test_grounding_rejects_claim_before_abstention_phrase() -> None:
+    result = evaluate_grounding(
+        "The answer is definitely 42. There is insufficient evidence.",
+        [],
+    )
+
+    assert result.passed is False
+    assert any("did not explicitly abstain" in failure for failure in result.failures)
+
+
+def test_grounding_rejects_hedged_claim_when_versions_conflict() -> None:
+    citations = [
+        {
+            "label": "S1",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "1" * 40,
+        },
+        {
+            "label": "S2",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "2" * 40,
+        },
+    ]
+
+    result = evaluate_grounding(
+        "Insufficient evidence, but the current policy allows public binding. [S1]",
+        citations,
+    )
+
+    assert result.passed is False
+    assert any("multiple versions" in failure for failure in result.failures)
+
+
+def test_grounding_keeps_clear_operational_abstention_valid() -> None:
+    result = evaluate_grounding(
+        "No indexed evidence matched this question. Rephrase the question.",
+        [],
+    )
+
+    assert result.passed is True, result.failures
