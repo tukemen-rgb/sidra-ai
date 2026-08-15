@@ -143,3 +143,38 @@ def test_index_refreshes_when_documents_are_added(store: DocumentStore) -> None:
     assert retriever.search("alpha") == []
     store.add(_document("alpha beta gamma"))
     assert retriever.search("alpha")
+
+
+def test_search_diversifies_across_documents_before_extra_chunks(store: DocumentStore) -> None:
+    dominant = "\n".join(
+        [
+            "# pricing one\npricing subscription pricing subscription monthly annual",
+            "# pricing two\npricing subscription pricing subscription billing tiers",
+            "# pricing three\npricing subscription pricing subscription checkout plans",
+        ]
+    )
+    store.add(_document(dominant, path="dominant.md"))
+    store.add(_document("pricing subscription independent comparison", path="peer.md"))
+
+    results = BM25Retriever(store).search("pricing subscription", top_k=3)
+    paths = [result.provenance.path for result in results]
+
+    assert len(results) == 3
+    assert "peer.md" in paths
+    assert paths.count("dominant.md") <= 2
+
+
+def test_search_fills_remaining_slots_when_only_one_document_matches(store: DocumentStore) -> None:
+    only_document = "\n".join(
+        [
+            "# alpha one\nalpha retrieval context first section",
+            "# alpha two\nalpha retrieval context second section",
+            "# alpha three\nalpha retrieval context third section",
+        ]
+    )
+    store.add(_document(only_document, path="only.md"))
+
+    results = BM25Retriever(store).search("alpha retrieval", top_k=3)
+
+    assert len(results) == 3
+    assert {result.provenance.path for result in results} == {"only.md"}
