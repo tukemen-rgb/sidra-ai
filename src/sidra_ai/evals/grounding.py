@@ -29,9 +29,12 @@ _NO_EVIDENCE_MARKERS = (
     "no indexed evidence",
     "insufficient evidence",
     "not enough evidence",
+    "the data does not answer",
+    "the evidence does not answer",
     "根拠がありません",
     "十分な根拠がありません",
     "情報がありません",
+    "情報が見つかりません",
 )
 
 
@@ -45,6 +48,11 @@ class GroundingResult:
     failures: tuple[str, ...] = ()
 
 
+def _is_abstention(answer: str) -> bool:
+    lowered = answer.lower()
+    return any(marker in lowered for marker in _NO_EVIDENCE_MARKERS)
+
+
 def evaluate_grounding(
     answer: str,
     citations: Sequence[Mapping[str, object]],
@@ -55,8 +63,11 @@ def evaluate_grounding(
 
     Rules:
     - every ``[S#]`` label used by the answer must exist in ``citations``;
-    - when retrieval returned evidence, a non-empty answer must cite at least one
-      available label (unless the caller explicitly disables this requirement);
+    - when retrieval returned evidence, a factual/non-abstaining answer must cite
+      at least one available label;
+    - an explicit abstention is allowed even when retrieval returned chunks,
+      because retrieval relevance is imperfect and the model may correctly
+      decide that the retrieved text does not answer the question;
     - when retrieval returned no evidence, the answer must not invent a source
       label and must explicitly indicate that evidence is unavailable.
     """
@@ -70,19 +81,24 @@ def evaluate_grounding(
     used = tuple(dict.fromkeys(_CITATION.findall(answer)))
     used_set = set(used)
     failures: list[str] = []
+    abstained = _is_abstention(answer)
 
     invented = sorted(used_set - available_set)
     if invented:
         failures.append("invented citation labels: " + ", ".join(invented))
 
     if available_set:
-        if require_citation_when_evidence_exists and answer.strip() and not (used_set & available_set):
-            failures.append("answer used retrieved evidence but cited none of the available labels")
+        if (
+            require_citation_when_evidence_exists
+            and answer.strip()
+            and not abstained
+            and not (used_set & available_set)
+        ):
+            failures.append("answer made a grounded claim but cited none of the available labels")
     else:
         if used:
             failures.append("answer cited a source even though retrieval returned no evidence")
-        lowered = answer.lower()
-        if answer.strip() and not any(marker in lowered for marker in _NO_EVIDENCE_MARKERS):
+        if answer.strip() and not abstained:
             failures.append("no-evidence answer did not explicitly abstain")
 
     return GroundingResult(
