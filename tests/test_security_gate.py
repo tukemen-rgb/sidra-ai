@@ -42,6 +42,20 @@ def test_credentials_are_detected_and_redacted(gate: SecurityGate, secret: str) 
     assert "[REDACTED:" in result.content
 
 
+def test_secret_redaction_keeps_high_entropy_correlation_fingerprint(
+    gate: SecurityGate,
+) -> None:
+    """Secret correlation remains available without applying it to PII."""
+
+    from sidra_ai.security.redaction import fingerprint
+
+    result = gate.inspect(
+        f"token={FAKE_GITHUB_TOKEN}", source="github", repository="tukemen-rgb/Fg"
+    )
+
+    assert fingerprint(FAKE_GITHUB_TOKEN) in result.content
+
+
 def test_findings_never_carry_the_secret(gate: SecurityGate) -> None:
     result = gate.inspect(
         f"token={FAKE_GITHUB_TOKEN}", source="github", repository="tukemen-rgb/Fg"
@@ -73,14 +87,19 @@ def test_environment_variable_reference_is_not_flagged(gate: SecurityGate) -> No
 
 
 def test_personal_email_is_quarantined_and_redacted(gate: SecurityGate) -> None:
+    from sidra_ai.security.redaction import fingerprint
+
+    personal = "kenji.tanaka@example.co.jp"
     result = gate.inspect(
-        "reach me at kenji.tanaka@example.co.jp",
+        f"reach me at {personal}",
         source="github",
         repository="tukemen-rgb/site",
     )
     assert result.has(FindingCategory.PII)
     assert result.decision is Decision.QUARANTINE
-    assert "kenji.tanaka@example.co.jp" not in result.content
+    assert personal not in result.content
+    assert fingerprint(personal) not in result.content
+    assert "[REDACTED:pii_email]" in result.content
 
 
 def test_noreply_email_does_not_quarantine(gate: SecurityGate) -> None:
@@ -217,6 +236,8 @@ def test_quarantine_persists_only_sanitized_content(tmp_path) -> None:
 
 
 def test_quarantine_redacts_personal_information_at_rest(tmp_path) -> None:
+    from sidra_ai.security.redaction import fingerprint
+
     quarantine = QuarantineStore(tmp_path / "q.jsonl")
     gate = SecurityGate(
         allowed_repositories=("tukemen-rgb/site",), quarantine_store=quarantine
@@ -227,9 +248,11 @@ def test_quarantine_redacts_personal_information_at_rest(tmp_path) -> None:
     )
 
     entry = quarantine.entries()[0]
-    assert personal not in str(entry)
+    serialized = str(entry)
+    assert personal not in serialized
+    assert fingerprint(personal) not in serialized
     assert entry["content_retention"] == "sanitized"
-    assert "[REDACTED:" in entry["content"]
+    assert "[REDACTED:pii_email]" in entry["content"]
 
 
 def test_blocked_untrusted_source_is_metadata_only(tmp_path) -> None:
