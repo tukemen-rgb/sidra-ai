@@ -235,6 +235,31 @@ def test_tokenizer_handles_japanese() -> None:
     assert "llm" in tokens
 
 
+def test_tokenizer_normalizes_compatibility_unicode() -> None:
+    """Equivalent user input forms must resolve to the same lexical tokens."""
+
+    canonical = tokenize("API エンドポイント")
+    compatibility = tokenize("ＡＰＩ ｴﾝﾄﾞﾎﾟｲﾝﾄ")
+
+    assert compatibility == canonical
+    assert "api" in compatibility
+
+
+def test_search_matches_fullwidth_and_halfwidth_query_forms(store: DocumentStore) -> None:
+    store.add(
+        _document(
+            "Private API エンドポイントは localhost で提供する。",
+            path="docs/api.md",
+            source_type=SourceType.DOCS,
+        )
+    )
+
+    results = BM25Retriever(store).search("ＰＲＩＶＡＴＥ ＡＰＩ ｴﾝﾄﾞﾎﾟｲﾝﾄ", top_k=1)
+
+    assert results
+    assert results[0].provenance.path == "docs/api.md"
+
+
 def test_search_ranks_the_relevant_chunk_first(store: DocumentStore) -> None:
     store.add(_document("The pricing page lists our subscription tiers.", path="a.md"))
     store.add(_document("The deployment runbook covers rollbacks.", path="b.md"))
