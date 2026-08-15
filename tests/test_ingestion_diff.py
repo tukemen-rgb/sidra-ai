@@ -474,7 +474,7 @@ def test_paginated_issues_follow_link_until_real_issue_limit(settings) -> None:
 
     def transport(method: str, url: str, headers, timeout: float) -> Response:
         requests.append(url)
-        if url.endswith("page=2"):
+        if url.endswith("&page=2"):
             return Response(
                 200,
                 {},
