@@ -152,6 +152,81 @@ def test_new_commit_triggers_a_differential_fetch(
     )
 
 
+def test_removed_readme_is_retired_after_complete_delta(
+    client, store, gate, tmp_path, settings, fake_github, monkeypatch
+) -> None:
+    """A deleted current source must not survive under its older commit SHA."""
+
+    pipeline = _pipeline(client, store, gate, tmp_path, settings)
+    pipeline.ingest_repository(REPO)
+    assert any(d.provenance.path == "README.md" for d in store.by_repository(REPO))
+    assert any(d.provenance.path == "docs/arch.md" for d in store.by_repository(REPO))
+
+    original_compare = client.compare
+
+    def removed_readme_compare(repository: str, base: str, head: str):
+        comparison = original_compare(repository, base, head)
+        comparison["files"] = [{"filename": "README.md", "status": "removed"}]
+        return comparison
+
+    monkeypatch.setattr(client, "compare", removed_readme_compare)
+    monkeypatch.setattr(client, "get_readme", lambda repository, ref=None: None)
+    fake_github.head_sha = "e" * 40
+
+    report = pipeline.ingest_repository(REPO)
+    state = pipeline.state_store.load().get(REPO)
+    paths = {d.provenance.path for d in store.by_repository(REPO)}
+
+    assert report.error == ""
+    assert state.last_commit_sha == "e" * 40
+    assert "README.md" not in paths
+    assert "docs/arch.md" in paths, "peer documentation path was retired accidentally"
+
+
+def test_deletion_retirement_survives_partial_fetch_retry(
+    client, store, gate, tmp_path, settings, fake_github, monkeypatch
+) -> None:
+    """A failed delta must withhold deletion, then full retry must reconcile it."""
+
+    pipeline = _pipeline(client, store, gate, tmp_path, settings)
+    pipeline.ingest_repository(REPO)
+    original_compare = client.compare
+    original_list_issues = client.list_issues
+
+    def removed_readme_compare(repository: str, base: str, head: str):
+        comparison = original_compare(repository, base, head)
+        comparison["files"] = [{"filename": "README.md", "status": "removed"}]
+        return comparison
+
+    def fail_issues(repository: str, since: str | None = None):
+        raise GitHubAPIError("transient issue failure", status=503)
+
+    monkeypatch.setattr(client, "compare", removed_readme_compare)
+    monkeypatch.setattr(client, "get_readme", lambda repository, ref=None: None)
+    monkeypatch.setattr(client, "list_issues", fail_issues)
+    fake_github.head_sha = "e" * 40
+
+    failed = pipeline.ingest_repository(REPO)
+    failed_state = pipeline.state_store.load().get(REPO)
+    assert failed.skipped_reason == "partial_fetch"
+    assert failed_state.last_commit_sha == "a" * 40
+    assert any(d.provenance.path == "README.md" for d in store.by_repository(REPO)), (
+        "deletion was applied even though the source collection was incomplete"
+    )
+
+    # The retry is a full snapshot, so it no longer has the original compare
+    # event. Snapshot reconciliation must still discover that README is absent.
+    monkeypatch.setattr(client, "list_issues", original_list_issues)
+    recovered = pipeline.ingest_repository(REPO)
+    recovered_state = pipeline.state_store.load().get(REPO)
+    paths = {d.provenance.path for d in store.by_repository(REPO)}
+
+    assert recovered.error == ""
+    assert recovered_state.last_commit_sha == "e" * 40
+    assert "README.md" not in paths
+    assert "docs/arch.md" in paths
+
+
 def test_partial_fetch_does_not_advance_sha_and_retries_full_snapshot(
     client, store, gate, tmp_path, settings, fake_github, monkeypatch
 ) -> None:
