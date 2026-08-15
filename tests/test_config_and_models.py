@@ -471,6 +471,46 @@ def test_registry_can_budget_wrap_any_registered_local_backend() -> None:
     assert adapter.health()["max_context_tokens"] == 64
 
 
+def test_routed_adapter_cannot_exceed_vram_admitted_context_plan() -> None:
+    """A route admitted for 2k context must not later accept an 8k-class request."""
+
+    from sidra_ai.models.budget import ContextWindowExceededError
+    from sidra_ai.models.routing import (
+        HardwareBudget,
+        LocalModelCandidate,
+        route_and_create_adapter,
+    )
+
+    routed = route_and_create_adapter(
+        [
+            LocalModelCandidate(
+                backend="echo",
+                model="sidra-local-v0",
+                weights_vram_mib=2048,
+                kv_cache_mib_per_1k_tokens=128,
+                max_context_tokens=8192,
+                quantization="Q4_K_M",
+            )
+        ],
+        hardware=HardwareBudget(vram_mib=6144, reserve_vram_mib=512),
+        planned_context_tokens=2000,
+        adapter_options={"context_reserve_tokens": 128},
+    )
+
+    assert routed.decision.candidate.max_context_tokens == 8192
+    assert routed.decision.planned_context_tokens == 2000
+    assert routed.adapter.health()["max_context_tokens"] == 2000
+
+    with pytest.raises(ContextWindowExceededError, match="reduce input"):
+        routed.adapter.generate(
+            GenerationRequest(
+                system_prompt="system",
+                user_message="x" * 9000,
+                max_output_tokens=64,
+            )
+        )
+
+
 def test_no_paid_llm_sdk_is_a_dependency() -> None:
     """A paid SDK must never appear in pyproject dependencies."""
 
