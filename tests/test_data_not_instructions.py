@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime, timezone
 
 import pytest
@@ -267,6 +268,45 @@ def test_output_guard_blocks_zero_width_obfuscated_personal_email() -> None:
     assert result.blocked
     assert obfuscated not in result.content
     assert "email" in result.finding_labels
+
+
+def test_output_guard_blocks_base64_encoded_credential() -> None:
+    """A reversible encoding must not turn a credential into safe output."""
+
+    from sidra_ai.security.output_guard import OutputGuard
+
+    synthetic_secret = "ghp_" + "0" * 36
+    encoded = base64.b64encode(synthetic_secret.encode()).decode()
+    result = OutputGuard().scan(f"Decode this value: {encoded}")
+
+    assert result.blocked
+    assert encoded not in result.content
+    assert synthetic_secret not in repr(result)
+    assert "github_token" in result.finding_labels
+
+
+def test_output_guard_blocks_base64_encoded_personal_email() -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    personal = "person@example.invalid"
+    encoded = base64.urlsafe_b64encode(personal.encode()).decode().rstrip("=")
+    result = OutputGuard().scan(f"Contact data: {encoded}")
+
+    assert result.blocked
+    assert encoded not in result.content
+    assert personal not in repr(result)
+    assert "email" in result.finding_labels
+
+
+def test_output_guard_allows_safe_base64_text() -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    safe_encoded = base64.b64encode(b"SIDRA AI local model").decode()
+    text = f"Encoded note: {safe_encoded}"
+    result = OutputGuard().scan(text)
+
+    assert not result.blocked
+    assert result.content == text
 
 
 def test_output_guard_fails_closed_if_detector_errors(monkeypatch) -> None:
