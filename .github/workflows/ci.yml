@@ -1,0 +1,48 @@
+name: SIDRA AI CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sidra-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-verification:
+    name: Offline verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run offline test suite
+        env:
+          SIDRA_MODEL_BACKEND: echo
+          SIDRA_API_HOST: 127.0.0.1
+        run: python -m pytest
+
+      - name: Run security and cost evals
+        env:
+          SIDRA_MODEL_BACKEND: echo
+          SIDRA_API_HOST: 127.0.0.1
+        run: sidra-evals
