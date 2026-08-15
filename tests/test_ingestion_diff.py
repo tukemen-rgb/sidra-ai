@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from sidra_ai.config.settings import Settings
+from sidra_ai.ingestion.github_client import GitHubAPIError
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline
 from sidra_ai.ingestion.state import StateStore
+from sidra_ai.retrieval.store import DocumentStore
 
 REPO = "tukemen-rgb/site"
 
@@ -55,6 +57,83 @@ def test_second_run_with_no_new_commits_is_skipped(
     assert not any("readme" in p or "contents" in p or "issues" in p for p in paths)
 
 
+def test_restart_rehydrates_empty_index_without_source_change_or_inference(
+    client, store, gate, tmp_path, settings, fake_github
+) -> None:
+    """Persisted SHA state must not make a fresh process keep an empty RAG index.
+
+    v0.1 keeps retrieval in memory while state.json survives process restarts.
+    A new process therefore needs to rebuild the repository snapshot even when
+    GitHub HEAD has not moved. Rehydration is maintenance, not a source change,
+    so it must not trigger model inference.
+    """
+
+    first_pipeline = _pipeline(client, store, gate, tmp_path, settings)
+    first_report = first_pipeline.ingest_repository(REPO)
+    assert first_report.indexed > 0
+
+    # Simulate a process restart: state.json survives, the in-memory index does not.
+    fresh_store = DocumentStore(gate)
+    restarted = _pipeline(client, fresh_store, gate, tmp_path, settings)
+
+    fake_github.requests.clear()
+    report = restarted.ingest_repository(REPO)
+
+    assert report.changed is False
+    assert report.skipped_reason == "index_rehydrated"
+    assert report.indexed > 0
+    assert report.requires_inference is False
+    assert fresh_store.by_repository(REPO), "repository snapshot was not rebuilt"
+
+    paths = [path for _, path in fake_github.requests]
+    assert any(path.endswith("/readme") for path in paths)
+    assert any("/contents/docs" in path for path in paths)
+    assert any("/pulls" in path for path in paths)
+    assert any("/issues" in path for path in paths)
+
+    # Once the fresh process has a local snapshot, the ordinary cheap
+    # no-change short circuit must resume.
+    fake_github.requests.clear()
+    second = restarted.ingest_repository(REPO)
+    assert second.changed is False
+    assert second.skipped_reason == "no_new_commits"
+    assert second.indexed == 0
+    assert second.requires_inference is False
+    assert len(fake_github.requests) == 2
+
+
+def test_restart_with_new_head_rehydrates_full_snapshot_not_only_delta(
+    client, store, gate, tmp_path, settings, fake_github
+) -> None:
+    """A restarted process with a newer HEAD still needs the whole current snapshot."""
+
+    first_pipeline = _pipeline(client, store, gate, tmp_path, settings)
+    first_pipeline.ingest_repository(REPO)
+
+    # The old process exits, then GitHub advances before the new process polls.
+    fresh_store = DocumentStore(gate)
+    fake_github.head_sha = "e" * 40
+    fake_github.requests.clear()
+    restarted = _pipeline(client, fresh_store, gate, tmp_path, settings)
+
+    report = restarted.ingest_repository(REPO)
+    paths = [path for _, path in fake_github.requests]
+
+    assert report.changed is True
+    assert report.previous_sha == "a" * 40
+    assert report.head_sha == "e" * 40
+    assert report.indexed > 0
+    assert report.requires_inference is True
+    assert fresh_store.by_repository(REPO)
+
+    # Rehydration must not trust a delta against an empty local index.
+    assert not any("/compare/" in path for path in paths)
+    assert any(path.endswith("/readme") for path in paths)
+    assert any("/contents/docs" in path for path in paths)
+    assert any("/pulls" in path for path in paths)
+    assert any("/issues" in path for path in paths)
+
+
 def test_new_commit_triggers_a_differential_fetch(
     client, store, gate, tmp_path, settings, fake_github
 ) -> None:
@@ -71,6 +150,110 @@ def test_new_commit_triggers_a_differential_fetch(
     assert any("compare" in path for _, path in fake_github.requests), (
         "expected the compare endpoint to be used for the incremental fetch"
     )
+
+
+def test_partial_fetch_does_not_advance_sha_and_retries_full_snapshot(
+    client, store, gate, tmp_path, settings, fake_github, monkeypatch
+) -> None:
+    """A partial GitHub fetch must never make an incomplete RAG snapshot current."""
+
+    pipeline = _pipeline(client, store, gate, tmp_path, settings)
+    pipeline.ingest_repository(REPO)
+    original_get_readme = client.get_readme
+
+    fake_github.head_sha = "e" * 40
+
+    def fail_readme(repository: str, ref: str | None = None):
+        raise GitHubAPIError("transient readme failure", status=503)
+
+    monkeypatch.setattr(client, "get_readme", fail_readme)
+    failed = pipeline.ingest_repository(REPO)
+
+    state_after_failure = pipeline.state_store.load().get(REPO)
+    assert failed.changed is True
+    assert failed.skipped_reason == "partial_fetch"
+    assert "readme:" in failed.error
+    assert failed.requires_inference is False
+    assert state_after_failure.last_commit_sha == "a" * 40
+    assert state_after_failure.last_error
+
+    # Once the transient failure clears, last_error forces a complete snapshot
+    # rather than a normal delta. That repairs any source omitted by the failed
+    # run before the cursor is advanced.
+    monkeypatch.setattr(client, "get_readme", original_get_readme)
+    fake_github.requests.clear()
+    recovered = pipeline.ingest_repository(REPO)
+    state_after_recovery = pipeline.state_store.load().get(REPO)
+    paths = [path for _, path in fake_github.requests]
+
+    assert recovered.error == ""
+    assert recovered.changed is True
+    assert recovered.requires_inference is True
+    assert state_after_recovery.last_commit_sha == "e" * 40
+    assert state_after_recovery.last_error == ""
+    assert not any("/compare/" in path for path in paths)
+    assert any(path.endswith("/readme") for path in paths)
+    assert any("/contents/docs" in path for path in paths)
+    assert any("/pulls" in path for path in paths)
+    assert any("/issues" in path for path in paths)
+
+
+def test_truncated_commit_list_forces_documentation_refresh(
+    client, store, gate, tmp_path, settings, fake_github, monkeypatch
+) -> None:
+    """A shortened commit list must not let changed docs disappear from RAG."""
+
+    pipeline = _pipeline(client, store, gate, tmp_path, settings)
+    pipeline.ingest_repository(REPO)
+
+    original_compare = client.compare
+
+    def truncated_compare(repository: str, base: str, head: str):
+        comparison = original_compare(repository, base, head)
+        comparison["total_commits"] = len(comparison["commits"]) + 1
+        comparison["files"] = [{"filename": "src/app.py"}]
+        return comparison
+
+    monkeypatch.setattr(client, "compare", truncated_compare)
+    fake_github.head_sha = "e" * 40
+    fake_github.requests.clear()
+
+    report = pipeline.ingest_repository(REPO)
+    paths = [path for _, path in fake_github.requests]
+
+    assert report.changed is True
+    assert any(path.endswith("/readme") for path in paths)
+    assert any("/contents/docs" in path for path in paths)
+
+
+def test_compare_file_ceiling_forces_documentation_refresh(
+    client, store, gate, tmp_path, settings, fake_github, monkeypatch
+) -> None:
+    """300 returned files are treated as potentially capped, not complete."""
+
+    pipeline = _pipeline(client, store, gate, tmp_path, settings)
+    pipeline.ingest_repository(REPO)
+
+    original_compare = client.compare
+
+    def capped_files_compare(repository: str, base: str, head: str):
+        comparison = original_compare(repository, base, head)
+        comparison["total_commits"] = len(comparison["commits"])
+        comparison["files"] = [
+            {"filename": f"src/generated_{index}.py"} for index in range(300)
+        ]
+        return comparison
+
+    monkeypatch.setattr(client, "compare", capped_files_compare)
+    fake_github.head_sha = "f" * 40
+    fake_github.requests.clear()
+
+    report = pipeline.ingest_repository(REPO)
+    paths = [path for _, path in fake_github.requests]
+
+    assert report.changed is True
+    assert any(path.endswith("/readme") for path in paths)
+    assert any("/contents/docs" in path for path in paths)
 
 
 def test_unchanged_repository_never_invokes_the_model(

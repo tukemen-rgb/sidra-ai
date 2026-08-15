@@ -3,15 +3,21 @@
 Order of operations, and why:
 
 1. Resolve HEAD. One cheap request.
-2. **Compare with stored state.** If HEAD is unchanged, return immediately
-   with ``changed=False``. Nothing is fetched, nothing is chunked, and the
-   caller knows not to run inference. Idle repositories cost one API call.
+2. **Compare with stored state and local index state.** If HEAD is unchanged
+   *and* this process already has retrievable documents for the repository,
+   return immediately with ``changed=False``. If the SHA state survived a
+   process restart but the in-memory index did not, rebuild the repository
+   snapshot before applying normal differential behavior. Rehydration itself
+   is not a source change and must not invoke the model when HEAD is unchanged.
 3. Fetch only what changed (via ``compare``), plus README/docs on first run
-   or when the diff touched them.
+   or when the diff touched them. If GitHub's compare response may be
+   truncated, conservatively refresh README/docs so changed knowledge cannot
+   be silently missed.
 4. Screen every document through the security gate.
 5. Index only ``ALLOW`` documents; quarantine the rest with reasons.
-6. Persist the new SHA **after** indexing, so a crash mid-run re-ingests
-   rather than skipping content.
+6. Advance the persisted SHA only after a **complete** collection and indexing
+   pass. Any source-fetch error preserves the previous cursor so the next run
+   retries instead of making a partial RAG snapshot look current.
 """
 
 from __future__ import annotations
@@ -35,6 +41,33 @@ from sidra_ai.security.gate import SecurityGate
 #: Paths that always count as documentation roots.
 DOC_ROOTS = ("docs",)
 
+#: GitHub compare endpoint hard ceilings when callers do not paginate it.
+COMPARE_COMMIT_CEILING = 250
+COMPARE_FILE_CEILING = 300
+
+
+def _comparison_may_be_truncated(comparison: dict[str, Any]) -> bool:
+    """Return True when a compare payload cannot prove it is complete.
+
+    ``total_commits`` lets us detect a shortened commit list directly. The
+    file list has no equivalent total, so reaching the documented file
+    ceiling is conservatively treated as truncation. A false positive only
+    costs a documentation refresh; a false negative can leave stale RAG data.
+    """
+
+    commits = list(comparison.get("commits") or [])
+    files = list(comparison.get("files") or [])
+    try:
+        total_commits = int(comparison.get("total_commits") or 0)
+    except (TypeError, ValueError):
+        total_commits = 0
+
+    return (
+        total_commits > len(commits)
+        or len(commits) >= COMPARE_COMMIT_CEILING
+        or len(files) >= COMPARE_FILE_CEILING
+    )
+
 
 @dataclass
 class RepositoryReport:
@@ -53,9 +86,9 @@ class RepositoryReport:
 
     @property
     def requires_inference(self) -> bool:
-        """Only changed repositories justify spending model time."""
+        """Only a complete changed snapshot justifies spending model time."""
 
-        return self.changed and self.indexed > 0
+        return self.changed and self.indexed > 0 and not self.error
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -141,6 +174,7 @@ class GitHubIngestionPipeline:
 
         state = self.state_store.load().get(repository)
         previous_sha = state.last_commit_sha
+        retry_incomplete = bool(state.last_error) and not force
 
         try:
             repo_meta = self.client.get_repository(repository)
@@ -149,12 +183,36 @@ class GitHubIngestionPipeline:
         except (GitHubAPIError, RepositoryNotAllowedError) as exc:
             self.state_store.mark_error(repository, str(exc))
             return RepositoryReport(
-                repository=repository, changed=False, previous_sha=previous_sha,
-                error=str(exc), skipped_reason="fetch_failed",
+                repository=repository,
+                changed=False,
+                previous_sha=previous_sha,
+                error=str(exc),
+                skipped_reason="fetch_failed",
             )
 
+        # SHA state is persisted, while v0.1's retrieval index is in-memory.
+        # After a process restart it is therefore possible to have a valid
+        # persisted cursor but no local documents at all. In that case a
+        # differential fetch is insufficient even if HEAD advanced: the new
+        # process needs a complete current snapshot, not only the delta since
+        # the old process. Rehydrate once before normal cheap polling resumes.
+        index_missing = bool(previous_sha) and not self.store.by_repository(repository)
+        rehydrate_index = index_missing and not force
+
+        # A previous partial collection must also retry from a full snapshot.
+        # In particular, HEAD may be unchanged while state.last_error records
+        # that README/docs/issues/PRs were not completely fetched. Treating that
+        # as a normal no-change poll would permanently freeze an incomplete RAG
+        # view behind a seemingly current SHA.
+        retry_full_snapshot = retry_incomplete
+
         # --- the differential short circuit -----------------------------
-        if head_sha == previous_sha and not force:
+        if (
+            head_sha == previous_sha
+            and not force
+            and not rehydrate_index
+            and not retry_full_snapshot
+        ):
             return RepositoryReport(
                 repository=repository,
                 changed=False,
@@ -169,18 +227,46 @@ class GitHubIngestionPipeline:
             head_sha=head_sha,
             previous_sha=previous_sha,
             license_id=license_id,
-            first_run=not previous_sha or force,
-            since=state.last_ingested_at or None,
+            first_run=(
+                not previous_sha or force or rehydrate_index or retry_full_snapshot
+            ),
+            # A missing in-memory index or a previous incomplete collection
+            # needs a complete snapshot, including current issues/PRs, rather
+            # than only items newer than the persisted cursor.
+            since=(
+                None
+                if rehydrate_index or retry_full_snapshot
+                else (state.last_ingested_at or None)
+            ),
         )
 
+        source_changed = force or head_sha != previous_sha
         report = RepositoryReport(
             repository=repository,
-            changed=True,
+            changed=source_changed,
             head_sha=head_sha,
             previous_sha=previous_sha,
             error=error,
+            skipped_reason=(
+                "index_rehydrated"
+                if rehydrate_index and not source_changed
+                else (
+                    "partial_fetch_recovered"
+                    if retry_full_snapshot and not source_changed
+                    else ""
+                )
+            ),
         )
         self._screen_and_index(documents, report)
+
+        # Never advance the differential cursor after a partial collection.
+        # Some safe documents may already have been re-indexed, but keeping the
+        # old SHA and last_ingested_at makes the next run repeat the collection
+        # idempotently instead of skipping missing knowledge forever.
+        if error:
+            self.state_store.mark_error(repository, error)
+            report.skipped_reason = "partial_fetch"
+            return report
 
         self.state_store.mark_ingested(
             repository,
@@ -218,6 +304,7 @@ class GitHubIngestionPipeline:
 
         changed_paths: set[str] = set()
         commits: list[dict[str, Any]] = []
+        full_documentation_refresh = first_run
 
         try:
             if previous_sha and not first_run:
@@ -226,6 +313,11 @@ class GitHubIngestionPipeline:
                 changed_paths = {
                     str(f.get("filename", "")) for f in comparison.get("files", [])
                 }
+                if _comparison_may_be_truncated(comparison):
+                    # A capped file list cannot prove README/docs were
+                    # untouched, so refresh both roots at HEAD instead of
+                    # silently carrying stale knowledge forward.
+                    full_documentation_refresh = True
             else:
                 commits = self.client.list_commits(repository, head=head_sha)
         except GitHubAPIError as exc:
@@ -238,11 +330,12 @@ class GitHubIngestionPipeline:
             if document is not None:
                 documents.append(document)
 
-        # README/docs: always on first run, otherwise only when touched.
-        readme_touched = first_run or any(
+        # README/docs: always on first run, when touched, or when compare
+        # completeness cannot be proven.
+        readme_touched = full_documentation_refresh or any(
             path.lower().startswith("readme") for path in changed_paths
         )
-        docs_touched = first_run or any(
+        docs_touched = full_documentation_refresh or any(
             path.startswith(DOC_ROOTS) for path in changed_paths
         )
 
@@ -251,7 +344,9 @@ class GitHubIngestionPipeline:
                 payload = self.client.get_readme(repository, ref=head_sha)
                 if payload:
                     document = normalize.readme_document(
-                        payload, repository=repository, commit_sha=head_sha,
+                        payload,
+                        repository=repository,
+                        commit_sha=head_sha,
                         license=license_id,
                     )
                     if document is not None:
@@ -268,7 +363,9 @@ class GitHubIngestionPipeline:
                     if not isinstance(payload, dict):
                         continue
                     document = normalize.doc_document(
-                        payload, repository=repository, commit_sha=head_sha,
+                        payload,
+                        repository=repository,
+                        commit_sha=head_sha,
                         license=license_id,
                     )
                     if document is not None:
@@ -279,7 +376,9 @@ class GitHubIngestionPipeline:
         try:
             for payload in self.client.list_pull_requests(repository, since=since):
                 document = normalize.pull_request_document(
-                    payload, repository=repository, commit_sha=head_sha,
+                    payload,
+                    repository=repository,
+                    commit_sha=head_sha,
                     license=license_id,
                 )
                 if document is not None:
@@ -290,7 +389,9 @@ class GitHubIngestionPipeline:
         try:
             for payload in self.client.list_issues(repository, since=since):
                 document = normalize.issue_document(
-                    payload, repository=repository, commit_sha=head_sha,
+                    payload,
+                    repository=repository,
+                    commit_sha=head_sha,
                     license=license_id,
                 )
                 if document is not None:
