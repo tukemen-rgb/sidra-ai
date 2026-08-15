@@ -14,11 +14,14 @@ Order of operations, and why:
    truncated, conservatively refresh README/docs so changed knowledge cannot
    be silently missed.
 4. Screen every document through the security gate.
-5. Index only ``ALLOW`` documents; quarantine the rest with reasons.
+5. Index only ``ALLOW`` documents; quarantine the rest with reasons. For
+   mutable GitHub sources, remember a rejected newest revision as a pending
+   retirement instead of silently falling back to an older safe revision.
 6. After a complete collection, retire README/docs paths that GitHub reports
-   removed or renamed-away. Whenever README/docs were fully refreshed, also
-   reconcile the current snapshot against the store so a deletion withheld
-   during a failed run is still retired on the later full-snapshot retry.
+   removed or renamed-away and apply pending security retirements. Whenever
+   README/docs were fully refreshed, also reconcile the current snapshot
+   against the store so a deletion withheld during a failed run is still
+   retired on the later full-snapshot retry.
 7. Advance the persisted SHA only after a **complete** collection and indexing
    pass. Any source-fetch error preserves the previous cursor so the next run
    retries instead of making a partial RAG snapshot look current.
@@ -44,6 +47,19 @@ from sidra_ai.security.gate import SecurityGate
 
 #: Paths that always count as documentation roots.
 DOC_ROOTS = ("docs",)
+
+#: GitHub source types whose logical path can be revised over time. If the
+#: newest observed revision is unsafe, an older safe revision must not remain
+#: retrievable as if it were current. Commit documents are immutable by SHA and
+#: therefore are intentionally excluded.
+MUTABLE_GITHUB_SOURCE_TYPES = frozenset(
+    {
+        SourceType.README,
+        SourceType.DOCS,
+        SourceType.PULL_REQUEST,
+        SourceType.ISSUE,
+    }
+)
 
 #: GitHub compare endpoint hard ceilings when callers do not paginate it.
 COMPARE_COMMIT_CEILING = 250
@@ -309,20 +325,27 @@ class GitHubIngestionPipeline:
                 )
             ),
         )
-        self._screen_and_index(documents, report)
+        security_retirements = self._screen_and_index(documents, report)
 
         # Never advance the differential cursor after a partial collection.
         # Some safe documents may already have been re-indexed, but keeping the
         # old SHA and last_ingested_at makes the next run repeat the collection
         # idempotently instead of skipping missing knowledge forever. Deleted
-        # source retirement is also withheld until collection is complete so a
-        # transient fetch failure cannot make the local view more incomplete.
+        # or unsafe-current-source retirement is also withheld until collection
+        # is complete so a transient fetch failure cannot make the local view
+        # more incomplete.
         if error:
             self.state_store.mark_error(repository, error)
             report.skipped_reason = "partial_fetch"
             return report
 
-        for path, source_type in retirements:
+        # Apply source lifecycle mutations only after collection is complete.
+        # Security rejection is a valid current-state outcome: if the newest
+        # README/docs/PR/issue revision is not indexable, serving an older safe
+        # revision as current would be a grounded-but-stale answer. Exact-match
+        # retirement is idempotent, so deduplicate while preserving order.
+        pending_retirements = dict.fromkeys([*retirements, *security_retirements])
+        for path, source_type in pending_retirements:
             self.store.retire_source(
                 repository=repository,
                 path=path,
@@ -505,17 +528,41 @@ class GitHubIngestionPipeline:
     # ------------------------------------------------------------------
     def _screen_and_index(
         self, documents: Sequence[Document], report: RepositoryReport
-    ) -> None:
+    ) -> list[tuple[str, SourceType]]:
+        """Screen/index documents and return unsafe mutable sources to retire.
+
+        Retirement is *deferred* to :meth:`ingest_repository` so a partial
+        GitHub collection never deletes the previous safe view. Only mutable
+        GitHub source identities participate; immutable commit documents do not
+        need stale-revision retirement.
+        """
+
+        security_retirements: list[tuple[str, SourceType]] = []
+        seen: set[tuple[str, SourceType]] = set()
+
         for document in documents:
             result, screened = self.gate.screen_document(document)
             report.findings.extend(result.finding_labels)
 
-            if result.decision is Decision.BLOCK:
-                report.blocked += 1
-                continue
-            if result.decision is Decision.QUARANTINE or screened is None:
-                report.quarantined += 1
+            rejected = result.decision is not Decision.ALLOW or screened is None
+            if rejected:
+                if result.decision is Decision.BLOCK:
+                    report.blocked += 1
+                else:
+                    report.quarantined += 1
+
+                provenance = document.provenance
+                if (
+                    provenance.source == "github"
+                    and provenance.source_type in MUTABLE_GITHUB_SOURCE_TYPES
+                ):
+                    key = (provenance.path, provenance.source_type)
+                    if key not in seen:
+                        seen.add(key)
+                        security_retirements.append(key)
                 continue
 
             self.store.add(screened, gate_result=result)
             report.indexed += 1
+
+        return security_retirements
