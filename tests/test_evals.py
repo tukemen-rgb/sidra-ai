@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sidra_ai.evals.cases import GATE_CASES
 from sidra_ai.evals.grounding import evaluate_grounding
+from sidra_ai.evals.literal_support import evaluate_literal_support
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
 from sidra_ai.evals.runner import run_all
 from sidra_ai.security.decisions import FindingCategory
@@ -169,6 +170,25 @@ def test_grounding_keeps_clear_operational_abstention_valid() -> None:
     result = evaluate_grounding(
         "No indexed evidence matched this question. Rephrase the question.",
         [],
+    )
+
+    assert result.passed is True, result.failures
+
+
+def test_literal_grounding_rejects_invented_endpoint_with_real_citation() -> None:
+    result = evaluate_literal_support(
+        "The private API binds to 0.0.0.0:8787. [S1]",
+        {"S1": "The private API binds to 127.0.0.1:8787 by default."},
+    )
+
+    assert result.passed is False
+    assert "0.0.0.0:8787" in result.unsupported_literals
+
+
+def test_literal_grounding_accepts_exact_values_present_in_cited_evidence() -> None:
+    result = evaluate_literal_support(
+        "Checkpoint 902b37e and 15/15 evals are documented. [S1]",
+        {"S1": "Checkpoint 902b37e reports 15/15 evals passing."},
     )
 
     assert result.passed is True, result.failures
