@@ -18,13 +18,18 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Mapping, Protocol
+from typing import Any, Callable, Iterable, Iterator, Mapping, Protocol
 from urllib.parse import urlencode, urljoin, urlparse
 
 from sidra_ai.config.settings import Settings, get_settings
 
 #: The only HTTP method this package may ever issue.
 ALLOWED_HTTP_METHODS = frozenset({"GET"})
+
+#: Bound pagination so a malformed/malicious Link chain cannot consume an
+#: unbounded number of GitHub requests. Exhausting this budget is treated as
+#: an incomplete fetch, never as a complete source snapshot.
+MAX_PAGINATION_PAGES = 50
 
 
 class WriteOperationForbiddenError(RuntimeError):
@@ -122,11 +127,12 @@ class GitHubReadOnlyClient:
 
     def _build_url(self, path: str, params: Mapping[str, Any] | None = None) -> str:
         url = urljoin(self._api_base, path.lstrip("/"))
-        base_host = urlparse(self._api_base).netloc
-        if urlparse(url).netloc != base_host:
+        base = urlparse(self._api_base)
+        parsed = urlparse(url)
+        if parsed.scheme != base.scheme or parsed.netloc != base.netloc:
             raise GitHubAPIError(
-                f"refusing request to {urlparse(url).netloc!r}: outside the "
-                f"configured GitHub API base"
+                f"refusing request to {parsed.netloc!r}: outside the configured "
+                "GitHub API base"
             )
         if params:
             filtered = {k: v for k, v in params.items() if v is not None}
@@ -182,6 +188,68 @@ class GitHubReadOnlyClient:
 
     def _get_json(self, path: str, params: Mapping[str, Any] | None = None) -> Any:
         return self._request(path, params).body
+
+    @staticmethod
+    def _header(headers: Mapping[str, str], name: str) -> str:
+        """Return a response header case-insensitively."""
+
+        target = name.lower()
+        for key, value in headers.items():
+            if str(key).lower() == target:
+                return str(value)
+        return ""
+
+    @classmethod
+    def _next_link(cls, headers: Mapping[str, str]) -> str | None:
+        """Extract GitHub's RFC-style ``rel=\"next\"`` Link target."""
+
+        link = cls._header(headers, "link")
+        if not link:
+            return None
+        for part in link.split(","):
+            section = part.strip()
+            if 'rel="next"' not in section:
+                continue
+            if not section.startswith("<") or ">" not in section:
+                raise GitHubAPIError("malformed GitHub pagination Link header")
+            return section[1 : section.index(">")]
+        return None
+
+    def _iter_list_pages(
+        self, path: str, params: Mapping[str, Any] | None = None
+    ) -> Iterator[list[dict[str, Any]]]:
+        """Yield bounded list pages by following GitHub ``Link`` headers.
+
+        Each next URL still passes through :meth:`_build_url`, so pagination
+        cannot redirect this read-only client to another host or downgrade the
+        configured API scheme. A repeated URL or excessive page chain fails
+        closed so the ingestion pipeline can keep its prior SHA cursor.
+        """
+
+        target = path
+        target_params = params
+        seen: set[str] = set()
+
+        for _ in range(MAX_PAGINATION_PAGES):
+            current_url = self._build_url(target, target_params)
+            if current_url in seen:
+                raise GitHubAPIError("GitHub pagination loop detected")
+            seen.add(current_url)
+
+            response = self._request(target, target_params)
+            if not isinstance(response.body, list):
+                raise GitHubAPIError(f"expected list response for {path}")
+            yield [item for item in response.body if isinstance(item, dict)]
+
+            next_url = self._next_link(response.headers)
+            if not next_url:
+                return
+            target = next_url
+            target_params = None
+
+        raise GitHubAPIError(
+            f"GitHub pagination exceeded {MAX_PAGINATION_PAGES} pages for {path}"
+        )
 
     # --- repository metadata -------------------------------------------
     def get_repository(self, repository: str) -> dict[str, Any]:
@@ -280,47 +348,73 @@ class GitHubReadOnlyClient:
     def list_commits(
         self, repository: str, since_sha: str | None = None, head: str | None = None
     ) -> list[dict[str, Any]]:
-        """Commits newer than ``since_sha``, or the most recent page."""
+        """Commits newer than ``since_sha``, or the most recent pages."""
 
         self._assert_allowed(repository)
         limit = self.settings.max_items_per_source
         if since_sha and head:
             comparison = self.compare(repository, since_sha, head)
             return list(comparison.get("commits", []))[:limit]
-        data = self._get_json(
+
+        items: list[dict[str, Any]] = []
+        for page in self._iter_list_pages(
             f"repos/{repository}/commits", {"per_page": min(limit, 100), "sha": head}
-        )
-        return list(data or [])[:limit]
+        ):
+            items.extend(page)
+            if len(items) >= limit:
+                break
+        return items[:limit]
 
     def list_pull_requests(self, repository: str, since: str | None = None) -> list[dict[str, Any]]:
         self._assert_allowed(repository)
-        data = self._get_json(
+        limit = self.settings.max_items_per_source
+        items: list[dict[str, Any]] = []
+
+        for page in self._iter_list_pages(
             f"repos/{repository}/pulls",
             {
                 "state": "all",
                 "sort": "updated",
                 "direction": "desc",
-                "per_page": min(self.settings.max_items_per_source, 100),
+                "per_page": min(limit, 100),
             },
-        )
-        items = list(data or [])
-        if since:
-            items = [p for p in items if str(p.get("updated_at", "")) > since]
-        return items[: self.settings.max_items_per_source]
+        ):
+            reached_since = False
+            for pull in page:
+                updated_at = str(pull.get("updated_at", ""))
+                if since and not updated_at:
+                    continue
+                if since and updated_at <= since:
+                    reached_since = True
+                    break
+                items.append(pull)
+                if len(items) >= limit:
+                    return items
+            if reached_since:
+                break
+        return items
 
     def list_issues(self, repository: str, since: str | None = None) -> list[dict[str, Any]]:
         """Issues only. GitHub returns PRs from this endpoint too; filtered out."""
 
         self._assert_allowed(repository)
-        data = self._get_json(
+        limit = self.settings.max_items_per_source
+        items: list[dict[str, Any]] = []
+
+        for page in self._iter_list_pages(
             f"repos/{repository}/issues",
             {
                 "state": "all",
                 "sort": "updated",
                 "direction": "desc",
                 "since": since,
-                "per_page": min(self.settings.max_items_per_source, 100),
+                "per_page": min(limit, 100),
             },
-        )
-        items = [i for i in (data or []) if "pull_request" not in i]
-        return items[: self.settings.max_items_per_source]
+        ):
+            for issue in page:
+                if "pull_request" in issue:
+                    continue
+                items.append(issue)
+                if len(items) >= limit:
+                    return items
+        return items
