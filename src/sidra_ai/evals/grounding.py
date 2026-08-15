@@ -31,15 +31,41 @@ from sidra_ai.security.data_envelope import build_data_context
 _CITATION = re.compile(r"\[(S\d+)\]")
 _NO_EVIDENCE_MARKERS = (
     "no indexed evidence",
+    "there is insufficient evidence",
     "insufficient evidence",
+    "there is not enough evidence",
     "not enough evidence",
     "the data does not answer",
     "the evidence does not answer",
+    "現時点では十分な根拠がありません",
+    "現在の情報では十分な根拠がありません",
     "根拠がありません",
     "十分な根拠がありません",
     "情報がありません",
     "情報が見つかりません",
 )
+_ABSTENTION_ADVISORY_PREFIXES = (
+    "run ",
+    "rephrase ",
+    "provide ",
+    "please provide ",
+    "try ",
+    "add ",
+    "ingest ",
+    "question received:",
+    "追加",
+    "別の",
+    "再度",
+    "確認",
+    "資料を",
+    "情報を",
+)
+_ABSTENTION_CONTRAST = re.compile(
+    r"(?:\bbut\b|\bhowever\b|\bnevertheless\b|\bnonetheless\b|\byet\b|"
+    r"\bstill\b|\bthough\b|\balthough\b|ただし|しかし|だが|でも|とはいえ)"
+)
+_SENTENCE_SPLIT = re.compile(r"(?:[.!?。！？]+|\n+)\s*")
+_LEADING_FORMAT = " \t\r\n-*#>_:;,.!?()[]{}'\"`。！？：「」『』（）"
 
 
 @dataclass(frozen=True)
@@ -52,9 +78,52 @@ class GroundingResult:
     failures: tuple[str, ...] = ()
 
 
+def _abstention_marker_at_start(text: str) -> str | None:
+    normalized = text.lower().lstrip(_LEADING_FORMAT)
+    for marker in _NO_EVIDENCE_MARKERS:
+        if normalized.startswith(marker):
+            return marker
+    return None
+
+
 def _is_abstention(answer: str) -> bool:
-    lowered = answer.lower()
-    return any(marker in lowered for marker in _NO_EVIDENCE_MARKERS)
+    """Return True only for a clear abstention, not a hedge around a claim.
+
+    A substring check is unsafe here: ``"insufficient evidence, but X is true"``
+    would otherwise bypass the no-evidence and conflicting-version guards. The
+    evaluator therefore requires the first sentence to start with an explicit
+    abstention marker, forbids citations and contrastive claim continuations,
+    and only permits later sentences that are another abstention or operational
+    advice about obtaining evidence.
+    """
+
+    stripped = answer.strip()
+    if not stripped or _CITATION.search(stripped):
+        return False
+
+    sentences = [part.strip() for part in _SENTENCE_SPLIT.split(stripped) if part.strip()]
+    if not sentences:
+        return False
+
+    first = sentences[0]
+    marker = _abstention_marker_at_start(first)
+    if marker is None:
+        return False
+
+    first_normalized = first.lower().lstrip(_LEADING_FORMAT)
+    first_tail = first_normalized[len(marker) :]
+    if _ABSTENTION_CONTRAST.search(first_tail):
+        return False
+
+    for sentence in sentences[1:]:
+        normalized = sentence.lower().lstrip(_LEADING_FORMAT)
+        if _abstention_marker_at_start(normalized) is not None:
+            continue
+        if any(normalized.startswith(prefix) for prefix in _ABSTENTION_ADVISORY_PREFIXES):
+            continue
+        return False
+
+    return True
 
 
 def _conflicting_source_versions(
@@ -99,9 +168,11 @@ def evaluate_grounding(
     - every ``[S#]`` label used by the answer must exist in ``citations``;
     - when retrieval returned evidence, a factual/non-abstaining answer must cite
       at least one available label;
-    - an explicit abstention is allowed even when retrieval returned chunks,
+    - a *clear* abstention is allowed even when retrieval returned chunks,
       because retrieval relevance is imperfect and the model may correctly
       decide that the retrieved text does not answer the question;
+    - an answer that merely embeds an abstention phrase around a factual claim is
+      not treated as an abstention;
     - when retrieval returned no evidence, the answer must not invent a source
       label and must explicitly indicate that evidence is unavailable;
     - if the retrieval context contains multiple commit versions of the same
