@@ -15,11 +15,13 @@ from __future__ import annotations
 import hmac
 import time
 from collections import defaultdict, deque
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
+from sidra_ai.api.audit import ApiAuditLog
 from sidra_ai.api.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -58,10 +60,13 @@ class RateLimiter:
 
 
 def create_app(
-    service: SidraService | None = None, settings: Settings | None = None
+    service: SidraService | None = None,
+    settings: Settings | None = None,
+    audit_log: ApiAuditLog | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     limiter = RateLimiter(settings.rate_limit_per_minute)
+    audit_log = audit_log or ApiAuditLog(Path(settings.data_dir) / "api_audit.jsonl")
 
     app = FastAPI(
         title="SIDRA AI",
@@ -114,6 +119,31 @@ def create_app(
                     detail=f"repository {repository!r} is not allowlisted",
                 )
 
+    def record_audit(
+        *,
+        operation: str,
+        input_chars: int,
+        repositories: list[str] | None,
+        response: dict[str, object],
+    ) -> None:
+        """Best-effort local audit without changing API availability.
+
+        The sink accepts metadata only and cannot receive raw operator text,
+        model output, auth headers or gate evidence through this call.
+        """
+
+        try:
+            audit_log.record_response(
+                operation=operation,
+                input_chars=input_chars,
+                requested_repositories=repositories or (),
+                response=response,
+            )
+        except OSError:
+            # A local disk failure must not turn a safe model response into an
+            # HTTP error. The failure is deliberately not echoed to clients.
+            pass
+
     guarded = [Depends(authenticate), Depends(rate_limit)]
 
     # ------------------------------------------------------------------
@@ -129,29 +159,51 @@ def create_app(
 
         current = resolve_service()
         validate_repositories(current, payload.repositories)
-        return current.retrieve(
+        result = current.retrieve(
             payload.query, top_k=payload.top_k, repositories=payload.repositories
         )
+        record_audit(
+            operation="retrieve",
+            input_chars=len(payload.query),
+            repositories=payload.repositories,
+            response=result,
+        )
+        return result
 
     @app.post("/v1/chat", response_model=ChatResponse, dependencies=guarded)
     def chat(payload: ChatRequest) -> Any:
         current = resolve_service()
         validate_repositories(current, payload.repositories)
-        return current.chat(
+        result = current.chat(
             payload.message, top_k=payload.top_k, repositories=payload.repositories
         )
+        record_audit(
+            operation="chat",
+            input_chars=len(payload.message),
+            repositories=payload.repositories,
+            response=result,
+        )
+        return result
 
     @app.post("/v1/github/analyze", response_model=AnalyzeResponse, dependencies=guarded)
     def analyze(payload: AnalyzeRequest) -> Any:
         current = resolve_service()
         try:
-            return current.analyze_github(
+            result = current.analyze_github(
                 payload.repositories, force=payload.force, question=payload.question
             )
         except RepositoryNotAllowedError as exc:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
             ) from exc
+
+        record_audit(
+            operation="github_analyze",
+            input_chars=len(payload.question),
+            repositories=payload.repositories,
+            response=result,
+        )
+        return result
 
     # ------------------------------------------------------------------
     @app.exception_handler(RepositoryNotAllowedError)
