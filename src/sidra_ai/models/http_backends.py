@@ -4,9 +4,10 @@ Both Ollama and llama.cpp's ``llama-server`` speak HTTP on loopback. Neither
 is imported at module load: ``httpx`` is only touched inside generation, so a
 checkout without these servers still imports and tests cleanly.
 
-Endpoints are validated as loopback by default. Pointing SIDRA at a remote
-inference host is possible but must be deliberate - it turns prompts
-(including retrieved internal content) into outbound network traffic.
+In v0.1, HTTP inference endpoints are a capability boundary: they must be
+loopback-only. A future owned-network backend can add explicit host/CIDR
+allowlisting and authentication, but arbitrary remote endpoints are not an
+escape hatch on the local adapters.
 """
 
 from __future__ import annotations
@@ -27,15 +28,18 @@ from sidra_ai.models.base import (
 )
 
 
-def _assert_local_endpoint(endpoint: str, *, allow_remote: bool) -> None:
-    host = urlparse(endpoint).hostname or ""
-    if host in LOCALHOST_ADDRESSES or allow_remote:
-        return
-    raise ModelUnavailableError(
-        f"model endpoint host {host!r} is not loopback; set "
-        "allow_remote_endpoint=true only if sending internal context to that "
-        "host has been reviewed"
-    )
+def _assert_local_endpoint(endpoint: str) -> None:
+    parsed = urlparse(endpoint)
+    host = parsed.hostname or ""
+    if parsed.scheme not in {"http", "https"}:
+        raise ModelUnavailableError(
+            "model endpoint must use http or https on loopback"
+        )
+    if host not in LOCALHOST_ADDRESSES:
+        raise ModelUnavailableError(
+            f"model endpoint host {host!r} is not loopback; SIDRA AI v0.1 "
+            "does not allow remote inference endpoints"
+        )
 
 
 class _HTTPAdapter(LocalModelAdapter):
@@ -47,10 +51,7 @@ class _HTTPAdapter(LocalModelAdapter):
         self.endpoint = (
             str(options.get("endpoint") or "").rstrip("/") or self.default_endpoint
         )
-        self.allow_remote_endpoint = bool(options.get("allow_remote_endpoint", False))
-        _assert_local_endpoint(
-            self.endpoint, allow_remote=self.allow_remote_endpoint
-        )
+        _assert_local_endpoint(self.endpoint)
 
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         try:
