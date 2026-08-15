@@ -32,7 +32,11 @@ _LITERAL_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b[0-9a-f]{7,40}\b", re.IGNORECASE),
 )
 _TRAILING_CITATIONS = re.compile(r"([.!?。！？])\s*((?:\[(?:S\d+)\]\s*)+)")
-_CLAIM_SPLIT = re.compile(r"(?<=[.!?。！？])\s+|\n+")
+# Japanese prose commonly has no whitespace after 。！？. Split zero-width after
+# those terminators so two adjacent Japanese claim sentences cannot pool their
+# citations. Western punctuation still requires whitespace to avoid splitting
+# decimals and dotted identifiers such as 3.14 or 127.0.0.1.
+_CLAIM_SPLIT = re.compile(r"(?<=[。！？])|(?<=[.!?])\s+|\n+")
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,9 @@ def _claim_units(answer: str) -> tuple[str, ...]:
     inside the preceding sentence boundary. This keeps the evaluator compatible
     with both ``claim [S1].`` and ``claim. [S1]`` without letting a citation from
     the next sentence support the previous one.
+
+    Japanese sentence terminators are also boundaries even when followed
+    immediately by the next sentence, which is standard Japanese typography.
     """
 
     normalized = _TRAILING_CITATIONS.sub(
@@ -184,6 +191,10 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         ),
         evidence,
     )
+    japanese_citation_laundering = evaluate_literal_support(
+        "評価結果は15/15 [S1]。統合checkpointは902b37e [S2]。",
+        evidence,
+    )
 
     failures: list[str] = []
     if not supported.passed:
@@ -194,6 +205,8 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         failures.append("invented evaluation count escaped exact-literal grounding")
     if citation_laundering.passed:
         failures.append("cross-sentence citation laundering escaped exact-literal grounding")
+    if japanese_citation_laundering.passed:
+        failures.append("Japanese no-whitespace citation laundering escaped exact-literal grounding")
 
     return (
         EvalOutcome(
