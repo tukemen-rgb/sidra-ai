@@ -5,7 +5,7 @@ from __future__ import annotations
 from sidra_ai.config.settings import Settings
 from sidra_ai.ingestion.github_client import GitHubAPIError, GitHubReadOnlyClient, Response
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline
-from sidra_ai.ingestion.state import StateStore
+from sidra_ai.ingestion.state import StateStore, StateStoreError
 from sidra_ai.retrieval.store import DocumentStore
 
 REPO = "tukemen-rgb/site"
@@ -437,11 +437,20 @@ def test_force_reingests_even_without_new_commits(
 
 
 def test_state_survives_a_corrupt_file(tmp_path) -> None:
-    """A corrupt state file must degrade to a re-ingest, not a crash."""
+    """A corrupt cursor must fail closed and remain untouched for diagnosis."""
 
     path = tmp_path / "state.json"
-    path.write_text("{not json", encoding="utf-8")
-    assert StateStore(path).load().repositories == {}
+    corrupt = "{not json"
+    path.write_text(corrupt, encoding="utf-8")
+
+    try:
+        StateStore(path).load()
+    except StateStoreError as exc:
+        assert "invalid JSON" in str(exc)
+    else:
+        raise AssertionError("corrupt persisted cursor was treated as a fresh state")
+
+    assert path.read_text(encoding="utf-8") == corrupt
 
 
 def test_state_write_is_atomic(tmp_path) -> None:
