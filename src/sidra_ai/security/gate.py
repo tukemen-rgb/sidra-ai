@@ -16,7 +16,6 @@ stored in its sanitized form, while blocked material is metadata-only.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from dataclasses import dataclass
@@ -88,8 +87,9 @@ class QuarantineStore:
 
     Security invariant: raw blocked/quarantined input is never persisted here.
     ``QUARANTINE`` records may retain the gate-sanitized content for human
-    review. ``BLOCK`` records retain metadata only. A SHA-256 digest and the
-    original length allow later correlation without storing the source text.
+    review. ``BLOCK`` records retain metadata only. No digest of the original
+    content is stored either, because low-entropy PII can be guessable from an
+    unkeyed hash.
 
     The file is still created with owner-only permissions because sanitized
     review content and provenance may remain sensitive.
@@ -101,8 +101,8 @@ class QuarantineStore:
     def record(
         self,
         *,
-        original_content: str,
         safe_content: str | None,
+        original_length: int,
         provenance: Provenance | None,
         result: GateResult,
     ) -> None:
@@ -113,8 +113,7 @@ class QuarantineStore:
             "gate": result.to_dict(),
             "content": safe_content,
             "content_retention": "sanitized" if safe_content is not None else "metadata_only",
-            "content_sha256": hashlib.sha256(original_content.encode("utf-8")).hexdigest(),
-            "original_length": len(original_content),
+            "original_length": original_length,
         }
         # Create with 0600 before writing anything potentially sensitive.
         if not self.path.exists():
@@ -295,8 +294,8 @@ class SecurityGate:
             # secret and PII detectors are allowed to inspect the payload.
             safe_content = sanitized if decision is Decision.QUARANTINE else None
             self.quarantine_store.record(
-                original_content=original,
                 safe_content=safe_content,
+                original_length=len(original),
                 provenance=provenance,
                 result=result,
             )
