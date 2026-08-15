@@ -6,7 +6,6 @@ non-functional. They exist so the detectors have something to catch.
 
 from __future__ import annotations
 
-import hashlib
 from datetime import datetime, timezone
 
 import pytest
@@ -193,8 +192,8 @@ def test_quarantine_persists_only_sanitized_content(tmp_path) -> None:
     assert FAKE_GITHUB_TOKEN not in serialized
     assert entry["content_retention"] == "sanitized"
     assert "[REDACTED:" in entry["content"]
-    assert entry["content_sha256"] == hashlib.sha256(original.encode()).hexdigest()
     assert entry["original_length"] == len(original)
+    assert "content_sha256" not in entry
     assert entry["gate"]["decision"] == "quarantine"
     assert entry["gate"]["reasons"]
 
@@ -229,7 +228,8 @@ def test_blocked_untrusted_source_is_metadata_only(tmp_path) -> None:
     assert FAKE_GITHUB_TOKEN not in str(entry)
     assert entry["content"] is None
     assert entry["content_retention"] == "metadata_only"
-    assert entry["content_sha256"] == hashlib.sha256(hostile.encode()).hexdigest()
+    assert entry["original_length"] == len(hostile)
+    assert "content_sha256" not in entry
     assert entry["gate"]["decision"] == "block"
 
 
