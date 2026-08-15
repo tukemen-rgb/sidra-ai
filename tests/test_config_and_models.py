@@ -287,6 +287,100 @@ def test_stream_requires_explicit_terminal_event(monkeypatch: pytest.MonkeyPatch
         )
 
 
+def test_local_benchmark_records_speed_memory_and_quantization_without_text() -> None:
+    from sidra_ai.models.base import GenerationChunk, GenerationResult
+    from sidra_ai.models.benchmark import run_benchmark
+
+    class StreamingAdapter(LocalModelAdapter):
+        backend = "fake_local"
+        supports_streaming = True
+
+        def generate(self, request: GenerationRequest) -> GenerationResult:
+            raise AssertionError("native streaming path should be used")
+
+        def generate_stream(self, request: GenerationRequest):
+            yield GenerationChunk(
+                text_delta="abc",
+                backend=self.backend,
+                model=self.model,
+                output_tokens_estimate=3,
+            )
+            yield GenerationChunk(
+                text_delta="def",
+                backend=self.backend,
+                model=self.model,
+                done=True,
+                input_tokens_estimate=10,
+                output_tokens_estimate=6,
+                finish_reason="stop",
+            )
+
+    adapter = StreamingAdapter("local-q4", quantization="Q4_K_M")
+    times = iter([10.0, 10.5, 12.0])
+    memory = iter([4096.0, 4608.0])
+    request = GenerationRequest(
+        system_prompt="PRIVATE SYSTEM",
+        user_message="PRIVATE QUESTION",
+        data_context="PRIVATE DATA",
+    )
+    result = run_benchmark(
+        adapter,
+        request,
+        clock=lambda: next(times),
+        memory_probe=lambda: next(memory),
+    )
+
+    assert result.time_to_first_token_s == 0.5
+    assert result.total_time_s == 2.0
+    assert result.output_tokens_estimate == 6
+    assert result.output_tokens_per_second == 3.0
+    assert result.memory_delta_mib == 512.0
+    assert result.quantization == "Q4_K_M"
+    serialized = json.dumps(result.to_dict())
+    assert "PRIVATE SYSTEM" not in serialized
+    assert "PRIVATE QUESTION" not in serialized
+    assert "PRIVATE DATA" not in serialized
+    assert result.to_dict()["external_api_cost_usd"] == 0.0
+
+
+def test_local_benchmark_supports_dependency_free_non_streaming_backend() -> None:
+    from sidra_ai.models.benchmark import run_benchmark
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    adapter = EchoModelAdapter()
+    times = iter([1.0, 1.25])
+    result = run_benchmark(
+        adapter,
+        GenerationRequest(system_prompt="s", user_message="q"),
+        clock=lambda: next(times),
+    )
+
+    assert result.backend == "echo"
+    assert result.supports_streaming is False
+    assert result.total_time_s == 0.25
+    assert result.time_to_first_token_s == 0.25
+    assert result.output_tokens_estimate > 0
+    assert result.to_dict()["external_api_cost_usd"] == 0.0
+
+
+def test_local_benchmark_refuses_paid_backend_even_if_constructed_directly() -> None:
+    from sidra_ai.models.base import GenerationResult
+    from sidra_ai.models.benchmark import UnsafeBenchmarkBackendError, run_benchmark
+
+    class PaidAdapter(LocalModelAdapter):
+        backend = "paid"
+        requires_paid_api = True
+
+        def generate(self, request: GenerationRequest) -> GenerationResult:
+            raise AssertionError("paid adapter must never be invoked")
+
+    with pytest.raises(UnsafeBenchmarkBackendError, match="paid backend"):
+        run_benchmark(
+            PaidAdapter("remote"),
+            GenerationRequest(system_prompt="s", user_message="q"),
+        )
+
+
 def test_no_paid_llm_sdk_is_a_dependency() -> None:
     """A paid SDK must never appear in pyproject dependencies."""
 
