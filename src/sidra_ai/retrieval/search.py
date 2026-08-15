@@ -81,34 +81,62 @@ class SearchResult:
 
 
 def _diversify_results(scored: Sequence[SearchResult], top_k: int) -> list[SearchResult]:
-    """Keep score order while preventing one document from crowding out peers.
+    """Prefer source breadth, then limited depth, while preserving score order.
 
-    The first pass takes at most two chunks per document. If the candidate set
-    does not contain enough distinct documents, a second pass fills the
-    remaining slots from the skipped chunks in their original score order.
-    This keeps single-document queries complete without letting a long,
-    overlapping document hide otherwise relevant evidence.
+    A single "at most two chunks per document" pass still lets the two highest
+    scoring chunks from one document consume ``top_k=2`` before a relevant peer
+    is considered.  Diversification therefore happens in three deterministic
+    stages:
+
+    1. take the highest-scoring chunk from each distinct document;
+    2. if space remains, allow a second chunk per document;
+    3. if the corpus is too narrow to fill ``top_k``, backfill remaining chunks.
+
+    Every stage preserves the original BM25 ordering among eligible chunks.
+    This keeps small context windows diverse without reducing result count for
+    single-document queries.
     """
 
     if top_k <= 0:
         return []
 
     selected: list[SearchResult] = []
-    deferred: list[SearchResult] = []
+    selected_chunk_ids: set[str] = set()
     per_document: Counter[str] = Counter()
 
+    # Breadth first: one chunk per document. This is the critical pass for
+    # small context windows such as top_k=2.
     for result in scored:
         document_id = result.chunk.document_id
-        if per_document[document_id] >= _MAX_CHUNKS_PER_DOCUMENT:
-            deferred.append(result)
+        if per_document[document_id]:
             continue
         selected.append(result)
+        selected_chunk_ids.add(result.chunk.chunk_id)
         per_document[document_id] += 1
         if len(selected) >= top_k:
             return selected
 
-    for result in deferred:
+    # Depth second: allow one additional chunk from each document while
+    # keeping the original score order.
+    for result in scored:
+        if result.chunk.chunk_id in selected_chunk_ids:
+            continue
+        document_id = result.chunk.document_id
+        if per_document[document_id] >= _MAX_CHUNKS_PER_DOCUMENT:
+            continue
         selected.append(result)
+        selected_chunk_ids.add(result.chunk.chunk_id)
+        per_document[document_id] += 1
+        if len(selected) >= top_k:
+            return selected
+
+    # Narrow-corpus fallback: do not return fewer than top_k merely because
+    # only one or two documents matched.
+    for result in scored:
+        if result.chunk.chunk_id in selected_chunk_ids:
+            continue
+        selected.append(result)
+        selected_chunk_ids.add(result.chunk.chunk_id)
         if len(selected) >= top_k:
             break
     return selected
