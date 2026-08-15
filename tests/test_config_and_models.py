@@ -145,6 +145,17 @@ def test_remote_model_endpoint_is_refused_by_default() -> None:
         OllamaAdapter("llama3", endpoint="http://inference.example.com:11434")
 
 
+def test_remote_model_endpoint_cannot_be_enabled_with_ad_hoc_option() -> None:
+    from sidra_ai.models.http_backends import OllamaAdapter
+
+    with pytest.raises(ModelUnavailableError, match="does not allow remote"):
+        OllamaAdapter(
+            "llama3",
+            endpoint="http://inference.example.com:11434",
+            allow_remote_endpoint=True,
+        )
+
+
 def test_loopback_model_endpoint_is_accepted() -> None:
     from sidra_ai.models.http_backends import LlamaCppAdapter
 
