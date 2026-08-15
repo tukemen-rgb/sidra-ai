@@ -35,6 +35,12 @@ _STOPWORDS = frozenset(
     }
 )
 
+#: Adjacent chunks from one long document often repeat the same evidence due
+#: to chunk overlap. Prefer breadth before allowing one document to consume
+#: the whole context window, while still permitting two chunks when a section
+#: boundary splits a useful passage.
+_MAX_CHUNKS_PER_DOCUMENT = 2
+
 
 def tokenize(text: str) -> list[str]:
     """Lowercased Latin words plus CJK character bigrams."""
@@ -72,6 +78,40 @@ class SearchResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {"score": round(self.score, 4), **self.chunk.to_dict()}
+
+
+def _diversify_results(scored: Sequence[SearchResult], top_k: int) -> list[SearchResult]:
+    """Keep score order while preventing one document from crowding out peers.
+
+    The first pass takes at most two chunks per document. If the candidate set
+    does not contain enough distinct documents, a second pass fills the
+    remaining slots from the skipped chunks in their original score order.
+    This keeps single-document queries complete without letting a long,
+    overlapping document hide otherwise relevant evidence.
+    """
+
+    if top_k <= 0:
+        return []
+
+    selected: list[SearchResult] = []
+    deferred: list[SearchResult] = []
+    per_document: Counter[str] = Counter()
+
+    for result in scored:
+        document_id = result.chunk.document_id
+        if per_document[document_id] >= _MAX_CHUNKS_PER_DOCUMENT:
+            deferred.append(result)
+            continue
+        selected.append(result)
+        per_document[document_id] += 1
+        if len(selected) >= top_k:
+            return selected
+
+    for result in deferred:
+        selected.append(result)
+        if len(selected) >= top_k:
+            break
+    return selected
 
 
 class BM25Retriever:
@@ -133,11 +173,11 @@ class BM25Retriever:
         source_types: Iterable[SourceType] | None = None,
         min_score: float = 0.0,
     ) -> list[SearchResult]:
-        """Return the best-scoring chunks, most relevant first."""
+        """Return score-ranked chunks with document-level diversity."""
 
         self._ensure_index()
         query_terms = tokenize(query)
-        if not query_terms or not self._chunks:
+        if not query_terms or not self._chunks or top_k <= 0:
             return []
 
         repository_filter = {r.lower() for r in repositories} if repositories else None
@@ -167,7 +207,7 @@ class BM25Retriever:
                 scored.append(SearchResult(chunk=chunk, score=score))
 
         scored.sort(key=lambda r: (-r.score, r.chunk.chunk_id))
-        return scored[:top_k]
+        return _diversify_results(scored, top_k)
 
 
 #: The interface every retriever must satisfy. Kept as an alias so callers
