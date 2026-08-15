@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable, Protocol, Sequence
@@ -492,25 +493,36 @@ class PromptInjectionDetector:
     ingested content is DATA regardless of what this detector says - the
     detector exists so that injection attempts are visible and auditable,
     not so that "clean" content can be trusted as instructions.
+
+    Compatibility characters are normalized with Unicode NFKC for matching.
+    This closes fullwidth/compatibility-character bypasses without rewriting
+    the original document. If normalization changes the text, match offsets
+    are deliberately omitted rather than reporting positions that may no
+    longer refer to the original input.
     """
 
     name = "prompt_injection"
 
     def detect(self, content: str) -> DetectionOutput:
         findings: list[Finding] = []
+        normalized = unicodedata.normalize("NFKC", content)
+        offsets_stable = normalized == content
 
         for label, regex, severity, reason in _INJECTION_PATTERNS:
-            for match in regex.finditer(content):
-                start, end = match.span()
+            for match in regex.finditer(normalized):
+                normalized_start, normalized_end = match.span()
                 findings.append(
                     Finding(
                         category=FindingCategory.PROMPT_INJECTION,
                         severity=severity,
                         detector=label,
                         reason=reason,
-                        evidence=content[start:end][:160].replace("\n", " "),
-                        start=start,
-                        end=end,
+                        evidence=match.group(0)[:160].replace("\n", " "),
+                        start=normalized_start if offsets_stable else -1,
+                        end=normalized_end if offsets_stable else -1,
+                        metadata={"unicode_normalization": "NFKC"}
+                        if not offsets_stable
+                        else {},
                     )
                 )
 
