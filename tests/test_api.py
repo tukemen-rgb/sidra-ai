@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
 from sidra_ai.api.app import RateLimiter, create_app
+from sidra_ai.api.audit import ApiAuditLog
 from sidra_ai.api.service import SidraService
 from sidra_ai.config.settings import Settings, reset_settings_cache
 from sidra_ai.ingestion.state import StateStore
@@ -298,3 +301,51 @@ def test_cors_is_not_enabled(api: TestClient) -> None:
     assert "access-control-allow-origin" not in {
         k.lower() for k in response.headers
     }
+
+
+# --- secret-safe audit -------------------------------------------------
+
+def test_api_audit_records_metadata_without_query_or_secret(
+    service: SidraService, settings: Settings, tmp_path
+) -> None:
+    path = tmp_path / "audit.jsonl"
+    audited = TestClient(create_app(service, settings, audit_log=ApiAuditLog(path)))
+    ordinary_query = "private roadmap question"
+
+    assert audited.post("/v1/chat", json={"message": ordinary_query}).status_code == 200
+    assert audited.post(
+        "/v1/retrieve", json={"query": f"find {FAKE_TOKEN}"}
+    ).status_code == 200
+
+    raw = path.read_text(encoding="utf-8")
+    assert ordinary_query not in raw
+    assert FAKE_TOKEN not in raw
+    assert "authorization" not in raw.lower()
+    assert path.stat().st_mode & 0o777 == 0o600
+
+    events = [json.loads(line) for line in raw.splitlines()]
+    assert [event["operation"] for event in events] == ["chat", "retrieve"]
+    assert events[0]["input_chars"] == len(ordinary_query)
+    assert events[1]["input_chars"] == len(f"find {FAKE_TOKEN}")
+    assert events[1]["model_invoked"] is False
+
+
+def test_api_audit_keeps_only_citation_repository_provenance(
+    service: SidraService, settings: Settings, tmp_path
+) -> None:
+    service.analyze_github(["tukemen-rgb/site"])
+    path = tmp_path / "audit.jsonl"
+    audited = TestClient(create_app(service, settings, audit_log=ApiAuditLog(path)))
+
+    response = audited.post(
+        "/v1/retrieve",
+        json={"query": "site repository", "repositories": ["tukemen-rgb/site"]},
+    )
+    assert response.status_code == 200
+
+    event = json.loads(path.read_text(encoding="utf-8").splitlines()[-1])
+    assert event["citation_repositories"] == ["tukemen-rgb/site"]
+    assert event["repository_count"] == 1
+    assert "content" not in event
+    assert "query" not in event
+    assert "answer" not in event
