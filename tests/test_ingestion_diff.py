@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sidra_ai.config.settings import Settings
-from sidra_ai.ingestion.github_client import GitHubAPIError
+from sidra_ai.ingestion.github_client import GitHubAPIError, GitHubReadOnlyClient, Response
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline
 from sidra_ai.ingestion.state import StateStore
 from sidra_ai.retrieval.store import DocumentStore
@@ -460,3 +460,77 @@ def test_denied_repository_is_reported_not_fetched(
     assert report.changed is False
     assert report.skipped_reason == "not_allowed"
     assert fake_github.requests == []
+
+
+def test_paginated_issues_follow_link_until_real_issue_limit(settings) -> None:
+    """PR-shaped rows from /issues must not consume the issue result budget."""
+
+    paginated_settings = Settings(
+        allowed_repositories=settings.allowed_repositories,
+        data_dir=settings.data_dir,
+        max_items_per_source=2,
+    )
+    requests: list[str] = []
+
+    def transport(method: str, url: str, headers, timeout: float) -> Response:
+        requests.append(url)
+        if "page=2" in url:
+            return Response(
+                200,
+                {},
+                [{"number": 3, "title": "issue three"}, {"number": 4, "title": "issue four"}],
+            )
+        next_url = (
+            f"https://api.github.com/repos/{REPO}/issues?state=all&sort=updated"
+            "&direction=desc&per_page=2&page=2"
+        )
+        return Response(
+            200,
+            {"Link": f'<{next_url}>; rel="next"'},
+            [
+                {"number": 1, "pull_request": {"url": "ignored"}},
+                {"number": 2, "pull_request": {"url": "ignored"}},
+            ],
+        )
+
+    paginated = GitHubReadOnlyClient(
+        paginated_settings, transport=transport, sleep=lambda _: None
+    )
+    issues = paginated.list_issues(REPO)
+
+    assert [item["number"] for item in issues] == [3, 4]
+    assert len(requests) == 2
+    assert requests[0].startswith("https://api.github.com/")
+    assert "page=2" in requests[1]
+
+
+def test_pagination_refuses_cross_origin_next_link(settings) -> None:
+    """A Link header must not turn read-only GitHub access into generic egress."""
+
+    paginated_settings = Settings(
+        allowed_repositories=settings.allowed_repositories,
+        data_dir=settings.data_dir,
+        max_items_per_source=2,
+    )
+    requests: list[str] = []
+
+    def transport(method: str, url: str, headers, timeout: float) -> Response:
+        requests.append(url)
+        return Response(
+            200,
+            {"link": '<https://example.invalid/steal?page=2>; rel="next"'},
+            [{"number": 1, "updated_at": "2026-08-16T00:00:00Z"}],
+        )
+
+    paginated = GitHubReadOnlyClient(
+        paginated_settings, transport=transport, sleep=lambda _: None
+    )
+
+    try:
+        paginated.list_pull_requests(REPO)
+    except GitHubAPIError as exc:
+        assert "outside the configured GitHub API base" in str(exc)
+    else:
+        raise AssertionError("cross-origin pagination Link was followed")
+
+    assert len(requests) == 1, "transport was called for an untrusted next-page host"
