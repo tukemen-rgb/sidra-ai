@@ -12,10 +12,12 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 
 @dataclass
@@ -72,10 +74,21 @@ class IngestionState:
 
 
 class StateStore:
-    """Loads and atomically saves :class:`IngestionState`."""
+    """Loads and atomically saves :class:`IngestionState`.
+
+    Atomic replacement prevents torn JSON files, while a tiny cross-process
+    lock around read-modify-write updates prevents two repository workers from
+    overwriting each other's cursor state. The lock contains no state or
+    credentials and is held only for the local file update.
+    """
+
+    _LOCK_TIMEOUT_SECONDS = 5.0
+    _LOCK_STALE_SECONDS = 30.0
+    _LOCK_POLL_SECONDS = 0.01
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
         self.path = Path(path)
+        self._lock_path = self.path.with_name(self.path.name + ".lock")
 
     def load(self) -> IngestionState:
         if not self.path.exists():
@@ -88,8 +101,53 @@ class StateStore:
             # is one full re-ingest, which is idempotent.
             return IngestionState()
 
-    def save(self, state: IngestionState) -> None:
-        """Write via a temp file + rename so a crash cannot truncate state."""
+    @contextmanager
+    def _locked_update(self) -> Iterator[None]:
+        """Serialize state read-modify-write sequences across processes.
+
+        ``os.mkdir`` is an atomic create on the filesystems SIDRA targets and
+        works without an extra dependency. A crashed writer may leave an empty
+        lock directory; after a conservative stale interval another worker can
+        recover it. If a live writer does not finish within the short timeout,
+        fail closed rather than risk a lost cursor update.
+        """
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        deadline = time.monotonic() + self._LOCK_TIMEOUT_SECONDS
+
+        while True:
+            try:
+                os.mkdir(self._lock_path)
+                break
+            except FileExistsError:
+                try:
+                    age = time.time() - self._lock_path.stat().st_mtime
+                except FileNotFoundError:
+                    continue
+
+                if age >= self._LOCK_STALE_SECONDS:
+                    try:
+                        os.rmdir(self._lock_path)
+                    except (FileNotFoundError, OSError):
+                        pass
+                    continue
+
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out waiting for ingestion state lock: {self._lock_path}"
+                    )
+                time.sleep(self._LOCK_POLL_SECONDS)
+
+        try:
+            yield
+        finally:
+            try:
+                os.rmdir(self._lock_path)
+            except FileNotFoundError:
+                pass
+
+    def _save_unlocked(self, state: IngestionState) -> None:
+        """Persist ``state``; caller must hold ``_locked_update`` when merging."""
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         handle = tempfile.NamedTemporaryFile(
@@ -110,6 +168,12 @@ class StateStore:
             Path(handle.name).unlink(missing_ok=True)
             raise
 
+    def save(self, state: IngestionState) -> None:
+        """Atomically replace state while excluding concurrent writers."""
+
+        with self._locked_update():
+            self._save_unlocked(state)
+
     def mark_ingested(
         self,
         repository: str,
@@ -120,22 +184,24 @@ class StateStore:
         default_branch: str = "",
         license: str = "unknown",
     ) -> IngestionState:
-        state = self.load()
-        record = state.get(repository)
-        record.last_commit_sha = commit_sha
-        record.last_ingested_at = datetime.now(timezone.utc).isoformat()
-        record.document_count = document_count
-        record.quarantined_count = quarantined_count
-        record.last_error = ""
-        if default_branch:
-            record.default_branch = default_branch
-        if license:
-            record.license = license
-        self.save(state)
-        return state
+        with self._locked_update():
+            state = self.load()
+            record = state.get(repository)
+            record.last_commit_sha = commit_sha
+            record.last_ingested_at = datetime.now(timezone.utc).isoformat()
+            record.document_count = document_count
+            record.quarantined_count = quarantined_count
+            record.last_error = ""
+            if default_branch:
+                record.default_branch = default_branch
+            if license:
+                record.license = license
+            self._save_unlocked(state)
+            return state
 
     def mark_error(self, repository: str, message: str) -> IngestionState:
-        state = self.load()
-        state.get(repository).last_error = message[:500]
-        self.save(state)
-        return state
+        with self._locked_update():
+            state = self.load()
+            state.get(repository).last_error = message[:500]
+            self._save_unlocked(state)
+            return state
