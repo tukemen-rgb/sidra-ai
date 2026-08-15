@@ -157,6 +157,24 @@ def test_unpermitted_repository_is_blocked(gate: SecurityGate) -> None:
     assert result.has(FindingCategory.UNPERMITTED_SOURCE)
 
 
+def test_github_source_requires_repository_provenance(gate: SecurityGate) -> None:
+    """An empty repository must never bypass the GitHub repository allowlist."""
+
+    result = gate.inspect("hello", source="github", repository="")
+
+    assert result.decision is Decision.BLOCK
+    assert result.has(FindingCategory.UNPERMITTED_SOURCE)
+    assert any(f.detector == "repository_required" for f in result.findings)
+
+
+def test_operator_source_may_omit_repository(gate: SecurityGate) -> None:
+    """Direct operator input is not repository-scoped and stays valid."""
+
+    result = gate.inspect("hello", source="operator", repository="")
+
+    assert result.decision is Decision.ALLOW
+
+
 def test_unpermitted_source_is_blocked(gate: SecurityGate) -> None:
     result = gate.inspect(
         "hello", source="random-website", repository="tukemen-rgb/site"
