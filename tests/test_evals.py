@@ -5,6 +5,7 @@ from __future__ import annotations
 from sidra_ai.evals.cases import GATE_CASES
 from sidra_ai.evals.grounding import evaluate_grounding
 from sidra_ai.evals.literal_support import evaluate_literal_support
+from sidra_ai.evals.policy_polarity import evaluate_policy_polarity
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
 from sidra_ai.evals.runner import run_all
 from sidra_ai.security.decisions import FindingCategory
@@ -192,3 +193,43 @@ def test_literal_grounding_accepts_exact_values_present_in_cited_evidence() -> N
     )
 
     assert result.passed is True, result.failures
+
+
+def test_policy_polarity_rejects_reversed_github_write_claim() -> None:
+    result = evaluate_policy_polarity(
+        "GitHub write capability is enabled. [S1]",
+        {"S1": "GitHub access is read-only and no GitHub write capability exists."},
+    )
+
+    assert result.passed is False
+    assert any("github_write" in failure for failure in result.failures)
+
+
+def test_policy_polarity_rejects_reversed_public_bind_claim() -> None:
+    result = evaluate_policy_polarity(
+        "Public binding is allowed by default. [S1]",
+        {"S1": "The API is loopback-only by default. Public binding is not allowed by default."},
+    )
+
+    assert result.passed is False
+    assert any("public_bind" in failure for failure in result.failures)
+
+
+def test_policy_polarity_rejects_japanese_write_reversal() -> None:
+    result = evaluate_policy_polarity(
+        "GitHub書き込みは可能です。[S1]",
+        {"S1": "GitHubは読み取り専用で書き込みは禁止です。"},
+    )
+
+    assert result.passed is False
+    assert any("github_write" in failure for failure in result.failures)
+
+
+def test_policy_polarity_accepts_supported_read_only_claim() -> None:
+    result = evaluate_policy_polarity(
+        "GitHub write capability is disabled. [S1]",
+        {"S1": "GitHub access is read-only and no GitHub write capability exists."},
+    )
+
+    assert result.passed is True, result.failures
+    assert result.checked_claims == 1
