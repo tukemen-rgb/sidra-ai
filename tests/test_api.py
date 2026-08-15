@@ -92,6 +92,61 @@ def test_app_starts_without_a_paid_api_key(settings: Settings) -> None:
         assert bare.get("/health").status_code == 200
 
 
+# --- retrieve: citation-only, zero-model path -------------------------
+
+def test_retrieve_returns_provenance_without_invoking_model(
+    api: TestClient, service: SidraService, model
+) -> None:
+    service.analyze_github(["tukemen-rgb/site"])
+    calls_before = model.calls
+
+    response = api.post(
+        "/v1/retrieve",
+        json={"query": "site repository", "repositories": ["tukemen-rgb/site"]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["refused"] is False
+    assert body["model_invoked"] is False
+    assert body["external_api_cost_usd"] == 0.0
+    assert body["results"]
+    assert model.calls == calls_before, "retrieval-only route invoked the model"
+
+    for result in body["results"]:
+        assert set(result) == {"score", "citation"}
+        citation = result["citation"]
+        assert citation["repository"] == "tukemen-rgb/site"
+        assert citation["commit_sha"]
+        assert citation["license"]
+        assert "content" not in citation
+
+
+def test_retrieve_with_no_index_returns_no_evidence_without_model(
+    api: TestClient, model
+) -> None:
+    calls_before = model.calls
+    body = api.post("/v1/retrieve", json={"query": "anything"}).json()
+    assert body["results"] == []
+    assert body["model_invoked"] is False
+    assert body["external_api_cost_usd"] == 0.0
+    assert "no indexed evidence" in body["reason"]
+    assert model.calls == calls_before
+
+
+def test_retrieve_screens_operator_query(api: TestClient) -> None:
+    response = api.post("/v1/retrieve", json={"query": f"find {FAKE_TOKEN}"})
+    assert response.status_code == 200
+    assert FAKE_TOKEN not in response.text
+
+
+def test_retrieve_rejects_non_allowlisted_repository(api: TestClient) -> None:
+    response = api.post(
+        "/v1/retrieve",
+        json={"query": "hi", "repositories": ["attacker/evil"]},
+    )
+    assert response.status_code == 403
+
+
 # --- chat --------------------------------------------------------------
 
 def test_chat_returns_citations_for_indexed_content(
@@ -169,7 +224,12 @@ def test_no_write_routes_exist(api: TestClient) -> None:
     """The API surface itself offers no GitHub mutation."""
 
     paths = api.get("/openapi.json").json()["paths"]
-    assert set(paths) == {"/health", "/v1/chat", "/v1/github/analyze"}
+    assert set(paths) == {
+        "/health",
+        "/v1/retrieve",
+        "/v1/chat",
+        "/v1/github/analyze",
+    }
     for path, methods in paths.items():
         for method in methods:
             assert method in {"get", "post"}
@@ -186,6 +246,9 @@ def test_bearer_token_is_required_when_configured(
     guarded = TestClient(create_app(service, settings))
 
     assert guarded.post("/v1/chat", json={"message": "hi"}).status_code == 401
+    assert guarded.post(
+        "/v1/retrieve", json={"query": "hi"}
+    ).status_code == 401
     assert guarded.post(
         "/v1/chat",
         json={"message": "hi"},
