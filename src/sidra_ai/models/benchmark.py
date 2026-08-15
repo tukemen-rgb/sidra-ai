@@ -2,7 +2,7 @@
 
 The harness measures the signals needed to choose a model for constrained
 owned hardware without sending prompts, results, or metrics to an external
-service.  It deliberately accepts an optional memory probe instead of taking
+service. It deliberately accepts an optional memory probe instead of taking
 a hard dependency on NVIDIA tooling, so the same interface works for CPU,
 CUDA, ROCm, Metal, and future local runtimes.
 """
@@ -67,6 +67,14 @@ class BenchmarkResult:
         }
 
 
+def _stream_token_estimate(cjk_chars: int, other_chars: int) -> int:
+    """Match ``estimate_tokens`` without retaining streamed generated text."""
+
+    if cjk_chars <= 0 and other_chars <= 0:
+        return 0
+    return cjk_chars + max(1, other_chars // 4)
+
+
 def run_benchmark(
     adapter: LocalModelAdapter,
     request: GenerationRequest,
@@ -76,14 +84,19 @@ def run_benchmark(
 ) -> BenchmarkResult:
     """Measure one generation without coupling to a backend or GPU vendor.
 
-    ``memory_probe`` should return *used* accelerator memory in MiB.  It is
-    called immediately before and after generation.  A later hardware-specific
+    ``memory_probe`` should return *used* accelerator memory in MiB. It is
+    called immediately before and after generation. A later hardware-specific
     probe may sample peak memory independently, but the core model lane stays
     dependency-free.
 
-    Native streaming adapters expose time-to-first-token.  For a non-streaming
+    Native streaming adapters expose time-to-first-token. For a non-streaming
     adapter that value equals total latency because the first token is not
     observable separately.
+
+    Streaming output is never concatenated into a full in-memory answer merely
+    for metrics. Character-class counters preserve the same fallback token
+    estimate as :func:`estimate_tokens` while keeping the benchmark's memory
+    overhead bounded as generation length grows.
     """
 
     if adapter.requires_paid_api:
@@ -96,15 +109,22 @@ def run_benchmark(
     first_token_at: float | None = None
     input_tokens = 0
     output_tokens = 0
-    generated_text = ""
+    generated_any = False
+    streamed_cjk_chars = 0
+    streamed_other_chars = 0
 
     if adapter.supports_streaming:
         terminal_seen = False
         for chunk in adapter.generate_stream(request):
             if chunk.text_delta:
+                generated_any = True
                 if first_token_at is None:
                     first_token_at = clock()
-                generated_text += chunk.text_delta
+                for char in chunk.text_delta:
+                    if "　" <= char <= "鿿" or "＀" <= char <= "￯":
+                        streamed_cjk_chars += 1
+                    else:
+                        streamed_other_chars += 1
             if chunk.input_tokens_estimate:
                 input_tokens = chunk.input_tokens_estimate
             if chunk.output_tokens_estimate:
@@ -113,14 +133,21 @@ def run_benchmark(
                 terminal_seen = True
                 break
         if not terminal_seen:
-            # Native adapters should already enforce this.  Keep the harness
+            # Native adapters should already enforce this. Keep the harness
             # fail-closed as defense in depth for future custom backends.
             raise RuntimeError("stream benchmark ended without a terminal event")
+        if output_tokens <= 0 and generated_any:
+            output_tokens = _stream_token_estimate(
+                streamed_cjk_chars,
+                streamed_other_chars,
+            )
     else:
         result = adapter.generate(request)
-        generated_text = result.text
+        generated_any = bool(result.text)
         input_tokens = result.input_tokens_estimate
         output_tokens = result.output_tokens_estimate
+        if output_tokens <= 0 and result.text:
+            output_tokens = estimate_tokens(result.text)
 
     finished = clock()
     memory_after = memory_probe() if memory_probe is not None else None
@@ -128,8 +155,6 @@ def run_benchmark(
     total_time = max(0.0, finished - started)
     if input_tokens <= 0:
         input_tokens = estimate_tokens(adapter.build_prompt(request))
-    if output_tokens <= 0 and generated_text:
-        output_tokens = estimate_tokens(generated_text)
 
     if adapter.supports_streaming:
         ttft = (
@@ -138,7 +163,7 @@ def run_benchmark(
             else None
         )
     else:
-        ttft = total_time if generated_text else None
+        ttft = total_time if generated_any else None
 
     throughput = output_tokens / total_time if total_time > 0 else 0.0
     memory_delta = (
