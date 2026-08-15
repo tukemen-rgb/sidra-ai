@@ -112,14 +112,16 @@ class SidraService:
     ) -> dict[str, Any]:
         """Return citation metadata without invoking any language model.
 
-        The operator query passes through the same security gate as chat. The
-        response intentionally omits retrieved chunk content: callers receive
-        provenance and ranking only, keeping this endpoint useful for source
-        discovery without creating another content-export surface.
+        The operator query passes through the same security gate as chat. Only
+        ``ALLOW`` input may proceed: ``QUARANTINE`` is intentionally treated
+        as a refusal rather than as sanitized-but-usable input. The response
+        omits retrieved chunk content: callers receive provenance and ranking
+        only, keeping this endpoint useful for source discovery without
+        creating another content-export surface.
         """
 
         gate_result = self.gate.inspect(query, source="operator", repository="")
-        if gate_result.decision is Decision.BLOCK:
+        if gate_result.decision is not Decision.ALLOW:
             return {
                 "refused": True,
                 "reason": "; ".join(gate_result.reasons) or "blocked by security gate",
@@ -157,6 +159,8 @@ class SidraService:
 
         The operator's own message is screened too: an operator can paste a
         secret by accident, and it should not reach the model or the logs.
+        Only an ``ALLOW`` decision may proceed; ``QUARANTINE`` remains held
+        for review and is never converted into model input.
 
         Raw retrieved chunk content is intentionally not returned. The HTTP
         chat schema already exposes only citations, and keeping the service
@@ -165,7 +169,7 @@ class SidraService:
         """
 
         gate_result = self.gate.inspect(message, source="operator", repository="")
-        if gate_result.decision is Decision.BLOCK:
+        if gate_result.decision is not Decision.ALLOW:
             return {
                 "answer": "",
                 "refused": True,
