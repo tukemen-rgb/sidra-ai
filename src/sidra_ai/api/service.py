@@ -103,6 +103,49 @@ class SidraService:
         }
 
     # ------------------------------------------------------------------
+    def retrieve(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        repositories: Sequence[str] | None = None,
+    ) -> dict[str, Any]:
+        """Return citation metadata without invoking any language model.
+
+        The operator query passes through the same security gate as chat. The
+        response intentionally omits retrieved chunk content: callers receive
+        provenance and ranking only, keeping this endpoint useful for source
+        discovery without creating another content-export surface.
+        """
+
+        gate_result = self.gate.inspect(query, source="operator", repository="")
+        if gate_result.decision is Decision.BLOCK:
+            return {
+                "refused": True,
+                "reason": "; ".join(gate_result.reasons) or "blocked by security gate",
+                "results": [],
+                "security": gate_result.to_dict(),
+                "model_invoked": False,
+                "external_api_cost_usd": 0.0,
+            }
+
+        results: list[SearchResult] = self.retriever.search(
+            gate_result.content, top_k=top_k, repositories=repositories
+        )
+        _, citations = build_data_context([result.chunk for result in results])
+        return {
+            "refused": False,
+            "reason": "" if results else "no indexed evidence matched the query",
+            "results": [
+                {"score": round(result.score, 4), "citation": citation}
+                for result, citation in zip(results, citations, strict=True)
+            ],
+            "security": gate_result.to_dict(),
+            "model_invoked": False,
+            "external_api_cost_usd": 0.0,
+        }
+
+    # ------------------------------------------------------------------
     def chat(
         self,
         message: str,
