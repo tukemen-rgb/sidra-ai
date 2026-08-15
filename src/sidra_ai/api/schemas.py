@@ -29,6 +29,29 @@ class Citation(BaseModel):
     redacted: bool = False
 
 
+class RetrieveRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=32_000)
+    top_k: int = Field(default=5, ge=1, le=20)
+    repositories: list[str] | None = Field(
+        default=None,
+        description="Restrict retrieval to these repositories. Allowlisted only.",
+    )
+
+
+class RetrieveResult(BaseModel):
+    score: float
+    citation: Citation
+
+
+class RetrieveResponse(BaseModel):
+    refused: bool = False
+    reason: str = ""
+    results: list[RetrieveResult] = Field(default_factory=list)
+    security: dict[str, Any] = Field(default_factory=dict)
+    model_invoked: bool = False
+    external_api_cost_usd: float = 0.0
+
+
 class ChatResponse(BaseModel):
     answer: str
     refused: bool = False
