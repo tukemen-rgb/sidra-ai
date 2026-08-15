@@ -11,6 +11,7 @@ from typing import Any, Callable, Mapping
 
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.models.base import LocalModelAdapter
+from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
 from sidra_ai.models.echo import EchoModelAdapter
 from sidra_ai.models.http_backends import (
     LlamaCppAdapter,
@@ -57,7 +58,24 @@ def registry_view() -> Mapping[str, type[LocalModelAdapter]]:
 def create_adapter(
     backend: str, model: str, **options: Any
 ) -> LocalModelAdapter:
-    """Instantiate a registered backend by name."""
+    """Instantiate a registered backend by name.
+
+    Supplying ``max_context_tokens`` activates the same fail-closed token
+    budget wrapper for every registered local backend. The value must come
+    from an explicit model manifest or measurement; this factory never infers
+    it from a model name or parameter count.
+    """
+
+    max_context_tokens = options.pop("max_context_tokens", None)
+    reserve_tokens = options.pop("context_reserve_tokens", 128)
+    min_output_tokens = options.pop("min_output_tokens", 1)
+
+    if max_context_tokens is None and (
+        reserve_tokens != 128 or min_output_tokens != 1
+    ):
+        raise ValueError(
+            "context_reserve_tokens/min_output_tokens require max_context_tokens"
+        )
 
     try:
         adapter_cls = _REGISTRY[backend]
@@ -65,7 +83,16 @@ def create_adapter(
         raise BackendNotRegisteredError(
             f"unknown model backend {backend!r}; available: {available_backends()}"
         ) from exc
-    return adapter_cls(model, **options)
+
+    adapter = adapter_cls(model, **options)
+    if max_context_tokens is None:
+        return adapter
+    return BudgetedLocalModelAdapter(
+        adapter,
+        max_context_tokens=int(max_context_tokens),
+        reserve_tokens=int(reserve_tokens),
+        min_output_tokens=int(min_output_tokens),
+    )
 
 
 def adapter_from_settings(settings: Settings | None = None) -> LocalModelAdapter:
