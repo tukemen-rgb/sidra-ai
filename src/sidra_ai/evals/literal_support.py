@@ -6,8 +6,9 @@ percentage, currency amount, version, or commit SHA. Those values are especially
 risky because operators tend to treat them as executable facts.
 
 This module provides a conservative offline regression floor. It does not try to
-judge semantic entailment. It only rejects protected exact literals that appear
-in an answer but nowhere in the evidence attached to the labels the answer cited.
+judge semantic entailment. It rejects protected exact literals that are absent
+from the evidence cited by the same claim sentence, so a model cannot launder a
+value through an unrelated citation elsewhere in the answer.
 """
 
 from __future__ import annotations
@@ -30,6 +31,8 @@ _LITERAL_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<![\w.])v?\d+\.\d+(?:\.\d+)?(?![\w.])", re.IGNORECASE),
     re.compile(r"\b[0-9a-f]{7,40}\b", re.IGNORECASE),
 )
+_TRAILING_CITATIONS = re.compile(r"([.!?。！？])\s*((?:\[(?:S\d+)\]\s*)+)")
+_CLAIM_SPLIT = re.compile(r"(?<=[.!?。！？])\s+|\n+")
 
 
 @dataclass(frozen=True)
@@ -55,15 +58,55 @@ def _extract_literals(text: str) -> tuple[str, ...]:
     return tuple(found)
 
 
+def _claim_units(answer: str) -> tuple[str, ...]:
+    """Split an answer into claim-sized sentences while keeping citations local.
+
+    Models often format citations after terminal punctuation, for example
+    ``"... 127.0.0.1:8787. [S1]"``. Before splitting, move those trailing labels
+    inside the preceding sentence boundary. This keeps the evaluator compatible
+    with both ``claim [S1].`` and ``claim. [S1]`` without letting a citation from
+    the next sentence support the previous one.
+    """
+
+    normalized = _TRAILING_CITATIONS.sub(
+        lambda match: f" {match.group(2).strip()}{match.group(1)} ",
+        answer.strip(),
+    )
+    return tuple(
+        part.strip()
+        for part in _CLAIM_SPLIT.split(normalized)
+        if part.strip()
+    )
+
+
+def _dedupe_casefold(values: list[str]) -> tuple[str, ...]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(value)
+    return tuple(deduped)
+
+
 def evaluate_literal_support(
     answer: str,
     evidence_by_label: Mapping[str, str],
 ) -> LiteralSupportResult:
-    """Reject protected literals absent from the answer's cited evidence.
+    """Reject protected literals absent from each claim's local cited evidence.
 
-    Only evidence for labels actually cited in ``answer`` is considered. If the
-    answer contains no citations, this evaluator is intentionally neutral; the
-    main grounding evaluator owns missing/invented-citation failures.
+    Citation support is sentence-local. If an answer cites ``S1`` and ``S2`` in
+    different sentences, a literal in the first sentence must exist in ``S1``;
+    merely appearing in ``S2`` elsewhere in the answer is not enough. This blocks
+    a citation-laundering failure where all values exist somewhere in the global
+    evidence set but are attached to the wrong claims.
+
+    If the answer contains no citations at all, this evaluator remains neutral;
+    the main grounding evaluator owns the missing-citation failure. Once the
+    answer cites at least one source, however, any protected literal in a claim
+    without a local citation is unsupported.
     """
 
     used_labels = tuple(dict.fromkeys(_CITATION.findall(answer)))
@@ -71,27 +114,43 @@ def evaluate_literal_support(
     if not used_labels or not literals:
         return LiteralSupportResult(passed=True, checked_literals=literals)
 
-    cited_evidence = "\n".join(
-        str(evidence_by_label.get(label, ""))
-        for label in used_labels
-        if label in evidence_by_label
-    ).casefold()
+    unsupported_list: list[str] = []
+    uncited_list: list[str] = []
+    for claim in _claim_units(answer):
+        claim_literals = _extract_literals(claim)
+        if not claim_literals:
+            continue
 
-    unsupported = tuple(
-        literal
-        for literal in literals
-        if literal.casefold() not in cited_evidence
-    )
-    failures = (
-        ("unsupported exact literals in cited answer: " + ", ".join(unsupported),)
-        if unsupported
-        else ()
-    )
+        local_labels = tuple(dict.fromkeys(_CITATION.findall(claim)))
+        if not local_labels:
+            unsupported_list.extend(claim_literals)
+            uncited_list.extend(claim_literals)
+            continue
+
+        local_evidence = "\n".join(
+            str(evidence_by_label.get(label, ""))
+            for label in local_labels
+            if label in evidence_by_label
+        ).casefold()
+        unsupported_list.extend(
+            literal
+            for literal in claim_literals
+            if literal.casefold() not in local_evidence
+        )
+
+    unsupported = _dedupe_casefold(unsupported_list)
+    uncited = set(_dedupe_casefold(uncited_list))
+    failures: list[str] = []
+    if unsupported:
+        failures.append("unsupported exact literals in locally cited claims: " + ", ".join(unsupported))
+    if uncited:
+        failures.append("protected literals appeared in claims without a local citation: " + ", ".join(sorted(uncited)))
+
     return LiteralSupportResult(
         passed=not unsupported,
         checked_literals=literals,
         unsupported_literals=unsupported,
-        failures=failures,
+        failures=tuple(failures),
     )
 
 
@@ -118,6 +177,13 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         "The security evaluation passed 16/16 cases on 2026-08-15. [S2]",
         evidence,
     )
+    citation_laundering = evaluate_literal_support(
+        (
+            "The private API binds to 15/15. [S1] "
+            "The security evaluation reports checkpoint 902b37e. [S2]"
+        ),
+        evidence,
+    )
 
     failures: list[str] = []
     if not supported.passed:
@@ -126,12 +192,17 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         failures.append("invented endpoint escaped exact-literal grounding")
     if invented_eval_count.passed or "16/16" not in invented_eval_count.unsupported_literals:
         failures.append("invented evaluation count escaped exact-literal grounding")
+    if citation_laundering.passed:
+        failures.append("cross-sentence citation laundering escaped exact-literal grounding")
 
     return (
         EvalOutcome(
             case_name="rag_exact_literal_support",
             passed=not failures,
-            detail="cited IP/port, commit, date, and fraction literals must exist in cited evidence",
+            detail=(
+                "cited IP/port, commit, date, and fraction literals must exist in "
+                "the evidence cited by the same claim sentence"
+            ),
             failures=tuple(failures),
         ),
     )
