@@ -27,7 +27,7 @@ _LITERAL_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<![\w.])\d+(?:\.\d+)?%(?!\w)"),
     re.compile(r"(?:[$¥￥]\s?\d[\d,]*(?:\.\d+)?)"),
     re.compile(r"\b\d+/\d+\b"),
-    re.compile(r"\bv?\d+\.\d+(?:\.\d+)?\b", re.IGNORECASE),
+    re.compile(r"(?<![\w.])v?\d+\.\d+(?:\.\d+)?(?![\w.])", re.IGNORECASE),
     re.compile(r"\b[0-9a-f]{7,40}\b", re.IGNORECASE),
 )
 
