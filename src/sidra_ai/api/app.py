@@ -26,6 +26,8 @@ from sidra_ai.api.schemas import (
     ChatRequest,
     ChatResponse,
     HealthResponse,
+    RetrieveRequest,
+    RetrieveResponse,
 )
 from sidra_ai.api.service import SidraService, get_service
 from sidra_ai.config.settings import Settings, get_settings
@@ -102,6 +104,16 @@ def create_app(
                 detail="rate limit exceeded",
             )
 
+    def validate_repositories(current: SidraService, repositories: list[str] | None) -> None:
+        if not repositories:
+            return
+        for repository in repositories:
+            if not current.settings.is_repository_allowed(repository):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"repository {repository!r} is not allowlisted",
+                )
+
     guarded = [Depends(authenticate), Depends(rate_limit)]
 
     # ------------------------------------------------------------------
@@ -111,16 +123,20 @@ def create_app(
 
         return resolve_service().health()
 
+    @app.post("/v1/retrieve", response_model=RetrieveResponse, dependencies=guarded)
+    def retrieve(payload: RetrieveRequest) -> Any:
+        """Search indexed DATA without invoking the local language model."""
+
+        current = resolve_service()
+        validate_repositories(current, payload.repositories)
+        return current.retrieve(
+            payload.query, top_k=payload.top_k, repositories=payload.repositories
+        )
+
     @app.post("/v1/chat", response_model=ChatResponse, dependencies=guarded)
     def chat(payload: ChatRequest) -> Any:
         current = resolve_service()
-        if payload.repositories:
-            for repository in payload.repositories:
-                if not current.settings.is_repository_allowed(repository):
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"repository {repository!r} is not allowlisted",
-                    )
+        validate_repositories(current, payload.repositories)
         return current.chat(
             payload.message, top_k=payload.top_k, repositories=payload.repositories
         )
