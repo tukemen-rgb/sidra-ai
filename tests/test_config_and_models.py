@@ -392,6 +392,85 @@ def test_local_benchmark_refuses_paid_backend_even_if_constructed_directly() -> 
         )
 
 
+def test_budget_wrapper_clamps_output_before_local_backend_call() -> None:
+    from sidra_ai.models.base import GenerationResult
+    from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
+
+    class RecordingAdapter(LocalModelAdapter):
+        backend = "recording"
+
+        def __init__(self) -> None:
+            super().__init__("local")
+            self.seen: GenerationRequest | None = None
+
+        def generate(self, request: GenerationRequest) -> GenerationResult:
+            self.seen = request
+            return GenerationResult(text="ok", backend=self.backend, model=self.model)
+
+    inner = RecordingAdapter()
+    adapter = BudgetedLocalModelAdapter(
+        inner, max_context_tokens=40, reserve_tokens=4
+    )
+    adapter.generate(
+        GenerationRequest(
+            system_prompt="system",
+            user_message="question",
+            max_output_tokens=100,
+        )
+    )
+
+    assert inner.seen is not None
+    assert 0 < inner.seen.max_output_tokens < 100
+
+
+def test_budget_wrapper_fails_before_backend_on_oversized_input() -> None:
+    from sidra_ai.models.base import GenerationResult
+    from sidra_ai.models.budget import ContextWindowExceededError
+    from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
+
+    class RecordingAdapter(LocalModelAdapter):
+        backend = "recording"
+
+        def __init__(self) -> None:
+            super().__init__("local")
+            self.calls = 0
+
+        def generate(self, request: GenerationRequest) -> GenerationResult:
+            self.calls += 1
+            return GenerationResult(text="unsafe", backend=self.backend, model=self.model)
+
+    inner = RecordingAdapter()
+    adapter = BudgetedLocalModelAdapter(
+        inner, max_context_tokens=8, reserve_tokens=2
+    )
+
+    with pytest.raises(ContextWindowExceededError, match="reduce input"):
+        adapter.generate(
+            GenerationRequest(
+                system_prompt="system",
+                user_message="x" * 100,
+                max_output_tokens=4,
+            )
+        )
+    assert inner.calls == 0
+
+
+def test_registry_can_budget_wrap_any_registered_local_backend() -> None:
+    from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
+
+    adapter = create_adapter(
+        "echo",
+        "sidra-local-v0",
+        max_context_tokens=64,
+        context_reserve_tokens=8,
+    )
+
+    assert isinstance(adapter, BudgetedLocalModelAdapter)
+    assert adapter.backend == "echo"
+    assert adapter.requires_paid_api is False
+    assert adapter.health()["max_context_tokens"] == 64
+
+
 def test_no_paid_llm_sdk_is_a_dependency() -> None:
     """A paid SDK must never appear in pyproject dependencies."""
 
