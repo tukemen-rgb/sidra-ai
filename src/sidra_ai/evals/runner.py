@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 from sidra_ai.evals.cases import GATE_CASES, EvalOutcome, GateCase
+from sidra_ai.evals.claim_coverage import run_claim_citation_coverage_suite
 from sidra_ai.evals.grounding import run_grounding_suite
 from sidra_ai.evals.literal_support import run_literal_support_suite
 from sidra_ai.evals.policy_polarity import run_policy_polarity_suite
@@ -92,13 +93,14 @@ def run_gate_case(case: GateCase, gate: SecurityGate | None = None) -> EvalOutco
 
 
 def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
-    """Run security, grounding, policy, exact-literal, and retrieval regressions."""
+    """Run security, grounding, claim-locality, policy, literal, and retrieval regressions."""
 
     gate = _make_gate()
     report = EvalReport()
     for case in cases:
         report.outcomes.append(run_gate_case(case, gate))
     report.outcomes.extend(run_grounding_suite())
+    report.outcomes.extend(run_claim_citation_coverage_suite())
     report.outcomes.extend(run_policy_polarity_suite())
     report.outcomes.extend(run_literal_support_suite())
     report.outcomes.extend(run_retrieval_quality_suite())
