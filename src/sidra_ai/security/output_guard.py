@@ -72,6 +72,16 @@ _HEX_CANDIDATE = re.compile(
 )
 _MAX_HEX_CANDIDATES = 32
 
+# JSON/code-style escapes are a common model-output form and can hide the
+# handful of ASCII delimiters that secret/PII detectors rely on. Decode only
+# explicit \uXXXX and \xHH escapes into an ephemeral detector copy. If an
+# answer contains an excessive number of escapes, fail closed rather than
+# spending unbounded work on an adversarial payload.
+_STRING_ESCAPE = re.compile(
+    r"\\(?:u(?P<unicode>[0-9A-Fa-f]{4})|x(?P<byte>[0-9A-Fa-f]{2}))"
+)
+_MAX_STRING_ESCAPES = 4096
+
 
 @dataclass(frozen=True)
 class OutputGuardResult:
@@ -104,10 +114,10 @@ class OutputGuard:
     preserving the original safe output byte-for-byte when no finding exists.
 
     The guard also performs one bounded decode pass over base64/base64url-like,
-    percent-encoded, and hexadecimal output tokens. This catches reversible
-    exfiltration without turning arbitrary model output into an unbounded
-    decoding workload. Decoded values are inspected in memory only and are
-    never included in the result, logs, or exceptions.
+    percent-encoded, hexadecimal, and JSON/code escaped output. This catches
+    reversible exfiltration without turning arbitrary model output into an
+    unbounded decoding workload. Decoded values are inspected in memory only
+    and are never included in the result, logs, or exceptions.
 
     Detector failures fail closed: returning an unchecked answer is less safe
     than returning a constant withholding message.
@@ -224,6 +234,47 @@ class OutputGuard:
             decoded.append(normalized)
         return tuple(decoded)
 
+    @staticmethod
+    def _escaped_detection_variants(content: str) -> tuple[str, ...]:
+        """Return one bounded JSON/code-escape-decoded detector variant.
+
+        Only explicit ``\\uXXXX`` and ``\\xHH`` sequences are interpreted.
+        Surrogate code points are left literal because secrets/PII handled here
+        are ASCII-oriented and emitting a lone surrogate would create an
+        invalid text value. An excessive number of escapes raises so ``scan``
+        fails closed without retaining the decoded material.
+        """
+
+        pieces: list[str] = []
+        cursor = 0
+        count = 0
+        changed = False
+
+        for match in _STRING_ESCAPE.finditer(content):
+            count += 1
+            if count > _MAX_STRING_ESCAPES:
+                raise ValueError("too many reversible string escapes in model output")
+
+            pieces.append(content[cursor : match.start()])
+            unicode_hex = match.group("unicode")
+            byte_hex = match.group("byte")
+            codepoint = int(unicode_hex or byte_hex, 16)
+            if unicode_hex is not None and 0xD800 <= codepoint <= 0xDFFF:
+                pieces.append(match.group())
+            else:
+                pieces.append(chr(codepoint))
+                changed = True
+            cursor = match.end()
+
+        if not changed:
+            return ()
+
+        pieces.append(content[cursor:])
+        decoded = OutputGuard._normalize_for_detection("".join(pieces))
+        if decoded == content:
+            return ()
+        return (decoded,)
+
     def _scan_text(self, content: str) -> tuple[Finding, ...]:
         # Ingestion can tolerate a MEDIUM high-entropy finding after redaction
         # and human review. Output cannot: returning an unknown random-looking
@@ -250,6 +301,8 @@ class OutputGuard:
             for decoded_content in self._hex_decoded_detection_variants(
                 detector_content
             ):
+                findings.extend(self._scan_text(decoded_content))
+            for decoded_content in self._escaped_detection_variants(detector_content):
                 findings.extend(self._scan_text(decoded_content))
         except Exception:
             return OutputGuardResult(

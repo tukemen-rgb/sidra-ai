@@ -377,6 +377,45 @@ def test_output_guard_allows_safe_hex_text() -> None:
     assert result.content == text
 
 
+def test_output_guard_blocks_json_unicode_escaped_credential() -> None:
+    """JSON-style Unicode escapes must not hide a provider credential."""
+
+    from sidra_ai.security.output_guard import OutputGuard
+
+    synthetic_secret = "ghp_" + "0" * 36
+    encoded = "".join(f"\\u{ord(char):04x}" for char in synthetic_secret)
+    result = OutputGuard().scan(f"Escaped credential: {encoded}")
+
+    assert result.blocked
+    assert encoded not in result.content
+    assert synthetic_secret not in repr(result)
+    assert "github_token" in result.finding_labels
+
+
+def test_output_guard_blocks_mixed_string_escaped_personal_email() -> None:
+    """A single escaped delimiter must not hide personal information."""
+
+    from sidra_ai.security.output_guard import OutputGuard
+
+    encoded = r"person\x40example.invalid"
+    result = OutputGuard().scan(f"Escaped contact: {encoded}")
+
+    assert result.blocked
+    assert encoded not in result.content
+    assert "person@example.invalid" not in repr(result)
+    assert "email" in result.finding_labels
+
+
+def test_output_guard_allows_safe_string_escaped_text_exactly() -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    text = r"JSON note: \u0053\u0049\u0044\u0052\u0041 AI"
+    result = OutputGuard().scan(text)
+
+    assert not result.blocked
+    assert result.content == text
+
+
 def test_output_guard_fails_closed_if_detector_errors(monkeypatch) -> None:
     from sidra_ai.security.output_guard import OutputGuard
 
