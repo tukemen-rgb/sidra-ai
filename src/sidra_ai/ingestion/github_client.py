@@ -55,6 +55,20 @@ class Response:
     body: Any
 
 
+@dataclass(frozen=True)
+class _CachedRepresentation:
+    """In-memory representation used for safe conditional GET reuse.
+
+    The cache is deliberately process-local: GitHub payloads, issue text, and
+    PR bodies are never persisted here. A cached response is reused only for
+    the exact same request URL after GitHub confirms ``304 Not Modified``.
+    """
+
+    etag: str
+    headers: Mapping[str, str]
+    body: Any
+
+
 class Transport(Protocol):
     """Pluggable HTTP transport so tests never touch the network."""
 
@@ -105,6 +119,7 @@ class GitHubReadOnlyClient:
         self.transport = transport or HttpxTransport()
         self._sleep = sleep
         self._api_base = self.settings.github_api_base.rstrip("/") + "/"
+        self._etag_cache: dict[str, _CachedRepresentation] = {}
 
     # ------------------------------------------------------------------
     def _headers(self) -> dict[str, str]:
@@ -157,9 +172,14 @@ class GitHubReadOnlyClient:
         url = self._build_url(path, params)
         last_error: Exception | None = None
         for attempt in range(retries + 1):
+            request_headers = self._headers()
+            cached = self._etag_cache.get(url)
+            if cached is not None:
+                request_headers["If-None-Match"] = cached.etag
+
             try:
                 response = self.transport(
-                    method, url, self._headers(), self.settings.github_request_timeout
+                    method, url, request_headers, self.settings.github_request_timeout
                 )
             except GitHubAPIError as exc:
                 last_error = exc
@@ -169,7 +189,28 @@ class GitHubReadOnlyClient:
                 raise
 
             if response.status == 200:
+                etag = self._header(response.headers, "etag")
+                if etag:
+                    self._etag_cache[url] = _CachedRepresentation(
+                        etag=etag,
+                        headers=dict(response.headers),
+                        body=response.body,
+                    )
+                else:
+                    # Do not keep an old validator if the latest successful
+                    # representation no longer supplied one.
+                    self._etag_cache.pop(url, None)
                 return response
+            if response.status == 304:
+                cached = self._etag_cache.get(url)
+                if cached is None:
+                    raise GitHubAPIError(
+                        f"received 304 without cached representation for {path}",
+                        status=304,
+                    )
+                merged_headers = dict(cached.headers)
+                merged_headers.update(response.headers)
+                return Response(status=200, headers=merged_headers, body=cached.body)
             if response.status == 404:
                 raise GitHubAPIError(f"not found: {path}", status=404)
             if response.status in (403, 429):
@@ -257,7 +298,7 @@ class GitHubReadOnlyClient:
         return self._get_json(f"repos/{repository}")
 
     def get_license(self, repository: str) -> str:
-        """Return an SPDX id, ``"proprietary"``, or ``"unknown"``.
+        """Return an SPDX id, ``\"proprietary\"``, or ``\"unknown\"``.
 
         Never raises: a missing license must not stop ingestion, it must be
         recorded honestly in provenance.
