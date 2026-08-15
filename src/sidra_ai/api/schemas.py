@@ -57,9 +57,9 @@ class AnalyzeResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    """Unauthenticated liveness/readiness summary with no topology details."""
+
     status: str
     version: str
-    model: dict[str, Any]
-    index: dict[str, Any]
-    config: dict[str, Any]
+    model_available: bool
     github_write_enabled: bool = False
