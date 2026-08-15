@@ -1,13 +1,13 @@
-"""Deterministic citation-local policy-polarity regressions.
+"""Deterministic citation-local policy/status-polarity regressions.
 
 Exact-literal grounding catches fabricated concrete values, but a model can still
-reverse the meaning of a cited policy without inventing any literal. Examples
+reverse the meaning of cited evidence without inventing any literal. Examples
 include "GitHub write is enabled" cited to evidence that says read-only, or
-"paid external LLM API is required" cited to evidence that says the opposite.
+"full pytest passed" cited to evidence that says the suite was not run.
 
-This module intentionally covers only a small set of security/cost invariants
-where high-precision phrase matching is preferable to a heavyweight judge
-model. It is a regression floor, not general semantic entailment.
+This module intentionally covers only a small set of security/cost/verification
+invariants where high-precision phrase matching is preferable to a heavyweight
+judge model. It is a regression floor, not general semantic entailment.
 """
 
 from __future__ import annotations
@@ -82,6 +82,17 @@ _RULES = (
             r"(?:有料|外部).{0,20}(?:llm)?api.{0,25}(?:必要|必須|使用|有効)",
         ),
     ),
+    _PolicyRule(
+        name="verification_status",
+        negative=_patterns(
+            r"(?:pytest|tests?|test suite|ci|checks?).{0,40}(?:not (?:run|executed|verified|green|passed)|not claimed green|unverified|pending|failed|failing|has not run|have not run)",
+            r"(?:pytest|テスト|ci|チェック).{0,40}(?:未実行|未確認|未検証|未通過|未完了|失敗|通っていない|greenではない|グリーンではない|成功扱いではない)",
+        ),
+        positive=_patterns(
+            r"(?:pytest|tests?|test suite|ci|checks?).{0,40}(?:passed|passing|green|succeeded|successful|verified)",
+            r"(?:pytest|テスト|ci|チェック).{0,40}(?:通過済み|通過|成功|合格|green|グリーン|検証済み)",
+        ),
+    ),
 )
 
 
@@ -98,7 +109,7 @@ def _claim_units(answer: str) -> tuple[str, ...]:
 
 
 def _polarity(text: str, rule: _PolicyRule) -> int | None:
-    """Return -1/1 only for a high-confidence matched policy polarity."""
+    """Return -1/1 only for a high-confidence matched policy/status polarity."""
 
     if any(pattern.search(text) for pattern in rule.negative):
         return -1
@@ -111,7 +122,7 @@ def evaluate_policy_polarity(
     answer: str,
     evidence_by_label: Mapping[str, str],
 ) -> PolicyPolarityResult:
-    """Reject citation-local reversals of selected security/cost policies.
+    """Reject citation-local reversals of selected policy/verification states.
 
     Only claim sentences that contain a citation and match a high-confidence
     positive/negative rule are checked. If the cited evidence does not express a
@@ -145,7 +156,7 @@ def evaluate_policy_polarity(
             checked += 1
             if claim_polarity != evidence_polarity:
                 failures.append(
-                    f"{rule.name} policy polarity contradicts locally cited evidence"
+                    f"{rule.name} policy/status polarity contradicts locally cited evidence"
                 )
 
     return PolicyPolarityResult(
@@ -160,6 +171,7 @@ def run_policy_polarity_suite() -> tuple[EvalOutcome, ...]:
         "S1": "GitHub access is read-only and no GitHub write capability exists.",
         "S2": "The API is loopback-only by default. Public binding is not allowed by default.",
         "S3": "No paid external LLM API is required for normal operation.",
+        "S4": "Repository pytest is not claimed green. No CI run is attached to the latest head.",
     }
 
     supported = evaluate_policy_polarity(
@@ -182,6 +194,18 @@ def run_policy_polarity_suite() -> tuple[EvalOutcome, ...]:
         "GitHub書き込みは可能です。[S1]",
         evidence,
     )
+    supported_unverified = evaluate_policy_polarity(
+        "Full pytest has not been verified green. [S4]",
+        evidence,
+    )
+    reversed_verification = evaluate_policy_polarity(
+        "Full pytest passed successfully. [S4]",
+        evidence,
+    )
+    japanese_verification_reversal = evaluate_policy_polarity(
+        "全pytestは通過済みです。[S4]",
+        evidence,
+    )
 
     failures: list[str] = []
     if not supported.passed:
@@ -194,14 +218,20 @@ def run_policy_polarity_suite() -> tuple[EvalOutcome, ...]:
         failures.append("reversed paid-API policy escaped citation-local polarity check")
     if japanese_reversal.passed:
         failures.append("Japanese reversed GitHub write policy escaped polarity check")
+    if not supported_unverified.passed:
+        failures.append("supported unverified-test status was rejected")
+    if reversed_verification.passed:
+        failures.append("false test-green claim escaped citation-local status check")
+    if japanese_verification_reversal.passed:
+        failures.append("Japanese false test-green claim escaped status check")
 
     return (
         EvalOutcome(
-            case_name="rag_policy_polarity_support",
+            case_name="rag_policy_and_verification_polarity_support",
             passed=not failures,
             detail=(
-                "security/cost policy claims must not reverse the polarity of "
-                "their locally cited evidence"
+                "security/cost policy and verification-status claims must not reverse "
+                "the polarity of their locally cited evidence"
             ),
             failures=tuple(failures),
         ),
