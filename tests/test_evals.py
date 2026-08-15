@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sidra_ai.evals.cases import GATE_CASES
+from sidra_ai.evals.grounding import evaluate_grounding
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
 from sidra_ai.evals.runner import run_all
 from sidra_ai.security.decisions import FindingCategory
@@ -81,3 +82,49 @@ def test_retrieval_eval_covers_japanese_english_and_no_evidence() -> None:
     assert any("GitHub write" in query for query in queries)
     assert any("差分取得" in query for query in queries)
     assert any(case.expected_path is None for case in RETRIEVAL_CASES)
+
+
+def test_grounding_rejects_conflicting_versions_of_same_source() -> None:
+    citations = [
+        {
+            "label": "S1",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "1" * 40,
+        },
+        {
+            "label": "S2",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "2" * 40,
+        },
+    ]
+
+    result = evaluate_grounding(
+        "The current policy allows public binding. [S1]",
+        citations,
+    )
+
+    assert result.passed is False
+    assert any("multiple versions" in failure for failure in result.failures)
+
+
+def test_grounding_allows_abstention_when_versions_conflict() -> None:
+    citations = [
+        {
+            "label": "S1",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "1" * 40,
+        },
+        {
+            "label": "S2",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "2" * 40,
+        },
+    ]
+
+    result = evaluate_grounding("十分な根拠がありません", citations)
+
+    assert result.passed is True, result.failures
