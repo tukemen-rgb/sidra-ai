@@ -272,10 +272,30 @@ class SecretDetector:
 # ---------------------------------------------------------------------------
 
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
-_PHONE_JP = re.compile(r"(?<![\d\-])0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{3,4}(?![\d\-])")
-_PHONE_INTL = re.compile(r"(?<![\d\-])\+\d{1,3}[-\s]?\d{1,4}[-\s]?\d{3,4}[-\s]?\d{3,4}(?![\d\-])")
-_CARD_CANDIDATE = re.compile(r"(?<![\d\-])(?:\d[ \-]?){13,19}(?![\d\-])")
-_MY_NUMBER = re.compile(r"(?<![\d\-])\d{4}[-\s]?\d{4}[-\s]?\d{4}(?![\d\-])")
+# Digit runs must not be embedded in a longer alphanumeric token. Without an
+# ASCII-letter boundary these patterns fire inside identifiers that are
+# everywhere in this corpus: a commit SHA contains `0123456789` bounded by
+# hex letters, and hex-encoded text contains 19-digit runs that occasionally
+# pass Luhn. Both blocked legitimate output. Real phone and card numbers are
+# delimited by whitespace, punctuation or CJK text, none of which is excluded
+# here, so precision improves without losing recall.
+_TOKEN_BOUNDARY_BEFORE = r"(?<![0-9A-Za-z\-])"
+_TOKEN_BOUNDARY_AFTER = r"(?![0-9A-Za-z\-])"
+
+_PHONE_JP = re.compile(
+    _TOKEN_BOUNDARY_BEFORE + r"0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{3,4}" + _TOKEN_BOUNDARY_AFTER
+)
+_PHONE_INTL = re.compile(
+    _TOKEN_BOUNDARY_BEFORE
+    + r"\+\d{1,3}[-\s]?\d{1,4}[-\s]?\d{3,4}[-\s]?\d{3,4}"
+    + _TOKEN_BOUNDARY_AFTER
+)
+_CARD_CANDIDATE = re.compile(
+    _TOKEN_BOUNDARY_BEFORE + r"(?:\d[ \-]?){13,19}" + _TOKEN_BOUNDARY_AFTER
+)
+_MY_NUMBER = re.compile(
+    _TOKEN_BOUNDARY_BEFORE + r"\d{4}[-\s]?\d{4}[-\s]?\d{4}" + _TOKEN_BOUNDARY_AFTER
+)
 
 #: Emails that identify a service, not a person.
 _ROLE_EMAIL_LOCALPARTS = frozenset(
