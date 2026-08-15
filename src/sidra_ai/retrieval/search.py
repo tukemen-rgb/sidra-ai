@@ -8,13 +8,16 @@ installed" promise. Embedding-based retrieval slots in behind the same
 
 Tokenization handles Japanese without a morphological analyzer by emitting
 character bigrams for CJK runs, which is a well-worn approximation for
-mixed-language corpora.
+mixed-language corpora. Compatibility-equivalent Unicode is normalized before
+tokenization so full-width ASCII and half-width katakana do not silently miss
+the same repository content written in their common forms.
 """
 
 from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
@@ -43,12 +46,12 @@ _MAX_CHUNKS_PER_DOCUMENT = 2
 
 
 def tokenize(text: str) -> list[str]:
-    """Lowercased Latin words plus CJK character bigrams."""
+    """NFKC-normalized, case-folded Latin words plus CJK character bigrams."""
 
-    lowered = text.lower()
-    tokens = [t for t in _LATIN.findall(lowered) if t not in _STOPWORDS]
+    normalized = unicodedata.normalize("NFKC", text).casefold()
+    tokens = [t for t in _LATIN.findall(normalized) if t not in _STOPWORDS]
 
-    for run in _CJK_RUN.findall(lowered):
+    for run in _CJK_RUN.findall(normalized):
         if len(run) == 1:
             tokens.append(run)
             continue
