@@ -222,6 +222,35 @@ def test_output_guard_blocks_credential_without_retaining_value() -> None:
     assert "github_token" in result.finding_labels
 
 
+def test_output_guard_blocks_unprefixed_high_entropy_secret() -> None:
+    """Random-looking secrets must not leak just because they have no provider prefix."""
+
+    from sidra_ai.security.output_guard import OutputGuard
+
+    synthetic_secret = (
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" * 2
+    )[:64]
+    result = OutputGuard().scan(f"opaque value: {synthetic_secret}")
+
+    assert result.blocked
+    assert synthetic_secret not in result.content
+    assert synthetic_secret not in repr(result)
+    assert "high_entropy" in result.finding_labels
+
+
+def test_output_guard_allows_commit_sha_identifier() -> None:
+    """Common provenance identifiers must not become a high-entropy false positive."""
+
+    from sidra_ai.security.output_guard import OutputGuard
+
+    commit_sha = ("0123456789abcdef" * 3)[:40]
+    text = f"Verified commit {commit_sha}."
+    result = OutputGuard().scan(text)
+
+    assert not result.blocked
+    assert result.content == text
+
+
 @pytest.mark.parametrize(
     "obfuscated_secret",
     (

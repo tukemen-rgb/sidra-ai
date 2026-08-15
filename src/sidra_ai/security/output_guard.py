@@ -6,10 +6,10 @@ or generate credential-shaped material. This module provides the L2-owned
 screening primitive that the API lane can call immediately before returning a
 model answer.
 
-The guard deliberately does not persist or log model output. If a high-
-confidence secret or personal-information finding is detected, the entire
-answer is replaced with a constant safe message rather than partially
-redacting and accidentally leaking surrounding sensitive context.
+The guard deliberately does not persist or log model output. If a secret-like
+or high-confidence personal-information finding is detected, the entire answer
+is replaced with a constant safe message rather than partially redacting and
+accidentally leaking surrounding sensitive context.
 """
 
 from __future__ import annotations
@@ -81,9 +81,12 @@ class OutputGuardResult:
 class OutputGuard:
     """Screen model output for secret/PII leakage before API return.
 
-    High/critical secret or PII findings block the whole response. Lower
-    severity findings remain non-blocking because role addresses and generic
-    high-entropy strings otherwise create excessive false positives.
+    Secret findings at MEDIUM or above block the whole response. This is
+    intentionally stricter than the ingestion path: output is an immediate
+    exfiltration boundary, so an unprefixed high-entropy credential must not be
+    returned merely because it lacks a provider-specific prefix. PII remains
+    blocking at HIGH/CRITICAL so role addresses and other low-risk metadata do
+    not make ordinary responses unusable.
 
     Before matching, a detector-only copy is Unicode NFKC-normalized and has
     zero-width/bidi format controls removed. This prevents fullwidth or hidden-
@@ -105,11 +108,13 @@ class OutputGuard:
         self._pii = PIIDetector()
 
     @staticmethod
-    def _blocking(findings: tuple[Finding, ...]) -> tuple[Finding, ...]:
+    def _blocking(
+        findings: tuple[Finding, ...], *, threshold: Severity = Severity.HIGH
+    ) -> tuple[Finding, ...]:
         return tuple(
             finding
             for finding in findings
-            if _SEVERITY_RANK[finding.severity] >= _SEVERITY_RANK[Severity.HIGH]
+            if _SEVERITY_RANK[finding.severity] >= _SEVERITY_RANK[threshold]
         )
 
     @staticmethod
@@ -179,8 +184,16 @@ class OutputGuard:
         return tuple(decoded)
 
     def _scan_text(self, content: str) -> tuple[Finding, ...]:
-        secret_findings = self._blocking(self._secret.detect(content).findings)
-        pii_findings = self._blocking(self._pii.detect(content).findings)
+        # Ingestion can tolerate a MEDIUM high-entropy finding after redaction
+        # and human review. Output cannot: returning an unknown random-looking
+        # token is an immediate disclosure. Block all MEDIUM+ secret findings,
+        # while keeping PII at HIGH+ so low-risk role addresses stay usable.
+        secret_findings = self._blocking(
+            self._secret.detect(content).findings, threshold=Severity.MEDIUM
+        )
+        pii_findings = self._blocking(
+            self._pii.detect(content).findings, threshold=Severity.HIGH
+        )
         return secret_findings + pii_findings
 
     def scan(self, content: str) -> OutputGuardResult:
@@ -208,5 +221,5 @@ class OutputGuard:
             blocked=True,
             content=_SAFE_BLOCK_MESSAGE,
             finding_labels=labels,
-            reason="high-confidence secret or PII detected in model output",
+            reason="secret-like or high-confidence PII detected in model output",
         )
