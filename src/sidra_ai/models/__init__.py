@@ -13,6 +13,7 @@ from sidra_ai.models.benchmark import (
     UnsafeBenchmarkBackendError,
     run_benchmark,
 )
+from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
 from sidra_ai.models.echo import EchoModelAdapter
 from sidra_ai.models.http_backends import (
     LlamaCppAdapter,
@@ -31,6 +32,7 @@ from sidra_ai.models.registry import (
 __all__ = [
     "BackendNotRegisteredError",
     "BenchmarkResult",
+    "BudgetedLocalModelAdapter",
     "EchoModelAdapter",
     "GenerationChunk",
     "GenerationRequest",
