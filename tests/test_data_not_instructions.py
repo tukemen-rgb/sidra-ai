@@ -199,6 +199,16 @@ def test_output_guard_allows_safe_model_text() -> None:
     assert result.finding_labels == ()
 
 
+def test_output_guard_preserves_safe_unicode_output_exactly() -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    safe = "ＳＩＤＲＡ AI はローカルで動作します。"
+    result = OutputGuard().scan(safe)
+
+    assert not result.blocked
+    assert result.content == safe
+
+
 def test_output_guard_blocks_credential_without_retaining_value() -> None:
     from sidra_ai.security.output_guard import OutputGuard
 
@@ -208,6 +218,29 @@ def test_output_guard_blocks_credential_without_retaining_value() -> None:
     assert result.blocked
     assert synthetic_secret not in result.content
     assert synthetic_secret not in repr(result)
+    assert "github_token" in result.finding_labels
+
+
+@pytest.mark.parametrize(
+    "obfuscated_secret",
+    (
+        "ｇｈｐ＿" + "0" * 36,
+        "ghp_" + "0" * 12 + "\u200b" + "0" * 24,
+        "ghp_" + "0" * 12 + "\u202e" + "0" * 24,
+    ),
+)
+def test_output_guard_blocks_unicode_obfuscated_credentials(
+    obfuscated_secret: str,
+) -> None:
+    """Format/fullwidth tricks must not bypass output-side secret screening."""
+
+    from sidra_ai.security.output_guard import OutputGuard
+
+    result = OutputGuard().scan(f"credential: {obfuscated_secret}")
+
+    assert result.blocked
+    assert obfuscated_secret not in result.content
+    assert obfuscated_secret not in repr(result)
     assert "github_token" in result.finding_labels
 
 
@@ -223,6 +256,17 @@ def test_output_guard_blocks_personal_email_but_allows_role_address() -> None:
     assert "email" in personal.finding_labels
     assert not role.blocked
     assert role.content == "Contact support@example.invalid"
+
+
+def test_output_guard_blocks_zero_width_obfuscated_personal_email() -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    obfuscated = "person\u200b@example.invalid"
+    result = OutputGuard().scan(f"Contact {obfuscated}")
+
+    assert result.blocked
+    assert obfuscated not in result.content
+    assert "email" in result.finding_labels
 
 
 def test_output_guard_fails_closed_if_detector_errors(monkeypatch) -> None:
