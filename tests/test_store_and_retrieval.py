@@ -164,6 +164,26 @@ def test_search_diversifies_across_documents_before_extra_chunks(store: Document
     assert paths.count("dominant.md") <= 2
 
 
+def test_search_diversifies_even_when_top_k_is_two(store: DocumentStore) -> None:
+    """A tiny context window must not be consumed by two overlapping chunks."""
+
+    dominant = "\n".join(
+        [
+            "# pricing one\npricing subscription pricing subscription monthly annual",
+            "# pricing two\npricing subscription pricing subscription billing tiers",
+            "# pricing three\npricing subscription pricing subscription checkout plans",
+        ]
+    )
+    store.add(_document(dominant, path="dominant.md"))
+    store.add(_document("pricing subscription independent comparison", path="peer.md"))
+
+    results = BM25Retriever(store).search("pricing subscription", top_k=2)
+    paths = [result.provenance.path for result in results]
+
+    assert len(results) == 2
+    assert set(paths) == {"dominant.md", "peer.md"}
+
+
 def test_search_fills_remaining_slots_when_only_one_document_matches(store: DocumentStore) -> None:
     only_document = "\n".join(
         [
