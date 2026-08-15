@@ -147,6 +147,9 @@ class ShaStateStore:
 def _validate_repository(repository: str) -> str:
     if not _REPOSITORY_RE.fullmatch(repository):
         raise InvalidRepository("repository must be in owner/name form")
+    owner, name = repository.split("/", 1)
+    if owner in {".", ".."} or name in {".", ".."}:
+        raise InvalidRepository("repository owner/name cannot be dot path segments")
     return repository
 
 
