@@ -20,16 +20,20 @@ from typing import Mapping
 from sidra_ai.evals.cases import EvalOutcome
 
 _CITATION = re.compile(r"\[(S\d+)\]")
+# Avoid Unicode \b / \w boundaries here. In Japanese text a literal is commonly
+# adjacent to a CJK character (for example ``結果は15/15``), and Python treats
+# both sides as word characters. ASCII-specific guards keep literals detectable
+# next to CJK while still refusing matches embedded inside ASCII identifiers.
 _LITERAL_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{2,5})?\b"),
-    re.compile(r"\blocalhost:\d{2,5}\b", re.IGNORECASE),
+    re.compile(r"(?<![A-Za-z0-9_])(?:\d{1,3}\.){3}\d{1,3}(?::\d{2,5})?(?![A-Za-z0-9_])"),
+    re.compile(r"(?<![A-Za-z0-9_])localhost:\d{2,5}(?![A-Za-z0-9_])", re.IGNORECASE),
     re.compile(r"https?://[^\s\]\[<>]+", re.IGNORECASE),
-    re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),
-    re.compile(r"(?<![\w.])\d+(?:\.\d+)?%(?!\w)"),
+    re.compile(r"(?<![0-9])\d{4}-\d{2}-\d{2}(?![0-9])"),
+    re.compile(r"(?<![A-Za-z0-9_.])\d+(?:\.\d+)?%(?![A-Za-z0-9_])"),
     re.compile(r"(?:[$¥￥]\s?\d[\d,]*(?:\.\d+)?)"),
-    re.compile(r"\b\d+/\d+\b"),
-    re.compile(r"(?<![\w.])v?\d+\.\d+(?:\.\d+)?(?![\w.])", re.IGNORECASE),
-    re.compile(r"\b[0-9a-f]{7,40}\b", re.IGNORECASE),
+    re.compile(r"(?<![A-Za-z0-9_])\d+/\d+(?![A-Za-z0-9_])"),
+    re.compile(r"(?<![A-Za-z0-9_.])v?\d+\.\d+(?:\.\d+)?(?![A-Za-z0-9_.])", re.IGNORECASE),
+    re.compile(r"(?<![A-Za-z0-9_])[0-9a-f]{7,40}(?![A-Za-z0-9_])", re.IGNORECASE),
 )
 _TRAILING_CITATIONS = re.compile(r"([.!?。！？])\s*((?:\[(?:S\d+)\]\s*)+)")
 # Japanese prose commonly has no whitespace after 。！？. Split zero-width after
