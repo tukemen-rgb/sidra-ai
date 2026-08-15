@@ -16,8 +16,9 @@ Order of operations, and why:
 4. Screen every document through the security gate.
 5. Index only ``ALLOW`` documents; quarantine the rest with reasons.
 6. After a complete collection, retire README/docs paths that GitHub reports
-   removed or renamed-away so an older commit cannot remain retrievable as
-   current knowledge.
+   removed or renamed-away. Whenever README/docs were fully refreshed, also
+   reconcile the current snapshot against the store so a deletion withheld
+   during a failed run is still retired on the later full-snapshot retry.
 7. Advance the persisted SHA only after a **complete** collection and indexing
    pass. Any source-fetch error preserves the previous cursor so the next run
    retries instead of making a partial RAG snapshot look current.
@@ -77,7 +78,7 @@ def _documentation_retirements(
 ) -> list[tuple[str, SourceType]]:
     """Return exact README/docs logical sources removed by a GitHub diff.
 
-    Only exact paths are returned.  ``renamed`` retires the previous filename;
+    Only exact paths are returned. ``renamed`` retires the previous filename;
     the new path is collected normally and becomes a distinct current source.
     Other repository files are intentionally ignored because L1's retirement
     contract is being consumed here only for RAG documentation sources.
@@ -267,7 +268,13 @@ class GitHubIngestionPipeline:
             )
 
         license_id = self._license_for(repo_meta)
-        documents, error, retirements = self._collect(
+        (
+            documents,
+            error,
+            retirements,
+            documentation_snapshot_complete,
+            current_documentation_sources,
+        ) = self._collect(
             repository,
             head_sha=head_sha,
             previous_sha=previous_sha,
@@ -322,6 +329,23 @@ class GitHubIngestionPipeline:
                 source_type=source_type,
             )
 
+        if documentation_snapshot_complete:
+            current_keys = set(current_documentation_sources)
+            for existing in tuple(self.store.by_repository(repository)):
+                provenance = existing.provenance
+                if provenance.source != "github":
+                    continue
+                if provenance.source_type not in {SourceType.README, SourceType.DOCS}:
+                    continue
+                key = (provenance.path, provenance.source_type)
+                if key in current_keys:
+                    continue
+                self.store.retire_source(
+                    repository=repository,
+                    path=provenance.path,
+                    source_type=provenance.source_type,
+                )
+
         self.state_store.mark_ingested(
             repository,
             commit_sha=head_sha,
@@ -350,12 +374,19 @@ class GitHubIngestionPipeline:
         license_id: str,
         first_run: bool,
         since: str | None,
-    ) -> tuple[list[Document], str, list[tuple[str, SourceType]]]:
+    ) -> tuple[
+        list[Document],
+        str,
+        list[tuple[str, SourceType]],
+        bool,
+        set[tuple[str, SourceType]],
+    ]:
         """Gather documents for this run. Errors degrade, never abort."""
 
         documents: list[Document] = []
         errors: list[str] = []
         retirements: list[tuple[str, SourceType]] = []
+        current_documentation_sources: set[tuple[str, SourceType]] = set()
 
         changed_paths: set[str] = set()
         commits: list[dict[str, Any]] = []
@@ -407,6 +438,10 @@ class GitHubIngestionPipeline:
                     )
                     if document is not None:
                         documents.append(document)
+                        if full_documentation_refresh:
+                            current_documentation_sources.add(
+                                (document.provenance.path, SourceType.README)
+                            )
             except GitHubAPIError as exc:
                 errors.append(f"readme: {exc}")
 
@@ -426,6 +461,10 @@ class GitHubIngestionPipeline:
                     )
                     if document is not None:
                         documents.append(document)
+                        if full_documentation_refresh:
+                            current_documentation_sources.add(
+                                (document.provenance.path, SourceType.DOCS)
+                            )
             except GitHubAPIError as exc:
                 errors.append(f"docs: {exc}")
 
@@ -455,7 +494,13 @@ class GitHubIngestionPipeline:
         except GitHubAPIError as exc:
             errors.append(f"issues: {exc}")
 
-        return documents, "; ".join(errors), retirements
+        return (
+            documents,
+            "; ".join(errors),
+            retirements,
+            full_documentation_refresh,
+            current_documentation_sources,
+        )
 
     # ------------------------------------------------------------------
     def _screen_and_index(
