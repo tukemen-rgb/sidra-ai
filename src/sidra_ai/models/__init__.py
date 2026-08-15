@@ -1,6 +1,7 @@
 """Replaceable local model backends. No paid API is ever required."""
 
 from sidra_ai.models.base import (
+    GenerationChunk,
     GenerationRequest,
     GenerationResult,
     LocalModelAdapter,
@@ -25,6 +26,7 @@ from sidra_ai.models.registry import (
 __all__ = [
     "BackendNotRegisteredError",
     "EchoModelAdapter",
+    "GenerationChunk",
     "GenerationRequest",
     "GenerationResult",
     "LlamaCppAdapter",
