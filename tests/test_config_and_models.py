@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from sidra_ai.config.settings import (
@@ -11,7 +13,11 @@ from sidra_ai.config.settings import (
     UnsafeConfigurationError,
     reset_settings_cache,
 )
-from sidra_ai.models.base import LocalModelAdapter, ModelUnavailableError
+from sidra_ai.models.base import (
+    GenerationRequest,
+    LocalModelAdapter,
+    ModelUnavailableError,
+)
 from sidra_ai.models.registry import (
     PaidBackendRejectedError,
     adapter_from_settings,
@@ -147,7 +153,6 @@ def test_loopback_model_endpoint_is_accepted() -> None:
 
 
 def test_echo_backend_works_without_weights_or_network() -> None:
-    from sidra_ai.models.base import GenerationRequest
     from sidra_ai.models.echo import EchoModelAdapter
 
     result = EchoModelAdapter().generate(
@@ -162,6 +167,124 @@ def test_backends_are_swappable_through_one_interface() -> None:
         adapter = create_adapter(name, "model-name")
         assert isinstance(adapter, LocalModelAdapter)
         assert hasattr(adapter, "generate")
+        assert hasattr(adapter, "generate_stream")
+
+
+def test_non_streaming_backend_has_safe_single_chunk_fallback() -> None:
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    adapter = EchoModelAdapter()
+    request = GenerationRequest(system_prompt="s", user_message="q")
+    chunks = list(adapter.generate_stream(request))
+
+    assert len(chunks) == 1
+    assert chunks[0].done is True
+    assert chunks[0].text_delta
+    assert chunks[0].backend == "echo"
+    assert chunks[0].metadata["cost_usd"] == 0.0
+    assert adapter.supports_streaming is False
+
+
+def test_ollama_streams_ndjson_without_buffering_full_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sidra_ai.models.http_backends import OllamaAdapter
+
+    adapter = OllamaAdapter("local-model")
+    events = [
+        json.dumps({"response": "Hel", "done": False}),
+        json.dumps({"response": "lo", "done": False}),
+        json.dumps(
+            {
+                "response": "",
+                "done": True,
+                "done_reason": "stop",
+                "prompt_eval_count": 12,
+                "eval_count": 2,
+                "eval_duration": 100,
+                "context": [1, 2, 3],
+            }
+        ),
+    ]
+    monkeypatch.setattr(adapter, "_stream_lines", lambda path, payload: iter(events))
+
+    chunks = list(
+        adapter.generate_stream(
+            GenerationRequest(system_prompt="system", user_message="question")
+        )
+    )
+
+    assert "".join(chunk.text_delta for chunk in chunks) == "Hello"
+    assert chunks[-1].done is True
+    assert chunks[-1].input_tokens_estimate == 12
+    assert chunks[-1].output_tokens_estimate == 2
+    assert chunks[-1].metadata["eval_duration"] == 100
+    assert "context" not in chunks[-1].metadata
+    assert adapter.supports_streaming is True
+
+
+def test_llama_cpp_streams_sse_and_counts_returned_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sidra_ai.models.http_backends import LlamaCppAdapter
+
+    adapter = LlamaCppAdapter("local-model")
+    events = [
+        ": keepalive",
+        'data: {"content":"Hi","tokens":[10],"stop":false}',
+        'data: {"content":"!","tokens":[11],"stop":true,"stop_type":"eos"}',
+    ]
+    monkeypatch.setattr(adapter, "_stream_lines", lambda path, payload: iter(events))
+
+    chunks = list(
+        adapter.generate_stream(
+            GenerationRequest(system_prompt="system", user_message="question")
+        )
+    )
+
+    assert "".join(chunk.text_delta for chunk in chunks) == "Hi!"
+    assert chunks[-1].done is True
+    assert chunks[-1].output_tokens_estimate == 2
+    assert chunks[-1].finish_reason == "eos"
+    assert adapter.supports_streaming is True
+
+
+def test_stream_rejects_backend_error_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sidra_ai.models.http_backends import OllamaAdapter
+
+    adapter = OllamaAdapter("local-model")
+    monkeypatch.setattr(
+        adapter,
+        "_stream_lines",
+        lambda path, payload: iter([json.dumps({"error": "generation failed"})]),
+    )
+
+    with pytest.raises(ModelUnavailableError, match="generation failed"):
+        list(
+            adapter.generate_stream(
+                GenerationRequest(system_prompt="system", user_message="question")
+            )
+        )
+
+
+def test_stream_requires_explicit_terminal_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sidra_ai.models.http_backends import LlamaCppAdapter
+
+    adapter = LlamaCppAdapter("local-model")
+    monkeypatch.setattr(
+        adapter,
+        "_stream_lines",
+        lambda path, payload: iter(
+            ['data: {"content":"partial","tokens":[1],"stop":false}']
+        ),
+    )
+
+    with pytest.raises(ModelUnavailableError, match="terminal event"):
+        list(
+            adapter.generate_stream(
+                GenerationRequest(system_prompt="system", user_message="question")
+            )
+        )
 
 
 def test_no_paid_llm_sdk_is_a_dependency() -> None:
