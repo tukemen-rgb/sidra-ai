@@ -173,6 +173,31 @@ class SecurityGate:
         reasons: list[str] = []
         decision = Decision.ALLOW
 
+        # GitHub is repository-scoped by policy. Treat missing repository
+        # provenance as untrusted instead of letting an empty string bypass
+        # the repository allowlist check in SourceAllowlistDetector.
+        if source.strip().lower() == "github" and not repository.strip():
+            findings.append(
+                Finding(
+                    category=FindingCategory.UNPERMITTED_SOURCE,
+                    severity=Severity.CRITICAL,
+                    detector="repository_required",
+                    reason="GitHub input is missing required repository provenance",
+                    metadata={"source": "github"},
+                )
+            )
+            decision = Decision.BLOCK
+            reasons.append("GitHub source is missing repository provenance")
+            return self._finalize(
+                content,
+                content,
+                findings,
+                reasons,
+                decision,
+                redacted=False,
+                provenance=provenance,
+            )
+
         source_out = self._source.check(source=source, repository=repository)
         findings.extend(source_out.findings)
         if source_out.findings:
