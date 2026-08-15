@@ -187,3 +187,55 @@ def test_model_does_not_execute_injected_instructions(store, gate) -> None:
     assert not answer["refused"]
     assert "SIDRA_GITHUB_TOKEN" not in answer["answer"]
     assert answer["citations"] == []
+
+
+def test_output_guard_allows_safe_model_text() -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    result = OutputGuard().scan("SIDRA AI is running locally and safely.")
+
+    assert not result.blocked
+    assert result.content == "SIDRA AI is running locally and safely."
+    assert result.finding_labels == ()
+
+
+def test_output_guard_blocks_credential_without_retaining_value() -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    synthetic_secret = "ghp_" + "0" * 36
+    result = OutputGuard().scan(f"credential: {synthetic_secret}")
+
+    assert result.blocked
+    assert synthetic_secret not in result.content
+    assert synthetic_secret not in repr(result)
+    assert "github_token" in result.finding_labels
+
+
+def test_output_guard_blocks_personal_email_but_allows_role_address() -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    guard = OutputGuard()
+    personal = guard.scan("Contact person@example.invalid")
+    role = guard.scan("Contact support@example.invalid")
+
+    assert personal.blocked
+    assert "person@example.invalid" not in personal.content
+    assert "email" in personal.finding_labels
+    assert not role.blocked
+    assert role.content == "Contact support@example.invalid"
+
+
+def test_output_guard_fails_closed_if_detector_errors(monkeypatch) -> None:
+    from sidra_ai.security.output_guard import OutputGuard
+
+    guard = OutputGuard()
+
+    def explode(_: str):
+        raise RuntimeError("synthetic detector failure")
+
+    monkeypatch.setattr(guard._secret, "detect", explode)
+    result = guard.scan("ordinary response")
+
+    assert result.blocked
+    assert "ordinary response" not in result.content
+    assert result.reason == "output security detector failed closed"
