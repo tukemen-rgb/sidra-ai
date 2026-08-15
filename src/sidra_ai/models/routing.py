@@ -55,7 +55,7 @@ class LocalModelCandidate:
     backend: str
     model: str
     weights_vram_mib: int | None
-    kv_cache_mib_per_1k_tokens: int = 0
+    kv_cache_mib_per_1k_tokens: int | None = None
     max_context_tokens: int = 4096
     quantization: str = "unknown"
     priority: int = 100
@@ -65,7 +65,10 @@ class LocalModelCandidate:
             raise ValueError("backend and model are required")
         if self.weights_vram_mib is not None and self.weights_vram_mib <= 0:
             raise ValueError("weights_vram_mib must be positive when supplied")
-        if self.kv_cache_mib_per_1k_tokens < 0:
+        if (
+            self.kv_cache_mib_per_1k_tokens is not None
+            and self.kv_cache_mib_per_1k_tokens < 0
+        ):
             raise ValueError("kv_cache_mib_per_1k_tokens cannot be negative")
         if self.max_context_tokens <= 0:
             raise ValueError("max_context_tokens must be positive")
@@ -75,9 +78,14 @@ class LocalModelCandidate:
         return f"{self.backend}:{self.model}"
 
     def required_vram_mib(self, planned_context_tokens: int) -> int | None:
-        """Return declared weight + KV-cache demand for the planned context."""
+        """Return declared weight + KV-cache demand for the planned context.
 
-        if self.weights_vram_mib is None:
+        Missing KV-cache metadata is treated as unknown rather than as zero.
+        On a 6 GiB-class device, assuming an omitted KV cost is free can admit a
+        model that fits weights but OOMs once context is allocated.
+        """
+
+        if self.weights_vram_mib is None or self.kv_cache_mib_per_1k_tokens is None:
             return None
         context_k = math.ceil(max(0, planned_context_tokens) / 1000)
         return self.weights_vram_mib + context_k * self.kv_cache_mib_per_1k_tokens
