@@ -312,3 +312,47 @@ def test_quarantine_file_is_owner_only(tmp_path) -> None:
         f"token {FAKE_GITHUB_TOKEN}", source="github", repository="tukemen-rgb/site"
     )
     assert (quarantine.path.stat().st_mode & 0o777) == 0o600
+
+
+# --- identifier false positives ---------------------------------------
+# A commit SHA embeds `0123456789` between hex letters, and hex-encoded text
+# embeds 19-digit runs that occasionally pass Luhn. Both used to trip the PII
+# detector and block legitimate provenance output. Precision here matters as
+# much as recall: a gate that cries wolf on every commit SHA gets ignored.
+
+@pytest.mark.parametrize(
+    "identifier",
+    [
+        ("0123456789abcdef" * 3)[:40],          # commit SHA
+        "SIDRA AI local model".encode().hex(),  # hex-encoded text
+        "deadbeef0123456789abcdef01234567",     # short hex digest
+    ],
+)
+def test_hex_identifiers_are_not_pii(gate: SecurityGate, identifier: str) -> None:
+    result = gate.inspect(
+        f"Verified commit {identifier}.",
+        source="github",
+        repository="tukemen-rgb/sidra-ai",
+    )
+    assert not result.has(FindingCategory.PII), (
+        f"identifier misread as PII: {[f.detector for f in result.findings]}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "detector"),
+    [
+        ("連絡先は 03-1234-5678 です", "phone_jp"),
+        ("電話は0312345678までお願いします", "phone_jp"),
+        ("call +81-90-1234-5678 now", "phone_intl"),
+        ("card on file 4242 4242 4242 4242", "payment_card"),
+        ("個人番号 1234 5678 9012", "national_id_candidate"),
+    ],
+)
+def test_real_pii_still_detected_after_boundary_fix(
+    gate: SecurityGate, text: str, detector: str
+) -> None:
+    """The boundary fix must not have bought precision with recall."""
+
+    result = gate.inspect(text, source="github", repository="tukemen-rgb/site")
+    assert detector in {f.detector for f in result.findings}
