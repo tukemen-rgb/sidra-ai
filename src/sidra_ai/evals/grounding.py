@@ -2,18 +2,22 @@
 
 The v0.1 service can return provenance-rich citations, but a generative local
 model may still fabricate source labels (for example ``[S99]``), omit citations
-entirely while making factual claims, or pretend to have evidence when retrieval
-returned nothing. These checks make those regressions measurable without a
-network connection or model weights.
+entirely while making factual claims, pretend to have evidence when retrieval
+returned nothing, or answer from two active versions of the same logical
+source. These checks make those regressions measurable without a network
+connection or model weights.
 
-This evaluator intentionally checks *citation integrity and abstention*, not
-semantic truth. Semantic entailment needs a stronger judge/model later; v0.1
-must first guarantee that cited labels actually came from the retrieval context.
+This evaluator intentionally checks *citation integrity, abstention, and source
+version consistency*, not semantic truth. Semantic entailment needs a stronger
+judge/model later; v0.1 must first guarantee that cited labels actually came
+from the retrieval context and that conflicting historical versions do not
+silently support a factual answer.
 """
 
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Mapping, Sequence
@@ -53,13 +57,43 @@ def _is_abstention(answer: str) -> bool:
     return any(marker in lowered for marker in _NO_EVIDENCE_MARKERS)
 
 
+def _conflicting_source_versions(
+    citations: Sequence[Mapping[str, object]],
+) -> tuple[str, ...]:
+    """Return logical sources that appear at more than one commit SHA.
+
+    Incremental ingestion currently identifies documents using commit SHA, so a
+    replaced README/doc can coexist with its historical version unless the
+    indexing path explicitly retires the old entry. Both labels are syntactically
+    valid citations, but treating them as simultaneous evidence can produce a
+    confidently cited stale answer. Until the store guarantees one active
+    version per logical source, grounding must fail closed on that ambiguity.
+    """
+
+    versions: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for item in citations:
+        repository = str(item.get("repository") or "").strip()
+        path = str(item.get("path") or "").strip()
+        commit_sha = str(item.get("commit_sha") or "").strip()
+        if repository and path and commit_sha:
+            versions[(repository, path)].add(commit_sha)
+
+    conflicts: list[str] = []
+    for (repository, path), shas in sorted(versions.items()):
+        if len(shas) <= 1:
+            continue
+        short = ",".join(sorted(sha[:7] for sha in shas))
+        conflicts.append(f"{repository}:{path}@[{short}]")
+    return tuple(conflicts)
+
+
 def evaluate_grounding(
     answer: str,
     citations: Sequence[Mapping[str, object]],
     *,
     require_citation_when_evidence_exists: bool = True,
 ) -> GroundingResult:
-    """Validate that an answer only cites retrieved labels and abstains safely.
+    """Validate citation integrity, abstention, and source-version consistency.
 
     Rules:
     - every ``[S#]`` label used by the answer must exist in ``citations``;
@@ -69,7 +103,10 @@ def evaluate_grounding(
       because retrieval relevance is imperfect and the model may correctly
       decide that the retrieved text does not answer the question;
     - when retrieval returned no evidence, the answer must not invent a source
-      label and must explicitly indicate that evidence is unavailable.
+      label and must explicitly indicate that evidence is unavailable;
+    - if the retrieval context contains multiple commit versions of the same
+      repository/path, a factual answer must abstain rather than choose one
+      silently. This is conservative until ingestion/store retirement is fixed.
     """
 
     available = tuple(
@@ -86,6 +123,13 @@ def evaluate_grounding(
     invented = sorted(used_set - available_set)
     if invented:
         failures.append("invented citation labels: " + ", ".join(invented))
+
+    conflicts = _conflicting_source_versions(citations)
+    if conflicts and answer.strip() and not abstained:
+        failures.append(
+            "retrieval context contains multiple versions of the same logical source: "
+            + "; ".join(conflicts)
+        )
 
     if available_set:
         if (
@@ -163,6 +207,29 @@ def run_grounding_suite() -> tuple[EvalOutcome, ...]:
     )
     abstention = evaluate_grounding(no_evidence.text, [])
 
+    conflicting_citations = (
+        {
+            "label": "S1",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "1" * 40,
+        },
+        {
+            "label": "S2",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "2" * 40,
+        },
+    )
+    conflicting = evaluate_grounding(
+        "The current policy allows public binding. [S1]",
+        conflicting_citations,
+    )
+    conflict_guard_passed = (
+        not conflicting.passed
+        and any("multiple versions" in failure for failure in conflicting.failures)
+    )
+
     return (
         EvalOutcome(
             case_name="rag_citation_integrity",
@@ -175,5 +242,11 @@ def run_grounding_suite() -> tuple[EvalOutcome, ...]:
             passed=abstention.passed,
             detail="no evidence",
             failures=abstention.failures,
+        ),
+        EvalOutcome(
+            case_name="rag_conflicting_source_versions_fail_closed",
+            passed=conflict_guard_passed,
+            detail="same repository/path at two commit SHAs must force abstention",
+            failures=() if conflict_guard_passed else conflicting.failures,
         ),
     )
