@@ -8,6 +8,11 @@ from sidra_ai.models.base import (
     ModelUnavailableError,
     estimate_tokens,
 )
+from sidra_ai.models.benchmark import (
+    BenchmarkResult,
+    UnsafeBenchmarkBackendError,
+    run_benchmark,
+)
 from sidra_ai.models.echo import EchoModelAdapter
 from sidra_ai.models.http_backends import (
     LlamaCppAdapter,
@@ -25,6 +30,7 @@ from sidra_ai.models.registry import (
 
 __all__ = [
     "BackendNotRegisteredError",
+    "BenchmarkResult",
     "EchoModelAdapter",
     "GenerationChunk",
     "GenerationRequest",
@@ -35,9 +41,11 @@ __all__ = [
     "OllamaAdapter",
     "PaidBackendRejectedError",
     "TransformersAdapter",
+    "UnsafeBenchmarkBackendError",
     "adapter_from_settings",
     "available_backends",
     "create_adapter",
     "estimate_tokens",
     "register",
+    "run_benchmark",
 ]
