@@ -71,6 +71,50 @@ def test_repository_filter_score_is_invariant_to_unrelated_repository_growth(
     assert after[0].score == pytest.approx(before[0].score)
 
 
+def test_repository_filter_min_score_gate_is_invariant_to_excluded_growth(
+    store: DocumentStore,
+) -> None:
+    """Excluded DATA must not flip a scoped result below the evidence threshold."""
+
+    store.add(
+        _document(
+            "gamma gamma retrieval threshold",
+            repository=TARGET_REPO,
+            path="docs/threshold.md",
+        )
+    )
+    retriever = BM25Retriever(store)
+    baseline = retriever.search("gamma", repositories=[TARGET_REPO], top_k=1)
+    assert len(baseline) == 1
+
+    threshold = baseline[0].score * 0.9
+    assert retriever.search(
+        "gamma",
+        repositories=[TARGET_REPO],
+        top_k=1,
+        min_score=threshold,
+    )
+
+    for index in range(12):
+        store.add(
+            _document(
+                "gamma unrelated external corpus noise",
+                repository=NOISE_REPO,
+                path=f"docs/threshold-noise-{index}.md",
+            )
+        )
+
+    after = retriever.search(
+        "gamma",
+        repositories=[TARGET_REPO],
+        top_k=1,
+        min_score=threshold,
+    )
+    assert len(after) == 1
+    assert after[0].provenance.repository == TARGET_REPO
+    assert after[0].score == pytest.approx(baseline[0].score)
+
+
 def test_source_type_filter_score_is_invariant_to_excluded_source_growth(
     store: DocumentStore,
 ) -> None:
