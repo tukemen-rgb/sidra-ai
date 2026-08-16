@@ -72,7 +72,7 @@ def _stream_token_estimate(cjk_chars: int, other_chars: int) -> int:
 
     if cjk_chars <= 0 and other_chars <= 0:
         return 0
-    return cjk_chars + max(1, other_chars // 4)
+    return cjk_chars + (other_chars + 3) // 4
 
 
 def run_benchmark(
