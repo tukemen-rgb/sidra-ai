@@ -17,6 +17,7 @@ from sidra_ai.evals.claim_coverage import run_claim_citation_coverage_suite
 from sidra_ai.evals.grounding import run_grounding_suite
 from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import run_literal_support_suite
+from sidra_ai.evals.model_manifest_safety import run_model_manifest_safety_suite
 from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import run_policy_polarity_suite
 from sidra_ai.evals.retrieval_quality import run_retrieval_quality_suite
@@ -96,7 +97,7 @@ def run_gate_case(case: GateCase, gate: SecurityGate | None = None) -> EvalOutco
 
 
 def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
-    """Run input/output security, grounding, retrieval, API resilience, and startup regressions."""
+    """Run input/output security, grounding, retrieval, API resilience, model, and startup regressions."""
 
     gate = _make_gate()
     report = EvalReport()
@@ -108,6 +109,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     report.outcomes.extend(run_policy_polarity_suite())
     report.outcomes.extend(run_literal_support_suite())
     report.outcomes.extend(run_retrieval_quality_suite())
+    report.outcomes.extend(run_model_manifest_safety_suite())
     report.outcomes.extend(run_health_resilience_suite())
     report.outcomes.extend(run_startup_safety_suite())
     return report
