@@ -111,6 +111,23 @@ class ApiAuditLog:
             finally:
                 os.close(fd)
 
+    @staticmethod
+    def _model_was_attempted(response: dict[str, object]) -> bool:
+        """Return the non-sensitive model-attempt signal for an API result.
+
+        Successful generation and OutputGuard refusal carry the public ``model``
+        metadata block. A backend failure deliberately omits that block so model
+        names/endpoints cannot leak, but its constant refusal reason still proves
+        that generation was attempted. Audit history must not rewrite that failed
+        attempt as "model not invoked".
+        """
+
+        if "model" in response:
+            return True
+        return bool(response.get("refused", False)) and response.get("reason") == (
+            "model backend unavailable"
+        )
+
     def record_response(
         self,
         *,
@@ -173,12 +190,9 @@ class ApiAuditLog:
 
         model_invoked = False
         if operation == "chat":
-            # A model may have run even when OutputGuard withholds its answer.
-            # Presence of the model metadata is the non-sensitive invocation
-            # signal; refusal alone must not rewrite history to "not invoked".
-            model_invoked = "model" in audited_response
+            model_invoked = self._model_was_attempted(audited_response)
         elif operation == "github_analyze":
-            model_invoked = analysis is not None and "model" in analysis
+            model_invoked = analysis is not None and self._model_was_attempted(analysis)
 
         self.record(
             ApiAuditEvent(
