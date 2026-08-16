@@ -9,6 +9,7 @@ from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import evaluate_policy_polarity
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
 from sidra_ai.evals.runner import run_all
+from sidra_ai.evals.startup_safety import run_startup_safety_suite
 from sidra_ai.security.decisions import FindingCategory
 
 
@@ -78,6 +79,19 @@ def test_output_security_regression_passes_offline() -> None:
     ]
 
 
+def test_startup_safety_regression_passes_offline() -> None:
+    outcomes = run_startup_safety_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "api_startup_unregistered_backend_prebind",
+        "api_startup_remote_endpoint_prebind",
+        "api_startup_unsafe_cli_public_bind_prebind",
+        "api_startup_safe_echo_reaches_bind",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
 def test_grounding_suite_passes_offline() -> None:
     outcomes = run_grounding_suite()
     assert outcomes
@@ -116,8 +130,18 @@ def test_no_evidence_must_abstain() -> None:
 
 def test_grounding_rejects_conflicting_versions_of_same_source() -> None:
     citations = [
-        {"label": "S1", "repository": "tukemen-rgb/sidra-ai", "path": "docs/POLICY.md", "commit_sha": "1" * 40},
-        {"label": "S2", "repository": "tukemen-rgb/sidra-ai", "path": "docs/POLICY.md", "commit_sha": "2" * 40},
+        {
+            "label": "S1",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "1" * 40,
+        },
+        {
+            "label": "S2",
+            "repository": "tukemen-rgb/sidra-ai",
+            "path": "docs/POLICY.md",
+            "commit_sha": "2" * 40,
+        },
     ]
     result = evaluate_grounding("The current policy allows public binding. [S1]", citations)
     assert result.passed is False
