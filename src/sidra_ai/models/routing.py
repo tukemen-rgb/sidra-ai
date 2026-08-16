@@ -32,20 +32,34 @@ class HardwareBudget:
     Defaults model the current 6 GiB-class starting point. A fixed reserve is
     kept away from model weights/KV cache for runtime allocations, display use,
     and estimation error.
+
+    ``observed_free_vram_mib`` is an optional snapshot supplied by the caller
+    immediately before routing. When present, admission uses the smaller of the
+    configured budget and the observed free VRAM after applying the same safety
+    reserve. The router deliberately does not probe the GPU itself so policy
+    remains deterministic and backend/vendor independent.
     """
 
     vram_mib: int = 6144
     reserve_vram_mib: int = 512
+    observed_free_vram_mib: int | None = None
 
     def __post_init__(self) -> None:
         if self.vram_mib <= 0:
             raise ValueError("vram_mib must be positive")
         if self.reserve_vram_mib < 0 or self.reserve_vram_mib >= self.vram_mib:
             raise ValueError("reserve_vram_mib must leave usable VRAM")
+        if self.observed_free_vram_mib is not None and self.observed_free_vram_mib <= 0:
+            raise ValueError("observed_free_vram_mib must be positive when supplied")
 
     @property
     def usable_vram_mib(self) -> int:
-        return self.vram_mib - self.reserve_vram_mib
+        configured_usable = self.vram_mib - self.reserve_vram_mib
+        if self.observed_free_vram_mib is None:
+            return configured_usable
+
+        observed_usable = max(0, self.observed_free_vram_mib - self.reserve_vram_mib)
+        return min(configured_usable, observed_usable)
 
 
 @dataclass(frozen=True)
