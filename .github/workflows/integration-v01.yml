@@ -22,11 +22,24 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout without persisted credentials
+      - name: Checkout exact source SHA without persisted credentials
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Verify checkout matches event source SHA
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$EXPECTED_SHA" ]; then
+            echo "Expected source SHA $EXPECTED_SHA but checked out $actual_sha" >&2
+            exit 1
+          fi
+          echo "Verified source SHA: $actual_sha"
 
       - name: Set up Python 3.11
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5

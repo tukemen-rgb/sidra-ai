@@ -16,9 +16,14 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Sequence
 
-from sidra_ai.models.routing import HardwareBudget
+from sidra_ai.models.routing import (
+    HardwareBudget,
+    LocalModelCandidate,
+    RouteDecision,
+    select_local_model,
+)
 
 
 class HardwareProbeError(RuntimeError):
@@ -120,3 +125,33 @@ def probe_nvidia_vram(
         )
     except (TypeError, ValueError) as exc:
         raise HardwareProbeError("local NVIDIA VRAM probe returned malformed data") from exc
+
+
+def select_local_model_with_nvidia_probe(
+    candidates: Sequence[LocalModelCandidate],
+    *,
+    planned_context_tokens: int,
+    device_index: int = 0,
+    reserve_vram_mib: int = 512,
+    timeout_s: float = 2.0,
+    runner: Runner = subprocess.run,
+) -> RouteDecision:
+    """Route against one freshly observed NVIDIA VRAM snapshot.
+
+    This bridges the local hardware observation layer to the pure routing
+    policy without starting a model process.  A failed or malformed probe is
+    deliberately propagated as :class:`HardwareProbeError`; the helper never
+    falls back to the static 6 GiB budget because doing so could admit a model
+    that only fits when the GPU is otherwise idle.
+    """
+
+    snapshot = probe_nvidia_vram(
+        device_index,
+        timeout_s=timeout_s,
+        runner=runner,
+    )
+    return select_local_model(
+        candidates,
+        hardware=snapshot.to_hardware_budget(reserve_vram_mib=reserve_vram_mib),
+        planned_context_tokens=planned_context_tokens,
+    )
