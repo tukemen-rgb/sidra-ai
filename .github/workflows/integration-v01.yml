@@ -72,29 +72,7 @@ jobs:
         env:
           SIDRA_MODEL_BACKEND: echo
           SIDRA_API_HOST: 127.0.0.1
-        shell: bash
-        run: |
-          set +e
-          python -m pytest --junitxml=pytest-results.xml
-          status=$?
-          python - <<'PY'
-          import xml.etree.ElementTree as ET
-          from pathlib import Path
-
-          path = Path("pytest-results.xml")
-          if path.exists():
-              root = ET.parse(path).getroot()
-              for case in root.iter("testcase"):
-                  failure = case.find("failure")
-                  if failure is None:
-                      failure = case.find("error")
-                  if failure is None:
-                      continue
-                  name = f"{case.get('classname', '')}::{case.get('name', '')}".strip(":")
-                  message = (failure.get("message") or failure.text or "pytest failure").replace("\n", " ")[:1500]
-                  print(f"::error title=pytest::{name}: {message}")
-          PY
-          exit "$status"
+        run: python -m pytest
 
       - name: Run security and zero-cost evals
         env:
