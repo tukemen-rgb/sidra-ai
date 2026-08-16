@@ -238,8 +238,39 @@ def test_streamed_body_aborts_when_actual_bytes_exceed_limit():
     assert tls_socket.values
 
 
-def test_content_length_is_strict_and_bounded():
-    transport_module._validate_content_length((("content-length", "4"),), 4)
+def test_streamed_body_rejects_truncated_declared_content_length():
+    response = _FakeBodyResponse(b"abc")
+    tls_socket = _TimeoutRecorder()
+
+    with pytest.raises(FetchTransportError, match="Content-Length"):
+        transport_module._read_bounded_body(
+            response,
+            tls_socket,
+            max_bytes=10,
+            read_timeout_seconds=1.0,
+            deadline=time.monotonic() + 5.0,
+            expected_bytes=4,
+        )
+
+
+def test_streamed_body_rejects_more_bytes_than_declared_content_length():
+    response = _FakeBodyResponse(b"abcde")
+    tls_socket = _TimeoutRecorder()
+
+    with pytest.raises(FetchTransportError, match="Content-Length"):
+        transport_module._read_bounded_body(
+            response,
+            tls_socket,
+            max_bytes=10,
+            read_timeout_seconds=1.0,
+            deadline=time.monotonic() + 5.0,
+            expected_bytes=4,
+        )
+
+
+def test_content_length_is_strict_bounded_and_returns_expected_size():
+    assert transport_module._validate_content_length((("content-length", "4"),), 4) == 4
+    assert transport_module._validate_content_length((), 4) is None
 
     with pytest.raises(FetchTransportError, match="byte limit"):
         transport_module._validate_content_length((("content-length", "5"),), 4)
