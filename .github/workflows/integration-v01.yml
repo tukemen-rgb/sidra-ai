@@ -85,7 +85,9 @@ jobs:
           if path.exists():
               root = ET.parse(path).getroot()
               for case in root.iter("testcase"):
-                  failure = case.find("failure") or case.find("error")
+                  failure = case.find("failure")
+                  if failure is None:
+                      failure = case.find("error")
                   if failure is None:
                       continue
                   name = f"{case.get('classname', '')}::{case.get('name', '')}".strip(":")
