@@ -1,4 +1,4 @@
-"""Offline regressions for the model-output security boundary.
+"""Offline regressions for the operator/model security boundaries.
 
 Input/RAG screening is not enough: a local model can echo or synthesize a
 credential after retrieval. The API lane applies :class:`OutputGuard` before
