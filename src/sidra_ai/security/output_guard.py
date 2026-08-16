@@ -82,6 +82,14 @@ _STRING_ESCAPE = re.compile(
 )
 _MAX_STRING_ESCAPES = 4096
 
+# Reversible encodings can be composed (for example base64(percent(secret))).
+# The previous one-pass guard detected each encoding independently but did not
+# inspect decoded output again. Walk a deliberately tiny bounded graph instead:
+# two decode layers are enough to close the straightforward composition bypass
+# without turning arbitrary model output into an unbounded decoder.
+_MAX_DECODE_DEPTH = 2
+_MAX_TOTAL_DECODED_VARIANTS = 64
+
 
 @dataclass(frozen=True)
 class OutputGuardResult:
@@ -113,11 +121,12 @@ class OutputGuard:
     character obfuscation from bypassing provider-token and PII patterns while
     preserving the original safe output byte-for-byte when no finding exists.
 
-    The guard also performs one bounded decode pass over base64/base64url-like,
-    percent-encoded, hexadecimal, and JSON/code escaped output. This catches
-    reversible exfiltration without turning arbitrary model output into an
-    unbounded decoding workload. Decoded values are inspected in memory only
-    and are never included in the result, logs, or exceptions.
+    The guard performs bounded decoding of base64/base64url-like,
+    percent-encoded, hexadecimal, and JSON/code escaped output. Decoded variants
+    are re-inspected for at most two layers, so composed reversible encodings
+    cannot trivially hide a secret. The global variant budget keeps adversarial
+    output from causing unbounded decoding work. Decoded values remain
+    ephemeral and never leave ``scan``.
 
     Detector failures fail closed: returning an unchecked answer is less safe
     than returning a constant withholding message.
@@ -144,13 +153,7 @@ class OutputGuard:
 
     @staticmethod
     def _decoded_detection_variants(content: str) -> tuple[str, ...]:
-        """Return bounded textual base64/base64url decodes for detector use.
-
-        Invalid, binary, oversized, or empty candidates are ignored. At most
-        ``_MAX_DECODE_CANDIDATES`` are inspected so crafted model output cannot
-        turn the guard into an unbounded decoder. Decoded strings are
-        intentionally ephemeral and never leave ``scan``.
-        """
+        """Return bounded textual base64/base64url decodes for detector use."""
 
         decoded: list[str] = []
         for match in _BASE64_CANDIDATE.finditer(content):
@@ -173,12 +176,7 @@ class OutputGuard:
 
     @staticmethod
     def _percent_decoded_detection_variants(content: str) -> tuple[str, ...]:
-        """Return bounded percent-decoded textual variants for detector use.
-
-        A single encoded delimiter can hide personal information, for example
-        ``person%40example.invalid``. Decode only compact token-like candidates,
-        inspect at most a fixed number, and never retain decoded values.
-        """
+        """Return bounded percent-decoded textual variants for detector use."""
 
         decoded: list[str] = []
         for match in _PERCENT_CANDIDATE.finditer(content):
@@ -205,13 +203,7 @@ class OutputGuard:
 
     @staticmethod
     def _hex_decoded_detection_variants(content: str) -> tuple[str, ...]:
-        """Return bounded textual hex decodes for detector use.
-
-        Hex encoding removes provider prefixes and punctuation while remaining
-        trivially reversible. Decode only contiguous byte strings, inspect at
-        most a fixed number, and discard binary/non-UTF-8 candidates without
-        retaining the decoded material.
-        """
+        """Return bounded textual hex decodes for detector use."""
 
         decoded: list[str] = []
         for match in _HEX_CANDIDATE.finditer(content):
@@ -236,14 +228,7 @@ class OutputGuard:
 
     @staticmethod
     def _escaped_detection_variants(content: str) -> tuple[str, ...]:
-        """Return one bounded JSON/code-escape-decoded detector variant.
-
-        Only explicit ``\\uXXXX`` and ``\\xHH`` sequences are interpreted.
-        Surrogate code points are left literal because secrets/PII handled here
-        are ASCII-oriented and emitting a lone surrogate would create an
-        invalid text value. An excessive number of escapes raises so ``scan``
-        fails closed without retaining the decoded material.
-        """
+        """Return one bounded JSON/code-escape-decoded detector variant."""
 
         pieces: list[str] = []
         cursor = 0
@@ -275,6 +260,43 @@ class OutputGuard:
             return ()
         return (decoded,)
 
+    @classmethod
+    def _reversible_detection_variants(cls, content: str) -> tuple[str, ...]:
+        """Expand reversible encodings with strict depth and count budgets.
+
+        Each decoded value is normalized, deduplicated, and may itself be
+        decoded once more. The original detector copy is not returned because
+        ``scan`` already checks it directly.
+        """
+
+        decoders = (
+            cls._decoded_detection_variants,
+            cls._percent_decoded_detection_variants,
+            cls._hex_decoded_detection_variants,
+            cls._escaped_detection_variants,
+        )
+        seen = {content}
+        frontier = [content]
+        variants: list[str] = []
+
+        for _ in range(_MAX_DECODE_DEPTH):
+            next_frontier: list[str] = []
+            for candidate in frontier:
+                for decoder in decoders:
+                    for decoded in decoder(candidate):
+                        if decoded in seen:
+                            continue
+                        seen.add(decoded)
+                        variants.append(decoded)
+                        next_frontier.append(decoded)
+                        if len(variants) >= _MAX_TOTAL_DECODED_VARIANTS:
+                            return tuple(variants)
+            if not next_frontier:
+                break
+            frontier = next_frontier
+
+        return tuple(variants)
+
     def _scan_text(self, content: str) -> tuple[Finding, ...]:
         # Ingestion can tolerate a MEDIUM high-entropy finding after redaction
         # and human review. Output cannot: returning an unknown random-looking
@@ -292,17 +314,7 @@ class OutputGuard:
         try:
             detector_content = self._normalize_for_detection(content)
             findings = list(self._scan_text(detector_content))
-            for decoded_content in self._decoded_detection_variants(detector_content):
-                findings.extend(self._scan_text(decoded_content))
-            for decoded_content in self._percent_decoded_detection_variants(
-                detector_content
-            ):
-                findings.extend(self._scan_text(decoded_content))
-            for decoded_content in self._hex_decoded_detection_variants(
-                detector_content
-            ):
-                findings.extend(self._scan_text(decoded_content))
-            for decoded_content in self._escaped_detection_variants(detector_content):
+            for decoded_content in self._reversible_detection_variants(detector_content):
                 findings.extend(self._scan_text(decoded_content))
         except Exception:
             return OutputGuardResult(

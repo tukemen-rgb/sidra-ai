@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from typing import Iterable
+from urllib.parse import urlparse
 
 #: Repositories SIDRA AI may read in v0.1. Anything else is refused by the
 #: security gate as an unpermitted source.
@@ -28,10 +29,14 @@ DEFAULT_ALLOWED_REPOSITORIES: tuple[str, ...] = (
 #: Addresses considered loopback-only.
 LOCALHOST_ADDRESSES: frozenset[str] = frozenset({"127.0.0.1", "::1", "localhost"})
 
-#: Backends that run locally and cost nothing per token.
-LOCAL_MODEL_BACKENDS: frozenset[str] = frozenset(
-    {"echo", "ollama", "llama_cpp", "transformers"}
-)
+#: Backends selectable in the verified v0.1 runtime. ``transformers`` remains
+#: source-visible for future local-artifact work but is deliberately deferred
+#: until runtime downloads are impossible.
+LOCAL_MODEL_BACKENDS: frozenset[str] = frozenset({"echo", "ollama", "llama_cpp"})
+
+#: v0.1 sends the optional read-only token only to GitHub's official API.
+DEFAULT_GITHUB_API_BASE = "https://api.github.com"
+GITHUB_API_HOST = "api.github.com"
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
@@ -86,7 +91,7 @@ class Settings:
     model_max_output_tokens: int = 512
 
     # --- GitHub ingestion (read-only) ------------------------------------
-    github_api_base: str = "https://api.github.com"
+    github_api_base: str = DEFAULT_GITHUB_API_BASE
     allowed_repositories: tuple[str, ...] = DEFAULT_ALLOWED_REPOSITORIES
     github_request_timeout: float = 20.0
     max_items_per_source: int = 50
@@ -99,6 +104,11 @@ class Settings:
     data_dir: str = field(default=".sidra")
 
     # ------------------------------------------------------------------
+    def __post_init__(self) -> None:
+        # Enforce the GitHub credential boundary even for callers that
+        # construct Settings directly instead of using Settings.from_env().
+        self._validate_github_api_base()
+
     @classmethod
     def from_env(cls) -> "Settings":
         settings = cls(
@@ -112,8 +122,8 @@ class Settings:
             model_endpoint=os.environ.get("SIDRA_MODEL_ENDPOINT", ""),
             model_max_output_tokens=_env_int("SIDRA_MODEL_MAX_OUTPUT_TOKENS", 512),
             github_api_base=os.environ.get(
-                "SIDRA_GITHUB_API_BASE", "https://api.github.com"
-            ),
+                "SIDRA_GITHUB_API_BASE", DEFAULT_GITHUB_API_BASE
+            ).strip(),
             allowed_repositories=_env_list(
                 "SIDRA_ALLOWED_REPOSITORIES", DEFAULT_ALLOWED_REPOSITORIES
             ),
@@ -156,9 +166,44 @@ class Settings:
     def is_repository_allowed(self, repository: str) -> bool:
         return repository.lower() in {r.lower() for r in self.allowed_repositories}
 
+    def _validate_github_api_base(self) -> None:
+        """Pin authenticated GitHub ingestion to the official HTTPS origin.
+
+        The read-only token raises API limits and can read private repositories.
+        Allowing an arbitrary configured API base would therefore turn a typo or
+        configuration injection into credential exfiltration, even though the
+        client only issues GET requests.
+        """
+
+        message = (
+            "SIDRA_GITHUB_API_BASE must be the official "
+            "https://api.github.com origin in v0.1"
+        )
+        raw = self.github_api_base.strip()
+        try:
+            parsed = urlparse(raw)
+            port = parsed.port
+        except ValueError as exc:
+            raise UnsafeConfigurationError(message) from exc
+
+        if (
+            parsed.scheme.lower() != "https"
+            or (parsed.hostname or "").lower() != GITHUB_API_HOST
+            or port not in {None, 443}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise UnsafeConfigurationError(message)
+
     # ------------------------------------------------------------------
     def validate(self) -> None:
         """Enforce the v0.1 safety invariants."""
+
+        self._validate_github_api_base()
 
         if self.port < 1 or self.port > 65535:
             raise UnsafeConfigurationError("port out of range")
@@ -178,7 +223,7 @@ class Settings:
         if self.model_backend not in LOCAL_MODEL_BACKENDS:
             raise UnsafeConfigurationError(
                 f"model backend {self.model_backend!r} is not a local backend; "
-                f"v0.1 allows {sorted(LOCAL_MODEL_BACKENDS)}"
+                f"verified v0.1 allows {sorted(LOCAL_MODEL_BACKENDS)}"
             )
 
         if self.max_input_bytes <= 0:
