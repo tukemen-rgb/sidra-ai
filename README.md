@@ -46,6 +46,12 @@ backends are `echo`, `ollama`, and `llama_cpp`. `transformers` remains deferred
 until it can consume only pre-staged local artifacts with no runtime model/code
 download path.
 
+The codebase now includes a strict local model manifest and an observed-NVIDIA-
+VRAM routing path for reviewed non-echo models. **That path is not yet mandatory
+inside `SidraService` startup.** Until Issue #89 is closed, the verified API
+startup baseline remains `echo`; treat Ollama/llama.cpp setup as staging and
+routing-validation work rather than as a completed fail-closed runtime path.
+
 Run `python -m sidra_ai.local_preflight` before starting a home-PC runtime. See
 `docs/LOCAL_RUNTIME.md` for the safe install, hardware observation, local model
 artifact, and acceptance procedure. See `docs/ARCHITECTURE.md` for the module map
@@ -73,9 +79,14 @@ The verified v0.1 baseline includes:
 2. GitHub read-only ingestion with commit and mutable-source freshness handling
 3. persisted SHA/activity state with fail-closed recovery behavior
 4. local retrieval/index and citations
-5. local model adapters and constrained-hardware routing
+5. local model adapters and constrained-hardware routing components
 6. security gate and output guard
 7. offline evaluation suite
 8. private SIDRA API (`/health`, `/v1/retrieve`, `/v1/chat`, `/v1/github/analyze`)
+
+The remaining local-model integration gap is tracked in Issue #89: non-echo
+`SidraService` startup must be forced through reviewed manifest metadata and a
+fresh observed-VRAM admission decision before the real-model runtime is treated
+as fully integrated.
 
 See `docs/COLLABORATION.md` for the shared implementation protocol.
