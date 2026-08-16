@@ -3,6 +3,11 @@
 Redaction replaces a span with a typed placeholder rather than deleting it,
 so the shape of the document survives and reviewers can see *that* something
 was removed and *what kind* of thing it was.
+
+Credential-like secrets may retain a short deterministic fingerprint so an
+operator can correlate the same high-entropy value across files. PII never
+retains such a fingerprint: many identifiers have a small enough search space
+that a public deterministic digest can become a guessing oracle.
 """
 
 from __future__ import annotations
@@ -10,14 +15,16 @@ from __future__ import annotations
 import hashlib
 
 PLACEHOLDER_TEMPLATE = "[REDACTED:{label}:{fingerprint}]"
+PII_PLACEHOLDER_TEMPLATE = "[REDACTED:{label}]"
 
 
 def fingerprint(value: str) -> str:
-    """Short, non-reversible fingerprint of a redacted value.
+    """Short deterministic fingerprint for high-entropy secret correlation.
 
-    Lets an operator confirm "the same key appears in three files" without
-    ever storing the key. Salted with a fixed domain string so the digest is
-    not directly comparable to a bare SHA-256 of the secret.
+    This helper is intentionally *not* used for PII placeholders. The fixed
+    domain separator makes the digest distinct from a bare SHA-256 value, but
+    it is public rather than secret and therefore does not make low-entropy
+    personal identifiers safe against offline guessing.
     """
 
     digest = hashlib.sha256(b"sidra-redaction-v1\x00" + value.encode("utf-8"))
@@ -25,6 +32,10 @@ def fingerprint(value: str) -> str:
 
 
 def placeholder(label: str, value: str) -> str:
+    """Build a typed redaction placeholder without retaining PII digests."""
+
+    if label.startswith("pii_"):
+        return PII_PLACEHOLDER_TEMPLATE.format(label=label)
     return PLACEHOLDER_TEMPLATE.format(label=label, fingerprint=fingerprint(value))
 
 
