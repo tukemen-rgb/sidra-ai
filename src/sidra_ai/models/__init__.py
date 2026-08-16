@@ -1,12 +1,19 @@
 """Replaceable local model backends. No paid API is ever required."""
 
 from sidra_ai.models.base import (
+    GenerationChunk,
     GenerationRequest,
     GenerationResult,
     LocalModelAdapter,
     ModelUnavailableError,
     estimate_tokens,
 )
+from sidra_ai.models.benchmark import (
+    BenchmarkResult,
+    UnsafeBenchmarkBackendError,
+    run_benchmark,
+)
+from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
 from sidra_ai.models.echo import EchoModelAdapter
 from sidra_ai.models.http_backends import (
     LlamaCppAdapter,
@@ -24,7 +31,10 @@ from sidra_ai.models.registry import (
 
 __all__ = [
     "BackendNotRegisteredError",
+    "BenchmarkResult",
+    "BudgetedLocalModelAdapter",
     "EchoModelAdapter",
+    "GenerationChunk",
     "GenerationRequest",
     "GenerationResult",
     "LlamaCppAdapter",
@@ -33,9 +43,11 @@ __all__ = [
     "OllamaAdapter",
     "PaidBackendRejectedError",
     "TransformersAdapter",
+    "UnsafeBenchmarkBackendError",
     "adapter_from_settings",
     "available_backends",
     "create_adapter",
     "estimate_tokens",
     "register",
+    "run_benchmark",
 ]

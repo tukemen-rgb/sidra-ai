@@ -4,12 +4,14 @@ Everything entering SIDRA AI - repository content, operator messages, and
 later web research - passes through :class:`SecurityGate`. The gate's job is
 to *decide and record*, never to quietly discard:
 
-* ``BLOCK``     content must not be indexed and must not reach the model.
-* ``QUARANTINE`` content is kept in full, with reasons, awaiting human review.
-* ``ALLOW``     content may be indexed and placed in a DATA envelope.
+* ``BLOCK``      content must not be indexed and must not reach the model.
+* ``QUARANTINE`` content is retained only in a review-safe form, with reasons.
+* ``ALLOW``      content may be indexed and placed in a DATA envelope.
 
 Secrets are redacted from ``ALLOW`` content before it leaves the gate, so no
-downstream component ever holds a credential in plaintext.
+downstream component ever holds a credential in plaintext. Quarantine records
+also never persist raw secret/PII-bearing content: quarantined material is
+stored in its sanitized form, while blocked material is metadata-only.
 """
 
 from __future__ import annotations
@@ -58,7 +60,8 @@ class GatePolicy:
     quarantine_secret_severity: Severity = Severity.CRITICAL
     """Findings at or above this severity quarantine even after redaction."""
 
-    quarantine_pii_severity: Severity = Severity.HIGH
+    quarantine_pii_severity: Severity = Severity.MEDIUM
+    """Medium+ PII candidates are redacted and quarantined by default."""
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "GatePolicy":
@@ -81,11 +84,16 @@ def _at_least(severity: Severity, threshold: Severity) -> bool:
 
 
 class QuarantineStore:
-    """Append-only record of content the gate refused to index.
+    """Append-only audit record for content the gate refused to index.
 
-    Quarantined content is written with its findings so a human can review and
-    release it. The file is created with owner-only permissions because it may
-    hold the very material that triggered the quarantine.
+    Security invariant: raw blocked/quarantined input is never persisted here.
+    ``QUARANTINE`` records may retain the gate-sanitized content for human
+    review. ``BLOCK`` records retain metadata only. No digest of the original
+    content is stored either, because low-entropy PII can be guessable from an
+    unkeyed hash.
+
+    The file is still created with owner-only permissions because sanitized
+    review content and provenance may remain sensitive.
     """
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
@@ -94,7 +102,8 @@ class QuarantineStore:
     def record(
         self,
         *,
-        content: str,
+        safe_content: str | None,
+        original_length: int,
         provenance: Provenance | None,
         result: GateResult,
     ) -> None:
@@ -103,9 +112,11 @@ class QuarantineStore:
             "recorded_at": datetime.now(timezone.utc).isoformat(),
             "provenance": provenance.to_dict() if provenance else None,
             "gate": result.to_dict(),
-            "content": content,
+            "content": safe_content,
+            "content_retention": "sanitized" if safe_content is not None else "metadata_only",
+            "original_length": original_length,
         }
-        # Create with 0600 before writing anything sensitive into it.
+        # Create with 0600 before writing anything potentially sensitive.
         if not self.path.exists():
             self.path.touch(mode=0o600)
         else:
@@ -150,12 +161,43 @@ class SecurityGate:
         *,
         source: str = "operator",
         repository: str = "",
+        provenance: Provenance | None = None,
     ) -> GateResult:
-        """Run every detector and combine the verdicts."""
+        """Run every detector and combine the verdicts.
+
+        ``provenance`` is optional for direct operator calls. Document callers
+        pass it so a quarantine event is recorded exactly once with source
+        attribution, rather than first without provenance and then again.
+        """
 
         findings: list[Finding] = []
         reasons: list[str] = []
         decision = Decision.ALLOW
+
+        # GitHub is repository-scoped by policy. Treat missing repository
+        # provenance as untrusted instead of letting an empty string bypass
+        # the repository allowlist check in SourceAllowlistDetector.
+        if source.strip().lower() == "github" and not repository.strip():
+            findings.append(
+                Finding(
+                    category=FindingCategory.UNPERMITTED_SOURCE,
+                    severity=Severity.CRITICAL,
+                    detector="repository_required",
+                    reason="GitHub input is missing required repository provenance",
+                    metadata={"source": "github"},
+                )
+            )
+            decision = Decision.BLOCK
+            reasons.append("GitHub source is missing repository provenance")
+            return self._finalize(
+                content,
+                content,
+                findings,
+                reasons,
+                decision,
+                redacted=False,
+                provenance=provenance,
+            )
 
         source_out = self._source.check(source=source, repository=repository)
         findings.extend(source_out.findings)
@@ -163,8 +205,15 @@ class SecurityGate:
             decision = Decision.BLOCK
             reasons.append("source is not on the allowlist")
             # Do not inspect further: unpermitted content is not processed.
+            # It is also not persisted verbatim in quarantine.
             return self._finalize(
-                content, content, findings, reasons, decision, redacted=False
+                content,
+                content,
+                findings,
+                reasons,
+                decision,
+                redacted=False,
+                provenance=provenance,
             )
 
         oversize_out = self._oversize.detect(content)
@@ -173,7 +222,13 @@ class SecurityGate:
             decision = Decision.BLOCK
             reasons.append("input exceeds the byte budget")
             return self._finalize(
-                content, content, findings, reasons, decision, redacted=False
+                content,
+                content,
+                findings,
+                reasons,
+                decision,
+                redacted=False,
+                provenance=provenance,
             )
 
         secret_out = self._secret.detect(content)
@@ -184,12 +239,14 @@ class SecurityGate:
         findings.extend(injection_out.findings)
 
         spans = list(secret_out.spans)
-        # Only redact PII that is actually personal; role addresses stay
-        # readable so citations remain useful.
+        # Redact every PII finding at the policy's quarantine threshold. This
+        # keeps medium-risk national-ID candidates out of the retrievable and
+        # quarantine copies while still leaving low-risk role addresses usable.
         spans.extend(
             (f.start, f.end, f"pii_{f.detector}")
             for f in pii_out.findings
-            if f.start >= 0 and _at_least(f.severity, Severity.HIGH)
+            if f.start >= 0
+            and _at_least(f.severity, self.policy.quarantine_pii_severity)
         )
 
         sanitized = content
@@ -230,7 +287,13 @@ class SecurityGate:
             )
 
         return self._finalize(
-            content, sanitized, findings, reasons, decision, redacted=redacted
+            content,
+            sanitized,
+            findings,
+            reasons,
+            decision,
+            redacted=redacted,
+            provenance=provenance,
         )
 
     # ------------------------------------------------------------------
@@ -243,6 +306,7 @@ class SecurityGate:
         decision: Decision,
         *,
         redacted: bool,
+        provenance: Provenance | None = None,
     ) -> GateResult:
         result = GateResult(
             decision=decision,
@@ -253,8 +317,15 @@ class SecurityGate:
             reasons=tuple(reasons),
         )
         if decision is not Decision.ALLOW and self.quarantine_store is not None:
+            # QUARANTINE keeps only the sanitized review copy. BLOCK keeps no
+            # content at all because source/size rejection may happen before
+            # secret and PII detectors are allowed to inspect the payload.
+            safe_content = sanitized if decision is Decision.QUARANTINE else None
             self.quarantine_store.record(
-                content=original, provenance=None, result=result
+                safe_content=safe_content,
+                original_length=len(original),
+                provenance=provenance,
+                result=result,
             )
         return result
 
@@ -272,15 +343,10 @@ class SecurityGate:
             document.content,
             source=document.provenance.source,
             repository=document.provenance.repository,
+            provenance=document.provenance,
         )
 
         if result.decision is not Decision.ALLOW:
-            if self.quarantine_store is not None:
-                self.quarantine_store.record(
-                    content=document.content,
-                    provenance=document.provenance,
-                    result=result,
-                )
             return result, None
 
         screened = Document(
