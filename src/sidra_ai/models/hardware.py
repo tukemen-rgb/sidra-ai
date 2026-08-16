@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 from sidra_ai.models.routing import (
     HardwareBudget,
     LocalModelCandidate,
     RouteDecision,
+    RoutedAdapter,
+    route_and_create_adapter,
     select_local_model,
 )
 
@@ -154,4 +156,40 @@ def select_local_model_with_nvidia_probe(
         candidates,
         hardware=snapshot.to_hardware_budget(reserve_vram_mib=reserve_vram_mib),
         planned_context_tokens=planned_context_tokens,
+    )
+
+
+def route_and_create_adapter_with_nvidia_probe(
+    candidates: Sequence[LocalModelCandidate],
+    *,
+    planned_context_tokens: int,
+    device_index: int = 0,
+    reserve_vram_mib: int = 512,
+    timeout_s: float = 2.0,
+    runner: Runner = subprocess.run,
+    adapter_options: dict[str, Any] | None = None,
+) -> RoutedAdapter:
+    """Probe once, route once, then build the adapter from that exact budget.
+
+    This closes a composition gap between observed-VRAM admission and adapter
+    creation.  Callers no longer need to reconstruct a separate
+    :class:`HardwareBudget` after probing, which could accidentally discard the
+    observed free-VRAM cap and fall back to the static 6 GiB budget.
+
+    Probe failures remain fail-closed and no model process or external network
+    request is started by the probe itself.  The selected adapter also inherits
+    the exact ``planned_context_tokens`` cap used for KV-cache admission via
+    :func:`route_and_create_adapter`.
+    """
+
+    snapshot = probe_nvidia_vram(
+        device_index,
+        timeout_s=timeout_s,
+        runner=runner,
+    )
+    return route_and_create_adapter(
+        candidates,
+        hardware=snapshot.to_hardware_budget(reserve_vram_mib=reserve_vram_mib),
+        planned_context_tokens=planned_context_tokens,
+        adapter_options=adapter_options,
     )
