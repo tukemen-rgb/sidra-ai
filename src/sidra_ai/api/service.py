@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Sequence
 
+from sidra_ai.api.model_admission import build_runtime_model
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline, IngestionReport
@@ -18,7 +19,6 @@ from sidra_ai.models.base import (
     LocalModelAdapter,
     ModelUnavailableError,
 )
-from sidra_ai.models.registry import adapter_from_settings
 from sidra_ai.retrieval.search import BM25Retriever, SearchResult
 from sidra_ai.retrieval.store import DocumentStore
 from sidra_ai.security.data_envelope import build_data_context
@@ -63,7 +63,15 @@ class SidraService:
         self.output_guard = output_guard or OutputGuard()
         self.store = store or DocumentStore(self.gate)
         self.retriever = BM25Retriever(self.store)
-        self.model = model or adapter_from_settings(self.settings)
+        if model is None:
+            self.model, self.model_admission = build_runtime_model(
+                self.settings, data_dir=data_dir
+            )
+        else:
+            # Explicit injection is retained for tests and embedding callers.
+            # The real sidra-api entry point never supplies this override.
+            self.model = model
+            self.model_admission = None
         self.state_store = state_store or StateStore(data_dir / "state.json")
         self._client = client
 
