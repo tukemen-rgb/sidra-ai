@@ -7,6 +7,14 @@ Trust assignment happens here, and it is not uniform:
 * Issue and PR bodies can be written by anyone with an account, so they are
   ``EXTERNAL`` regardless of which repository they sit in. This is the common
   path for a prompt-injection payload reaching a code assistant.
+
+Source timestamps are provenance, not decoration. For GitHub objects that
+carry an authoritative authored/updated timestamp (commits, PRs, issues), an
+absent or malformed timestamp makes the object non-indexable instead of being
+silently replaced with "now". Fabricating a current timestamp can make stale
+or malformed source data appear fresh and undermines downstream grounding.
+README/docs use the observation time because their exact revision is already
+anchored by ``commit_sha``.
 """
 
 from __future__ import annotations
@@ -22,13 +30,23 @@ from sidra_ai.documents import Document, Provenance, SourceType, TrustLevel
 _BOT_TYPES = frozenset({"Bot"})
 
 
-def _parse_time(value: str | None) -> datetime:
+def _parse_time(value: str | None) -> datetime | None:
+    """Parse an authoritative GitHub timestamp as UTC.
+
+    ``None`` means the source did not provide a trustworthy timestamp. Callers
+    that normalize authored GitHub objects must then fail closed rather than
+    inventing the current time.
+    """
+
     if not value:
-        return datetime.now(timezone.utc)
+        return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return datetime.now(timezone.utc)
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
 
 
 def decode_content(payload: Mapping[str, Any]) -> str:
@@ -108,6 +126,13 @@ def commit_document(
         return None
 
     author_meta = commit.get("author") or {}
+    committer_meta = commit.get("committer") or {}
+    timestamp = _parse_time(author_meta.get("date")) or _parse_time(
+        committer_meta.get("date")
+    )
+    if timestamp is None:
+        return None
+
     files = payload.get("files") or []
     changed = ", ".join(str(f.get("filename", "")) for f in files[:20])
     body = message if not changed else f"{message}\n\nchanged files: {changed}"
@@ -119,7 +144,7 @@ def commit_document(
             repository=repository,
             path=f"commit/{sha[:12]}",
             commit_sha=sha,
-            timestamp=_parse_time(author_meta.get("date")),
+            timestamp=timestamp,
             source_type=SourceType.COMMIT,
             trust_level=TrustLevel.INTERNAL_REPO,
             license=license,
@@ -138,6 +163,11 @@ def pull_request_document(
         return None
     body = str(payload.get("body") or "").strip()
     head_sha = str(((payload.get("head") or {}).get("sha")) or commit_sha)
+    timestamp = _parse_time(payload.get("updated_at")) or _parse_time(
+        payload.get("created_at")
+    )
+    if timestamp is None:
+        return None
 
     return Document(
         content=f"# PR #{number}: {title}\n\n{body}".strip(),
@@ -146,7 +176,7 @@ def pull_request_document(
             repository=repository,
             path=f"pull/{number}",
             commit_sha=head_sha or commit_sha,
-            timestamp=_parse_time(payload.get("updated_at") or payload.get("created_at")),
+            timestamp=timestamp,
             source_type=SourceType.PULL_REQUEST,
             # Third-party authored: treat as external input.
             trust_level=TrustLevel.EXTERNAL,
@@ -166,6 +196,11 @@ def issue_document(
     if number is None or not title:
         return None
     body = str(payload.get("body") or "").strip()
+    timestamp = _parse_time(payload.get("updated_at")) or _parse_time(
+        payload.get("created_at")
+    )
+    if timestamp is None:
+        return None
 
     return Document(
         content=f"# Issue #{number}: {title}\n\n{body}".strip(),
@@ -174,7 +209,7 @@ def issue_document(
             repository=repository,
             path=f"issue/{number}",
             commit_sha=commit_sha,
-            timestamp=_parse_time(payload.get("updated_at") or payload.get("created_at")),
+            timestamp=timestamp,
             source_type=SourceType.ISSUE,
             trust_level=TrustLevel.EXTERNAL,
             license=license,
