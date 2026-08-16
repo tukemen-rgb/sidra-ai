@@ -124,9 +124,10 @@ class OutputGuard:
     The guard performs bounded decoding of base64/base64url-like,
     percent-encoded, hexadecimal, and JSON/code escaped output. Decoded variants
     are re-inspected for at most two layers, so composed reversible encodings
-    cannot trivially hide a secret. The global variant budget keeps adversarial
-    output from causing unbounded decoding work. Decoded values remain
-    ephemeral and never leave ``scan``.
+    cannot trivially hide a secret. Candidate and global variant budgets keep
+    adversarial output from causing unbounded decoding work; exhausting any
+    budget fails closed rather than silently skipping unchecked candidates.
+    Decoded values remain ephemeral and never leave ``scan``.
 
     Detector failures fail closed: returning an unchecked answer is less safe
     than returning a constant withholding message.
@@ -157,8 +158,6 @@ class OutputGuard:
 
         decoded: list[str] = []
         for match in _BASE64_CANDIDATE.finditer(content):
-            if len(decoded) >= _MAX_DECODE_CANDIDATES:
-                break
             candidate = match.group()
             padded = candidate + "=" * (-len(candidate) % 4)
             try:
@@ -171,6 +170,8 @@ class OutputGuard:
                 text = raw.decode("utf-8")
             except UnicodeDecodeError:
                 continue
+            if len(decoded) >= _MAX_DECODE_CANDIDATES:
+                raise ValueError("base64 decode candidate budget exceeded")
             decoded.append(OutputGuard._normalize_for_detection(text))
         return tuple(decoded)
 
@@ -180,8 +181,6 @@ class OutputGuard:
 
         decoded: list[str] = []
         for match in _PERCENT_CANDIDATE.finditer(content):
-            if len(decoded) >= _MAX_PERCENT_CANDIDATES:
-                break
             candidate = match.group()
             if _PERCENT_ESCAPE.search(candidate) is None:
                 continue
@@ -198,6 +197,8 @@ class OutputGuard:
             normalized = OutputGuard._normalize_for_detection(text)
             if normalized == candidate:
                 continue
+            if len(decoded) >= _MAX_PERCENT_CANDIDATES:
+                raise ValueError("percent decode candidate budget exceeded")
             decoded.append(normalized)
         return tuple(decoded)
 
@@ -207,8 +208,6 @@ class OutputGuard:
 
         decoded: list[str] = []
         for match in _HEX_CANDIDATE.finditer(content):
-            if len(decoded) >= _MAX_HEX_CANDIDATES:
-                break
             candidate = match.group()
             try:
                 raw = bytes.fromhex(candidate)
@@ -223,6 +222,8 @@ class OutputGuard:
             normalized = OutputGuard._normalize_for_detection(text)
             if normalized == candidate:
                 continue
+            if len(decoded) >= _MAX_HEX_CANDIDATES:
+                raise ValueError("hex decode candidate budget exceeded")
             decoded.append(normalized)
         return tuple(decoded)
 
@@ -266,7 +267,9 @@ class OutputGuard:
 
         Each decoded value is normalized, deduplicated, and may itself be
         decoded once more. The original detector copy is not returned because
-        ``scan`` already checks it directly.
+        ``scan`` already checks it directly. If a new unique variant would
+        exceed the global budget, raise so ``scan`` withholds the entire output
+        instead of silently leaving later candidates unchecked.
         """
 
         decoders = (
@@ -286,11 +289,11 @@ class OutputGuard:
                     for decoded in decoder(candidate):
                         if decoded in seen:
                             continue
+                        if len(variants) >= _MAX_TOTAL_DECODED_VARIANTS:
+                            raise ValueError("reversible decode variant budget exceeded")
                         seen.add(decoded)
                         variants.append(decoded)
                         next_frontier.append(decoded)
-                        if len(variants) >= _MAX_TOTAL_DECODED_VARIANTS:
-                            return tuple(variants)
             if not next_frontier:
                 break
             frontier = next_frontier

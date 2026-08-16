@@ -327,7 +327,7 @@ class GitHubReadOnlyClient:
         return self._get_json(f"repos/{repository}")
 
     def get_license(self, repository: str) -> str:
-        """Return an SPDX id, ``"proprietary"``, or ``"unknown"``.
+        """Return an SPDX id, ``\"proprietary\"``, or ``\"unknown\"``.
 
         Never raises: a missing license must not stop ingestion, it must be
         recorded honestly in provenance.
@@ -382,12 +382,21 @@ class GitHubReadOnlyClient:
     def list_docs_paths(
         self, repository: str, ref: str | None = None, roots: Iterable[str] = ("docs",)
     ) -> list[dict[str, Any]]:
-        """Recursively list markdown/text files under ``roots``."""
+        """Recursively list a complete bounded documentation snapshot.
+
+        ``max_items_per_source`` limits how many documentation files v0.1 may
+        ingest. Reaching that bound is not, by itself, proof that the GitHub
+        snapshot is complete. We therefore continue walking until either the
+        tree ends (exactly-at-limit is safe) or one additional eligible file is
+        observed. The latter fails closed instead of returning a partial list
+        that the pipeline could mistake for proof that older paths were deleted.
+        """
 
         self._assert_allowed(repository)
         found: list[dict[str, Any]] = []
         pending = list(roots)
         seen: set[str] = set()
+        limit = self.settings.max_items_per_source
 
         while pending:
             current = pending.pop(0)
@@ -404,8 +413,11 @@ class GitHubReadOnlyClient:
                     (".md", ".markdown", ".txt", ".rst")
                 ):
                     found.append(entry)
-                    if len(found) >= self.settings.max_items_per_source:
-                        return found
+                    if len(found) > limit:
+                        raise GitHubAPIError(
+                            "documentation snapshot exceeds configured item limit; "
+                            "refusing to treat a partial listing as complete"
+                        )
         return found
 
     # --- history --------------------------------------------------------
