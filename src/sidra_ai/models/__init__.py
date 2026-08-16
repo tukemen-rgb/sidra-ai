@@ -15,7 +15,12 @@ from sidra_ai.models.benchmark import (
 )
 from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
 from sidra_ai.models.echo import EchoModelAdapter
-from sidra_ai.models.hardware import HardwareProbeError, VramSnapshot, probe_nvidia_vram
+from sidra_ai.models.hardware import (
+    HardwareProbeError,
+    VramSnapshot,
+    probe_nvidia_vram,
+    select_local_model_with_nvidia_probe,
+)
 from sidra_ai.models.http_backends import (
     LlamaCppAdapter,
     OllamaAdapter,
@@ -54,4 +59,5 @@ __all__ = [
     "probe_nvidia_vram",
     "register",
     "run_benchmark",
+    "select_local_model_with_nvidia_probe",
 ]
