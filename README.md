@@ -10,21 +10,22 @@ GAMEYARD / CreatorYard / 全社経営 / marketing を支援し、外部 LLM API 
 
 - local LLM first
 - GitHub read-only RAG
-- commit SHA / diff based ingestion
+- commit SHA / diff based ingestion plus independent PR/Issue freshness polling
 - source citations and provenance
-- external technical / market research through a security gate
 - explicit separation of read and write privileges
 - human approval for deploy, external communication, billing, secrets and destructive operations
+
+The verified v0.1 runtime does **not** yet include general Web/external research ingestion. A security-gated, GET-only FetchBroker/Fetch Plane is the approved next phase and must remain separate from the local model/Core runtime.
 
 ## Getting started
 
 Python 3.11+. No model weights, no API key, and no network are needed to run
-the tests or start the API.
+the offline test/eval suite or start the API with the default `echo` backend.
 
 ```bash
 pip install -e ".[dev]"
-pytest                      # 124 tests, all offline
-sidra-evals                 # security regression suite (15 gate cases)
+pytest                      # full offline regression suite
+sidra-evals                 # offline security / grounding / zero-cost evals
 sidra-api                   # serves http://127.0.0.1:8787 (loopback only)
 ```
 
@@ -32,13 +33,19 @@ sidra-api                   # serves http://127.0.0.1:8787 (loopback only)
 curl http://127.0.0.1:8787/health
 curl -X POST http://127.0.0.1:8787/v1/github/analyze \
   -H 'content-type: application/json' -d '{"repositories":["tukemen-rgb/site"]}'
+curl -X POST http://127.0.0.1:8787/v1/retrieve \
+  -H 'content-type: application/json' -d '{"query":"What changed recently?"}'
 curl -X POST http://127.0.0.1:8787/v1/chat \
   -H 'content-type: application/json' -d '{"message":"What changed recently?"}'
 ```
 
 Configuration is environment-only; copy `.env.example` and fill it in
-locally. See `docs/ARCHITECTURE.md` for the module map and
-`docs/SECURITY.md` for the threat model and known gaps.
+locally. The verified v0.1 selectable model backends are `echo`, `ollama`, and
+`llama_cpp`. `transformers` remains deferred until it can consume only
+pre-staged local artifacts with no runtime model/code download path.
+
+See `docs/ARCHITECTURE.md` for the module map and `docs/SECURITY.md` for the
+threat model and known gaps.
 
 ## Collaboration
 
@@ -52,17 +59,19 @@ ChatGPT/Codex and Claude may both contribute through GitHub. Do not assume anoth
 
 ## Safety
 
-Never commit API keys, passwords, tokens, personal information or production secrets. Initial API exposure is localhost/private network only. Web/RAG content is untrusted DATA, never an instruction authority.
+Never commit API keys, passwords, tokens, personal information or production secrets. Initial API exposure is localhost/private network only. Retrieved GitHub data, and future Web/RAG content, are untrusted DATA, never an instruction authority.
 
-## First milestone
+## v0.1 baseline
 
-1. Define architecture and schemas
-2. Implement GitHub read-only ingestion
-3. Store SHA state and ingest only changes
-4. Add local retrieval/index
-5. Add local model adapter
-6. Add security gate
-7. Add evaluation suite
-8. Expose private SIDRA API
+The verified v0.1 baseline includes:
+
+1. architecture and provenance schemas
+2. GitHub read-only ingestion with commit and mutable-source freshness handling
+3. persisted SHA/activity state with fail-closed recovery behavior
+4. local retrieval/index and citations
+5. local model adapters and constrained-hardware routing
+6. security gate and output guard
+7. offline evaluation suite
+8. private SIDRA API (`/health`, `/v1/retrieve`, `/v1/chat`, `/v1/github/analyze`)
 
 See `docs/COLLABORATION.md` for the shared implementation protocol.
