@@ -39,13 +39,17 @@ curl -X POST http://127.0.0.1:8787/v1/chat \
   -H 'content-type: application/json' -d '{"message":"What changed recently?"}'
 ```
 
-Configuration is environment-only; copy `.env.example` and fill it in
-locally. The verified v0.1 selectable model backends are `echo`, `ollama`, and
-`llama_cpp`. `transformers` remains deferred until it can consume only
-pre-staged local artifacts with no runtime model/code download path.
+Configuration is environment-only. `.env.example` is a template; v0.1 does
+**not** auto-load a `.env` file, so set values in the process environment or a
+separately reviewed local service manager. The verified v0.1 selectable model
+backends are `echo`, `ollama`, and `llama_cpp`. `transformers` remains deferred
+until it can consume only pre-staged local artifacts with no runtime model/code
+download path.
 
-See `docs/ARCHITECTURE.md` for the module map and `docs/SECURITY.md` for the
-threat model and known gaps.
+Run `python -m sidra_ai.local_preflight` before starting a home-PC runtime. See
+`docs/LOCAL_RUNTIME.md` for the safe install, hardware observation, local model
+artifact, and acceptance procedure. See `docs/ARCHITECTURE.md` for the module map
+and `docs/SECURITY.md` for the threat model and known gaps.
 
 ## Collaboration
 
