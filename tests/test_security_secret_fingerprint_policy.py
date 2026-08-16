@@ -32,7 +32,10 @@ def test_assigned_low_entropy_secret_has_no_public_fingerprint() -> None:
 def test_basic_auth_password_has_no_public_fingerprint() -> None:
     """Short Basic-Auth passwords are also guessable and stay fingerprint-free."""
 
-    value = "123456"
+    # End with a character that cannot be part of an email local-part so the
+    # PII email detector does not intentionally take precedence over the Basic
+    # Auth secret span. This test isolates the secret fingerprint policy.
+    value = "12345!"
     gate = SecurityGate(allowed_repositories=("tukemen-rgb/site",))
 
     result = gate.inspect(
@@ -42,6 +45,8 @@ def test_basic_auth_password_has_no_public_fingerprint() -> None:
     )
 
     assert result.decision is Decision.QUARANTINE
+    assert result.has(FindingCategory.SECRET)
+    assert not result.has(FindingCategory.PII)
     assert value not in result.content
     assert fingerprint(value) not in result.content
     assert "[REDACTED:basic_auth_url]" in result.content
