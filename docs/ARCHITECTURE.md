@@ -117,22 +117,23 @@ The model layer also provides context/token budgeting, streaming abstractions,
 local benchmarking, and constrained-VRAM routing. Memory admission uses
 explicit measurements/manifests rather than guessing from model names.
 
-The current main branch now includes a strict local-only model manifest parser
-and a configured-target routing helper that can enforce:
+For normal non-echo API startup the composition path is now:
 
-`reviewed manifest -> observed NVIDIA free VRAM -> exact configured candidate -> admitted context cap -> adapter`
+`reviewed manifest -> exact configured model match -> fresh observed NVIDIA free VRAM -> route decision -> admitted context cap -> adapter -> API bind`
 
-The helper fails closed on missing reviewed metadata, probe failure, unknown
-resource requirements, or a configured model that does not fit; it never falls
-back to a static 6 GiB assumption after a failed probe and never silently swaps
-in a different model.
+The reviewed manifest is loaded from `<SIDRA_DATA_DIR>/model-manifest.json`.
+The configured backend/model must match exactly one manifest entry. The
+manifest's reviewed maximum context is the v0.1 admission plan, and that same
+cap is carried into the runtime adapter. Missing/invalid manifest data, probe
+failure, unknown resource requirements, non-loopback model endpoint, or no
+fitting route fails closed before socket bind/model use. A failed probe never
+falls back to a static 6 GiB assumption, and routing never silently substitutes
+a different manifest candidate.
 
-**Composition status:** this route is not yet mandatory in `SidraService`.
-`api/service.py` still calls `adapter_from_settings()` directly for its default
-model construction. Issue #89 tracks the remaining L4/L5 wiring. Until that
-issue is closed and revalidated, `echo` remains the verified API-startup
-baseline; Ollama/llama.cpp manifest+VRAM routing is a verified model-layer
-capability, not yet a guaranteed API-startup invariant.
+`echo` remains the dependency-free/no-GPU baseline and bypasses GPU admission by
+design. Ollama/llama.cpp normal `SidraService` construction cannot bypass the
+reviewed-manifest/observed-VRAM path; explicit model injection remains only for
+tests/embedding callers and is not used by the `sidra-api` entry point.
 
 ## API surface
 
