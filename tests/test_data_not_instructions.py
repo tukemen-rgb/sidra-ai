@@ -58,7 +58,16 @@ def test_issue_and_pr_content_is_external_trust() -> None:
     from sidra_ai.ingestion import normalize
 
     issue = normalize.issue_document(
-        {"number": 1, "title": "t", "body": INJECTION, "updated_at": None},
+        {
+            "number": 1,
+            "title": "t",
+            "body": INJECTION,
+            "updated_at": None,
+            # GitHub issues always carry an authoritative creation timestamp.
+            # The ingestion contract intentionally fails closed instead of
+            # inventing "now" when both updated_at and created_at are absent.
+            "created_at": "2026-08-01T00:00:00Z",
+        },
         repository="tukemen-rgb/site",
         commit_sha="d" * 40,
         license="MIT",
