@@ -250,3 +250,17 @@ def test_content_length_is_strict_and_bounded():
         )
     with pytest.raises(FetchTransportError, match="invalid"):
         transport_module._validate_content_length((("content-length", "+4"),), 10)
+
+
+def test_response_header_selection_discards_cookies_and_server_metadata():
+    selected = transport_module._select_response_headers(
+        (
+            ("content-type", "text/plain"),
+            ("location", "/next"),
+            ("set-cookie", "session=secret"),
+            ("server", "private-runtime-name"),
+            ("x-internal-debug", "diagnostic"),
+        )
+    )
+
+    assert selected == (("content-type", "text/plain"), ("location", "/next"))
