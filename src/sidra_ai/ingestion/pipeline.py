@@ -260,7 +260,9 @@ class GitHubIngestionPipeline:
     def ingest_all(
         self, repositories: Sequence[str] | None = None, *, force: bool = False
     ) -> IngestionReport:
-        targets = repositories or self.settings.allowed_repositories
+        # ``None`` means the configured allowlist; an explicit empty scope means
+        # "ingest nothing" and must never broaden into all configured repositories.
+        targets = self.settings.allowed_repositories if repositories is None else repositories
         report = IngestionReport()
         for repository in targets:
             report.repositories.append(self.ingest_repository(repository, force=force))
