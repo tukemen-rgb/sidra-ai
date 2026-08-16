@@ -9,6 +9,7 @@ from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import evaluate_literal_support
 from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import evaluate_policy_polarity
+from sidra_ai.evals.redaction_privacy import run_redaction_privacy_suite
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
 from sidra_ai.evals.runner import run_all
 from sidra_ai.evals.runtime_model_admission import run_runtime_model_admission_suite
@@ -76,6 +77,18 @@ def test_output_security_regression_passes_offline() -> None:
         "output_guard_reversible_exfiltration",
         "output_guard_service_boundary",
         "operator_input_service_boundary",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_redaction_privacy_regression_passes_offline() -> None:
+    outcomes = run_redaction_privacy_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "redaction_guessable_assignment_has_no_fingerprint",
+        "redaction_guessable_basic_auth_has_no_fingerprint",
+        "redaction_provider_secret_keeps_safe_correlation_fingerprint",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
