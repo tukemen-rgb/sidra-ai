@@ -8,6 +8,8 @@ Exposure posture for v0.1:
   mandatory off-loopback.
 * A per-client rate limit is applied to every API route; ``/health`` remains
   unauthenticated but cannot trigger unbounded local model health probes.
+* The health-probe budget is isolated from the authenticated ``/v1`` budget so
+  an aggressive monitor cannot consume a client's normal API allowance.
 * CORS is not enabled. Browsers on other origins cannot reach this.
 """
 
@@ -67,6 +69,7 @@ def create_app(
 ) -> FastAPI:
     settings = settings or get_settings()
     limiter = RateLimiter(settings.rate_limit_per_minute)
+    health_limiter = RateLimiter(settings.rate_limit_per_minute)
     audit_log = audit_log or ApiAuditLog(Path(settings.data_dir) / "api_audit.jsonl")
 
     app = FastAPI(
@@ -102,13 +105,19 @@ def create_app(
                 detail="invalid or missing bearer token",
             )
 
-    def rate_limit(request: Request) -> None:
+    def _check_rate_limit(request: Request, target: RateLimiter) -> None:
         client = request.client.host if request.client else "unknown"
-        if not limiter.check(client):
+        if not target.check(client):
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="rate limit exceeded",
             )
+
+    def rate_limit(request: Request) -> None:
+        _check_rate_limit(request, limiter)
+
+    def health_rate_limit(request: Request) -> None:
+        _check_rate_limit(request, health_limiter)
 
     def validate_repositories(current: SidraService, repositories: list[str] | None) -> None:
         if not repositories:
@@ -151,7 +160,7 @@ def create_app(
     @app.get(
         "/health",
         response_model=HealthResponse,
-        dependencies=[Depends(rate_limit)],
+        dependencies=[Depends(health_rate_limit)],
     )
     def health() -> Any:
         """Unauthenticated and minimal, but bounded before model health work."""
