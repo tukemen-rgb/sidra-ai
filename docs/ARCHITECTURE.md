@@ -117,6 +117,23 @@ The model layer also provides context/token budgeting, streaming abstractions,
 local benchmarking, and constrained-VRAM routing. Memory admission uses
 explicit measurements/manifests rather than guessing from model names.
 
+The current main branch now includes a strict local-only model manifest parser
+and a configured-target routing helper that can enforce:
+
+`reviewed manifest -> observed NVIDIA free VRAM -> exact configured candidate -> admitted context cap -> adapter`
+
+The helper fails closed on missing reviewed metadata, probe failure, unknown
+resource requirements, or a configured model that does not fit; it never falls
+back to a static 6 GiB assumption after a failed probe and never silently swaps
+in a different model.
+
+**Composition status:** this route is not yet mandatory in `SidraService`.
+`api/service.py` still calls `adapter_from_settings()` directly for its default
+model construction. Issue #89 tracks the remaining L4/L5 wiring. Until that
+issue is closed and revalidated, `echo` remains the verified API-startup
+baseline; Ollama/llama.cpp manifest+VRAM routing is a verified model-layer
+capability, not yet a guaranteed API-startup invariant.
+
 ## API surface
 
 - `GET /health` — minimal unauthenticated health status, no repository/content details.
