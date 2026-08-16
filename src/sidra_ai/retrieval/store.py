@@ -17,12 +17,20 @@ type + path) retires older revisions before the new chunks become retrievable.
 Deletion/quarantine paths can call :meth:`DocumentStore.retire_source`
 explicitly.  This prevents an old, correctly cited document from continuing
 to masquerade as current knowledge merely because its commit SHA differs.
+
+Optional JSONL persistence is also a security boundary. The configured target
+must be a regular file reached without following a final-path symlink or any
+existing symlink in its parent ancestry, and owner-only permissions are
+enforced through the opened file descriptor where the platform supports it.
+A persistence failure occurs before the in-memory index is mutated so a failed
+write cannot silently retire the previously retrievable revision.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import stat
 import threading
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
@@ -39,6 +47,10 @@ class SecretLeakError(RuntimeError):
 
 class UnscreenedContentError(RuntimeError):
     """Raised when content is offered to the index without a gate verdict."""
+
+
+class PersistencePathError(RuntimeError):
+    """Raised when the optional local JSONL target cannot be trusted."""
 
 
 class DocumentStore:
@@ -104,10 +116,15 @@ class DocumentStore:
 
         Once the candidate has passed every safety check, older revisions of
         the same logical source are retired under the same store lock before
-        the new chunks are installed.  Safety failures therefore never delete
-        the previously indexed revision implicitly; ingestion must call
+        the new chunks become retrievable. Safety failures therefore never
+        delete the previously indexed revision implicitly; ingestion must call
         :meth:`retire_source` explicitly when the upstream source was deleted
         or its newest revision is intentionally not retrievable.
+
+        When optional JSONL persistence is enabled, chunking is prepared first
+        and the append is completed before any in-memory retirement/mutation.
+        A filesystem-boundary failure therefore leaves the previous index view
+        intact instead of creating a state the persisted log did not record.
         """
 
         document.provenance.validate()
@@ -146,7 +163,12 @@ class DocumentStore:
                 "matches a credential pattern after redaction"
             )
 
+        prepared_chunks = tuple(chunk_document(document))
+
         with self._lock:
+            if self._path is not None:
+                self._append(document)
+
             doc_id = document.doc_id
             logical_key = self._logical_source_key(document)
             self._retire_logical_source_locked(logical_key, keep_doc_id=doc_id)
@@ -156,13 +178,10 @@ class DocumentStore:
                 self._chunks.pop(chunk_id, None)
 
             chunk_ids: list[str] = []
-            for chunk in chunk_document(document):
+            for chunk in prepared_chunks:
                 self._chunks[chunk.chunk_id] = chunk
                 chunk_ids.append(chunk.chunk_id)
             self._chunks_by_document[doc_id] = chunk_ids
-
-            if self._path is not None:
-                self._append(document)
             return doc_id
 
     def add_all(
@@ -181,7 +200,7 @@ class DocumentStore:
         """Remove retrievable revisions for one exact logical source.
 
         This is intentionally exact-match only: no glob, prefix, or repository-
-        wide deletion is accepted.  L3 ingestion can use it when GitHub reports
+        wide deletion is accepted. L3 ingestion can use it when GitHub reports
         a path deleted, or when the newest revision is BLOCK/QUARANTINE and an
         older revision must not remain retrievable as if it were current.
 
@@ -217,13 +236,78 @@ class DocumentStore:
             return retired
 
     # ------------------------------------------------------------------
+    @staticmethod
+    def _assert_no_symlink_ancestors(path: Path) -> None:
+        """Reject any existing symlink in ``path`` or its ancestor chain."""
+
+        current = path
+        while True:
+            try:
+                if current.is_symlink():
+                    raise PersistencePathError(
+                        "refusing persistence path through symlinked directory"
+                    )
+            except OSError as exc:
+                raise PersistencePathError(
+                    "could not inspect persistence directory"
+                ) from exc
+
+            parent = current.parent
+            if parent == current:
+                return
+            current = parent
+
+    def _open_persistence_fd(self) -> int:
+        """Open the JSONL target without following symlinked path components."""
+
+        assert self._path is not None
+        if ".." in self._path.parts:
+            raise PersistencePathError("refusing persistence path with parent traversal")
+
+        parent = self._path.parent
+        self._assert_no_symlink_ancestors(parent)
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise PersistencePathError("could not prepare persistence directory") from exc
+        self._assert_no_symlink_ancestors(parent)
+        if self._path.is_symlink():
+            raise PersistencePathError("refusing symlinked persistence target")
+
+        flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
+        nofollow = getattr(os, "O_NOFOLLOW", 0)
+        if nofollow:
+            flags |= nofollow
+
+        try:
+            fd = os.open(self._path, flags, 0o600)
+        except OSError as exc:
+            raise PersistencePathError("could not safely open persistence target") from exc
+
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise PersistencePathError("persistence target must be a regular file")
+            if hasattr(os, "fchmod"):
+                os.fchmod(fd, 0o600)
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+
     def _append(self, document: Document) -> None:
         assert self._path is not None
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        if not self._path.exists():
-            self._path.touch(mode=0o600)
-        with self._path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(document.to_dict(), ensure_ascii=False) + "\n")
+        encoded = json.dumps(document.to_dict(), ensure_ascii=False) + "\n"
+        fd = self._open_persistence_fd()
+        try:
+            with os.fdopen(fd, "a", encoding="utf-8", closefd=True) as handle:
+                handle.write(encoded)
+                handle.flush()
+        except BaseException:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
 
     # ------------------------------------------------------------------
     def __len__(self) -> int:
