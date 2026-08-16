@@ -71,11 +71,11 @@ jobs:
       - name: Run full offline pytest suite
         env:
           SIDRA_MODEL_BACKEND: echo
-          SIDRA_API_HOST: 127.0.0.1
+          SIDRA_HOST: 127.0.0.1
         run: python -m pytest
 
       - name: Run security and zero-cost evals
         env:
           SIDRA_MODEL_BACKEND: echo
-          SIDRA_API_HOST: 127.0.0.1
+          SIDRA_HOST: 127.0.0.1
         run: sidra-evals
