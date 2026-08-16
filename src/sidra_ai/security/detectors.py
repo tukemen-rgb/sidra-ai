@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable, Protocol, Sequence
@@ -271,10 +272,30 @@ class SecretDetector:
 # ---------------------------------------------------------------------------
 
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
-_PHONE_JP = re.compile(r"(?<![\d\-])0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{3,4}(?![\d\-])")
-_PHONE_INTL = re.compile(r"(?<![\d\-])\+\d{1,3}[-\s]?\d{1,4}[-\s]?\d{3,4}[-\s]?\d{3,4}(?![\d\-])")
-_CARD_CANDIDATE = re.compile(r"(?<![\d\-])(?:\d[ \-]?){13,19}(?![\d\-])")
-_MY_NUMBER = re.compile(r"(?<![\d\-])\d{4}[-\s]?\d{4}[-\s]?\d{4}(?![\d\-])")
+# Digit runs must not be embedded in a longer alphanumeric token. Without an
+# ASCII-letter boundary these patterns fire inside identifiers that are
+# everywhere in this corpus: a commit SHA contains `0123456789` bounded by
+# hex letters, and hex-encoded text contains 19-digit runs that occasionally
+# pass Luhn. Both blocked legitimate output. Real phone and card numbers are
+# delimited by whitespace, punctuation or CJK text, none of which is excluded
+# here, so precision improves without losing recall.
+_TOKEN_BOUNDARY_BEFORE = r"(?<![0-9A-Za-z\-])"
+_TOKEN_BOUNDARY_AFTER = r"(?![0-9A-Za-z\-])"
+
+_PHONE_JP = re.compile(
+    _TOKEN_BOUNDARY_BEFORE + r"0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{3,4}" + _TOKEN_BOUNDARY_AFTER
+)
+_PHONE_INTL = re.compile(
+    _TOKEN_BOUNDARY_BEFORE
+    + r"\+\d{1,3}[-\s]?\d{1,4}[-\s]?\d{3,4}[-\s]?\d{3,4}"
+    + _TOKEN_BOUNDARY_AFTER
+)
+_CARD_CANDIDATE = re.compile(
+    _TOKEN_BOUNDARY_BEFORE + r"(?:\d[ \-]?){13,19}" + _TOKEN_BOUNDARY_AFTER
+)
+_MY_NUMBER = re.compile(
+    _TOKEN_BOUNDARY_BEFORE + r"\d{4}[-\s]?\d{4}[-\s]?\d{4}" + _TOKEN_BOUNDARY_AFTER
+)
 
 #: Emails that identify a service, not a person.
 _ROLE_EMAIL_LOCALPARTS = frozenset(
@@ -492,25 +513,36 @@ class PromptInjectionDetector:
     ingested content is DATA regardless of what this detector says - the
     detector exists so that injection attempts are visible and auditable,
     not so that "clean" content can be trusted as instructions.
+
+    Compatibility characters are normalized with Unicode NFKC for matching.
+    This closes fullwidth/compatibility-character bypasses without rewriting
+    the original document. If normalization changes the text, match offsets
+    are deliberately omitted rather than reporting positions that may no
+    longer refer to the original input.
     """
 
     name = "prompt_injection"
 
     def detect(self, content: str) -> DetectionOutput:
         findings: list[Finding] = []
+        normalized = unicodedata.normalize("NFKC", content)
+        offsets_stable = normalized == content
 
         for label, regex, severity, reason in _INJECTION_PATTERNS:
-            for match in regex.finditer(content):
-                start, end = match.span()
+            for match in regex.finditer(normalized):
+                normalized_start, normalized_end = match.span()
                 findings.append(
                     Finding(
                         category=FindingCategory.PROMPT_INJECTION,
                         severity=severity,
                         detector=label,
                         reason=reason,
-                        evidence=content[start:end][:160].replace("\n", " "),
-                        start=start,
-                        end=end,
+                        evidence=match.group(0)[:160].replace("\n", " "),
+                        start=normalized_start if offsets_stable else -1,
+                        end=normalized_end if offsets_stable else -1,
+                        metadata={"unicode_normalization": "NFKC"}
+                        if not offsets_stable
+                        else {},
                     )
                 )
 

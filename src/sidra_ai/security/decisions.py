@@ -3,6 +3,7 @@
 The gate never silently deletes content. Every action produces a
 :class:`GateResult` that records *what* was detected, *why* it mattered, and
 *what* was done - so a human (or a later review pass) can audit the decision.
+Sensitive values themselves are not part of that audit trail.
 """
 
 from __future__ import annotations
@@ -20,8 +21,9 @@ class Decision(str, Enum):
     """Safe to index and to place in a DATA envelope."""
 
     QUARANTINE = "quarantine"
-    """Retained with full detail, but kept out of the retrieval index until a
-    human releases it. Not deleted."""
+    """Kept out of the retrieval index until human review. The audit trail
+    retains findings/provenance and only a sanitized review copy; raw detected
+    secrets or high-severity PII are never persisted merely for quarantine."""
 
     BLOCK = "block"
     """Must not be indexed and must not reach the model at all."""

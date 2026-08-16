@@ -6,8 +6,11 @@ non-functional. They exist so the detectors have something to catch.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
+from sidra_ai.documents import Document, Provenance, SourceType, TrustLevel
 from sidra_ai.security.decisions import Decision, FindingCategory, Severity
 from sidra_ai.security.gate import QuarantineStore, SecurityGate
 
@@ -37,6 +40,20 @@ def test_credentials_are_detected_and_redacted(gate: SecurityGate, secret: str) 
     assert result.decision is Decision.QUARANTINE
     assert secret not in result.content, "the credential survived redaction"
     assert "[REDACTED:" in result.content
+
+
+def test_secret_redaction_keeps_high_entropy_correlation_fingerprint(
+    gate: SecurityGate,
+) -> None:
+    """Secret correlation remains available without applying it to PII."""
+
+    from sidra_ai.security.redaction import fingerprint
+
+    result = gate.inspect(
+        f"token={FAKE_GITHUB_TOKEN}", source="github", repository="tukemen-rgb/Fg"
+    )
+
+    assert fingerprint(FAKE_GITHUB_TOKEN) in result.content
 
 
 def test_findings_never_carry_the_secret(gate: SecurityGate) -> None:
@@ -70,14 +87,19 @@ def test_environment_variable_reference_is_not_flagged(gate: SecurityGate) -> No
 
 
 def test_personal_email_is_quarantined_and_redacted(gate: SecurityGate) -> None:
+    from sidra_ai.security.redaction import fingerprint
+
+    personal = "kenji.tanaka@example.co.jp"
     result = gate.inspect(
-        "reach me at kenji.tanaka@example.co.jp",
+        f"reach me at {personal}",
         source="github",
         repository="tukemen-rgb/site",
     )
     assert result.has(FindingCategory.PII)
     assert result.decision is Decision.QUARANTINE
-    assert "kenji.tanaka@example.co.jp" not in result.content
+    assert personal not in result.content
+    assert fingerprint(personal) not in result.content
+    assert "[REDACTED:pii_email]" in result.content
 
 
 def test_noreply_email_does_not_quarantine(gate: SecurityGate) -> None:
@@ -100,6 +122,22 @@ def test_payment_card_is_detected(gate: SecurityGate) -> None:
     )
     assert result.has(FindingCategory.PII)
     assert "4242 4242 4242 4242" not in result.content
+
+
+def test_national_id_candidate_is_quarantined_and_redacted(gate: SecurityGate) -> None:
+    """Standalone 12-digit national-ID candidates must not enter RAG raw."""
+
+    synthetic = "12345678901" + "8"
+    result = gate.inspect(
+        f"個人番号 {synthetic}",
+        source="github",
+        repository="tukemen-rgb/site",
+    )
+
+    assert result.has(FindingCategory.PII)
+    assert result.decision is Decision.QUARANTINE
+    assert synthetic not in result.content
+    assert "[REDACTED:pii_national_id_candidate]" in result.content
 
 
 @pytest.mark.parametrize(
@@ -154,6 +192,24 @@ def test_unpermitted_repository_is_blocked(gate: SecurityGate) -> None:
     assert result.has(FindingCategory.UNPERMITTED_SOURCE)
 
 
+def test_github_source_requires_repository_provenance(gate: SecurityGate) -> None:
+    """An empty repository must never bypass the GitHub repository allowlist."""
+
+    result = gate.inspect("hello", source="github", repository="")
+
+    assert result.decision is Decision.BLOCK
+    assert result.has(FindingCategory.UNPERMITTED_SOURCE)
+    assert any(f.detector == "repository_required" for f in result.findings)
+
+
+def test_operator_source_may_omit_repository(gate: SecurityGate) -> None:
+    """Direct operator input is not repository-scoped and stays valid."""
+
+    result = gate.inspect("hello", source="operator", repository="")
+
+    assert result.decision is Decision.ALLOW
+
+
 def test_unpermitted_source_is_blocked(gate: SecurityGate) -> None:
     result = gate.inspect(
         "hello", source="random-website", repository="tukemen-rgb/site"
@@ -172,8 +228,8 @@ def test_decision_records_a_reason(gate: SecurityGate) -> None:
     assert all(f.reason for f in result.findings)
 
 
-def test_quarantine_preserves_the_original(tmp_path) -> None:
-    """Nothing is deleted: the original is retained for human review."""
+def test_quarantine_persists_only_sanitized_content(tmp_path) -> None:
+    """A quarantine audit must never become a second secret store."""
 
     quarantine = QuarantineStore(tmp_path / "q.jsonl")
     gate = SecurityGate(
@@ -184,9 +240,83 @@ def test_quarantine_preserves_the_original(tmp_path) -> None:
 
     entries = quarantine.entries()
     assert len(entries) == 1
-    assert entries[0]["content"] == original
-    assert entries[0]["gate"]["decision"] == "quarantine"
-    assert entries[0]["gate"]["reasons"]
+    entry = entries[0]
+    serialized = str(entry)
+    assert FAKE_GITHUB_TOKEN not in serialized
+    assert entry["content_retention"] == "sanitized"
+    assert "[REDACTED:" in entry["content"]
+    assert entry["original_length"] == len(original)
+    assert "content_sha256" not in entry
+    assert entry["gate"]["decision"] == "quarantine"
+    assert entry["gate"]["reasons"]
+
+
+def test_quarantine_redacts_personal_information_at_rest(tmp_path) -> None:
+    from sidra_ai.security.redaction import fingerprint
+
+    quarantine = QuarantineStore(tmp_path / "q.jsonl")
+    gate = SecurityGate(
+        allowed_repositories=("tukemen-rgb/site",), quarantine_store=quarantine
+    )
+    personal = "kenji.tanaka@example.co.jp"
+    gate.inspect(
+        f"contact {personal}", source="github", repository="tukemen-rgb/site"
+    )
+
+    entry = quarantine.entries()[0]
+    serialized = str(entry)
+    assert personal not in serialized
+    assert fingerprint(personal) not in serialized
+    assert entry["content_retention"] == "sanitized"
+    assert "[REDACTED:pii_email]" in entry["content"]
+
+
+def test_blocked_untrusted_source_is_metadata_only(tmp_path) -> None:
+    """A source blocked before content scanning must never be stored verbatim."""
+
+    quarantine = QuarantineStore(tmp_path / "q.jsonl")
+    gate = SecurityGate(
+        allowed_repositories=("tukemen-rgb/site",), quarantine_store=quarantine
+    )
+    hostile = f"stolen={FAKE_GITHUB_TOKEN}"
+    gate.inspect(hostile, source="random-website", repository="attacker/evil")
+
+    entry = quarantine.entries()[0]
+    assert FAKE_GITHUB_TOKEN not in str(entry)
+    assert entry["content"] is None
+    assert entry["content_retention"] == "metadata_only"
+    assert entry["original_length"] == len(hostile)
+    assert "content_sha256" not in entry
+    assert entry["gate"]["decision"] == "block"
+
+
+def test_screen_document_records_quarantine_once_with_provenance(tmp_path) -> None:
+    quarantine = QuarantineStore(tmp_path / "q.jsonl")
+    gate = SecurityGate(
+        allowed_repositories=("tukemen-rgb/site",), quarantine_store=quarantine
+    )
+    provenance = Provenance(
+        source="github",
+        repository="tukemen-rgb/site",
+        path="docs/security.md",
+        commit_sha="a" * 40,
+        timestamp=datetime.now(timezone.utc),
+        source_type=SourceType.DOCS,
+        trust_level=TrustLevel.INTERNAL_REPO,
+        license="unknown",
+    )
+    document = Document(
+        content=f"token={FAKE_GITHUB_TOKEN}", provenance=provenance
+    )
+
+    result, screened = gate.screen_document(document)
+
+    assert result.decision is Decision.QUARANTINE
+    assert screened is None
+    entries = quarantine.entries()
+    assert len(entries) == 1
+    assert entries[0]["provenance"]["repository"] == "tukemen-rgb/site"
+    assert FAKE_GITHUB_TOKEN not in str(entries[0])
 
 
 def test_quarantine_file_is_owner_only(tmp_path) -> None:
@@ -198,3 +328,47 @@ def test_quarantine_file_is_owner_only(tmp_path) -> None:
         f"token {FAKE_GITHUB_TOKEN}", source="github", repository="tukemen-rgb/site"
     )
     assert (quarantine.path.stat().st_mode & 0o777) == 0o600
+
+
+# --- identifier false positives ---------------------------------------
+# A commit SHA embeds `0123456789` between hex letters, and hex-encoded text
+# embeds 19-digit runs that occasionally pass Luhn. Both used to trip the PII
+# detector and block legitimate provenance output. Precision here matters as
+# much as recall: a gate that cries wolf on every commit SHA gets ignored.
+
+@pytest.mark.parametrize(
+    "identifier",
+    [
+        ("0123456789abcdef" * 3)[:40],          # commit SHA
+        "SIDRA AI local model".encode().hex(),  # hex-encoded text
+        "deadbeef0123456789abcdef01234567",     # short hex digest
+    ],
+)
+def test_hex_identifiers_are_not_pii(gate: SecurityGate, identifier: str) -> None:
+    result = gate.inspect(
+        f"Verified commit {identifier}.",
+        source="github",
+        repository="tukemen-rgb/sidra-ai",
+    )
+    assert not result.has(FindingCategory.PII), (
+        f"identifier misread as PII: {[f.detector for f in result.findings]}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "detector"),
+    [
+        ("連絡先は 03-1234-5678 です", "phone_jp"),
+        ("電話は0312345678までお願いします", "phone_jp"),
+        ("call +81-90-1234-5678 now", "phone_intl"),
+        ("card on file 4242 4242 4242 4242", "payment_card"),
+        ("個人番号 1234 5678 9012", "national_id_candidate"),
+    ],
+)
+def test_real_pii_still_detected_after_boundary_fix(
+    gate: SecurityGate, text: str, detector: str
+) -> None:
+    """The boundary fix must not have bought precision with recall."""
+
+    result = gate.inspect(text, source="github", repository="tukemen-rgb/site")
+    assert detector in {f.detector for f in result.findings}
