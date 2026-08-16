@@ -181,6 +181,16 @@ def test_backends_are_swappable_through_one_interface() -> None:
         assert hasattr(adapter, "generate_stream")
 
 
+def test_token_estimate_rounds_partial_latin_groups_up() -> None:
+    from sidra_ai.models.base import estimate_tokens
+
+    assert estimate_tokens("abcd") == 1
+    assert estimate_tokens("abcde") == 2
+    assert estimate_tokens("abcdefgh") == 2
+    assert estimate_tokens("abcdefghi") == 3
+    assert estimate_tokens("日abcde") == 3
+
+
 def test_non_streaming_backend_has_safe_single_chunk_fallback() -> None:
     from sidra_ai.models.echo import EchoModelAdapter
 
