@@ -3,6 +3,10 @@
 The registry is the enforcement point for "no required paid LLM API": a
 backend whose ``requires_paid_api`` is ``True`` cannot be registered, so the
 constraint cannot be violated by adding a file - it fails at import time.
+
+v0.1 also refuses local backends that can still trigger runtime downloads.
+Those backends remain visible in source for future work, but they are not
+selectable until their artifact-loading path is fail-closed and offline-only.
 """
 
 from __future__ import annotations
@@ -30,6 +34,13 @@ class PaidBackendRejectedError(RuntimeError):
 
 _REGISTRY: dict[str, type[LocalModelAdapter]] = {}
 
+_DEFERRED_BACKENDS: dict[str, str] = {
+    "transformers": (
+        "disabled in SIDRA AI v0.1 until the adapter accepts only a pre-staged "
+        "local model artifact and cannot download model code or weights at runtime"
+    ),
+}
+
 
 def register(adapter_cls: type[LocalModelAdapter]) -> type[LocalModelAdapter]:
     """Register a local backend. Paid backends are refused."""
@@ -43,7 +54,12 @@ def register(adapter_cls: type[LocalModelAdapter]) -> type[LocalModelAdapter]:
     return adapter_cls
 
 
-for _cls in (EchoModelAdapter, OllamaAdapter, LlamaCppAdapter, TransformersAdapter):
+# TransformersAdapter stays importable for focused development/tests, but it is
+# intentionally not registered in v0.1. Its current pipeline(model=<name>) path
+# may resolve a Hub model identifier and download artifacts at runtime. Normal
+# SIDRA adapter selection must fail closed until local-artifact-only loading is
+# implemented and verified.
+for _cls in (EchoModelAdapter, OllamaAdapter, LlamaCppAdapter):
     register(_cls)
 
 
@@ -80,6 +96,11 @@ def create_adapter(
     try:
         adapter_cls = _REGISTRY[backend]
     except KeyError as exc:
+        deferred_reason = _DEFERRED_BACKENDS.get(backend)
+        if deferred_reason is not None:
+            raise BackendNotRegisteredError(
+                f"model backend {backend!r} is temporarily {deferred_reason}"
+            ) from exc
         raise BackendNotRegisteredError(
             f"unknown model backend {backend!r}; available: {available_backends()}"
         ) from exc
