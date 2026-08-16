@@ -60,7 +60,8 @@ class GatePolicy:
     quarantine_secret_severity: Severity = Severity.CRITICAL
     """Findings at or above this severity quarantine even after redaction."""
 
-    quarantine_pii_severity: Severity = Severity.HIGH
+    quarantine_pii_severity: Severity = Severity.MEDIUM
+    """Medium+ PII candidates are redacted and quarantined by default."""
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "GatePolicy":
@@ -238,12 +239,14 @@ class SecurityGate:
         findings.extend(injection_out.findings)
 
         spans = list(secret_out.spans)
-        # Only redact PII that is actually personal; role addresses stay
-        # readable so citations remain useful.
+        # Redact every PII finding at the policy's quarantine threshold. This
+        # keeps medium-risk national-ID candidates out of the retrievable and
+        # quarantine copies while still leaving low-risk role addresses usable.
         spans.extend(
             (f.start, f.end, f"pii_{f.detector}")
             for f in pii_out.findings
-            if f.start >= 0 and _at_least(f.severity, Severity.HIGH)
+            if f.start >= 0
+            and _at_least(f.severity, self.policy.quarantine_pii_severity)
         )
 
         sanitized = content
