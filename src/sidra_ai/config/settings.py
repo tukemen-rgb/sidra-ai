@@ -177,8 +177,8 @@ class Settings:
 
         if self.model_backend not in LOCAL_MODEL_BACKENDS:
             raise UnsafeConfigurationError(
-                f"model backend {self.model_backend!r} is not a verified v0.1 backend; "
-                f"v0.1 allows {sorted(LOCAL_MODEL_BACKENDS)}"
+                f"model backend {self.model_backend!r} is not a local backend; "
+                f"verified v0.1 allows {sorted(LOCAL_MODEL_BACKENDS)}"
             )
 
         if self.max_input_bytes <= 0:
