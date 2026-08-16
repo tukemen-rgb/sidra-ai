@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sidra_ai.evals.audit_path_safety import run_audit_path_safety_suite
 from sidra_ai.evals.cases import GATE_CASES
 from sidra_ai.evals.grounding import evaluate_grounding, run_grounding_suite
 from sidra_ai.evals.health_resilience import run_health_resilience_suite
@@ -97,6 +98,16 @@ def test_startup_safety_regression_passes_offline() -> None:
         "api_startup_remote_endpoint_prebind",
         "api_startup_unsafe_cli_public_bind_prebind",
         "api_startup_safe_echo_reaches_bind",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_api_audit_path_safety_regression_passes_offline() -> None:
+    outcomes = run_audit_path_safety_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "api_audit_path_filesystem_boundary",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
