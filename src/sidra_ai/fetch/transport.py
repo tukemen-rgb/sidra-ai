@@ -17,6 +17,9 @@ class FetchTransportError(RuntimeError):
 
 
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+_EXPOSED_RESPONSE_HEADERS = frozenset(
+    {"content-type", "content-length", "content-encoding", "location"}
+)
 _READ_CHUNK_BYTES = 64 * 1024
 _USER_AGENT = "SIDRA-FetchBroker/0.1"
 
@@ -27,6 +30,8 @@ class PinnedFetchResponse:
 
     Redirects are intentionally *not* followed here. The future FetchBroker must
     resolve and revalidate every redirect before calling the transport again.
+    Only response headers required by that broker/policy boundary are retained;
+    cookies and unrelated server metadata are discarded.
     """
 
     url: str
@@ -150,16 +155,26 @@ def _request_to_ip(
 
         response = http.client.HTTPResponse(tls_socket, method="GET")
         response.begin()
-        headers = tuple((name.strip().lower(), value.strip()) for name, value in response.getheaders())
+        raw_headers = tuple(
+            (name.strip().lower(), value.strip()) for name, value in response.getheaders()
+        )
 
         if response.status in _REDIRECT_STATUSES:
-            _single_header(headers, "location", required=True)
-            return _WireResponse(status=response.status, headers=headers, body=b"")
+            _single_header(raw_headers, "location", required=True)
+            return _WireResponse(
+                status=response.status,
+                headers=_select_response_headers(raw_headers),
+                body=b"",
+            )
 
         if not 200 <= response.status < 300:
-            return _WireResponse(status=response.status, headers=headers, body=b"")
+            return _WireResponse(
+                status=response.status,
+                headers=_select_response_headers(raw_headers),
+                body=b"",
+            )
 
-        _validate_content_length(headers, policy.max_response_bytes)
+        _validate_content_length(raw_headers, policy.max_response_bytes)
         body = _read_bounded_body(
             response,
             tls_socket,
@@ -167,7 +182,11 @@ def _request_to_ip(
             read_timeout_seconds=read_timeout_seconds,
             deadline=deadline,
         )
-        return _WireResponse(status=response.status, headers=headers, body=body)
+        return _WireResponse(
+            status=response.status,
+            headers=_select_response_headers(raw_headers),
+            body=body,
+        )
     except FetchTransportError:
         raise
     except (OSError, ssl.SSLError, http.client.HTTPException, ValueError) as exc:
@@ -278,6 +297,14 @@ def _validate_content_length(headers: Iterable[tuple[str, str]], max_bytes: int)
     size = int(raw)
     if size > max_bytes:
         raise FetchTransportError("response exceeds byte limit")
+
+
+def _select_response_headers(
+    headers: Iterable[tuple[str, str]],
+) -> tuple[tuple[str, str], ...]:
+    """Retain only headers required by redirect/body policy; discard cookies."""
+
+    return tuple((key, value) for key, value in headers if key in _EXPOSED_RESPONSE_HEADERS)
 
 
 def _single_header(
