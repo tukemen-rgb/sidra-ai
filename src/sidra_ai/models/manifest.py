@@ -10,7 +10,9 @@ the existing observed-VRAM router.
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -174,33 +176,79 @@ def _parse_model(raw: Any, *, index: int) -> ManifestModel:
     )
 
 
+def _assert_trusted_manifest_path(manifest_path: Path) -> None:
+    """Reject parent traversal or any existing symlink in the manifest path."""
+
+    if ".." in manifest_path.parts:
+        raise ModelManifestError("model manifest parent traversal is not allowed")
+
+    current = manifest_path
+    while True:
+        try:
+            if current.is_symlink():
+                raise ModelManifestError("model manifest symlinks are not allowed")
+        except OSError as exc:
+            raise ModelManifestError("model manifest path cannot be trusted") from exc
+
+        parent = current.parent
+        if parent == current:
+            return
+        current = parent
+
+
+def _read_manifest_bytes(manifest_path: Path) -> bytes:
+    """Read one manifest without following symlinked path components.
+
+    The manifest controls VRAM/context admission for local model startup, so a
+    reviewed path must not be silently redirected to different routing metadata.
+    Every existing path component is checked for symlinks and explicit parent
+    traversal is rejected. On platforms with ``O_NOFOLLOW`` the final-component
+    check/open race is also closed by the kernel. ``fstat`` ensures a FIFO/device
+    is never accepted as routing metadata.
+    """
+
+    _assert_trusted_manifest_path(manifest_path)
+
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+
+    try:
+        fd = os.open(manifest_path, flags)
+    except OSError as exc:
+        raise ModelManifestError("model manifest is not readable") from exc
+
+    try:
+        file_stat = os.fstat(fd)
+        if not stat.S_ISREG(file_stat.st_mode):
+            raise ModelManifestError("model manifest must be a regular file")
+        if file_stat.st_size <= 0 or file_stat.st_size > MAX_MANIFEST_BYTES:
+            raise ModelManifestError("model manifest size is outside the allowed range")
+
+        payload = os.read(fd, MAX_MANIFEST_BYTES + 1)
+        if not payload or len(payload) > MAX_MANIFEST_BYTES:
+            raise ModelManifestError("model manifest size is outside the allowed range")
+        return payload
+    except OSError as exc:
+        raise ModelManifestError("model manifest is not readable") from exc
+    finally:
+        os.close(fd)
+
+
 def load_local_model_manifest(path: str | Path) -> LocalModelManifest:
     """Load one reviewed JSON manifest from local disk, failing closed.
 
-    Symlinks are rejected so a reviewed path cannot silently retarget elsewhere.
-    The file is bounded before and after reading, decoded as strict UTF-8, uses
-    duplicate-key detection, rejects unknown fields, and accepts only backends
-    already present in SIDRA's local-only registry.
+    The final manifest path and every existing ancestor must not be symlinks,
+    and explicit parent traversal is rejected. The file is opened without
+    following the final component where supported, verified as a regular file
+    through the opened descriptor, bounded before and during reading, decoded as
+    strict UTF-8, uses duplicate-key detection, rejects unknown fields, and
+    accepts only backends already present in SIDRA's local-only registry.
     """
 
     manifest_path = Path(path)
-    if manifest_path.is_symlink():
-        raise ModelManifestError("model manifest symlinks are not allowed")
-    try:
-        stat = manifest_path.stat()
-    except OSError as exc:
-        raise ModelManifestError("model manifest is not readable") from exc
-    if not manifest_path.is_file():
-        raise ModelManifestError("model manifest must be a regular file")
-    if stat.st_size <= 0 or stat.st_size > MAX_MANIFEST_BYTES:
-        raise ModelManifestError("model manifest size is outside the allowed range")
-
-    try:
-        payload = manifest_path.read_bytes()
-    except OSError as exc:
-        raise ModelManifestError("model manifest is not readable") from exc
-    if not payload or len(payload) > MAX_MANIFEST_BYTES:
-        raise ModelManifestError("model manifest size is outside the allowed range")
+    payload = _read_manifest_bytes(manifest_path)
     try:
         text = payload.decode("utf-8", errors="strict")
         raw = json.loads(text, object_pairs_hook=_strict_object)
