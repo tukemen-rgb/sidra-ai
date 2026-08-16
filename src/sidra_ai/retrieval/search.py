@@ -177,6 +177,7 @@ class BM25Retriever:
         self._average_length = 0.0
         self._indexed_count = -1
 
+    # ------------------------------------------------------------------
     def _ensure_index(self) -> None:
         chunks = tuple(self.store.chunks())
         if self._indexed_count == len(chunks) and self._chunks == chunks:
@@ -207,10 +208,12 @@ class BM25Retriever:
 
     def _idf(self, term: str) -> float:
         """Return whole-store IDF for compatibility with unfiltered callers/tests."""
+
         return self._idf_for_counts(
             len(self._chunks), self._document_frequency.get(term, 0)
         )
 
+    # ------------------------------------------------------------------
     def search(
         self,
         query: str,
@@ -247,6 +250,9 @@ class BM25Retriever:
         if not eligible_positions:
             return []
 
+        # A filtered search is its own BM25 corpus. Computing IDF/length
+        # statistics from excluded repositories lets unrelated data change a
+        # scoped query's score and can flip ranking or min_score decisions.
         filtered_document_frequency: Counter[str] = Counter()
         filtered_total_length = 0
         for position in eligible_positions:
@@ -283,4 +289,6 @@ class BM25Retriever:
         return _diversify_results(scored, top_k)
 
 
+#: The interface every retriever must satisfy. Kept as an alias so callers
+#: depend on the concept, not the current implementation.
 Retriever = BM25Retriever
