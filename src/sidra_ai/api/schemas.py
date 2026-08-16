@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
+
+# Keep repository-scoped API work bounded within a single authenticated request.
+# The v0.1 allowlist is small; these limits leave headroom without permitting an
+# attacker-sized list/name to amplify validation, retrieval, or GitHub ingestion.
+MAX_REPOSITORY_SCOPE_ITEMS = 32
+MAX_REPOSITORY_NAME_CHARS = 200
+RepositoryRef = Annotated[
+    str,
+    Field(min_length=3, max_length=MAX_REPOSITORY_NAME_CHARS),
+]
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=32_000)
     top_k: int = Field(default=5, ge=1, le=20)
-    repositories: list[str] | None = Field(
+    repositories: list[RepositoryRef] | None = Field(
         default=None,
+        max_length=MAX_REPOSITORY_SCOPE_ITEMS,
         description="Restrict retrieval to these repositories. Allowlisted only.",
     )
 
@@ -32,8 +43,9 @@ class Citation(BaseModel):
 class RetrieveRequest(BaseModel):
     query: str = Field(min_length=1, max_length=32_000)
     top_k: int = Field(default=5, ge=1, le=20)
-    repositories: list[str] | None = Field(
+    repositories: list[RepositoryRef] | None = Field(
         default=None,
+        max_length=MAX_REPOSITORY_SCOPE_ITEMS,
         description="Restrict retrieval to these repositories. Allowlisted only.",
     )
 
@@ -62,8 +74,10 @@ class ChatResponse(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
-    repositories: list[str] | None = Field(
-        default=None, description="Defaults to every allowlisted repository."
+    repositories: list[RepositoryRef] | None = Field(
+        default=None,
+        max_length=MAX_REPOSITORY_SCOPE_ITEMS,
+        description="Defaults to every allowlisted repository.",
     )
     force: bool = Field(
         default=False,
