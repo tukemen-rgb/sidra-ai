@@ -4,10 +4,10 @@ Redaction replaces a span with a typed placeholder rather than deleting it,
 so the shape of the document survives and reviewers can see *that* something
 was removed and *what kind* of thing it was.
 
-Credential-like secrets may retain a short deterministic fingerprint so an
-operator can correlate the same high-entropy value across files. PII never
-retains such a fingerprint: many identifiers have a small enough search space
-that a public deterministic digest can become a guessing oracle.
+Only credential classes whose detector shape already implies a large search
+space retain a short deterministic fingerprint for cross-file correlation.
+PII and low-entropy/unknown secret classes never retain such a fingerprint:
+a public deterministic digest can otherwise become an offline guessing oracle.
 """
 
 from __future__ import annotations
@@ -17,14 +17,34 @@ import hashlib
 PLACEHOLDER_TEMPLATE = "[REDACTED:{label}:{fingerprint}]"
 PII_PLACEHOLDER_TEMPLATE = "[REDACTED:{label}]"
 
+# Fingerprints are useful only when the underlying value already has a large
+# search space. Keep this as an explicit allowlist so a newly added detector
+# label is fingerprint-free by default until its entropy assumptions are
+# reviewed. In particular, ``assigned_secret`` may contain values as short as
+# six characters and ``basic_auth_url`` accepts four-character passwords.
+_FINGERPRINTABLE_SECRET_LABELS = frozenset(
+    {
+        "github_token",
+        "github_fine_grained_token",
+        "aws_access_key_id",
+        "anthropic_api_key",
+        "openai_api_key",
+        "slack_token",
+        "google_api_key",
+        "private_key_block",
+        "json_web_token",
+        "high_entropy",
+    }
+)
+
 
 def fingerprint(value: str) -> str:
     """Short deterministic fingerprint for high-entropy secret correlation.
 
-    This helper is intentionally *not* used for PII placeholders. The fixed
-    domain separator makes the digest distinct from a bare SHA-256 value, but
-    it is public rather than secret and therefore does not make low-entropy
-    personal identifiers safe against offline guessing.
+    This helper is intentionally *not* used for PII or low-entropy secret
+    placeholders. The fixed domain separator makes the digest distinct from a
+    bare SHA-256 value, but it is public rather than secret and therefore does
+    not make guessable values safe against offline enumeration.
     """
 
     digest = hashlib.sha256(b"sidra-redaction-v1\x00" + value.encode("utf-8"))
@@ -32,9 +52,9 @@ def fingerprint(value: str) -> str:
 
 
 def placeholder(label: str, value: str) -> str:
-    """Build a typed redaction placeholder without retaining PII digests."""
+    """Build a typed redaction placeholder under the correlation policy."""
 
-    if label.startswith("pii_"):
+    if label.startswith("pii_") or label not in _FINGERPRINTABLE_SECRET_LABELS:
         return PII_PLACEHOLDER_TEMPLATE.format(label=label)
     return PLACEHOLDER_TEMPLATE.format(label=label, fingerprint=fingerprint(value))
 
