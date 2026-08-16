@@ -23,6 +23,7 @@ from sidra_ai.evals.policy_polarity import run_policy_polarity_suite
 from sidra_ai.evals.retrieval_quality import run_retrieval_quality_suite
 from sidra_ai.evals.runtime_model_admission import run_runtime_model_admission_suite
 from sidra_ai.evals.startup_safety import run_startup_safety_suite
+from sidra_ai.evals.state_path_safety import run_state_path_safety_suite
 from sidra_ai.security.gate import GatePolicy, SecurityGate
 
 
@@ -114,6 +115,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     report.outcomes.extend(run_startup_safety_suite())
     report.outcomes.extend(run_runtime_model_admission_suite())
     report.outcomes.extend(run_audit_path_safety_suite())
+    report.outcomes.extend(run_state_path_safety_suite())
     return report
 
 
