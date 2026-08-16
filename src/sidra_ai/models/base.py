@@ -16,6 +16,7 @@ Two properties are load-bearing for security:
 from __future__ import annotations
 
 import abc
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -62,6 +63,37 @@ class GenerationResult:
         }
 
 
+@dataclass(frozen=True)
+class GenerationChunk:
+    """One incremental generation event.
+
+    ``text_delta`` contains only newly generated text. Token estimates are
+    cumulative when provided. A terminal event always has ``done=True`` so a
+    caller never has to infer completion from a closed HTTP connection.
+    """
+
+    text_delta: str
+    backend: str
+    model: str
+    done: bool = False
+    input_tokens_estimate: int = 0
+    output_tokens_estimate: int = 0
+    finish_reason: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "text_delta": self.text_delta,
+            "backend": self.backend,
+            "model": self.model,
+            "done": self.done,
+            "input_tokens_estimate": self.input_tokens_estimate,
+            "output_tokens_estimate": self.output_tokens_estimate,
+            "finish_reason": self.finish_reason,
+            "metadata": dict(self.metadata),
+        }
+
+
 def estimate_tokens(text: str) -> int:
     """Rough token estimate that works for mixed Japanese/English text.
 
@@ -88,6 +120,10 @@ class LocalModelAdapter(abc.ABC):
     #: ``True`` only for backends that bill per token. v0.1 forbids these.
     requires_paid_api: bool = False
 
+    #: True only when the backend emits tokens incrementally without first
+    #: materializing the complete answer. The base fallback remains usable.
+    supports_streaming: bool = False
+
     def __init__(self, model: str, **options: Any) -> None:
         self.model = model
         self.options = options
@@ -95,6 +131,26 @@ class LocalModelAdapter(abc.ABC):
     @abc.abstractmethod
     def generate(self, request: GenerationRequest) -> GenerationResult:
         """Run inference. Must raise :class:`ModelUnavailableError` on failure."""
+
+    def generate_stream(self, request: GenerationRequest) -> Iterator[GenerationChunk]:
+        """Yield generation events through a stable backend-agnostic interface.
+
+        Backends without native streaming deliberately fall back to one final
+        chunk. Callers can adopt streaming now without requiring every local
+        inference stack to implement it at once.
+        """
+
+        result = self.generate(request)
+        yield GenerationChunk(
+            text_delta=result.text,
+            backend=result.backend,
+            model=result.model,
+            done=True,
+            input_tokens_estimate=result.input_tokens_estimate,
+            output_tokens_estimate=result.output_tokens_estimate,
+            finish_reason=result.finish_reason,
+            metadata=dict(result.metadata),
+        )
 
     def health(self) -> dict[str, Any]:
         """Report backend reachability without raising."""
@@ -104,6 +160,7 @@ class LocalModelAdapter(abc.ABC):
             "model": self.model,
             "available": True,
             "requires_paid_api": self.requires_paid_api,
+            "supports_streaming": self.supports_streaming,
         }
 
     # ------------------------------------------------------------------
