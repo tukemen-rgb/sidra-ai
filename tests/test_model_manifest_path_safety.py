@@ -29,6 +29,13 @@ def _payload() -> dict[str, object]:
     }
 
 
+def _symlink_or_skip(link, target, *, directory: bool = False) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=directory)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlinks are unavailable on this platform: {exc}")
+
+
 def test_manifest_under_symlinked_parent_is_rejected(tmp_path) -> None:
     real_dir = tmp_path / "reviewed"
     real_dir.mkdir()
@@ -36,13 +43,35 @@ def test_manifest_under_symlinked_parent_is_rejected(tmp_path) -> None:
     manifest.write_text(json.dumps(_payload()), encoding="utf-8")
 
     linked_dir = tmp_path / "redirected"
-    try:
-        linked_dir.symlink_to(real_dir, target_is_directory=True)
-    except (OSError, NotImplementedError):
-        pytest.skip("directory symlinks are unavailable on this platform")
+    _symlink_or_skip(linked_dir, real_dir, directory=True)
 
-    with pytest.raises(ModelManifestError, match="parent symlinks"):
+    with pytest.raises(ModelManifestError, match="symlinks"):
         load_local_model_manifest(linked_dir / manifest.name)
+
+
+def test_manifest_under_symlinked_grandparent_is_rejected(tmp_path) -> None:
+    real_root = tmp_path / "real-root"
+    nested = real_root / "nested"
+    nested.mkdir(parents=True)
+    manifest = nested / "model-manifest.json"
+    manifest.write_text(json.dumps(_payload()), encoding="utf-8")
+
+    linked_root = tmp_path / "linked-root"
+    _symlink_or_skip(linked_root, real_root, directory=True)
+
+    with pytest.raises(ModelManifestError, match="symlinks"):
+        load_local_model_manifest(linked_root / "nested" / manifest.name)
+
+
+def test_manifest_parent_traversal_is_rejected(tmp_path) -> None:
+    reviewed = tmp_path / "reviewed"
+    reviewed.mkdir()
+    manifest = tmp_path / "model-manifest.json"
+    manifest.write_text(json.dumps(_payload()), encoding="utf-8")
+
+    traversal_path = reviewed / ".." / manifest.name
+    with pytest.raises(ModelManifestError, match="parent traversal"):
+        load_local_model_manifest(traversal_path)
 
 
 def test_manifest_path_must_be_a_regular_file(tmp_path) -> None:
