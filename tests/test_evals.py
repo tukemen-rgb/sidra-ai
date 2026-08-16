@@ -8,6 +8,7 @@ from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import evaluate_literal_support
 from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import evaluate_policy_polarity
+from sidra_ai.evals.rate_limit_resilience import run_rate_limit_resilience_suite
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
 from sidra_ai.evals.runner import run_all
 from sidra_ai.evals.startup_safety import run_startup_safety_suite
@@ -84,6 +85,16 @@ def test_health_resilience_regression_passes_offline() -> None:
     outcomes = run_health_resilience_suite()
     assert {outcome.case_name for outcome in outcomes} == {
         "api_health_rate_limit_blocks_probe_amplification",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_rate_limiter_state_bound_regression_passes_offline() -> None:
+    outcomes = run_rate_limit_resilience_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "api_rate_limiter_client_state_bounded",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
