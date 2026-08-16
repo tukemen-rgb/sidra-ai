@@ -15,6 +15,7 @@ from typing import Sequence
 from sidra_ai.evals.audit_path_safety import run_audit_path_safety_suite
 from sidra_ai.evals.cases import GATE_CASES, EvalOutcome, GateCase
 from sidra_ai.evals.claim_coverage import run_claim_citation_coverage_suite
+from sidra_ai.evals.gate_precision_recall import run_gate_precision_recall_suite
 from sidra_ai.evals.grounding import run_grounding_suite
 from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import run_literal_support_suite
@@ -104,6 +105,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     report = EvalReport()
     for case in cases:
         report.outcomes.append(run_gate_case(case, gate))
+    report.outcomes.extend(run_gate_precision_recall_suite())
     report.outcomes.extend(run_output_security_suite())
     report.outcomes.extend(run_grounding_suite())
     report.outcomes.extend(run_claim_citation_coverage_suite())

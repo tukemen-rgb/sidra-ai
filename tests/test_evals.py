@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sidra_ai.evals.audit_path_safety import run_audit_path_safety_suite
 from sidra_ai.evals.cases import GATE_CASES
+from sidra_ai.evals.gate_precision_recall import run_gate_precision_recall_suite
 from sidra_ai.evals.grounding import evaluate_grounding, run_grounding_suite
 from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import evaluate_literal_support
@@ -76,6 +77,17 @@ def test_output_security_regression_passes_offline() -> None:
         "output_guard_reversible_exfiltration",
         "output_guard_service_boundary",
         "operator_input_service_boundary",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_security_gate_precision_recall_regression_passes_offline() -> None:
+    outcomes = run_gate_precision_recall_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "security_gate_measured_false_positive_precision",
+        "security_gate_phone_recall_floor",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
