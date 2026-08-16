@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -45,7 +46,12 @@ class ApiAuditLog:
 
     Each record is written with one ``os.write`` under a process-local lock and
     the file is forced to owner read/write permissions on every append. The
-    log is local-only and does not perform network I/O.
+    final audit-log path is opened with ``O_NOFOLLOW`` when the platform
+    provides it, and symlink/non-regular targets are rejected before data is
+    written. This prevents an attacker-controlled audit path from redirecting
+    SIDRA's append/chmod operation onto another local file.
+
+    The log is local-only and does not perform network I/O.
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -56,8 +62,40 @@ class ApiAuditLog:
     def _repositories(values: Iterable[str]) -> tuple[str, ...]:
         return tuple(sorted({value for value in values if value}))
 
+    @staticmethod
+    def _open_regular_append(path: Path) -> int:
+        """Open ``path`` for append without following a final symlink.
+
+        ``O_NOFOLLOW`` closes the check/open race on platforms that expose it
+        (including the Linux CI/runtime target). The explicit symlink checks
+        also fail closed on platforms without that flag. ``fstat`` ensures a
+        special file such as a FIFO/device is never accepted as the audit log.
+        """
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.parent.is_symlink():
+            raise OSError("refusing audit log under a symlinked parent directory")
+        if path.is_symlink():
+            raise OSError("refusing to write audit log through a symlink")
+
+        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+
+        fd = os.open(path, flags, 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError("audit log path is not a regular file")
+            if hasattr(os, "fchmod"):
+                os.fchmod(fd, 0o600)
+            else:  # pragma: no cover - Windows fallback
+                os.chmod(path, 0o600, follow_symlinks=False)
+            return fd
+        except Exception:
+            os.close(fd)
+            raise
+
     def record(self, event: ApiAuditEvent) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             **event.to_dict(),
@@ -66,11 +104,9 @@ class ApiAuditLog:
             "utf-8"
         )
 
-        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
         with self._lock:
-            fd = os.open(self.path, flags, 0o600)
+            fd = self._open_regular_append(self.path)
             try:
-                os.chmod(self.path, 0o600)
                 os.write(fd, line)
             finally:
                 os.close(fd)
