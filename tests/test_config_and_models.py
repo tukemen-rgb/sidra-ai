@@ -511,6 +511,64 @@ def test_routed_adapter_cannot_exceed_vram_admitted_context_plan() -> None:
         )
 
 
+def test_observed_nvidia_vram_drives_route_admission() -> None:
+    import subprocess
+
+    from sidra_ai.models.hardware import select_local_model_with_nvidia_probe
+    from sidra_ai.models.routing import LocalModelCandidate
+
+    def runner(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout="6144, 3000\n",
+            stderr="",
+        )
+
+    decision = select_local_model_with_nvidia_probe(
+        [
+            LocalModelCandidate(
+                backend="echo",
+                model="sidra-local-v0",
+                weights_vram_mib=2100,
+                kv_cache_mib_per_1k_tokens=128,
+                max_context_tokens=4096,
+                quantization="Q4_K_M",
+            )
+        ],
+        planned_context_tokens=2000,
+        reserve_vram_mib=512,
+        runner=runner,
+    )
+
+    assert decision.usable_vram_mib == 2488
+    assert decision.required_vram_mib == 2356
+    assert decision.candidate.model == "sidra-local-v0"
+
+
+def test_nvidia_probe_failure_never_falls_back_to_static_vram_budget() -> None:
+    from sidra_ai.models.hardware import HardwareProbeError, select_local_model_with_nvidia_probe
+    from sidra_ai.models.routing import LocalModelCandidate
+
+    def runner(*args, **kwargs):
+        raise FileNotFoundError("nvidia-smi")
+
+    with pytest.raises(HardwareProbeError, match="unavailable"):
+        select_local_model_with_nvidia_probe(
+            [
+                LocalModelCandidate(
+                    backend="echo",
+                    model="would-fit-static-budget",
+                    weights_vram_mib=4096,
+                    kv_cache_mib_per_1k_tokens=128,
+                    max_context_tokens=4096,
+                )
+            ],
+            planned_context_tokens=1000,
+            runner=runner,
+        )
+
+
 def test_no_paid_llm_sdk_is_a_dependency() -> None:
     """A paid SDK must never appear in pyproject dependencies."""
 
