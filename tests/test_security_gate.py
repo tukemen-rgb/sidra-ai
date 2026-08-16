@@ -64,6 +64,46 @@ def test_findings_never_carry_the_secret(gate: SecurityGate) -> None:
     assert FAKE_GITHUB_TOKEN not in serialized, "audit record leaked the secret"
 
 
+def test_finding_evidence_never_carries_neighboring_secret(gate: SecurityGate) -> None:
+    """One finding's audit evidence must not leak an adjacent credential."""
+
+    first = "a" * 8
+    second = "b" * 8
+    result = gate.inspect(
+        f"password={first} token={second}",
+        source="github",
+        repository="tukemen-rgb/Fg",
+    )
+
+    serialized = str(result.to_dict())
+    assert first not in serialized
+    assert second not in serialized
+    assert all(
+        finding.evidence.startswith("<<redacted len=")
+        for finding in result.findings_by_category(FindingCategory.SECRET)
+    )
+
+
+def test_quarantine_finding_evidence_never_leaks_neighboring_secret(tmp_path) -> None:
+    """The persisted quarantine audit must not recover a nearby secret via evidence."""
+
+    quarantine = QuarantineStore(tmp_path / "q.jsonl")
+    gate = SecurityGate(
+        allowed_repositories=("tukemen-rgb/site",), quarantine_store=quarantine
+    )
+    first = "c" * 8
+    second = "d" * 8
+    gate.inspect(
+        f"password={first} token={second}",
+        source="github",
+        repository="tukemen-rgb/site",
+    )
+
+    serialized = str(quarantine.entries())
+    assert first not in serialized
+    assert second not in serialized
+
+
 def test_private_key_block_is_detected(gate: SecurityGate) -> None:
     body = (
         "-----BEGIN RSA PRIVATE KEY-----\n"

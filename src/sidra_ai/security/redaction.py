@@ -71,10 +71,20 @@ def redact_spans(content: str, spans: list[tuple[int, int, str]]) -> str:
 
 
 def excerpt(content: str, start: int, end: int, window: int = 24) -> str:
-    """Redacted context around a finding, safe to store in an audit log."""
+    """Return context-free evidence metadata that is safe to persist.
 
+    Older versions included raw text immediately before and after the detected
+    span. When two secrets/PII values were close together, the evidence for one
+    finding could therefore persist the *other* sensitive value verbatim in a
+    ``GateResult`` or quarantine audit record. Finding metadata already carries
+    detector, reason, severity and offsets, so retaining neighboring source text
+    is not worth that secondary disclosure risk.
+
+    ``window`` remains in the signature for backwards compatibility with
+    callers, but raw surrounding content is deliberately never returned.
+    """
+
+    del content, window
     if start < 0 or end <= start:
         return ""
-    left = content[max(0, start - window) : start]
-    right = content[end : min(len(content), end + window)]
-    return f"{left}<<redacted len={end - start}>>{right}".replace("\n", " ")
+    return f"<<redacted len={end - start}>>"
