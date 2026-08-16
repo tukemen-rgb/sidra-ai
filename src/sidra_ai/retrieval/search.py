@@ -151,6 +151,13 @@ class BM25Retriever:
     The index is rebuilt lazily whenever the store's chunk count changes.
     For a corpus of a few thousand chunks this is cheaper and far simpler
     than maintaining incremental postings.
+
+    Repository/source-type filters define a retrieval corpus, not merely a
+    post-score visibility mask. IDF and average document length are therefore
+    recomputed over the eligible chunks for each filtered search. This keeps a
+    repository-scoped query invariant when unrelated repositories are added to
+    the shared store, and prevents cross-repository corpus statistics from
+    silently changing ranking or score thresholds.
     """
 
     def __init__(self, store: DocumentStore, *, k1: float = 1.5, b: float = 0.75) -> None:
@@ -187,12 +194,18 @@ class BM25Retriever:
         )
         self._indexed_count = len(chunks)
 
-    def _idf(self, term: str) -> float:
-        total = len(self._chunks)
-        frequency = self._document_frequency.get(term, 0)
+    @staticmethod
+    def _idf_for_counts(total: int, frequency: int) -> float:
         if total == 0 or frequency == 0:
             return 0.0
         return math.log(1 + (total - frequency + 0.5) / (frequency + 0.5))
+
+    def _idf(self, term: str) -> float:
+        """Return whole-store IDF for compatibility with unfiltered callers/tests."""
+
+        return self._idf_for_counts(
+            len(self._chunks), self._document_frequency.get(term, 0)
+        )
 
     # ------------------------------------------------------------------
     def search(
@@ -204,7 +217,7 @@ class BM25Retriever:
         source_types: Iterable[SourceType] | None = None,
         min_score: float = 0.0,
     ) -> list[SearchResult]:
-        """Return score-ranked chunks with document-level diversity."""
+        """Return score-ranked chunks with filter-scoped BM25 statistics."""
 
         self._ensure_index()
         query_terms = tokenize(query)
@@ -214,14 +227,33 @@ class BM25Retriever:
         repository_filter = {r.lower() for r in repositories} if repositories else None
         type_filter = set(source_types) if source_types else None
 
-        scored: list[SearchResult] = []
+        eligible_positions: list[int] = []
         for position, chunk in enumerate(self._chunks):
             provenance = chunk.provenance
             if repository_filter and provenance.repository.lower() not in repository_filter:
                 continue
             if type_filter and provenance.source_type not in type_filter:
                 continue
+            eligible_positions.append(position)
 
+        if not eligible_positions:
+            return []
+
+        # A filtered search is its own BM25 corpus. Computing IDF/length
+        # statistics from excluded repositories lets unrelated data change a
+        # scoped query's score and can flip ranking or min_score decisions.
+        filtered_document_frequency: Counter[str] = Counter()
+        filtered_total_length = 0
+        for position in eligible_positions:
+            filtered_document_frequency.update(self._term_frequencies[position].keys())
+            filtered_total_length += self._lengths[position]
+
+        filtered_total = len(eligible_positions)
+        filtered_average_length = filtered_total_length / filtered_total
+
+        scored: list[SearchResult] = []
+        for position in eligible_positions:
+            chunk = self._chunks[position]
             counts = self._term_frequencies[position]
             length = self._lengths[position] or 1
             score = 0.0
@@ -230,9 +262,14 @@ class BM25Retriever:
                 if not frequency:
                     continue
                 denominator = frequency + self.k1 * (
-                    1 - self.b + self.b * length / (self._average_length or 1)
+                    1
+                    - self.b
+                    + self.b * length / (filtered_average_length or 1)
                 )
-                score += self._idf(term) * (frequency * (self.k1 + 1)) / denominator
+                idf = self._idf_for_counts(
+                    filtered_total, filtered_document_frequency.get(term, 0)
+                )
+                score += idf * (frequency * (self.k1 + 1)) / denominator
 
             if score > min_score:
                 scored.append(SearchResult(chunk=chunk, score=score))
