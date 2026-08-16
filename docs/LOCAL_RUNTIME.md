@@ -23,6 +23,25 @@ Keep these invariants throughout setup and normal operation:
 
 The normal runtime can work with no paid LLM API and no GitHub token.
 
+### Current non-echo runtime status
+
+For normal `SidraService` startup, Ollama/llama.cpp now require the verified
+fail-closed admission path:
+
+`reviewed manifest -> exact configured model -> fresh observed NVIDIA free VRAM -> route decision -> admitted context cap -> adapter -> API bind`
+
+The reviewed manifest must exist at `<SIDRA_DATA_DIR>/model-manifest.json`. The
+configured backend/model must match exactly one reviewed entry. The manifest's
+reviewed maximum context is used as the v0.1 admission plan and is preserved by
+the runtime adapter. Missing/invalid manifest metadata, probe failure, unknown
+resource cost, unsafe model endpoint, or no fitting route stops startup before
+the API socket is opened. A failed probe never falls back to a static 6 GiB
+assumption, and routing never silently substitutes a different model.
+
+`echo` remains the dependency-free/no-GPU baseline. Repository-side admission
+being verified does **not** mean a specific home PC is already configured,
+measured, or SIDRA-ready; the machine-specific checks below still apply.
+
 ## 1. Install the Python environment
 
 Requirements:
@@ -75,7 +94,8 @@ aggregate NVIDIA VRAM counters through the fixed local `nvidia-smi` probe.
 A healthy default setup should report `"ok": true`, `"api_loopback_only": true`,
 `"configured_backend": "echo"`, and `"external_llm_provider_sdks": "clear"`.
 `"gpu_probe": {"status": "unavailable"}` is not an error on a CPU/non-NVIDIA
-machine.
+machine when using `echo`; non-echo NVIDIA admission requires a successful fresh
+probe at actual API startup.
 
 If the preflight reports a blocked provider SDK, create a clean dedicated venv
 rather than modifying another project's environment.
@@ -122,11 +142,11 @@ Manual cross-check:
 nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits
 ```
 
-The routing layer can cap admission by observed free VRAM. Do not choose a model
+The routing layer caps admission by observed free VRAM. Do not choose a model
 from parameter count alone. Record measured weight memory, KV-cache growth,
-planned context, and a safety reserve; unknown memory demand should fail closed.
+planned context, and a safety reserve; unknown memory demand fails closed.
 
-## 5. Pre-stage a local model artifact
+## 5. Pre-stage a local model artifact and routing manifest
 
 Model acquisition belongs to an explicit staging step, separate from Core
 runtime operation. Keep model artifacts outside the Git repository, for example
@@ -144,6 +164,38 @@ For every model/quantization, retain a local record (not a secret) containing:
 
 Do not treat a mutable model name such as `latest` as sufficient provenance for
 a promoted runtime.
+
+SIDRA's strict local manifest parser accepts a bounded JSON document with
+explicit routing metadata. Save the reviewed file at
+`<SIDRA_DATA_DIR>/model-manifest.json`. A minimal reviewed record has this shape:
+
+```json
+{
+  "version": 1,
+  "models": [
+    {
+      "backend": "ollama",
+      "model": "local-reviewed-tag",
+      "weights_vram_mib": 1800,
+      "kv_cache_mib_per_1k_tokens": 100,
+      "max_context_tokens": 4096,
+      "quantization": "Q4_K_M",
+      "priority": 10,
+      "license": "record-the-real-license",
+      "revision": "immutable-local-or-upstream-revision"
+    }
+  ]
+}
+```
+
+These numbers are examples of the schema only, **not model recommendations or
+measurements**. Replace them with measured or conservative values for the exact
+artifact. URL-shaped model references, unknown fields, missing KV/context data,
+symlinked manifests, and missing revision/artifact provenance fail closed.
+
+Normal non-echo `SidraService` startup loads this manifest and requires an exact
+backend/model match before the fresh VRAM probe. A staged model that is not in
+the reviewed manifest cannot start through the normal API path.
 
 ### llama.cpp / GGUF
 
@@ -168,7 +220,7 @@ installed llama.cpp release):
 llama-server -m /path/to/model.gguf --host 127.0.0.1 --port 8080
 ```
 
-Then configure SIDRA:
+Prepare the matching environment only after the manifest is reviewed:
 
 ```bash
 export SIDRA_MODEL_BACKEND=llama_cpp
@@ -177,7 +229,9 @@ export SIDRA_MODEL_ENDPOINT=http://127.0.0.1:8080
 python -m sidra_ai.local_preflight
 ```
 
-PowerShell uses the equivalent `$env:NAME = "value"` syntax.
+PowerShell uses the equivalent `$env:NAME = "value"` syntax. `sidra-api` will
+still refuse startup unless the manifest entry matches and fresh observed VRAM
+admits the exact configured model/context.
 
 ### Ollama
 
@@ -193,15 +247,16 @@ export SIDRA_MODEL_ENDPOINT=http://127.0.0.1:11434
 python -m sidra_ai.local_preflight
 ```
 
-The preflight validates endpoint locality but deliberately does **not** contact
-the Ollama daemon or generate text.
+The preflight validates environment/endpoint locality without generating text.
+Normal `sidra-api` startup then independently requires the reviewed manifest and
+fresh observed-VRAM admission before binding the API socket.
 
 ## 6. Start and verify the SIDRA API
 
-After offline tests, evals, configuration preflight, and local model staging are
-all green:
+Start with the dependency-free baseline first:
 
 ```bash
+export SIDRA_MODEL_BACKEND=echo
 sidra-api
 ```
 
@@ -214,12 +269,19 @@ curl http://127.0.0.1:8787/health
 PowerShell alternative:
 
 ```powershell
+$env:SIDRA_MODEL_BACKEND = "echo"
 Invoke-RestMethod http://127.0.0.1:8787/health
 ```
 
-For a real local backend, `/health` is the first deliberate runtime probe of the
-configured local inference service. Keep the SIDRA API and model service bound
-to loopback for this baseline.
+For a reviewed Ollama/llama.cpp setup, first place the matching
+`model-manifest.json` under `SIDRA_DATA_DIR`, set the loopback endpoint and exact
+backend/model, then start `sidra-api`. A missing manifest, failed VRAM probe,
+insufficient capacity, or mismatched model is an expected fail-closed startup
+error and must be fixed at the staging/configuration layer rather than bypassed.
+
+After successful non-echo startup, verify `/health` over loopback and perform a
+small local generation before considering the machine real-model ready. The
+model server itself must also remain loopback-only.
 
 ## 7. GitHub RAG verification
 
@@ -247,15 +309,16 @@ Do not call the machine "SIDRA-ready" until all applicable checks are true:
 3. `sidra-evals` is green;
 4. `python -m sidra_ai.local_preflight` returns `ok: true`;
 5. API bind remains loopback-only;
-6. selected backend is `echo`, `ollama`, or `llama_cpp`;
-7. real model artifact/tag has recorded source/revision/license and integrity
-   evidence appropriate to that backend;
-8. NVIDIA setups have a trustworthy local free-VRAM observation before routing;
-9. `sidra-api` starts without exposing a public socket;
-10. `/health` succeeds and, for a real backend, confirms local model availability;
-11. no paid/external LLM fallback is configured;
-12. no production publish, GAMEYARD/CreatorYard connection, billing, external
-    write/send, or destructive operation has been enabled as part of this setup.
+6. selected backend is one of `echo`, `ollama`, `llama_cpp` and no external LLM fallback is configured;
+7. any real model artifact/tag has recorded source/revision/license and integrity evidence appropriate to that backend;
+8. any real model has reviewed `<SIDRA_DATA_DIR>/model-manifest.json` metadata for weights VRAM, KV-cache growth, maximum context and quantization;
+9. non-echo startup obtains a trustworthy fresh NVIDIA free-VRAM observation;
+10. the configured backend/model exactly matches the reviewed manifest and is admitted without static-budget fallback;
+11. the runtime adapter preserves the admitted context cap;
+12. `sidra-api` starts without exposing a public socket;
+13. `/health` succeeds on loopback and the selected local model reports available;
+14. no paid/external LLM fallback is configured;
+15. no production publish, GAMEYARD/CreatorYard connection, billing, external write/send, or destructive operation has been enabled as part of this setup.
 
 A failure in any required check is a stop condition, not a reason to weaken the
 corresponding safety gate.

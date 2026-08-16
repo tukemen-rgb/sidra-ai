@@ -46,10 +46,20 @@ backends are `echo`, `ollama`, and `llama_cpp`. `transformers` remains deferred
 until it can consume only pre-staged local artifacts with no runtime model/code
 download path.
 
-Run `python -m sidra_ai.local_preflight` before starting a home-PC runtime. See
-`docs/LOCAL_RUNTIME.md` for the safe install, hardware observation, local model
-artifact, and acceptance procedure. See `docs/ARCHITECTURE.md` for the module map
-and `docs/SECURITY.md` for the threat model and known gaps.
+For `ollama` and `llama_cpp`, normal `SidraService` startup now requires a
+reviewed local `<SIDRA_DATA_DIR>/model-manifest.json` entry matching the exact
+configured backend/model plus a fresh bounded NVIDIA free-VRAM observation.
+The admitted manifest context cap is carried into the runtime adapter. Missing
+or invalid manifest metadata, VRAM probe failure, unknown resource cost, or no
+fitting route fails closed before the API socket is opened; there is no static
+6 GiB fallback. `echo` remains the dependency-free/no-GPU baseline.
+
+This repository-side admission path being verified does **not** mean a specific
+home PC is already configured or measured. Run `python -m sidra_ai.local_preflight`
+and the owned-PC acceptance procedure before calling a machine SIDRA-ready. See
+`docs/LOCAL_RUNTIME.md` for safe install, model-artifact provenance, manifest,
+hardware observation and runtime verification. See `docs/ARCHITECTURE.md` for
+the module map and `docs/SECURITY.md` for the threat model and known gaps.
 
 ## Collaboration
 
@@ -73,9 +83,14 @@ The verified v0.1 baseline includes:
 2. GitHub read-only ingestion with commit and mutable-source freshness handling
 3. persisted SHA/activity state with fail-closed recovery behavior
 4. local retrieval/index and citations
-5. local model adapters and constrained-hardware routing
+5. local model adapters and manifest/observed-VRAM admission for configured non-echo startup
 6. security gate and output guard
 7. offline evaluation suite
 8. private SIDRA API (`/health`, `/v1/retrieve`, `/v1/chat`, `/v1/github/analyze`)
+
+Real-model readiness remains machine-specific: the exact local artifact/tag,
+license/revision/digest evidence, manifest resource values, current free VRAM,
+loopback inference endpoint and local health must all be verified on the owned
+PC. No external LLM fallback is part of that runtime.
 
 See `docs/COLLABORATION.md` for the shared implementation protocol.

@@ -117,6 +117,24 @@ The model layer also provides context/token budgeting, streaming abstractions,
 local benchmarking, and constrained-VRAM routing. Memory admission uses
 explicit measurements/manifests rather than guessing from model names.
 
+For normal non-echo API startup the composition path is now:
+
+`reviewed manifest -> exact configured model match -> fresh observed NVIDIA free VRAM -> route decision -> admitted context cap -> adapter -> API bind`
+
+The reviewed manifest is loaded from `<SIDRA_DATA_DIR>/model-manifest.json`.
+The configured backend/model must match exactly one manifest entry. The
+manifest's reviewed maximum context is the v0.1 admission plan, and that same
+cap is carried into the runtime adapter. Missing/invalid manifest data, probe
+failure, unknown resource requirements, non-loopback model endpoint, or no
+fitting route fails closed before socket bind/model use. A failed probe never
+falls back to a static 6 GiB assumption, and routing never silently substitutes
+a different manifest candidate.
+
+`echo` remains the dependency-free/no-GPU baseline and bypasses GPU admission by
+design. Ollama/llama.cpp normal `SidraService` construction cannot bypass the
+reviewed-manifest/observed-VRAM path; explicit model injection remains only for
+tests/embedding callers and is not used by the `sidra-api` entry point.
+
 ## API surface
 
 - `GET /health` — minimal unauthenticated health status, no repository/content details.
