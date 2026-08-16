@@ -5,31 +5,37 @@ Order of operations, and why:
 1. Resolve HEAD. One cheap request.
 2. **Compare with stored state and local index state.** If HEAD is unchanged
    *and* this process already has retrievable documents for the repository,
-   return immediately with ``changed=False``. If the SHA state survived a
-   process restart but the in-memory index did not, rebuild the repository
-   snapshot before applying normal differential behavior. Rehydration itself
-   is not a source change and must not invoke the model when HEAD is unchanged.
+   keep the commit path cheap but periodically poll mutable PR/issue sources.
+   If the SHA state survived a process restart but the in-memory index did not,
+   rebuild the repository snapshot before applying normal differential behavior.
+   Rehydration itself is not a source change and must not invoke the model when
+   GitHub content is unchanged.
 3. Fetch only what changed (via ``compare``), plus README/docs on first run
    or when the diff touched them. If GitHub's compare response may be
    truncated, conservatively refresh README/docs so changed knowledge cannot
    be silently missed.
-4. Screen every document through the security gate.
-5. Index only ``ALLOW`` documents; quarantine the rest with reasons. For
+4. Poll PR/issue bodies independently of commit HEAD. Those GitHub objects can
+   change without a repository commit, so SHA equality alone is not a valid
+   freshness proof. Idle polls are rate-limited locally and use a conservative
+   overlap cursor; repeated overlap results are de-duplicated by source revision.
+5. Screen every document through the security gate.
+6. Index only ``ALLOW`` documents; quarantine the rest with reasons. For
    mutable GitHub sources, remember a rejected newest revision as a pending
    retirement instead of silently falling back to an older safe revision.
-6. After a complete collection, retire README/docs paths that GitHub reports
+7. After a complete collection, retire README/docs paths that GitHub reports
    removed or renamed-away and apply pending security retirements. Whenever
    README/docs were fully refreshed, also reconcile the current snapshot
    against the store so a deletion withheld during a failed run is still
    retired on the later full-snapshot retry.
-7. Advance the persisted SHA only after a **complete** collection and indexing
-   pass. Any source-fetch error preserves the previous cursor so the next run
-   retries instead of making a partial RAG snapshot look current.
+8. Advance persisted polling state only after a **complete** collection and
+   indexing pass. Any source-fetch error preserves the previous cursor so the
+   next run retries instead of making a partial RAG snapshot look current.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
 
 from sidra_ai.config.settings import Settings, get_settings
@@ -47,6 +53,17 @@ from sidra_ai.security.gate import SecurityGate
 
 #: Paths that always count as documentation roots.
 DOC_ROOTS = ("docs",)
+
+#: Mutable GitHub metadata is checked independently of repository HEAD because
+#: PR/issue bodies and state can change without a commit. Five minutes keeps
+#: interactive polling cheap while the hourly automation still always checks.
+ACTIVITY_POLL_INTERVAL_SECONDS = 300
+
+#: ``last_ingested_at`` is a local completion timestamp in the current v0.1
+#: state schema, not an authoritative GitHub event watermark. Look back when
+#: querying mutable sources so an update racing the previous poll is not lost.
+#: Duplicate overlap results are removed against the current source revision.
+ACTIVITY_CURSOR_OVERLAP_SECONDS = 600
 
 #: GitHub source types whose logical path can be revised over time. If the
 #: newest observed revision is unsafe, an older safe revision must not remain
@@ -67,13 +84,7 @@ COMPARE_FILE_CEILING = 300
 
 
 def _comparison_may_be_truncated(comparison: dict[str, Any]) -> bool:
-    """Return True when a compare payload cannot prove it is complete.
-
-    ``total_commits`` lets us detect a shortened commit list directly. The
-    file list has no equivalent total, so reaching the documented file
-    ceiling is conservatively treated as truncation. A false positive only
-    costs a documentation refresh; a false negative can leave stale RAG data.
-    """
+    """Return True when a compare payload cannot prove it is complete."""
 
     commits = list(comparison.get("commits") or [])
     files = list(comparison.get("files") or [])
@@ -92,13 +103,7 @@ def _comparison_may_be_truncated(comparison: dict[str, Any]) -> bool:
 def _documentation_retirements(
     comparison: dict[str, Any],
 ) -> list[tuple[str, SourceType]]:
-    """Return exact README/docs logical sources removed by a GitHub diff.
-
-    Only exact paths are returned. ``renamed`` retires the previous filename;
-    the new path is collected normally and becomes a distinct current source.
-    Other repository files are intentionally ignored because L1's retirement
-    contract is being consumed here only for RAG documentation sources.
-    """
+    """Return exact README/docs logical sources removed by a GitHub diff."""
 
     retirements: list[tuple[str, SourceType]] = []
     seen: set[tuple[str, SourceType]] = set()
@@ -129,6 +134,44 @@ def _documentation_retirements(
                 retirements.append(key)
 
     return retirements
+
+
+def _parse_utc(value: str) -> datetime | None:
+    """Parse an ISO-8601 timestamp as UTC, returning ``None`` if untrusted."""
+
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _activity_poll_due(last_ingested_at: str, *, now: datetime | None = None) -> bool:
+    """Return whether mutable PR/issue sources should be checked now.
+
+    An absent or invalid timestamp fails open *for polling*: doing a bounded
+    read-only check is safer than silently treating an unknown cursor as fresh.
+    """
+
+    previous = _parse_utc(last_ingested_at)
+    if previous is None:
+        return True
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    return (current - previous).total_seconds() >= ACTIVITY_POLL_INTERVAL_SECONDS
+
+
+def _activity_since(last_ingested_at: str) -> str | None:
+    """Return a conservative GitHub ``since`` cursor with overlap."""
+
+    previous = _parse_utc(last_ingested_at)
+    if previous is None:
+        return None
+    return (previous - timedelta(seconds=ACTIVITY_CURSOR_OVERLAP_SECONDS)).isoformat()
 
 
 @dataclass
@@ -198,7 +241,7 @@ class IngestionReport:
 
 
 class GitHubIngestionPipeline:
-    """Read-only ingestion with commit-SHA differential fetching."""
+    """Read-only ingestion with commit-SHA and mutable-source polling."""
 
     def __init__(
         self,
@@ -214,7 +257,6 @@ class GitHubIngestionPipeline:
         self.gate = gate
         self.settings = settings or get_settings()
 
-    # ------------------------------------------------------------------
     def ingest_all(
         self, repositories: Sequence[str] | None = None, *, force: bool = False
     ) -> IngestionReport:
@@ -224,7 +266,6 @@ class GitHubIngestionPipeline:
             report.repositories.append(self.ingest_repository(repository, force=force))
         return report
 
-    # ------------------------------------------------------------------
     def ingest_repository(self, repository: str, *, force: bool = False) -> RepositoryReport:
         if not self.settings.is_repository_allowed(repository):
             return RepositoryReport(
@@ -252,35 +293,33 @@ class GitHubIngestionPipeline:
                 skipped_reason="fetch_failed",
             )
 
-        # SHA state is persisted, while v0.1's retrieval index is in-memory.
-        # After a process restart it is therefore possible to have a valid
-        # persisted cursor but no local documents at all. In that case a
-        # differential fetch is insufficient even if HEAD advanced: the new
-        # process needs a complete current snapshot, not only the delta since
-        # the old process. Rehydrate once before normal cheap polling resumes.
         index_missing = bool(previous_sha) and not self.store.by_repository(repository)
         rehydrate_index = index_missing and not force
-
-        # A previous partial collection must also retry from a full snapshot.
-        # In particular, HEAD may be unchanged while state.last_error records
-        # that README/docs/issues/PRs were not completely fetched. Treating that
-        # as a normal no-change poll would permanently freeze an incomplete RAG
-        # view behind a seemingly current SHA.
         retry_full_snapshot = retry_incomplete
 
-        # --- the differential short circuit -----------------------------
+        head_unchanged = head_sha == previous_sha
         if (
-            head_sha == previous_sha
+            head_unchanged
             and not force
             and not rehydrate_index
             and not retry_full_snapshot
         ):
-            return RepositoryReport(
-                repository=repository,
-                changed=False,
+            if not _activity_poll_due(state.last_ingested_at):
+                return RepositoryReport(
+                    repository=repository,
+                    changed=False,
+                    head_sha=head_sha,
+                    previous_sha=previous_sha,
+                    skipped_reason="no_new_commits",
+                )
+            return self._poll_mutable_activity(
+                repository,
                 head_sha=head_sha,
                 previous_sha=previous_sha,
-                skipped_reason="no_new_commits",
+                default_branch=default_branch,
+                license_id=self._license_for(repo_meta),
+                since=_activity_since(state.last_ingested_at),
+                previous_quarantined=state.quarantined_count,
             )
 
         license_id = self._license_for(repo_meta)
@@ -298,17 +337,17 @@ class GitHubIngestionPipeline:
             first_run=(
                 not previous_sha or force or rehydrate_index or retry_full_snapshot
             ),
-            # A missing in-memory index or a previous incomplete collection
-            # needs a complete snapshot, including current issues/PRs, rather
-            # than only items newer than the persisted cursor.
             since=(
                 None
                 if rehydrate_index or retry_full_snapshot
-                else (state.last_ingested_at or None)
+                else _activity_since(state.last_ingested_at)
             ),
         )
 
-        source_changed = force or head_sha != previous_sha
+        activity_changed = (
+            not rehydrate_index and self._activity_documents_changed(documents)
+        )
+        source_changed = force or head_sha != previous_sha or activity_changed
         report = RepositoryReport(
             repository=repository,
             changed=source_changed,
@@ -327,30 +366,12 @@ class GitHubIngestionPipeline:
         )
         security_retirements = self._screen_and_index(documents, report)
 
-        # Never advance the differential cursor after a partial collection.
-        # Some safe documents may already have been re-indexed, but keeping the
-        # old SHA and last_ingested_at makes the next run repeat the collection
-        # idempotently instead of skipping missing knowledge forever. Deleted
-        # or unsafe-current-source retirement is also withheld until collection
-        # is complete so a transient fetch failure cannot make the local view
-        # more incomplete.
         if error:
             self.state_store.mark_error(repository, error)
             report.skipped_reason = "partial_fetch"
             return report
 
-        # Apply source lifecycle mutations only after collection is complete.
-        # Security rejection is a valid current-state outcome: if the newest
-        # README/docs/PR/issue revision is not indexable, serving an older safe
-        # revision as current would be a grounded-but-stale answer. Exact-match
-        # retirement is idempotent, so deduplicate while preserving order.
-        pending_retirements = dict.fromkeys([*retirements, *security_retirements])
-        for path, source_type in pending_retirements:
-            self.store.retire_source(
-                repository=repository,
-                path=path,
-                source_type=source_type,
-            )
+        self._apply_retirements(repository, [*retirements, *security_retirements])
 
         if documentation_snapshot_complete:
             current_keys = set(current_documentation_sources)
@@ -372,14 +393,120 @@ class GitHubIngestionPipeline:
         self.state_store.mark_ingested(
             repository,
             commit_sha=head_sha,
-            document_count=report.indexed,
-            quarantined_count=report.quarantined,
+            document_count=len(self.store.by_repository(repository)),
+            quarantined_count=state.quarantined_count + report.quarantined,
             default_branch=default_branch,
             license=license_id,
         )
         return report
 
-    # ------------------------------------------------------------------
+    def _poll_mutable_activity(
+        self,
+        repository: str,
+        *,
+        head_sha: str,
+        previous_sha: str,
+        default_branch: str,
+        license_id: str,
+        since: str | None,
+        previous_quarantined: int,
+    ) -> RepositoryReport:
+        """Poll PR/issues even when repository HEAD has not moved.
+
+        The existing state schema stores a local completion timestamp, so the
+        query intentionally overlaps that cursor. Returned overlap items are
+        compared with the currently indexed logical revision before screening;
+        unchanged items do not trigger inference or redundant index writes.
+        """
+
+        documents, error = self._collect_activity(
+            repository,
+            head_sha=head_sha,
+            license_id=license_id,
+            since=since,
+        )
+        changed_documents = [
+            document
+            for document in documents
+            if not self._activity_revision_is_current(document)
+        ]
+        report = RepositoryReport(
+            repository=repository,
+            changed=bool(changed_documents),
+            head_sha=head_sha,
+            previous_sha=previous_sha,
+            error=error,
+            skipped_reason=(
+                "mutable_source_updated" if changed_documents else "no_new_commits"
+            ),
+        )
+        if error:
+            self.state_store.mark_error(repository, error)
+            report.skipped_reason = "partial_fetch"
+            return report
+
+        security_retirements = self._screen_and_index(changed_documents, report)
+        self._apply_retirements(repository, security_retirements)
+        self.state_store.mark_ingested(
+            repository,
+            commit_sha=head_sha,
+            document_count=len(self.store.by_repository(repository)),
+            quarantined_count=previous_quarantined + report.quarantined,
+            default_branch=default_branch,
+            license=license_id,
+        )
+        return report
+
+    def _activity_revision_is_current(self, document: Document) -> bool:
+        """Return True when the store already has this PR/issue revision.
+
+        PR/issue ``updated_at`` can move for comment-only activity that v0.1 does
+        not ingest. Compare the material fields SIDRA actually stores instead:
+        body/title content, PR head observation, and state metadata. This
+        suppresses cursor-overlap duplicates and comment-only churn without
+        hiding a body/title/state revision.
+        """
+
+        provenance = document.provenance
+        if provenance.source_type not in {SourceType.PULL_REQUEST, SourceType.ISSUE}:
+            return False
+        for existing in self.store.by_repository(provenance.repository):
+            current = existing.provenance
+            if current.source != provenance.source:
+                continue
+            if current.source_type is not provenance.source_type:
+                continue
+            if current.path != provenance.path:
+                continue
+            return (
+                current.commit_sha == provenance.commit_sha
+                and dict(current.extra) == dict(provenance.extra)
+                and existing.content == document.content
+            )
+        return False
+
+    def _activity_documents_changed(self, documents: Sequence[Document]) -> bool:
+        """Whether a complete collection contains a newer PR/issue revision."""
+
+        return any(
+            document.provenance.source_type
+            in {SourceType.PULL_REQUEST, SourceType.ISSUE}
+            and not self._activity_revision_is_current(document)
+            for document in documents
+        )
+
+    def _apply_retirements(
+        self,
+        repository: str,
+        retirements: Sequence[tuple[str, SourceType]],
+    ) -> None:
+        for path, source_type in dict.fromkeys(retirements):
+            self.store.retire_source(
+                repository=repository,
+                path=path,
+                source_type=source_type,
+            )
+
     @staticmethod
     def _license_for(repo_meta: dict[str, Any]) -> str:
         license_info = (repo_meta or {}).get("license") or {}
@@ -387,6 +514,45 @@ class GitHubIngestionPipeline:
         if spdx and spdx != "NOASSERTION":
             return str(spdx)
         return "proprietary" if (repo_meta or {}).get("private") else "unknown"
+
+    def _collect_activity(
+        self,
+        repository: str,
+        *,
+        head_sha: str,
+        license_id: str,
+        since: str | None,
+    ) -> tuple[list[Document], str]:
+        documents: list[Document] = []
+        errors: list[str] = []
+
+        try:
+            for payload in self.client.list_pull_requests(repository, since=since):
+                document = normalize.pull_request_document(
+                    payload,
+                    repository=repository,
+                    commit_sha=head_sha,
+                    license=license_id,
+                )
+                if document is not None:
+                    documents.append(document)
+        except GitHubAPIError as exc:
+            errors.append(f"pulls: {exc}")
+
+        try:
+            for payload in self.client.list_issues(repository, since=since):
+                document = normalize.issue_document(
+                    payload,
+                    repository=repository,
+                    commit_sha=head_sha,
+                    license=license_id,
+                )
+                if document is not None:
+                    documents.append(document)
+        except GitHubAPIError as exc:
+            errors.append(f"issues: {exc}")
+
+        return documents, "; ".join(errors)
 
     def _collect(
         self,
@@ -424,9 +590,6 @@ class GitHubIngestionPipeline:
                 }
                 retirements = _documentation_retirements(comparison)
                 if _comparison_may_be_truncated(comparison):
-                    # A capped file list cannot prove README/docs were
-                    # untouched, so refresh both roots at HEAD instead of
-                    # silently carrying stale knowledge forward.
                     full_documentation_refresh = True
             else:
                 commits = self.client.list_commits(repository, head=head_sha)
@@ -440,8 +603,6 @@ class GitHubIngestionPipeline:
             if document is not None:
                 documents.append(document)
 
-        # README/docs: always on first run, when touched, or when compare
-        # completeness cannot be proven.
         readme_touched = full_documentation_refresh or any(
             path.lower().startswith("readme") for path in changed_paths
         )
@@ -491,31 +652,15 @@ class GitHubIngestionPipeline:
             except GitHubAPIError as exc:
                 errors.append(f"docs: {exc}")
 
-        try:
-            for payload in self.client.list_pull_requests(repository, since=since):
-                document = normalize.pull_request_document(
-                    payload,
-                    repository=repository,
-                    commit_sha=head_sha,
-                    license=license_id,
-                )
-                if document is not None:
-                    documents.append(document)
-        except GitHubAPIError as exc:
-            errors.append(f"pulls: {exc}")
-
-        try:
-            for payload in self.client.list_issues(repository, since=since):
-                document = normalize.issue_document(
-                    payload,
-                    repository=repository,
-                    commit_sha=head_sha,
-                    license=license_id,
-                )
-                if document is not None:
-                    documents.append(document)
-        except GitHubAPIError as exc:
-            errors.append(f"issues: {exc}")
+        activity_documents, activity_error = self._collect_activity(
+            repository,
+            head_sha=head_sha,
+            license_id=license_id,
+            since=since,
+        )
+        documents.extend(activity_documents)
+        if activity_error:
+            errors.append(activity_error)
 
         return (
             documents,
@@ -525,17 +670,10 @@ class GitHubIngestionPipeline:
             current_documentation_sources,
         )
 
-    # ------------------------------------------------------------------
     def _screen_and_index(
         self, documents: Sequence[Document], report: RepositoryReport
     ) -> list[tuple[str, SourceType]]:
-        """Screen/index documents and return unsafe mutable sources to retire.
-
-        Retirement is *deferred* to :meth:`ingest_repository` so a partial
-        GitHub collection never deletes the previous safe view. Only mutable
-        GitHub source identities participate; immutable commit documents do not
-        need stale-revision retirement.
-        """
+        """Screen/index documents and return unsafe mutable sources to retire."""
 
         security_retirements: list[tuple[str, SourceType]] = []
         seen: set[tuple[str, SourceType]] = set()
