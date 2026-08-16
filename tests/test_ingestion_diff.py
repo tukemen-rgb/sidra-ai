@@ -543,3 +543,88 @@ def test_pagination_refuses_cross_origin_next_link(settings) -> None:
         raise AssertionError("cross-origin pagination Link was followed")
 
     assert len(requests) == 1, "transport was called for an untrusted next-page host"
+
+
+def test_incremental_pull_poll_drains_burst_beyond_snapshot_limit(settings) -> None:
+    """A burst newer than the cursor must not be truncated to snapshot size."""
+
+    incremental_settings = Settings(
+        allowed_repositories=settings.allowed_repositories,
+        data_dir=settings.data_dir,
+        max_items_per_source=2,
+    )
+    requests: list[str] = []
+    since = "2026-08-16T00:00:00Z"
+
+    def transport(method: str, url: str, headers, timeout: float) -> Response:
+        requests.append(url)
+        if "page=2" in url:
+            return Response(
+                200,
+                {},
+                [
+                    {"number": 3, "updated_at": "2026-08-16T00:01:00Z"},
+                    {"number": 4, "updated_at": since},
+                ],
+            )
+        next_url = (
+            f"https://api.github.com/repos/{REPO}/pulls?state=all&sort=updated"
+            "&direction=desc&per_page=100&page=2"
+        )
+        return Response(
+            200,
+            {"Link": f'<{next_url}>; rel="next"'},
+            [
+                {"number": 1, "updated_at": "2026-08-16T00:03:00Z"},
+                {"number": 2, "updated_at": "2026-08-16T00:02:00Z"},
+            ],
+        )
+
+    incremental = GitHubReadOnlyClient(
+        incremental_settings, transport=transport, sleep=lambda _: None
+    )
+    pulls = incremental.list_pull_requests(REPO, since=since)
+
+    assert [item["number"] for item in pulls] == [1, 2, 3]
+    assert len(requests) == 2
+
+
+def test_incremental_issue_poll_drains_burst_beyond_snapshot_limit(settings) -> None:
+    """Server-filtered issue activity must also drain past the snapshot cap."""
+
+    incremental_settings = Settings(
+        allowed_repositories=settings.allowed_repositories,
+        data_dir=settings.data_dir,
+        max_items_per_source=2,
+    )
+    requests: list[str] = []
+    since = "2026-08-16T00:00:00Z"
+
+    def transport(method: str, url: str, headers, timeout: float) -> Response:
+        requests.append(url)
+        if "page=2" in url:
+            return Response(
+                200,
+                {},
+                [{"number": 3, "updated_at": "2026-08-16T00:01:00Z"}],
+            )
+        next_url = (
+            f"https://api.github.com/repos/{REPO}/issues?state=all&sort=updated"
+            "&direction=desc&per_page=100&page=2"
+        )
+        return Response(
+            200,
+            {"Link": f'<{next_url}>; rel="next"'},
+            [
+                {"number": 1, "updated_at": "2026-08-16T00:03:00Z"},
+                {"number": 2, "updated_at": "2026-08-16T00:02:00Z"},
+            ],
+        )
+
+    incremental = GitHubReadOnlyClient(
+        incremental_settings, transport=transport, sleep=lambda _: None
+    )
+    issues = incremental.list_issues(REPO, since=since)
+
+    assert [item["number"] for item in issues] == [1, 2, 3]
+    assert len(requests) == 2

@@ -436,8 +436,18 @@ class GitHubReadOnlyClient:
         return items[:limit]
 
     def list_pull_requests(self, repository: str, since: str | None = None) -> list[dict[str, Any]]:
+        """Return PRs, draining every revision newer than ``since``.
+
+        ``max_items_per_source`` bounds initial snapshots, but it must not cap
+        incremental polling. If more than that many PRs change in one cursor
+        window, truncating to the newest N and then advancing the cursor would
+        permanently skip the remainder. Incremental reads therefore paginate
+        until the ``since`` boundary (or the global page safety cap) is reached.
+        """
+
         self._assert_allowed(repository)
         limit = self.settings.max_items_per_source
+        incremental = bool(since)
         items: list[dict[str, Any]] = []
 
         for page in self._iter_list_pages(
@@ -446,7 +456,7 @@ class GitHubReadOnlyClient:
                 "state": "all",
                 "sort": "updated",
                 "direction": "desc",
-                "per_page": min(limit, 100),
+                "per_page": 100 if incremental else min(limit, 100),
             },
         ):
             reached_since = False
@@ -458,17 +468,25 @@ class GitHubReadOnlyClient:
                     reached_since = True
                     break
                 items.append(pull)
-                if len(items) >= limit:
+                if not incremental and len(items) >= limit:
                     return items
             if reached_since:
                 break
         return items
 
     def list_issues(self, repository: str, since: str | None = None) -> list[dict[str, Any]]:
-        """Issues only. GitHub returns PRs from this endpoint too; filtered out."""
+        """Issues only; incremental polls drain the full ``since`` window.
+
+        GitHub's issues endpoint also returns PR-shaped rows, which are filtered
+        out. As with PRs, ``max_items_per_source`` applies only to initial
+        snapshots. When a cursor is present, the bounded pagination page limit
+        is the safety cap so a burst cannot be silently truncated before the
+        cursor is advanced.
+        """
 
         self._assert_allowed(repository)
         limit = self.settings.max_items_per_source
+        incremental = bool(since)
         items: list[dict[str, Any]] = []
 
         for page in self._iter_list_pages(
@@ -478,13 +496,13 @@ class GitHubReadOnlyClient:
                 "sort": "updated",
                 "direction": "desc",
                 "since": since,
-                "per_page": min(limit, 100),
+                "per_page": 100 if incremental else min(limit, 100),
             },
         ):
             for issue in page:
                 if "pull_request" in issue:
                     continue
                 items.append(issue)
-                if len(items) >= limit:
+                if not incremental and len(items) >= limit:
                     return items
         return items
