@@ -162,7 +162,7 @@ def pull_request_document(
     if number is None or not title:
         return None
     body = str(payload.get("body") or "").strip()
-    head_sha = str(((payload.get("head") or {}).get("sha")) or commit_sha)
+    head_sha = str(((payload.get("head") or {}).get("sha")) or "")
     timestamp = _parse_time(payload.get("updated_at")) or _parse_time(
         payload.get("created_at")
     )
@@ -175,7 +175,11 @@ def pull_request_document(
             source="github",
             repository=repository,
             path=f"pull/{number}",
-            commit_sha=head_sha or commit_sha,
+            # Anchor the citation to the allowlisted base repository revision
+            # at which this mutable PR was observed. A PR head SHA may belong
+            # to an untrusted fork and must not masquerade as a commit in the
+            # allowlisted base repository. Preserve it separately as DATA.
+            commit_sha=commit_sha,
             timestamp=timestamp,
             source_type=SourceType.PULL_REQUEST,
             # Third-party authored: treat as external input.
@@ -183,7 +187,11 @@ def pull_request_document(
             license=license,
             url=str(payload.get("html_url") or ""),
             author=_author(payload),
-            extra={"state": payload.get("state"), "merged": payload.get("merged_at") is not None},
+            extra={
+                "state": payload.get("state"),
+                "merged": payload.get("merged_at") is not None,
+                "head_sha": head_sha,
+            },
         ),
     )
 
