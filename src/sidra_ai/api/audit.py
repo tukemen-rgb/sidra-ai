@@ -88,20 +88,34 @@ class ApiAuditLog:
         Only explicitly selected keys are inspected. Security reasons,
         findings, model text, retrieved chunks and request content are never
         serialized.
+
+        ``github_analyze`` wraps the actual chat result under ``analysis``.
+        Audit outcome, decision and citations must therefore be derived from
+        that nested result when inference ran; otherwise an OutputGuard refusal
+        could be recorded as ``allowed``/``unknown`` even though the API safely
+        withheld the model output.
         """
 
-        security = response.get("security")
+        inference_skipped = bool(response.get("inference_skipped", False))
+        audited_response = response
+        analysis: dict[str, object] | None = None
+        if operation == "github_analyze":
+            raw_analysis = response.get("analysis")
+            if isinstance(raw_analysis, dict):
+                analysis = raw_analysis
+                audited_response = raw_analysis
+
+        security = audited_response.get("security")
         decision = "unknown"
         if isinstance(security, dict):
             raw_decision = security.get("decision")
             if isinstance(raw_decision, str):
                 decision = raw_decision
 
-        refused = bool(response.get("refused", False))
-        inference_skipped = bool(response.get("inference_skipped", False))
+        refused = bool(audited_response.get("refused", False))
         outcome = "refused" if refused else "skipped" if inference_skipped else "allowed"
 
-        citations = response.get("citations")
+        citations = audited_response.get("citations")
         citation_repositories: list[str] = []
         if isinstance(citations, list):
             for citation in citations:
@@ -110,7 +124,7 @@ class ApiAuditLog:
                     if isinstance(repository, str):
                         citation_repositories.append(repository)
 
-        results = response.get("results")
+        results = audited_response.get("results")
         if isinstance(results, list):
             for result in results:
                 if not isinstance(result, dict):
@@ -126,10 +140,9 @@ class ApiAuditLog:
             # A model may have run even when OutputGuard withholds its answer.
             # Presence of the model metadata is the non-sensitive invocation
             # signal; refusal alone must not rewrite history to "not invoked".
-            model_invoked = "model" in response
+            model_invoked = "model" in audited_response
         elif operation == "github_analyze":
-            analysis = response.get("analysis")
-            model_invoked = isinstance(analysis, dict) and "model" in analysis
+            model_invoked = analysis is not None and "model" in analysis
 
         self.record(
             ApiAuditEvent(
