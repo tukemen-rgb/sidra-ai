@@ -39,11 +39,29 @@ def placeholder(label: str, value: str) -> str:
     return PLACEHOLDER_TEMPLATE.format(label=label, fingerprint=fingerprint(value))
 
 
+def _privacy_preserving_label(existing: str, incoming: str) -> str:
+    """Prefer a PII label whenever overlapping spans include personal data.
+
+    Secret and PII detectors can legitimately flag the same bytes. For example,
+    ``password=alice@example.test`` is both an assigned secret and a personal
+    email. Keeping the secret label in that overlap would retain a deterministic
+    fingerprint of the email, defeating the invariant that PII never gets a
+    public correlation digest. Findings still retain both categories, so the
+    placeholder can safely prefer the more privacy-preserving label.
+    """
+
+    if incoming.startswith("pii_") and not existing.startswith("pii_"):
+        return incoming
+    return existing
+
+
 def redact_spans(content: str, spans: list[tuple[int, int, str]]) -> str:
     """Replace ``(start, end, label)`` spans with placeholders.
 
-    Overlapping spans are merged by keeping the first (outermost) label, so a
-    value is never partially revealed by a second, narrower redaction.
+    Overlapping spans are merged into one redaction region. The first outermost
+    label is kept except when any overlapping finding is PII; in that case a PII
+    label wins so the merged placeholder cannot retain a deterministic digest of
+    personal information.
     """
 
     if not spans:
@@ -56,7 +74,11 @@ def redact_spans(content: str, spans: list[tuple[int, int, str]]) -> str:
             continue
         if merged and start < merged[-1][1]:
             prev_start, prev_end, prev_label = merged[-1]
-            merged[-1] = (prev_start, max(prev_end, end), prev_label)
+            merged[-1] = (
+                prev_start,
+                max(prev_end, end),
+                _privacy_preserving_label(prev_label, label),
+            )
             continue
         merged.append((start, end, label))
 
