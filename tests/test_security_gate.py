@@ -124,6 +124,22 @@ def test_payment_card_is_detected(gate: SecurityGate) -> None:
     assert "4242 4242 4242 4242" not in result.content
 
 
+def test_national_id_candidate_is_quarantined_and_redacted(gate: SecurityGate) -> None:
+    """Standalone 12-digit national-ID candidates must not enter RAG raw."""
+
+    synthetic = "12345678901" + "8"
+    result = gate.inspect(
+        f"個人番号 {synthetic}",
+        source="github",
+        repository="tukemen-rgb/site",
+    )
+
+    assert result.has(FindingCategory.PII)
+    assert result.decision is Decision.QUARANTINE
+    assert synthetic not in result.content
+    assert "[REDACTED:pii_national_id_candidate]" in result.content
+
+
 @pytest.mark.parametrize(
     "payload",
     [
