@@ -147,9 +147,13 @@ def create_app(
     guarded = [Depends(authenticate), Depends(rate_limit)]
 
     # ------------------------------------------------------------------
-    @app.get("/health", response_model=HealthResponse)
+    @app.get(
+        "/health",
+        response_model=HealthResponse,
+        dependencies=[Depends(rate_limit)],
+    )
     def health() -> Any:
-        """Unauthenticated: it reports no content and no secret values."""
+        """Unauthenticated but rate-limited; reports no content or secret values."""
 
         return resolve_service().health()
 
