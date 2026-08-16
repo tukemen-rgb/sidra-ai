@@ -12,6 +12,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Sequence
 
+from sidra_ai.evals.audit_path_safety import run_audit_path_safety_suite
 from sidra_ai.evals.cases import GATE_CASES, EvalOutcome, GateCase
 from sidra_ai.evals.claim_coverage import run_claim_citation_coverage_suite
 from sidra_ai.evals.grounding import run_grounding_suite
@@ -110,6 +111,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     report.outcomes.extend(run_retrieval_quality_suite())
     report.outcomes.extend(run_health_resilience_suite())
     report.outcomes.extend(run_startup_safety_suite())
+    report.outcomes.extend(run_audit_path_safety_suite())
     return report
 
 
