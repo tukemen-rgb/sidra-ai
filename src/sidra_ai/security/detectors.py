@@ -321,9 +321,11 @@ _CARD_CANDIDATE = re.compile(
 #: in a commit message or a design doc. Measured across the five SIDRA
 #: repositories, that single false positive accounted for *every* quarantined
 #: document in `marketing` and most of them elsewhere. E.164 caps an
-#: international number at 15 digits.
+#: international number at 15 digits. The international regex already has an
+#: 8-digit structural minimum; retain that lower bound so false-positive
+#: tuning does not silently narrow the detector's previous recall.
 _JP_PHONE_DIGITS = frozenset({10, 11})
-_INTL_PHONE_DIGITS = frozenset(range(9, 16))
+_INTL_PHONE_DIGITS = frozenset(range(8, 16))
 
 
 def _only_digits(value: str) -> str:
