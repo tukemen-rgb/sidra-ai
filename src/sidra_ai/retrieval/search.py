@@ -158,6 +158,12 @@ class BM25Retriever:
     repository-scoped query invariant when unrelated repositories are added to
     the shared store, and prevents cross-repository corpus statistics from
     silently changing ranking or score thresholds.
+
+    ``None`` means "no scope restriction". An explicitly empty repository or
+    source-type sequence means "search nothing" rather than broadening back to
+    the whole store. This fail-closed distinction matters at API boundaries
+    where callers may intentionally resolve an authorization scope to zero
+    repositories.
     """
 
     def __init__(self, store: DocumentStore, *, k1: float = 1.5, b: float = 0.75) -> None:
@@ -224,15 +230,20 @@ class BM25Retriever:
         if not query_terms or not self._chunks or top_k <= 0:
             return []
 
-        repository_filter = {r.lower() for r in repositories} if repositories else None
-        type_filter = set(source_types) if source_types else None
+        repository_filter = (
+            None if repositories is None else {r.lower() for r in repositories}
+        )
+        type_filter = None if source_types is None else set(source_types)
 
         eligible_positions: list[int] = []
         for position, chunk in enumerate(self._chunks):
             provenance = chunk.provenance
-            if repository_filter and provenance.repository.lower() not in repository_filter:
+            if (
+                repository_filter is not None
+                and provenance.repository.lower() not in repository_filter
+            ):
                 continue
-            if type_filter and provenance.source_type not in type_filter:
+            if type_filter is not None and provenance.source_type not in type_filter:
                 continue
             eligible_positions.append(position)
 
