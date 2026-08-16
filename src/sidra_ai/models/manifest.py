@@ -176,24 +176,38 @@ def _parse_model(raw: Any, *, index: int) -> ManifestModel:
     )
 
 
+def _assert_trusted_manifest_path(manifest_path: Path) -> None:
+    """Reject parent traversal or any existing symlink in the manifest path."""
+
+    if ".." in manifest_path.parts:
+        raise ModelManifestError("model manifest parent traversal is not allowed")
+
+    current = manifest_path
+    while True:
+        try:
+            if current.is_symlink():
+                raise ModelManifestError("model manifest symlinks are not allowed")
+        except OSError as exc:
+            raise ModelManifestError("model manifest path cannot be trusted") from exc
+
+        parent = current.parent
+        if parent == current:
+            return
+        current = parent
+
+
 def _read_manifest_bytes(manifest_path: Path) -> bytes:
-    """Read one manifest without following its final path or immediate parent.
+    """Read one manifest without following symlinked path components.
 
     The manifest controls VRAM/context admission for local model startup, so a
     reviewed path must not be silently redirected to different routing metadata.
-    On platforms with ``O_NOFOLLOW`` the final-component check/open race is
-    closed by the kernel. The explicit parent/final symlink checks also fail
-    closed on platforms without that flag. ``fstat`` ensures a FIFO/device is
-    never accepted as routing metadata.
+    Every existing path component is checked for symlinks and explicit parent
+    traversal is rejected. On platforms with ``O_NOFOLLOW`` the final-component
+    check/open race is also closed by the kernel. ``fstat`` ensures a FIFO/device
+    is never accepted as routing metadata.
     """
 
-    try:
-        if manifest_path.parent.is_symlink():
-            raise ModelManifestError("model manifest parent symlinks are not allowed")
-        if manifest_path.is_symlink():
-            raise ModelManifestError("model manifest symlinks are not allowed")
-    except OSError as exc:
-        raise ModelManifestError("model manifest path cannot be trusted") from exc
+    _assert_trusted_manifest_path(manifest_path)
 
     flags = os.O_RDONLY
     flags |= getattr(os, "O_BINARY", 0)
@@ -225,12 +239,12 @@ def _read_manifest_bytes(manifest_path: Path) -> bytes:
 def load_local_model_manifest(path: str | Path) -> LocalModelManifest:
     """Load one reviewed JSON manifest from local disk, failing closed.
 
-    The final manifest path and its immediate parent must not be symlinks. The
-    file is opened without following the final component where supported,
-    verified as a regular file through the opened descriptor, bounded before
-    and during reading, decoded as strict UTF-8, uses duplicate-key detection,
-    rejects unknown fields, and accepts only backends already present in
-    SIDRA's local-only registry.
+    The final manifest path and every existing ancestor must not be symlinks,
+    and explicit parent traversal is rejected. The file is opened without
+    following the final component where supported, verified as a regular file
+    through the opened descriptor, bounded before and during reading, decoded as
+    strict UTF-8, uses duplicate-key detection, rejects unknown fields, and
+    accepts only backends already present in SIDRA's local-only registry.
     """
 
     manifest_path = Path(path)
