@@ -30,7 +30,7 @@ def test_explicit_empty_repository_scope_is_a_network_free_noop(
     assert report.requires_inference is False
     assert report.total_indexed == 0
     assert fake_github.requests == [], "empty scope unexpectedly contacted GitHub"
-    assert store.all_documents() == []
+    assert store.documents() == ()
 
 
 def test_none_repository_scope_still_means_configured_allowlist(
