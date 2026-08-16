@@ -174,13 +174,14 @@ def _request_to_ip(
                 body=b"",
             )
 
-        _validate_content_length(raw_headers, policy.max_response_bytes)
+        declared_length = _validate_content_length(raw_headers, policy.max_response_bytes)
         body = _read_bounded_body(
             response,
             tls_socket,
             max_bytes=policy.max_response_bytes,
             read_timeout_seconds=read_timeout_seconds,
             deadline=deadline,
+            expected_bytes=declared_length,
         )
         return _WireResponse(
             status=response.status,
@@ -266,6 +267,7 @@ def _read_bounded_body(
     max_bytes: int,
     read_timeout_seconds: float,
     deadline: float,
+    expected_bytes: int | None = None,
 ) -> bytes:
     chunks: list[bytes] = []
     total = 0
@@ -282,13 +284,20 @@ def _read_bounded_body(
             break
         chunks.append(chunk)
         total += len(chunk)
+        if expected_bytes is not None and total > expected_bytes:
+            raise FetchTransportError("response body length does not match Content-Length")
+
+    if expected_bytes is not None and total != expected_bytes:
+        raise FetchTransportError("response body length does not match Content-Length")
     return b"".join(chunks)
 
 
-def _validate_content_length(headers: Iterable[tuple[str, str]], max_bytes: int) -> None:
+def _validate_content_length(
+    headers: Iterable[tuple[str, str]], max_bytes: int
+) -> int | None:
     values = tuple(value for key, value in headers if key == "content-length")
     if not values:
-        return
+        return None
     if len(set(values)) != 1:
         raise FetchTransportError("response has conflicting Content-Length values")
     raw = values[0]
@@ -297,6 +306,7 @@ def _validate_content_length(headers: Iterable[tuple[str, str]], max_bytes: int)
     size = int(raw)
     if size > max_bytes:
         raise FetchTransportError("response exceeds byte limit")
+    return size
 
 
 def _select_response_headers(
