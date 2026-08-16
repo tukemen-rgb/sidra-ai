@@ -71,6 +71,7 @@ def test_output_security_regression_passes_offline() -> None:
     assert {outcome.case_name for outcome in outcomes} >= {
         "output_guard_reversible_exfiltration",
         "output_guard_service_boundary",
+        "operator_input_service_boundary",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
