@@ -23,6 +23,20 @@ Keep these invariants throughout setup and normal operation:
 
 The normal runtime can work with no paid LLM API and no GitHub token.
 
+### Current non-echo runtime status
+
+The repository now contains a strict local model manifest parser and a verified
+model-layer path that can perform:
+
+`reviewed manifest -> observed NVIDIA free VRAM -> exact configured candidate -> admitted context cap -> adapter`
+
+That path is **not yet mandatory inside `SidraService` startup**. The composition
+root still constructs the configured model through `adapter_from_settings()`.
+Issue #89 tracks the remaining L4/L5 wiring. Until that issue is closed and the
+combined exact-SHA gate is green, use `echo` as the verified API-startup baseline.
+You may stage Ollama/llama.cpp models and validate manifest/routing metadata, but
+do not call the home PC "real-model SIDRA-ready" yet.
+
 ## 1. Install the Python environment
 
 Requirements:
@@ -126,7 +140,7 @@ The routing layer can cap admission by observed free VRAM. Do not choose a model
 from parameter count alone. Record measured weight memory, KV-cache growth,
 planned context, and a safety reserve; unknown memory demand should fail closed.
 
-## 5. Pre-stage a local model artifact
+## 5. Pre-stage a local model artifact and routing manifest
 
 Model acquisition belongs to an explicit staging step, separate from Core
 runtime operation. Keep model artifacts outside the Git repository, for example
@@ -144,6 +158,37 @@ For every model/quantization, retain a local record (not a secret) containing:
 
 Do not treat a mutable model name such as `latest` as sufficient provenance for
 a promoted runtime.
+
+SIDRA's strict local manifest parser accepts a bounded JSON document with
+explicit routing metadata. A minimal reviewed record has this shape:
+
+```json
+{
+  "version": 1,
+  "models": [
+    {
+      "backend": "ollama",
+      "model": "local-reviewed-tag",
+      "weights_vram_mib": 1800,
+      "kv_cache_mib_per_1k_tokens": 100,
+      "max_context_tokens": 4096,
+      "quantization": "Q4_K_M",
+      "priority": 10,
+      "license": "record-the-real-license",
+      "revision": "immutable-local-or-upstream-revision"
+    }
+  ]
+}
+```
+
+These numbers are examples of the schema only, **not model recommendations or
+measurements**. Replace them with measured or conservative values for the exact
+artifact. URL-shaped model references, unknown fields, missing KV/context data,
+symlinked manifests, and missing revision/artifact provenance fail closed.
+
+The parser/routing helpers do not automatically make this manifest part of
+`SidraService` yet; Issue #89 must be completed before real-model API startup is
+considered fully admission-controlled.
 
 ### llama.cpp / GGUF
 
@@ -168,7 +213,7 @@ installed llama.cpp release):
 llama-server -m /path/to/model.gguf --host 127.0.0.1 --port 8080
 ```
 
-Then configure SIDRA:
+For staging/routing validation you may prepare the corresponding environment:
 
 ```bash
 export SIDRA_MODEL_BACKEND=llama_cpp
@@ -177,7 +222,9 @@ export SIDRA_MODEL_ENDPOINT=http://127.0.0.1:8080
 python -m sidra_ai.local_preflight
 ```
 
-PowerShell uses the equivalent `$env:NAME = "value"` syntax.
+PowerShell uses the equivalent `$env:NAME = "value"` syntax. Until Issue #89 is
+closed, switch back to `SIDRA_MODEL_BACKEND=echo` for the verified API-startup
+baseline.
 
 ### Ollama
 
@@ -194,14 +241,17 @@ python -m sidra_ai.local_preflight
 ```
 
 The preflight validates endpoint locality but deliberately does **not** contact
-the Ollama daemon or generate text.
+the Ollama daemon or generate text. Until Issue #89 is closed, this is staging
+and validation, not proof that normal `SidraService` startup enforced the
+manifest/VRAM admission path.
 
 ## 6. Start and verify the SIDRA API
 
-After offline tests, evals, configuration preflight, and local model staging are
-all green:
+The verified API-startup baseline is currently `echo`. After offline tests,
+evals, and configuration preflight are green:
 
 ```bash
+export SIDRA_MODEL_BACKEND=echo
 sidra-api
 ```
 
@@ -214,12 +264,13 @@ curl http://127.0.0.1:8787/health
 PowerShell alternative:
 
 ```powershell
+$env:SIDRA_MODEL_BACKEND = "echo"
 Invoke-RestMethod http://127.0.0.1:8787/health
 ```
 
-For a real local backend, `/health` is the first deliberate runtime probe of the
-configured local inference service. Keep the SIDRA API and model service bound
-to loopback for this baseline.
+After Issue #89 is completed and revalidated, this section can be expanded to
+make the reviewed manifest + observed-VRAM route mandatory for Ollama/llama.cpp
+startup before the API socket is opened.
 
 ## 7. GitHub RAG verification
 
@@ -247,15 +298,21 @@ Do not call the machine "SIDRA-ready" until all applicable checks are true:
 3. `sidra-evals` is green;
 4. `python -m sidra_ai.local_preflight` returns `ok: true`;
 5. API bind remains loopback-only;
-6. selected backend is `echo`, `ollama`, or `llama_cpp`;
-7. real model artifact/tag has recorded source/revision/license and integrity
-   evidence appropriate to that backend;
-8. NVIDIA setups have a trustworthy local free-VRAM observation before routing;
-9. `sidra-api` starts without exposing a public socket;
-10. `/health` succeeds and, for a real backend, confirms local model availability;
-11. no paid/external LLM fallback is configured;
-12. no production publish, GAMEYARD/CreatorYard connection, billing, external
+6. selected API-startup backend is `echo` until Issue #89 is closed;
+7. any staged real model artifact/tag has recorded source/revision/license and
+   integrity evidence appropriate to that backend;
+8. any staged real model has reviewed manifest metadata for weights VRAM,
+   KV-cache growth, maximum context and quantization;
+9. NVIDIA routing validation has a trustworthy local free-VRAM observation;
+10. `sidra-api` starts without exposing a public socket;
+11. `/health` succeeds on the verified API-startup baseline;
+12. no paid/external LLM fallback is configured;
+13. no production publish, GAMEYARD/CreatorYard connection, billing, external
     write/send, or destructive operation has been enabled as part of this setup.
+
+After Issue #89 closes, add the real-model runtime acceptance checks: mandatory
+manifest match, fresh VRAM probe, no static-budget fallback, admitted context
+cap preserved by the adapter, and successful loopback model health.
 
 A failure in any required check is a stop condition, not a reason to weaken the
 corresponding safety gate.
