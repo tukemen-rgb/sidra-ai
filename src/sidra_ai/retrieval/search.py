@@ -8,13 +8,16 @@ installed" promise. Embedding-based retrieval slots in behind the same
 
 Tokenization handles Japanese without a morphological analyzer by emitting
 character bigrams for CJK runs, which is a well-worn approximation for
-mixed-language corpora.
+mixed-language corpora. Compatibility-equivalent Unicode is normalized before
+tokenization so full-width ASCII and half-width katakana do not silently miss
+the same repository content written in their common forms.
 """
 
 from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
@@ -35,14 +38,20 @@ _STOPWORDS = frozenset(
     }
 )
 
+#: Adjacent chunks from one long document often repeat the same evidence due
+#: to chunk overlap. Prefer breadth before allowing one document to consume
+#: the whole context window, while still permitting two chunks when a section
+#: boundary splits a useful passage.
+_MAX_CHUNKS_PER_DOCUMENT = 2
+
 
 def tokenize(text: str) -> list[str]:
-    """Lowercased Latin words plus CJK character bigrams."""
+    """NFKC-normalized, case-folded Latin words plus CJK character bigrams."""
 
-    lowered = text.lower()
-    tokens = [t for t in _LATIN.findall(lowered) if t not in _STOPWORDS]
+    normalized = unicodedata.normalize("NFKC", text).casefold()
+    tokens = [t for t in _LATIN.findall(normalized) if t not in _STOPWORDS]
 
-    for run in _CJK_RUN.findall(lowered):
+    for run in _CJK_RUN.findall(normalized):
         if len(run) == 1:
             tokens.append(run)
             continue
@@ -72,6 +81,68 @@ class SearchResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {"score": round(self.score, 4), **self.chunk.to_dict()}
+
+
+def _diversify_results(scored: Sequence[SearchResult], top_k: int) -> list[SearchResult]:
+    """Prefer source breadth, then limited depth, while preserving score order.
+
+    A single "at most two chunks per document" pass still lets the two highest
+    scoring chunks from one document consume ``top_k=2`` before a relevant peer
+    is considered.  Diversification therefore happens in three deterministic
+    stages:
+
+    1. take the highest-scoring chunk from each distinct document;
+    2. if space remains, allow a second chunk per document;
+    3. if the corpus is too narrow to fill ``top_k``, backfill remaining chunks.
+
+    Every stage preserves the original BM25 ordering among eligible chunks.
+    This keeps small context windows diverse without reducing result count for
+    single-document queries.
+    """
+
+    if top_k <= 0:
+        return []
+
+    selected: list[SearchResult] = []
+    selected_chunk_ids: set[str] = set()
+    per_document: Counter[str] = Counter()
+
+    # Breadth first: one chunk per document. This is the critical pass for
+    # small context windows such as top_k=2.
+    for result in scored:
+        document_id = result.chunk.document_id
+        if per_document[document_id]:
+            continue
+        selected.append(result)
+        selected_chunk_ids.add(result.chunk.chunk_id)
+        per_document[document_id] += 1
+        if len(selected) >= top_k:
+            return selected
+
+    # Depth second: allow one additional chunk from each document while
+    # keeping the original score order.
+    for result in scored:
+        if result.chunk.chunk_id in selected_chunk_ids:
+            continue
+        document_id = result.chunk.document_id
+        if per_document[document_id] >= _MAX_CHUNKS_PER_DOCUMENT:
+            continue
+        selected.append(result)
+        selected_chunk_ids.add(result.chunk.chunk_id)
+        per_document[document_id] += 1
+        if len(selected) >= top_k:
+            return selected
+
+    # Narrow-corpus fallback: do not return fewer than top_k merely because
+    # only one or two documents matched.
+    for result in scored:
+        if result.chunk.chunk_id in selected_chunk_ids:
+            continue
+        selected.append(result)
+        selected_chunk_ids.add(result.chunk.chunk_id)
+        if len(selected) >= top_k:
+            break
+    return selected
 
 
 class BM25Retriever:
@@ -133,11 +204,11 @@ class BM25Retriever:
         source_types: Iterable[SourceType] | None = None,
         min_score: float = 0.0,
     ) -> list[SearchResult]:
-        """Return the best-scoring chunks, most relevant first."""
+        """Return score-ranked chunks with document-level diversity."""
 
         self._ensure_index()
         query_terms = tokenize(query)
-        if not query_terms or not self._chunks:
+        if not query_terms or not self._chunks or top_k <= 0:
             return []
 
         repository_filter = {r.lower() for r in repositories} if repositories else None
@@ -167,7 +238,7 @@ class BM25Retriever:
                 scored.append(SearchResult(chunk=chunk, score=score))
 
         scored.sort(key=lambda r: (-r.score, r.chunk.chunk_id))
-        return scored[:top_k]
+        return _diversify_results(scored, top_k)
 
 
 #: The interface every retriever must satisfy. Kept as an alias so callers
