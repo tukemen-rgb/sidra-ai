@@ -8,6 +8,9 @@ Exposure posture for v0.1:
   mandatory off-loopback.
 * A per-client rate limit is applied to every API route; ``/health`` remains
   unauthenticated but cannot trigger unbounded local model health probes.
+* Rate-limiter client state is bounded and fails closed for new clients when
+  the active-client budget is saturated, so public-bind opt-in cannot turn
+  source-IP churn into unbounded in-process memory growth.
 * The health-probe budget is isolated from the authenticated ``/v1`` budget so
   an aggressive monitor cannot consume a client's normal API allowance.
 * CORS is not enabled. Browsers on other origins cannot reach this.
@@ -17,7 +20,7 @@ from __future__ import annotations
 
 import hmac
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from pathlib import Path
 from typing import Any
 
@@ -40,22 +43,54 @@ from sidra_ai.ingestion.github_client import RepositoryNotAllowedError
 
 
 class RateLimiter:
-    """Fixed-window-per-client limiter.
+    """Fixed-window-per-client limiter with bounded client state.
 
     In-process only, which is correct for a single-node localhost service.
     A multi-node deployment needs a shared counter - noted in the roadmap
     rather than faked here.
+
+    The client map is intentionally bounded. If the active-client budget is
+    full, an unseen client is rejected rather than allocating more memory or
+    evicting an active client's rate-limit state. Expired least-recently-used
+    clients are reclaimed before that fail-closed decision.
     """
 
-    def __init__(self, per_minute: int) -> None:
+    def __init__(self, per_minute: int, *, max_clients: int = 2048) -> None:
+        if max_clients <= 0:
+            raise ValueError("max_clients must be positive")
         self.per_minute = per_minute
-        self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self.max_clients = max_clients
+        self._hits: OrderedDict[str, deque[float]] = OrderedDict()
+
+    @staticmethod
+    def _prune_window(window: deque[float], now: float) -> None:
+        while window and now - window[0] > 60.0:
+            window.popleft()
+
+    def _reclaim_expired_clients(self, now: float) -> None:
+        """Drop expired LRU entries without scanning the full client map."""
+
+        while self._hits:
+            client, window = next(iter(self._hits.items()))
+            self._prune_window(window, now)
+            if window:
+                break
+            del self._hits[client]
 
     def check(self, client: str) -> bool:
         now = time.monotonic()
-        window = self._hits[client]
-        while window and now - window[0] > 60.0:
-            window.popleft()
+        window = self._hits.get(client)
+
+        if window is None:
+            self._reclaim_expired_clients(now)
+            if len(self._hits) >= self.max_clients:
+                return False
+            window = deque()
+            self._hits[client] = window
+        else:
+            self._hits.move_to_end(client)
+
+        self._prune_window(window, now)
         if len(window) >= self.per_minute:
             return False
         window.append(now)
