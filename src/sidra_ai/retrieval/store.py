@@ -19,11 +19,11 @@ explicitly.  This prevents an old, correctly cited document from continuing
 to masquerade as current knowledge merely because its commit SHA differs.
 
 Optional JSONL persistence is also a security boundary. The configured target
-must be a regular file reached without following a final-path or immediate-
-parent symlink, and owner-only permissions are enforced through the opened
-file descriptor where the platform supports it. A persistence failure occurs
-before the in-memory index is mutated so a failed write cannot silently retire
-the previously retrievable revision.
+must be a regular file reached without following a final-path symlink or any
+existing symlink in its parent ancestry, and owner-only permissions are
+enforced through the opened file descriptor where the platform supports it.
+A persistence failure occurs before the in-memory index is mutated so a failed
+write cannot silently retire the previously retrievable revision.
 """
 
 from __future__ import annotations
@@ -116,8 +116,8 @@ class DocumentStore:
 
         Once the candidate has passed every safety check, older revisions of
         the same logical source are retired under the same store lock before
-        the new chunks become retrievable.  Safety failures therefore never delete
-        the previously indexed revision implicitly; ingestion must call
+        the new chunks become retrievable. Safety failures therefore never
+        delete the previously indexed revision implicitly; ingestion must call
         :meth:`retire_source` explicitly when the upstream source was deleted
         or its newest revision is intentionally not retrievable.
 
@@ -200,7 +200,7 @@ class DocumentStore:
         """Remove retrievable revisions for one exact logical source.
 
         This is intentionally exact-match only: no glob, prefix, or repository-
-        wide deletion is accepted.  L3 ingestion can use it when GitHub reports
+        wide deletion is accepted. L3 ingestion can use it when GitHub reports
         a path deleted, or when the newest revision is BLOCK/QUARANTINE and an
         older revision must not remain retrievable as if it were current.
 
@@ -236,20 +236,41 @@ class DocumentStore:
             return retired
 
     # ------------------------------------------------------------------
+    @staticmethod
+    def _assert_no_symlink_ancestors(path: Path) -> None:
+        """Reject any existing symlink in ``path`` or its ancestor chain."""
+
+        current = path
+        while True:
+            try:
+                if current.is_symlink():
+                    raise PersistencePathError(
+                        "refusing persistence path through symlinked directory"
+                    )
+            except OSError as exc:
+                raise PersistencePathError(
+                    "could not inspect persistence directory"
+                ) from exc
+
+            parent = current.parent
+            if parent == current:
+                return
+            current = parent
+
     def _open_persistence_fd(self) -> int:
-        """Open the JSONL target without following a replaceable final symlink."""
+        """Open the JSONL target without following symlinked path components."""
 
         assert self._path is not None
-        parent = self._path.parent
+        if ".." in self._path.parts:
+            raise PersistencePathError("refusing persistence path with parent traversal")
 
-        if parent.is_symlink():
-            raise PersistencePathError("refusing symlinked persistence parent directory")
+        parent = self._path.parent
+        self._assert_no_symlink_ancestors(parent)
         try:
             parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             raise PersistencePathError("could not prepare persistence directory") from exc
-        if parent.is_symlink():
-            raise PersistencePathError("refusing symlinked persistence parent directory")
+        self._assert_no_symlink_ancestors(parent)
         if self._path.is_symlink():
             raise PersistencePathError("refusing symlinked persistence target")
 
@@ -282,8 +303,6 @@ class DocumentStore:
                 handle.write(encoded)
                 handle.flush()
         except BaseException:
-            # ``fdopen`` owns the descriptor after construction. If construction
-            # itself fails, closing here is still safe on the normal code path.
             try:
                 os.close(fd)
             except OSError:
