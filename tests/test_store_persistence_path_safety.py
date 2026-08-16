@@ -86,3 +86,32 @@ def test_symlinked_persistence_parent_is_rejected(tmp_path: Path) -> None:
 
     assert not (real_parent / "index.jsonl").exists()
     assert len(store) == 0
+
+
+def test_symlinked_persistence_grandparent_is_rejected(tmp_path: Path) -> None:
+    real_root = tmp_path / "real-root"
+    real_root.mkdir()
+    linked_root = tmp_path / "linked-root"
+    _symlink_or_skip(linked_root, real_root, directory=True)
+
+    nested = linked_root / "nested"
+    store = DocumentStore(SecurityGate(), path=nested / "index.jsonl")
+
+    with pytest.raises(PersistencePathError):
+        store.add(_document("must_not_escape_ancestor"))
+
+    assert not (real_root / "nested" / "index.jsonl").exists()
+    assert len(store) == 0
+
+
+def test_parent_traversal_component_is_rejected(tmp_path: Path) -> None:
+    store = DocumentStore(
+        SecurityGate(),
+        path=tmp_path / "child" / ".." / "index.jsonl",
+    )
+
+    with pytest.raises(PersistencePathError):
+        store.add(_document("must_not_use_parent_traversal"))
+
+    assert not (tmp_path / "index.jsonl").exists()
+    assert len(store) == 0
