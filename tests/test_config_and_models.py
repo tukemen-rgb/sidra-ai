@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from sidra_ai.config.settings import (
@@ -11,7 +13,11 @@ from sidra_ai.config.settings import (
     UnsafeConfigurationError,
     reset_settings_cache,
 )
-from sidra_ai.models.base import LocalModelAdapter, ModelUnavailableError
+from sidra_ai.models.base import (
+    GenerationRequest,
+    LocalModelAdapter,
+    ModelUnavailableError,
+)
 from sidra_ai.models.registry import (
     PaidBackendRejectedError,
     adapter_from_settings,
@@ -139,6 +145,17 @@ def test_remote_model_endpoint_is_refused_by_default() -> None:
         OllamaAdapter("llama3", endpoint="http://inference.example.com:11434")
 
 
+def test_remote_model_endpoint_cannot_be_enabled_with_ad_hoc_option() -> None:
+    from sidra_ai.models.http_backends import OllamaAdapter
+
+    with pytest.raises(ModelUnavailableError, match="does not allow remote"):
+        OllamaAdapter(
+            "llama3",
+            endpoint="http://inference.example.com:11434",
+            allow_remote_endpoint=True,
+        )
+
+
 def test_loopback_model_endpoint_is_accepted() -> None:
     from sidra_ai.models.http_backends import LlamaCppAdapter
 
@@ -147,7 +164,6 @@ def test_loopback_model_endpoint_is_accepted() -> None:
 
 
 def test_echo_backend_works_without_weights_or_network() -> None:
-    from sidra_ai.models.base import GenerationRequest
     from sidra_ai.models.echo import EchoModelAdapter
 
     result = EchoModelAdapter().generate(
@@ -162,6 +178,337 @@ def test_backends_are_swappable_through_one_interface() -> None:
         adapter = create_adapter(name, "model-name")
         assert isinstance(adapter, LocalModelAdapter)
         assert hasattr(adapter, "generate")
+        assert hasattr(adapter, "generate_stream")
+
+
+def test_non_streaming_backend_has_safe_single_chunk_fallback() -> None:
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    adapter = EchoModelAdapter()
+    request = GenerationRequest(system_prompt="s", user_message="q")
+    chunks = list(adapter.generate_stream(request))
+
+    assert len(chunks) == 1
+    assert chunks[0].done is True
+    assert chunks[0].text_delta
+    assert chunks[0].backend == "echo"
+    assert chunks[0].metadata["cost_usd"] == 0.0
+    assert adapter.supports_streaming is False
+
+
+def test_ollama_streams_ndjson_without_buffering_full_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sidra_ai.models.http_backends import OllamaAdapter
+
+    adapter = OllamaAdapter("local-model")
+    events = [
+        json.dumps({"response": "Hel", "done": False}),
+        json.dumps({"response": "lo", "done": False}),
+        json.dumps(
+            {
+                "response": "",
+                "done": True,
+                "done_reason": "stop",
+                "prompt_eval_count": 12,
+                "eval_count": 2,
+                "eval_duration": 100,
+                "context": [1, 2, 3],
+            }
+        ),
+    ]
+    monkeypatch.setattr(adapter, "_stream_lines", lambda path, payload: iter(events))
+
+    chunks = list(
+        adapter.generate_stream(
+            GenerationRequest(system_prompt="system", user_message="question")
+        )
+    )
+
+    assert "".join(chunk.text_delta for chunk in chunks) == "Hello"
+    assert chunks[-1].done is True
+    assert chunks[-1].input_tokens_estimate == 12
+    assert chunks[-1].output_tokens_estimate == 2
+    assert chunks[-1].metadata["eval_duration"] == 100
+    assert "context" not in chunks[-1].metadata
+    assert adapter.supports_streaming is True
+
+
+def test_llama_cpp_streams_sse_and_counts_returned_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sidra_ai.models.http_backends import LlamaCppAdapter
+
+    adapter = LlamaCppAdapter("local-model")
+    events = [
+        ": keepalive",
+        'data: {"content":"Hi","tokens":[10],"stop":false}',
+        'data: {"content":"!","tokens":[11],"stop":true,"stop_type":"eos"}',
+    ]
+    monkeypatch.setattr(adapter, "_stream_lines", lambda path, payload: iter(events))
+
+    chunks = list(
+        adapter.generate_stream(
+            GenerationRequest(system_prompt="system", user_message="question")
+        )
+    )
+
+    assert "".join(chunk.text_delta for chunk in chunks) == "Hi!"
+    assert chunks[-1].done is True
+    assert chunks[-1].output_tokens_estimate == 2
+    assert chunks[-1].finish_reason == "eos"
+    assert adapter.supports_streaming is True
+
+
+def test_stream_rejects_backend_error_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sidra_ai.models.http_backends import OllamaAdapter
+
+    adapter = OllamaAdapter("local-model")
+    monkeypatch.setattr(
+        adapter,
+        "_stream_lines",
+        lambda path, payload: iter([json.dumps({"error": "generation failed"})]),
+    )
+
+    with pytest.raises(ModelUnavailableError, match="generation failed"):
+        list(
+            adapter.generate_stream(
+                GenerationRequest(system_prompt="system", user_message="question")
+            )
+        )
+
+
+def test_stream_requires_explicit_terminal_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sidra_ai.models.http_backends import LlamaCppAdapter
+
+    adapter = LlamaCppAdapter("local-model")
+    monkeypatch.setattr(
+        adapter,
+        "_stream_lines",
+        lambda path, payload: iter(
+            ['data: {"content":"partial","tokens":[1],"stop":false}']
+        ),
+    )
+
+    with pytest.raises(ModelUnavailableError, match="terminal event"):
+        list(
+            adapter.generate_stream(
+                GenerationRequest(system_prompt="system", user_message="question")
+            )
+        )
+
+
+def test_local_benchmark_records_speed_memory_and_quantization_without_text() -> None:
+    from sidra_ai.models.base import GenerationChunk, GenerationResult
+    from sidra_ai.models.benchmark import run_benchmark
+
+    class StreamingAdapter(LocalModelAdapter):
+        backend = "fake_local"
+        supports_streaming = True
+
+        def generate(self, request: GenerationRequest) -> GenerationResult:
+            raise AssertionError("native streaming path should be used")
+
+        def generate_stream(self, request: GenerationRequest):
+            yield GenerationChunk(
+                text_delta="abc",
+                backend=self.backend,
+                model=self.model,
+                output_tokens_estimate=3,
+            )
+            yield GenerationChunk(
+                text_delta="def",
+                backend=self.backend,
+                model=self.model,
+                done=True,
+                input_tokens_estimate=10,
+                output_tokens_estimate=6,
+                finish_reason="stop",
+            )
+
+    adapter = StreamingAdapter("local-q4", quantization="Q4_K_M")
+    times = iter([10.0, 10.5, 12.0])
+    memory = iter([4096.0, 4608.0])
+    request = GenerationRequest(
+        system_prompt="PRIVATE SYSTEM",
+        user_message="PRIVATE QUESTION",
+        data_context="PRIVATE DATA",
+    )
+    result = run_benchmark(
+        adapter,
+        request,
+        clock=lambda: next(times),
+        memory_probe=lambda: next(memory),
+    )
+
+    assert result.time_to_first_token_s == 0.5
+    assert result.total_time_s == 2.0
+    assert result.output_tokens_estimate == 6
+    assert result.output_tokens_per_second == 3.0
+    assert result.memory_delta_mib == 512.0
+    assert result.quantization == "Q4_K_M"
+    serialized = json.dumps(result.to_dict())
+    assert "PRIVATE SYSTEM" not in serialized
+    assert "PRIVATE QUESTION" not in serialized
+    assert "PRIVATE DATA" not in serialized
+    assert result.to_dict()["external_api_cost_usd"] == 0.0
+
+
+def test_local_benchmark_supports_dependency_free_non_streaming_backend() -> None:
+    from sidra_ai.models.benchmark import run_benchmark
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    adapter = EchoModelAdapter()
+    times = iter([1.0, 1.25])
+    result = run_benchmark(
+        adapter,
+        GenerationRequest(system_prompt="s", user_message="q"),
+        clock=lambda: next(times),
+    )
+
+    assert result.backend == "echo"
+    assert result.supports_streaming is False
+    assert result.total_time_s == 0.25
+    assert result.time_to_first_token_s == 0.25
+    assert result.output_tokens_estimate > 0
+    assert result.to_dict()["external_api_cost_usd"] == 0.0
+
+
+def test_local_benchmark_refuses_paid_backend_even_if_constructed_directly() -> None:
+    from sidra_ai.models.base import GenerationResult
+    from sidra_ai.models.benchmark import UnsafeBenchmarkBackendError, run_benchmark
+
+    class PaidAdapter(LocalModelAdapter):
+        backend = "paid"
+        requires_paid_api = True
+
+        def generate(self, request: GenerationRequest) -> GenerationResult:
+            raise AssertionError("paid adapter must never be invoked")
+
+    with pytest.raises(UnsafeBenchmarkBackendError, match="paid backend"):
+        run_benchmark(
+            PaidAdapter("remote"),
+            GenerationRequest(system_prompt="s", user_message="q"),
+        )
+
+
+def test_budget_wrapper_clamps_output_before_local_backend_call() -> None:
+    from sidra_ai.models.base import GenerationResult
+    from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
+
+    class RecordingAdapter(LocalModelAdapter):
+        backend = "recording"
+
+        def __init__(self) -> None:
+            super().__init__("local")
+            self.seen: GenerationRequest | None = None
+
+        def generate(self, request: GenerationRequest) -> GenerationResult:
+            self.seen = request
+            return GenerationResult(text="ok", backend=self.backend, model=self.model)
+
+    inner = RecordingAdapter()
+    adapter = BudgetedLocalModelAdapter(
+        inner, max_context_tokens=40, reserve_tokens=4
+    )
+    adapter.generate(
+        GenerationRequest(
+            system_prompt="system",
+            user_message="question",
+            max_output_tokens=100,
+        )
+    )
+
+    assert inner.seen is not None
+    assert 0 < inner.seen.max_output_tokens < 100
+
+
+def test_budget_wrapper_fails_before_backend_on_oversized_input() -> None:
+    from sidra_ai.models.base import GenerationResult
+    from sidra_ai.models.budget import ContextWindowExceededError
+    from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
+
+    class RecordingAdapter(LocalModelAdapter):
+        backend = "recording"
+
+        def __init__(self) -> None:
+            super().__init__("local")
+            self.calls = 0
+
+        def generate(self, request: GenerationRequest) -> GenerationResult:
+            self.calls += 1
+            return GenerationResult(text="unsafe", backend=self.backend, model=self.model)
+
+    inner = RecordingAdapter()
+    adapter = BudgetedLocalModelAdapter(
+        inner, max_context_tokens=8, reserve_tokens=2
+    )
+
+    with pytest.raises(ContextWindowExceededError, match="reduce input"):
+        adapter.generate(
+            GenerationRequest(
+                system_prompt="system",
+                user_message="x" * 100,
+                max_output_tokens=4,
+            )
+        )
+    assert inner.calls == 0
+
+
+def test_registry_can_budget_wrap_any_registered_local_backend() -> None:
+    from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
+
+    adapter = create_adapter(
+        "echo",
+        "sidra-local-v0",
+        max_context_tokens=64,
+        context_reserve_tokens=8,
+    )
+
+    assert isinstance(adapter, BudgetedLocalModelAdapter)
+    assert adapter.backend == "echo"
+    assert adapter.requires_paid_api is False
+    assert adapter.health()["max_context_tokens"] == 64
+
+
+def test_routed_adapter_cannot_exceed_vram_admitted_context_plan() -> None:
+    """A route admitted for 2k context must not later accept an 8k-class request."""
+
+    from sidra_ai.models.budget import ContextWindowExceededError
+    from sidra_ai.models.routing import (
+        HardwareBudget,
+        LocalModelCandidate,
+        route_and_create_adapter,
+    )
+
+    routed = route_and_create_adapter(
+        [
+            LocalModelCandidate(
+                backend="echo",
+                model="sidra-local-v0",
+                weights_vram_mib=2048,
+                kv_cache_mib_per_1k_tokens=128,
+                max_context_tokens=8192,
+                quantization="Q4_K_M",
+            )
+        ],
+        hardware=HardwareBudget(vram_mib=6144, reserve_vram_mib=512),
+        planned_context_tokens=2000,
+        adapter_options={"context_reserve_tokens": 128},
+    )
+
+    assert routed.decision.candidate.max_context_tokens == 8192
+    assert routed.decision.planned_context_tokens == 2000
+    assert routed.adapter.health()["max_context_tokens"] == 2000
+
+    with pytest.raises(ContextWindowExceededError, match="reduce input"):
+        routed.adapter.generate(
+            GenerationRequest(
+                system_prompt="system",
+                user_message="x" * 9000,
+                max_output_tokens=64,
+            )
+        )
 
 
 def test_no_paid_llm_sdk_is_a_dependency() -> None:
