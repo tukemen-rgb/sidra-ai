@@ -3,9 +3,11 @@ name: SIDRA AI v0.1 Integration Gate
 on:
   push:
     branches:
+      - main
       - integration/v0.1-candidate
   pull_request:
     branches:
+      - main
       - integration/v0.1-candidate
 
 permissions:
