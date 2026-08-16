@@ -1,16 +1,16 @@
 """Per-repository ingestion state.
 
 The state file records the last commit SHA SIDRA ingested for each
-repository. On the next run the client asks GitHub for HEAD; if it matches,
-the pipeline stops immediately - no content is fetched, nothing is chunked,
-and **no model is invoked**. That is the mechanism that keeps idle polling
-free.
+repository. It is also the cursor for mutable PR/Issue polling, so the file is
+part of the RAG freshness and correctness boundary. A damaged or redirected
+state path must fail closed rather than reset or move repository cursors.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 import time
 from contextlib import contextmanager
@@ -85,6 +85,12 @@ class StateStore:
     overwriting each other's cursor state. The lock contains no state or
     credentials and is held only for the local file update.
 
+    The state path itself is security-sensitive because redirecting it can
+    silently move SHA/activity cursors to another local tree. Explicit parent
+    traversal, symlinked path ancestry, symlinked final targets, and
+    non-regular existing targets therefore fail closed before state is read or
+    replaced.
+
     An existing state file is part of the correctness boundary. If it cannot
     be read or decoded, this store fails closed instead of silently replacing
     every repository cursor with a fresh empty state.
@@ -98,17 +104,120 @@ class StateStore:
         self.path = Path(path)
         self._lock_path = self.path.with_name(self.path.name + ".lock")
 
-    def load(self) -> IngestionState:
-        if not self.path.exists():
-            return IngestionState()
+    def _reject_parent_traversal(self) -> None:
+        if any(part == ".." for part in self.path.parts):
+            raise StateStoreError(
+                "ingestion state path contains explicit parent traversal"
+            )
+
+    def _assert_parent_ancestry_safe(self) -> None:
+        """Reject symlink/non-directory components in existing parent ancestry."""
+
+        self._reject_parent_traversal()
+        current = Path(os.path.abspath(os.fspath(self.path.parent)))
+
+        while True:
+            try:
+                mode = current.lstat().st_mode
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                raise StateStoreError(
+                    "ingestion state parent ancestry could not be inspected"
+                ) from exc
+            else:
+                if stat.S_ISLNK(mode):
+                    raise StateStoreError(
+                        "ingestion state parent ancestry contains a symlink"
+                    )
+                if not stat.S_ISDIR(mode):
+                    raise StateStoreError(
+                        "ingestion state parent ancestry contains a non-directory"
+                    )
+
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+
+    def _assert_state_target_safe(self) -> None:
+        """Reject an existing final target unless it is a regular file."""
+
+        self._assert_parent_ancestry_safe()
         try:
-            with self.path.open("r", encoding="utf-8") as handle:
-                raw = json.load(handle)
+            mode = self.path.lstat().st_mode
         except FileNotFoundError:
-            # The state may have been removed between exists() and open().
-            # Treat an actually missing file like first run, but never collapse
-            # other read/parse failures into an empty multi-repository state.
+            return
+        except OSError as exc:
+            raise StateStoreError(
+                "persisted ingestion state target could not be inspected"
+            ) from exc
+
+        if stat.S_ISLNK(mode):
+            raise StateStoreError("persisted ingestion state target is a symlink")
+        if not stat.S_ISREG(mode):
+            raise StateStoreError(
+                "persisted ingestion state target is not a regular file"
+            )
+
+    def _prepare_parent_directory(self) -> None:
+        """Create missing parent directories without traversing known symlinks."""
+
+        self._assert_parent_ancestry_safe()
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise StateStoreError(
+                "ingestion state parent directory could not be created safely"
+            ) from exc
+        # Re-check after creation so a concurrent pathname change is not used
+        # silently for the subsequent lock/temp-file operations.
+        self._assert_parent_ancestry_safe()
+
+    def _open_state_for_read(self):
+        """Open an existing regular state file without following the final symlink."""
+
+        self._assert_state_target_safe()
+        flags = os.O_RDONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+
+        try:
+            fd = os.open(self.path, flags)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise StateStoreError(
+                "persisted ingestion state could not be opened safely"
+            ) from exc
+
+        try:
+            mode = os.fstat(fd).st_mode
+            if not stat.S_ISREG(mode):
+                raise StateStoreError(
+                    "persisted ingestion state target is not a regular file"
+                )
+            # Re-check ancestry after opening. This does not replace a
+            # descriptor-relative sandbox, but it fails closed on ordinary
+            # symlink swaps rather than trusting pathname state once forever.
+            self._assert_parent_ancestry_safe()
+            return os.fdopen(fd, "r", encoding="utf-8")
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def load(self) -> IngestionState:
+        try:
+            handle = self._open_state_for_read()
+        except StateStoreError:
+            raise
+
+        if handle is None:
             return IngestionState()
+
+        try:
+            with handle:
+                raw = json.load(handle)
         except json.JSONDecodeError as exc:
             raise StateStoreError(
                 "persisted ingestion state is invalid JSON; refusing to reset cursors"
@@ -129,6 +238,21 @@ class StateStore:
                 "persisted ingestion state has an invalid schema"
             ) from exc
 
+    def _assert_lock_path_safe_if_present(self) -> None:
+        try:
+            mode = self._lock_path.lstat().st_mode
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise StateStoreError(
+                "ingestion state lock path could not be inspected"
+            ) from exc
+
+        if stat.S_ISLNK(mode):
+            raise StateStoreError("ingestion state lock path is a symlink")
+        if not stat.S_ISDIR(mode):
+            raise StateStoreError("ingestion state lock path is not a directory")
+
     @contextmanager
     def _locked_update(self) -> Iterator[None]:
         """Serialize state read-modify-write sequences across processes.
@@ -140,23 +264,34 @@ class StateStore:
         fail closed rather than risk a lost cursor update.
         """
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._prepare_parent_directory()
         deadline = time.monotonic() + self._LOCK_TIMEOUT_SECONDS
 
         while True:
             try:
                 os.mkdir(self._lock_path)
+                self._assert_parent_ancestry_safe()
+                self._assert_lock_path_safe_if_present()
                 break
             except FileExistsError:
+                self._assert_parent_ancestry_safe()
+                self._assert_lock_path_safe_if_present()
                 try:
-                    age = time.time() - self._lock_path.stat().st_mtime
+                    age = time.time() - self._lock_path.lstat().st_mtime
                 except FileNotFoundError:
                     continue
+                except OSError as exc:
+                    raise StateStoreError(
+                        "ingestion state lock path could not be inspected"
+                    ) from exc
 
                 if age >= self._LOCK_STALE_SECONDS:
                     try:
                         os.rmdir(self._lock_path)
-                    except (FileNotFoundError, OSError):
+                    except FileNotFoundError:
+                        pass
+                    except OSError:
+                        # A live/non-empty lock must never be removed by force.
                         pass
                     continue
 
@@ -177,7 +312,8 @@ class StateStore:
     def _save_unlocked(self, state: IngestionState) -> None:
         """Persist ``state``; caller must hold ``_locked_update`` when merging."""
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._prepare_parent_directory()
+        self._assert_state_target_safe()
         handle = tempfile.NamedTemporaryFile(
             "w",
             encoding="utf-8",
@@ -191,7 +327,17 @@ class StateStore:
                 json.dump(state.to_dict(), handle, ensure_ascii=False, indent=2)
                 handle.flush()
                 os.fsync(handle.fileno())
+                if hasattr(os, "fchmod"):
+                    os.fchmod(handle.fileno(), 0o600)
+
+            # A final pathname check immediately before replace prevents a
+            # pre-existing symlink/special file from being treated as a valid
+            # cursor target. ``os.replace`` then atomically installs the
+            # already-written regular temp file.
+            self._assert_parent_ancestry_safe()
+            self._assert_state_target_safe()
             os.replace(handle.name, self.path)
+            self._assert_state_target_safe()
         except BaseException:
             Path(handle.name).unlink(missing_ok=True)
             raise
