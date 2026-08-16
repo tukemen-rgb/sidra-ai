@@ -98,8 +98,10 @@ def estimate_tokens(text: str) -> int:
     """Rough token estimate that works for mixed Japanese/English text.
 
     CJK characters are close to one token each; Latin text is closer to four
-    characters per token. Good enough for budgeting and logging - never used
-    for billing, because v0.1 does not bill.
+    characters per token. Partial Latin groups are rounded *up* so the budget
+    heuristic never drops a trailing 1-3 characters from its estimate. This is
+    still a local approximation rather than a tokenizer-exact count and is
+    never used for billing, because v0.1 does not bill.
     """
 
     cjk = sum(
@@ -108,7 +110,8 @@ def estimate_tokens(text: str) -> int:
         if "　" <= char <= "鿿" or "＀" <= char <= "￯"
     )
     other = len(text) - cjk
-    return cjk + max(1, other // 4) if text else 0
+    other_tokens = (other + 3) // 4
+    return cjk + other_tokens if text else 0
 
 
 class LocalModelAdapter(abc.ABC):
