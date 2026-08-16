@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import json
 import os
+import stat
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,12 +94,77 @@ class QuarantineStore:
     content is stored either, because low-entropy PII can be guessable from an
     unkeyed hash.
 
-    The file is still created with owner-only permissions because sanitized
-    review content and provenance may remain sensitive.
+    The quarantine file is local-only, must be a regular file, and is forced to
+    owner-only permissions. Final-path symlinks and symlinked parent directories
+    are rejected before append/read. ``O_NOFOLLOW`` closes the final-component
+    check/open race on platforms that provide it, preventing an attacker-
+    controlled quarantine path from redirecting SIDRA's append/chmod operation
+    onto another local file.
     """
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
         self.path = Path(path)
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _prepare_parent(path: Path) -> None:
+        if path.parent.is_symlink():
+            raise OSError("refusing quarantine store under a symlinked parent directory")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.parent.is_symlink():
+            raise OSError("refusing quarantine store under a symlinked parent directory")
+
+    @classmethod
+    def _open_regular_append(cls, path: Path) -> int:
+        cls._prepare_parent(path)
+        if path.is_symlink():
+            raise OSError("refusing to write quarantine store through a symlink")
+
+        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+
+        fd = os.open(path, flags, 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError("quarantine store path is not a regular file")
+            if hasattr(os, "fchmod"):
+                os.fchmod(fd, 0o600)
+            else:  # pragma: no cover - Windows fallback
+                os.chmod(path, 0o600, follow_symlinks=False)
+            return fd
+        except Exception:
+            os.close(fd)
+            raise
+
+    @classmethod
+    def _open_regular_read(cls, path: Path) -> int:
+        if path.parent.is_symlink():
+            raise OSError("refusing quarantine store under a symlinked parent directory")
+        if path.is_symlink():
+            raise OSError("refusing to read quarantine store through a symlink")
+
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+
+        fd = os.open(path, flags)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError("quarantine store path is not a regular file")
+            return fd
+        except Exception:
+            os.close(fd)
+            raise
+
+    @staticmethod
+    def _write_all(fd: int, payload: bytes) -> None:
+        remaining = memoryview(payload)
+        while remaining:
+            written = os.write(fd, remaining)
+            if written <= 0:
+                raise OSError("failed to append quarantine record")
+            remaining = remaining[written:]
 
     def record(
         self,
@@ -107,7 +174,6 @@ class QuarantineStore:
         provenance: Provenance | None,
         result: GateResult,
     ) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         entry: dict[str, Any] = {
             "recorded_at": datetime.now(timezone.utc).isoformat(),
             "provenance": provenance.to_dict() if provenance else None,
@@ -116,19 +182,23 @@ class QuarantineStore:
             "content_retention": "sanitized" if safe_content is not None else "metadata_only",
             "original_length": original_length,
         }
-        # Create with 0600 before writing anything potentially sensitive.
-        if not self.path.exists():
-            self.path.touch(mode=0o600)
-        else:
-            os.chmod(self.path, 0o600)
-        with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        line = (json.dumps(entry, ensure_ascii=False) + "\n").encode("utf-8")
+
+        with self._lock:
+            fd = self._open_regular_append(self.path)
+            try:
+                self._write_all(fd, line)
+            finally:
+                os.close(fd)
 
     def entries(self) -> list[dict[str, Any]]:
-        if not self.path.exists():
-            return []
-        with self.path.open("r", encoding="utf-8") as handle:
-            return [json.loads(line) for line in handle if line.strip()]
+        with self._lock:
+            try:
+                fd = self._open_regular_read(self.path)
+            except FileNotFoundError:
+                return []
+            with os.fdopen(fd, "r", encoding="utf-8") as handle:
+                return [json.loads(line) for line in handle if line.strip()]
 
 
 class SecurityGate:
