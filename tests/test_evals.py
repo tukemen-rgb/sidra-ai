@@ -7,6 +7,7 @@ from sidra_ai.evals.cases import GATE_CASES
 from sidra_ai.evals.grounding import evaluate_grounding, run_grounding_suite
 from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import evaluate_literal_support
+from sidra_ai.evals.model_failure_privacy import run_model_failure_privacy_suite
 from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import evaluate_policy_polarity
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
@@ -76,6 +77,16 @@ def test_output_security_regression_passes_offline() -> None:
         "output_guard_reversible_exfiltration",
         "output_guard_service_boundary",
         "operator_input_service_boundary",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_model_failure_privacy_regression_passes_offline() -> None:
+    outcomes = run_model_failure_privacy_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "model_failure_diagnostics_private_at_api_boundary",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
