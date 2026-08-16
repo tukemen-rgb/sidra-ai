@@ -6,7 +6,10 @@ import argparse
 import sys
 
 from sidra_ai.api.app import create_app
+from sidra_ai.api.service import SidraService
 from sidra_ai.config.settings import Settings, UnsafeConfigurationError, get_settings
+from sidra_ai.models.base import ModelUnavailableError
+from sidra_ai.models.registry import BackendNotRegisteredError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +39,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"refusing to start: {exc}", file=sys.stderr)
         return 2
 
+    # Assemble the local service before binding a listening socket. This keeps
+    # a deferred/disabled backend (for example Transformers in v0.1) or an
+    # unsafe non-loopback inference endpoint from producing a server that
+    # appears healthy enough to bind and only fails on the first request.
+    try:
+        service = SidraService(settings=settings)
+    except (BackendNotRegisteredError, ModelUnavailableError):
+        print(
+            "refusing to start: configured local model backend is unavailable or unsafe",
+            file=sys.stderr,
+        )
+        return 2
+
     _print_banner(settings)
 
     try:
@@ -44,7 +60,11 @@ def main(argv: list[str] | None = None) -> int:
         print("uvicorn is required to serve the API: pip install uvicorn", file=sys.stderr)
         return 2
 
-    uvicorn.run(create_app(settings=settings), host=settings.host, port=settings.port)
+    uvicorn.run(
+        create_app(service=service, settings=settings),
+        host=settings.host,
+        port=settings.port,
+    )
     return 0
 
 
