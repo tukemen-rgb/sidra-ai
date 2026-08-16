@@ -1,0 +1,24 @@
+# SIDRA AI local state - may contain quarantined content and indexed text.
+.sidra/
+*.jsonl
+
+# Secrets never belong in the repository.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
