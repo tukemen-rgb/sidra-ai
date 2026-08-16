@@ -11,6 +11,7 @@ from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import evaluate_policy_polarity
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
 from sidra_ai.evals.runner import run_all
+from sidra_ai.evals.runtime_model_admission import run_runtime_model_admission_suite
 from sidra_ai.evals.startup_safety import run_startup_safety_suite
 from sidra_ai.security.decisions import FindingCategory
 
@@ -98,6 +99,18 @@ def test_startup_safety_regression_passes_offline() -> None:
         "api_startup_remote_endpoint_prebind",
         "api_startup_unsafe_cli_public_bind_prebind",
         "api_startup_safe_echo_reaches_bind",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_runtime_model_admission_regression_passes_offline() -> None:
+    outcomes = run_runtime_model_admission_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "runtime_model_admission_missing_manifest_prebind",
+        "runtime_model_admission_hardware_failure_prebind",
+        "runtime_model_admission_success_precedes_bind",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
