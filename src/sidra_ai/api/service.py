@@ -210,11 +210,15 @@ class SidraService:
 
         try:
             generation = self.model.generate(request)
-        except ModelUnavailableError as exc:
+        except ModelUnavailableError:
+            # Backend exceptions may include loopback endpoints, model names,
+            # HTTP response details, or local runtime diagnostics. Keep those
+            # inside the process rather than reflecting them through chat or
+            # the nested github/analyze response.
             return {
                 "answer": "",
                 "refused": True,
-                "reason": f"model backend unavailable: {exc}",
+                "reason": "model backend unavailable",
                 "security": gate_result.to_dict(),
                 "citations": citations,
             }
