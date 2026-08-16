@@ -20,6 +20,8 @@ jobs:
     name: Same-SHA offline verification
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PIP_CONSTRAINT: ${{ github.workspace }}/.github/ci-constraints.txt
 
     steps:
       - name: Checkout exact source SHA without persisted credentials
@@ -47,8 +49,42 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install verification dependencies
+      - name: Install verification dependencies through pinned constraints
         run: python -m pip install -e ".[dev]"
+
+      - name: Verify pinned runtime/dev dependency versions
+        shell: bash
+        run: |
+          python - <<'PY'
+          from importlib.metadata import PackageNotFoundError, version
+          from pathlib import Path
+
+          constraints = Path(".github/ci-constraints.txt")
+          failures = []
+          checked = 0
+          for raw in constraints.read_text(encoding="utf-8").splitlines():
+              line = raw.strip()
+              if not line or line.startswith("#"):
+                  continue
+              if "==" not in line:
+                  failures.append(f"unreviewed constraint syntax: {line}")
+                  continue
+              name, expected = (part.strip() for part in line.split("==", 1))
+              try:
+                  actual = version(name)
+              except PackageNotFoundError:
+                  failures.append(f"missing pinned distribution: {name}=={expected}")
+                  continue
+              checked += 1
+              if actual != expected:
+                  failures.append(f"{name}: expected {expected}, installed {actual}")
+
+          if failures:
+              raise SystemExit("Pinned dependency verification failed:\n- " + "\n- ".join(failures))
+          if checked == 0:
+              raise SystemExit("No pinned dependencies were verified.")
+          print(f"Verified {checked} pinned runtime/dev distributions.")
+          PY
 
       - name: Reject installed external LLM provider SDKs
         shell: bash
