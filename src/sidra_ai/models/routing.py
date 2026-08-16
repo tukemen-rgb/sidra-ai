@@ -19,6 +19,7 @@ from typing import Any, Sequence
 
 from sidra_ai.models.base import LocalModelAdapter
 from sidra_ai.models.registry import available_backends, create_adapter
+from sidra_ai.models.singleflight import SingleFlightLocalModelAdapter
 
 
 class NoLocalModelRouteError(RuntimeError):
@@ -219,6 +220,11 @@ def route_and_create_adapter(
     also verifies that the adapter actually exposes the admitted cap. This
     catches future registry/backend refactors that accidentally drop budgeting
     before an oversized request reaches a 6GB-class device.
+
+    The admitted VRAM budget describes one active generation context. v0.1
+    therefore wraps routed adapters in a fail-fast single-flight guard so two
+    simultaneous requests cannot allocate a second KV cache and invalidate the
+    memory assumption that admitted the route.
     """
 
     if planned_context_tokens <= 0:
@@ -242,6 +248,7 @@ def route_and_create_adapter(
     if adapter.requires_paid_api:
         raise NoLocalModelRouteError("selected adapter unexpectedly requires a paid API")
 
+    adapter = SingleFlightLocalModelAdapter(adapter)
     runtime_cap = getattr(adapter, "max_context_tokens", None)
     if runtime_cap != decision.planned_context_tokens:
         raise NoLocalModelRouteError(
