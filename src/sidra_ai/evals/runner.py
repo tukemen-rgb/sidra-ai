@@ -19,6 +19,7 @@ from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import run_literal_support_suite
 from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import run_policy_polarity_suite
+from sidra_ai.evals.redaction_privacy import run_redaction_privacy_suite
 from sidra_ai.evals.retrieval_quality import run_retrieval_quality_suite
 from sidra_ai.evals.startup_safety import run_startup_safety_suite
 from sidra_ai.security.gate import GatePolicy, SecurityGate
@@ -103,6 +104,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     for case in cases:
         report.outcomes.append(run_gate_case(case, gate))
     report.outcomes.extend(run_output_security_suite())
+    report.outcomes.extend(run_redaction_privacy_suite())
     report.outcomes.extend(run_grounding_suite())
     report.outcomes.extend(run_claim_citation_coverage_suite())
     report.outcomes.extend(run_policy_polarity_suite())
