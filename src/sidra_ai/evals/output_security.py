@@ -118,8 +118,56 @@ def _run_service_boundary_case(token: str) -> EvalOutcome:
     )
 
 
+def _run_operator_input_boundary_case(token: str) -> EvalOutcome:
+    """Prove sensitive operator input is refused before retrieval/model use.
+
+    Detector unit tests can remain green while a future service refactor routes
+    the original operator string around the gate, echoes it in a refusal payload,
+    or invokes the model before returning the refusal. This case protects the
+    composition boundary for both chat and model-free retrieval.
+    """
+
+    failures: list[str] = []
+    prompt = "Please inspect this accidental credential: " + token
+
+    with TemporaryDirectory(prefix="sidra-evals-") as data_dir:
+        model = _FixedOutputModel("the model must not run for refused input")
+        service = SidraService(
+            settings=Settings(data_dir=data_dir),
+            model=model,
+        )
+
+        chat_response = service.chat(prompt)
+        if chat_response.get("refused") is not True:
+            failures.append("operator boundary: secret-bearing chat input was not refused")
+        if model.calls != 0:
+            failures.append(
+                f"operator boundary: refused chat input invoked model {model.calls} time(s)"
+            )
+        if token in repr(chat_response):
+            failures.append("operator boundary: chat refusal echoed the credential")
+
+        retrieve_response = service.retrieve(prompt)
+        if retrieve_response.get("refused") is not True:
+            failures.append("operator boundary: secret-bearing retrieve input was not refused")
+        if model.calls != 0:
+            failures.append("operator boundary: model-free retrieve path invoked the model")
+        if token in repr(retrieve_response):
+            failures.append("operator boundary: retrieve refusal echoed the credential")
+
+    return EvalOutcome(
+        case_name="operator_input_service_boundary",
+        passed=not failures,
+        detail=(
+            "secret-bearing operator input must be refused before retrieval/model use "
+            "and no response field may echo the original credential"
+        ),
+        failures=tuple(failures),
+    )
+
+
 def run_output_security_suite() -> tuple[EvalOutcome, ...]:
-    """Require output security at both detector and service-integration layers."""
+    """Require input/output security at detector and service-integration layers."""
 
     guard = OutputGuard()
     token = _fake_github_token()
@@ -168,4 +216,8 @@ def run_output_security_suite() -> tuple[EvalOutcome, ...]:
         failures=tuple(failures),
     )
 
-    return guard_outcome, _run_service_boundary_case(token)
+    return (
+        guard_outcome,
+        _run_service_boundary_case(token),
+        _run_operator_input_boundary_case(token),
+    )
