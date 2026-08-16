@@ -15,6 +15,7 @@ from sidra_ai.models.benchmark import (
 )
 from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
 from sidra_ai.models.echo import EchoModelAdapter
+from sidra_ai.models.hardware import HardwareProbeError, VramSnapshot, probe_nvidia_vram
 from sidra_ai.models.http_backends import (
     LlamaCppAdapter,
     OllamaAdapter,
@@ -37,6 +38,7 @@ __all__ = [
     "GenerationChunk",
     "GenerationRequest",
     "GenerationResult",
+    "HardwareProbeError",
     "LlamaCppAdapter",
     "LocalModelAdapter",
     "ModelUnavailableError",
@@ -44,10 +46,12 @@ __all__ = [
     "PaidBackendRejectedError",
     "TransformersAdapter",
     "UnsafeBenchmarkBackendError",
+    "VramSnapshot",
     "adapter_from_settings",
     "available_backends",
     "create_adapter",
     "estimate_tokens",
+    "probe_nvidia_vram",
     "register",
     "run_benchmark",
 ]
