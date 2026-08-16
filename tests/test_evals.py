@@ -6,6 +6,7 @@ from sidra_ai.evals.cases import GATE_CASES
 from sidra_ai.evals.grounding import evaluate_grounding, run_grounding_suite
 from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import evaluate_literal_support
+from sidra_ai.evals.model_manifest_safety import run_model_manifest_safety_suite
 from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import evaluate_policy_polarity
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
@@ -97,6 +98,19 @@ def test_startup_safety_regression_passes_offline() -> None:
         "api_startup_remote_endpoint_prebind",
         "api_startup_unsafe_cli_public_bind_prebind",
         "api_startup_safe_echo_reaches_bind",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_model_manifest_safety_regression_passes_offline() -> None:
+    outcomes = run_model_manifest_safety_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "local_model_manifest_preserves_measured_metadata",
+        "local_model_manifest_rejects_remote_model_reference",
+        "local_model_manifest_rejects_unknown_resource_cost",
+        "local_model_manifest_requires_artifact_provenance",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
