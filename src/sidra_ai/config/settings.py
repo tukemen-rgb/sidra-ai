@@ -28,10 +28,10 @@ DEFAULT_ALLOWED_REPOSITORIES: tuple[str, ...] = (
 #: Addresses considered loopback-only.
 LOCALHOST_ADDRESSES: frozenset[str] = frozenset({"127.0.0.1", "::1", "localhost"})
 
-#: Backends that run locally and cost nothing per token.
-LOCAL_MODEL_BACKENDS: frozenset[str] = frozenset(
-    {"echo", "ollama", "llama_cpp", "transformers"}
-)
+#: Backends selectable in the verified v0.1 runtime. ``transformers`` remains
+#: source-visible for future local-artifact work but is deliberately deferred
+#: until runtime downloads are impossible.
+LOCAL_MODEL_BACKENDS: frozenset[str] = frozenset({"echo", "ollama", "llama_cpp"})
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
@@ -177,7 +177,7 @@ class Settings:
 
         if self.model_backend not in LOCAL_MODEL_BACKENDS:
             raise UnsafeConfigurationError(
-                f"model backend {self.model_backend!r} is not a local backend; "
+                f"model backend {self.model_backend!r} is not a verified v0.1 backend; "
                 f"v0.1 allows {sorted(LOCAL_MODEL_BACKENDS)}"
             )
 
