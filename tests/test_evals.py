@@ -9,6 +9,7 @@ from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import evaluate_policy_polarity
 from sidra_ai.evals.retrieval_quality import RETRIEVAL_CASES, evaluate_retrieval_quality
 from sidra_ai.evals.runner import run_all
+from sidra_ai.evals.startup_safety import run_startup_safety_suite
 from sidra_ai.security.decisions import FindingCategory
 
 
@@ -72,6 +73,18 @@ def test_output_security_regression_passes_offline() -> None:
         "output_guard_reversible_exfiltration",
         "output_guard_service_boundary",
         "operator_input_service_boundary",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_startup_safety_regression_passes_offline() -> None:
+    outcomes = run_startup_safety_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "api_startup_unregistered_backend_prebind",
+        "api_startup_remote_endpoint_prebind",
+        "api_startup_safe_echo_reaches_bind",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
