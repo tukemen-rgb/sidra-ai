@@ -6,7 +6,8 @@ Exposure posture for v0.1:
   requires an API token (enforced in :meth:`Settings.validate`).
 * Bearer-token auth is applied whenever a token is configured, and is
   mandatory off-loopback.
-* A per-client rate limit is applied to every ``/v1`` route.
+* A per-client rate limit is applied to every API route; ``/health`` remains
+  unauthenticated but cannot trigger unbounded local model health probes.
 * CORS is not enabled. Browsers on other origins cannot reach this.
 """
 
@@ -147,9 +148,13 @@ def create_app(
     guarded = [Depends(authenticate), Depends(rate_limit)]
 
     # ------------------------------------------------------------------
-    @app.get("/health", response_model=HealthResponse)
+    @app.get(
+        "/health",
+        response_model=HealthResponse,
+        dependencies=[Depends(rate_limit)],
+    )
     def health() -> Any:
-        """Unauthenticated: it reports no content and no secret values."""
+        """Unauthenticated and minimal, but bounded before model health work."""
 
         return resolve_service().health()
 
