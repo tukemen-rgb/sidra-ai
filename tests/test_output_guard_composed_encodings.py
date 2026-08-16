@@ -52,3 +52,54 @@ def test_output_guard_allows_safe_two_layer_encoding_exactly() -> None:
 
     assert not result.blocked
     assert result.content == text
+
+
+def test_output_guard_fails_closed_when_base64_candidate_budget_is_exhausted() -> None:
+    """A secret after 32 valid decodes must not be silently skipped."""
+
+    safe = base64.b64encode(b"SIDRA AI local model").decode("ascii")
+    secret = _synthetic_github_token()
+    encoded_secret = base64.b64encode(secret.encode("utf-8")).decode("ascii")
+    text = " ".join([safe] * 32 + [encoded_secret])
+
+    result = OutputGuard().scan(text)
+
+    assert result.blocked
+    assert result.reason == "output security detector failed closed"
+    assert encoded_secret not in result.content
+    assert secret not in repr(result)
+
+
+def test_output_guard_fails_closed_when_global_variant_budget_is_exhausted() -> None:
+    """A 65th unique decoded variant must fail closed instead of being ignored."""
+
+    secret = _synthetic_github_token()
+
+    class SaturatingGuard(OutputGuard):
+        @staticmethod
+        def _decoded_detection_variants(content: str) -> tuple[str, ...]:
+            if content == "safe root":
+                return tuple(f"safe base64 variant {i}" for i in range(32))
+            return ()
+
+        @staticmethod
+        def _percent_decoded_detection_variants(content: str) -> tuple[str, ...]:
+            if content == "safe root":
+                return tuple(f"safe percent variant {i}" for i in range(32))
+            return ()
+
+        @staticmethod
+        def _hex_decoded_detection_variants(content: str) -> tuple[str, ...]:
+            if content == "safe root":
+                return (secret,)
+            return ()
+
+        @staticmethod
+        def _escaped_detection_variants(content: str) -> tuple[str, ...]:
+            return ()
+
+    result = SaturatingGuard().scan("safe root")
+
+    assert result.blocked
+    assert result.reason == "output security detector failed closed"
+    assert secret not in repr(result)
