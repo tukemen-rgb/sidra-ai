@@ -297,23 +297,22 @@ class QuarantineStore:
     ) -> dict[str, Any] | None:
         """Return provenance safe to persist at the quarantine audit boundary.
 
-        Source allowlist rejection happens before secret/PII inspection.  A
-        rejected repository, path, URL, author, license, commit field, or
-        ``extra`` value is therefore attacker-controlled metadata that has not
-        passed redaction.  Persisting ``Provenance.to_dict()`` in that branch
-        would reintroduce the very identifier that the Finding audit boundary
-        intentionally removed.
+        ``BLOCK`` may occur before secret/PII inspection for source rejection
+        or oversized input. Any repository, path, URL, author, license, commit
+        field, or ``extra`` value on a blocked record is therefore uninspected
+        attacker-controlled metadata. Persisting ``Provenance.to_dict()`` for
+        such a record would create a secondary secret/PII disclosure channel.
 
-        Keep typed, non-secret attribution fields plus lengths only for
-        unpermitted-source records.  Lengths are operationally useful without
-        creating the offline-guessing oracle that a deterministic digest would.
-        Provenance for allowlisted QUARANTINE findings is unchanged so normal
-        human-review attribution is preserved.
+        Keep typed, non-secret attribution fields plus lengths only for every
+        blocked record. Lengths are operationally useful without creating the
+        offline-guessing oracle that a deterministic digest would. Provenance
+        for allowlisted ``QUARANTINE`` findings is unchanged so normal human
+        review attribution is preserved.
         """
 
         if provenance is None:
             return None
-        if not result.has(FindingCategory.UNPERMITTED_SOURCE):
+        if result.decision is not Decision.BLOCK:
             return provenance.to_dict()
         return {
             "source_type": provenance.source_type.value,
