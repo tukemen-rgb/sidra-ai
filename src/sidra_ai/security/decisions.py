@@ -68,6 +68,30 @@ class FindingCategory(str, Enum):
     """Content that could not be interpreted safely (e.g. bad encoding)."""
 
 
+def _sanitize_finding_evidence(evidence: str) -> str:
+    """Collapse detector evidence to context-free length metadata.
+
+    Detector implementations are independent and future detectors may
+    accidentally hand :class:`Finding` a raw matching snippet.  ``Finding`` is
+    the final audit-model trust boundary before evidence can be serialized into
+    GateResult or quarantine records, so it enforces the documented invariant
+    centrally rather than relying on every detector to remember it.
+
+    Existing ``excerpt()`` placeholders are preserved so their source span
+    length is not replaced by the length of the placeholder itself.
+    """
+
+    if not evidence:
+        return ""
+    prefix = "<<redacted len="
+    suffix = ">>"
+    if evidence.startswith(prefix) and evidence.endswith(suffix):
+        length_text = evidence[len(prefix) : -len(suffix)]
+        if length_text.isdigit():
+            return evidence
+    return f"<<redacted len={len(evidence)}>>"
+
+
 @dataclass(frozen=True)
 class Finding:
     """A single detection.
@@ -84,6 +108,11 @@ class Finding:
     start: int = -1
     end: int = -1
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        safe_evidence = _sanitize_finding_evidence(self.evidence)
+        if safe_evidence != self.evidence:
+            object.__setattr__(self, "evidence", safe_evidence)
 
     def to_dict(self) -> dict[str, Any]:
         return {
