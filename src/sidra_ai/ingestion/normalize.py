@@ -52,19 +52,16 @@ def _parse_time(value: str | None) -> datetime | None:
 def _mutable_timestamp(payload: Mapping[str, Any]) -> datetime | None:
     """Return a trustworthy timestamp for a mutable GitHub object.
 
-    A genuinely absent ``updated_at`` may use GitHub's authoritative creation
-    timestamp as a conservative compatibility fallback. A present but malformed
-    ``updated_at`` is different: the payload claims to carry a revision timestamp
-    but it cannot be trusted, so silently substituting an older creation time
-    would hide source corruption. That case fails closed.
+    A genuinely absent ``updated_at`` key may use GitHub's authoritative
+    creation timestamp as a conservative compatibility fallback. A present but
+    empty, null, malformed, or naive ``updated_at`` is different: the payload
+    claims to carry a revision timestamp but it cannot be trusted, so silently
+    substituting an older creation time would hide source corruption. Those
+    cases fail closed.
     """
 
-    raw_updated = payload.get("updated_at")
-    timestamp = _parse_time(raw_updated)
-    if timestamp is not None:
-        return timestamp
-    if raw_updated:
-        return None
+    if "updated_at" in payload:
+        return _parse_time(payload.get("updated_at"))
     return _parse_time(payload.get("created_at"))
 
 
