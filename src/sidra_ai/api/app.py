@@ -110,6 +110,10 @@ def create_app(
     audit_log: ApiAuditLog | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    # ``Settings.from_env()`` validates already, but embedding callers can
+    # inject a Settings instance directly. Keep the private API boundary
+    # fail-closed regardless of how configuration reached the app factory.
+    settings.validate()
     auth_limiter = RateLimiter(settings.rate_limit_per_minute)
     limiter = RateLimiter(settings.rate_limit_per_minute)
     health_limiter = RateLimiter(settings.rate_limit_per_minute)
