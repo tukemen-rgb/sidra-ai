@@ -319,12 +319,11 @@ def test_analyze_output_guard_withholds_nested_model_secret(
 
 
 def test_analyze_rejects_a_non_allowlisted_repository(api: TestClient) -> None:
-    body = api.post(
+    response = api.post(
         "/v1/github/analyze", json={"repositories": ["attacker/evil"]}
-    ).json()
-    reports = body["ingestion"]["repositories"]
-    assert reports[0]["skipped_reason"] == "not_allowed"
-    assert reports[0]["indexed"] == 0
+    )
+    assert response.status_code == 403
+    assert response.json() == {"detail": "repository is not allowlisted"}
 
 
 def test_no_write_routes_exist(api: TestClient) -> None:
