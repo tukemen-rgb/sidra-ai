@@ -80,9 +80,13 @@ def create_adapter(
     budget wrapper for every registered local backend. The value must come
     from an explicit model manifest or measurement; this factory never infers
     it from a model name or parameter count.
+
+    The admitted context cap is also retained in the inner adapter options so
+    local backends that can configure their runtime context allocation (Ollama
+    in v0.1) use the same cap that routing used for KV-cache admission.
     """
 
-    max_context_tokens = options.pop("max_context_tokens", None)
+    max_context_tokens = options.get("max_context_tokens")
     reserve_tokens = options.pop("context_reserve_tokens", 128)
     min_output_tokens = options.pop("min_output_tokens", 1)
 
