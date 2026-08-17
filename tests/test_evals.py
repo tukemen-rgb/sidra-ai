@@ -98,6 +98,7 @@ def test_startup_safety_regression_passes_offline() -> None:
         "api_startup_unregistered_backend_prebind",
         "api_startup_remote_endpoint_prebind",
         "api_startup_unsafe_cli_public_bind_prebind",
+        "api_startup_storage_failure_prebind_privacy",
         "api_startup_safe_echo_reaches_bind",
     }
     assert all(outcome.passed for outcome in outcomes), [
