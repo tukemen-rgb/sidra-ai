@@ -70,7 +70,7 @@ def test_chat_and_retrieve_do_not_echo_rejected_repository(settings: Settings) -
     assert service.calls == 0
 
 
-def test_github_analyze_does_not_echo_repository_exception(settings: Settings) -> None:
+def test_github_analyze_rejects_repository_before_service_work(settings: Settings) -> None:
     service = _RejectingService(settings)
     response = _client(settings, service).post(
         "/v1/github/analyze",
@@ -78,7 +78,7 @@ def test_github_analyze_does_not_echo_repository_exception(settings: Settings) -
     )
 
     _assert_private_forbidden(response)
-    assert service.calls == 1
+    assert service.calls == 0
 
 
 def test_global_repository_exception_handler_is_context_free(settings: Settings) -> None:
