@@ -29,11 +29,11 @@ def test_state_updates_are_serialized_across_store_instances(tmp_path, monkeypat
 
     original_save = first._save_unlocked
 
-    def slow_first_save(state) -> None:
+    def slow_first_save(state, trusted=None) -> None:
         first_entered_save.set()
         if not release_first_save.wait(timeout=2):
             raise RuntimeError("test timed out waiting to release first writer")
-        original_save(state)
+        original_save(state, trusted)
 
     monkeypatch.setattr(first, "_save_unlocked", slow_first_save)
 
