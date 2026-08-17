@@ -20,7 +20,7 @@ import re
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from sidra_ai.documents import Chunk, SourceType
 from sidra_ai.retrieval.store import DocumentStore
@@ -44,6 +44,12 @@ _STOPWORDS = frozenset(
 #: boundary splits a useful passage.
 _MAX_CHUNKS_PER_DOCUMENT = 2
 
+#: The private API accepts long natural-language queries. Without a scoring
+#: bound, one request can contain thousands of distinct tokens and multiply
+#: per-chunk BM25 work even though only a small evidence set is returned.
+#: Keep the most discriminative corpus-present terms and bound the inner loop.
+_MAX_SCORING_QUERY_TERMS = 128
+
 
 def tokenize(text: str) -> list[str]:
     """NFKC-normalized, case-folded Latin words plus CJK character bigrams."""
@@ -58,6 +64,35 @@ def tokenize(text: str) -> list[str]:
         tokens.extend(run[i : i + 2] for i in range(len(run) - 1))
 
     return [t for t in tokens if t not in _STOPWORDS]
+
+
+def _bounded_query_terms(
+    query_terms: Sequence[str],
+    document_frequency: Mapping[str, int],
+) -> tuple[str, ...]:
+    """Return a bounded, discriminative set of corpus-present query terms.
+
+    Query terms absent from the active retrieval corpus cannot affect BM25 and
+    are removed before scoring. If more than the hard scoring budget remain,
+    prefer rarer terms (lower document frequency means higher BM25 IDF), while
+    preserving original query order among terms with equal frequency. This
+    prevents one valid but very large request from turning BM25's inner loop
+    into unbounded ``chunks × unique-query-terms`` work without blindly
+    truncating away a rare term that appears near the end of a natural query.
+    """
+
+    present = [term for term in query_terms if document_frequency.get(term, 0) > 0]
+    if len(present) <= _MAX_SCORING_QUERY_TERMS:
+        return tuple(present)
+
+    ranked_positions = sorted(
+        range(len(present)),
+        key=lambda position: (document_frequency[present[position]], position),
+    )[:_MAX_SCORING_QUERY_TERMS]
+    selected_positions = set(ranked_positions)
+    return tuple(
+        term for position, term in enumerate(present) if position in selected_positions
+    )
 
 
 @dataclass(frozen=True)
@@ -170,6 +205,12 @@ class BM25Retriever:
     repeatedly would let keyword stuffing linearly inflate an evidence score
     and potentially cross a downstream ``min_score`` threshold without adding
     any new lexical evidence.
+
+    Distinct query terms are also bounded before the per-chunk scoring loop.
+    Only corpus-present terms can contribute, and when the request contains
+    more than the scoring budget, the rarest terms are retained first. This
+    keeps a 32k-character API query from becoming a per-request CPU amplifier
+    while preserving the most discriminative lexical evidence.
     """
 
     def __init__(self, store: DocumentStore, *, k1: float = 1.5, b: float = 0.75) -> None:
@@ -267,6 +308,9 @@ class BM25Retriever:
 
         filtered_total = len(eligible_positions)
         filtered_average_length = filtered_total_length / filtered_total
+        query_terms = _bounded_query_terms(query_terms, filtered_document_frequency)
+        if not query_terms:
+            return []
 
         scored: list[SearchResult] = []
         for position in eligible_positions:
