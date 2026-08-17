@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import json
 import os
+import stat
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,12 +94,201 @@ class QuarantineStore:
     content is stored either, because low-entropy PII can be guessable from an
     unkeyed hash.
 
-    The file is still created with owner-only permissions because sanitized
-    review content and provenance may remain sensitive.
+    On POSIX runtimes with secure ``dir_fd`` support, every parent component is
+    opened relative to an already-open directory descriptor with
+    ``O_NOFOLLOW``. The final JSONL is then opened relative to that verified
+    parent. This closes the check/open race where a previously inspected
+    ancestor could otherwise be swapped for a symlink before append or read.
+
+    Platforms without that primitive retain a fail-closed best-effort ancestry
+    check. The quarantine file is always required to be regular and is forced
+    to owner-only permissions when the platform exposes ``fchmod``.
     """
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
         self.path = Path(path)
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _reject_parent_traversal(path: Path) -> None:
+        if ".." in path.parts:
+            raise OSError("refusing quarantine store path with parent traversal")
+
+    @staticmethod
+    def _supports_secure_dirfd() -> bool:
+        supports_dir_fd = getattr(os, "supports_dir_fd", ())
+        return (
+            os.name != "nt"
+            and hasattr(os, "O_DIRECTORY")
+            and hasattr(os, "O_NOFOLLOW")
+            and os.open in supports_dir_fd
+            and os.mkdir in supports_dir_fd
+        )
+
+    @staticmethod
+    def _path_components(path: Path) -> tuple[str, ...]:
+        QuarantineStore._reject_parent_traversal(path)
+        parts = path.parts[1:] if path.is_absolute() else path.parts
+        components = tuple(part for part in parts if part not in {"", "."})
+        if not components:
+            raise OSError("quarantine store path must name a file")
+        return components
+
+    @staticmethod
+    def _directory_flags() -> int:
+        return (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+
+    @staticmethod
+    def _open_child_directory(parent_fd: int, component: str, *, create: bool) -> int:
+        flags = QuarantineStore._directory_flags()
+        try:
+            return os.open(component, flags, dir_fd=parent_fd)
+        except FileNotFoundError:
+            if not create:
+                raise
+            try:
+                os.mkdir(component, 0o700, dir_fd=parent_fd)
+            except FileExistsError:
+                # A concurrent creator won the race. Re-open with O_NOFOLLOW;
+                # a symlink or non-directory therefore still fails closed.
+                pass
+            return os.open(component, flags, dir_fd=parent_fd)
+
+    @classmethod
+    def _open_parent_dirfd(cls, path: Path, *, create: bool) -> tuple[int, str]:
+        components = cls._path_components(path)
+        base = path.anchor if path.is_absolute() else "."
+        parent_fd = os.open(base, cls._directory_flags())
+        try:
+            for component in components[:-1]:
+                child_fd = cls._open_child_directory(
+                    parent_fd,
+                    component,
+                    create=create,
+                )
+                os.close(parent_fd)
+                parent_fd = child_fd
+            return parent_fd, components[-1]
+        except Exception:
+            os.close(parent_fd)
+            raise
+
+    @classmethod
+    def _open_regular_append_dirfd(cls, path: Path) -> int:
+        parent_fd, filename = cls._open_parent_dirfd(path, create=True)
+        try:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            fd = os.open(filename, flags, 0o600, dir_fd=parent_fd)
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise OSError("quarantine store path is not a regular file")
+                if hasattr(os, "fchmod"):
+                    os.fchmod(fd, 0o600)
+                return fd
+            except Exception:
+                os.close(fd)
+                raise
+        finally:
+            os.close(parent_fd)
+
+    @classmethod
+    def _open_regular_read_dirfd(cls, path: Path) -> int:
+        parent_fd, filename = cls._open_parent_dirfd(path, create=False)
+        try:
+            flags = os.O_RDONLY
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            fd = os.open(filename, flags, dir_fd=parent_fd)
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise OSError("quarantine store path is not a regular file")
+                return fd
+            except Exception:
+                os.close(fd)
+                raise
+        finally:
+            os.close(parent_fd)
+
+    @staticmethod
+    def _assert_trusted_path_fallback(path: Path) -> None:
+        """Best-effort ancestry check without secure descriptor walking."""
+
+        QuarantineStore._reject_parent_traversal(path)
+        current = path
+        while True:
+            if current.is_symlink():
+                raise OSError("refusing quarantine store through a symlinked path")
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+
+    @classmethod
+    def _open_regular_append_fallback(cls, path: Path) -> int:
+        cls._assert_trusted_path_fallback(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cls._assert_trusted_path_fallback(path)
+
+        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags, 0o600)
+        try:
+            cls._assert_trusted_path_fallback(path)
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError("quarantine store path is not a regular file")
+            if hasattr(os, "fchmod"):
+                os.fchmod(fd, 0o600)
+            else:  # pragma: no cover - Windows fallback
+                os.chmod(path, 0o600, follow_symlinks=False)
+            return fd
+        except Exception:
+            os.close(fd)
+            raise
+
+    @classmethod
+    def _open_regular_read_fallback(cls, path: Path) -> int:
+        cls._assert_trusted_path_fallback(path)
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags)
+        try:
+            cls._assert_trusted_path_fallback(path)
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError("quarantine store path is not a regular file")
+            return fd
+        except Exception:
+            os.close(fd)
+            raise
+
+    @classmethod
+    def _open_regular_append(cls, path: Path) -> int:
+        if cls._supports_secure_dirfd():
+            return cls._open_regular_append_dirfd(path)
+        return cls._open_regular_append_fallback(path)
+
+    @classmethod
+    def _open_regular_read(cls, path: Path) -> int:
+        if cls._supports_secure_dirfd():
+            return cls._open_regular_read_dirfd(path)
+        return cls._open_regular_read_fallback(path)
+
+    @staticmethod
+    def _write_all(fd: int, payload: bytes) -> None:
+        remaining = memoryview(payload)
+        while remaining:
+            written = os.write(fd, remaining)
+            if written <= 0:
+                raise OSError("failed to append quarantine record")
+            remaining = remaining[written:]
 
     def record(
         self,
@@ -107,7 +298,6 @@ class QuarantineStore:
         provenance: Provenance | None,
         result: GateResult,
     ) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         entry: dict[str, Any] = {
             "recorded_at": datetime.now(timezone.utc).isoformat(),
             "provenance": provenance.to_dict() if provenance else None,
@@ -116,19 +306,23 @@ class QuarantineStore:
             "content_retention": "sanitized" if safe_content is not None else "metadata_only",
             "original_length": original_length,
         }
-        # Create with 0600 before writing anything potentially sensitive.
-        if not self.path.exists():
-            self.path.touch(mode=0o600)
-        else:
-            os.chmod(self.path, 0o600)
-        with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        line = (json.dumps(entry, ensure_ascii=False) + "\n").encode("utf-8")
+
+        with self._lock:
+            fd = self._open_regular_append(self.path)
+            try:
+                self._write_all(fd, line)
+            finally:
+                os.close(fd)
 
     def entries(self) -> list[dict[str, Any]]:
-        if not self.path.exists():
-            return []
-        with self.path.open("r", encoding="utf-8") as handle:
-            return [json.loads(line) for line in handle if line.strip()]
+        with self._lock:
+            try:
+                fd = self._open_regular_read(self.path)
+            except FileNotFoundError:
+                return []
+            with os.fdopen(fd, "r", encoding="utf-8") as handle:
+                return [json.loads(line) for line in handle if line.strip()]
 
 
 class SecurityGate:
