@@ -22,6 +22,7 @@ from sidra_ai.models.http_backends import (
     OllamaAdapter,
     TransformersAdapter,
 )
+from sidra_ai.models.llama_runtime import LlamaCppRuntimeGuard
 
 
 class BackendNotRegisteredError(KeyError):
@@ -82,8 +83,10 @@ def create_adapter(
     it from a model name or parameter count.
 
     The admitted context cap is also retained in the inner adapter options so
-    local backends that can configure their runtime context allocation (Ollama
-    in v0.1) use the same cap that routing used for KV-cache admission.
+    local backends use the same runtime context assumption that routing used
+    for KV-cache admission. Ollama receives the cap directly as ``num_ctx``;
+    routed llama.cpp adapters verify the live server's read-only ``/props``
+    context and slot configuration before every generation.
     """
 
     max_context_tokens = options.get("max_context_tokens")
@@ -112,9 +115,17 @@ def create_adapter(
     adapter = adapter_cls(model, **options)
     if max_context_tokens is None:
         return adapter
+
+    context_cap = int(max_context_tokens)
+    if backend == "llama_cpp":
+        adapter = LlamaCppRuntimeGuard(
+            adapter,
+            expected_context_tokens=context_cap,
+        )
+
     return BudgetedLocalModelAdapter(
         adapter,
-        max_context_tokens=int(max_context_tokens),
+        max_context_tokens=context_cap,
         reserve_tokens=int(reserve_tokens),
         min_output_tokens=int(min_output_tokens),
     )
