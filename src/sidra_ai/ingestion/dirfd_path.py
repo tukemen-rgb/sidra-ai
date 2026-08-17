@@ -3,7 +3,8 @@
 This module is intentionally local-only. On POSIX runtimes with ``dir_fd``
 and ``O_NOFOLLOW`` support, every parent component is opened relative to an
 already-open directory descriptor. Reads, lock operations and atomic state
-replacement can therefore avoid re-resolving a pathname after a safety check.
+replacement can therefore share one stable parent descriptor across a complete
+read-modify-write sequence instead of re-resolving pathnames between steps.
 """
 
 from __future__ import annotations
@@ -65,19 +66,13 @@ def _open_child(parent_fd: int, component: str, *, create: bool) -> int:
         try:
             os.mkdir(component, 0o700, dir_fd=parent_fd)
         except FileExistsError:
-            # A concurrent creator won. Re-open with O_NOFOLLOW so a symlink
-            # or non-directory still fails closed.
             pass
         return os.open(component, flags, dir_fd=parent_fd)
 
 
 @contextmanager
 def trusted_parent(path: Path, *, create: bool) -> Iterator[tuple[int, str] | None]:
-    """Yield ``(parent_fd, final_name)`` without re-resolving parent components.
-
-    ``None`` is yielded only when ``create`` is false and a parent does not
-    exist. Any symlink/non-directory encountered during the walk fails closed.
-    """
+    """Yield ``(parent_fd, final_name)`` without re-resolving parent components."""
 
     components = path_components(path)
     base = path.anchor if path.is_absolute() else "."
@@ -106,8 +101,6 @@ def trusted_parent(path: Path, *, create: bool) -> Iterator[tuple[int, str] | No
 
 
 def _assert_regular_or_missing(parent_fd: int, name: str) -> bool:
-    """Return True when a regular target exists, False when it is absent."""
-
     try:
         mode = os.stat(name, dir_fd=parent_fd, follow_symlinks=False).st_mode
     except FileNotFoundError:
@@ -121,91 +114,96 @@ def _assert_regular_or_missing(parent_fd: int, name: str) -> bool:
     return True
 
 
-def open_regular_read(path: Path) -> int | None:
-    """Open an existing state file relative to a trusted parent descriptor."""
+def open_regular_read_at(parent_fd: int, name: str) -> int | None:
+    """Open a state file relative to an already-trusted parent descriptor."""
 
+    if not _assert_regular_or_missing(parent_fd, name):
+        return None
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(name, flags, dir_fd=parent_fd)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise DirFdPathError("ingestion state could not be opened") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise DirFdPathError("ingestion state target is not a regular file")
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def open_regular_read(path: Path) -> int | None:
     with trusted_parent(path, create=False) as trusted:
         if trusted is None:
             return None
-        parent_fd, name = trusted
-        if not _assert_regular_or_missing(parent_fd, name):
-            return None
-        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
-        flags |= getattr(os, "O_NOFOLLOW", 0)
+        return open_regular_read_at(*trusted)
+
+
+def atomic_replace_bytes_at(parent_fd: int, final_name: str, payload: bytes) -> None:
+    """Atomically replace a state file relative to a stable trusted parent fd."""
+
+    _assert_regular_or_missing(parent_fd, final_name)
+    temp_name = ""
+    temp_fd: int | None = None
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        for _ in range(10):
+            candidate = f".{final_name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+            try:
+                temp_fd = os.open(candidate, flags, 0o600, dir_fd=parent_fd)
+            except FileExistsError:
+                continue
+            temp_name = candidate
+            break
+        if temp_fd is None:
+            raise DirFdPathError("could not allocate ingestion state temp file")
+
+        with os.fdopen(temp_fd, "wb", closefd=True) as handle:
+            temp_fd = None
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+            if hasattr(os, "fchmod"):
+                os.fchmod(handle.fileno(), 0o600)
+
+        _assert_regular_or_missing(parent_fd, final_name)
         try:
-            fd = os.open(name, flags, dir_fd=parent_fd)
-        except FileNotFoundError:
-            return None
+            os.rename(
+                temp_name,
+                final_name,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+            )
         except OSError as exc:
-            raise DirFdPathError("ingestion state could not be opened") from exc
-        try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode):
-                raise DirFdPathError("ingestion state target is not a regular file")
-            return fd
-        except BaseException:
-            os.close(fd)
-            raise
+            raise DirFdPathError("ingestion state could not be replaced") from exc
+        temp_name = ""
+        if not _assert_regular_or_missing(parent_fd, final_name):
+            raise DirFdPathError("ingestion state disappeared after replacement")
+    finally:
+        if temp_fd is not None:
+            try:
+                os.close(temp_fd)
+            except OSError:
+                pass
+        if temp_name:
+            try:
+                os.unlink(temp_name, dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
 
 
 def atomic_replace_bytes(path: Path, payload: bytes) -> None:
-    """Atomically replace ``path`` without re-resolving verified ancestors."""
-
     with trusted_parent(path, create=True) as trusted:
         assert trusted is not None
-        parent_fd, final_name = trusted
-        _assert_regular_or_missing(parent_fd, final_name)
-
-        temp_name = ""
-        temp_fd: int | None = None
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        flags |= getattr(os, "O_CLOEXEC", 0)
-        flags |= getattr(os, "O_NOFOLLOW", 0)
-        try:
-            for _ in range(10):
-                candidate = f".{final_name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
-                try:
-                    temp_fd = os.open(candidate, flags, 0o600, dir_fd=parent_fd)
-                except FileExistsError:
-                    continue
-                temp_name = candidate
-                break
-            if temp_fd is None:
-                raise DirFdPathError("could not allocate ingestion state temp file")
-
-            with os.fdopen(temp_fd, "wb", closefd=True) as handle:
-                temp_fd = None
-                handle.write(payload)
-                handle.flush()
-                os.fsync(handle.fileno())
-                if hasattr(os, "fchmod"):
-                    os.fchmod(handle.fileno(), 0o600)
-
-            _assert_regular_or_missing(parent_fd, final_name)
-            try:
-                os.rename(
-                    temp_name,
-                    final_name,
-                    src_dir_fd=parent_fd,
-                    dst_dir_fd=parent_fd,
-                )
-            except OSError as exc:
-                raise DirFdPathError("ingestion state could not be replaced") from exc
-            temp_name = ""
-            if not _assert_regular_or_missing(parent_fd, final_name):
-                raise DirFdPathError("ingestion state disappeared after replacement")
-        finally:
-            if temp_fd is not None:
-                try:
-                    os.close(temp_fd)
-                except OSError:
-                    pass
-            if temp_name:
-                try:
-                    os.unlink(temp_name, dir_fd=parent_fd)
-                except FileNotFoundError:
-                    pass
-                except OSError:
-                    pass
+        atomic_replace_bytes_at(*trusted, payload)
 
 
 def _assert_lock_directory(parent_fd: int, name: str) -> os.stat_result | None:
@@ -229,8 +227,8 @@ def state_lock(
     timeout_seconds: float,
     stale_seconds: float,
     poll_seconds: float,
-) -> Iterator[None]:
-    """Hold a descriptor-relative lock directory next to ``path``."""
+) -> Iterator[tuple[int, str]]:
+    """Hold a lock and yield the same trusted parent fd for the whole update."""
 
     with trusted_parent(path, create=True) as trusted:
         assert trusted is not None
@@ -253,7 +251,6 @@ def state_lock(
                     except FileNotFoundError:
                         pass
                     except OSError:
-                        # Never force-remove a live/non-empty lock.
                         pass
                     continue
                 if time.monotonic() >= deadline:
@@ -263,7 +260,7 @@ def state_lock(
                 raise DirFdPathError("ingestion state lock could not be created") from exc
 
         try:
-            yield
+            yield parent_fd, state_name
         finally:
             try:
                 os.rmdir(lock_name, dir_fd=parent_fd)
