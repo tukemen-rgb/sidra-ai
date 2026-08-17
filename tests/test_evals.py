@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sidra_ai.evals.audit_model_attempt import run_audit_model_attempt_suite
 from sidra_ai.evals.audit_path_safety import run_audit_path_safety_suite
 from sidra_ai.evals.cases import GATE_CASES
 from sidra_ai.evals.grounding import evaluate_grounding, run_grounding_suite
@@ -121,6 +122,18 @@ def test_api_audit_path_safety_regression_passes_offline() -> None:
     outcomes = run_audit_path_safety_suite()
     assert {outcome.case_name for outcome in outcomes} == {
         "api_audit_path_filesystem_boundary",
+    }
+    assert all(outcome.passed for outcome in outcomes), [
+        outcome.failures for outcome in outcomes if not outcome.passed
+    ]
+
+
+def test_api_audit_model_attempt_regression_passes_offline() -> None:
+    outcomes = run_audit_model_attempt_suite()
+    assert {outcome.case_name for outcome in outcomes} == {
+        "api_audit_failed_chat_preserves_model_attempt",
+        "api_audit_failed_analyze_preserves_model_attempt",
+        "api_audit_gate_refusal_does_not_invent_model_attempt",
     }
     assert all(outcome.passed for outcome in outcomes), [
         outcome.failures for outcome in outcomes if not outcome.passed
