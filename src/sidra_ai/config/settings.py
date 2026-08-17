@@ -41,6 +41,11 @@ GITHUB_API_HOST = "api.github.com"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
 
+#: Explicit non-loopback exposure needs more than a merely non-empty bearer
+#: token. This is only a minimum accidental-weakness guard; operators should
+#: still generate a random token rather than choosing a memorable phrase.
+MIN_PUBLIC_API_TOKEN_CHARS = 24
+
 
 class UnsafeConfigurationError(RuntimeError):
     """Raised when a configuration would weaken a v0.1 safety invariant."""
@@ -233,9 +238,17 @@ class Settings:
                     "SIDRA_ALLOW_PUBLIC_BIND=true only after authentication and "
                     "rate limiting are reviewed"
                 )
-            if not self.api_token:
+            token = self.api_token
+            if not token:
                 raise UnsafeConfigurationError(
                     "non-loopback bind requires SIDRA_API_TOKEN to be set"
+                )
+            if len(token) < MIN_PUBLIC_API_TOKEN_CHARS or not all(
+                0x21 <= ord(char) <= 0x7E for char in token
+            ):
+                raise UnsafeConfigurationError(
+                    "non-loopback bind requires SIDRA_API_TOKEN to contain at least "
+                    f"{MIN_PUBLIC_API_TOKEN_CHARS} visible ASCII characters"
                 )
 
         if self.model_backend not in LOCAL_MODEL_BACKENDS:
