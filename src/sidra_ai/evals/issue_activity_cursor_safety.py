@@ -11,6 +11,7 @@ and activity cursor remain paired.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from tempfile import TemporaryDirectory
 from typing import Any, Mapping
 
@@ -27,6 +28,7 @@ from sidra_ai.security.gate import SecurityGate
 _REPOSITORY = "tukemen-rgb/site"
 _HEAD_SHA = "a" * 40
 _OLD_CURSOR = "2000-01-01T00:00:00+00:00"
+_OLD_TIMESTAMP = datetime(2000, 1, 1, tzinfo=timezone.utc)
 _OLD_QUERY = "stable_marker_issue_cursor"
 _NEW_QUERY = "untrusted_new_issue_marker"
 
@@ -92,7 +94,7 @@ def _seed_prior_snapshot(store: DocumentStore, state_store: StateStore) -> None:
                 repository=_REPOSITORY,
                 path="issues/7",
                 commit_sha=_HEAD_SHA,
-                timestamp=_OLD_CURSOR,
+                timestamp=_OLD_TIMESTAMP,
                 source_type=SourceType.ISSUE,
                 trust_level=TrustLevel.INTERNAL_REPO,
                 license="MIT",
