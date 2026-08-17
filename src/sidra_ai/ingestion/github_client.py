@@ -83,7 +83,7 @@ class Transport(Protocol):
 
 
 class HttpxTransport:
-    """Default transport. ``httpx`` is imported lazily."""
+    """Default transport with ambient proxy/environment routing disabled."""
 
     def __call__(
         self, method: str, url: str, headers: Mapping[str, str], timeout: float
@@ -98,7 +98,13 @@ class HttpxTransport:
             raise GitHubAPIError("httpx is required for GitHub ingestion") from exc
 
         try:
-            raw = httpx.get(url, headers=dict(headers), timeout=timeout)
+            # GitHub bearer credentials must never depend on workstation-level
+            # HTTP(S)_PROXY/ALL_PROXY/NO_PROXY or other HTTPX environment routing.
+            # The API origin is already pinned by Settings; disable ambient
+            # transport configuration so authenticated ingestion reaches it
+            # directly instead of leaking through an operator/malware proxy.
+            with httpx.Client(trust_env=False) as client:
+                raw = client.get(url, headers=dict(headers), timeout=timeout)
         except Exception as exc:  # noqa: BLE001
             raise GitHubAPIError(f"GitHub request failed: {exc}") from exc
 
