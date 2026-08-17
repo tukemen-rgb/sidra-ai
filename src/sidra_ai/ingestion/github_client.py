@@ -579,7 +579,12 @@ class GitHubReadOnlyClient:
 
         self._assert_allowed(repository)
         limit = self.settings.max_items_per_source
-        incremental = bool(since)
+        since_timestamp = (
+            _parse_activity_timestamp(since, field="issue activity cursor")
+            if since is not None
+            else None
+        )
+        incremental = since_timestamp is not None
         items: list[dict[str, Any]] = []
 
         for page in self._iter_list_pages(
@@ -595,6 +600,10 @@ class GitHubReadOnlyClient:
             for issue in page:
                 if "pull_request" in issue:
                     continue
+                if since_timestamp is not None:
+                    _parse_activity_timestamp(
+                        issue.get("updated_at"), field="issue updated_at"
+                    )
                 items.append(issue)
                 if not incremental and len(items) >= limit:
                     return items
