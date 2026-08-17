@@ -5,6 +5,7 @@ import http.client
 import ipaddress
 import socket
 import ssl
+import threading
 import time
 from typing import Iterable
 from urllib.parse import quote, urlsplit
@@ -157,7 +158,12 @@ def _request_to_ip(
         tls_socket.sendall(_build_get_request(target, policy=policy))
 
         response = http.client.HTTPResponse(tls_socket, method="GET")
-        response.begin()
+        _begin_response_with_deadline(
+            response,
+            tls_socket,
+            read_timeout_seconds=read_timeout_seconds,
+            deadline=deadline,
+        )
         raw_headers = tuple(
             (name.strip().lower(), value.strip()) for name, value in response.getheaders()
         )
@@ -203,6 +209,58 @@ def _request_to_ip(
             response.close()
         if tls_socket is not None:
             tls_socket.close()
+
+
+def _begin_response_with_deadline(
+    response: http.client.HTTPResponse,
+    tls_socket: ssl.SSLSocket,
+    *,
+    read_timeout_seconds: float,
+    deadline: float,
+) -> None:
+    """Parse response headers under the absolute fetch deadline.
+
+    ``socket.settimeout`` is a per-blocking-operation timeout. A peer that sends
+    header bytes slowly but often enough can therefore keep ``HTTPResponse.begin``
+    alive longer than the intended overall fetch deadline. A one-shot watchdog
+    closes the already-pinned socket when the absolute deadline expires; after
+    ``begin`` returns we re-check the deadline before trusting any headers.
+    """
+
+    remaining = _remaining(deadline)
+    tls_socket.settimeout(min(read_timeout_seconds, remaining))
+    expired = threading.Event()
+
+    def expire() -> None:
+        expired.set()
+        _close_socket_for_deadline(tls_socket)
+
+    timer = threading.Timer(remaining, expire)
+    timer.daemon = True
+    timer.start()
+    try:
+        try:
+            response.begin()
+        except Exception as exc:
+            if expired.is_set() or time.monotonic() >= deadline:
+                raise FetchTransportError("overall fetch timeout exceeded") from exc
+            raise
+        if expired.is_set():
+            raise FetchTransportError("overall fetch timeout exceeded")
+        _remaining(deadline)
+    finally:
+        timer.cancel()
+
+
+def _close_socket_for_deadline(tls_socket: ssl.SSLSocket) -> None:
+    try:
+        tls_socket.shutdown(socket.SHUT_RDWR)
+    except (AttributeError, OSError):
+        pass
+    try:
+        tls_socket.close()
+    except OSError:
+        pass
 
 
 def _dial_pinned_tls(
