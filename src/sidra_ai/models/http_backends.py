@@ -215,15 +215,26 @@ class OllamaAdapter(_HTTPAdapter):
     def _payload(
         self, request: GenerationRequest, *, stream: bool
     ) -> dict[str, Any]:
+        generation_options: dict[str, Any] = {
+            "temperature": request.temperature,
+            "num_predict": request.max_output_tokens,
+        }
+        routed_context_tokens = self.options.get("max_context_tokens")
+        if routed_context_tokens is not None:
+            try:
+                routed_context_tokens = int(routed_context_tokens)
+            except (TypeError, ValueError) as exc:
+                raise ModelUnavailableError("ollama context cap is invalid") from exc
+            if routed_context_tokens <= 0:
+                raise ModelUnavailableError("ollama context cap is invalid")
+            generation_options["num_ctx"] = routed_context_tokens
+
         return {
             "model": self.model,
             "system": request.system_prompt,
             "prompt": self._data_and_question(request),
             "stream": stream,
-            "options": {
-                "temperature": request.temperature,
-                "num_predict": request.max_output_tokens,
-            },
+            "options": generation_options,
         }
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
