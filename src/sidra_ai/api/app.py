@@ -44,6 +44,8 @@ from sidra_ai.api.service import SidraService, get_service
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.ingestion.github_client import RepositoryNotAllowedError
 
+_REPOSITORY_FORBIDDEN_DETAIL = "repository is not allowlisted"
+
 
 class RateLimiter:
     """Fixed-window-per-client limiter with bounded client state.
@@ -168,7 +170,7 @@ def create_app(
             if not current.settings.is_repository_allowed(repository):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"repository {repository!r} is not allowlisted",
+                    detail=_REPOSITORY_FORBIDDEN_DETAIL,
                 )
 
     def record_audit(
@@ -250,7 +252,8 @@ def create_app(
             )
         except RepositoryNotAllowedError as exc:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_REPOSITORY_FORBIDDEN_DETAIL,
             ) from exc
 
         record_audit(
@@ -263,8 +266,11 @@ def create_app(
 
     # ------------------------------------------------------------------
     @app.exception_handler(RepositoryNotAllowedError)
-    def _not_allowed(_: Request, exc: RepositoryNotAllowedError) -> JSONResponse:
-        return JSONResponse(status_code=403, content={"detail": str(exc)})
+    def _not_allowed(_: Request, _exc: RepositoryNotAllowedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": _REPOSITORY_FORBIDDEN_DETAIL},
+        )
 
     return app
 
