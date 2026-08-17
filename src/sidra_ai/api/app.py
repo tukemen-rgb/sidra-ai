@@ -6,6 +6,9 @@ Exposure posture for v0.1:
   requires an API token (enforced in :meth:`Settings.validate`).
 * Bearer-token auth is applied whenever a token is configured, and is
   mandatory off-loopback.
+* Bearer attempts are rate-limited before token comparison, so invalid-token
+  floods cannot bypass request throttling; authenticated traffic keeps its
+  separate normal API allowance.
 * A per-client rate limit is applied to every API route; ``/health`` remains
   unauthenticated but cannot trigger unbounded local model health probes.
 * Rate-limiter client state is bounded and fails closed for new clients when
@@ -103,6 +106,7 @@ def create_app(
     audit_log: ApiAuditLog | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    auth_limiter = RateLimiter(settings.rate_limit_per_minute)
     limiter = RateLimiter(settings.rate_limit_per_minute)
     health_limiter = RateLimiter(settings.rate_limit_per_minute)
     audit_log = audit_log or ApiAuditLog(Path(settings.data_dir) / "api_audit.jsonl")
@@ -148,6 +152,9 @@ def create_app(
                 detail="rate limit exceeded",
             )
 
+    def auth_rate_limit(request: Request) -> None:
+        _check_rate_limit(request, auth_limiter)
+
     def rate_limit(request: Request) -> None:
         _check_rate_limit(request, limiter)
 
@@ -189,7 +196,7 @@ def create_app(
             # HTTP error. The failure is deliberately not echoed to clients.
             pass
 
-    guarded = [Depends(authenticate), Depends(rate_limit)]
+    guarded = [Depends(auth_rate_limit), Depends(authenticate), Depends(rate_limit)]
 
     # ------------------------------------------------------------------
     @app.get(
