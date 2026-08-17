@@ -78,8 +78,9 @@ def probe_nvidia_vram(
     not become part of application logs by accident.
 
     The function intentionally raises on command absence, timeout, non-zero
-    exit, or malformed output.  Routing code must not treat a failed probe as a
-    trustworthy zero/maximum-free value.
+    exit, malformed output, or ambiguous multi-row output. Routing code must not
+    treat a failed probe as a trustworthy zero/maximum-free value or silently
+    select one row when the requested device identity is not unambiguous.
     """
 
     if not isinstance(device_index, int) or isinstance(device_index, bool):
@@ -110,11 +111,13 @@ def probe_nvidia_vram(
     if completed.returncode != 0:
         raise HardwareProbeError("local NVIDIA VRAM probe failed")
 
-    line = next((item.strip() for item in completed.stdout.splitlines() if item.strip()), None)
-    if line is None:
+    lines = [item.strip() for item in completed.stdout.splitlines() if item.strip()]
+    if not lines:
         raise HardwareProbeError("local NVIDIA VRAM probe returned no data")
+    if len(lines) != 1:
+        raise HardwareProbeError("local NVIDIA VRAM probe returned ambiguous data")
 
-    fields = [item.strip() for item in line.split(",")]
+    fields = [item.strip() for item in lines[0].split(",")]
     if len(fields) != 2:
         raise HardwareProbeError("local NVIDIA VRAM probe returned malformed data")
 
