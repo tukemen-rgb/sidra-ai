@@ -45,15 +45,14 @@ def test_present_but_untrusted_updated_at_is_not_hidden_by_created_at(factory, p
 
 
 @pytest.mark.parametrize("factory", [pull_request_document, issue_document])
-@pytest.mark.parametrize("updated_at", ["", None])
-def test_present_falsey_updated_at_is_not_treated_as_absent(factory, updated_at):
+def test_present_empty_updated_at_is_not_treated_as_absent(factory):
     payload = {
         "number": 10,
         "title": "Mutable source",
         "body": "body",
         "state": "open",
         "created_at": "2026-08-01T01:02:03Z",
-        "updated_at": updated_at,
+        "updated_at": "",
     }
     if factory is pull_request_document:
         payload["head"] = {"sha": "d" * 40}
@@ -69,7 +68,10 @@ def test_present_falsey_updated_at_is_not_treated_as_absent(factory, updated_at)
 
 
 @pytest.mark.parametrize("factory", [pull_request_document, issue_document])
-def test_absent_updated_at_keeps_created_at_compatibility_fallback(factory):
+@pytest.mark.parametrize("updated_at_present", [False, True])
+def test_absent_or_null_updated_at_keeps_created_at_compatibility_fallback(
+    factory, updated_at_present
+):
     payload = {
         "number": 9,
         "title": "Mutable source",
@@ -77,6 +79,8 @@ def test_absent_updated_at_keeps_created_at_compatibility_fallback(factory):
         "state": "open",
         "created_at": "2026-08-01T01:02:03Z",
     }
+    if updated_at_present:
+        payload["updated_at"] = None
     if factory is pull_request_document:
         payload["head"] = {"sha": "b" * 40}
 
