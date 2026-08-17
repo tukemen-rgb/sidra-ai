@@ -44,12 +44,14 @@ class ApiAuditEvent:
 class ApiAuditLog:
     """Append metadata-only events to a mode-0600 JSONL file.
 
+    On platforms with ``dir_fd`` and ``O_NOFOLLOW`` support, every path
+    component is opened relative to an already-open parent directory. This
+    prevents an attacker from swapping a previously checked ancestor for a
+    symlink between validation and the final append. Other platforms retain a
+    fail-closed best-effort ancestry check.
+
     Each record is written with one ``os.write`` under a process-local lock and
-    the file is forced to owner read/write permissions on every append. The
-    final audit-log path is opened with ``O_NOFOLLOW`` when the platform
-    provides it, and symlink/non-regular targets are rejected before data is
-    written. This prevents an attacker-controlled audit path from redirecting
-    SIDRA's append/chmod operation onto another local file.
+    the file is forced to owner read/write permissions on every append.
 
     The log is local-only and does not perform network I/O.
     """
@@ -63,20 +65,102 @@ class ApiAuditLog:
         return tuple(sorted({value for value in values if value}))
 
     @staticmethod
-    def _open_regular_append(path: Path) -> int:
-        """Open ``path`` for append without following a final symlink.
+    def _reject_parent_traversal(path: Path) -> None:
+        if ".." in path.parts:
+            raise OSError("refusing audit log path with parent traversal")
 
-        ``O_NOFOLLOW`` closes the check/open race on platforms that expose it
-        (including the Linux CI/runtime target). The explicit symlink checks
-        also fail closed on platforms without that flag. ``fstat`` ensures a
-        special file such as a FIFO/device is never accepted as the audit log.
-        """
+    @staticmethod
+    def _supports_secure_dirfd() -> bool:
+        supports_dir_fd = getattr(os, "supports_dir_fd", ())
+        return (
+            os.name != "nt"
+            and hasattr(os, "O_DIRECTORY")
+            and hasattr(os, "O_NOFOLLOW")
+            and os.open in supports_dir_fd
+            and os.mkdir in supports_dir_fd
+        )
 
+    @staticmethod
+    def _path_components(path: Path) -> tuple[str, ...]:
+        ApiAuditLog._reject_parent_traversal(path)
+        parts = path.parts[1:] if path.is_absolute() else path.parts
+        components = tuple(part for part in parts if part not in {"", "."})
+        if not components:
+            raise OSError("audit log path must name a file")
+        return components
+
+    @staticmethod
+    def _directory_flags() -> int:
+        return (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+
+    @staticmethod
+    def _open_child_directory(parent_fd: int, component: str) -> int:
+        flags = ApiAuditLog._directory_flags()
+        try:
+            return os.open(component, flags, dir_fd=parent_fd)
+        except FileNotFoundError:
+            try:
+                os.mkdir(component, 0o700, dir_fd=parent_fd)
+            except FileExistsError:
+                # A concurrent creator won the race. Re-open with O_NOFOLLOW;
+                # a symlink or non-directory therefore still fails closed.
+                pass
+            return os.open(component, flags, dir_fd=parent_fd)
+
+    @staticmethod
+    def _open_regular_append_dirfd(path: Path) -> int:
+        """Open an audit file by walking every parent through trusted dirfds."""
+
+        components = ApiAuditLog._path_components(path)
+        base = path.anchor if path.is_absolute() else "."
+        parent_fd = os.open(base, ApiAuditLog._directory_flags())
+        try:
+            for component in components[:-1]:
+                child_fd = ApiAuditLog._open_child_directory(parent_fd, component)
+                os.close(parent_fd)
+                parent_fd = child_fd
+
+            flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+
+            fd = os.open(components[-1], flags, 0o600, dir_fd=parent_fd)
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise OSError("audit log path is not a regular file")
+                if hasattr(os, "fchmod"):
+                    os.fchmod(fd, 0o600)
+                return fd
+            except Exception:
+                os.close(fd)
+                raise
+        finally:
+            os.close(parent_fd)
+
+    @staticmethod
+    def _assert_trusted_path_fallback(path: Path) -> None:
+        """Best-effort ancestry check for platforms without secure dirfd walking."""
+
+        ApiAuditLog._reject_parent_traversal(path)
+        current = path
+        while True:
+            if current.is_symlink():
+                raise OSError("refusing audit log through a symlinked path")
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+
+    @staticmethod
+    def _open_regular_append_fallback(path: Path) -> int:
+        ApiAuditLog._assert_trusted_path_fallback(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.parent.is_symlink():
-            raise OSError("refusing audit log under a symlinked parent directory")
-        if path.is_symlink():
-            raise OSError("refusing to write audit log through a symlink")
+        ApiAuditLog._assert_trusted_path_fallback(path)
 
         flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
         flags |= getattr(os, "O_CLOEXEC", 0)
@@ -84,6 +168,7 @@ class ApiAuditLog:
 
         fd = os.open(path, flags, 0o600)
         try:
+            ApiAuditLog._assert_trusted_path_fallback(path)
             if not stat.S_ISREG(os.fstat(fd).st_mode):
                 raise OSError("audit log path is not a regular file")
             if hasattr(os, "fchmod"):
@@ -94,6 +179,12 @@ class ApiAuditLog:
         except Exception:
             os.close(fd)
             raise
+
+    @staticmethod
+    def _open_regular_append(path: Path) -> int:
+        if ApiAuditLog._supports_secure_dirfd():
+            return ApiAuditLog._open_regular_append_dirfd(path)
+        return ApiAuditLog._open_regular_append_fallback(path)
 
     def record(self, event: ApiAuditEvent) -> None:
         payload = {
