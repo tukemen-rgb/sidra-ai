@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Keep repository-scoped API work bounded within a single authenticated request.
 # The v0.1 allowlist is small; these limits leave headroom without permitting an
@@ -17,6 +17,25 @@ RepositoryRef = Annotated[
 ]
 
 
+def _validate_repository_scope(
+    repositories: list[str] | None,
+) -> list[str] | None:
+    """Reject duplicate logical repositories before service work begins.
+
+    GitHub repository identifiers are case-insensitive for SIDRA's allowlist
+    checks. Repeating the same logical repository under different casing must
+    therefore not multiply ingestion or retrieval work within one request.
+    """
+
+    if repositories is None:
+        return None
+
+    normalized = [repository.casefold() for repository in repositories]
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("repositories must not contain duplicates")
+    return repositories
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=32_000)
     top_k: int = Field(default=5, ge=1, le=20)
@@ -25,6 +44,11 @@ class ChatRequest(BaseModel):
         max_length=MAX_REPOSITORY_SCOPE_ITEMS,
         description="Restrict retrieval to these repositories. Allowlisted only.",
     )
+
+    @field_validator("repositories")
+    @classmethod
+    def validate_repository_scope(cls, value: list[str] | None) -> list[str] | None:
+        return _validate_repository_scope(value)
 
 
 class Citation(BaseModel):
@@ -48,6 +72,11 @@ class RetrieveRequest(BaseModel):
         max_length=MAX_REPOSITORY_SCOPE_ITEMS,
         description="Restrict retrieval to these repositories. Allowlisted only.",
     )
+
+    @field_validator("repositories")
+    @classmethod
+    def validate_repository_scope(cls, value: list[str] | None) -> list[str] | None:
+        return _validate_repository_scope(value)
 
 
 class RetrieveResult(BaseModel):
@@ -84,6 +113,11 @@ class AnalyzeRequest(BaseModel):
         description="Re-ingest even when the commit SHA is unchanged.",
     )
     question: str = Field(default="", max_length=4_000)
+
+    @field_validator("repositories")
+    @classmethod
+    def validate_repository_scope(cls, value: list[str] | None) -> list[str] | None:
+        return _validate_repository_scope(value)
 
 
 class AnalyzeResponse(BaseModel):
