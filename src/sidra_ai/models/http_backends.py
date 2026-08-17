@@ -42,28 +42,39 @@ def _assert_local_endpoint(endpoint: str) -> None:
         )
 
 
-def _stream_token_estimate(cjk_chars: int, other_chars: int) -> int:
+def _stream_token_estimate(
+    cjk_chars: int,
+    ascii_chars: int,
+    unicode_fallback_tokens: int,
+) -> int:
     """Match ``estimate_tokens`` without retaining the generated stream."""
 
-    if cjk_chars <= 0 and other_chars <= 0:
+    if cjk_chars <= 0 and ascii_chars <= 0 and unicode_fallback_tokens <= 0:
         return 0
-    return cjk_chars + ((other_chars + 3) // 4)
+    return cjk_chars + ((ascii_chars + 3) // 4) + unicode_fallback_tokens
 
 
 def _count_stream_chars(
     text: str,
     *,
     cjk_chars: int,
-    other_chars: int,
-) -> tuple[int, int]:
+    ascii_chars: int,
+    unicode_fallback_tokens: int,
+) -> tuple[int, int, int]:
     """Accumulate the same character classes used by ``estimate_tokens``."""
 
     for char in text:
-        if "　" <= char <= "鿿" or "＀" <= char <= "￯":
+        if (
+            "　" <= char <= "鿿"
+            or "가" <= char <= "힯"
+            or "＀" <= char <= "￯"
+        ):
             cjk_chars += 1
+        elif ord(char) < 128:
+            ascii_chars += 1
         else:
-            other_chars += 1
-    return cjk_chars, other_chars
+            unicode_fallback_tokens += len(char.encode("utf-8"))
+    return cjk_chars, ascii_chars, unicode_fallback_tokens
 
 
 class _HTTPAdapter(LocalModelAdapter):
@@ -222,7 +233,8 @@ class OllamaAdapter(_HTTPAdapter):
     def generate_stream(self, request: GenerationRequest) -> Iterator[GenerationChunk]:
         terminal_seen = False
         streamed_cjk_chars = 0
-        streamed_other_chars = 0
+        streamed_ascii_chars = 0
+        streamed_unicode_fallback_tokens = 0
         for line in self._stream_lines(
             "/api/generate", self._payload(request, stream=True)
         ):
@@ -235,10 +247,15 @@ class OllamaAdapter(_HTTPAdapter):
 
             delta = str(raw.get("response", ""))
             if delta:
-                streamed_cjk_chars, streamed_other_chars = _count_stream_chars(
+                (
+                    streamed_cjk_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
+                ) = _count_stream_chars(
                     delta,
                     cjk_chars=streamed_cjk_chars,
-                    other_chars=streamed_other_chars,
+                    ascii_chars=streamed_ascii_chars,
+                    unicode_fallback_tokens=streamed_unicode_fallback_tokens,
                 )
             done = bool(raw.get("done"))
             terminal_seen = terminal_seen or done
@@ -264,7 +281,8 @@ class OllamaAdapter(_HTTPAdapter):
                 output_tokens=int(raw.get("eval_count") or 0),
                 estimated_output_tokens=_stream_token_estimate(
                     streamed_cjk_chars,
-                    streamed_other_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
                 ),
                 finish_reason=str(raw.get("done_reason") or ("stop" if done else "")),
                 metadata=metadata,
@@ -311,7 +329,8 @@ class LlamaCppAdapter(_HTTPAdapter):
         token_count = 0
         terminal_seen = False
         streamed_cjk_chars = 0
-        streamed_other_chars = 0
+        streamed_ascii_chars = 0
+        streamed_unicode_fallback_tokens = 0
 
         for raw_line in self._stream_lines(
             "/completion", self._payload(request, stream=True)
@@ -330,7 +349,8 @@ class LlamaCppAdapter(_HTTPAdapter):
                     output_tokens=token_count,
                     estimated_output_tokens=_stream_token_estimate(
                         streamed_cjk_chars,
-                        streamed_other_chars,
+                        streamed_ascii_chars,
+                        streamed_unicode_fallback_tokens,
                     ),
                     finish_reason="stop",
                 )
@@ -345,10 +365,15 @@ class LlamaCppAdapter(_HTTPAdapter):
 
             delta = str(raw.get("content", ""))
             if delta:
-                streamed_cjk_chars, streamed_other_chars = _count_stream_chars(
+                (
+                    streamed_cjk_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
+                ) = _count_stream_chars(
                     delta,
                     cjk_chars=streamed_cjk_chars,
-                    other_chars=streamed_other_chars,
+                    ascii_chars=streamed_ascii_chars,
+                    unicode_fallback_tokens=streamed_unicode_fallback_tokens,
                 )
             tokens = raw.get("tokens")
             if isinstance(tokens, list):
@@ -365,7 +390,8 @@ class LlamaCppAdapter(_HTTPAdapter):
                 output_tokens=token_count,
                 estimated_output_tokens=_stream_token_estimate(
                     streamed_cjk_chars,
-                    streamed_other_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
                 ),
                 finish_reason=str(
                     raw.get("stop_type") or raw.get("stop_reason") or ("stop" if done else "")
