@@ -163,9 +163,10 @@ def pull_request_document(
         return None
     body = str(payload.get("body") or "").strip()
     head_sha = str(((payload.get("head") or {}).get("sha")) or "")
-    timestamp = _parse_time(payload.get("updated_at")) or _parse_time(
-        payload.get("created_at")
-    )
+    # PR bodies and state are mutable. ``created_at`` only identifies object
+    # creation and cannot prove when the currently returned revision was last
+    # updated, so an absent/malformed ``updated_at`` must fail closed.
+    timestamp = _parse_time(payload.get("updated_at"))
     if timestamp is None:
         return None
 
@@ -204,9 +205,10 @@ def issue_document(
     if number is None or not title:
         return None
     body = str(payload.get("body") or "").strip()
-    timestamp = _parse_time(payload.get("updated_at")) or _parse_time(
-        payload.get("created_at")
-    )
+    # Issue title/body/state are mutable for the same reason as PRs. A creation
+    # timestamp is not a valid revision timestamp for the currently returned
+    # payload, so do not fall back to it.
+    timestamp = _parse_time(payload.get("updated_at"))
     if timestamp is None:
         return None
 
