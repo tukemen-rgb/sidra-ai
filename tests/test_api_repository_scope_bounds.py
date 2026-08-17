@@ -23,7 +23,7 @@ from sidra_ai.api.schemas import (
     ],
 )
 def test_repository_scope_accepts_the_bounded_limit(request_type, payload) -> None:
-    repositories = ["tukemen-rgb/site"] * MAX_REPOSITORY_SCOPE_ITEMS
+    repositories = [f"owner/repo-{index}" for index in range(MAX_REPOSITORY_SCOPE_ITEMS)]
     request = request_type(**payload, repositories=repositories)
     assert len(request.repositories or []) == MAX_REPOSITORY_SCOPE_ITEMS
 
