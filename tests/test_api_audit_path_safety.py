@@ -24,7 +24,7 @@ def _event() -> ApiAuditEvent:
 
 
 def test_normal_audit_file_is_regular_owner_only_jsonl(tmp_path) -> None:
-    path = tmp_path / "audit.jsonl"
+    path = tmp_path / "nested" / "audit.jsonl"
 
     ApiAuditLog(path).record(_event())
 
@@ -64,3 +64,48 @@ def test_audit_log_refuses_symlinked_parent_directory(tmp_path) -> None:
         ApiAuditLog(linked_dir / "audit.jsonl").record(_event())
 
     assert not (real_dir / "audit.jsonl").exists()
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symlink support required")
+def test_audit_log_refuses_symlinked_higher_ancestor(tmp_path) -> None:
+    real_root = tmp_path / "real-root"
+    real_root.mkdir()
+    linked_root = tmp_path / "linked-root"
+    linked_root.symlink_to(real_root, target_is_directory=True)
+
+    with pytest.raises(OSError):
+        ApiAuditLog(linked_root / "nested" / "audit.jsonl").record(_event())
+
+    assert not (real_root / "nested" / "audit.jsonl").exists()
+
+
+def test_audit_log_refuses_explicit_parent_traversal(tmp_path) -> None:
+    safe_dir = tmp_path / "safe"
+    safe_dir.mkdir()
+    escaped = tmp_path / "escaped.jsonl"
+
+    with pytest.raises(OSError):
+        ApiAuditLog(safe_dir / ".." / "escaped.jsonl").record(_event())
+
+    assert not escaped.exists()
+
+
+@pytest.mark.skipif(
+    not ApiAuditLog._supports_secure_dirfd(),
+    reason="secure dir_fd/O_NOFOLLOW walk unavailable",
+)
+def test_audit_log_uses_dirfd_component_walk_when_supported(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "nested" / "audit.jsonl"
+
+    def forbidden_fallback(_path):
+        raise AssertionError("pathname fallback must not be used on secure dir_fd platforms")
+
+    monkeypatch.setattr(
+        ApiAuditLog,
+        "_open_regular_append_fallback",
+        staticmethod(forbidden_fallback),
+    )
+
+    ApiAuditLog(path).record(_event())
+
+    assert path.is_file()
