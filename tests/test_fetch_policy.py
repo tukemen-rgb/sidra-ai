@@ -19,13 +19,37 @@ def test_default_policy_fetches_nothing():
 def test_exact_allowlist_normalizes_case_and_trailing_dot():
     configured = FetchPolicy(allowed_hosts=frozenset({"Docs.Example.COM."}))
     target = configured.validate_target(
-        "https://DOCS.EXAMPLE.COM.:443/reference?q=1",
+        "https://DOCS.EXAMPLE.COM.:443/reference",
         [PUBLIC_V4, PUBLIC_V6],
     )
-    assert target.url == "https://docs.example.com/reference?q=1"
+    assert target.url == "https://docs.example.com/reference"
     assert target.host == "docs.example.com"
     assert target.port == 443
     assert target.resolved_ips == (PUBLIC_V4, PUBLIC_V6)
+
+
+def test_query_strings_are_rejected_without_echoing_sensitive_values():
+    configured = policy()
+    synthetic_secret = "ghp_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd"
+    sensitive_url = (
+        "https://docs.example.com/reference?"
+        f"token={synthetic_secret}&email=person%40private.invalid"
+    )
+
+    with pytest.raises(FetchPolicyError, match="query strings") as exc_info:
+        configured.canonicalize_url(sensitive_url)
+
+    message = str(exc_info.value)
+    assert synthetic_secret not in message
+    assert "person" not in message
+
+    with pytest.raises(FetchPolicyError, match="query strings"):
+        configured.validate_redirect(
+            "https://docs.example.com/a",
+            f"/b?token={synthetic_secret}",
+            [PUBLIC_V4],
+            redirects_taken=0,
+        )
 
 
 def test_exact_allowlist_rejects_suffix_escape():
