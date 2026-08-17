@@ -115,3 +115,36 @@ def test_parent_traversal_component_is_rejected(tmp_path: Path) -> None:
 
     assert not (tmp_path / "index.jsonl").exists()
     assert len(store) == 0
+
+
+def test_non_regular_persistence_target_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "index.jsonl"
+    path.mkdir()
+    store = DocumentStore(SecurityGate(), path=path)
+
+    with pytest.raises(PersistencePathError):
+        store.add(_document("must_not_write_to_directory"))
+
+    assert len(store) == 0
+
+
+def test_posix_secure_dirfd_path_does_not_use_pathname_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if not DocumentStore._supports_secure_dirfd():
+        pytest.skip("secure dirfd walking is unavailable on this platform")
+
+    def _fallback_must_not_run(path: Path) -> None:
+        raise AssertionError(f"pathname fallback used unexpectedly for {path}")
+
+    monkeypatch.setattr(
+        DocumentStore,
+        "_assert_no_symlink_ancestors",
+        staticmethod(_fallback_must_not_run),
+    )
+
+    path = tmp_path / "nested" / "index.jsonl"
+    store = DocumentStore(SecurityGate(), path=path)
+    store.add(_document("dirfd_only_marker"))
+
+    assert "dirfd_only_marker" in path.read_text(encoding="utf-8")
