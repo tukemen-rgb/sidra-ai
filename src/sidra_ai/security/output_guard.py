@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import html
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -72,6 +73,18 @@ _HEX_CANDIDATE = re.compile(
 )
 _MAX_HEX_CANDIDATES = 32
 
+# HTML character references are another reversible presentation layer. A model
+# can hide a critical delimiter (for example '@' in an email address or '_' in
+# a provider token prefix) while a browser/UI later renders the sensitive value.
+# Numeric references are accepted with or without a semicolon because Python's
+# HTML decoder and common renderers accept both forms. Named references require
+# the terminating semicolon to keep ordinary prose such as "R&D" out of this
+# detector path. Decoding is ephemeral and strictly budgeted.
+_HTML_ENTITY = re.compile(
+    r"&(?:#[0-9]{1,7};?|#[xX][0-9A-Fa-f]{1,6};?|[A-Za-z][A-Za-z0-9]{1,31};)"
+)
+_MAX_HTML_ENTITIES = 4096
+
 # JSON/code-style escapes are a common model-output form and can hide the
 # handful of ASCII delimiters that secret/PII detectors rely on. Decode only
 # explicit \uXXXX and \xHH escapes into an ephemeral detector copy. If an
@@ -122,12 +135,13 @@ class OutputGuard:
     preserving the original safe output byte-for-byte when no finding exists.
 
     The guard performs bounded decoding of base64/base64url-like,
-    percent-encoded, hexadecimal, and JSON/code escaped output. Decoded variants
-    are re-inspected for at most two layers, so composed reversible encodings
-    cannot trivially hide a secret. Candidate and global variant budgets keep
-    adversarial output from causing unbounded decoding work; exhausting any
-    budget fails closed rather than silently skipping unchecked candidates.
-    Decoded values remain ephemeral and never leave ``scan``.
+    percent-encoded, hexadecimal, HTML-character-reference, and JSON/code
+    escaped output. Decoded variants are re-inspected for at most two layers,
+    so composed reversible encodings cannot trivially hide a secret. Candidate
+    and global variant budgets keep adversarial output from causing unbounded
+    decoding work; exhausting any budget fails closed rather than silently
+    skipping unchecked candidates. Decoded values remain ephemeral and never
+    leave ``scan``.
 
     Detector failures fail closed: returning an unchecked answer is less safe
     than returning a constant withholding message.
@@ -228,6 +242,23 @@ class OutputGuard:
         return tuple(decoded)
 
     @staticmethod
+    def _html_entity_detection_variants(content: str) -> tuple[str, ...]:
+        """Return one bounded HTML-character-reference-decoded detector copy."""
+
+        count = 0
+        for _match in _HTML_ENTITY.finditer(content):
+            count += 1
+            if count > _MAX_HTML_ENTITIES:
+                raise ValueError("too many HTML entities in model output")
+        if count == 0:
+            return ()
+
+        decoded = OutputGuard._normalize_for_detection(html.unescape(content))
+        if decoded == content:
+            return ()
+        return (decoded,)
+
+    @staticmethod
     def _escaped_detection_variants(content: str) -> tuple[str, ...]:
         """Return one bounded JSON/code-escape-decoded detector variant."""
 
@@ -276,6 +307,7 @@ class OutputGuard:
             cls._decoded_detection_variants,
             cls._percent_decoded_detection_variants,
             cls._hex_decoded_detection_variants,
+            cls._html_entity_detection_variants,
             cls._escaped_detection_variants,
         )
         seen = {content}
