@@ -89,8 +89,11 @@ def admit_configured_adapter_with_nvidia_probe(
 
     Manifest matching happens before the hardware probe, so configuration not
     backed by reviewed local metadata cannot trigger GPU observation or adapter
-    construction. The GPU is then sampled exactly once. Probe failure is
-    propagated and never falls back to the static 6 GiB budget.
+    construction. The reviewed manifest is also the sole source of the
+    quantization label exposed by the routed adapter; callers cannot override
+    that provenance metadata through adapter options. The GPU is then sampled
+    exactly once. Probe failure is propagated and never falls back to the
+    static 6 GiB budget.
 
     The returned record keeps the same manifest entry, VRAM snapshot and routed
     adapter together. This gives the future API/service composition path one
@@ -98,6 +101,13 @@ def admit_configured_adapter_with_nvidia_probe(
     """
 
     entry = _configured_manifest_entry(manifest, backend=backend, model=model)
+    options = dict(adapter_options or {})
+    if "quantization" in options:
+        raise ConfiguredModelManifestError(
+            "adapter quantization must come from the reviewed manifest"
+        )
+    options["quantization"] = entry.quantization
+
     snapshot = probe_nvidia_vram(
         device_index,
         timeout_s=timeout_s,
@@ -107,7 +117,7 @@ def admit_configured_adapter_with_nvidia_probe(
         [entry.to_candidate()],
         hardware=snapshot.to_hardware_budget(reserve_vram_mib=reserve_vram_mib),
         planned_context_tokens=planned_context_tokens,
-        adapter_options=dict(adapter_options or {}),
+        adapter_options=options,
     )
     return ConfiguredModelAdmission(
         manifest_entry=entry,
