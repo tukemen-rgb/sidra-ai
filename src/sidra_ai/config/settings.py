@@ -223,6 +223,9 @@ class Settings:
         if self.port < 1 or self.port > 65535:
             raise UnsafeConfigurationError("port out of range")
 
+        if self.rate_limit_per_minute <= 0:
+            raise UnsafeConfigurationError("rate_limit_per_minute must be positive")
+
         if not self.is_localhost_only:
             if not self.allow_public_bind:
                 raise UnsafeConfigurationError(
