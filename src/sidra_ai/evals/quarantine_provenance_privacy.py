@@ -1,0 +1,168 @@
+"""Offline release gate for quarantine provenance privacy.
+
+Source allowlist rejection short-circuits secret/PII inspection by design. This
+suite proves that attacker-controlled provenance and body content still cannot
+be persisted through the quarantine audit boundary, while normal attribution
+for allowlisted quarantined documents remains available for human review.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from tempfile import TemporaryDirectory
+
+from sidra_ai.documents import Document, Provenance, SourceType, TrustLevel
+from sidra_ai.evals.cases import EvalOutcome
+from sidra_ai.security.decisions import Decision
+from sidra_ai.security.gate import QuarantineStore, SecurityGate
+
+
+def _rejected_provenance_privacy() -> EvalOutcome:
+    failures: list[str] = []
+    synthetic_secret = "ghp_" + ("R" * 24)
+    synthetic_pii = "private.person@example.com"
+    rejected_repository = f"owner/{synthetic_secret}"
+
+    provenance = Provenance(
+        source="github",
+        repository=rejected_repository,
+        path=f"docs/{synthetic_pii}.md",
+        commit_sha=synthetic_secret,
+        timestamp=datetime(2026, 8, 17, tzinfo=timezone.utc),
+        source_type=SourceType.DOCS,
+        trust_level=TrustLevel.EXTERNAL,
+        license=synthetic_pii,
+        url=f"https://example.invalid/{synthetic_secret}",
+        author=synthetic_pii,
+        extra={"note": synthetic_secret, synthetic_pii: "value"},
+    )
+    raw_body = f"token={synthetic_secret}\ncontact={synthetic_pii}"
+
+    with TemporaryDirectory() as data_dir:
+        store = QuarantineStore(f"{data_dir}/quarantine.jsonl")
+        gate = SecurityGate(
+            allowed_repositories=("safe/repo",),
+            quarantine_store=store,
+        )
+        result, screened = gate.screen_document(
+            Document(content=raw_body, provenance=provenance)
+        )
+        entries = store.entries()
+
+    if result.decision is not Decision.BLOCK:
+        failures.append(f"expected BLOCK, got {result.decision.value}")
+    if screened is not None:
+        failures.append("blocked unpermitted document became indexable")
+    if len(entries) != 1:
+        failures.append(f"expected one quarantine audit record, got {len(entries)}")
+    else:
+        entry = entries[0]
+        if entry.get("content") is not None:
+            failures.append("BLOCK audit persisted body content before secret/PII inspection")
+        audit_provenance = entry.get("provenance")
+        if not isinstance(audit_provenance, dict):
+            failures.append("BLOCK audit omitted context-free provenance metadata")
+        else:
+            expected_keys = {
+                "source_type",
+                "trust_level",
+                "timestamp",
+                "retrieved_at",
+                "source_length",
+                "repository_length",
+                "path_length",
+                "commit_sha_length",
+                "license_length",
+                "url_length",
+                "author_length",
+                "extra_count",
+            }
+            if set(audit_provenance) != expected_keys:
+                failures.append("rejected provenance audit retained unexpected fields")
+
+        serialized = json.dumps(entry, ensure_ascii=False)
+        forbidden = (
+            synthetic_secret,
+            synthetic_pii,
+            rejected_repository,
+            provenance.path,
+            provenance.commit_sha,
+            provenance.license,
+            provenance.url,
+            provenance.author,
+            raw_body,
+        )
+        if any(value in serialized for value in forbidden):
+            failures.append("rejected provenance/body data leaked into quarantine JSONL")
+        if any(
+            str(key) in serialized or str(value) in serialized
+            for key, value in provenance.extra.items()
+        ):
+            failures.append("rejected provenance extra data leaked into quarantine JSONL")
+
+    return EvalOutcome(
+        case_name="security_rejected_provenance_quarantine_privacy",
+        passed=not failures,
+        detail="unpermitted source audit must be context-free and metadata-only",
+        failures=tuple(failures),
+    )
+
+
+def _allowlisted_quarantine_attribution() -> EvalOutcome:
+    failures: list[str] = []
+    synthetic_secret = "ghp_" + ("S" * 24)
+    provenance = Provenance(
+        source="github",
+        repository="safe/repo",
+        path="docs/review.md",
+        commit_sha="a" * 40,
+        timestamp=datetime(2026, 8, 17, tzinfo=timezone.utc),
+        source_type=SourceType.DOCS,
+        trust_level=TrustLevel.INTERNAL_REPO,
+        license="proprietary",
+    )
+
+    with TemporaryDirectory() as data_dir:
+        store = QuarantineStore(f"{data_dir}/quarantine.jsonl")
+        gate = SecurityGate(
+            allowed_repositories=("safe/repo",),
+            quarantine_store=store,
+        )
+        result, screened = gate.screen_document(
+            Document(content=f"token={synthetic_secret}", provenance=provenance)
+        )
+        entries = store.entries()
+
+    if result.decision is not Decision.QUARANTINE:
+        failures.append(f"expected QUARANTINE, got {result.decision.value}")
+    if screened is not None:
+        failures.append("quarantined document became indexable")
+    if len(entries) != 1:
+        failures.append(f"expected one quarantine audit record, got {len(entries)}")
+    else:
+        entry = entries[0]
+        if entry.get("provenance") != provenance.to_dict():
+            failures.append("allowlisted quarantine lost normal source attribution")
+        serialized = json.dumps(entry, ensure_ascii=False)
+        if synthetic_secret in serialized:
+            failures.append("detected secret survived into allowlisted quarantine audit")
+        safe_content = entry.get("content")
+        if not isinstance(safe_content, str) or "[REDACTED:" not in safe_content:
+            failures.append("allowlisted quarantine did not retain a sanitized review copy")
+
+    return EvalOutcome(
+        case_name="security_allowlisted_quarantine_attribution",
+        passed=not failures,
+        detail="normal quarantines retain attribution but never raw detected secrets",
+        failures=tuple(failures),
+    )
+
+
+def run_quarantine_provenance_privacy_suite() -> list[EvalOutcome]:
+    """Run persistent quarantine provenance/privacy regressions entirely offline."""
+
+    return [
+        _rejected_provenance_privacy(),
+        _allowlisted_quarantine_attribution(),
+    ]

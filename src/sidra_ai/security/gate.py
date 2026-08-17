@@ -290,6 +290,46 @@ class QuarantineStore:
                 raise OSError("failed to append quarantine record")
             remaining = remaining[written:]
 
+    @staticmethod
+    def _audit_provenance(
+        provenance: Provenance | None,
+        result: GateResult,
+    ) -> dict[str, Any] | None:
+        """Return provenance safe to persist at the quarantine audit boundary.
+
+        Source allowlist rejection happens before secret/PII inspection.  A
+        rejected repository, path, URL, author, license, commit field, or
+        ``extra`` value is therefore attacker-controlled metadata that has not
+        passed redaction.  Persisting ``Provenance.to_dict()`` in that branch
+        would reintroduce the very identifier that the Finding audit boundary
+        intentionally removed.
+
+        Keep typed, non-secret attribution fields plus lengths only for
+        unpermitted-source records.  Lengths are operationally useful without
+        creating the offline-guessing oracle that a deterministic digest would.
+        Provenance for allowlisted QUARANTINE findings is unchanged so normal
+        human-review attribution is preserved.
+        """
+
+        if provenance is None:
+            return None
+        if not result.has(FindingCategory.UNPERMITTED_SOURCE):
+            return provenance.to_dict()
+        return {
+            "source_type": provenance.source_type.value,
+            "trust_level": provenance.trust_level.value,
+            "timestamp": provenance.timestamp.isoformat(),
+            "retrieved_at": provenance.retrieved_at.isoformat(),
+            "source_length": len(provenance.source),
+            "repository_length": len(provenance.repository),
+            "path_length": len(provenance.path),
+            "commit_sha_length": len(provenance.commit_sha),
+            "license_length": len(provenance.license),
+            "url_length": len(provenance.url),
+            "author_length": len(provenance.author),
+            "extra_count": len(provenance.extra),
+        }
+
     def record(
         self,
         *,
@@ -300,7 +340,7 @@ class QuarantineStore:
     ) -> None:
         entry: dict[str, Any] = {
             "recorded_at": datetime.now(timezone.utc).isoformat(),
-            "provenance": provenance.to_dict() if provenance else None,
+            "provenance": self._audit_provenance(provenance, result),
             "gate": result.to_dict(),
             "content": safe_content,
             "content_retention": "sanitized" if safe_content is not None else "metadata_only",
