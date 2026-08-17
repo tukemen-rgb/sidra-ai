@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Iterator, Mapping, Protocol
 from urllib.parse import quote, urlencode, urljoin, urlparse
 
@@ -34,6 +35,27 @@ MAX_PAGINATION_PAGES = 50
 #: Bound process-local conditional representations so a long-running poller
 #: cannot accumulate one cached body for every historical ref/compare URL.
 MAX_ETAG_CACHE_ENTRIES = 256
+
+
+def _parse_activity_timestamp(value: Any, *, field: str) -> datetime:
+    """Parse a mutable-source cursor timestamp without leaking raw values.
+
+    Pull-request pagination is ordered by ``updated_at``. During an incremental
+    poll, a missing or malformed timestamp means the client cannot prove where
+    that row sits relative to the cursor. Treat that as an incomplete fetch so
+    the pipeline preserves its previous cursor/snapshot instead of silently
+    skipping a potentially newer revision.
+    """
+
+    if not isinstance(value, str) or not value.strip():
+        raise GitHubAPIError(f"GitHub returned an invalid {field}")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise GitHubAPIError(f"GitHub returned an invalid {field}") from exc
+    if parsed.tzinfo is None:
+        raise GitHubAPIError(f"GitHub returned an invalid {field}")
+    return parsed.astimezone(timezone.utc)
 
 
 class WriteOperationForbiddenError(RuntimeError):
@@ -512,7 +534,12 @@ class GitHubReadOnlyClient:
 
         self._assert_allowed(repository)
         limit = self.settings.max_items_per_source
-        incremental = bool(since)
+        since_timestamp = (
+            _parse_activity_timestamp(since, field="pull request activity cursor")
+            if since is not None
+            else None
+        )
+        incremental = since_timestamp is not None
         items: list[dict[str, Any]] = []
 
         for page in self._iter_list_pages(
@@ -526,12 +553,13 @@ class GitHubReadOnlyClient:
         ):
             reached_since = False
             for pull in page:
-                updated_at = str(pull.get("updated_at", ""))
-                if since and not updated_at:
-                    continue
-                if since and updated_at <= since:
-                    reached_since = True
-                    break
+                if since_timestamp is not None:
+                    updated_at = _parse_activity_timestamp(
+                        pull.get("updated_at"), field="pull request updated_at"
+                    )
+                    if updated_at <= since_timestamp:
+                        reached_since = True
+                        break
                 items.append(pull)
                 if not incremental and len(items) >= limit:
                     return items
