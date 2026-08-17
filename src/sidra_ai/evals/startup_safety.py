@@ -124,6 +124,41 @@ def _unsafe_cli_public_bind_prebind_case() -> EvalOutcome:
     )
 
 
+def _storage_failure_prebind_privacy_case() -> EvalOutcome:
+    failures: list[str] = []
+    sensitive_path = "/private/operator/sidra/quarantine.jsonl"
+    diagnostic = f"permission denied: {sensitive_path}"
+
+    with TemporaryDirectory() as data_dir:
+        settings = Settings(model_backend="echo", data_dir=data_dir)
+
+        class FailingService:
+            def __init__(self, *, settings: Settings) -> None:
+                raise OSError(diagnostic)
+
+        with patch.object(server, "SidraService", FailingService):
+            exit_code, bind_calls, stdout, stderr = _invoke_with_fake_uvicorn(settings)
+
+    expected_error = "refusing to start: local SIDRA storage is unavailable or unsafe"
+    if exit_code != 2:
+        failures.append(f"expected exit code 2, got {exit_code}")
+    if bind_calls:
+        failures.append(f"uvicorn.run was called after storage failure: {bind_calls!r}")
+    if stdout.strip():
+        failures.append("startup banner was emitted after storage initialization failed")
+    if stderr.strip() != expected_error:
+        failures.append("storage startup failure did not use the fixed public diagnostic")
+    if sensitive_path in stderr or "permission denied" in stderr:
+        failures.append("storage startup refusal leaked filesystem details")
+
+    return EvalOutcome(
+        case_name="api_startup_storage_failure_prebind_privacy",
+        passed=not failures,
+        detail="local storage errors must fail before bind without leaking paths",
+        failures=tuple(failures),
+    )
+
+
 def _safe_echo_reaches_bind_case() -> EvalOutcome:
     failures: list[str] = []
     with TemporaryDirectory() as data_dir:
@@ -151,5 +186,6 @@ def run_startup_safety_suite() -> list[EvalOutcome]:
         _unregistered_backend_prebind_case(),
         _remote_endpoint_prebind_case(),
         _unsafe_cli_public_bind_prebind_case(),
+        _storage_failure_prebind_privacy_case(),
         _safe_echo_reaches_bind_case(),
     ]
