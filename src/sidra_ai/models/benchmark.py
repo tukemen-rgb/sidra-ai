@@ -67,12 +67,39 @@ class BenchmarkResult:
         }
 
 
-def _stream_token_estimate(cjk_chars: int, other_chars: int) -> int:
+def _stream_token_estimate(
+    cjk_chars: int,
+    ascii_chars: int,
+    unicode_fallback_tokens: int,
+) -> int:
     """Match ``estimate_tokens`` without retaining streamed generated text."""
 
-    if cjk_chars <= 0 and other_chars <= 0:
+    if cjk_chars <= 0 and ascii_chars <= 0 and unicode_fallback_tokens <= 0:
         return 0
-    return cjk_chars + (other_chars + 3) // 4
+    return cjk_chars + ((ascii_chars + 3) // 4) + unicode_fallback_tokens
+
+
+def _count_stream_chars(
+    text: str,
+    *,
+    cjk_chars: int,
+    ascii_chars: int,
+    unicode_fallback_tokens: int,
+) -> tuple[int, int, int]:
+    """Accumulate the same conservative character classes as ``estimate_tokens``."""
+
+    for char in text:
+        if (
+            "　" <= char <= "鿿"
+            or "가" <= char <= "힯"
+            or "＀" <= char <= "￯"
+        ):
+            cjk_chars += 1
+        elif ord(char) < 128:
+            ascii_chars += 1
+        else:
+            unicode_fallback_tokens += len(char.encode("utf-8"))
+    return cjk_chars, ascii_chars, unicode_fallback_tokens
 
 
 def run_benchmark(
@@ -96,7 +123,10 @@ def run_benchmark(
     Streaming output is never concatenated into a full in-memory answer merely
     for metrics. Character-class counters preserve the same fallback token
     estimate as :func:`estimate_tokens` while keeping the benchmark's memory
-    overhead bounded as generation length grows.
+    overhead bounded as generation length grows. Non-ASCII Unicode uses the
+    same conservative UTF-8-byte fallback as runtime context budgeting, so
+    emoji/combining marks do not make quantized-model throughput look
+    artificially high.
     """
 
     if adapter.requires_paid_api:
@@ -111,7 +141,8 @@ def run_benchmark(
     output_tokens = 0
     generated_any = False
     streamed_cjk_chars = 0
-    streamed_other_chars = 0
+    streamed_ascii_chars = 0
+    streamed_unicode_fallback_tokens = 0
 
     if adapter.supports_streaming:
         terminal_seen = False
@@ -120,11 +151,16 @@ def run_benchmark(
                 generated_any = True
                 if first_token_at is None:
                     first_token_at = clock()
-                for char in chunk.text_delta:
-                    if "　" <= char <= "鿿" or "＀" <= char <= "￯":
-                        streamed_cjk_chars += 1
-                    else:
-                        streamed_other_chars += 1
+                (
+                    streamed_cjk_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
+                ) = _count_stream_chars(
+                    chunk.text_delta,
+                    cjk_chars=streamed_cjk_chars,
+                    ascii_chars=streamed_ascii_chars,
+                    unicode_fallback_tokens=streamed_unicode_fallback_tokens,
+                )
             if chunk.input_tokens_estimate:
                 input_tokens = chunk.input_tokens_estimate
             if chunk.output_tokens_estimate:
@@ -139,7 +175,8 @@ def run_benchmark(
         if output_tokens <= 0 and generated_any:
             output_tokens = _stream_token_estimate(
                 streamed_cjk_chars,
-                streamed_other_chars,
+                streamed_ascii_chars,
+                streamed_unicode_fallback_tokens,
             )
     else:
         result = adapter.generate(request)
