@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 from sidra_ai.config.settings import Settings, get_settings
-from sidra_ai.models.base import LocalModelAdapter
+from sidra_ai.models.base import LocalModelAdapter, ModelUnavailableError
 from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
 from sidra_ai.models.echo import EchoModelAdapter
 from sidra_ai.models.http_backends import (
@@ -117,9 +117,20 @@ def create_adapter(
 
 
 def adapter_from_settings(settings: Settings | None = None) -> LocalModelAdapter:
-    """Build the adapter described by configuration."""
+    """Build only the dependency-free baseline adapter from configuration.
+
+    Real local backends must pass reviewed-manifest and freshly observed-VRAM
+    admission before construction. Keeping this convenience helper echo-only
+    prevents library/embedding callers from bypassing the same 6 GiB safety
+    boundary that the real SIDRA API composition path enforces.
+    """
 
     settings = settings or get_settings()
+    if settings.model_backend != "echo":
+        raise ModelUnavailableError(
+            "non-echo local models require reviewed-manifest and observed-VRAM admission"
+        )
+
     options: dict[str, Any] = {}
     if settings.model_endpoint:
         options["endpoint"] = settings.model_endpoint
