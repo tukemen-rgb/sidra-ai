@@ -21,6 +21,7 @@ from sidra_ai.evals.grounding import run_grounding_suite
 from sidra_ai.evals.health_resilience import run_health_resilience_suite
 from sidra_ai.evals.literal_support import run_literal_support_suite
 from sidra_ai.evals.local_proxy_isolation import run_local_proxy_isolation_suite
+from sidra_ai.evals.ollama_context_parity import run_ollama_context_parity_suite
 from sidra_ai.evals.output_security import run_output_security_suite
 from sidra_ai.evals.policy_polarity import run_policy_polarity_suite
 from sidra_ai.evals.quarantine_provenance_privacy import (
@@ -129,6 +130,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     report.outcomes.extend(run_cli_override_safety_suite())
     report.outcomes.extend(run_runtime_model_admission_suite())
     report.outcomes.extend(run_local_proxy_isolation_suite())
+    report.outcomes.extend(run_ollama_context_parity_suite())
     report.outcomes.extend(run_audit_path_safety_suite())
     report.outcomes.extend(run_quarantine_provenance_privacy_suite())
     report.outcomes.extend(run_fetch_plane_release_suite())
