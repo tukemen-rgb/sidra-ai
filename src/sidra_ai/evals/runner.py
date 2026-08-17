@@ -40,6 +40,7 @@ from sidra_ai.evals.request_validation_privacy import (
 from sidra_ai.evals.retrieval_quality import run_retrieval_quality_suite
 from sidra_ai.evals.runtime_model_admission import run_runtime_model_admission_suite
 from sidra_ai.evals.startup_safety import run_startup_safety_suite
+from sidra_ai.evals.vram_probe_integrity import run_vram_probe_integrity_suite
 from sidra_ai.security.gate import GatePolicy, SecurityGate
 
 
@@ -137,6 +138,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     report.outcomes.extend(run_runtime_model_admission_suite())
     report.outcomes.extend(run_local_proxy_isolation_suite())
     report.outcomes.extend(run_ollama_context_parity_suite())
+    report.outcomes.extend(run_vram_probe_integrity_suite())
     report.outcomes.extend(run_audit_path_safety_suite())
     report.outcomes.extend(run_quarantine_provenance_privacy_suite())
     report.outcomes.extend(run_fetch_plane_release_suite())
