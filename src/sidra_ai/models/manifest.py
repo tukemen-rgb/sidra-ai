@@ -177,7 +177,7 @@ def _parse_model(raw: Any, *, index: int) -> ManifestModel:
 
 
 def _assert_trusted_manifest_path(manifest_path: Path) -> None:
-    """Reject parent traversal or any existing symlink in the manifest path."""
+    """Best-effort ancestry check for platforms without secure dirfd walking."""
 
     if ".." in manifest_path.parts:
         raise ModelManifestError("model manifest parent traversal is not allowed")
@@ -196,16 +196,92 @@ def _assert_trusted_manifest_path(manifest_path: Path) -> None:
         current = parent
 
 
-def _read_manifest_bytes(manifest_path: Path) -> bytes:
-    """Read one manifest without following symlinked path components.
+def _supports_secure_dirfd() -> bool:
+    supports_dir_fd = getattr(os, "supports_dir_fd", ())
+    return (
+        os.name != "nt"
+        and hasattr(os, "O_DIRECTORY")
+        and hasattr(os, "O_NOFOLLOW")
+        and os.open in supports_dir_fd
+    )
 
-    The manifest controls VRAM/context admission for local model startup, so a
-    reviewed path must not be silently redirected to different routing metadata.
-    Every existing path component is checked for symlinks and explicit parent
-    traversal is rejected. On platforms with ``O_NOFOLLOW`` the final-component
-    check/open race is also closed by the kernel. ``fstat`` ensures a FIFO/device
-    is never accepted as routing metadata.
-    """
+
+def _path_components(path: Path) -> tuple[str, ...]:
+    if ".." in path.parts:
+        raise ModelManifestError("model manifest parent traversal is not allowed")
+    parts = path.parts[1:] if path.is_absolute() else path.parts
+    components = tuple(part for part in parts if part not in {"", "."})
+    if not components:
+        raise ModelManifestError("model manifest path must name a file")
+    return components
+
+
+def _directory_flags() -> int:
+    return (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+
+
+def _read_open_manifest(fd: int) -> bytes:
+    file_stat = os.fstat(fd)
+    if not stat.S_ISREG(file_stat.st_mode):
+        raise ModelManifestError("model manifest must be a regular file")
+    if file_stat.st_size <= 0 or file_stat.st_size > MAX_MANIFEST_BYTES:
+        raise ModelManifestError("model manifest size is outside the allowed range")
+
+    payload = os.read(fd, MAX_MANIFEST_BYTES + 1)
+    if not payload or len(payload) > MAX_MANIFEST_BYTES:
+        raise ModelManifestError("model manifest size is outside the allowed range")
+    return payload
+
+
+def _read_manifest_bytes_dirfd(manifest_path: Path) -> bytes:
+    """Read a manifest by pinning every path component to directory descriptors."""
+
+    components = _path_components(manifest_path)
+    base = manifest_path.anchor if manifest_path.is_absolute() else "."
+    try:
+        parent_fd = os.open(base, _directory_flags())
+    except OSError as exc:
+        raise ModelManifestError("model manifest path cannot be trusted") from exc
+
+    try:
+        for component in components[:-1]:
+            try:
+                child_fd = os.open(
+                    component,
+                    _directory_flags(),
+                    dir_fd=parent_fd,
+                )
+            except OSError as exc:
+                raise ModelManifestError("model manifest path cannot be trusted") from exc
+            os.close(parent_fd)
+            parent_fd = child_fd
+
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_BINARY", 0)
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(components[-1], flags, dir_fd=parent_fd)
+        except OSError as exc:
+            raise ModelManifestError("model manifest is not readable") from exc
+
+        try:
+            return _read_open_manifest(fd)
+        except OSError as exc:
+            raise ModelManifestError("model manifest is not readable") from exc
+        finally:
+            os.close(fd)
+    finally:
+        os.close(parent_fd)
+
+
+def _read_manifest_bytes_fallback(manifest_path: Path) -> bytes:
+    """Read a manifest with best-effort symlink checks when dirfd walking is unavailable."""
 
     _assert_trusted_manifest_path(manifest_path)
 
@@ -220,31 +296,34 @@ def _read_manifest_bytes(manifest_path: Path) -> bytes:
         raise ModelManifestError("model manifest is not readable") from exc
 
     try:
-        file_stat = os.fstat(fd)
-        if not stat.S_ISREG(file_stat.st_mode):
-            raise ModelManifestError("model manifest must be a regular file")
-        if file_stat.st_size <= 0 or file_stat.st_size > MAX_MANIFEST_BYTES:
-            raise ModelManifestError("model manifest size is outside the allowed range")
-
-        payload = os.read(fd, MAX_MANIFEST_BYTES + 1)
-        if not payload or len(payload) > MAX_MANIFEST_BYTES:
-            raise ModelManifestError("model manifest size is outside the allowed range")
-        return payload
+        _assert_trusted_manifest_path(manifest_path)
+        return _read_open_manifest(fd)
     except OSError as exc:
         raise ModelManifestError("model manifest is not readable") from exc
     finally:
         os.close(fd)
 
 
+def _read_manifest_bytes(manifest_path: Path) -> bytes:
+    """Read one bounded manifest without following untrusted path components."""
+
+    if _supports_secure_dirfd():
+        return _read_manifest_bytes_dirfd(manifest_path)
+    return _read_manifest_bytes_fallback(manifest_path)
+
+
 def load_local_model_manifest(path: str | Path) -> LocalModelManifest:
     """Load one reviewed JSON manifest from local disk, failing closed.
 
-    The final manifest path and every existing ancestor must not be symlinks,
-    and explicit parent traversal is rejected. The file is opened without
-    following the final component where supported, verified as a regular file
-    through the opened descriptor, bounded before and during reading, decoded as
-    strict UTF-8, uses duplicate-key detection, rejects unknown fields, and
-    accepts only backends already present in SIDRA's local-only registry.
+    On POSIX systems with secure ``dir_fd`` support, each path component is
+    opened relative to an already-open parent directory with ``O_NOFOLLOW``.
+    This prevents a reviewed manifest's ancestor directory from being swapped
+    to a symlink between a pathname check and the final file open. Other
+    platforms retain the existing fail-closed best-effort ancestry checks.
+
+    The final file must be regular and bounded, decoded as strict UTF-8, parsed
+    with duplicate-key detection, and may only name backends already present in
+    SIDRA's local-only registry.
     """
 
     manifest_path = Path(path)
