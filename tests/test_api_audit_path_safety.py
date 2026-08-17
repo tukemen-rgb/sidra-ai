@@ -64,3 +64,27 @@ def test_audit_log_refuses_symlinked_parent_directory(tmp_path) -> None:
         ApiAuditLog(linked_dir / "audit.jsonl").record(_event())
 
     assert not (real_dir / "audit.jsonl").exists()
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symlink support required")
+def test_audit_log_refuses_symlinked_higher_ancestor(tmp_path) -> None:
+    real_root = tmp_path / "real-root"
+    real_root.mkdir()
+    linked_root = tmp_path / "linked-root"
+    linked_root.symlink_to(real_root, target_is_directory=True)
+
+    with pytest.raises(OSError):
+        ApiAuditLog(linked_root / "nested" / "audit.jsonl").record(_event())
+
+    assert not (real_root / "nested" / "audit.jsonl").exists()
+
+
+def test_audit_log_refuses_explicit_parent_traversal(tmp_path) -> None:
+    safe_dir = tmp_path / "safe"
+    safe_dir.mkdir()
+    escaped = tmp_path / "escaped.jsonl"
+
+    with pytest.raises(OSError):
+        ApiAuditLog(safe_dir / ".." / "escaped.jsonl").record(_event())
+
+    assert not escaped.exists()
