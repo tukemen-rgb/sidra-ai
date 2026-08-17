@@ -148,7 +148,7 @@ def _allowlisted_quarantine_attribution() -> EvalOutcome:
         if synthetic_secret in serialized:
             failures.append("detected secret survived into allowlisted quarantine audit")
         safe_content = entry.get("content")
-        if not isinstance(safe_content, str) or "<<redacted" not in safe_content:
+        if not isinstance(safe_content, str) or "[REDACTED:" not in safe_content:
             failures.append("allowlisted quarantine did not retain a sanitized review copy")
 
     return EvalOutcome(
