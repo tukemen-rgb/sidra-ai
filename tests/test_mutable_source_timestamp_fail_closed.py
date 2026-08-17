@@ -45,6 +45,30 @@ def test_present_but_untrusted_updated_at_is_not_hidden_by_created_at(factory, p
 
 
 @pytest.mark.parametrize("factory", [pull_request_document, issue_document])
+@pytest.mark.parametrize("updated_at", ["", None])
+def test_present_falsey_updated_at_is_not_treated_as_absent(factory, updated_at):
+    payload = {
+        "number": 10,
+        "title": "Mutable source",
+        "body": "body",
+        "state": "open",
+        "created_at": "2026-08-01T01:02:03Z",
+        "updated_at": updated_at,
+    }
+    if factory is pull_request_document:
+        payload["head"] = {"sha": "d" * 40}
+
+    document = factory(
+        payload,
+        repository="tukemen-rgb/sidra-ai",
+        commit_sha="e" * 40,
+        license="Proprietary",
+    )
+
+    assert document is None
+
+
+@pytest.mark.parametrize("factory", [pull_request_document, issue_document])
 def test_absent_updated_at_keeps_created_at_compatibility_fallback(factory):
     payload = {
         "number": 9,
