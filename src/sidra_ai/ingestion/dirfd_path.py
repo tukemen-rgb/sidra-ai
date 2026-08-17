@@ -39,7 +39,7 @@ def supports_secure_dirfd() -> bool:
 
 def path_components(path: Path) -> tuple[str, ...]:
     if any(part == ".." for part in path.parts):
-        raise DirFdPathError("ingestion state path contains parent traversal")
+        raise DirFdPathError("ingestion state path contains explicit parent traversal")
     parts = path.parts[1:] if path.is_absolute() else path.parts
     components = tuple(part for part in parts if part not in {"", "."})
     if not components:
@@ -70,6 +70,22 @@ def _open_child(parent_fd: int, component: str, *, create: bool) -> int:
         return os.open(component, flags, dir_fd=parent_fd)
 
 
+def _parent_component_error(parent_fd: int, component: str, exc: OSError) -> DirFdPathError:
+    """Classify a failed directory open without trusting the pathname."""
+
+    try:
+        mode = os.stat(component, dir_fd=parent_fd, follow_symlinks=False).st_mode
+    except FileNotFoundError:
+        return DirFdPathError("ingestion state parent directory disappeared")
+    except OSError:
+        return DirFdPathError("ingestion state parent ancestry could not be inspected")
+    if stat.S_ISLNK(mode):
+        return DirFdPathError("ingestion state parent ancestry contains a symlink")
+    if not stat.S_ISDIR(mode):
+        return DirFdPathError("ingestion state parent ancestry contains a non-directory")
+    return DirFdPathError("ingestion state parent directory could not be opened safely")
+
+
 @contextmanager
 def trusted_parent(path: Path, *, create: bool) -> Iterator[tuple[int, str] | None]:
     """Yield ``(parent_fd, final_name)`` without re-resolving parent components."""
@@ -79,7 +95,7 @@ def trusted_parent(path: Path, *, create: bool) -> Iterator[tuple[int, str] | No
     try:
         parent_fd = os.open(base, directory_flags())
     except OSError as exc:
-        raise DirFdPathError("ingestion state root could not be opened") from exc
+        raise DirFdPathError("ingestion state path root could not be opened safely") from exc
 
     try:
         for component in components[:-1]:
@@ -89,7 +105,7 @@ def trusted_parent(path: Path, *, create: bool) -> Iterator[tuple[int, str] | No
                 yield None
                 return
             except OSError as exc:
-                raise DirFdPathError("ingestion state parent could not be opened") from exc
+                raise _parent_component_error(parent_fd, component, exc) from exc
             os.close(parent_fd)
             parent_fd = child_fd
         yield parent_fd, components[-1]
@@ -106,11 +122,11 @@ def _assert_regular_or_missing(parent_fd: int, name: str) -> bool:
     except FileNotFoundError:
         return False
     except OSError as exc:
-        raise DirFdPathError("ingestion state target could not be inspected") from exc
+        raise DirFdPathError("persisted ingestion state target could not be inspected") from exc
     if stat.S_ISLNK(mode):
-        raise DirFdPathError("ingestion state target is a symlink")
+        raise DirFdPathError("persisted ingestion state target is a symlink")
     if not stat.S_ISREG(mode):
-        raise DirFdPathError("ingestion state target is not a regular file")
+        raise DirFdPathError("persisted ingestion state target is not a regular file")
     return True
 
 
@@ -126,10 +142,10 @@ def open_regular_read_at(parent_fd: int, name: str) -> int | None:
     except FileNotFoundError:
         return None
     except OSError as exc:
-        raise DirFdPathError("ingestion state could not be opened") from exc
+        raise DirFdPathError("persisted ingestion state could not be opened safely") from exc
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise DirFdPathError("ingestion state target is not a regular file")
+            raise DirFdPathError("persisted ingestion state target is not a regular file")
         return fd
     except BaseException:
         os.close(fd)
@@ -162,7 +178,7 @@ def atomic_replace_bytes_at(parent_fd: int, final_name: str, payload: bytes) -> 
             temp_name = candidate
             break
         if temp_fd is None:
-            raise DirFdPathError("could not allocate ingestion state temp file")
+            raise DirFdPathError("could not allocate a unique ingestion state temp file")
 
         with os.fdopen(temp_fd, "wb", closefd=True) as handle:
             temp_fd = None
@@ -181,10 +197,10 @@ def atomic_replace_bytes_at(parent_fd: int, final_name: str, payload: bytes) -> 
                 dst_dir_fd=parent_fd,
             )
         except OSError as exc:
-            raise DirFdPathError("ingestion state could not be replaced") from exc
+            raise DirFdPathError("persisted ingestion state could not be replaced safely") from exc
         temp_name = ""
         if not _assert_regular_or_missing(parent_fd, final_name):
-            raise DirFdPathError("ingestion state disappeared after replacement")
+            raise DirFdPathError("persisted ingestion state disappeared after replacement")
     finally:
         if temp_fd is not None:
             try:
@@ -212,11 +228,11 @@ def _assert_lock_directory(parent_fd: int, name: str) -> os.stat_result | None:
     except FileNotFoundError:
         return None
     except OSError as exc:
-        raise DirFdPathError("ingestion state lock could not be inspected") from exc
+        raise DirFdPathError("ingestion state lock path could not be inspected") from exc
     if stat.S_ISLNK(info.st_mode):
-        raise DirFdPathError("ingestion state lock is a symlink")
+        raise DirFdPathError("ingestion state lock path is a symlink")
     if not stat.S_ISDIR(info.st_mode):
-        raise DirFdPathError("ingestion state lock is not a directory")
+        raise DirFdPathError("ingestion state lock path is not a directory")
     return info
 
 
@@ -257,7 +273,7 @@ def state_lock(
                     raise TimeoutError(f"timed out waiting for ingestion state lock: {path}")
                 time.sleep(poll_seconds)
             except OSError as exc:
-                raise DirFdPathError("ingestion state lock could not be created") from exc
+                raise DirFdPathError("ingestion state lock could not be created safely") from exc
 
         try:
             yield parent_fd, state_name
