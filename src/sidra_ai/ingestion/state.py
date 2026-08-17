@@ -199,9 +199,7 @@ class StateStore:
             try:
                 fd = open_regular_read_at(*trusted)
             except DirFdPathError as exc:
-                raise StateStoreError(
-                    "persisted ingestion state could not be opened safely"
-                ) from exc
+                raise StateStoreError(str(exc)) from exc
             if fd is None:
                 return None
             return os.fdopen(fd, "r", encoding="utf-8")
@@ -210,9 +208,7 @@ class StateStore:
             try:
                 fd = open_regular_read(self.path)
             except DirFdPathError as exc:
-                raise StateStoreError(
-                    "persisted ingestion state could not be opened safely"
-                ) from exc
+                raise StateStoreError(str(exc)) from exc
             if fd is None:
                 return None
             return os.fdopen(fd, "r", encoding="utf-8")
@@ -318,9 +314,7 @@ class StateStore:
                 ) as trusted:
                     yield trusted
             except DirFdPathError as exc:
-                raise StateStoreError(
-                    "ingestion state lock could not be acquired safely"
-                ) from exc
+                raise StateStoreError(str(exc)) from exc
             return
         with self._locked_update_fallback():
             yield None
@@ -368,9 +362,7 @@ class StateStore:
                 else:
                     atomic_replace_bytes_at(*trusted, payload)
             except DirFdPathError as exc:
-                raise StateStoreError(
-                    "persisted ingestion state could not be replaced safely"
-                ) from exc
+                raise StateStoreError(str(exc)) from exc
             return
         self._save_unlocked_fallback(state)
 
