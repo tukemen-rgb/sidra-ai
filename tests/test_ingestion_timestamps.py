@@ -51,7 +51,7 @@ def test_commit_without_trustworthy_timestamp_is_not_indexable() -> None:
     assert document is None
 
 
-def test_pull_request_uses_created_at_when_updated_at_is_invalid() -> None:
+def test_pull_request_rejects_invalid_updated_at_even_with_created_at() -> None:
     document = pull_request_document(
         {
             "number": 123,
@@ -67,8 +67,7 @@ def test_pull_request_uses_created_at_when_updated_at_is_invalid() -> None:
         license="unknown",
     )
 
-    assert document is not None
-    assert document.provenance.timestamp.isoformat() == "2026-08-15T23:30:00+00:00"
+    assert document is None
 
 
 def test_issue_without_authoritative_timestamp_is_not_indexable() -> None:
