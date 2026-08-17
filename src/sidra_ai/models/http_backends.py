@@ -87,7 +87,12 @@ class _HTTPAdapter(LocalModelAdapter):
 
         url = f"{self.endpoint}{path}"
         try:
-            response = httpx.post(url, json=payload, timeout=self.timeout)
+            response = httpx.post(
+                url,
+                json=payload,
+                timeout=self.timeout,
+                trust_env=False,
+            )
             response.raise_for_status()
             return response.json()
         except Exception as exc:  # noqa: BLE001 - surfaced as one error type
@@ -110,7 +115,11 @@ class _HTTPAdapter(LocalModelAdapter):
         url = f"{self.endpoint}{path}"
         try:
             with httpx.stream(
-                "POST", url, json=payload, timeout=self.timeout
+                "POST",
+                url,
+                json=payload,
+                timeout=self.timeout,
+                trust_env=False,
             ) as response:
                 response.raise_for_status()
                 for line in response.iter_lines():
@@ -127,7 +136,11 @@ class _HTTPAdapter(LocalModelAdapter):
         try:
             import httpx
 
-            response = httpx.get(self.endpoint, timeout=3.0)
+            response = httpx.get(
+                self.endpoint,
+                timeout=3.0,
+                trust_env=False,
+            )
             info["available"] = response.status_code < 500
         except Exception as exc:  # noqa: BLE001
             info["available"] = False
