@@ -7,9 +7,9 @@ screening primitive that the API lane can call immediately before returning a
 model answer.
 
 The guard deliberately does not persist or log model output. If a secret-like
-or high-confidence personal-information finding is detected, the entire answer
-is replaced with a constant safe message rather than partially redacting and
-accidentally leaking surrounding sensitive context.
+or personal-information finding at the configured output boundary is detected,
+the entire answer is replaced with a constant safe message rather than
+partially redacting and accidentally leaking surrounding sensitive context.
 """
 
 from __future__ import annotations
@@ -112,9 +112,9 @@ class OutputGuard:
     Secret findings at MEDIUM or above block the whole response. This is
     intentionally stricter than the ingestion path: output is an immediate
     exfiltration boundary, so an unprefixed high-entropy credential must not be
-    returned merely because it lacks a provider-specific prefix. PII remains
-    blocking at HIGH/CRITICAL so role addresses and other low-risk metadata do
-    not make ordinary responses unusable.
+    returned merely because it lacks a provider-specific prefix. PII is also
+    blocking at MEDIUM or above so a national-ID candidate cannot leave the
+    model boundary; LOW role/noreply addresses remain usable.
 
     Before matching, a detector-only copy is Unicode NFKC-normalized and has
     zero-width/bidi format controls removed. This prevents fullwidth or hidden-
@@ -301,15 +301,14 @@ class OutputGuard:
         return tuple(variants)
 
     def _scan_text(self, content: str) -> tuple[Finding, ...]:
-        # Ingestion can tolerate a MEDIUM high-entropy finding after redaction
-        # and human review. Output cannot: returning an unknown random-looking
-        # token is an immediate disclosure. Block all MEDIUM+ secret findings,
-        # while keeping PII at HIGH+ so low-risk role addresses stay usable.
+        # Output is an immediate disclosure boundary. Match the ingestion
+        # privacy floor for PII: MEDIUM national-ID candidates must not leave
+        # the model response, while LOW role/noreply addresses stay usable.
         secret_findings = self._blocking(
             self._secret.detect(content).findings, threshold=Severity.MEDIUM
         )
         pii_findings = self._blocking(
-            self._pii.detect(content).findings, threshold=Severity.HIGH
+            self._pii.detect(content).findings, threshold=Severity.MEDIUM
         )
         return secret_findings + pii_findings
 
@@ -334,5 +333,5 @@ class OutputGuard:
             blocked=True,
             content=_SAFE_BLOCK_MESSAGE,
             finding_labels=labels,
-            reason="secret-like or high-confidence PII detected in model output",
+            reason="secret-like or medium/high-confidence PII detected in model output",
         )
