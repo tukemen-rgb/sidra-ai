@@ -6,12 +6,11 @@ from sidra_ai.api.app import create_app
 from sidra_ai.config.settings import Settings
 
 
-def test_invalid_bearer_attempts_are_rate_limited_before_auth(tmp_path) -> None:
-    settings = Settings(
-        api_token="configured-token",
-        rate_limit_per_minute=2,
-        data_dir=str(tmp_path),
-    )
+def test_invalid_bearer_attempts_are_rate_limited_before_auth(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SIDRA_API_TOKEN", "configured-token")
+    settings = Settings(rate_limit_per_minute=2, data_dir=str(tmp_path))
     api = TestClient(create_app(service=object(), settings=settings))
     headers = {"Authorization": "Bearer wrong"}
 
@@ -23,7 +22,9 @@ def test_invalid_bearer_attempts_are_rate_limited_before_auth(tmp_path) -> None:
     assert statuses == [401, 401, 429]
 
 
-def test_health_uses_separate_limiter_from_bearer_attempts(tmp_path) -> None:
+def test_health_uses_separate_limiter_from_bearer_attempts(
+    tmp_path, monkeypatch
+) -> None:
     class HealthOnlyService:
         def health(self):
             return {
@@ -33,11 +34,8 @@ def test_health_uses_separate_limiter_from_bearer_attempts(tmp_path) -> None:
                 "github_write_enabled": False,
             }
 
-    settings = Settings(
-        api_token="configured-token",
-        rate_limit_per_minute=1,
-        data_dir=str(tmp_path),
-    )
+    monkeypatch.setenv("SIDRA_API_TOKEN", "configured-token")
+    settings = Settings(rate_limit_per_minute=1, data_dir=str(tmp_path))
     api = TestClient(create_app(service=HealthOnlyService(), settings=settings))
 
     assert (
