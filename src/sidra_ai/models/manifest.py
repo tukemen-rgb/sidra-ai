@@ -257,7 +257,9 @@ def _read_manifest_bytes_dirfd(manifest_path: Path) -> bytes:
                     dir_fd=parent_fd,
                 )
             except OSError as exc:
-                raise ModelManifestError("model manifest path cannot be trusted") from exc
+                raise ModelManifestError(
+                    "model manifest symlinks are not allowed or path cannot be trusted"
+                ) from exc
             os.close(parent_fd)
             parent_fd = child_fd
 
