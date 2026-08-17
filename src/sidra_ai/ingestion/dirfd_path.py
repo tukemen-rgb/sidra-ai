@@ -1,15 +1,17 @@
 """Descriptor-relative local path helpers for ingestion cursor state.
 
-This module is intentionally local-only.  On POSIX runtimes with dir-fd
-support, it walks each directory component relative to an already-open parent
-and refuses symlinks via ``O_NOFOLLOW``.  Callers can therefore keep a stable
-parent descriptor across state read/write operations instead of checking a
-pathname and later re-resolving it.
+This module is intentionally local-only. On POSIX runtimes with ``dir_fd``
+and ``O_NOFOLLOW`` support, every parent component is opened relative to an
+already-open directory descriptor. Reads, lock operations and atomic state
+replacement can therefore avoid re-resolving a pathname after a safety check.
 """
 
 from __future__ import annotations
 
 import os
+import secrets
+import stat
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -27,6 +29,7 @@ def supports_secure_dirfd() -> bool:
         and hasattr(os, "O_NOFOLLOW")
         and os.open in supports
         and os.mkdir in supports
+        and os.rmdir in supports
         and os.stat in supports
         and os.rename in supports
         and os.unlink in supports
@@ -62,6 +65,8 @@ def _open_child(parent_fd: int, component: str, *, create: bool) -> int:
         try:
             os.mkdir(component, 0o700, dir_fd=parent_fd)
         except FileExistsError:
+            # A concurrent creator won. Re-open with O_NOFOLLOW so a symlink
+            # or non-directory still fails closed.
             pass
         return os.open(component, flags, dir_fd=parent_fd)
 
@@ -71,7 +76,7 @@ def trusted_parent(path: Path, *, create: bool) -> Iterator[tuple[int, str] | No
     """Yield ``(parent_fd, final_name)`` without re-resolving parent components.
 
     ``None`` is yielded only when ``create`` is false and a parent does not
-    exist.  Any symlink/non-directory encountered during the walk fails closed.
+    exist. Any symlink/non-directory encountered during the walk fails closed.
     """
 
     components = path_components(path)
@@ -98,3 +103,169 @@ def trusted_parent(path: Path, *, create: bool) -> Iterator[tuple[int, str] | No
             os.close(parent_fd)
         except OSError:
             pass
+
+
+def _assert_regular_or_missing(parent_fd: int, name: str) -> bool:
+    """Return True when a regular target exists, False when it is absent."""
+
+    try:
+        mode = os.stat(name, dir_fd=parent_fd, follow_symlinks=False).st_mode
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise DirFdPathError("ingestion state target could not be inspected") from exc
+    if stat.S_ISLNK(mode):
+        raise DirFdPathError("ingestion state target is a symlink")
+    if not stat.S_ISREG(mode):
+        raise DirFdPathError("ingestion state target is not a regular file")
+    return True
+
+
+def open_regular_read(path: Path) -> int | None:
+    """Open an existing state file relative to a trusted parent descriptor."""
+
+    with trusted_parent(path, create=False) as trusted:
+        if trusted is None:
+            return None
+        parent_fd, name = trusted
+        if not _assert_regular_or_missing(parent_fd, name):
+            return None
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(name, flags, dir_fd=parent_fd)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise DirFdPathError("ingestion state could not be opened") from exc
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise DirFdPathError("ingestion state target is not a regular file")
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+
+
+def atomic_replace_bytes(path: Path, payload: bytes) -> None:
+    """Atomically replace ``path`` without re-resolving verified ancestors."""
+
+    with trusted_parent(path, create=True) as trusted:
+        assert trusted is not None
+        parent_fd, final_name = trusted
+        _assert_regular_or_missing(parent_fd, final_name)
+
+        temp_name = ""
+        temp_fd: int | None = None
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        try:
+            for _ in range(10):
+                candidate = f".{final_name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+                try:
+                    temp_fd = os.open(candidate, flags, 0o600, dir_fd=parent_fd)
+                except FileExistsError:
+                    continue
+                temp_name = candidate
+                break
+            if temp_fd is None:
+                raise DirFdPathError("could not allocate ingestion state temp file")
+
+            with os.fdopen(temp_fd, "wb", closefd=True) as handle:
+                temp_fd = None
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+                if hasattr(os, "fchmod"):
+                    os.fchmod(handle.fileno(), 0o600)
+
+            _assert_regular_or_missing(parent_fd, final_name)
+            try:
+                os.rename(
+                    temp_name,
+                    final_name,
+                    src_dir_fd=parent_fd,
+                    dst_dir_fd=parent_fd,
+                )
+            except OSError as exc:
+                raise DirFdPathError("ingestion state could not be replaced") from exc
+            temp_name = ""
+            if not _assert_regular_or_missing(parent_fd, final_name):
+                raise DirFdPathError("ingestion state disappeared after replacement")
+        finally:
+            if temp_fd is not None:
+                try:
+                    os.close(temp_fd)
+                except OSError:
+                    pass
+            if temp_name:
+                try:
+                    os.unlink(temp_name, dir_fd=parent_fd)
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    pass
+
+
+def _assert_lock_directory(parent_fd: int, name: str) -> os.stat_result | None:
+    try:
+        info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise DirFdPathError("ingestion state lock could not be inspected") from exc
+    if stat.S_ISLNK(info.st_mode):
+        raise DirFdPathError("ingestion state lock is a symlink")
+    if not stat.S_ISDIR(info.st_mode):
+        raise DirFdPathError("ingestion state lock is not a directory")
+    return info
+
+
+@contextmanager
+def state_lock(
+    path: Path,
+    *,
+    timeout_seconds: float,
+    stale_seconds: float,
+    poll_seconds: float,
+) -> Iterator[None]:
+    """Hold a descriptor-relative lock directory next to ``path``."""
+
+    with trusted_parent(path, create=True) as trusted:
+        assert trusted is not None
+        parent_fd, state_name = trusted
+        lock_name = state_name + ".lock"
+        deadline = time.monotonic() + timeout_seconds
+
+        while True:
+            try:
+                os.mkdir(lock_name, 0o700, dir_fd=parent_fd)
+                _assert_lock_directory(parent_fd, lock_name)
+                break
+            except FileExistsError:
+                info = _assert_lock_directory(parent_fd, lock_name)
+                if info is None:
+                    continue
+                if time.time() - info.st_mtime >= stale_seconds:
+                    try:
+                        os.rmdir(lock_name, dir_fd=parent_fd)
+                    except FileNotFoundError:
+                        pass
+                    except OSError:
+                        # Never force-remove a live/non-empty lock.
+                        pass
+                    continue
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"timed out waiting for ingestion state lock: {path}")
+                time.sleep(poll_seconds)
+            except OSError as exc:
+                raise DirFdPathError("ingestion state lock could not be created") from exc
+
+        try:
+            yield
+        finally:
+            try:
+                os.rmdir(lock_name, dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
