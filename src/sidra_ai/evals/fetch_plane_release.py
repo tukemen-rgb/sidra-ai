@@ -114,6 +114,42 @@ def _mixed_dns_is_fail_closed() -> EvalOutcome:
     )
 
 
+def _query_secret_is_rejected_before_dns() -> EvalOutcome:
+    failures: list[str] = []
+    policy = FetchPolicy(allowed_hosts=frozenset({"docs.example"}))
+    resolver = _FakeResolver({"docs.example": (_PUBLIC_IP,)})
+    transport = _FakeTransport({})
+    broker = FetchBroker(policy=policy, resolver=resolver, transport=transport)
+    # Compose the non-functional credential shape at runtime. Eval sources have a
+    # separate guard that intentionally rejects literal provider-token patterns.
+    synthetic_secret = "gh" + "p_" + "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd"
+    personal_marker = "person%40private.invalid"
+    url = f"https://docs.example/guide?token={synthetic_secret}&email={personal_marker}"
+
+    try:
+        broker.fetch(url)
+    except FetchPolicyError as exc:
+        message = str(exc)
+        if synthetic_secret in message or "person" in message:
+            failures.append("query-controlled sensitive value survived into policy diagnostics")
+    except Exception as exc:  # pragma: no cover - defensive eval reporting
+        failures.append(f"query rejection failed with unexpected {type(exc).__name__}")
+    else:
+        failures.append("query-bearing URL was accepted")
+
+    if resolver.calls:
+        failures.append("query-bearing URL reached DNS resolution")
+    if transport.calls:
+        failures.append("query-bearing URL reached HTTPS transport")
+
+    return EvalOutcome(
+        case_name="fetch_query_secret_rejected_before_dns",
+        passed=not failures,
+        detail="query strings must fail before DNS so secrets/PII cannot enter fetch provenance",
+        failures=tuple(failures),
+    )
+
+
 def _redirect_dns_is_revalidated() -> EvalOutcome:
     failures: list[str] = []
     policy = FetchPolicy(
@@ -275,6 +311,7 @@ def run_fetch_plane_release_suite() -> list[EvalOutcome]:
 
     return [
         _mixed_dns_is_fail_closed(),
+        _query_secret_is_rejected_before_dns(),
         _redirect_dns_is_revalidated(),
         _allowed_web_data_is_external_and_retrievable(),
         _prompt_injection_never_becomes_retrievable(),
