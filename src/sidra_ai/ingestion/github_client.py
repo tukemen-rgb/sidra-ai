@@ -435,10 +435,50 @@ class GitHubReadOnlyClient:
 
     # --- history --------------------------------------------------------
     def compare(self, repository: str, base: str, head: str) -> dict[str, Any]:
-        """Diff between two SHAs. This is the differential-ingestion core."""
+        """Diff between two SHAs. This is the differential-ingestion core.
+
+        The pipeline advances its stored SHA only after a complete collection.
+        A compare response that contains more commit revisions than
+        ``max_items_per_source`` cannot be fully represented by the current
+        bounded commit-document pass, and GitHub can also truncate the compare
+        commit list. Reject either case here instead of letting the caller
+        silently slice the commit window and advance past unseen provenance.
+        """
 
         self._assert_allowed(repository)
-        return self._get_json(f"repos/{repository}/compare/{base}...{head}")
+        comparison = self._get_json(f"repos/{repository}/compare/{base}...{head}")
+        if not isinstance(comparison, dict):
+            raise GitHubAPIError("GitHub compare returned a non-object response")
+
+        raw_commits = comparison.get("commits") or []
+        if not isinstance(raw_commits, list):
+            raise GitHubAPIError("GitHub compare returned a malformed commit list")
+
+        raw_total = comparison.get("total_commits")
+        if raw_total is None:
+            total_commits = len(raw_commits)
+        else:
+            try:
+                total_commits = int(raw_total)
+            except (TypeError, ValueError) as exc:
+                raise GitHubAPIError("GitHub compare returned an invalid total_commits") from exc
+            if total_commits < 0:
+                raise GitHubAPIError("GitHub compare returned an invalid total_commits")
+
+        if total_commits > len(raw_commits):
+            raise GitHubAPIError(
+                "GitHub compare omitted commits from the incremental window; "
+                "refusing to advance the SHA cursor on partial commit history"
+            )
+
+        limit = self.settings.max_items_per_source
+        if len(raw_commits) > limit:
+            raise GitHubAPIError(
+                "incremental commit window exceeds configured item limit; "
+                "refusing to advance the SHA cursor past unindexed commits"
+            )
+
+        return comparison
 
     def list_commits(
         self, repository: str, since_sha: str | None = None, head: str | None = None
