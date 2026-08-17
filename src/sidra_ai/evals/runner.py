@@ -25,6 +25,9 @@ from sidra_ai.evals.policy_polarity import run_policy_polarity_suite
 from sidra_ai.evals.repository_rejection_privacy import (
     run_repository_rejection_privacy_suite,
 )
+from sidra_ai.evals.request_validation_privacy import (
+    run_request_validation_privacy_suite,
+)
 from sidra_ai.evals.retrieval_quality import run_retrieval_quality_suite
 from sidra_ai.evals.runtime_model_admission import run_runtime_model_admission_suite
 from sidra_ai.evals.startup_safety import run_startup_safety_suite
@@ -116,6 +119,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     report.outcomes.extend(run_literal_support_suite())
     report.outcomes.extend(run_retrieval_quality_suite())
     report.outcomes.extend(run_repository_rejection_privacy_suite())
+    report.outcomes.extend(run_request_validation_privacy_suite())
     report.outcomes.extend(run_health_resilience_suite())
     report.outcomes.extend(run_startup_safety_suite())
     report.outcomes.extend(run_cli_override_safety_suite())
