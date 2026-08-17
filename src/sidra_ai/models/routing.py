@@ -140,6 +140,11 @@ def select_local_model(
     code can verify the assumption that admitted the route. Request-level
     budgeting remains enforced independently by :class:`BudgetedLocalModelAdapter`
     after a route is selected.
+
+    Route IDs must be unique. Accepting two declarations for the same
+    backend/model would make the admission result depend on which duplicate has
+    the more optimistic VRAM, context, quantization, or priority metadata. That
+    ambiguity is rejected before any candidate can be selected.
     """
 
     if planned_context_tokens < 0:
@@ -148,8 +153,13 @@ def select_local_model(
     registered = set(available_backends())
     accepted: list[tuple[int, int, str, LocalModelCandidate]] = []
     rejected: list[RejectedRoute] = []
+    seen_route_ids: set[str] = set()
 
     for candidate in candidates:
+        if candidate.route_id in seen_route_ids:
+            raise ValueError("local model candidate route IDs must be unique")
+        seen_route_ids.add(candidate.route_id)
+
         if candidate.backend not in registered:
             rejected.append(
                 RejectedRoute(candidate.route_id, "backend is not in the local-only registry")
