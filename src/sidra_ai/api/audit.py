@@ -50,8 +50,10 @@ class ApiAuditLog:
     symlink between validation and the final append. Other platforms retain a
     fail-closed best-effort ancestry check.
 
-    Each record is written with one ``os.write`` under a process-local lock and
-    the file is forced to owner read/write permissions on every append.
+    Each record is completed under a process-local lock. Short writes are
+    retried until the full JSONL record is persisted, and zero-progress writes
+    fail closed instead of leaving a silently truncated audit event. The file
+    is forced to owner read/write permissions on every append.
 
     The log is local-only and does not perform network I/O.
     """
@@ -186,6 +188,17 @@ class ApiAuditLog:
             return ApiAuditLog._open_regular_append_dirfd(path)
         return ApiAuditLog._open_regular_append_fallback(path)
 
+    @staticmethod
+    def _write_all(fd: int, payload: bytes) -> None:
+        """Persist one complete record, retrying legal short writes."""
+
+        remaining = memoryview(payload)
+        while remaining:
+            written = os.write(fd, remaining)
+            if written <= 0:
+                raise OSError("audit log write made no progress")
+            remaining = remaining[written:]
+
     def record(self, event: ApiAuditEvent) -> None:
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -198,7 +211,7 @@ class ApiAuditLog:
         with self._lock:
             fd = self._open_regular_append(self.path)
             try:
-                os.write(fd, line)
+                self._write_all(fd, line)
             finally:
                 os.close(fd)
 
