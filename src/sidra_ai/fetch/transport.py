@@ -97,8 +97,11 @@ class PinnedHttpsTransport:
                 last_unavailable = exc
                 continue
 
+            if 200 <= wire.status < 300 and wire.status != 200:
+                raise FetchTransportError("non-200 success response status is not allowed")
+
             content_type: str | None = None
-            if 200 <= wire.status < 300:
+            if wire.status == 200:
                 encoding = _single_header(wire.headers, "content-encoding")
                 if encoding is not None and encoding.lower() != "identity":
                     raise FetchTransportError("response content encoding is not allowed")
@@ -167,7 +170,10 @@ def _request_to_ip(
                 body=b"",
             )
 
-        if not 200 <= response.status < 300:
+        if 200 <= response.status < 300 and response.status != 200:
+            raise FetchTransportError("non-200 success response status is not allowed")
+
+        if response.status != 200:
             return _WireResponse(
                 status=response.status,
                 headers=_select_response_headers(raw_headers),
