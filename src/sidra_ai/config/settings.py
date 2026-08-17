@@ -47,10 +47,25 @@ class UnsafeConfigurationError(RuntimeError):
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
+    """Read an explicit boolean without silently weakening safety controls.
+
+    Typos and empty values fail closed instead of being coerced to ``False``.
+    That matters for settings such as prompt-injection quarantine, where a
+    malformed environment variable must never disable a protection.
+    """
+
     raw = os.environ.get(name)
     if raw is None:
         return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise UnsafeConfigurationError(
+        f"{name} must be one of: 1, 0, true, false, yes, no, on, off"
+    )
 
 
 def _env_int(name: str, default: int) -> int:
