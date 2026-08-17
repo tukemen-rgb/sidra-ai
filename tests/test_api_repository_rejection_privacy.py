@@ -10,6 +10,7 @@ from sidra_ai.ingestion.github_client import RepositoryNotAllowedError
 
 _SYNTHETIC_TOKEN = "ghp_" + "7" * 36
 _REJECTED_REPOSITORY = f"owner/{_SYNTHETIC_TOKEN}"
+_ALLOWED_REPOSITORY = "tukemen-rgb/site"
 _SAFE_DETAIL = "repository is not allowlisted"
 
 
@@ -81,11 +82,24 @@ def test_github_analyze_rejects_repository_before_service_work(settings: Setting
     assert service.calls == 0
 
 
+def test_github_analyze_rejects_mixed_scope_before_any_service_work(
+    settings: Settings,
+) -> None:
+    service = _RejectingService(settings)
+    response = _client(settings, service).post(
+        "/v1/github/analyze",
+        json={"repositories": [_ALLOWED_REPOSITORY, _REJECTED_REPOSITORY]},
+    )
+
+    _assert_private_forbidden(response)
+    assert service.calls == 0
+
+
 def test_global_repository_exception_handler_is_context_free(settings: Settings) -> None:
     service = _LateRejectingService(settings)
     response = _client(settings, service).post(
         "/v1/retrieve",
-        json={"query": "hi", "repositories": ["tukemen-rgb/site"]},
+        json={"query": "hi", "repositories": [_ALLOWED_REPOSITORY]},
     )
 
     _assert_private_forbidden(response)
