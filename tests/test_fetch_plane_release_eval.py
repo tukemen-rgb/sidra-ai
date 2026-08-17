@@ -8,6 +8,7 @@ def test_fetch_plane_release_suite_passes() -> None:
 
     assert {outcome.case_name for outcome in outcomes} == {
         "fetch_mixed_dns_ssrf_fail_closed",
+        "fetch_query_secret_rejected_before_dns",
         "fetch_redirect_dns_revalidation_fail_closed",
         "fetch_external_provenance_allow_only_retrieval",
         "fetch_prompt_injection_never_retrievable",
