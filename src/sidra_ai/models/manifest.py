@@ -270,7 +270,9 @@ def _read_manifest_bytes_dirfd(manifest_path: Path) -> bytes:
         try:
             fd = os.open(components[-1], flags, dir_fd=parent_fd)
         except OSError as exc:
-            raise ModelManifestError("model manifest is not readable") from exc
+            raise ModelManifestError(
+                "model manifest symlinks are not allowed or manifest is not readable"
+            ) from exc
 
         try:
             return _read_open_manifest(fd)
