@@ -90,6 +90,7 @@ def test_manifest_loader_opens_components_relative_to_pinned_parent_fds(
             return real_open(path, flags, mode)
         return real_open(path, flags, mode, dir_fd=dir_fd)
 
+    monkeypatch.setattr(manifest_module, "_supports_secure_dirfd", lambda: True)
     monkeypatch.setattr(manifest_module.os, "open", recording_open)
 
     load_local_model_manifest(manifest_path)
