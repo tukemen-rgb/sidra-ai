@@ -164,6 +164,12 @@ class BM25Retriever:
     the whole store. This fail-closed distinction matters at API boundaries
     where callers may intentionally resolve an authorization scope to zero
     repositories.
+
+    Query-side term frequency is deliberately saturated at one in v0.1. The
+    scorer has no BM25 ``k3``/query-frequency term, so summing the same token
+    repeatedly would let keyword stuffing linearly inflate an evidence score
+    and potentially cross a downstream ``min_score`` threshold without adding
+    any new lexical evidence.
     """
 
     def __init__(self, store: DocumentStore, *, k1: float = 1.5, b: float = 0.75) -> None:
@@ -226,7 +232,7 @@ class BM25Retriever:
         """Return score-ranked chunks with filter-scoped BM25 statistics."""
 
         self._ensure_index()
-        query_terms = tokenize(query)
+        query_terms = tuple(dict.fromkeys(tokenize(query)))
         if not query_terms or not self._chunks or top_k <= 0:
             return []
 
