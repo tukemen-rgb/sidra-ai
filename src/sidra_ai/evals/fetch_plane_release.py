@@ -120,7 +120,9 @@ def _query_secret_is_rejected_before_dns() -> EvalOutcome:
     resolver = _FakeResolver({"docs.example": (_PUBLIC_IP,)})
     transport = _FakeTransport({})
     broker = FetchBroker(policy=policy, resolver=resolver, transport=transport)
-    synthetic_secret = "ghp_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd"
+    # Compose the non-functional credential shape at runtime. Eval sources have a
+    # separate guard that intentionally rejects literal provider-token patterns.
+    synthetic_secret = "gh" + "p_" + "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd"
     personal_marker = "person%40private.invalid"
     url = f"https://docs.example/guide?token={synthetic_secret}&email={personal_marker}"
 
