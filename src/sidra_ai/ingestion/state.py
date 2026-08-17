@@ -22,7 +22,9 @@ from typing import Any, Iterator
 from sidra_ai.ingestion.dirfd_path import (
     DirFdPathError,
     atomic_replace_bytes,
+    atomic_replace_bytes_at,
     open_regular_read,
+    open_regular_read_at,
     state_lock,
     supports_secure_dirfd,
 )
@@ -192,7 +194,18 @@ class StateStore:
             os.close(fd)
             raise
 
-    def _open_state_for_read(self):
+    def _open_state_for_read(self, trusted: tuple[int, str] | None = None):
+        if trusted is not None:
+            try:
+                fd = open_regular_read_at(*trusted)
+            except DirFdPathError as exc:
+                raise StateStoreError(
+                    "persisted ingestion state could not be opened safely"
+                ) from exc
+            if fd is None:
+                return None
+            return os.fdopen(fd, "r", encoding="utf-8")
+
         if self._supports_secure_dirfd():
             try:
                 fd = open_regular_read(self.path)
@@ -205,8 +218,11 @@ class StateStore:
             return os.fdopen(fd, "r", encoding="utf-8")
         return self._open_state_for_read_fallback()
 
-    def load(self) -> IngestionState:
-        handle = self._open_state_for_read()
+    def _load_unlocked(
+        self,
+        trusted: tuple[int, str] | None = None,
+    ) -> IngestionState:
+        handle = self._open_state_for_read(trusted)
         if handle is None:
             return IngestionState()
         try:
@@ -230,6 +246,9 @@ class StateStore:
             raise StateStoreError(
                 "persisted ingestion state has an invalid schema"
             ) from exc
+
+    def load(self) -> IngestionState:
+        return self._load_unlocked()
 
     def _assert_lock_path_safe_if_present(self) -> None:
         try:
@@ -288,7 +307,7 @@ class StateStore:
                 pass
 
     @contextmanager
-    def _locked_update(self) -> Iterator[None]:
+    def _locked_update(self) -> Iterator[tuple[int, str] | None]:
         if self._supports_secure_dirfd():
             try:
                 with state_lock(
@@ -296,15 +315,15 @@ class StateStore:
                     timeout_seconds=self._LOCK_TIMEOUT_SECONDS,
                     stale_seconds=self._LOCK_STALE_SECONDS,
                     poll_seconds=self._LOCK_POLL_SECONDS,
-                ):
-                    yield
+                ) as trusted:
+                    yield trusted
             except DirFdPathError as exc:
                 raise StateStoreError(
                     "ingestion state lock could not be acquired safely"
                 ) from exc
             return
         with self._locked_update_fallback():
-            yield
+            yield None
 
     def _save_unlocked_fallback(self, state: IngestionState) -> None:
         self._prepare_parent_directory()
@@ -332,7 +351,11 @@ class StateStore:
             Path(handle.name).unlink(missing_ok=True)
             raise
 
-    def _save_unlocked(self, state: IngestionState) -> None:
+    def _save_unlocked(
+        self,
+        state: IngestionState,
+        trusted: tuple[int, str] | None = None,
+    ) -> None:
         if self._supports_secure_dirfd():
             payload = json.dumps(
                 state.to_dict(),
@@ -340,7 +363,10 @@ class StateStore:
                 indent=2,
             ).encode("utf-8")
             try:
-                atomic_replace_bytes(self.path, payload)
+                if trusted is None:
+                    atomic_replace_bytes(self.path, payload)
+                else:
+                    atomic_replace_bytes_at(*trusted, payload)
             except DirFdPathError as exc:
                 raise StateStoreError(
                     "persisted ingestion state could not be replaced safely"
@@ -349,8 +375,8 @@ class StateStore:
         self._save_unlocked_fallback(state)
 
     def save(self, state: IngestionState) -> None:
-        with self._locked_update():
-            self._save_unlocked(state)
+        with self._locked_update() as trusted:
+            self._save_unlocked(state, trusted)
 
     def mark_ingested(
         self,
@@ -362,8 +388,8 @@ class StateStore:
         default_branch: str = "",
         license: str = "unknown",
     ) -> IngestionState:
-        with self._locked_update():
-            state = self.load()
+        with self._locked_update() as trusted:
+            state = self._load_unlocked(trusted)
             record = state.get(repository)
             record.last_commit_sha = commit_sha
             record.last_ingested_at = datetime.now(timezone.utc).isoformat()
@@ -374,12 +400,12 @@ class StateStore:
                 record.default_branch = default_branch
             if license:
                 record.license = license
-            self._save_unlocked(state)
+            self._save_unlocked(state, trusted)
             return state
 
     def mark_error(self, repository: str, message: str) -> IngestionState:
-        with self._locked_update():
-            state = self.load()
+        with self._locked_update() as trusted:
+            state = self._load_unlocked(trusted)
             state.get(repository).last_error = message[:500]
-            self._save_unlocked(state)
+            self._save_unlocked(state, trusted)
             return state
