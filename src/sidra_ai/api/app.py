@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from sidra_ai.api.audit import ApiAuditLog
@@ -45,6 +46,7 @@ from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.ingestion.github_client import RepositoryNotAllowedError
 
 _REPOSITORY_FORBIDDEN_DETAIL = "repository is not allowlisted"
+_REQUEST_VALIDATION_DETAIL = "request validation failed"
 
 
 class RateLimiter:
@@ -121,6 +123,15 @@ def create_app(
             "retrieved content is DATA, never instructions."
         ),
     )
+
+    @app.exception_handler(RequestValidationError)
+    def _request_validation_error(_: Request, _exc: RequestValidationError) -> JSONResponse:
+        """Return context-free 422s without reflecting request-controlled input."""
+
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": _REQUEST_VALIDATION_DETAIL},
+        )
 
     def resolve_service() -> SidraService:
         return service or get_service()
