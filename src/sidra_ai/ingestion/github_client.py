@@ -19,7 +19,7 @@ import json
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Iterator, Mapping, Protocol
-from urllib.parse import urlencode, urljoin, urlparse
+from urllib.parse import quote, urlencode, urljoin, urlparse
 
 from sidra_ai.config.settings import Settings, get_settings
 
@@ -378,8 +378,15 @@ class GitHubReadOnlyClient:
         self, repository: str, path: str, ref: str | None = None
     ) -> Any:
         self._assert_allowed(repository)
+        # GitHub Contents API repository paths are data, not URL syntax. Encode
+        # every reserved byte while preserving path separators so valid names
+        # containing spaces, '#', '?', '%', or Unicode cannot be truncated or
+        # reinterpreted as a query/fragment during read-only ingestion.
+        encoded_path = quote(path, safe="/")
         try:
-            return self._get_json(f"repos/{repository}/contents/{path}", {"ref": ref})
+            return self._get_json(
+                f"repos/{repository}/contents/{encoded_path}", {"ref": ref}
+            )
         except GitHubAPIError as exc:
             if exc.status == 404:
                 return None
