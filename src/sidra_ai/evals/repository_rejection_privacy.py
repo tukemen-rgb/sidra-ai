@@ -102,14 +102,14 @@ def _repository_rejection_response_privacy() -> EvalOutcome:
         )
         _check_private_forbidden(
             analyze,
-            label="github analyze repository exception",
+            label="github analyze pre-service rejection",
             failures=failures,
         )
 
-        if service.calls != 1:
+        if service.calls != 0:
             failures.append(
-                "pre-service repository rejection did not stop chat/retrieve work, "
-                f"or analyze was not exercised exactly once (calls={service.calls})"
+                "repository allowlist preflight did not stop all service work "
+                f"(calls={service.calls})"
             )
 
         late_service = _LateRejectingService(settings)
