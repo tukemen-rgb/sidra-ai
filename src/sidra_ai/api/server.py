@@ -51,6 +51,15 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    except OSError:
+        # Storage constructors may fail on an unavailable, permission-denied,
+        # or fail-closed local path. Refuse before socket bind, but never echo
+        # the underlying filesystem path or OS diagnostic to the terminal.
+        print(
+            "refusing to start: local SIDRA storage is unavailable or unsafe",
+            file=sys.stderr,
+        )
+        return 2
 
     _print_banner(settings)
 
