@@ -18,11 +18,13 @@ Deletion/quarantine paths can call :meth:`DocumentStore.retire_source`
 explicitly.  This prevents an old, correctly cited document from continuing
 to masquerade as current knowledge merely because its commit SHA differs.
 
-Optional JSONL persistence is also a security boundary. The configured target
-must be a regular file reached without following a final-path symlink or any
-existing symlink in its parent ancestry, and owner-only permissions are
-enforced through the opened file descriptor where the platform supports it.
-A persistence failure occurs before the in-memory index is mutated so a failed
+Optional JSONL persistence is also a security boundary. On POSIX/Linux
+runtimes with dir-fd support, every parent component is opened relative to an
+already verified directory descriptor and the final regular file is opened
+relative to that descriptor with ``O_NOFOLLOW``. This avoids re-resolving a
+pathname after an ancestry check and closes ancestor symlink TOCTOU races.
+Owner-only permissions are enforced through the opened file descriptor. A
+persistence failure occurs before the in-memory index is mutated so a failed
 write cannot silently retire the previously retrievable revision.
 """
 
@@ -237,8 +239,58 @@ class DocumentStore:
 
     # ------------------------------------------------------------------
     @staticmethod
+    def _reject_parent_traversal(path: Path) -> None:
+        if ".." in path.parts:
+            raise PersistencePathError(
+                "refusing persistence path with parent traversal"
+            )
+
+    @staticmethod
+    def _supports_secure_dirfd() -> bool:
+        supports_dir_fd = getattr(os, "supports_dir_fd", ())
+        return (
+            os.name != "nt"
+            and hasattr(os, "O_DIRECTORY")
+            and hasattr(os, "O_NOFOLLOW")
+            and os.open in supports_dir_fd
+            and os.mkdir in supports_dir_fd
+        )
+
+    @staticmethod
+    def _path_components(path: Path) -> tuple[str, ...]:
+        DocumentStore._reject_parent_traversal(path)
+        parts = path.parts[1:] if path.is_absolute() else path.parts
+        components = tuple(part for part in parts if part not in {"", "."})
+        if not components:
+            raise PersistencePathError("persistence path must name a file")
+        return components
+
+    @staticmethod
+    def _directory_flags() -> int:
+        return (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+
+    @staticmethod
+    def _open_child_directory(parent_fd: int, component: str) -> int:
+        flags = DocumentStore._directory_flags()
+        try:
+            return os.open(component, flags, dir_fd=parent_fd)
+        except FileNotFoundError:
+            try:
+                os.mkdir(component, 0o700, dir_fd=parent_fd)
+            except FileExistsError:
+                # A concurrent creator won the race. Re-open with O_NOFOLLOW;
+                # a symlink or non-directory therefore still fails closed.
+                pass
+            return os.open(component, flags, dir_fd=parent_fd)
+
+    @staticmethod
     def _assert_no_symlink_ancestors(path: Path) -> None:
-        """Reject any existing symlink in ``path`` or its ancestor chain."""
+        """Best-effort fallback check for platforms without secure dirfd walking."""
 
         current = path
         while True:
@@ -257,42 +309,107 @@ class DocumentStore:
                 return
             current = parent
 
-    def _open_persistence_fd(self) -> int:
-        """Open the JSONL target without following symlinked path components."""
+    def _open_persistence_fd_dirfd(self) -> int:
+        """Open JSONL by walking every parent from already-trusted dirfds."""
 
         assert self._path is not None
-        if ".." in self._path.parts:
-            raise PersistencePathError("refusing persistence path with parent traversal")
+        components = self._path_components(self._path)
+        base = self._path.anchor if self._path.is_absolute() else "."
+
+        try:
+            parent_fd = os.open(base, self._directory_flags())
+        except OSError as exc:
+            raise PersistencePathError(
+                "could not open persistence path root"
+            ) from exc
+
+        try:
+            for component in components[:-1]:
+                try:
+                    child_fd = self._open_child_directory(parent_fd, component)
+                except OSError as exc:
+                    raise PersistencePathError(
+                        "could not safely prepare persistence directory"
+                    ) from exc
+                os.close(parent_fd)
+                parent_fd = child_fd
+
+            flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            try:
+                fd = os.open(components[-1], flags, 0o600, dir_fd=parent_fd)
+            except OSError as exc:
+                raise PersistencePathError(
+                    "could not safely open persistence target"
+                ) from exc
+
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise PersistencePathError(
+                        "persistence target must be a regular file"
+                    )
+                if hasattr(os, "fchmod"):
+                    os.fchmod(fd, 0o600)
+                return fd
+            except BaseException:
+                os.close(fd)
+                raise
+        finally:
+            os.close(parent_fd)
+
+    def _open_persistence_fd_fallback(self) -> int:
+        """Best-effort fallback for runtimes without safe descriptor walking."""
+
+        assert self._path is not None
+        self._reject_parent_traversal(self._path)
 
         parent = self._path.parent
         self._assert_no_symlink_ancestors(parent)
         try:
             parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            raise PersistencePathError("could not prepare persistence directory") from exc
+            raise PersistencePathError(
+                "could not prepare persistence directory"
+            ) from exc
         self._assert_no_symlink_ancestors(parent)
         if self._path.is_symlink():
             raise PersistencePathError("refusing symlinked persistence target")
 
         flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
-        nofollow = getattr(os, "O_NOFOLLOW", 0)
-        if nofollow:
-            flags |= nofollow
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
 
         try:
             fd = os.open(self._path, flags, 0o600)
         except OSError as exc:
-            raise PersistencePathError("could not safely open persistence target") from exc
+            raise PersistencePathError(
+                "could not safely open persistence target"
+            ) from exc
 
         try:
+            self._assert_no_symlink_ancestors(parent)
+            if self._path.is_symlink():
+                raise PersistencePathError("refusing symlinked persistence target")
             if not stat.S_ISREG(os.fstat(fd).st_mode):
-                raise PersistencePathError("persistence target must be a regular file")
+                raise PersistencePathError(
+                    "persistence target must be a regular file"
+                )
             if hasattr(os, "fchmod"):
                 os.fchmod(fd, 0o600)
+            else:  # pragma: no cover - Windows fallback
+                os.chmod(self._path, 0o600, follow_symlinks=False)
             return fd
         except BaseException:
             os.close(fd)
             raise
+
+    def _open_persistence_fd(self) -> int:
+        """Open the JSONL target without pathname re-resolution on POSIX."""
+
+        if self._supports_secure_dirfd():
+            return self._open_persistence_fd_dirfd()
+        return self._open_persistence_fd_fallback()
 
     def _append(self, document: Document) -> None:
         assert self._path is not None
