@@ -1,9 +1,10 @@
 """Offline release gate for quarantine provenance privacy.
 
-Source allowlist rejection short-circuits secret/PII inspection by design. This
-suite proves that attacker-controlled provenance and body content still cannot
-be persisted through the quarantine audit boundary, while normal attribution
-for allowlisted quarantined documents remains available for human review.
+Source allowlist and oversized-input rejection both short-circuit secret/PII
+inspection by design. This suite proves that attacker-controlled provenance and
+body content still cannot be persisted through the quarantine audit boundary,
+while normal attribution for allowlisted quarantined documents remains
+available for human review.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from tempfile import TemporaryDirectory
 from sidra_ai.documents import Document, Provenance, SourceType, TrustLevel
 from sidra_ai.evals.cases import EvalOutcome
 from sidra_ai.security.decisions import Decision
-from sidra_ai.security.gate import QuarantineStore, SecurityGate
+from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
 
 def _rejected_provenance_privacy() -> EvalOutcome:
@@ -109,6 +110,94 @@ def _rejected_provenance_privacy() -> EvalOutcome:
     )
 
 
+def _oversized_block_provenance_privacy() -> EvalOutcome:
+    failures: list[str] = []
+    synthetic_secret = "ghp_" + ("O" * 24)
+    synthetic_pii = "oversized.person@example.com"
+    provenance = Provenance(
+        source="github",
+        repository="safe/repo",
+        path=f"docs/{synthetic_pii}.md",
+        commit_sha=synthetic_secret,
+        timestamp=datetime(2026, 8, 18, tzinfo=timezone.utc),
+        source_type=SourceType.DOCS,
+        trust_level=TrustLevel.INTERNAL_REPO,
+        license=synthetic_pii,
+        url=f"https://example.invalid/{synthetic_secret}",
+        author=synthetic_pii,
+        extra={"note": synthetic_secret, synthetic_pii: "value"},
+    )
+    raw_body = f"token={synthetic_secret}\ncontact={synthetic_pii}"
+
+    with TemporaryDirectory() as data_dir:
+        store = QuarantineStore(f"{data_dir}/quarantine.jsonl")
+        gate = SecurityGate(
+            policy=GatePolicy(max_input_bytes=8),
+            allowed_repositories=("safe/repo",),
+            quarantine_store=store,
+        )
+        result, screened = gate.screen_document(
+            Document(content=raw_body, provenance=provenance)
+        )
+        entries = store.entries()
+
+    if result.decision is not Decision.BLOCK:
+        failures.append(f"expected oversized BLOCK, got {result.decision.value}")
+    if screened is not None:
+        failures.append("oversized blocked document became indexable")
+    if len(entries) != 1:
+        failures.append(f"expected one oversized quarantine audit record, got {len(entries)}")
+    else:
+        entry = entries[0]
+        if entry.get("content") is not None:
+            failures.append("oversized BLOCK audit persisted body content before secret/PII inspection")
+        if entry.get("content_retention") != "metadata_only":
+            failures.append("oversized BLOCK audit was not metadata-only")
+        audit_provenance = entry.get("provenance")
+        expected_keys = {
+            "source_type",
+            "trust_level",
+            "timestamp",
+            "retrieved_at",
+            "source_length",
+            "repository_length",
+            "path_length",
+            "commit_sha_length",
+            "license_length",
+            "url_length",
+            "author_length",
+            "extra_count",
+        }
+        if not isinstance(audit_provenance, dict) or set(audit_provenance) != expected_keys:
+            failures.append("oversized BLOCK audit retained raw or unexpected provenance fields")
+
+        serialized = json.dumps(entry, ensure_ascii=False)
+        forbidden = (
+            synthetic_secret,
+            synthetic_pii,
+            provenance.path,
+            provenance.commit_sha,
+            provenance.license,
+            provenance.url,
+            provenance.author,
+            raw_body,
+        )
+        if any(value in serialized for value in forbidden):
+            failures.append("oversized BLOCK provenance/body leaked into quarantine JSONL")
+        if any(
+            str(key) in serialized or str(value) in serialized
+            for key, value in provenance.extra.items()
+        ):
+            failures.append("oversized BLOCK extra provenance leaked into quarantine JSONL")
+
+    return EvalOutcome(
+        case_name="security_oversized_block_provenance_privacy",
+        passed=not failures,
+        detail="oversized BLOCK audit must be context-free before secret/PII inspection",
+        failures=tuple(failures),
+    )
+
+
 def _allowlisted_quarantine_attribution() -> EvalOutcome:
     failures: list[str] = []
     synthetic_secret = "ghp_" + ("S" * 24)
@@ -164,5 +253,6 @@ def run_quarantine_provenance_privacy_suite() -> list[EvalOutcome]:
 
     return [
         _rejected_provenance_privacy(),
+        _oversized_block_provenance_privacy(),
         _allowlisted_quarantine_attribution(),
     ]
