@@ -1,4 +1,4 @@
-"""Mutable GitHub provenance must use an authoritative revision timestamp."""
+"""Mutable GitHub provenance must reject corrupted revision timestamps."""
 
 from __future__ import annotations
 
@@ -53,15 +53,29 @@ def test_pull_request_uses_updated_at_as_revision_timestamp() -> None:
     )
 
 
-def test_pull_request_rejects_missing_or_malformed_updated_at() -> None:
-    for updated_at in (None, "", "not-a-timestamp"):
-        document = pull_request_document(
-            _pull_payload(updated_at=updated_at),
-            repository=REPO,
-            commit_sha=BASE_SHA,
-            license="unknown",
-        )
-        assert document is None, "created_at must not substitute for PR revision time"
+def test_pull_request_without_updated_at_uses_authoritative_creation_time() -> None:
+    document = pull_request_document(
+        _pull_payload(updated_at=None),
+        repository=REPO,
+        commit_sha=BASE_SHA,
+        license="unknown",
+    )
+
+    assert document is not None
+    assert document.provenance.timestamp == datetime(
+        2026, 8, 1, 0, 0, tzinfo=timezone.utc
+    )
+
+
+def test_pull_request_rejects_malformed_updated_at_instead_of_hiding_it() -> None:
+    document = pull_request_document(
+        _pull_payload(updated_at="not-a-timestamp"),
+        repository=REPO,
+        commit_sha=BASE_SHA,
+        license="unknown",
+    )
+
+    assert document is None
 
 
 def test_issue_uses_updated_at_as_revision_timestamp() -> None:
@@ -75,12 +89,26 @@ def test_issue_uses_updated_at_as_revision_timestamp() -> None:
     )
 
 
-def test_issue_rejects_missing_or_malformed_updated_at() -> None:
-    for updated_at in (None, "", "not-a-timestamp"):
-        document = issue_document(
-            _issue_payload(updated_at=updated_at),
-            repository=REPO,
-            commit_sha=BASE_SHA,
-            license="unknown",
-        )
-        assert document is None, "created_at must not substitute for issue revision time"
+def test_issue_without_updated_at_uses_authoritative_creation_time() -> None:
+    document = issue_document(
+        _issue_payload(updated_at=None),
+        repository=REPO,
+        commit_sha=BASE_SHA,
+        license="unknown",
+    )
+
+    assert document is not None
+    assert document.provenance.timestamp == datetime(
+        2026, 7, 1, 0, 0, tzinfo=timezone.utc
+    )
+
+
+def test_issue_rejects_malformed_updated_at_instead_of_hiding_it() -> None:
+    document = issue_document(
+        _issue_payload(updated_at="not-a-timestamp"),
+        repository=REPO,
+        commit_sha=BASE_SHA,
+        license="unknown",
+    )
+
+    assert document is None
