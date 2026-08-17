@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 from sidra_ai.evals.audit_path_safety import run_audit_path_safety_suite
+from sidra_ai.evals.audit_startup_privacy import run_audit_startup_privacy_suite
 from sidra_ai.evals.cases import GATE_CASES, EvalOutcome, GateCase
 from sidra_ai.evals.claim_coverage import run_claim_citation_coverage_suite
 from sidra_ai.evals.cli_override_safety import run_cli_override_safety_suite
@@ -131,6 +132,7 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     report.outcomes.extend(run_request_validation_privacy_suite())
     report.outcomes.extend(run_health_resilience_suite())
     report.outcomes.extend(run_startup_safety_suite())
+    report.outcomes.extend(run_audit_startup_privacy_suite())
     report.outcomes.extend(run_cli_override_safety_suite())
     report.outcomes.extend(run_runtime_model_admission_suite())
     report.outcomes.extend(run_local_proxy_isolation_suite())

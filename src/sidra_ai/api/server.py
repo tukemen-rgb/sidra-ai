@@ -39,12 +39,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"refusing to start: {exc}", file=sys.stderr)
         return 2
 
-    # Assemble the local service before binding a listening socket. This keeps
-    # a deferred/disabled backend (for example Transformers in v0.1) or an
-    # unsafe non-loopback inference endpoint from producing a server that
-    # appears healthy enough to bind and only fails on the first request.
+    # Assemble both the service and FastAPI app before binding a listening
+    # socket or printing the startup banner. Besides model/runtime admission,
+    # this also exercises local audit-storage initialization in ``create_app``
+    # so an unavailable or unsafe local path fails closed before the process
+    # claims to have started.
     try:
         service = SidraService(settings=settings)
+        api_app = create_app(service=service, settings=settings)
     except (BackendNotRegisteredError, ModelUnavailableError):
         print(
             "refusing to start: configured local model backend is unavailable or unsafe",
@@ -61,16 +63,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    _print_banner(settings)
-
     try:
         import uvicorn
     except ImportError:
         print("uvicorn is required to serve the API: pip install uvicorn", file=sys.stderr)
         return 2
 
+    _print_banner(settings)
+
     uvicorn.run(
-        create_app(service=service, settings=settings),
+        api_app,
         host=settings.host,
         port=settings.port,
     )
