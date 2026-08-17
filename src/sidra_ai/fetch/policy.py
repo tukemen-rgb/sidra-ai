@@ -118,6 +118,12 @@ class FetchPolicy:
             raise FetchPolicyError("only https URLs are allowed")
         if parsed.username is not None or parsed.password is not None:
             raise FetchPolicyError("URL userinfo is not allowed")
+        if parsed.query:
+            # v0.1 intentionally refuses query-bearing URLs. Query parameters often
+            # carry bearer tokens, email addresses, session identifiers, or signed
+            # access material. Persisting the canonical URL into provenance/citations
+            # would create a secondary secret/PII channel before content redaction.
+            raise FetchPolicyError("URL query strings are not allowed")
         if parsed.fragment:
             raise FetchPolicyError("URL fragments are not allowed")
         if parsed.hostname is None:
@@ -142,7 +148,7 @@ class FetchPolicy:
             raise FetchPolicyError("hostname is not allowlisted")
 
         path = parsed.path or "/"
-        canonical = urlunsplit(("https", host, path, parsed.query, ""))
+        canonical = urlunsplit(("https", host, path, "", ""))
         return canonical, host
 
 
