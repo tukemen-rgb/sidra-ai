@@ -28,8 +28,9 @@ Order of operations, and why:
    against the store so a deletion withheld during a failed run is still
    retired on the later full-snapshot retry.
 8. Advance persisted polling state only after a **complete** collection and
-   indexing pass. Any source-fetch error preserves the previous cursor so the
-   next run retries instead of making a partial RAG snapshot look current.
+   indexing pass. Any source-fetch error preserves the previous cursor and the
+   previous retrievable RAG view; the next run retries instead of exposing a
+   partially updated snapshot as current knowledge.
 """
 
 from __future__ import annotations
@@ -366,13 +367,18 @@ class GitHubIngestionPipeline:
                 )
             ),
         )
-        security_retirements = self._screen_and_index(documents, report)
 
         if error:
+            # Preserve diagnostics/quarantine accounting, but do not let a
+            # successful subset of an incomplete GitHub collection replace the
+            # live RAG view. The prior SHA and retrievable snapshot stay paired
+            # until a complete retry succeeds.
+            self._screen_and_index(documents, report, index_allowed=False)
             self.state_store.mark_error(repository, error)
             report.skipped_reason = "partial_fetch"
             return report
 
+        security_retirements = self._screen_and_index(documents, report)
         self._apply_retirements(repository, [*retirements, *security_retirements])
 
         if documentation_snapshot_complete:
@@ -673,9 +679,13 @@ class GitHubIngestionPipeline:
         )
 
     def _screen_and_index(
-        self, documents: Sequence[Document], report: RepositoryReport
+        self,
+        documents: Sequence[Document],
+        report: RepositoryReport,
+        *,
+        index_allowed: bool = True,
     ) -> list[tuple[str, SourceType]]:
-        """Screen/index documents and return unsafe mutable sources to retire."""
+        """Screen documents and optionally commit ALLOWed content to the RAG view."""
 
         security_retirements: list[tuple[str, SourceType]] = []
         seen: set[tuple[str, SourceType]] = set()
@@ -693,13 +703,17 @@ class GitHubIngestionPipeline:
 
                 provenance = document.provenance
                 if (
-                    provenance.source == "github"
+                    index_allowed
+                    and provenance.source == "github"
                     and provenance.source_type in MUTABLE_GITHUB_SOURCE_TYPES
                 ):
                     key = (provenance.path, provenance.source_type)
                     if key not in seen:
                         seen.add(key)
                         security_retirements.append(key)
+                continue
+
+            if not index_allowed:
                 continue
 
             self.store.add(screened, gate_result=result)
