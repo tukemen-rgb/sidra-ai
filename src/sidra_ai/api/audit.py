@@ -45,11 +45,10 @@ class ApiAuditLog:
     """Append metadata-only events to a mode-0600 JSONL file.
 
     Each record is written with one ``os.write`` under a process-local lock and
-    the file is forced to owner read/write permissions on every append. The
-    final audit-log path is opened with ``O_NOFOLLOW`` when the platform
-    provides it, and symlink/non-regular targets are rejected before data is
-    written. This prevents an attacker-controlled audit path from redirecting
-    SIDRA's append/chmod operation onto another local file.
+    the file is forced to owner read/write permissions on every append. Explicit
+    parent traversal and symlinks anywhere in the existing audit-path ancestry
+    are rejected. The final path is also opened with ``O_NOFOLLOW`` when the
+    platform provides it and verified as a regular file before data is written.
 
     The log is local-only and does not perform network I/O.
     """
@@ -63,20 +62,38 @@ class ApiAuditLog:
         return tuple(sorted({value for value in values if value}))
 
     @staticmethod
-    def _open_regular_append(path: Path) -> int:
-        """Open ``path`` for append without following a final symlink.
+    def _assert_trusted_path(path: Path) -> None:
+        """Reject explicit traversal or a symlink in any existing path component."""
 
-        ``O_NOFOLLOW`` closes the check/open race on platforms that expose it
-        (including the Linux CI/runtime target). The explicit symlink checks
-        also fail closed on platforms without that flag. ``fstat`` ensures a
-        special file such as a FIFO/device is never accepted as the audit log.
+        if ".." in path.parts:
+            raise OSError("refusing audit log path with parent traversal")
+
+        current = path
+        while True:
+            try:
+                if current.is_symlink():
+                    raise OSError("refusing audit log through a symlinked path")
+            except OSError:
+                raise
+
+            parent = current.parent
+            if parent == current:
+                return
+            current = parent
+
+    @staticmethod
+    def _open_regular_append(path: Path) -> int:
+        """Open ``path`` for append without trusting redirected path components.
+
+        Every existing path component is checked before directory creation and
+        again afterwards. ``O_NOFOLLOW`` closes the final-component check/open
+        race on platforms that expose it (including the Linux CI/runtime target),
+        while ``fstat`` ensures a FIFO/device is never accepted as the audit log.
         """
 
+        ApiAuditLog._assert_trusted_path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.parent.is_symlink():
-            raise OSError("refusing audit log under a symlinked parent directory")
-        if path.is_symlink():
-            raise OSError("refusing to write audit log through a symlink")
+        ApiAuditLog._assert_trusted_path(path)
 
         flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
         flags |= getattr(os, "O_CLOEXEC", 0)
@@ -84,6 +101,7 @@ class ApiAuditLog:
 
         fd = os.open(path, flags, 0o600)
         try:
+            ApiAuditLog._assert_trusted_path(path)
             if not stat.S_ISREG(os.fstat(fd).st_mode):
                 raise OSError("audit log path is not a regular file")
             if hasattr(os, "fchmod"):
