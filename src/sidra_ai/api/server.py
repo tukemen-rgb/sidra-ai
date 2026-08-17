@@ -26,13 +26,13 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         settings = get_settings()
-        if args.host or args.port:
+        if args.host is not None or args.port is not None:
             from dataclasses import replace
 
             settings = replace(
                 settings,
-                host=args.host or settings.host,
-                port=args.port or settings.port,
+                host=settings.host if args.host is None else args.host,
+                port=settings.port if args.port is None else args.port,
             )
             settings.validate()
     except UnsafeConfigurationError as exc:
