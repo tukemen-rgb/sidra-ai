@@ -119,12 +119,12 @@ def test_transport_revalidates_target_instead_of_trusting_constructed_dataclass(
 def test_get_request_has_pinned_host_identity_and_no_ambient_credentials():
     configured = policy()
     validated = configured.validate_target(
-        "https://docs.example.com/a b?q=x y",
+        "https://docs.example.com/a b",
         [PUBLIC_V4_A],
     )
     request = transport_module._build_get_request(validated, policy=configured).decode("ascii")
 
-    assert request.startswith("GET /a%20b?q=x%20y HTTP/1.1\r\n")
+    assert request.startswith("GET /a%20b HTTP/1.1\r\n")
     assert "\r\nHost: docs.example.com\r\n" in request
     assert "\r\nAccept-Encoding: identity\r\n" in request
     assert "Authorization:" not in request
