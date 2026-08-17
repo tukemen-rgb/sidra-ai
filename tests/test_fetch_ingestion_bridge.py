@@ -8,7 +8,7 @@ import pytest
 
 from sidra_ai.documents import SourceType, TrustLevel
 from sidra_ai.fetch.ingestion import FetchIngestionError, WebIngestionBridge
-from sidra_ai.fetch.policy import FetchPolicy
+from sidra_ai.fetch.policy import FetchPolicy, FetchPolicyError
 from sidra_ai.fetch.transport import PinnedFetchResponse
 from sidra_ai.retrieval.store import DocumentStore
 from sidra_ai.security.decisions import Decision
@@ -131,14 +131,13 @@ def test_non_utf8_response_fails_before_security_or_indexing() -> None:
     assert len(store) == 0
 
 
-def test_query_values_are_not_copied_into_logical_path() -> None:
+def test_query_url_is_rejected_before_provenance_or_indexing() -> None:
     policy = FetchPolicy(allowed_hosts=frozenset({"docs.example"}))
-    body = b"query-scoped public documentation"
     response = PinnedFetchResponse(
-        url="https://docs.example/search?q=public-docs",
+        url="https://docs.example/search",
         status=200,
         headers=(("content-type", "text/plain"),),
-        body=body,
+        body=b"query-scoped public documentation",
         connected_ip="93.184.216.34",
         content_type="text/plain",
     )
@@ -150,12 +149,14 @@ def test_query_values_are_not_copied_into_logical_path() -> None:
         clock=lambda: datetime(2026, 8, 17, 9, 0, tzinfo=timezone.utc),
     )
 
-    result = bridge.ingest("https://docs.example/search?q=public-docs")
+    synthetic_secret = "gh" + "p_" + "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd"
+    url = f"https://docs.example/search?token={synthetic_secret}"
+    with pytest.raises(FetchPolicyError, match="query strings") as exc_info:
+        bridge.ingest(url)
 
-    assert result.document_id is not None
-    assert "public-docs" not in result.provenance.path
-    assert result.provenance.path.startswith("/search?query_sha256=")
-    assert result.provenance.extra["query_sha256"] in result.provenance.path
+    assert synthetic_secret not in str(exc_info.value)
+    assert broker.calls == 0
+    assert len(store) == 0
 
 
 def test_naive_clock_fails_closed_before_indexing() -> None:
