@@ -89,9 +89,12 @@ def _repository_rejection_response_privacy() -> EvalOutcome:
                 "/v1/retrieve",
                 json={"query": "hi", "repositories": [_REJECTED_REPOSITORY]},
             )
+            # This is the critical regression: an allowed repository first must
+            # not let analyze perform partial ingestion/state/RAG work before a
+            # later disallowed repository is rejected.
             analyze = client.post(
                 "/v1/github/analyze",
-                json={"repositories": [_REJECTED_REPOSITORY]},
+                json={"repositories": [_ALLOWED_REPOSITORY, _REJECTED_REPOSITORY]},
             )
 
         _check_private_forbidden(chat, label="chat pre-service rejection", failures=failures)
@@ -102,7 +105,7 @@ def _repository_rejection_response_privacy() -> EvalOutcome:
         )
         _check_private_forbidden(
             analyze,
-            label="github analyze pre-service rejection",
+            label="github analyze mixed-scope pre-service rejection",
             failures=failures,
         )
 
@@ -135,7 +138,7 @@ def _repository_rejection_response_privacy() -> EvalOutcome:
     return EvalOutcome(
         case_name="api_repository_rejection_response_privacy",
         passed=not failures,
-        detail="repository allowlist failures must return fixed 403 detail without echoing input",
+        detail="repository allowlist failures must return fixed 403 detail without echoing input or starting partial service work",
         failures=tuple(failures),
     )
 
