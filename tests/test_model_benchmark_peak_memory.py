@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from sidra_ai.models.base import GenerationRequest, GenerationResult, LocalModelAdapter
+from sidra_ai.models.base import (
+    GenerationRequest,
+    GenerationResult,
+    LocalModelAdapter,
+)
 from sidra_ai.models.benchmark import run_benchmark
 
 
