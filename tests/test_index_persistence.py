@@ -213,3 +213,119 @@ def test_the_newest_revision_of_a_path_wins(gate, path) -> None:
     reader.load()
     assert len(reader) == 1
     assert "second version" in reader.documents()[0].content
+
+
+# --- rescreening the running index -------------------------------------
+# load() covers a restart. It does not cover the process that is already
+# running: tighten a detector and the documents in memory keep serving the
+# old verdict until someone restarts.
+
+def test_rescreen_evicts_what_no_longer_passes(gate, tmp_path) -> None:
+    from sidra_ai.security.detectors import PIIDetector, SecretDetector
+
+    store = DocumentStore(gate)
+    store.add(_document("safe.md", "ordinary documentation about retrieval"))
+    store.add(_document("borderline.md", "the codeword is antidisestablishment"))
+    assert len(store) == 2
+
+    class Stricter(SecretDetector):
+        def detect(self, content: str):
+            from sidra_ai.security.detectors import DetectionOutput
+            from sidra_ai.security.decisions import (
+                Finding, FindingCategory, Severity,
+            )
+            if "codeword" not in content:
+                return super().detect(content)
+            return DetectionOutput((
+                Finding(
+                    category=FindingCategory.SECRET,
+                    severity=Severity.CRITICAL,
+                    detector="codeword",
+                    reason="a newly recognised credential shape",
+                ),
+            ))
+
+    gate._secret = Stricter()
+    report = store.rescreen_all()
+
+    assert report.records == 2
+    assert report.loaded == 1
+    assert report.rejected == 1
+    assert len(store) == 1
+    assert store.documents()[0].provenance.path == "safe.md"
+
+
+def test_rescreen_is_a_no_op_when_policy_is_unchanged(gate) -> None:
+    store = DocumentStore(gate)
+    store.add(_document("a.md", "ordinary documentation about retrieval"))
+    store.add(_document("b.md", "ingestion notes with a commit reference"))
+
+    report = store.rescreen_all()
+    assert report.loaded == 2
+    assert report.rejected == 0
+    assert report.ok
+    assert len(store) == 2
+
+
+def test_evicted_documents_are_quarantined_not_lost(tmp_path) -> None:
+    """A demotion with a record, not a deletion."""
+
+    from sidra_ai.security.gate import QuarantineStore
+    from sidra_ai.security.quarantine_review import QuarantineReview
+
+    quarantine = QuarantineStore(tmp_path / "q.jsonl")
+    lenient = SecurityGate(
+        GatePolicy(), allowed_repositories=(REPO,), quarantine_store=quarantine
+    )
+    store = DocumentStore(lenient)
+    store.add(_document("a.md", "ordinary documentation"))
+
+    class RejectEverything:
+        def detect(self, content: str):
+            from sidra_ai.security.detectors import DetectionOutput
+            from sidra_ai.security.decisions import (
+                Finding, FindingCategory, Severity,
+            )
+            return DetectionOutput((
+                Finding(
+                    category=FindingCategory.SECRET,
+                    severity=Severity.CRITICAL,
+                    detector="policy_change",
+                    reason="newly forbidden",
+                ),
+            ))
+
+    lenient._secret = RejectEverything()
+    store.rescreen_all()
+
+    assert len(store) == 0
+    entries = QuarantineReview(quarantine.path).entries()
+    assert entries, "the evicted document left no record"
+    assert entries[-1].document_id
+
+
+def test_rescreen_leaves_the_persisted_log_untouched(gate, path) -> None:
+    """The log is history: rewriting it would destroy the evidence."""
+
+    store = DocumentStore(gate, path=path)
+    store.add(_document("a.md", "ordinary documentation about retrieval"))
+    before = path.read_bytes()
+    store.rescreen_all()
+    assert path.read_bytes() == before
+
+
+def test_a_detector_that_raises_leaves_the_index_intact(gate) -> None:
+    """Half an index is worse than an unchanged one."""
+
+    store = DocumentStore(gate)
+    store.add(_document("a.md", "first document about retrieval"))
+    store.add(_document("b.md", "second document about ingestion"))
+
+    class Exploding:
+        def detect(self, content: str):
+            raise RuntimeError("detector bug")
+
+    gate._secret = Exploding()
+    with pytest.raises(PersistenceError, match="unchanged"):
+        store.rescreen_all()
+    assert len(store) == 2

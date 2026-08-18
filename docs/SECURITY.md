@@ -173,9 +173,11 @@ runtime boundary:
 9. **The index is a cache of past decisions.** `DocumentStore.load()`
    re-screens every record under current policy precisely because a document
    admitted under an older detector must not be resurrected by a restart.
-   What this does *not* cover: a record already in memory when the policy
-   changes stays indexed until the process restarts. There is no live
-   re-screen of the running index.
+   `DocumentStore.rescreen_all()` covers the running process as well,
+   evicting documents that no longer pass into quarantine. What remains
+   manual is *calling* it: nothing triggers a rescreen automatically when a
+   detector changes, so the window between fixing a detector and applying the
+   fix is now bounded by an operator rather than by a restart.
 10. **The gate quarantines a portion of this repository's own source.**
    Files describing attack patterns - the detectors, the envelope, their
    tests - legitimately contain injection strings and synthetic credentials,

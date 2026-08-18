@@ -327,6 +327,74 @@ class DocumentStore:
     ) -> list[str]:
         return [self.add(d, gate_result=gate_result) for d in documents]
 
+    # ------------------------------------------------------------------
+    def rescreen_all(self) -> "LoadReport":
+        """Re-run the gate over everything indexed, evicting what now fails.
+
+        :meth:`load` re-screens on the way in, which covers a restart. It does
+        not cover the running process: tighten a detector at 15:00 and the
+        documents already in memory keep serving the old verdict until someone
+        restarts. The window between "we fixed the detector" and "the fix
+        applies" was unbounded and invisible.
+
+        Evicted documents are handed to the gate's quarantine store where one
+        is configured, so this is a demotion with a record rather than a
+        deletion. The persisted log is deliberately left alone: it is an
+        append-only history of what was admitted and when, and rewriting it to
+        match today's policy would destroy the evidence that the policy
+        changed.
+
+        Nothing is evicted until every document has been screened, so a
+        detector that raises partway through leaves the index as it was rather
+        than half-emptied.
+        """
+
+        gate = self._gate or SecurityGate()
+        report = LoadReport()
+
+        with self._lock:
+            documents = list(self._documents.values())
+            report.records = len(documents)
+
+            survivors: list[Document] = []
+            evictions: list[tuple[Document, GateResult]] = []
+            for document in documents:
+                try:
+                    result, screened = gate.screen_document(document)
+                except Exception as exc:  # noqa: BLE001 - see docstring
+                    raise PersistenceError(
+                        f"rescreen aborted on {document.provenance.citation}: "
+                        f"{exc}. The index is unchanged"
+                    ) from exc
+                if screened is None:
+                    evictions.append((document, result))
+                else:
+                    survivors.append(screened)
+
+            for document, result in evictions:
+                self._remove_document_locked(document.doc_id)
+                report.rejected += 1
+                report.rejected_reasons.append(
+                    f"{document.provenance.citation}: {result.decision.value}"
+                )
+                store = getattr(gate, "quarantine_store", None)
+                if store is not None:
+                    store.record(
+                        safe_content=result.content
+                        if result.decision is Decision.QUARANTINE
+                        else None,
+                        original_length=len(document.content),
+                        provenance=document.provenance,
+                        result=result,
+                        document_id=document.doc_id,
+                    )
+
+            for document in survivors:
+                self._install(document)
+                report.loaded += 1
+
+        return report
+
     def retire_source(
         self,
         *,
