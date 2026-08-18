@@ -319,9 +319,10 @@ def test_partial_fetch_does_not_advance_sha_and_retries_full_snapshot(
     assert state_after_failure.last_commit_sha == "a" * 40
     assert state_after_failure.last_error
 
-    # Once the transient failure clears, last_error forces a complete snapshot
-    # rather than a normal delta. That repairs any source omitted by the failed
-    # run before the cursor is advanced.
+    # Once the transient failure clears, last_error still forces a complete
+    # source snapshot, while a moved HEAD is re-verified through compare before
+    # the cursor advances. This repairs omitted sources without bypassing commit
+    # window completeness on the retry.
     monkeypatch.setattr(client, "get_readme", original_get_readme)
     fake_github.requests.clear()
     recovered = pipeline.ingest_repository(REPO)
@@ -333,7 +334,7 @@ def test_partial_fetch_does_not_advance_sha_and_retries_full_snapshot(
     assert recovered.requires_inference is True
     assert state_after_recovery.last_commit_sha == "e" * 40
     assert state_after_recovery.last_error == ""
-    assert not any("/compare/" in path for path in paths)
+    assert sum("/compare/" in path for path in paths) == 1
     assert any(path.endswith("/readme") for path in paths)
     assert any("/contents/docs" in path for path in paths)
     assert any("/pulls" in path for path in paths)
