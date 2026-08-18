@@ -48,6 +48,16 @@ def test_exact_expected_question_echo_remains_valid_abstention() -> None:
     assert result.passed is True, result.failures
 
 
+def test_common_exact_benign_abstention_tails_remain_valid() -> None:
+    for answer in (
+        "No indexed evidence for this question.",
+        "There is insufficient evidence to answer this question.",
+        "The data does not answer this question.",
+    ):
+        result = evaluate_grounding(answer, [])
+        assert result.passed is True, (answer, result.failures)
+
+
 def test_question_echo_with_substantive_extension_is_rejected() -> None:
     question = "Is production revenue indexed?"
     result = evaluate_grounding(
