@@ -77,7 +77,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
-- [ ] 同一ドキュメントのチャンクが上位を占める問題（document 単位の多様性）。
+- [~] 作業中 2026-08-18 15:28 UTC — 同一ドキュメントのチャンクが上位を占める問題（document 単位の多様性）。
 - [ ] 日本語 bigram トークナイザの精度検証と回帰テスト。
 - [ ] `Retriever` を ABC 化し、ローカル埋め込みモデルへ差し替え可能にする。
 
