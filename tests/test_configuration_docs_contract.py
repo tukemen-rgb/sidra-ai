@@ -19,10 +19,14 @@ def _literal_sidra_name(node: ast.AST) -> str | None:
     return None
 
 
+def _settings_tree() -> ast.Module:
+    return ast.parse(SETTINGS_PATH.read_text(encoding="utf-8"))
+
+
 def _settings_environment_names() -> set[str]:
     """Collect environment names consumed by Settings without importing it."""
 
-    tree = ast.parse(SETTINGS_PATH.read_text(encoding="utf-8"))
+    tree = _settings_tree()
     names: set[str] = set()
 
     for node in ast.walk(tree):
@@ -59,6 +63,18 @@ def _settings_environment_names() -> set[str]:
     return names
 
 
+def _settings_integer_constant(name: str) -> int:
+    for node in _settings_tree().body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name) or target.id != name:
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, int):
+            return node.value.value
+    raise AssertionError(f"Settings constant {name} was not found as an integer literal")
+
+
 def _documented_environment_names() -> set[str]:
     names: set[str] = set()
     for raw in ENV_EXAMPLE_PATH.read_text(encoding="utf-8").splitlines():
@@ -81,3 +97,10 @@ def test_env_example_documents_every_settings_environment_input() -> None:
     assert not missing, (
         ".env.example is missing Settings environment inputs: " + ", ".join(missing)
     )
+
+
+def test_env_example_documents_public_bind_token_floor() -> None:
+    floor = _settings_integer_constant("MIN_PUBLIC_API_TOKEN_CHARS")
+    env_example = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
+
+    assert f"at least {floor} visible ASCII characters" in env_example
