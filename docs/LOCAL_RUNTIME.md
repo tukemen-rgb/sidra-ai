@@ -83,6 +83,7 @@ operation should not depend on package-registry access or an external LLM API.
 python -m pytest
 sidra-evals
 python -m sidra_ai.local_preflight
+sidra-api --check
 ```
 
 The preflight does not start a model, open a server socket, call GitHub, or make
@@ -91,11 +92,17 @@ checks that the dedicated venv contains no blocked external-LLM provider SDK,
 constructs the configured adapter without contacting it, and optionally reads
 aggregate NVIDIA VRAM counters through the fixed local `nvidia-smi` probe.
 
+`sidra-api --check` is a second, narrower startup-assembly check. It executes the
+same settings validation plus `SidraService -> create_app` construction used by
+normal API startup, then exits successfully before importing uvicorn or opening
+the SIDRA API listening socket. It does not weaken loopback/public-bind checks;
+for example, an unsafe non-loopback override is still rejected before assembly.
+
 A healthy default setup should report `"ok": true`, `"api_loopback_only": true`,
 `"configured_backend": "echo"`, and `"external_llm_provider_sdks": "clear"`.
 `"gpu_probe": {"status": "unavailable"}` is not an error on a CPU/non-NVIDIA
 machine when using `echo`; non-echo NVIDIA admission requires a successful fresh
-probe at actual API startup.
+probe at actual service assembly/startup.
 
 If the preflight reports a blocked provider SDK, create a clean dedicated venv
 rather than modifying another project's environment.
@@ -253,12 +260,19 @@ fresh observed-VRAM admission before binding the API socket.
 
 ## 6. Start and verify the SIDRA API
 
-Start with the dependency-free baseline first:
+Run the no-bind startup assembly check first, then start with the dependency-free
+baseline:
 
 ```bash
 export SIDRA_MODEL_BACKEND=echo
+sidra-api --check
 sidra-api
 ```
+
+The check must report success before the real bind step. It exercises the same
+settings/service/app assembly but exits before uvicorn import or the API socket.
+A check failure is a stop condition; do not bypass it by starting the server
+with weaker settings.
 
 In a second terminal:
 
@@ -270,14 +284,18 @@ PowerShell alternative:
 
 ```powershell
 $env:SIDRA_MODEL_BACKEND = "echo"
+sidra-api --check
+sidra-api
 Invoke-RestMethod http://127.0.0.1:8787/health
 ```
 
 For a reviewed Ollama/llama.cpp setup, first place the matching
 `model-manifest.json` under `SIDRA_DATA_DIR`, set the loopback endpoint and exact
-backend/model, then start `sidra-api`. A missing manifest, failed VRAM probe,
-insufficient capacity, or mismatched model is an expected fail-closed startup
-error and must be fixed at the staging/configuration layer rather than bypassed.
+backend/model, then run `sidra-api --check`. Only after that no-bind assembly
+check succeeds should you start `sidra-api`. A missing manifest, failed VRAM
+probe, insufficient capacity, or mismatched model is an expected fail-closed
+startup error and must be fixed at the staging/configuration layer rather than
+bypassed.
 
 After successful non-echo startup, verify `/health` over loopback and perform a
 small local generation before considering the machine real-model ready. The
@@ -308,17 +326,18 @@ Do not call the machine "SIDRA-ready" until all applicable checks are true:
 2. full `pytest` is green in that checkout;
 3. `sidra-evals` is green;
 4. `python -m sidra_ai.local_preflight` returns `ok: true`;
-5. API bind remains loopback-only;
-6. selected backend is one of `echo`, `ollama`, `llama_cpp` and no external LLM fallback is configured;
-7. any real model artifact/tag has recorded source/revision/license and integrity evidence appropriate to that backend;
-8. any real model has reviewed `<SIDRA_DATA_DIR>/model-manifest.json` metadata for weights VRAM, KV-cache growth, maximum context and quantization;
-9. non-echo startup obtains a trustworthy fresh NVIDIA free-VRAM observation;
-10. the configured backend/model exactly matches the reviewed manifest and is admitted without static-budget fallback;
-11. the runtime adapter preserves the admitted context cap;
-12. `sidra-api` starts without exposing a public socket;
-13. `/health` succeeds on loopback and the selected local model reports available;
-14. no paid/external LLM fallback is configured;
-15. no production publish, GAMEYARD/CreatorYard connection, billing, external write/send, or destructive operation has been enabled as part of this setup.
+5. `sidra-api --check` succeeds and exits before opening the SIDRA API socket;
+6. API bind remains loopback-only;
+7. selected backend is one of `echo`, `ollama`, `llama_cpp` and no external LLM fallback is configured;
+8. any real model artifact/tag has recorded source/revision/license and integrity evidence appropriate to that backend;
+9. any real model has reviewed `<SIDRA_DATA_DIR>/model-manifest.json` metadata for weights VRAM, KV-cache growth, maximum context and quantization;
+10. non-echo startup obtains a trustworthy fresh NVIDIA free-VRAM observation;
+11. the configured backend/model exactly matches the reviewed manifest and is admitted without static-budget fallback;
+12. the runtime adapter preserves the admitted context cap;
+13. `sidra-api` starts without exposing a public socket;
+14. `/health` succeeds on loopback and the selected local model reports available;
+15. no paid/external LLM fallback is configured;
+16. no production publish, GAMEYARD/CreatorYard connection, billing, external write/send, or destructive operation has been enabled as part of this setup.
 
 A failure in any required check is a stop condition, not a reason to weaken the
 corresponding safety gate.
