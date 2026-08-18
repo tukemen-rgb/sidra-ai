@@ -115,12 +115,22 @@ def estimate_tokens(text: str) -> int:
     marks, and other scripts when a 6 GiB-class route is admitted without an
     exact model tokenizer.
 
+    ASCII-only prompts take an equivalent fast path so common repository/code
+    context avoids the per-code-point Python loop while preserving the exact
+    same conservative result. Mixed/Unicode prompts retain the existing path.
+
     This is a safety estimate, not tokenizer-exact billing/accounting. v0.1 has
     no paid-per-token model backend.
     """
 
     if not text:
         return 0
+
+    # ``str.isascii`` and ``len`` execute without a Python-level loop. For the
+    # common all-ASCII case this is exactly equivalent to the generic branch:
+    # every character contributes to ``ascii_chars`` and no other bucket.
+    if text.isascii():
+        return (len(text) + 3) // 4
 
     cjk_like = 0
     ascii_chars = 0
