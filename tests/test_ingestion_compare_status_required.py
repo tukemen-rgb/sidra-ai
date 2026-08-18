@@ -1,4 +1,4 @@
-"""Incremental commit windows must never be silently truncated before cursor advance."""
+"""SHA-delta ingestion requires an explicit forward GitHub compare relation."""
 
 from __future__ import annotations
 
@@ -34,48 +34,55 @@ def _install_compare_payload(monkeypatch, fake_github, payload) -> None:
     monkeypatch.setattr(fake_github, "_route", route)
 
 
-def _commit(fake_github, index: int):
-    return fake_github._commit(f"{index:040x}")
+def _commit(fake_github, sha: str):
+    return fake_github._commit(sha)
 
 
-def test_compare_rejects_incremental_window_larger_than_index_limit(
-    client, settings, fake_github, monkeypatch
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"total_commits": 1},
+        {"status": None, "total_commits": 1},
+        {"status": 1, "total_commits": 1},
+        {"status": "", "total_commits": 1},
+        {"status": "behind", "total_commits": 1},
+        {"status": "diverged", "total_commits": 1},
+        {"status": "identical", "total_commits": 1},
+        {"status": "unexpected", "total_commits": 1},
+    ],
+)
+def test_compare_requires_explicit_forward_status(
+    client, fake_github, monkeypatch, payload
 ) -> None:
-    count = settings.max_items_per_source + 1
+    response = {
+        **payload,
+        "commits": [_commit(fake_github, NEW_SHA)],
+        "files": [{"filename": "README.md"}],
+    }
+    _install_compare_payload(monkeypatch, fake_github, response)
+
+    with pytest.raises(GitHubAPIError, match="did not prove a forward-only history window"):
+        client.compare(REPO, OLD_SHA, NEW_SHA)
+
+
+def test_compare_accepts_explicit_forward_status(client, fake_github, monkeypatch) -> None:
     _install_compare_payload(
         monkeypatch,
         fake_github,
         {
             "status": "ahead",
-            "total_commits": count,
-            "commits": [_commit(fake_github, index) for index in range(1, count + 1)],
-            "files": [],
+            "total_commits": 1,
+            "commits": [_commit(fake_github, NEW_SHA)],
+            "files": [{"filename": "README.md"}],
         },
     )
 
-    with pytest.raises(GitHubAPIError, match="incremental commit window exceeds"):
-        client.compare(REPO, OLD_SHA, NEW_SHA)
+    comparison = client.compare(REPO, OLD_SHA, NEW_SHA)
+
+    assert comparison["status"] == "ahead"
 
 
-def test_compare_rejects_github_truncated_commit_window(
-    client, fake_github, monkeypatch
-) -> None:
-    _install_compare_payload(
-        monkeypatch,
-        fake_github,
-        {
-            "status": "ahead",
-            "total_commits": 3,
-            "commits": [_commit(fake_github, 1), _commit(fake_github, 2)],
-            "files": [],
-        },
-    )
-
-    with pytest.raises(GitHubAPIError, match="omitted commits"):
-        client.compare(REPO, OLD_SHA, NEW_SHA)
-
-
-def test_oversized_incremental_window_preserves_sha_cursor_and_rag_snapshot(
+def test_missing_status_preserves_cursor_and_retrievable_snapshot(
     client, store, gate, tmp_path, settings, fake_github, monkeypatch
 ) -> None:
     pipeline = _pipeline(client, store, gate, tmp_path, settings)
@@ -93,18 +100,17 @@ def test_oversized_incremental_window_preserves_sha_cursor_and_rag_snapshot(
         for document in store.by_repository(REPO)
     )
 
-    count = settings.max_items_per_source + 1
     _install_compare_payload(
         monkeypatch,
         fake_github,
         {
-            "status": "ahead",
-            "total_commits": count,
-            "commits": [_commit(fake_github, index) for index in range(1, count + 1)],
+            "total_commits": 1,
+            "commits": [_commit(fake_github, NEW_SHA)],
             "files": [{"filename": "README.md"}],
         },
     )
     fake_github.head_sha = NEW_SHA
+    fake_github.readme_body = "# rewritten history\n\nThis must not become current evidence.\n"
 
     report = pipeline.ingest_repository(REPO)
     state = pipeline.state_store.load().get(REPO)
@@ -119,6 +125,12 @@ def test_oversized_incremental_window_preserves_sha_cursor_and_rag_snapshot(
     )
 
     assert report.skipped_reason == "partial_fetch"
-    assert "incremental commit window exceeds" in report.error
+    assert "did not prove a forward-only history window" in report.error
+    assert not report.requires_inference
     assert state.last_commit_sha == OLD_SHA
+    assert state.last_error
     assert after == before
+    assert all(
+        document.provenance.commit_sha != NEW_SHA
+        for document in store.by_repository(REPO)
+    )
