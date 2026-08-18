@@ -56,12 +56,14 @@ def _settings(data_dir: Path) -> Settings:
     )
 
 
-def _invoke_with_fake_uvicorn(settings: Settings) -> tuple[int, list[tuple[str, int]], str, str]:
-    calls: list[tuple[str, int]] = []
+def _invoke_with_fake_uvicorn(
+    settings: Settings,
+) -> tuple[int, list[tuple[str, int, bool]], str, str]:
+    calls: list[tuple[str, int, bool]] = []
     fake_uvicorn = ModuleType("uvicorn")
 
-    def _run(_app: object, *, host: str, port: int) -> None:
-        calls.append((host, port))
+    def _run(_app: object, *, host: str, port: int, proxy_headers: bool) -> None:
+        calls.append((host, port, proxy_headers))
 
     fake_uvicorn.run = _run  # type: ignore[attr-defined]
     stdout = StringIO()
@@ -155,7 +157,7 @@ def _successful_admission_is_required_before_bind_case() -> EvalOutcome:
 
     if exit_code != 0:
         failures.append(f"admitted local model startup returned {exit_code}: {stderr.strip()}")
-    expected_bind = [(settings.host, settings.port)]
+    expected_bind = [(settings.host, settings.port, False)]
     if bind_calls != expected_bind:
         failures.append(f"expected exactly one post-admission bind {expected_bind!r}, got {bind_calls!r}")
     if captured.get("backend") != "ollama":
@@ -170,7 +172,7 @@ def _successful_admission_is_required_before_bind_case() -> EvalOutcome:
     return EvalOutcome(
         case_name="runtime_model_admission_success_precedes_bind",
         passed=not failures,
-        detail="real-model bind is reachable only after reviewed admission succeeds",
+        detail="real-model bind is reachable only after reviewed admission succeeds with proxy rewriting disabled",
         failures=tuple(failures),
     )
 

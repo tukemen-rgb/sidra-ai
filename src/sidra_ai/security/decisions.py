@@ -68,6 +68,60 @@ class FindingCategory(str, Enum):
     """Content that could not be interpreted safely (e.g. bad encoding)."""
 
 
+def _sanitize_finding_evidence(evidence: str) -> str:
+    """Collapse detector evidence to context-free length metadata.
+
+    Detector implementations are independent and future detectors may
+    accidentally hand :class:`Finding` a raw matching snippet. ``Finding`` is
+    the final audit-model trust boundary before evidence can be serialized into
+    GateResult or quarantine records, so it enforces the documented invariant
+    centrally rather than relying on every detector to remember it.
+
+    Existing redaction placeholders are preserved so their source span length
+    is not replaced by the length of the placeholder itself.
+    """
+
+    if not evidence:
+        return ""
+    prefix = "<<redacted len="
+    suffix = ">>"
+    if evidence.startswith(prefix) and evidence.endswith(suffix):
+        length_text = evidence[len(prefix) : -len(suffix)]
+        if length_text.isdigit():
+            return evidence
+    return f"<<redacted len={len(evidence)}>>"
+
+
+def _sanitize_unpermitted_source_audit(
+    detector: str,
+    reason: str,
+    metadata: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    """Remove attacker-controlled source identifiers from audit metadata.
+
+    Source allowlist checks run before secret/PII detectors and deliberately
+    short-circuit rejected input. Echoing a rejected ``source`` or
+    ``repository`` into ``reason``/``metadata`` would therefore create a side
+    channel where a credential or personal value embedded in those fields can
+    reach GateResult/quarantine audit records without passing the normal
+    redaction detectors.
+
+    Keep only the field length for operational diagnostics. A deterministic
+    digest is intentionally avoided because low-entropy personal identifiers
+    can be recovered by offline guessing against a stable fingerprint.
+    """
+
+    if detector == "source":
+        raw = metadata.get("source")
+        safe = {"source_length": len(raw)} if isinstance(raw, str) else {}
+        return "source is not on the allowlist", safe
+    if detector == "repository":
+        raw = metadata.get("repository")
+        safe = {"repository_length": len(raw)} if isinstance(raw, str) else {}
+        return "repository is not on the allowlist", safe
+    return reason, dict(metadata)
+
+
 @dataclass(frozen=True)
 class Finding:
     """A single detection.
@@ -84,6 +138,25 @@ class Finding:
     start: int = -1
     end: int = -1
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        safe_evidence = _sanitize_finding_evidence(self.evidence)
+        if safe_evidence != self.evidence:
+            object.__setattr__(self, "evidence", safe_evidence)
+
+        if (
+            self.category is FindingCategory.UNPERMITTED_SOURCE
+            and self.detector in {"source", "repository"}
+        ):
+            safe_reason, safe_metadata = _sanitize_unpermitted_source_audit(
+                self.detector,
+                self.reason,
+                self.metadata,
+            )
+            if safe_reason != self.reason:
+                object.__setattr__(self, "reason", safe_reason)
+            if safe_metadata != self.metadata:
+                object.__setattr__(self, "metadata", safe_metadata)
 
     def to_dict(self) -> dict[str, Any]:
         return {

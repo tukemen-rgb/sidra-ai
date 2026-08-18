@@ -2,18 +2,53 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Keep repository-scoped API work bounded within a single authenticated request.
+# The v0.1 allowlist is small; these limits leave headroom without permitting an
+# attacker-sized list/name to amplify validation, retrieval, or GitHub ingestion.
+MAX_REPOSITORY_SCOPE_ITEMS = 32
+MAX_REPOSITORY_NAME_CHARS = 200
+RepositoryRef = Annotated[
+    str,
+    Field(min_length=3, max_length=MAX_REPOSITORY_NAME_CHARS),
+]
+
+
+def _validate_repository_scope(
+    repositories: list[str] | None,
+) -> list[str] | None:
+    """Reject duplicate logical repositories before service work begins.
+
+    GitHub repository identifiers are case-insensitive for SIDRA's allowlist
+    checks. Repeating the same logical repository under different casing must
+    therefore not multiply ingestion or retrieval work within one request.
+    """
+
+    if repositories is None:
+        return None
+
+    normalized = [repository.casefold() for repository in repositories]
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("repositories must not contain duplicates")
+    return repositories
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=32_000)
     top_k: int = Field(default=5, ge=1, le=20)
-    repositories: list[str] | None = Field(
+    repositories: list[RepositoryRef] | None = Field(
         default=None,
+        max_length=MAX_REPOSITORY_SCOPE_ITEMS,
         description="Restrict retrieval to these repositories. Allowlisted only.",
     )
+
+    @field_validator("repositories")
+    @classmethod
+    def validate_repository_scope(cls, value: list[str] | None) -> list[str] | None:
+        return _validate_repository_scope(value)
 
 
 class Citation(BaseModel):
@@ -32,10 +67,16 @@ class Citation(BaseModel):
 class RetrieveRequest(BaseModel):
     query: str = Field(min_length=1, max_length=32_000)
     top_k: int = Field(default=5, ge=1, le=20)
-    repositories: list[str] | None = Field(
+    repositories: list[RepositoryRef] | None = Field(
         default=None,
+        max_length=MAX_REPOSITORY_SCOPE_ITEMS,
         description="Restrict retrieval to these repositories. Allowlisted only.",
     )
+
+    @field_validator("repositories")
+    @classmethod
+    def validate_repository_scope(cls, value: list[str] | None) -> list[str] | None:
+        return _validate_repository_scope(value)
 
 
 class RetrieveResult(BaseModel):
@@ -62,14 +103,21 @@ class ChatResponse(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
-    repositories: list[str] | None = Field(
-        default=None, description="Defaults to every allowlisted repository."
+    repositories: list[RepositoryRef] | None = Field(
+        default=None,
+        max_length=MAX_REPOSITORY_SCOPE_ITEMS,
+        description="Defaults to every allowlisted repository.",
     )
     force: bool = Field(
         default=False,
         description="Re-ingest even when the commit SHA is unchanged.",
     )
     question: str = Field(default="", max_length=4_000)
+
+    @field_validator("repositories")
+    @classmethod
+    def validate_repository_scope(cls, value: list[str] | None) -> list[str] | None:
+        return _validate_repository_scope(value)
 
 
 class AnalyzeResponse(BaseModel):

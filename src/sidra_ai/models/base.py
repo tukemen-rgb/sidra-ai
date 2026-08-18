@@ -94,24 +94,47 @@ class GenerationChunk:
         }
 
 
-def estimate_tokens(text: str) -> int:
-    """Rough token estimate that works for mixed Japanese/English text.
+def _is_cjk_like(char: str) -> bool:
+    """Return whether one code point is safe to budget near one token each."""
 
-    CJK characters are close to one token each; Latin text is closer to four
-    characters per token. Partial Latin groups are rounded *up* so the budget
-    heuristic never drops a trailing 1-3 characters from its estimate. This is
-    still a local approximation rather than a tokenizer-exact count and is
-    never used for billing, because v0.1 does not bill.
+    return (
+        "　" <= char <= "鿿"
+        or "가" <= char <= "힯"
+        or "＀" <= char <= "￯"
+    )
+
+
+def estimate_tokens(text: str) -> int:
+    """Conservative local token estimate for mixed-language context budgets.
+
+    CJK/Hangul characters are budgeted near one token each and plain ASCII is
+    approximated at four characters per token with partial groups rounded up.
+    Other Unicode is deliberately more conservative: its UTF-8 byte length is
+    used as a tokenizer-independent fallback instead of grouping four code
+    points into one token. That avoids severe under-counts for emoji, combining
+    marks, and other scripts when a 6 GiB-class route is admitted without an
+    exact model tokenizer.
+
+    This is a safety estimate, not tokenizer-exact billing/accounting. v0.1 has
+    no paid-per-token model backend.
     """
 
-    cjk = sum(
-        1
-        for char in text
-        if "　" <= char <= "鿿" or "＀" <= char <= "￯"
-    )
-    other = len(text) - cjk
-    other_tokens = (other + 3) // 4
-    return cjk + other_tokens if text else 0
+    if not text:
+        return 0
+
+    cjk_like = 0
+    ascii_chars = 0
+    unicode_fallback_tokens = 0
+    for char in text:
+        if _is_cjk_like(char):
+            cjk_like += 1
+        elif ord(char) < 128:
+            ascii_chars += 1
+        else:
+            unicode_fallback_tokens += len(char.encode("utf-8"))
+
+    ascii_tokens = (ascii_chars + 3) // 4
+    return cjk_like + ascii_tokens + unicode_fallback_tokens
 
 
 class LocalModelAdapter(abc.ABC):

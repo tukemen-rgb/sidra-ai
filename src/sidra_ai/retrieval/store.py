@@ -17,12 +17,22 @@ type + path) retires older revisions before the new chunks become retrievable.
 Deletion/quarantine paths can call :meth:`DocumentStore.retire_source`
 explicitly.  This prevents an old, correctly cited document from continuing
 to masquerade as current knowledge merely because its commit SHA differs.
+
+Optional JSONL persistence is also a security boundary. On POSIX/Linux
+runtimes with dir-fd support, every parent component is opened relative to an
+already verified directory descriptor and the final regular file is opened
+relative to that descriptor with ``O_NOFOLLOW``. This avoids re-resolving a
+pathname after an ancestry check and closes ancestor symlink TOCTOU races.
+Owner-only permissions are enforced through the opened file descriptor. A
+persistence failure occurs before the in-memory index is mutated so a failed
+write cannot silently retire the previously retrievable revision.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import stat
 import threading
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
@@ -39,6 +49,10 @@ class SecretLeakError(RuntimeError):
 
 class UnscreenedContentError(RuntimeError):
     """Raised when content is offered to the index without a gate verdict."""
+
+
+class PersistencePathError(RuntimeError):
+    """Raised when the optional local JSONL target cannot be trusted."""
 
 
 class DocumentStore:
@@ -104,10 +118,15 @@ class DocumentStore:
 
         Once the candidate has passed every safety check, older revisions of
         the same logical source are retired under the same store lock before
-        the new chunks are installed.  Safety failures therefore never delete
-        the previously indexed revision implicitly; ingestion must call
+        the new chunks become retrievable. Safety failures therefore never
+        delete the previously indexed revision implicitly; ingestion must call
         :meth:`retire_source` explicitly when the upstream source was deleted
         or its newest revision is intentionally not retrievable.
+
+        When optional JSONL persistence is enabled, chunking is prepared first
+        and the append is completed before any in-memory retirement/mutation.
+        A filesystem-boundary failure therefore leaves the previous index view
+        intact instead of creating a state the persisted log did not record.
         """
 
         document.provenance.validate()
@@ -146,7 +165,12 @@ class DocumentStore:
                 "matches a credential pattern after redaction"
             )
 
+        prepared_chunks = tuple(chunk_document(document))
+
         with self._lock:
+            if self._path is not None:
+                self._append(document)
+
             doc_id = document.doc_id
             logical_key = self._logical_source_key(document)
             self._retire_logical_source_locked(logical_key, keep_doc_id=doc_id)
@@ -156,13 +180,10 @@ class DocumentStore:
                 self._chunks.pop(chunk_id, None)
 
             chunk_ids: list[str] = []
-            for chunk in chunk_document(document):
+            for chunk in prepared_chunks:
                 self._chunks[chunk.chunk_id] = chunk
                 chunk_ids.append(chunk.chunk_id)
             self._chunks_by_document[doc_id] = chunk_ids
-
-            if self._path is not None:
-                self._append(document)
             return doc_id
 
     def add_all(
@@ -181,7 +202,7 @@ class DocumentStore:
         """Remove retrievable revisions for one exact logical source.
 
         This is intentionally exact-match only: no glob, prefix, or repository-
-        wide deletion is accepted.  L3 ingestion can use it when GitHub reports
+        wide deletion is accepted. L3 ingestion can use it when GitHub reports
         a path deleted, or when the newest revision is BLOCK/QUARANTINE and an
         older revision must not remain retrievable as if it were current.
 
@@ -217,13 +238,193 @@ class DocumentStore:
             return retired
 
     # ------------------------------------------------------------------
+    @staticmethod
+    def _reject_parent_traversal(path: Path) -> None:
+        if ".." in path.parts:
+            raise PersistencePathError(
+                "refusing persistence path with parent traversal"
+            )
+
+    @staticmethod
+    def _supports_secure_dirfd() -> bool:
+        supports_dir_fd = getattr(os, "supports_dir_fd", ())
+        return (
+            os.name != "nt"
+            and hasattr(os, "O_DIRECTORY")
+            and hasattr(os, "O_NOFOLLOW")
+            and os.open in supports_dir_fd
+            and os.mkdir in supports_dir_fd
+        )
+
+    @staticmethod
+    def _path_components(path: Path) -> tuple[str, ...]:
+        DocumentStore._reject_parent_traversal(path)
+        parts = path.parts[1:] if path.is_absolute() else path.parts
+        components = tuple(part for part in parts if part not in {"", "."})
+        if not components:
+            raise PersistencePathError("persistence path must name a file")
+        return components
+
+    @staticmethod
+    def _directory_flags() -> int:
+        return (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+
+    @staticmethod
+    def _open_child_directory(parent_fd: int, component: str) -> int:
+        flags = DocumentStore._directory_flags()
+        try:
+            return os.open(component, flags, dir_fd=parent_fd)
+        except FileNotFoundError:
+            try:
+                os.mkdir(component, 0o700, dir_fd=parent_fd)
+            except FileExistsError:
+                # A concurrent creator won the race. Re-open with O_NOFOLLOW;
+                # a symlink or non-directory therefore still fails closed.
+                pass
+            return os.open(component, flags, dir_fd=parent_fd)
+
+    @staticmethod
+    def _assert_no_symlink_ancestors(path: Path) -> None:
+        """Best-effort fallback check for platforms without secure dirfd walking."""
+
+        current = path
+        while True:
+            try:
+                if current.is_symlink():
+                    raise PersistencePathError(
+                        "refusing persistence path through symlinked directory"
+                    )
+            except OSError as exc:
+                raise PersistencePathError(
+                    "could not inspect persistence directory"
+                ) from exc
+
+            parent = current.parent
+            if parent == current:
+                return
+            current = parent
+
+    def _open_persistence_fd_dirfd(self) -> int:
+        """Open JSONL by walking every parent from already-trusted dirfds."""
+
+        assert self._path is not None
+        components = self._path_components(self._path)
+        base = self._path.anchor if self._path.is_absolute() else "."
+
+        try:
+            parent_fd = os.open(base, self._directory_flags())
+        except OSError as exc:
+            raise PersistencePathError(
+                "could not open persistence path root"
+            ) from exc
+
+        try:
+            for component in components[:-1]:
+                try:
+                    child_fd = self._open_child_directory(parent_fd, component)
+                except OSError as exc:
+                    raise PersistencePathError(
+                        "could not safely prepare persistence directory"
+                    ) from exc
+                os.close(parent_fd)
+                parent_fd = child_fd
+
+            flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            try:
+                fd = os.open(components[-1], flags, 0o600, dir_fd=parent_fd)
+            except OSError as exc:
+                raise PersistencePathError(
+                    "could not safely open persistence target"
+                ) from exc
+
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise PersistencePathError(
+                        "persistence target must be a regular file"
+                    )
+                if hasattr(os, "fchmod"):
+                    os.fchmod(fd, 0o600)
+                return fd
+            except BaseException:
+                os.close(fd)
+                raise
+        finally:
+            os.close(parent_fd)
+
+    def _open_persistence_fd_fallback(self) -> int:
+        """Best-effort fallback for runtimes without safe descriptor walking."""
+
+        assert self._path is not None
+        self._reject_parent_traversal(self._path)
+
+        parent = self._path.parent
+        self._assert_no_symlink_ancestors(parent)
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise PersistencePathError(
+                "could not prepare persistence directory"
+            ) from exc
+        self._assert_no_symlink_ancestors(parent)
+        if self._path.is_symlink():
+            raise PersistencePathError("refusing symlinked persistence target")
+
+        flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+
+        try:
+            fd = os.open(self._path, flags, 0o600)
+        except OSError as exc:
+            raise PersistencePathError(
+                "could not safely open persistence target"
+            ) from exc
+
+        try:
+            self._assert_no_symlink_ancestors(parent)
+            if self._path.is_symlink():
+                raise PersistencePathError("refusing symlinked persistence target")
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise PersistencePathError(
+                    "persistence target must be a regular file"
+                )
+            if hasattr(os, "fchmod"):
+                os.fchmod(fd, 0o600)
+            else:  # pragma: no cover - Windows fallback
+                os.chmod(self._path, 0o600, follow_symlinks=False)
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def _open_persistence_fd(self) -> int:
+        """Open the JSONL target without pathname re-resolution on POSIX."""
+
+        if self._supports_secure_dirfd():
+            return self._open_persistence_fd_dirfd()
+        return self._open_persistence_fd_fallback()
+
     def _append(self, document: Document) -> None:
         assert self._path is not None
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        if not self._path.exists():
-            self._path.touch(mode=0o600)
-        with self._path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(document.to_dict(), ensure_ascii=False) + "\n")
+        encoded = json.dumps(document.to_dict(), ensure_ascii=False) + "\n"
+        fd = self._open_persistence_fd()
+        try:
+            with os.fdopen(fd, "a", encoding="utf-8", closefd=True) as handle:
+                handle.write(encoded)
+                handle.flush()
+        except BaseException:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
 
     # ------------------------------------------------------------------
     def __len__(self) -> int:

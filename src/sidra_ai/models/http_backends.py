@@ -42,28 +42,39 @@ def _assert_local_endpoint(endpoint: str) -> None:
         )
 
 
-def _stream_token_estimate(cjk_chars: int, other_chars: int) -> int:
+def _stream_token_estimate(
+    cjk_chars: int,
+    ascii_chars: int,
+    unicode_fallback_tokens: int,
+) -> int:
     """Match ``estimate_tokens`` without retaining the generated stream."""
 
-    if cjk_chars <= 0 and other_chars <= 0:
+    if cjk_chars <= 0 and ascii_chars <= 0 and unicode_fallback_tokens <= 0:
         return 0
-    return cjk_chars + ((other_chars + 3) // 4)
+    return cjk_chars + ((ascii_chars + 3) // 4) + unicode_fallback_tokens
 
 
 def _count_stream_chars(
     text: str,
     *,
     cjk_chars: int,
-    other_chars: int,
-) -> tuple[int, int]:
+    ascii_chars: int,
+    unicode_fallback_tokens: int,
+) -> tuple[int, int, int]:
     """Accumulate the same character classes used by ``estimate_tokens``."""
 
     for char in text:
-        if "　" <= char <= "鿿" or "＀" <= char <= "￯":
+        if (
+            "　" <= char <= "鿿"
+            or "가" <= char <= "힯"
+            or "＀" <= char <= "￯"
+        ):
             cjk_chars += 1
+        elif ord(char) < 128:
+            ascii_chars += 1
         else:
-            other_chars += 1
-    return cjk_chars, other_chars
+            unicode_fallback_tokens += len(char.encode("utf-8"))
+    return cjk_chars, ascii_chars, unicode_fallback_tokens
 
 
 class _HTTPAdapter(LocalModelAdapter):
@@ -87,7 +98,12 @@ class _HTTPAdapter(LocalModelAdapter):
 
         url = f"{self.endpoint}{path}"
         try:
-            response = httpx.post(url, json=payload, timeout=self.timeout)
+            response = httpx.post(
+                url,
+                json=payload,
+                timeout=self.timeout,
+                trust_env=False,
+            )
             response.raise_for_status()
             return response.json()
         except Exception as exc:  # noqa: BLE001 - surfaced as one error type
@@ -110,7 +126,11 @@ class _HTTPAdapter(LocalModelAdapter):
         url = f"{self.endpoint}{path}"
         try:
             with httpx.stream(
-                "POST", url, json=payload, timeout=self.timeout
+                "POST",
+                url,
+                json=payload,
+                timeout=self.timeout,
+                trust_env=False,
             ) as response:
                 response.raise_for_status()
                 for line in response.iter_lines():
@@ -127,7 +147,11 @@ class _HTTPAdapter(LocalModelAdapter):
         try:
             import httpx
 
-            response = httpx.get(self.endpoint, timeout=3.0)
+            response = httpx.get(
+                self.endpoint,
+                timeout=3.0,
+                trust_env=False,
+            )
             info["available"] = response.status_code < 500
         except Exception as exc:  # noqa: BLE001
             info["available"] = False
@@ -191,15 +215,26 @@ class OllamaAdapter(_HTTPAdapter):
     def _payload(
         self, request: GenerationRequest, *, stream: bool
     ) -> dict[str, Any]:
+        generation_options: dict[str, Any] = {
+            "temperature": request.temperature,
+            "num_predict": request.max_output_tokens,
+        }
+        routed_context_tokens = self.options.get("max_context_tokens")
+        if routed_context_tokens is not None:
+            try:
+                routed_context_tokens = int(routed_context_tokens)
+            except (TypeError, ValueError) as exc:
+                raise ModelUnavailableError("ollama context cap is invalid") from exc
+            if routed_context_tokens <= 0:
+                raise ModelUnavailableError("ollama context cap is invalid")
+            generation_options["num_ctx"] = routed_context_tokens
+
         return {
             "model": self.model,
             "system": request.system_prompt,
             "prompt": self._data_and_question(request),
             "stream": stream,
-            "options": {
-                "temperature": request.temperature,
-                "num_predict": request.max_output_tokens,
-            },
+            "options": generation_options,
         }
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
@@ -209,7 +244,8 @@ class OllamaAdapter(_HTTPAdapter):
     def generate_stream(self, request: GenerationRequest) -> Iterator[GenerationChunk]:
         terminal_seen = False
         streamed_cjk_chars = 0
-        streamed_other_chars = 0
+        streamed_ascii_chars = 0
+        streamed_unicode_fallback_tokens = 0
         for line in self._stream_lines(
             "/api/generate", self._payload(request, stream=True)
         ):
@@ -222,10 +258,15 @@ class OllamaAdapter(_HTTPAdapter):
 
             delta = str(raw.get("response", ""))
             if delta:
-                streamed_cjk_chars, streamed_other_chars = _count_stream_chars(
+                (
+                    streamed_cjk_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
+                ) = _count_stream_chars(
                     delta,
                     cjk_chars=streamed_cjk_chars,
-                    other_chars=streamed_other_chars,
+                    ascii_chars=streamed_ascii_chars,
+                    unicode_fallback_tokens=streamed_unicode_fallback_tokens,
                 )
             done = bool(raw.get("done"))
             terminal_seen = terminal_seen or done
@@ -251,7 +292,8 @@ class OllamaAdapter(_HTTPAdapter):
                 output_tokens=int(raw.get("eval_count") or 0),
                 estimated_output_tokens=_stream_token_estimate(
                     streamed_cjk_chars,
-                    streamed_other_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
                 ),
                 finish_reason=str(raw.get("done_reason") or ("stop" if done else "")),
                 metadata=metadata,
@@ -298,7 +340,8 @@ class LlamaCppAdapter(_HTTPAdapter):
         token_count = 0
         terminal_seen = False
         streamed_cjk_chars = 0
-        streamed_other_chars = 0
+        streamed_ascii_chars = 0
+        streamed_unicode_fallback_tokens = 0
 
         for raw_line in self._stream_lines(
             "/completion", self._payload(request, stream=True)
@@ -317,7 +360,8 @@ class LlamaCppAdapter(_HTTPAdapter):
                     output_tokens=token_count,
                     estimated_output_tokens=_stream_token_estimate(
                         streamed_cjk_chars,
-                        streamed_other_chars,
+                        streamed_ascii_chars,
+                        streamed_unicode_fallback_tokens,
                     ),
                     finish_reason="stop",
                 )
@@ -332,10 +376,15 @@ class LlamaCppAdapter(_HTTPAdapter):
 
             delta = str(raw.get("content", ""))
             if delta:
-                streamed_cjk_chars, streamed_other_chars = _count_stream_chars(
+                (
+                    streamed_cjk_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
+                ) = _count_stream_chars(
                     delta,
                     cjk_chars=streamed_cjk_chars,
-                    other_chars=streamed_other_chars,
+                    ascii_chars=streamed_ascii_chars,
+                    unicode_fallback_tokens=streamed_unicode_fallback_tokens,
                 )
             tokens = raw.get("tokens")
             if isinstance(tokens, list):
@@ -352,7 +401,8 @@ class LlamaCppAdapter(_HTTPAdapter):
                 output_tokens=token_count,
                 estimated_output_tokens=_stream_token_estimate(
                     streamed_cjk_chars,
-                    streamed_other_chars,
+                    streamed_ascii_chars,
+                    streamed_unicode_fallback_tokens,
                 ),
                 finish_reason=str(
                     raw.get("stop_type") or raw.get("stop_reason") or ("stop" if done else "")

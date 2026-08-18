@@ -11,6 +11,7 @@ Design rules for v0.1:
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 from typing import Iterable
@@ -41,16 +42,36 @@ GITHUB_API_HOST = "api.github.com"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
 
+#: Explicit non-loopback exposure needs more than a merely non-empty bearer
+#: token. This is only a minimum accidental-weakness guard; operators should
+#: still generate a random token rather than choosing a memorable phrase.
+MIN_PUBLIC_API_TOKEN_CHARS = 24
+
 
 class UnsafeConfigurationError(RuntimeError):
     """Raised when a configuration would weaken a v0.1 safety invariant."""
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
+    """Read an explicit boolean without silently weakening safety controls.
+
+    Typos and empty values fail closed instead of being coerced to ``False``.
+    That matters for settings such as prompt-injection quarantine, where a
+    malformed environment variable must never disable a protection.
+    """
+
     raw = os.environ.get(name)
     if raw is None:
         return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise UnsafeConfigurationError(
+        f"{name} must be one of: 1, 0, true, false, yes, no, on, off"
+    )
 
 
 def _env_int(name: str, default: int) -> int:
@@ -64,10 +85,47 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _env_list(name: str, default: Iterable[str]) -> tuple[str, ...]:
+    """Read a comma-separated list without broadening an explicit empty value."""
+
     raw = os.environ.get(name)
-    if raw is None or not raw.strip():
+    if raw is None:
         return tuple(default)
+    if not raw.strip():
+        return ()
     return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
+def _validate_allowed_repositories(repositories: Iterable[str]) -> None:
+    """Require one unambiguous GitHub ``owner/name`` identity per entry.
+
+    API request schemas already reject duplicate logical repositories, but the
+    configured default scope can bypass those schemas when GitHub analysis is
+    invoked without an explicit repository list. Keep the configuration
+    boundary equally strict so case-only duplicates cannot multiply ingestion
+    work or create ambiguous authorization metadata.
+    """
+
+    seen: set[str] = set()
+    for repository in repositories:
+        owner, separator, name = repository.partition("/")
+        if (
+            repository != repository.strip()
+            or any(char.isspace() for char in repository)
+            or separator != "/"
+            or not owner
+            or not name
+            or "/" in name
+        ):
+            raise UnsafeConfigurationError(
+                "allowed repositories must use exactly one non-empty 'owner/name' identifier"
+            )
+
+        normalized = repository.casefold()
+        if normalized in seen:
+            raise UnsafeConfigurationError(
+                "allowed repositories must not contain case-insensitive duplicates"
+            )
+        seen.add(normalized)
 
 
 @dataclass(frozen=True)
@@ -105,9 +163,10 @@ class Settings:
 
     # ------------------------------------------------------------------
     def __post_init__(self) -> None:
-        # Enforce the GitHub credential boundary even for callers that
+        # Enforce GitHub network/credential boundaries even for callers that
         # construct Settings directly instead of using Settings.from_env().
         self._validate_github_api_base()
+        self._validate_github_request_timeout()
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -166,6 +225,20 @@ class Settings:
     def is_repository_allowed(self, repository: str) -> bool:
         return repository.lower() in {r.lower() for r in self.allowed_repositories}
 
+    def _validate_github_request_timeout(self) -> None:
+        """Keep read-only GitHub calls on a finite positive deadline."""
+
+        timeout = self.github_request_timeout
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+        ):
+            raise UnsafeConfigurationError(
+                "github_request_timeout must be a finite positive number"
+            )
+
     def _validate_github_api_base(self) -> None:
         """Pin authenticated GitHub ingestion to the official HTTPS origin.
 
@@ -204,9 +277,16 @@ class Settings:
         """Enforce the v0.1 safety invariants."""
 
         self._validate_github_api_base()
+        self._validate_github_request_timeout()
 
         if self.port < 1 or self.port > 65535:
             raise UnsafeConfigurationError("port out of range")
+
+        if self.rate_limit_per_minute <= 0:
+            raise UnsafeConfigurationError("rate_limit_per_minute must be positive")
+
+        if not self.data_dir.strip():
+            raise UnsafeConfigurationError("data_dir must not be empty or whitespace")
 
         if not self.is_localhost_only:
             if not self.allow_public_bind:
@@ -215,9 +295,17 @@ class Settings:
                     "SIDRA_ALLOW_PUBLIC_BIND=true only after authentication and "
                     "rate limiting are reviewed"
                 )
-            if not self.api_token:
+            token = self.api_token
+            if not token:
                 raise UnsafeConfigurationError(
                     "non-loopback bind requires SIDRA_API_TOKEN to be set"
+                )
+            if len(token) < MIN_PUBLIC_API_TOKEN_CHARS or not all(
+                0x21 <= ord(char) <= 0x7E for char in token
+            ):
+                raise UnsafeConfigurationError(
+                    "non-loopback bind requires SIDRA_API_TOKEN to contain at least "
+                    f"{MIN_PUBLIC_API_TOKEN_CHARS} visible ASCII characters"
                 )
 
         if self.model_backend not in LOCAL_MODEL_BACKENDS:
@@ -226,14 +314,16 @@ class Settings:
                 f"verified v0.1 allows {sorted(LOCAL_MODEL_BACKENDS)}"
             )
 
+        if self.model_max_output_tokens <= 0:
+            raise UnsafeConfigurationError("model_max_output_tokens must be positive")
+
+        if self.max_items_per_source <= 0:
+            raise UnsafeConfigurationError("max_items_per_source must be positive")
+
         if self.max_input_bytes <= 0:
             raise UnsafeConfigurationError("max_input_bytes must be positive")
 
-        for repository in self.allowed_repositories:
-            if "/" not in repository:
-                raise UnsafeConfigurationError(
-                    f"allowed repository {repository!r} must be 'owner/name'"
-                )
+        _validate_allowed_repositories(self.allowed_repositories)
 
     def redacted_dict(self) -> dict[str, object]:
         """Serializable view. Secrets are reported as presence flags only."""

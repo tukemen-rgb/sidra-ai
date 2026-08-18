@@ -95,6 +95,10 @@ def enforce_token_budget(
         raise ValueError("min_output_tokens must be positive")
     if request.max_output_tokens <= 0:
         raise ValueError("request.max_output_tokens must be positive")
+    if request.max_output_tokens < min_output_tokens:
+        raise ValueError(
+            "request.max_output_tokens cannot be smaller than min_output_tokens"
+        )
 
     usable_context = max_context_tokens - reserve_tokens
     available_output = usable_context - input_tokens

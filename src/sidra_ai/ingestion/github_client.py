@@ -18,8 +18,9 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Iterator, Mapping, Protocol
-from urllib.parse import urlencode, urljoin, urlparse
+from urllib.parse import quote, urlencode, urljoin, urlparse
 
 from sidra_ai.config.settings import Settings, get_settings
 
@@ -34,6 +35,27 @@ MAX_PAGINATION_PAGES = 50
 #: Bound process-local conditional representations so a long-running poller
 #: cannot accumulate one cached body for every historical ref/compare URL.
 MAX_ETAG_CACHE_ENTRIES = 256
+
+
+def _parse_activity_timestamp(value: Any, *, field: str) -> datetime:
+    """Parse a mutable-source cursor timestamp without leaking raw values.
+
+    Pull-request pagination is ordered by ``updated_at``. During an incremental
+    poll, a missing or malformed timestamp means the client cannot prove where
+    that row sits relative to the cursor. Treat that as an incomplete fetch so
+    the pipeline preserves its previous cursor/snapshot instead of silently
+    skipping a potentially newer revision.
+    """
+
+    if not isinstance(value, str) or not value.strip():
+        raise GitHubAPIError(f"GitHub returned an invalid {field}")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise GitHubAPIError(f"GitHub returned an invalid {field}") from exc
+    if parsed.tzinfo is None:
+        raise GitHubAPIError(f"GitHub returned an invalid {field}")
+    return parsed.astimezone(timezone.utc)
 
 
 class WriteOperationForbiddenError(RuntimeError):
@@ -83,7 +105,7 @@ class Transport(Protocol):
 
 
 class HttpxTransport:
-    """Default transport. ``httpx`` is imported lazily."""
+    """Default transport with ambient proxy/environment routing disabled."""
 
     def __call__(
         self, method: str, url: str, headers: Mapping[str, str], timeout: float
@@ -98,7 +120,13 @@ class HttpxTransport:
             raise GitHubAPIError("httpx is required for GitHub ingestion") from exc
 
         try:
-            raw = httpx.get(url, headers=dict(headers), timeout=timeout)
+            # GitHub bearer credentials must never depend on workstation-level
+            # HTTP(S)_PROXY/ALL_PROXY/NO_PROXY or other HTTPX environment routing.
+            # The API origin is already pinned by Settings; disable ambient
+            # transport configuration so authenticated ingestion reaches it
+            # directly instead of leaking through an operator/malware proxy.
+            with httpx.Client(trust_env=False) as client:
+                raw = client.get(url, headers=dict(headers), timeout=timeout)
         except Exception as exc:  # noqa: BLE001
             raise GitHubAPIError(f"GitHub request failed: {exc}") from exc
 
@@ -372,8 +400,15 @@ class GitHubReadOnlyClient:
         self, repository: str, path: str, ref: str | None = None
     ) -> Any:
         self._assert_allowed(repository)
+        # GitHub Contents API repository paths are data, not URL syntax. Encode
+        # every reserved byte while preserving path separators so valid names
+        # containing spaces, '#', '?', '%', or Unicode cannot be truncated or
+        # reinterpreted as a query/fragment during read-only ingestion.
+        encoded_path = quote(path, safe="/")
         try:
-            return self._get_json(f"repos/{repository}/contents/{path}", {"ref": ref})
+            return self._get_json(
+                f"repos/{repository}/contents/{encoded_path}", {"ref": ref}
+            )
         except GitHubAPIError as exc:
             if exc.status == 404:
                 return None
@@ -422,10 +457,50 @@ class GitHubReadOnlyClient:
 
     # --- history --------------------------------------------------------
     def compare(self, repository: str, base: str, head: str) -> dict[str, Any]:
-        """Diff between two SHAs. This is the differential-ingestion core."""
+        """Diff between two SHAs. This is the differential-ingestion core.
+
+        The pipeline advances its stored SHA only after a complete collection.
+        A compare response that contains more commit revisions than
+        ``max_items_per_source`` cannot be fully represented by the current
+        bounded commit-document pass, and GitHub can also truncate the compare
+        commit list. Reject either case here instead of letting the caller
+        silently slice the commit window and advance past unseen provenance.
+        """
 
         self._assert_allowed(repository)
-        return self._get_json(f"repos/{repository}/compare/{base}...{head}")
+        comparison = self._get_json(f"repos/{repository}/compare/{base}...{head}")
+        if not isinstance(comparison, dict):
+            raise GitHubAPIError("GitHub compare returned a non-object response")
+
+        raw_commits = comparison.get("commits") or []
+        if not isinstance(raw_commits, list):
+            raise GitHubAPIError("GitHub compare returned a malformed commit list")
+
+        raw_total = comparison.get("total_commits")
+        if raw_total is None:
+            total_commits = len(raw_commits)
+        else:
+            try:
+                total_commits = int(raw_total)
+            except (TypeError, ValueError) as exc:
+                raise GitHubAPIError("GitHub compare returned an invalid total_commits") from exc
+            if total_commits < 0:
+                raise GitHubAPIError("GitHub compare returned an invalid total_commits")
+
+        if total_commits > len(raw_commits):
+            raise GitHubAPIError(
+                "GitHub compare omitted commits from the incremental window; "
+                "refusing to advance the SHA cursor on partial commit history"
+            )
+
+        limit = self.settings.max_items_per_source
+        if len(raw_commits) > limit:
+            raise GitHubAPIError(
+                "incremental commit window exceeds configured item limit; "
+                "refusing to advance the SHA cursor past unindexed commits"
+            )
+
+        return comparison
 
     def list_commits(
         self, repository: str, since_sha: str | None = None, head: str | None = None
@@ -459,7 +534,12 @@ class GitHubReadOnlyClient:
 
         self._assert_allowed(repository)
         limit = self.settings.max_items_per_source
-        incremental = bool(since)
+        since_timestamp = (
+            _parse_activity_timestamp(since, field="pull request activity cursor")
+            if since is not None
+            else None
+        )
+        incremental = since_timestamp is not None
         items: list[dict[str, Any]] = []
 
         for page in self._iter_list_pages(
@@ -473,12 +553,13 @@ class GitHubReadOnlyClient:
         ):
             reached_since = False
             for pull in page:
-                updated_at = str(pull.get("updated_at", ""))
-                if since and not updated_at:
-                    continue
-                if since and updated_at <= since:
-                    reached_since = True
-                    break
+                if since_timestamp is not None:
+                    updated_at = _parse_activity_timestamp(
+                        pull.get("updated_at"), field="pull request updated_at"
+                    )
+                    if updated_at <= since_timestamp:
+                        reached_since = True
+                        break
                 items.append(pull)
                 if not incremental and len(items) >= limit:
                     return items
@@ -498,7 +579,12 @@ class GitHubReadOnlyClient:
 
         self._assert_allowed(repository)
         limit = self.settings.max_items_per_source
-        incremental = bool(since)
+        since_timestamp = (
+            _parse_activity_timestamp(since, field="issue activity cursor")
+            if since is not None
+            else None
+        )
+        incremental = since_timestamp is not None
         items: list[dict[str, Any]] = []
 
         for page in self._iter_list_pages(
@@ -514,6 +600,10 @@ class GitHubReadOnlyClient:
             for issue in page:
                 if "pull_request" in issue:
                     continue
+                if since_timestamp is not None:
+                    _parse_activity_timestamp(
+                        issue.get("updated_at"), field="issue updated_at"
+                    )
                 items.append(issue)
                 if not incremental and len(items) >= limit:
                     return items

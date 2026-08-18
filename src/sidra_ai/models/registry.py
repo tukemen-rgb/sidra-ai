@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 from sidra_ai.config.settings import Settings, get_settings
-from sidra_ai.models.base import LocalModelAdapter
+from sidra_ai.models.base import LocalModelAdapter, ModelUnavailableError
 from sidra_ai.models.budgeted import BudgetedLocalModelAdapter
 from sidra_ai.models.echo import EchoModelAdapter
 from sidra_ai.models.http_backends import (
@@ -22,6 +22,7 @@ from sidra_ai.models.http_backends import (
     OllamaAdapter,
     TransformersAdapter,
 )
+from sidra_ai.models.llama_runtime import LlamaCppRuntimeGuard
 
 
 class BackendNotRegisteredError(KeyError):
@@ -80,9 +81,15 @@ def create_adapter(
     budget wrapper for every registered local backend. The value must come
     from an explicit model manifest or measurement; this factory never infers
     it from a model name or parameter count.
+
+    The admitted context cap is also retained in the inner adapter options so
+    local backends use the same runtime context assumption that routing used
+    for KV-cache admission. Ollama receives the cap directly as ``num_ctx``;
+    routed llama.cpp adapters verify the live server's read-only ``/props``
+    context and slot configuration before every generation.
     """
 
-    max_context_tokens = options.pop("max_context_tokens", None)
+    max_context_tokens = options.get("max_context_tokens")
     reserve_tokens = options.pop("context_reserve_tokens", 128)
     min_output_tokens = options.pop("min_output_tokens", 1)
 
@@ -108,18 +115,37 @@ def create_adapter(
     adapter = adapter_cls(model, **options)
     if max_context_tokens is None:
         return adapter
+
+    context_cap = int(max_context_tokens)
+    if backend == "llama_cpp":
+        adapter = LlamaCppRuntimeGuard(
+            adapter,
+            expected_context_tokens=context_cap,
+        )
+
     return BudgetedLocalModelAdapter(
         adapter,
-        max_context_tokens=int(max_context_tokens),
+        max_context_tokens=context_cap,
         reserve_tokens=int(reserve_tokens),
         min_output_tokens=int(min_output_tokens),
     )
 
 
 def adapter_from_settings(settings: Settings | None = None) -> LocalModelAdapter:
-    """Build the adapter described by configuration."""
+    """Build only the dependency-free baseline adapter from configuration.
+
+    Real local backends must pass reviewed-manifest and freshly observed-VRAM
+    admission before construction. Keeping this convenience helper echo-only
+    prevents library/embedding callers from bypassing the same 6 GiB safety
+    boundary that the real SIDRA API composition path enforces.
+    """
 
     settings = settings or get_settings()
+    if settings.model_backend != "echo":
+        raise ModelUnavailableError(
+            "non-echo local models require reviewed-manifest and observed-VRAM admission"
+        )
+
     options: dict[str, Any] = {}
     if settings.model_endpoint:
         options["endpoint"] = settings.model_endpoint

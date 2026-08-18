@@ -50,6 +50,16 @@ class FetchPolicy:
         object.__setattr__(self, "allowed_hosts", normalized_hosts)
         object.__setattr__(self, "allowed_content_types", normalized_types)
 
+    def canonicalize_url(self, url: str) -> tuple[str, str]:
+        """Validate static URL policy before any DNS lookup and return URL + host.
+
+        FetchBroker uses this boundary before calling a resolver so an unallowlisted or
+        malformed hostname can never trigger DNS work merely by being supplied as input
+        or as a redirect Location.
+        """
+
+        return self._normalize_url(url)
+
     def validate_target(self, url: str, resolved_ips: Iterable[str]) -> ValidatedFetchTarget:
         """Validate one HTTPS target and the exact DNS answers to be pinned.
 
@@ -57,7 +67,7 @@ class FetchPolicy:
         sets are rejected instead of filtering out only the unsafe address.
         """
 
-        canonical_url, host = self._normalize_url(url)
+        canonical_url, host = self.canonicalize_url(url)
         addresses = _validate_resolved_ips(resolved_ips)
         return ValidatedFetchTarget(
             url=canonical_url,
@@ -108,6 +118,12 @@ class FetchPolicy:
             raise FetchPolicyError("only https URLs are allowed")
         if parsed.username is not None or parsed.password is not None:
             raise FetchPolicyError("URL userinfo is not allowed")
+        if parsed.query:
+            # v0.1 intentionally refuses query-bearing URLs. Query parameters often
+            # carry bearer tokens, email addresses, session identifiers, or signed
+            # access material. Persisting the canonical URL into provenance/citations
+            # would create a secondary secret/PII channel before content redaction.
+            raise FetchPolicyError("URL query strings are not allowed")
         if parsed.fragment:
             raise FetchPolicyError("URL fragments are not allowed")
         if parsed.hostname is None:
@@ -132,7 +148,7 @@ class FetchPolicy:
             raise FetchPolicyError("hostname is not allowlisted")
 
         path = parsed.path or "/"
-        canonical = urlunsplit(("https", host, path, parsed.query, ""))
+        canonical = urlunsplit(("https", host, path, "", ""))
         return canonical, host
 
 

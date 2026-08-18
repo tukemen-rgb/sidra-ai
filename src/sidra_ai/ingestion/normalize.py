@@ -49,6 +49,21 @@ def _parse_time(value: str | None) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _mutable_timestamp(payload: Mapping[str, Any]) -> datetime | None:
+    """Return a trustworthy timestamp for a mutable GitHub object.
+
+    An absent or null ``updated_at`` may use GitHub's authoritative creation
+    timestamp as a conservative compatibility fallback. A non-null value is a
+    claimed revision timestamp: if it is empty, malformed, or naive it must not
+    be hidden by substituting the older creation time, so that case fails closed.
+    """
+
+    raw_updated = payload.get("updated_at")
+    if raw_updated is None:
+        return _parse_time(payload.get("created_at"))
+    return _parse_time(raw_updated)
+
+
 def decode_content(payload: Mapping[str, Any]) -> str:
     """Decode a GitHub contents payload. Binary files return ``""``."""
 
@@ -163,9 +178,7 @@ def pull_request_document(
         return None
     body = str(payload.get("body") or "").strip()
     head_sha = str(((payload.get("head") or {}).get("sha")) or "")
-    timestamp = _parse_time(payload.get("updated_at")) or _parse_time(
-        payload.get("created_at")
-    )
+    timestamp = _mutable_timestamp(payload)
     if timestamp is None:
         return None
 
@@ -204,9 +217,7 @@ def issue_document(
     if number is None or not title:
         return None
     body = str(payload.get("body") or "").strip()
-    timestamp = _parse_time(payload.get("updated_at")) or _parse_time(
-        payload.get("created_at")
-    )
+    timestamp = _mutable_timestamp(payload)
     if timestamp is None:
         return None
 

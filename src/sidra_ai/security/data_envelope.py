@@ -39,8 +39,20 @@ _DELIMITER_SPOOFS = re.compile(
     r"|<\|im_(start|end)\|>|<\|(system|user|assistant)\|>|</?\s*system\s*>)"
 )
 
-#: Zero-width / bidi characters that hide payloads from human review.
-_INVISIBLE = re.compile(r"[​-‏‪-‮⁠-⁤﻿]")
+#: Zero-width / bidi characters that hide payloads from human review. Include
+#: Unicode bidi isolate controls (U+2066..U+2069), not only embeddings/overrides.
+_INVISIBLE = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
+
+#: Block labels are generated internally as ``S1``, ``S2`` ... . Keep the
+#: public helper fail-closed so a caller cannot smuggle prompt syntax through
+#: a custom label.
+_SAFE_BLOCK_LABEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}\Z")
+
+#: Prompt-facing provenance metadata is untrusted too. Git paths can legally
+#: contain control characters, including newlines. C1 controls are included
+#: because U+0085 (NEL) is treated as a line boundary by Unicode-aware text
+#: processing and must not create a second logical prompt line.
+_PROMPT_METADATA_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 
 
 class InstructionAuthorityError(RuntimeError):
@@ -62,9 +74,39 @@ def neutralize(content: str) -> str:
     )
 
 
+def _validate_prompt_metadata(*, label: str, citation: str, trust_level: str) -> None:
+    """Fail closed if prompt-structure metadata can escape its header line.
+
+    ``content`` is already neutralized, but provenance metadata is rendered
+    before the content marker and therefore has a different failure mode. A
+    repository path containing a newline or model delimiter could otherwise
+    create a forged role/data boundary even when the document body itself is
+    harmless. Diagnostics are deliberately context-free and never echo the
+    rejected metadata.
+    """
+
+    if not isinstance(label, str) or not _SAFE_BLOCK_LABEL.fullmatch(label):
+        raise InstructionAuthorityError("unsafe data-block label metadata")
+
+    for value in (citation, trust_level):
+        if not isinstance(value, str) or not value:
+            raise InstructionAuthorityError("unsafe data-block provenance metadata")
+        if (
+            _PROMPT_METADATA_CONTROL.search(value)
+            or _INVISIBLE.search(value)
+            or _DELIMITER_SPOOFS.search(value)
+        ):
+            raise InstructionAuthorityError("unsafe data-block provenance metadata")
+
+
 def wrap_block(content: str, *, label: str, citation: str, trust_level: str) -> str:
     """Wrap one piece of content as a labelled DATA block."""
 
+    _validate_prompt_metadata(
+        label=label,
+        citation=citation,
+        trust_level=trust_level,
+    )
     return "\n".join(
         (
             _BLOCK_OPEN.format(label=label),

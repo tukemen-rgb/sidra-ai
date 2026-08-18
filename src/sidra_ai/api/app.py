@@ -6,6 +6,9 @@ Exposure posture for v0.1:
   requires an API token (enforced in :meth:`Settings.validate`).
 * Bearer-token auth is applied whenever a token is configured, and is
   mandatory off-loopback.
+* Bearer attempts are rate-limited before token comparison, so invalid-token
+  floods cannot bypass request throttling; authenticated traffic keeps its
+  separate normal API allowance.
 * A per-client rate limit is applied to every API route; ``/health`` remains
   unauthenticated but cannot trigger unbounded local model health probes.
 * Rate-limiter client state is bounded and fails closed for new clients when
@@ -13,6 +16,9 @@ Exposure posture for v0.1:
   source-IP churn into unbounded in-process memory growth.
 * The health-probe budget is isolated from the authenticated ``/v1`` budget so
   an aggressive monitor cannot consume a client's normal API allowance.
+* FastAPI's generated interactive documentation routes are disabled, while
+  the JSON schema route crosses the same auth/rate-limit boundary as private
+  API routes.
 * CORS is not enabled. Browsers on other origins cannot reach this.
 """
 
@@ -25,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from sidra_ai.api.audit import ApiAuditLog
@@ -40,6 +47,9 @@ from sidra_ai.api.schemas import (
 from sidra_ai.api.service import SidraService, get_service
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.ingestion.github_client import RepositoryNotAllowedError
+
+_REPOSITORY_FORBIDDEN_DETAIL = "repository is not allowlisted"
+_REQUEST_VALIDATION_DETAIL = "request validation failed"
 
 
 class RateLimiter:
@@ -103,6 +113,11 @@ def create_app(
     audit_log: ApiAuditLog | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    # ``Settings.from_env()`` validates already, but embedding callers can
+    # inject a Settings instance directly. Keep the private API boundary
+    # fail-closed regardless of how configuration reached the app factory.
+    settings.validate()
+    auth_limiter = RateLimiter(settings.rate_limit_per_minute)
     limiter = RateLimiter(settings.rate_limit_per_minute)
     health_limiter = RateLimiter(settings.rate_limit_per_minute)
     audit_log = audit_log or ApiAuditLog(Path(settings.data_dir) / "api_audit.jsonl")
@@ -114,7 +129,19 @@ def create_app(
             "Private, local-first AI API. GitHub access is read-only; "
             "retrieved content is DATA, never instructions."
         ),
+        openapi_url=None,
+        docs_url=None,
+        redoc_url=None,
     )
+
+    @app.exception_handler(RequestValidationError)
+    def _request_validation_error(_: Request, _exc: RequestValidationError) -> JSONResponse:
+        """Return context-free 422s without reflecting request-controlled input."""
+
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": _REQUEST_VALIDATION_DETAIL},
+        )
 
     def resolve_service() -> SidraService:
         return service or get_service()
@@ -148,6 +175,9 @@ def create_app(
                 detail="rate limit exceeded",
             )
 
+    def auth_rate_limit(request: Request) -> None:
+        _check_rate_limit(request, auth_limiter)
+
     def rate_limit(request: Request) -> None:
         _check_rate_limit(request, limiter)
 
@@ -161,7 +191,7 @@ def create_app(
             if not current.settings.is_repository_allowed(repository):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"repository {repository!r} is not allowlisted",
+                    detail=_REPOSITORY_FORBIDDEN_DETAIL,
                 )
 
     def record_audit(
@@ -189,7 +219,13 @@ def create_app(
             # HTTP error. The failure is deliberately not echoed to clients.
             pass
 
-    guarded = [Depends(authenticate), Depends(rate_limit)]
+    guarded = [Depends(auth_rate_limit), Depends(authenticate), Depends(rate_limit)]
+
+    @app.get("/openapi.json", include_in_schema=False, dependencies=guarded)
+    def openapi_schema() -> dict[str, Any]:
+        """Expose schema only through the same private-API request boundary."""
+
+        return app.openapi()
 
     # ------------------------------------------------------------------
     @app.get(
@@ -237,13 +273,17 @@ def create_app(
     @app.post("/v1/github/analyze", response_model=AnalyzeResponse, dependencies=guarded)
     def analyze(payload: AnalyzeRequest) -> Any:
         current = resolve_service()
+        # Match chat/retrieve: reject the complete repository scope before the
+        # ingestion pipeline can fetch or mutate the local RAG/state snapshot.
+        validate_repositories(current, payload.repositories)
         try:
             result = current.analyze_github(
                 payload.repositories, force=payload.force, question=payload.question
             )
         except RepositoryNotAllowedError as exc:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_REPOSITORY_FORBIDDEN_DETAIL,
             ) from exc
 
         record_audit(
@@ -256,8 +296,11 @@ def create_app(
 
     # ------------------------------------------------------------------
     @app.exception_handler(RepositoryNotAllowedError)
-    def _not_allowed(_: Request, exc: RepositoryNotAllowedError) -> JSONResponse:
-        return JSONResponse(status_code=403, content={"detail": str(exc)})
+    def _not_allowed(_: Request, _exc: RepositoryNotAllowedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": _REPOSITORY_FORBIDDEN_DETAIL},
+        )
 
     return app
 

@@ -1,16 +1,16 @@
 """Per-repository ingestion state.
 
 The state file records the last commit SHA SIDRA ingested for each
-repository. On the next run the client asks GitHub for HEAD; if it matches,
-the pipeline stops immediately - no content is fetched, nothing is chunked,
-and **no model is invoked**. That is the mechanism that keeps idle polling
-free.
+repository. It is also the cursor for mutable PR/Issue polling, so the file is
+part of the RAG freshness and correctness boundary. A damaged or redirected
+state path must fail closed rather than reset or move repository cursors.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 import time
 from contextlib import contextmanager
@@ -18,6 +18,16 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+from sidra_ai.ingestion.dirfd_path import (
+    DirFdPathError,
+    atomic_replace_bytes,
+    atomic_replace_bytes_at,
+    open_regular_read,
+    open_regular_read_at,
+    state_lock,
+    supports_secure_dirfd,
+)
 
 
 class StateStoreError(RuntimeError):
@@ -80,14 +90,14 @@ class IngestionState:
 class StateStore:
     """Loads and atomically saves :class:`IngestionState`.
 
-    Atomic replacement prevents torn JSON files, while a tiny cross-process
-    lock around read-modify-write updates prevents two repository workers from
-    overwriting each other's cursor state. The lock contains no state or
-    credentials and is held only for the local file update.
+    The state path is part of the RAG freshness/correctness boundary. On
+    supported POSIX runtimes, reads, lock acquisition, temp-file creation and
+    atomic replacement are performed relative to trusted directory descriptors
+    so an ancestor cannot be swapped after a pathname check. Other platforms
+    retain a conservative pathname fallback.
 
-    An existing state file is part of the correctness boundary. If it cannot
-    be read or decoded, this store fails closed instead of silently replacing
-    every repository cursor with a fresh empty state.
+    An existing state file is never silently reset when it is unreadable or
+    malformed.
     """
 
     _LOCK_TIMEOUT_SECONDS = 5.0
@@ -98,17 +108,122 @@ class StateStore:
         self.path = Path(path)
         self._lock_path = self.path.with_name(self.path.name + ".lock")
 
-    def load(self) -> IngestionState:
-        if not self.path.exists():
+    @staticmethod
+    def _supports_secure_dirfd() -> bool:
+        return supports_secure_dirfd()
+
+    def _reject_parent_traversal(self) -> None:
+        if any(part == ".." for part in self.path.parts):
+            raise StateStoreError(
+                "ingestion state path contains explicit parent traversal"
+            )
+
+    def _assert_parent_ancestry_safe(self) -> None:
+        self._reject_parent_traversal()
+        current = Path(os.path.abspath(os.fspath(self.path.parent)))
+        while True:
+            try:
+                mode = current.lstat().st_mode
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                raise StateStoreError(
+                    "ingestion state parent ancestry could not be inspected"
+                ) from exc
+            else:
+                if stat.S_ISLNK(mode):
+                    raise StateStoreError(
+                        "ingestion state parent ancestry contains a symlink"
+                    )
+                if not stat.S_ISDIR(mode):
+                    raise StateStoreError(
+                        "ingestion state parent ancestry contains a non-directory"
+                    )
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+
+    def _assert_state_target_safe(self) -> None:
+        self._assert_parent_ancestry_safe()
+        try:
+            mode = self.path.lstat().st_mode
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise StateStoreError(
+                "persisted ingestion state target could not be inspected"
+            ) from exc
+        if stat.S_ISLNK(mode):
+            raise StateStoreError("persisted ingestion state target is a symlink")
+        if not stat.S_ISREG(mode):
+            raise StateStoreError(
+                "persisted ingestion state target is not a regular file"
+            )
+
+    def _prepare_parent_directory(self) -> None:
+        self._assert_parent_ancestry_safe()
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise StateStoreError(
+                "ingestion state parent directory could not be created safely"
+            ) from exc
+        self._assert_parent_ancestry_safe()
+
+    def _open_state_for_read_fallback(self):
+        self._assert_state_target_safe()
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(self.path, flags)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise StateStoreError(
+                "persisted ingestion state could not be opened safely"
+            ) from exc
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise StateStoreError(
+                    "persisted ingestion state target is not a regular file"
+                )
+            self._assert_parent_ancestry_safe()
+            return os.fdopen(fd, "r", encoding="utf-8")
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def _open_state_for_read(self, trusted: tuple[int, str] | None = None):
+        if trusted is not None:
+            try:
+                fd = open_regular_read_at(*trusted)
+            except DirFdPathError as exc:
+                raise StateStoreError(str(exc)) from exc
+            if fd is None:
+                return None
+            return os.fdopen(fd, "r", encoding="utf-8")
+
+        if self._supports_secure_dirfd():
+            try:
+                fd = open_regular_read(self.path)
+            except DirFdPathError as exc:
+                raise StateStoreError(str(exc)) from exc
+            if fd is None:
+                return None
+            return os.fdopen(fd, "r", encoding="utf-8")
+        return self._open_state_for_read_fallback()
+
+    def _load_unlocked(
+        self,
+        trusted: tuple[int, str] | None = None,
+    ) -> IngestionState:
+        handle = self._open_state_for_read(trusted)
+        if handle is None:
             return IngestionState()
         try:
-            with self.path.open("r", encoding="utf-8") as handle:
+            with handle:
                 raw = json.load(handle)
-        except FileNotFoundError:
-            # The state may have been removed between exists() and open().
-            # Treat an actually missing file like first run, but never collapse
-            # other read/parse failures into an empty multi-repository state.
-            return IngestionState()
         except json.JSONDecodeError as exc:
             raise StateStoreError(
                 "persisted ingestion state is invalid JSON; refusing to reset cursors"
@@ -117,7 +232,6 @@ class StateStore:
             raise StateStoreError(
                 "persisted ingestion state could not be read; refusing to reset cursors"
             ) from exc
-
         if not isinstance(raw, dict):
             raise StateStoreError(
                 "persisted ingestion state has an invalid top-level shape"
@@ -129,43 +243,57 @@ class StateStore:
                 "persisted ingestion state has an invalid schema"
             ) from exc
 
+    def load(self) -> IngestionState:
+        return self._load_unlocked()
+
+    def _assert_lock_path_safe_if_present(self) -> None:
+        try:
+            mode = self._lock_path.lstat().st_mode
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise StateStoreError(
+                "ingestion state lock path could not be inspected"
+            ) from exc
+        if stat.S_ISLNK(mode):
+            raise StateStoreError("ingestion state lock path is a symlink")
+        if not stat.S_ISDIR(mode):
+            raise StateStoreError("ingestion state lock path is not a directory")
+
     @contextmanager
-    def _locked_update(self) -> Iterator[None]:
-        """Serialize state read-modify-write sequences across processes.
-
-        ``os.mkdir`` is an atomic create on the filesystems SIDRA targets and
-        works without an extra dependency. A crashed writer may leave an empty
-        lock directory; after a conservative stale interval another worker can
-        recover it. If a live writer does not finish within the short timeout,
-        fail closed rather than risk a lost cursor update.
-        """
-
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+    def _locked_update_fallback(self) -> Iterator[None]:
+        self._prepare_parent_directory()
         deadline = time.monotonic() + self._LOCK_TIMEOUT_SECONDS
-
         while True:
             try:
                 os.mkdir(self._lock_path)
+                self._assert_parent_ancestry_safe()
+                self._assert_lock_path_safe_if_present()
                 break
             except FileExistsError:
+                self._assert_parent_ancestry_safe()
+                self._assert_lock_path_safe_if_present()
                 try:
-                    age = time.time() - self._lock_path.stat().st_mtime
+                    age = time.time() - self._lock_path.lstat().st_mtime
                 except FileNotFoundError:
                     continue
-
+                except OSError as exc:
+                    raise StateStoreError(
+                        "ingestion state lock path could not be inspected"
+                    ) from exc
                 if age >= self._LOCK_STALE_SECONDS:
                     try:
                         os.rmdir(self._lock_path)
-                    except (FileNotFoundError, OSError):
+                    except FileNotFoundError:
+                        pass
+                    except OSError:
                         pass
                     continue
-
                 if time.monotonic() >= deadline:
                     raise TimeoutError(
                         f"timed out waiting for ingestion state lock: {self._lock_path}"
                     )
                 time.sleep(self._LOCK_POLL_SECONDS)
-
         try:
             yield
         finally:
@@ -174,10 +302,26 @@ class StateStore:
             except FileNotFoundError:
                 pass
 
-    def _save_unlocked(self, state: IngestionState) -> None:
-        """Persist ``state``; caller must hold ``_locked_update`` when merging."""
+    @contextmanager
+    def _locked_update(self) -> Iterator[tuple[int, str] | None]:
+        if self._supports_secure_dirfd():
+            try:
+                with state_lock(
+                    self.path,
+                    timeout_seconds=self._LOCK_TIMEOUT_SECONDS,
+                    stale_seconds=self._LOCK_STALE_SECONDS,
+                    poll_seconds=self._LOCK_POLL_SECONDS,
+                ) as trusted:
+                    yield trusted
+            except DirFdPathError as exc:
+                raise StateStoreError(str(exc)) from exc
+            return
+        with self._locked_update_fallback():
+            yield None
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+    def _save_unlocked_fallback(self, state: IngestionState) -> None:
+        self._prepare_parent_directory()
+        self._assert_state_target_safe()
         handle = tempfile.NamedTemporaryFile(
             "w",
             encoding="utf-8",
@@ -191,16 +335,40 @@ class StateStore:
                 json.dump(state.to_dict(), handle, ensure_ascii=False, indent=2)
                 handle.flush()
                 os.fsync(handle.fileno())
+                if hasattr(os, "fchmod"):
+                    os.fchmod(handle.fileno(), 0o600)
+            self._assert_parent_ancestry_safe()
+            self._assert_state_target_safe()
             os.replace(handle.name, self.path)
+            self._assert_state_target_safe()
         except BaseException:
             Path(handle.name).unlink(missing_ok=True)
             raise
 
-    def save(self, state: IngestionState) -> None:
-        """Atomically replace state while excluding concurrent writers."""
+    def _save_unlocked(
+        self,
+        state: IngestionState,
+        trusted: tuple[int, str] | None = None,
+    ) -> None:
+        if self._supports_secure_dirfd():
+            payload = json.dumps(
+                state.to_dict(),
+                ensure_ascii=False,
+                indent=2,
+            ).encode("utf-8")
+            try:
+                if trusted is None:
+                    atomic_replace_bytes(self.path, payload)
+                else:
+                    atomic_replace_bytes_at(*trusted, payload)
+            except DirFdPathError as exc:
+                raise StateStoreError(str(exc)) from exc
+            return
+        self._save_unlocked_fallback(state)
 
-        with self._locked_update():
-            self._save_unlocked(state)
+    def save(self, state: IngestionState) -> None:
+        with self._locked_update() as trusted:
+            self._save_unlocked(state, trusted)
 
     def mark_ingested(
         self,
@@ -212,8 +380,8 @@ class StateStore:
         default_branch: str = "",
         license: str = "unknown",
     ) -> IngestionState:
-        with self._locked_update():
-            state = self.load()
+        with self._locked_update() as trusted:
+            state = self._load_unlocked(trusted)
             record = state.get(repository)
             record.last_commit_sha = commit_sha
             record.last_ingested_at = datetime.now(timezone.utc).isoformat()
@@ -224,12 +392,12 @@ class StateStore:
                 record.default_branch = default_branch
             if license:
                 record.license = license
-            self._save_unlocked(state)
+            self._save_unlocked(state, trusted)
             return state
 
     def mark_error(self, repository: str, message: str) -> IngestionState:
-        with self._locked_update():
-            state = self.load()
+        with self._locked_update() as trusted:
+            state = self._load_unlocked(trusted)
             state.get(repository).last_error = message[:500]
-            self._save_unlocked(state)
+            self._save_unlocked(state, trusted)
             return state

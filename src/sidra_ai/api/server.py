@@ -18,6 +18,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--host", default=None, help="override SIDRA_HOST")
     parser.add_argument("--port", type=int, default=None, help="override SIDRA_PORT")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="validate startup assembly without importing uvicorn or opening a socket",
+    )
     return parser
 
 
@@ -26,33 +31,49 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         settings = get_settings()
-        if args.host or args.port:
+        if args.host is not None or args.port is not None:
             from dataclasses import replace
 
             settings = replace(
                 settings,
-                host=args.host or settings.host,
-                port=args.port or settings.port,
+                host=settings.host if args.host is None else args.host,
+                port=settings.port if args.port is None else args.port,
             )
             settings.validate()
     except UnsafeConfigurationError as exc:
         print(f"refusing to start: {exc}", file=sys.stderr)
         return 2
 
-    # Assemble the local service before binding a listening socket. This keeps
-    # a deferred/disabled backend (for example Transformers in v0.1) or an
-    # unsafe non-loopback inference endpoint from producing a server that
-    # appears healthy enough to bind and only fails on the first request.
+    # Assemble both the service and FastAPI app before binding a listening
+    # socket or printing the startup banner. Besides model/runtime admission,
+    # this also exercises local audit-storage initialization in ``create_app``
+    # so an unavailable or unsafe local path fails closed before the process
+    # claims to have started.
     try:
         service = SidraService(settings=settings)
+        api_app = create_app(service=service, settings=settings)
     except (BackendNotRegisteredError, ModelUnavailableError):
         print(
             "refusing to start: configured local model backend is unavailable or unsafe",
             file=sys.stderr,
         )
         return 2
+    except OSError:
+        # Storage constructors may fail on an unavailable, permission-denied,
+        # or fail-closed local path. Refuse before socket bind, but never echo
+        # the underlying filesystem path or OS diagnostic to the terminal.
+        print(
+            "refusing to start: local SIDRA storage is unavailable or unsafe",
+            file=sys.stderr,
+        )
+        return 2
 
-    _print_banner(settings)
+    if args.check:
+        # The check path deliberately stops after the same service/app assembly
+        # used by normal startup. This proves local model admission and storage
+        # initialization without importing the ASGI server or opening a socket.
+        print("SIDRA AI startup check passed; no socket opened")
+        return 0
 
     try:
         import uvicorn
@@ -60,10 +81,19 @@ def main(argv: list[str] | None = None) -> int:
         print("uvicorn is required to serve the API: pip install uvicorn", file=sys.stderr)
         return 2
 
+    _print_banner(settings)
+
     uvicorn.run(
-        create_app(service=service, settings=settings),
+        api_app,
         host=settings.host,
         port=settings.port,
+        # Rate limiting keys requests by the ASGI client address. Uvicorn
+        # enables proxy-header rewriting by default and can also read trusted
+        # proxy ranges from FORWARDED_ALLOW_IPS, which would let local/process
+        # environment state redefine that identity boundary. SIDRA v0.1 has no
+        # reviewed reverse-proxy trust configuration, so preserve the actual
+        # TCP peer address and ignore X-Forwarded-For/X-Forwarded-Proto.
+        proxy_headers=False,
     )
     return 0
 
