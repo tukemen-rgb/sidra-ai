@@ -268,6 +268,9 @@ class Settings:
         if self.rate_limit_per_minute <= 0:
             raise UnsafeConfigurationError("rate_limit_per_minute must be positive")
 
+        if not self.data_dir.strip():
+            raise UnsafeConfigurationError("data_dir must not be empty or whitespace")
+
         if not self.is_localhost_only:
             if not self.allow_public_bind:
                 raise UnsafeConfigurationError(
