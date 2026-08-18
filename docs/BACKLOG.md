@@ -77,9 +77,13 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
-- [~] 作業中 2026-08-18 15:28 UTC — 同一ドキュメントのチャンクが上位を占める問題（document 単位の多様性）。
-- [ ] 日本語 bigram トークナイザの精度検証と回帰テスト。
-- [ ] `Retriever` を ABC 化し、ローカル埋め込みモデルへ差し替え可能にする。
+- [x] 同一ドキュメントのチャンクが上位を占める問題（document 単位の多様性）。
+      → 着手時点で実装済みだった。`_diversify_results` が幅優先→深さ→補填の
+      3 段階で選ぶ（`retrieval/search.py`）。回帰テスト 2 件あり。二重実装せず。
+- [x] 日本語 bigram トークナイザの精度検証と回帰テスト。
+      → 実装済み。`test_tokenizer_handles_japanese` と
+      `evals/retrieval_quality.py` の日英混在ケースで担保されている。
+- [~] 作業中 2026-08-18 15:30 UTC — `Retriever` を ABC 化し、ローカル埋め込みモデルへ差し替え可能にする。
 
 ## 厳守事項
 
