@@ -2,8 +2,8 @@
 
 The harness measures the signals needed to choose a model for constrained
 owned hardware without sending prompts, results, or metrics to an external
-service. It deliberately accepts an optional memory probe instead of taking
-a hard dependency on NVIDIA tooling, so the same interface works for CPU,
+service. It deliberately accepts optional memory probes instead of taking a
+hard dependency on NVIDIA tooling, so the same interface works for CPU,
 CUDA, ROCm, Metal, and future local runtimes.
 """
 
@@ -45,6 +45,7 @@ class BenchmarkResult:
     memory_after_mib: float | None = None
     memory_delta_mib: float | None = None
     metadata: dict[str, Any] | None = None
+    memory_peak_mib: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return only aggregate metrics; never retain prompt or output text."""
@@ -62,6 +63,7 @@ class BenchmarkResult:
             "memory_before_mib": self.memory_before_mib,
             "memory_after_mib": self.memory_after_mib,
             "memory_delta_mib": self.memory_delta_mib,
+            "memory_peak_mib": self.memory_peak_mib,
             "metadata": dict(self.metadata or {}),
             "external_api_cost_usd": 0.0,
         }
@@ -107,14 +109,20 @@ def run_benchmark(
     request: GenerationRequest,
     *,
     memory_probe: MemoryProbe | None = None,
+    peak_memory_probe: MemoryProbe | None = None,
     clock: Clock = time.perf_counter,
 ) -> BenchmarkResult:
     """Measure one generation without coupling to a backend or GPU vendor.
 
     ``memory_probe`` should return *used* accelerator memory in MiB. It is
-    called immediately before and after generation. A later hardware-specific
-    probe may sample peak memory independently, but the core model lane stays
-    dependency-free.
+    called immediately before and after generation.
+
+    ``peak_memory_probe`` is an optional readout for an externally managed
+    observer that covers this exact generation window and returns peak used
+    accelerator memory in MiB. The readout is deliberately taken only after
+    the generation timer stops, so collecting a driver/runtime peak does not
+    inflate TTFT or throughput. The benchmark does not reset vendor-specific
+    peak counters itself; callers own that observer lifecycle.
 
     Native streaming adapters expose time-to-first-token. For a non-streaming
     adapter that value equals total latency because the first token is not
@@ -188,6 +196,9 @@ def run_benchmark(
 
     finished = clock()
     memory_after = memory_probe() if memory_probe is not None else None
+    reported_peak_memory = (
+        peak_memory_probe() if peak_memory_probe is not None else None
+    )
 
     total_time = max(0.0, finished - started)
     if input_tokens <= 0:
@@ -208,6 +219,18 @@ def run_benchmark(
         if memory_before is not None and memory_after is not None
         else None
     )
+    memory_peak = None
+    if peak_memory_probe is not None:
+        observed_memory = [
+            value
+            for value in (memory_before, memory_after, reported_peak_memory)
+            if value is not None
+        ]
+        if observed_memory:
+            # A peak readout cannot legitimately be below an endpoint sample.
+            # Taking the maximum preserves a conservative metric if probes use
+            # slightly different sampling clocks.
+            memory_peak = max(observed_memory)
 
     quantization = str(adapter.options.get("quantization") or "unknown")
     return BenchmarkResult(
@@ -224,4 +247,5 @@ def run_benchmark(
         memory_after_mib=memory_after,
         memory_delta_mib=memory_delta,
         metadata={"cost_usd": 0.0},
+        memory_peak_mib=memory_peak,
     )
