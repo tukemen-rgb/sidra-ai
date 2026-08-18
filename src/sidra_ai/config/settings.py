@@ -300,6 +300,9 @@ class Settings:
         if self.model_max_output_tokens <= 0:
             raise UnsafeConfigurationError("model_max_output_tokens must be positive")
 
+        if self.max_items_per_source <= 0:
+            raise UnsafeConfigurationError("max_items_per_source must be positive")
+
         if self.max_input_bytes <= 0:
             raise UnsafeConfigurationError("max_input_bytes must be positive")
 
