@@ -2,7 +2,7 @@
 
 ## Shape
 
-```
+```text
 GitHub (read-only)
       |
       v
@@ -24,8 +24,30 @@ models/     -- LocalModelAdapter (echo | ollama | llama_cpp)
 api/        -- localhost-bound FastAPI, bearer auth, rate limit
 ```
 
-`api/service.py` is the composition root. Everything else is a leaf that can
-be tested on its own.
+The promoted v0.1 `main` baseline is the path above. The current post-v0.1
+integration candidate also contains an isolated Fetch Plane library:
+
+```text
+allowlisted HTTPS URL
+      |
+      v
+fetch/      -- static URL policy -> bounded DNS -> pinned-IP TLS GET -> manual redirect revalidation
+      |
+      v
+WebIngestionBridge -> Provenance(SourceType.WEB, EXTERNAL) -> Web-scoped SecurityGate
+      |
+      v  (ALLOW only)
+retrieval/
+```
+
+That Fetch Plane is not wired into `sidra-api`, has no default allowed hosts,
+and has no environment-driven host allowlist. The presence of `fetch/` source
+on an integration branch therefore does not mean general Web research is
+runtime-enabled.
+
+`api/service.py` is the v0.1 composition root. Everything else is a leaf that
+can be tested on its own. Fetch Plane remains constructor-injected and outside
+that API composition root until a separate reviewed exposure change is made.
 
 ## Module responsibilities
 
@@ -34,11 +56,49 @@ be tested on its own.
 | `documents.py` | `Provenance`, `Document`, `Chunk`, `TrustLevel` | provenance validated on construction |
 | `config/` | env-driven `Settings` | localhost default; secrets read at access time, never stored |
 | `ingestion/` | GitHub read-only fetch, SHA/activity state, normalization | GET only; commit and mutable-source freshness are tracked separately |
+| `fetch/` | post-v0.1 bounded Web Fetch Plane | exact-host HTTPS GET only; zero hosts by default; DNS/IP + redirect fail closed; pinned destination IP; no API wiring |
 | `security/` | detectors, gate, redaction, DATA envelope | decide + record; never silently delete |
 | `retrieval/` | chunking, index, BM25 search | only `ALLOW` content is indexable |
 | `models/` | replaceable local backends | only verified local backends can be selected; no paid API can be registered |
 | `evals/` | offline security/grounding regression suite | runs with no network and no model weights |
-| `api/` | private HTTP surface | four routes; no write/deploy route exists |
+| `api/` | private HTTP surface | four routes; no write/deploy/Web-fetch route exists |
+
+## Post-v0.1 Fetch Plane boundary
+
+The current integration candidate implements the approved read-only Fetch Plane
+as a separate capability rather than a generic outbound HTTP client for Core or
+models.
+
+Current invariants are:
+
+- `FetchPolicy()` defaults to an empty exact-host allowlist;
+- only `https` on port 443 is accepted;
+- userinfo, fragments, IP-literal targets, non-ASCII hostname input and query
+  strings are rejected before DNS;
+- every supplied A/AAAA answer must be globally routable; mixed safe/unsafe
+  answer sets fail closed rather than filtering the unsafe address;
+- `PinnedHttpsTransport` connects to the exact validated IP and preserves the
+  original allowlisted hostname for TLS SNI, certificate verification and the
+  HTTP `Host` header;
+- the transport exposes only GET and has no proxy, cookie jar, ambient
+  Authorization, `.netrc`, client-certificate, request-body or automatic
+  redirect capability;
+- redirects are followed only by `FetchBroker`, with static URL policy, fresh
+  DNS/IP validation, canonicalization and loop/count checks repeated before the
+  next transport call;
+- response status/content type/body size and connect/read/overall time are
+  bounded; only `text/plain`, `text/html`, and `application/json` are accepted by
+  the default policy;
+- `WebIngestionBridge` records canonical URL/host/retrieval time/content type,
+  content digest and connected IP in provenance, marks fetched material
+  `SourceType.WEB` / `TrustLevel.EXTERNAL`, runs a capability-scoped Security
+  Gate, and indexes only `ALLOW` output;
+- no paid/external LLM fallback, browser session, authenticated Web session,
+  write/send capability, or broad default Web allowlist is introduced.
+
+These are library-level candidate guarantees, not a statement that Web fetching
+is enabled on `main` or on any home PC. Any future API/settings wiring changes
+the exposure boundary and requires separate review and exact-SHA validation.
 
 ## Differential ingestion
 
@@ -85,8 +145,9 @@ Trust is not uniform across a repository:
 | --- | --- | --- |
 | README, `docs/`, commits | `INTERNAL_REPO` | authored inside SIDRA STUDIO |
 | Issues, PR bodies | `EXTERNAL` | mutable/untrusted author-controlled DATA |
+| Fetch Plane Web responses | `EXTERNAL` | remote content is untrusted DATA even when its host is allowlisted |
 
-Both are DATA. Neither can instruct the model.
+All three are DATA. None can instruct the model.
 
 ## Retrieval
 
@@ -142,15 +203,15 @@ tests/embedding callers and is not used by the `sidra-api` entry point.
 - `POST /v1/chat` — authenticated/rate-limited grounded local-model chat.
 - `POST /v1/github/analyze` — authenticated/rate-limited read-only GitHub ingestion + analysis.
 
-No write, deploy, billing, external-send, or mutation route exists.
+No Web-fetch, write, deploy, billing, external-send, or mutation route exists.
 
 ## What is deliberately not here
 
 - No GitHub write path, deploy, outbound message/send capability, or billing.
 - No paid/external LLM fallback.
 - No embeddings/vector database requirement.
-- No general Web/external research fetcher in the verified v0.1 runtime. The
-  approved next phase is a dedicated GET-only FetchBroker/Fetch Plane with
-  HTTPS/host allowlisting, DNS/IP and redirect revalidation, SSRF protections,
-  size/timeout bounds, provenance, Security Gate screening, and DATA-only trust.
+- No general Web/external research route in the verified v0.1 `main` runtime.
+  The post-v0.1 integration candidate contains only the isolated, default-deny
+  Fetch Plane library described above; it is not API-wired or environment-
+  enabled and does not authorize arbitrary crawling/search.
 - No multi-node support: the rate limiter and index are in-process.
