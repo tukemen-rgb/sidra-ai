@@ -400,7 +400,7 @@ class StateStore:
             if default_branch:
                 record.default_branch = default_branch
             if license:
-                record.license = license_id
+                record.license = license
             self._save_unlocked(state, trusted)
             return state
 
