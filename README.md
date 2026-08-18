@@ -15,7 +15,7 @@ GAMEYARD / CreatorYard / 全社経営 / marketing を支援し、外部 LLM API 
 - explicit separation of read and write privileges
 - human approval for deploy, external communication, billing, secrets and destructive operations
 
-The verified v0.1 runtime does **not** yet include general Web/external research ingestion. A security-gated, GET-only FetchBroker/Fetch Plane is the approved next phase and must remain separate from the local model/Core runtime.
+The verified v0.1 `main` baseline does **not** expose general Web/external research ingestion. The current post-v0.1 integration candidate contains an isolated `src/sidra_ai/fetch/` Fetch Plane library, but it is not wired into `sidra-api`, has no default allowed Web hosts, and has no environment-driven Fetch allowlist. Its current boundary is GET-only HTTPS/443 with exact-host allowlisting, query/userinfo/fragment rejection, DNS/IP fail-closed validation, pinned-IP TLS that preserves the original hostname for SNI/certificate/Host validation, bounded manual redirects, size/time limits, provenance, Security Gate screening, and DATA-only trust. This candidate must pass the same exact-SHA gate before any promotion or API exposure.
 
 ## Getting started
 
@@ -60,6 +60,12 @@ and the owned-PC acceptance procedure before calling a machine SIDRA-ready. See
 `docs/LOCAL_RUNTIME.md` for safe install, model-artifact provenance, manifest,
 hardware observation and runtime verification. See `docs/ARCHITECTURE.md` for
 the module map and `docs/SECURITY.md` for the threat model and known gaps.
+
+## Post-v0.1 integration status
+
+`integration/v0.1-candidate` is intentionally allowed to contain reviewed next-phase work that is not yet part of the promoted `main` runtime. In particular, the Fetch Plane is currently a constructor-injected library boundary rather than a new API capability. `FetchPolicy()` defaults to an empty host allowlist, so an unconfigured broker cannot fetch anything. Web responses cross into RAG only through `WebIngestionBridge`, which assigns `SourceType.WEB` / `TrustLevel.EXTERNAL`, runs a Web-scoped Security Gate, and indexes only content that receives an `ALLOW` decision.
+
+Do not treat the presence of Fetch Plane source code on an integration branch as evidence that arbitrary Web research is enabled, that a home PC has been configured, or that production/network integrations have been approved.
 
 ## Collaboration
 
