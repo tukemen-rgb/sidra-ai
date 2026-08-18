@@ -155,7 +155,6 @@ runtime boundary:
    that density means encoded data rather than a leaked credential; every span
    is still redacted. Measured: 98.9% of firings were inside `.json` files.
 
-
 5. **Output screening is heuristic and bounded.** The guard covers the reviewed
    secret/PII detectors and several reversible encodings with strict work
    limits, but it is not a proof of non-disclosure. Capability minimization and
@@ -168,10 +167,48 @@ runtime boundary:
    redacted content - not by filename. That is a deliberate trade, and it
    makes review harder than it looks on paper.
 
-
 7. **No signature verification of GitHub responses** beyond TLS.
 8. **Chunk-level trust is inherited from the document**, so a doc that quotes
    a hostile issue is trusted at document level.
+9. **The index is a cache of past decisions.** `DocumentStore.load()`
+   re-screens every record under current policy precisely because a document
+   admitted under an older detector must not be resurrected by a restart.
+   What this does *not* cover: a record already in memory when the policy
+   changes stays indexed until the process restarts. There is no live
+   re-screen of the running index.
+10. **The gate quarantines a portion of this repository's own source.**
+   Files describing attack patterns - the detectors, the envelope, their
+   tests - legitimately contain injection strings and synthetic credentials,
+   so SIDRA cannot retrieve its own security implementation. Measured at 8.4%
+   of sidra-ai's documents. Arguably correct behaviour, but it means the
+   assistant cannot answer questions about its own defenses from the index.
+11. **False-positive rate is measured, not bounded.** The current figure is
+   3.5% of documents across the five allowlisted repositories
+   (`docs/GATE_FALSE_POSITIVE_BASELINE.md`), re-measurable with
+   `scripts/measure_gate_baseline.py`. Nothing enforces it: a change that
+   doubles it passes CI. The check is a habit, not a gate.
+
+## Verifying these claims
+
+Do not take the table above on trust. Two commands check the parts that can
+be checked mechanically:
+
+```bash
+pytest                                  # the invariants, as tests
+python scripts/verify_gate_recall.py    # detection in both directions
+```
+
+`verify_gate_recall.py` exists because reviewing a security filter by reading
+its patterns does not answer the question that matters. Tightening a detector
+to remove false positives can silently remove a real detection, and the diff
+looks the same either way. It runs 20 things that must still be caught and 9
+that must no longer be flagged; a miss in the first group exits non-zero.
+
+This is not theoretical. A digit-count check added to reduce phone-number
+false positives narrowed the international pattern's floor from eight digits
+to nine, dropping a real detection. The tests passed. It was caught by a
+review that ran the recall set, and only after an eight-digit case was added
+to it - the check was only ever as good as its cases.
 
 ## Reporting
 
