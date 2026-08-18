@@ -34,10 +34,17 @@ import json
 import os
 import stat
 import threading
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
-from sidra_ai.documents import Chunk, Document, SourceType, is_instruction_authority
+from sidra_ai.documents import (
+    Chunk,
+    Document,
+    Provenance,
+    SourceType,
+    is_instruction_authority,
+)
 from sidra_ai.retrieval.chunker import chunk_document
 from sidra_ai.security.decisions import Decision, GateResult
 from sidra_ai.security.gate import SecurityGate
@@ -45,6 +52,39 @@ from sidra_ai.security.gate import SecurityGate
 
 class SecretLeakError(RuntimeError):
     """Raised when content reaching the index still looks like a credential."""
+
+
+class PersistenceError(RuntimeError):
+    """Raised when a persistence operation is not possible as configured."""
+
+
+@dataclass
+class LoadReport:
+    """What a reload actually did.
+
+    Counts are reported rather than logged away because a silent reload that
+    dropped half the corpus looks identical to a healthy one from the
+    outside.
+    """
+
+    records: int = 0
+    loaded: int = 0
+    rejected: int = 0
+    unreadable: int = 0
+    rejected_reasons: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return self.rejected == 0 and self.unreadable == 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "records": self.records,
+            "loaded": self.loaded,
+            "rejected": self.rejected,
+            "unreadable": self.unreadable,
+            "rejected_reasons": list(self.rejected_reasons[:20]),
+        }
 
 
 class UnscreenedContentError(RuntimeError):
@@ -185,6 +225,102 @@ class DocumentStore:
                 chunk_ids.append(chunk.chunk_id)
             self._chunks_by_document[doc_id] = chunk_ids
             return doc_id
+
+    # ------------------------------------------------------------------
+    def load(self, *, rescreen: bool = True) -> "LoadReport":
+        """Rebuild the index from the persisted JSONL.
+
+        Without this the index is lost on restart and every repository has to
+        be re-ingested from GitHub, which is the expensive half of the work.
+
+        ``rescreen`` defaults to ``True`` and is the reason this is not a
+        plain deserialize. **The log is a cache of past decisions, not a set
+        of standing permissions.** A document written when it was ``ALLOW``
+        may be ``QUARANTINE`` under today's detectors - that is exactly what
+        happens after a detector is tightened - and reloading blindly would
+        resurrect content the current policy rejects, silently undoing the
+        fix. Every record therefore goes back through the gate on the way in.
+
+        Records that no longer pass are counted and skipped, never repaired:
+        a load that quietly rewrote content would be worse than one that
+        dropped it, because the drop is visible in the report.
+
+        Nothing is mutated until the whole file has been read. A torn final
+        line - a crash mid-append - must not leave a half-loaded index.
+        """
+
+        if self._path is None:
+            raise PersistenceError("this store has no persistence path")
+
+        report = LoadReport()
+        if not self._path.exists():
+            return report
+
+        candidates: list[Document] = []
+        with self._path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                report.records += 1
+                try:
+                    document = self._document_from_record(json.loads(line))
+                except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+                    # A crash mid-append leaves a partial final line. One
+                    # unreadable record must not discard the rest.
+                    report.unreadable += 1
+                    continue
+                candidates.append(document)
+
+        with self._lock:
+            for document in candidates:
+                if rescreen:
+                    gate = self._gate or SecurityGate()
+                    result, screened = gate.screen_document(document)
+                    if screened is None:
+                        report.rejected += 1
+                        report.rejected_reasons.append(
+                            f"{document.provenance.citation}: "
+                            f"{result.decision.value}"
+                        )
+                        continue
+                    document = screened
+                    self._install(document)
+                else:
+                    self._install(document)
+                report.loaded += 1
+
+        return report
+
+    def _install(self, document: Document) -> None:
+        """Index a document without re-persisting it. ``_lock`` must be held."""
+
+        doc_id = document.doc_id
+        self._retire_logical_source_locked(
+            self._logical_source_key(document), keep_doc_id=doc_id
+        )
+        self._documents[doc_id] = document
+        for chunk_id in self._chunks_by_document.pop(doc_id, []):
+            self._chunks.pop(chunk_id, None)
+        chunk_ids: list[str] = []
+        for chunk in chunk_document(document):
+            self._chunks[chunk.chunk_id] = chunk
+            chunk_ids.append(chunk.chunk_id)
+        self._chunks_by_document[doc_id] = chunk_ids
+
+    @staticmethod
+    def _document_from_record(record: dict[str, Any]) -> Document:
+        """Rebuild one document. Raises if provenance is incomplete."""
+
+        content = record.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("record has no content")
+        return Document(
+            content=content,
+            provenance=Provenance.from_dict(record),
+            redacted=bool(record.get("redacted", False)),
+            security_findings=tuple(record.get("security_findings") or ()),
+        )
 
     def add_all(
         self, documents: Iterable[Document], *, gate_result: GateResult | None = None
