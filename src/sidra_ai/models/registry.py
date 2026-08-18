@@ -82,6 +82,12 @@ def create_adapter(
     from an explicit model manifest or measurement; this factory never infers
     it from a model name or parameter count.
 
+    A caller that owns a verified tokenizer for the admitted local runtime may
+    also pass ``input_token_counter``. The callback is consumed by the generic
+    budget wrapper rather than forwarded into a backend, keeping exact token
+    counting optional and model/runtime neutral. Without the callback, SIDRA's
+    conservative local estimator remains in force.
+
     The admitted context cap is also retained in the inner adapter options so
     local backends use the same runtime context assumption that routing used
     for KV-cache admission. Ollama receives the cap directly as ``num_ctx``;
@@ -92,12 +98,16 @@ def create_adapter(
     max_context_tokens = options.get("max_context_tokens")
     reserve_tokens = options.pop("context_reserve_tokens", 128)
     min_output_tokens = options.pop("min_output_tokens", 1)
+    input_token_counter = options.pop("input_token_counter", None)
 
     if max_context_tokens is None and (
-        reserve_tokens != 128 or min_output_tokens != 1
+        reserve_tokens != 128
+        or min_output_tokens != 1
+        or input_token_counter is not None
     ):
         raise ValueError(
-            "context_reserve_tokens/min_output_tokens require max_context_tokens"
+            "context_reserve_tokens/min_output_tokens/input_token_counter require "
+            "max_context_tokens"
         )
 
     try:
@@ -128,6 +138,7 @@ def create_adapter(
         max_context_tokens=context_cap,
         reserve_tokens=int(reserve_tokens),
         min_output_tokens=int(min_output_tokens),
+        input_token_counter=input_token_counter,
     )
 
 
