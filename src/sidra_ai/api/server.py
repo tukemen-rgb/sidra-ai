@@ -87,6 +87,13 @@ def main(argv: list[str] | None = None) -> int:
         api_app,
         host=settings.host,
         port=settings.port,
+        # Rate limiting keys requests by the ASGI client address. Uvicorn
+        # enables proxy-header rewriting by default and can also read trusted
+        # proxy ranges from FORWARDED_ALLOW_IPS, which would let local/process
+        # environment state redefine that identity boundary. SIDRA v0.1 has no
+        # reviewed reverse-proxy trust configuration, so preserve the actual
+        # TCP peer address and ignore X-Forwarded-For/X-Forwarded-Proto.
+        proxy_headers=False,
     )
     return 0
 
