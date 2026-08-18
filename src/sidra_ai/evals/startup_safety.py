@@ -23,12 +23,12 @@ from sidra_ai.evals.cases import EvalOutcome
 def _invoke_with_fake_uvicorn(
     settings: Settings,
     argv: list[str] | None = None,
-) -> tuple[int, list[tuple[str, int]], str, str]:
-    calls: list[tuple[str, int]] = []
+) -> tuple[int, list[tuple[str, int, bool]], str, str]:
+    calls: list[tuple[str, int, bool]] = []
     fake_uvicorn = ModuleType("uvicorn")
 
-    def _run(_app: object, *, host: str, port: int) -> None:
-        calls.append((host, port))
+    def _run(_app: object, *, host: str, port: int, proxy_headers: bool) -> None:
+        calls.append((host, port, proxy_headers))
 
     fake_uvicorn.run = _run  # type: ignore[attr-defined]
     stdout = StringIO()
@@ -165,7 +165,7 @@ def _safe_echo_reaches_bind_case() -> EvalOutcome:
         settings = Settings(model_backend="echo", data_dir=data_dir)
         exit_code, bind_calls, _stdout, stderr = _invoke_with_fake_uvicorn(settings)
 
-    expected_bind = [(settings.host, settings.port)]
+    expected_bind = [(settings.host, settings.port, False)]
     if exit_code != 0:
         failures.append(f"safe echo startup returned {exit_code}: {stderr.strip()}")
     if bind_calls != expected_bind:
@@ -174,7 +174,7 @@ def _safe_echo_reaches_bind_case() -> EvalOutcome:
     return EvalOutcome(
         case_name="api_startup_safe_echo_reaches_bind",
         passed=not failures,
-        detail="safe local backend must still reach the bind boundary",
+        detail="safe local backend must reach bind with proxy rewriting disabled",
         failures=tuple(failures),
     )
 
