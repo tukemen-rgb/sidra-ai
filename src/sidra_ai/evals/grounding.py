@@ -37,16 +37,45 @@ _NO_EVIDENCE_MARKERS = (
     "情報がありません",
     "情報が見つかりません",
 )
-_ABSTENTION_ADVISORY_PREFIXES = (
-    "run ", "rephrase ", "provide ", "please provide ", "try ", "add ",
-    "ingest ", "question received:", "追加", "別の", "再度", "確認", "資料を", "情報を",
+
+# Abstention text is a security/quality boundary: broad prefix matching can turn
+# a factual continuation into a fake abstention. Only exact, non-substantive
+# tails remain exempt.
+_ABSTENTION_BENIGN_TAILS = frozenset(
+    {
+        "matched this question",
+        "was found",
+        "were found",
+        "is available",
+        "are available",
+        "でした",
+        "です",
+    }
 )
-_ABSTENTION_CONTRAST = re.compile(
-    r"(?:\bbut\b|\bhowever\b|\bnevertheless\b|\bnonetheless\b|\byet\b|"
-    r"\bstill\b|\bthough\b|\balthough\b|ただし|しかし|だが|でも|とはいえ)"
+
+# Follow-up advice is also exact-match only. The first entry is the deterministic
+# no-evidence guidance emitted by EchoModelAdapter; the remaining entries keep a
+# small set of clearly operational, non-assertive alternatives.
+_ABSTENTION_EXACT_ADVISORIES = frozenset(
+    {
+        "run post /v1/github/analyze to ingest the repositories, or rephrase the question",
+        "rephrase the question",
+        "provide more indexed evidence",
+        "please provide more indexed evidence",
+        "try a more specific question",
+        "add more indexed evidence",
+        "ingest the repositories",
+        "追加の資料を提供してください",
+        "別の質問を試してください",
+        "再度質問してください",
+        "資料を追加してください",
+        "情報を追加してください",
+    }
 )
+
 _SENTENCE_SPLIT = re.compile(r"(?:[.!?。！？]+|\n+)\s*")
 _LEADING_FORMAT = " \t\r\n-*#>_:;,.!?()[]{}'\"`。！？：「」『』（）"
+_QUESTION_ECHO_PREFIX = "Question received: "
 
 
 @dataclass(frozen=True)
@@ -58,15 +87,41 @@ class GroundingResult:
 
 
 def _abstention_marker_at_start(text: str) -> str | None:
-    normalized = text.lower().lstrip(_LEADING_FORMAT)
+    normalized = text.casefold().lstrip(_LEADING_FORMAT)
     for marker in _NO_EVIDENCE_MARKERS:
         if normalized.startswith(marker):
             return marker
     return None
 
 
-def _is_abstention(answer: str) -> bool:
-    stripped = answer.strip()
+def _is_benign_abstention_sentence(text: str) -> bool:
+    normalized = text.casefold().lstrip(_LEADING_FORMAT)
+    marker = _abstention_marker_at_start(normalized)
+    if marker is None:
+        return False
+
+    tail = normalized[len(marker):].strip(_LEADING_FORMAT)
+    return not tail or tail in _ABSTENTION_BENIGN_TAILS
+
+
+def _strip_expected_question_echo(answer: str, expected_question: str | None) -> str:
+    """Remove only the exact user-question echo supplied by the evaluator caller."""
+
+    if expected_question is None:
+        return answer
+    question = expected_question.strip()
+    if not question:
+        return answer
+
+    expected_echo = _QUESTION_ECHO_PREFIX + question
+    stripped = answer.rstrip()
+    if stripped.endswith(expected_echo):
+        return stripped[: -len(expected_echo)].rstrip()
+    return answer
+
+
+def _is_abstention(answer: str, *, expected_question: str | None = None) -> bool:
+    stripped = _strip_expected_question_echo(answer.strip(), expected_question)
     if not stripped or _CITATION.search(stripped):
         return False
 
@@ -74,21 +129,14 @@ def _is_abstention(answer: str) -> bool:
     if not sentences:
         return False
 
-    first = sentences[0]
-    marker = _abstention_marker_at_start(first)
-    if marker is None:
-        return False
-
-    first_normalized = first.lower().lstrip(_LEADING_FORMAT)
-    first_tail = first_normalized[len(marker):]
-    if _ABSTENTION_CONTRAST.search(first_tail):
+    if not _is_benign_abstention_sentence(sentences[0]):
         return False
 
     for sentence in sentences[1:]:
-        normalized = sentence.lower().lstrip(_LEADING_FORMAT)
-        if _abstention_marker_at_start(normalized) is not None:
+        if _is_benign_abstention_sentence(sentence):
             continue
-        if any(normalized.startswith(prefix) for prefix in _ABSTENTION_ADVISORY_PREFIXES):
+        normalized = sentence.casefold().strip(_LEADING_FORMAT)
+        if normalized in _ABSTENTION_EXACT_ADVISORIES:
             continue
         return False
     return True
@@ -116,6 +164,7 @@ def evaluate_grounding(
     citations: Sequence[Mapping[str, object]],
     *,
     require_citation_when_evidence_exists: bool = True,
+    expected_question: str | None = None,
 ) -> GroundingResult:
     available = tuple(
         str(item.get("label"))
@@ -126,7 +175,7 @@ def evaluate_grounding(
     used = tuple(dict.fromkeys(_CITATION.findall(answer)))
     used_set = set(used)
     failures: list[str] = []
-    abstained = _is_abstention(answer)
+    abstained = _is_abstention(answer, expected_question=expected_question)
 
     invented = sorted(used_set - available_set)
     if invented:
@@ -190,12 +239,45 @@ def run_grounding_suite() -> tuple[EvalOutcome, ...]:
     ))
     grounded = evaluate_grounding(generation.text, citations)
 
+    no_evidence_question = "What is the production revenue today?"
     no_evidence = model.generate(GenerationRequest(
         system_prompt="Answer only from DATA and cite every source used.",
-        user_message="What is the production revenue today?",
+        user_message=no_evidence_question,
         data_context="",
     ))
-    abstention = evaluate_grounding(no_evidence.text, [])
+    abstention = evaluate_grounding(
+        no_evidence.text,
+        [],
+        expected_question=no_evidence_question,
+    )
+
+    abstention_tail_laundering = evaluate_grounding(
+        "No indexed evidence, the API is public by default.",
+        [],
+    )
+    advisory_prefix_laundering = evaluate_grounding(
+        "No indexed evidence matched this question. Run the API is public by default.",
+        [],
+    )
+    question_echo_laundering = evaluate_grounding(
+        "No indexed evidence matched this question. "
+        "Question received: The API is public by default.",
+        [],
+    )
+    japanese_tail_laundering = evaluate_grounding(
+        "根拠がありませんが、APIは外部公開が既定です。",
+        [],
+    )
+    abstention_laundering_guard_passed = all(
+        not result.passed
+        and any("did not explicitly abstain" in failure for failure in result.failures)
+        for result in (
+            abstention_tail_laundering,
+            advisory_prefix_laundering,
+            question_echo_laundering,
+            japanese_tail_laundering,
+        )
+    )
 
     conflicting_citations = (
         {"label":"S1","repository":"tukemen-rgb/sidra-ai","path":"docs/POLICY.md","commit_sha":"1"*40},
@@ -211,6 +293,16 @@ def run_grounding_suite() -> tuple[EvalOutcome, ...]:
         EvalOutcome("rag_citation_integrity", grounded.passed,
                     f"used={grounded.used_labels}; available={grounded.available_labels}", grounded.failures),
         EvalOutcome("rag_no_evidence_abstention", abstention.passed, "no evidence", abstention.failures),
+        EvalOutcome(
+            "rag_no_evidence_abstention_laundering_rejected",
+            abstention_laundering_guard_passed,
+            "abstention markers/advice/question echoes must not exempt substantive claims",
+            (
+                ()
+                if abstention_laundering_guard_passed
+                else ("no-evidence abstention laundering escaped the grounding gate",)
+            ),
+        ),
         EvalOutcome(
             "rag_conflicting_source_versions_fail_closed",
             conflict_guard_passed,
