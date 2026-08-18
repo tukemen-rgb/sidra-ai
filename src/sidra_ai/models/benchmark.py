@@ -92,9 +92,9 @@ def _count_stream_chars(
 
     for char in text:
         if (
-            "\u3000" <= char <= "\u9fff"
-            or "\uac00" <= char <= "\ud7af"
-            or "\uff00" <= char <= "\uffef"
+            "　" <= char <= "鿿"
+            or "가" <= char <= "힯"
+            or "＀" <= char <= "￯"
         ):
             cjk_chars += 1
         elif ord(char) < 128:
