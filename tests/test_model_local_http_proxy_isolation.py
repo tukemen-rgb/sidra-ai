@@ -40,6 +40,23 @@ class _StreamResponse(_Response):
         )
 
 
+class _FakeClient:
+    def __init__(self, observed: dict[str, object]) -> None:
+        self.observed = observed
+
+    def post(self, url: str, **kwargs):
+        self.observed["post"] = {"url": url, **kwargs}
+        return _Response()
+
+    def stream(self, method: str, url: str, **kwargs):
+        self.observed["stream"] = {"method": method, "url": url, **kwargs}
+        return _StreamResponse()
+
+    def get(self, url: str, **kwargs):
+        self.observed["get"] = {"url": url, **kwargs}
+        return _Response()
+
+
 def _request() -> GenerationRequest:
     return GenerationRequest(
         system_prompt="system",
@@ -48,54 +65,87 @@ def _request() -> GenerationRequest:
     )
 
 
+def _install_fake_client(monkeypatch, observed: dict[str, object]) -> None:
+    def fake_client(**kwargs):
+        observed["client"] = dict(kwargs)
+        return _FakeClient(observed)
+
+    monkeypatch.setattr(httpx, "Client", fake_client)
+
+
 def test_local_nonstreaming_generation_ignores_ambient_proxy(monkeypatch) -> None:
     observed: dict[str, object] = {}
-
-    def fake_post(url: str, **kwargs):
-        observed.update(kwargs)
-        return _Response()
-
     monkeypatch.setenv("HTTP_PROXY", "http://192.0.2.10:8080")
     monkeypatch.setenv("ALL_PROXY", "http://192.0.2.11:8080")
-    monkeypatch.setattr(httpx, "post", fake_post)
+    _install_fake_client(monkeypatch, observed)
 
     result = OllamaAdapter("local-test").generate(_request())
 
     assert result.text == "ok"
-    assert observed["trust_env"] is False
+    client_options = observed["client"]
+    assert isinstance(client_options, dict)
+    assert client_options["trust_env"] is False
 
 
 def test_local_streaming_generation_ignores_ambient_proxy(monkeypatch) -> None:
     observed: dict[str, object] = {}
-
-    def fake_stream(method: str, url: str, **kwargs):
-        observed["method"] = method
-        observed.update(kwargs)
-        return _StreamResponse()
-
     monkeypatch.setenv("HTTP_PROXY", "http://192.0.2.10:8080")
     monkeypatch.setenv("ALL_PROXY", "http://192.0.2.11:8080")
-    monkeypatch.setattr(httpx, "stream", fake_stream)
+    _install_fake_client(monkeypatch, observed)
 
     chunks = list(OllamaAdapter("local-test").generate_stream(_request()))
 
     assert chunks[-1].done is True
-    assert observed["method"] == "POST"
-    assert observed["trust_env"] is False
+    client_options = observed["client"]
+    stream_call = observed["stream"]
+    assert isinstance(client_options, dict)
+    assert isinstance(stream_call, dict)
+    assert client_options["trust_env"] is False
+    assert stream_call["method"] == "POST"
 
 
 def test_local_health_probe_ignores_ambient_proxy(monkeypatch) -> None:
     observed: dict[str, object] = {}
-
-    def fake_get(url: str, **kwargs):
-        observed.update(kwargs)
-        return _Response()
-
     monkeypatch.setenv("HTTP_PROXY", "http://192.0.2.10:8080")
     monkeypatch.setenv("ALL_PROXY", "http://192.0.2.11:8080")
-    monkeypatch.setattr(httpx, "get", fake_get)
+    _install_fake_client(monkeypatch, observed)
 
     health = OllamaAdapter("local-test").health()
 
     assert health["available"] is True
-    assert observed["trust_env"] is False
+    client_options = observed["client"]
+    assert isinstance(client_options, dict)
+    assert client_options["trust_env"] is False
+
+
+def test_local_http_paths_reuse_one_proxy_isolated_client(monkeypatch) -> None:
+    observed: dict[str, object] = {}
+    created_clients = 0
+
+    def fake_client(**kwargs):
+        nonlocal created_clients
+        created_clients += 1
+        observed["client"] = dict(kwargs)
+        return _FakeClient(observed)
+
+    monkeypatch.setattr(httpx, "Client", fake_client)
+    adapter = OllamaAdapter("local-test")
+
+    assert adapter.generate(_request()).text == "ok"
+    assert adapter.generate(_request()).text == "ok"
+    assert list(adapter.generate_stream(_request()))[-1].done is True
+    assert adapter.health()["available"] is True
+
+    assert created_clients == 1
+    client_options = observed["client"]
+    post_call = observed["post"]
+    stream_call = observed["stream"]
+    health_call = observed["get"]
+    assert isinstance(client_options, dict)
+    assert isinstance(post_call, dict)
+    assert isinstance(stream_call, dict)
+    assert isinstance(health_call, dict)
+    assert client_options["trust_env"] is False
+    assert str(post_call["url"]).startswith("http://127.0.0.1:11434")
+    assert str(stream_call["url"]).startswith("http://127.0.0.1:11434")
+    assert str(health_call["url"]).startswith("http://127.0.0.1:11434")
