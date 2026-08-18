@@ -1,8 +1,9 @@
 """Offline release gate for local-model ambient proxy isolation.
 
 SIDRA's Ollama and llama.cpp adapters are loopback-only capability boundaries.
-This eval proves that generation, streaming generation, and health probes do not
-trust ambient HTTP proxy environment variables. No socket or model is started.
+This eval proves that generation, streaming generation, and health probes share
+one local HTTP client without trusting ambient HTTP proxy environment variables.
+No socket or model is started.
 """
 
 from __future__ import annotations
@@ -61,18 +62,26 @@ def _request() -> GenerationRequest:
 def _loopback_http_ignores_ambient_proxies() -> EvalOutcome:
     failures: list[str] = []
     observed: dict[str, dict[str, object]] = {}
+    created_clients = 0
 
-    def fake_post(url: str, **kwargs):
-        observed["post"] = {"url": url, **kwargs}
-        return _Response()
+    class _Client:
+        def post(self, url: str, **kwargs):
+            observed["post"] = {"url": url, **kwargs}
+            return _Response()
 
-    def fake_stream(method: str, url: str, **kwargs):
-        observed["stream"] = {"method": method, "url": url, **kwargs}
-        return _StreamResponse()
+        def stream(self, method: str, url: str, **kwargs):
+            observed["stream"] = {"method": method, "url": url, **kwargs}
+            return _StreamResponse()
 
-    def fake_get(url: str, **kwargs):
-        observed["get"] = {"url": url, **kwargs}
-        return _Response()
+        def get(self, url: str, **kwargs):
+            observed["get"] = {"url": url, **kwargs}
+            return _Response()
+
+    def fake_client(**kwargs):
+        nonlocal created_clients
+        created_clients += 1
+        observed["client"] = dict(kwargs)
+        return _Client()
 
     proxy_env = {
         "HTTP_PROXY": "http://192.0.2.10:8080",
@@ -83,9 +92,7 @@ def _loopback_http_ignores_ambient_proxies() -> EvalOutcome:
 
     with (
         patch.dict(os.environ, proxy_env, clear=False),
-        patch.object(httpx, "post", side_effect=fake_post),
-        patch.object(httpx, "stream", side_effect=fake_stream),
-        patch.object(httpx, "get", side_effect=fake_get),
+        patch.object(httpx, "Client", side_effect=fake_client),
     ):
         adapter = OllamaAdapter("local-eval")
         generated = adapter.generate(_request())
@@ -98,14 +105,20 @@ def _loopback_http_ignores_ambient_proxies() -> EvalOutcome:
         failures.append("streaming local generation did not reach a terminal event")
     if health.get("available") is not True:
         failures.append("local health probe did not complete")
+    if created_clients != 1:
+        failures.append("local HTTP paths did not reuse exactly one adapter client")
+
+    client_options = observed.get("client")
+    if client_options is None:
+        failures.append("local HTTP client was not initialized")
+    elif client_options.get("trust_env") is not False:
+        failures.append("local HTTP client did not set trust_env=False")
 
     for name in ("post", "stream", "get"):
         call = observed.get(name)
         if call is None:
             failures.append(f"expected local HTTP {name} path was not exercised")
             continue
-        if call.get("trust_env") is not False:
-            failures.append(f"local HTTP {name} path did not set trust_env=False")
         url = str(call.get("url", ""))
         if not url.startswith("http://127.0.0.1:11434"):
             failures.append(f"local HTTP {name} path did not remain on loopback")
@@ -113,7 +126,7 @@ def _loopback_http_ignores_ambient_proxies() -> EvalOutcome:
     return EvalOutcome(
         case_name="local_model_http_ignores_ambient_proxies",
         passed=not failures,
-        detail="generation, streaming, and health must bypass ambient proxy settings",
+        detail="local inference HTTP must reuse one proxy-isolated loopback client",
         failures=tuple(failures),
     )
 

@@ -1,8 +1,9 @@
 """Adapters for locally hosted inference servers.
 
 Both Ollama and llama.cpp's ``llama-server`` speak HTTP on loopback. Neither
-is imported at module load: ``httpx`` is only touched inside generation, so a
-checkout without these servers still imports and tests cleanly.
+is imported at module load: ``httpx`` is only touched when a local HTTP
+operation is first attempted, so a checkout without these servers still
+imports and tests cleanly.
 
 In v0.1, HTTP inference endpoints are a capability boundary: they must be
 loopback-only. A future owned-network backend can add explicit host/CIDR
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from threading import Lock
 from typing import Any
 from urllib.parse import urlparse
 
@@ -87,22 +89,48 @@ class _HTTPAdapter(LocalModelAdapter):
             str(options.get("endpoint") or "").rstrip("/") or self.default_endpoint
         )
         _assert_local_endpoint(self.endpoint)
+        # Keep one loopback-only client per adapter so sequential inference,
+        # streaming and health calls can reuse local HTTP connections. The
+        # dependency stays lazy and ambient proxy settings remain disabled at
+        # the client boundary.
+        self._client: Any | None = None
+        self._client_lock = Lock()
+
+    def _http_client(self) -> Any:
+        """Return the lazily-created proxy-isolated local HTTP client."""
+
+        if self._client is not None:
+            return self._client
+
+        with self._client_lock:
+            if self._client is not None:
+                return self._client
+            try:
+                import httpx
+            except ImportError as exc:  # pragma: no cover - optional dependency
+                raise ModelUnavailableError(
+                    f"the {self.backend} backend needs httpx installed"
+                ) from exc
+
+            try:
+                self._client = httpx.Client(
+                    timeout=self.timeout,
+                    trust_env=False,
+                )
+            except Exception as exc:  # noqa: BLE001 - normalized at capability edge
+                raise ModelUnavailableError(
+                    f"the {self.backend} backend could not initialize local HTTP transport"
+                ) from exc
+            return self._client
 
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        try:
-            import httpx
-        except ImportError as exc:  # pragma: no cover - optional dependency
-            raise ModelUnavailableError(
-                f"the {self.backend} backend needs httpx installed"
-            ) from exc
-
+        client = self._http_client()
         url = f"{self.endpoint}{path}"
         try:
-            response = httpx.post(
+            response = client.post(
                 url,
                 json=payload,
                 timeout=self.timeout,
-                trust_env=False,
             )
             response.raise_for_status()
             return response.json()
@@ -116,21 +144,14 @@ class _HTTPAdapter(LocalModelAdapter):
     ) -> Iterator[str]:
         """Yield non-empty response lines without buffering the full answer."""
 
-        try:
-            import httpx
-        except ImportError as exc:  # pragma: no cover - optional dependency
-            raise ModelUnavailableError(
-                f"the {self.backend} backend needs httpx installed"
-            ) from exc
-
+        client = self._http_client()
         url = f"{self.endpoint}{path}"
         try:
-            with httpx.stream(
+            with client.stream(
                 "POST",
                 url,
                 json=payload,
                 timeout=self.timeout,
-                trust_env=False,
             ) as response:
                 response.raise_for_status()
                 for line in response.iter_lines():
@@ -145,12 +166,9 @@ class _HTTPAdapter(LocalModelAdapter):
         info = super().health()
         info["endpoint"] = self.endpoint
         try:
-            import httpx
-
-            response = httpx.get(
+            response = self._http_client().get(
                 self.endpoint,
                 timeout=3.0,
-                trust_env=False,
             )
             info["available"] = response.status_code < 500
         except Exception as exc:  # noqa: BLE001
