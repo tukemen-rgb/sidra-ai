@@ -297,6 +297,9 @@ class Settings:
                 f"verified v0.1 allows {sorted(LOCAL_MODEL_BACKENDS)}"
             )
 
+        if self.model_max_output_tokens <= 0:
+            raise UnsafeConfigurationError("model_max_output_tokens must be positive")
+
         if self.max_input_bytes <= 0:
             raise UnsafeConfigurationError("max_input_bytes must be positive")
 
