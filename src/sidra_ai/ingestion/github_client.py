@@ -472,6 +472,17 @@ class GitHubReadOnlyClient:
         if not isinstance(comparison, dict):
             raise GitHubAPIError("GitHub compare returned a non-object response")
 
+        # SHA-delta ingestion is safe only when GitHub explicitly proves that
+        # ``head`` descends from ``base``. Missing/malformed status is not a
+        # compatibility case: without that proof, a force-push or divergent
+        # history could pair a new cursor with orphaned old RAG evidence.
+        status = comparison.get("status")
+        if not isinstance(status, str) or status.strip().lower() != "ahead":
+            raise GitHubAPIError(
+                "GitHub compare did not prove a forward-only history window; "
+                "refusing to advance the SHA cursor"
+            )
+
         raw_commits = comparison.get("commits") or []
         if not isinstance(raw_commits, list):
             raise GitHubAPIError("GitHub compare returned a malformed commit list")
