@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import os
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Iterable
 from urllib.parse import urlparse
@@ -152,6 +153,19 @@ class Settings:
     github_api_base: str = DEFAULT_GITHUB_API_BASE
     allowed_repositories: tuple[str, ...] = DEFAULT_ALLOWED_REPOSITORIES
     github_request_timeout: float = 20.0
+    ca_bundle: str = ""
+    """PEM bundle to verify HTTPS against, or "" for the system default.
+
+    Ambient environment routing is deliberately disabled for outbound
+    requests so that credentials cannot leak through a workstation proxy,
+    which also means ``SSL_CERT_FILE`` is not picked up. A network that
+    terminates TLS - most corporate ones, and exactly where a self-hosted
+    company assistant lives - therefore needs its CA named explicitly here.
+
+    There is deliberately no option to skip verification. "It would not
+    connect so I turned off the certificate check" is how a read-only client
+    starts trusting whatever answers.
+    """
     max_items_per_source: int = 50
 
     # --- Security gate ---------------------------------------------------
@@ -167,6 +181,7 @@ class Settings:
         # construct Settings directly instead of using Settings.from_env().
         self._validate_github_api_base()
         self._validate_github_request_timeout()
+        self._validate_ca_bundle()
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -183,6 +198,7 @@ class Settings:
             github_api_base=os.environ.get(
                 "SIDRA_GITHUB_API_BASE", DEFAULT_GITHUB_API_BASE
             ).strip(),
+            ca_bundle=os.environ.get("SIDRA_CA_BUNDLE", "").strip(),
             allowed_repositories=_env_list(
                 "SIDRA_ALLOWED_REPOSITORIES", DEFAULT_ALLOWED_REPOSITORIES
             ),
@@ -224,6 +240,17 @@ class Settings:
 
     def is_repository_allowed(self, repository: str) -> bool:
         return repository.lower() in {r.lower() for r in self.allowed_repositories}
+
+    def _validate_ca_bundle(self) -> None:
+        if not self.ca_bundle:
+            return
+        path = Path(self.ca_bundle)
+        if not path.is_file():
+            raise UnsafeConfigurationError(
+                f"SIDRA_CA_BUNDLE points at {self.ca_bundle!r}, which is not a "
+                "readable file. Failing closed rather than silently falling "
+                "back to the default trust store"
+            )
 
     def _validate_github_request_timeout(self) -> None:
         """Keep read-only GitHub calls on a finite positive deadline."""
@@ -341,6 +368,7 @@ class Settings:
             "quarantine_prompt_injection": self.quarantine_prompt_injection,
             "api_token_configured": bool(self.api_token),
             "github_token_configured": bool(self.github_token),
+            "ca_bundle_configured": bool(self.ca_bundle),
         }
 
 

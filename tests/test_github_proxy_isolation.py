@@ -57,7 +57,15 @@ def test_github_transport_ignores_ambient_proxy_configuration(
 
     assert response.status == 200
     assert response.body == {"ok": True}
-    assert observed["client_kwargs"] == {"trust_env": False}
+    # Assert the property, not the exact kwargs. An equality check on the
+    # whole dict fails whenever an unrelated safe option is added, which
+    # trains people to loosen the assertion rather than read it.
+    assert observed["client_kwargs"]["trust_env"] is False
+
+    # Disabling ambient routing is also what stops SSL_CERT_FILE being read,
+    # so a CA has to be named deliberately. Verification itself must never be
+    # switched off to compensate.
+    assert observed["client_kwargs"].get("verify") is not False
     assert observed["url"] == "https://api.github.com/repos/tukemen-rgb/sidra-ai"
     assert observed["get_kwargs"]["timeout"] == 7.5
     assert observed["get_kwargs"]["headers"]["Authorization"] == f"Bearer {token}"

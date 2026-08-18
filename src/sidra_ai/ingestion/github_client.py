@@ -105,7 +105,20 @@ class Transport(Protocol):
 
 
 class HttpxTransport:
-    """Default transport with ambient proxy/environment routing disabled."""
+    """Default transport with ambient proxy/environment routing disabled.
+
+    ``ca_bundle`` names a PEM file to verify against. It is needed because
+    ``trust_env=False`` - which keeps bearer credentials off any workstation
+    proxy - also stops ``SSL_CERT_FILE`` being read, so a network that
+    terminates TLS cannot be reached without naming its CA deliberately.
+
+    Verification is never optional. "It would not connect so I turned off the
+    certificate check" is how a read-only client starts trusting whatever
+    answers.
+    """
+
+    def __init__(self, ca_bundle: str = "") -> None:
+        self.ca_bundle = ca_bundle
 
     def __call__(
         self, method: str, url: str, headers: Mapping[str, str], timeout: float
@@ -125,7 +138,8 @@ class HttpxTransport:
             # The API origin is already pinned by Settings; disable ambient
             # transport configuration so authenticated ingestion reaches it
             # directly instead of leaking through an operator/malware proxy.
-            with httpx.Client(trust_env=False) as client:
+            verify = self.ca_bundle or True
+            with httpx.Client(trust_env=False, verify=verify) as client:
                 raw = client.get(url, headers=dict(headers), timeout=timeout)
         except Exception as exc:  # noqa: BLE001
             raise GitHubAPIError(f"GitHub request failed: {exc}") from exc
@@ -148,7 +162,7 @@ class GitHubReadOnlyClient:
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.settings = settings or get_settings()
-        self.transport = transport or HttpxTransport()
+        self.transport = transport or HttpxTransport(self.settings.ca_bundle)
         self._sleep = sleep
         self._api_base = self.settings.github_api_base.rstrip("/") + "/"
         self._etag_cache: dict[str, _CachedRepresentation] = {}
