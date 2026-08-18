@@ -130,3 +130,25 @@ jobs:
           SIDRA_MODEL_BACKEND: echo
           SIDRA_HOST: 127.0.0.1
         run: sidra-evals
+
+      # Reviewing a security filter by reading its patterns does not answer
+      # the question that matters: tightening it to remove false positives can
+      # silently remove a real detection, and the diff looks the same either
+      # way. An eight-digit international number was dropped exactly that way,
+      # with every test still green. This runs the recall set in both
+      # directions so the next one fails the build instead of a review.
+      - name: Verify detection recall in both directions
+        env:
+          SIDRA_MODEL_BACKEND: echo
+          SIDRA_HOST: 127.0.0.1
+        run: python scripts/verify_gate_recall.py
+
+      # The false-positive rate was measured and written down, and nothing
+      # enforced it. A gate that cries wolf gets ignored, and an ignored gate
+      # is not a gate - so the rate is now a build condition rather than a
+      # habit someone has to remember.
+      - name: Check the gate has not become noisier
+        env:
+          SIDRA_MODEL_BACKEND: echo
+          SIDRA_HOST: 127.0.0.1
+        run: python scripts/check_gate_regression.py

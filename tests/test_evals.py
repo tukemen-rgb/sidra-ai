@@ -246,3 +246,50 @@ def test_policy_polarity_rejects_japanese_write_reversal() -> None:
     )
     assert result.passed is False
     assert any("github_write" in failure for failure in result.failures)
+
+
+# --- the CI gates themselves -------------------------------------------
+# Two verification tools existed and neither ran automatically, so both only
+# happened when someone remembered. These tests keep them wired in.
+
+def test_ci_runs_both_verification_scripts() -> None:
+    """A check that is not in the pipeline is a habit, not a control."""
+
+    from pathlib import Path
+
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github" / "workflows" / "integration-v01.yml"
+    ).read_text(encoding="utf-8")
+
+    for script in ("verify_gate_recall.py", "check_gate_regression.py"):
+        assert script in workflow, f"{script} is not run by CI"
+
+
+def test_gate_regression_check_passes_on_this_commit() -> None:
+    """The ceiling must hold on the tree being tested, not just in CI."""
+
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / "check_gate_regression.py")],
+        capture_output=True, text=True, timeout=300, cwd=root,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_recall_verification_passes_on_this_commit() -> None:
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / "verify_gate_recall.py")],
+        capture_output=True, text=True, timeout=300, cwd=root,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "no missed detections" in result.stdout
