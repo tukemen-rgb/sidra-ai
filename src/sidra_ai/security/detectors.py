@@ -143,6 +143,28 @@ _PLACEHOLDER_VALUES = frozenset(
         "unset",
         "dummy",
         "fake",
+        # Type annotations. `token: string` and `password: string` are
+        # declarations, not values, and they are everywhere in the TypeScript
+        # repositories: they quarantined every auth page in creater-yard.
+        "string",
+        "number",
+        "boolean",
+        "object",
+        "symbol",
+        "bigint",
+        "unknown",
+        "undefined",
+        "str",
+        "int",
+        "float",
+        "bool",
+        "bytes",
+        # HTML autocomplete tokens, e.g. autoComplete="current-password".
+        # These name a field's purpose; they are the opposite of a leak.
+        "current-password",
+        "new-password",
+        "one-time-code",
+        "username",
     }
 )
 
@@ -154,7 +176,7 @@ def _looks_like_placeholder(value: str) -> bool:
     # Code expressions and template placeholders, e.g. os.getenv("X"),
     # os.environ["X"], ${VAR}, {{ secret }}, <your-token>. A real credential
     # does not contain these characters.
-    if any(char in value for char in "([{$<"):
+    if any(char in value for char in "([{$<)]}>"):
         return True
     if set(lowered) <= {"x", "*", ".", "-", "_"}:
         return True
@@ -293,6 +315,24 @@ _PHONE_INTL = re.compile(
 _CARD_CANDIDATE = re.compile(
     _TOKEN_BOUNDARY_BEFORE + r"(?:\d[ \-]?){13,19}" + _TOKEN_BOUNDARY_AFTER
 )
+#: A Japanese telephone number is 10 digits (landline, 0120 freedial) or 11
+#: (mobile). The pattern alone accepts any 6+ digit run beginning with zero,
+#: which is exactly the shape of a git short SHA quoted in prose - `0965092`
+#: in a commit message or a design doc. Measured across the five SIDRA
+#: repositories, that single false positive accounted for *every* quarantined
+#: document in `marketing` and most of them elsewhere. E.164 caps an
+#: international number at 15 digits. The international pattern already has
+#: an 8-digit structural minimum, so the lower bound must stay at 8: raising
+#: it to 9 silently narrowed recall, which is exactly the failure mode this
+#: tuning is supposed to avoid. Found in review of this change.
+_JP_PHONE_DIGITS = frozenset({10, 11})
+_INTL_PHONE_DIGITS = frozenset(range(8, 16))
+
+
+def _only_digits(value: str) -> str:
+    return re.sub(r"\D", "", value)
+
+
 _MY_NUMBER = re.compile(
     _TOKEN_BOUNDARY_BEFORE + r"\d{4}[-\s]?\d{4}[-\s]?\d{4}" + _TOKEN_BOUNDARY_AFTER
 )
@@ -352,10 +392,15 @@ class PIIDetector:
                 )
             )
 
-        for regex, label in ((_PHONE_JP, "phone_jp"), (_PHONE_INTL, "phone_intl")):
+        for regex, label, lengths in (
+            (_PHONE_JP, "phone_jp", _JP_PHONE_DIGITS),
+            (_PHONE_INTL, "phone_intl", _INTL_PHONE_DIGITS),
+        ):
             for match in regex.finditer(content):
                 start, end = match.span()
                 if any(s <= start and end <= e for s, e, _ in spans):
+                    continue
+                if len(_only_digits(match.group())) not in lengths:
                     continue
                 spans.append((start, end, label))
                 findings.append(

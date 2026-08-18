@@ -412,3 +412,80 @@ def test_real_pii_still_detected_after_boundary_fix(
 
     result = gate.inspect(text, source="github", repository="tukemen-rgb/site")
     assert detector in {f.detector for f in result.findings}
+
+
+# --- false positives measured against the real repositories -------------
+# Every case below was found by running the gate over the five allowlisted
+# repositories (1012 documents). Each one quarantined a legitimate document.
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "受注台帳 第4版（0965092）を参照",           # git short SHA in prose
+        "設計は 0965092 と差分0のまま",
+        "commit 8aec889 で修正",
+        "laws.e-gov.go.jp/law/129AC0000000089/ を開く",  # statute id in a URL
+    ],
+)
+def test_identifiers_in_prose_are_not_phone_numbers(
+    gate: SecurityGate, text: str
+) -> None:
+    """A JP number is 10-11 digits; a short SHA is 7 and must not match."""
+
+    result = gate.inspect(text, source="github", repository="tukemen-rgb/marketing")
+    assert not result.has(FindingCategory.PII), (
+        f"identifier misread as PII: {[f.detector for f in result.findings]}"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "const data = await api<{ account: Account; token: string }>('/api')",
+        "export function saveSession(token: string, account: Account)",
+        "function login(input: { handle: string; password: string })",
+        'autoComplete={mode === "register" ? "new-password" : "current-password"}',
+    ],
+)
+def test_type_annotations_are_not_assigned_secrets(
+    gate: SecurityGate, text: str
+) -> None:
+    """`token: string` declares a type; it is not a credential."""
+
+    result = gate.inspect(text, source="github", repository="tukemen-rgb/site")
+    assert not result.has(FindingCategory.SECRET), (
+        f"declaration misread as a secret: {[f.detector for f in result.findings]}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "detector"),
+    [
+        ("連絡先は 03-1234-5678 です", "phone_jp"),
+        ("電話は09012345678まで", "phone_jp"),
+        ("0120-123-456 へどうぞ", "phone_jp"),
+        ("call +81-90-1234-5678", "phone_intl"),
+        # The international pattern bottoms out at eight digits. A nine-digit
+        # floor looked harmless and silently removed this case.
+        ("call +1-2-345-678", "phone_intl"),
+    ],
+)
+def test_real_phone_numbers_survive_the_length_check(
+    gate: SecurityGate, text: str, detector: str
+) -> None:
+    result = gate.inspect(text, source="github", repository="tukemen-rgb/site")
+    assert detector in {f.detector for f in result.findings}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        'password = "hunter2-correct-horse"',
+        'api_key: "Zx9-live-value-here"',
+    ],
+)
+def test_real_assigned_secrets_still_detected(gate: SecurityGate, text: str) -> None:
+    """Precision must not have been bought with recall."""
+
+    result = gate.inspect(text, source="github", repository="tukemen-rgb/Fg")
+    assert result.has(FindingCategory.SECRET)
