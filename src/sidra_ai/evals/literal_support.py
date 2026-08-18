@@ -19,11 +19,6 @@ _LITERAL_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<![A-Za-z0-9_])\d+/\d+(?![A-Za-z0-9_])"),
     re.compile(r"(?<![A-Za-z0-9_.])v?\d+\.\d+(?:\.\d+)?(?![A-Za-z0-9_.])", re.IGNORECASE),
     re.compile(r"(?<![A-Za-z0-9_])[0-9a-f]{7,40}(?![A-Za-z0-9_])", re.IGNORECASE),
-    # Ordinary counts matter in repository/status answers too. Bind the number
-    # to its noun so evidence containing the same number for a different metric
-    # cannot launder a hallucinated test/file/case count. Exclude common date,
-    # ratio, version and URL separators on the left to avoid extracting a
-    # suffix such as ``15 tests`` from ``2026-08-15 tests``.
     re.compile(
         r"(?<![A-Za-z0-9_./:-])\d[\d,]*\s+"
         r"(?:pull requests?|prs?|tests?|cases?|checks?|commits?|files?|"
@@ -31,9 +26,6 @@ _LITERAL_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"documents?|chunks?|sources?)(?![A-Za-z0-9_])",
         re.IGNORECASE,
     ),
-    # CI summaries often omit the count noun entirely (for example
-    # ``595 passed``). Treat the status word as the metric so the same number
-    # in ``skipped``/``failed`` cannot support a hallucinated ``passed`` total.
     re.compile(
         r"(?<![A-Za-z0-9_./:-])\d[\d,]*\s+"
         r"(?:passed|failed|errors?|warnings?|skipped|xfailed|xpassed)"
@@ -49,6 +41,7 @@ _LITERAL_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"(?![A-Za-z0-9_])"
     ),
 )
+_SHA_LITERAL = re.compile(r"[0-9a-f]{7,40}\Z", re.IGNORECASE)
 _TRAILING_CITATIONS = re.compile(r"([.!?。！？])\s*((?:\[(?:S\d+)\]\s*)+)")
 _CLAIM_SPLIT = re.compile(r"(?<=[。！？])|(?<=[.!?])\s+|\n+")
 
@@ -92,6 +85,26 @@ def _dedupe_casefold(values: list[str]) -> tuple[str, ...]:
     return tuple(deduped)
 
 
+def _literal_is_supported(literal: str, evidence_literals: tuple[str, ...]) -> bool:
+    """Require a complete protected literal, not an arbitrary evidence substring.
+
+    Git commit hashes are the one intentional prefix exception: a conventional
+    7+ character short SHA may cite a longer hash from the same local evidence.
+    """
+    key = literal.casefold()
+    evidence_keys = tuple(item.casefold() for item in evidence_literals)
+    if key in evidence_keys:
+        return True
+    if not _SHA_LITERAL.fullmatch(key):
+        return False
+    return any(
+        len(candidate) > len(key)
+        and candidate.startswith(key)
+        and _SHA_LITERAL.fullmatch(candidate)
+        for candidate in evidence_keys
+    )
+
+
 def evaluate_literal_support(answer: str, evidence_by_label: Mapping[str, str]) -> LiteralSupportResult:
     used_labels = tuple(dict.fromkeys(_CITATION.findall(answer)))
     literals = _extract_literals(answer)
@@ -111,10 +124,14 @@ def evaluate_literal_support(answer: str, evidence_by_label: Mapping[str, str]) 
             continue
         local_evidence = "\n".join(
             str(evidence_by_label.get(label, ""))
-            for label in local_labels if label in evidence_by_label
-        ).casefold()
+            for label in local_labels
+            if label in evidence_by_label
+        )
+        local_evidence_literals = _extract_literals(local_evidence)
         unsupported_list.extend(
-            literal for literal in claim_literals if literal.casefold() not in local_evidence
+            literal
+            for literal in claim_literals
+            if not _literal_is_supported(literal, local_evidence_literals)
         )
 
     unsupported = _dedupe_casefold(unsupported_list)
@@ -123,7 +140,10 @@ def evaluate_literal_support(answer: str, evidence_by_label: Mapping[str, str]) 
     if unsupported:
         failures.append("unsupported exact literals in locally cited claims: " + ", ".join(unsupported))
     if uncited:
-        failures.append("protected literals appeared in claims without a local citation: " + ", ".join(sorted(uncited)))
+        failures.append(
+            "protected literals appeared in claims without a local citation: "
+            + ", ".join(sorted(uncited))
+        )
     return LiteralSupportResult(not unsupported, literals, unsupported, tuple(failures))
 
 
@@ -134,16 +154,25 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         "S3": "The exact integration gate completed with 591 tests, 57 cases, and 21 distributions.",
         "S4": "統合ゲートでは591件のテストが通過しました。",
         "S5": "Pytest completed with 591 passed, 2 skipped, and 1 warning.",
+        "S6": "A private test fixture binds to 10.0.0.0:8787.",
     }
     supported = evaluate_literal_support(
         "The API binds to 127.0.0.1:8787 and checkpoint 902b37e is documented. [S1]", evidence
     )
     invented_endpoint = evaluate_literal_support("The API is available at 0.0.0.0:8787. [S1]", evidence)
-    invented_eval_count = evaluate_literal_support("The security evaluation passed 16/16 cases on 2026-08-15. [S2]", evidence)
-    citation_laundering = evaluate_literal_support(
-        "The private API binds to 15/15. [S1] The security evaluation reports checkpoint 902b37e. [S2]", evidence
+    overlapping_endpoint = evaluate_literal_support(
+        "The API is publicly reachable at 0.0.0.0:8787. [S6]", evidence
     )
-    japanese_citation_laundering = evaluate_literal_support("評価結果は15/15 [S1]。統合checkpointは902b37e [S2]。", evidence)
+    invented_eval_count = evaluate_literal_support(
+        "The security evaluation passed 16/16 cases on 2026-08-15. [S2]", evidence
+    )
+    citation_laundering = evaluate_literal_support(
+        "The private API binds to 15/15. [S1] The security evaluation reports checkpoint 902b37e. [S2]",
+        evidence,
+    )
+    japanese_citation_laundering = evaluate_literal_support(
+        "評価結果は15/15 [S1]。統合checkpointは902b37e [S2]。", evidence
+    )
     supported_counts = evaluate_literal_support(
         "The exact integration gate completed with 591 tests, 57 cases, and 21 distributions. [S3]",
         evidence,
@@ -153,24 +182,19 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         evidence,
     )
     cross_metric_count_laundering = evaluate_literal_support(
-        "The exact integration gate completed with 57 tests and 591 cases. [S3]",
-        evidence,
+        "The exact integration gate completed with 57 tests and 591 cases. [S3]", evidence
     )
     japanese_invented_test_count = evaluate_literal_support(
-        "統合ゲートでは593件のテストが通過しました。[S4]",
-        evidence,
+        "統合ゲートでは593件のテストが通過しました。[S4]", evidence
     )
     supported_ci_status_counts = evaluate_literal_support(
-        "Pytest completed with 591 passed, 2 skipped, and 1 warning. [S5]",
-        evidence,
+        "Pytest completed with 591 passed, 2 skipped, and 1 warning. [S5]", evidence
     )
     invented_ci_pass_count = evaluate_literal_support(
-        "Pytest completed with 593 passed, 2 skipped, and 1 warning. [S5]",
-        evidence,
+        "Pytest completed with 593 passed, 2 skipped, and 1 warning. [S5]", evidence
     )
     cross_status_count_laundering = evaluate_literal_support(
-        "Pytest completed with 591 passed, 2 failed, and 1 warning. [S5]",
-        evidence,
+        "Pytest completed with 591 passed, 2 failed, and 1 warning. [S5]", evidence
     )
 
     failures: list[str] = []
@@ -178,6 +202,8 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         failures.append("supported literals were rejected")
     if invented_endpoint.passed or "0.0.0.0:8787" not in invented_endpoint.unsupported_literals:
         failures.append("invented endpoint escaped exact-literal grounding")
+    if overlapping_endpoint.passed or "0.0.0.0:8787" not in overlapping_endpoint.unsupported_literals:
+        failures.append("overlapping endpoint substring escaped exact-literal grounding")
     if invented_eval_count.passed or "16/16" not in invented_eval_count.unsupported_literals:
         failures.append("invented evaluation count escaped exact-literal grounding")
     if citation_laundering.passed:
@@ -206,7 +232,7 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         EvalOutcome(
             "rag_exact_literal_support",
             not failures,
-            "cited IP/port, commit, date, fraction and repository/CI count literals must exist in same-claim evidence",
+            "cited IP/port, commit, date, fraction and repository/CI count literals must match complete same-claim evidence literals",
             tuple(failures),
         ),
     )
