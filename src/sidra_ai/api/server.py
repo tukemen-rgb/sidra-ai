@@ -18,6 +18,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--host", default=None, help="override SIDRA_HOST")
     parser.add_argument("--port", type=int, default=None, help="override SIDRA_PORT")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="validate startup assembly without importing uvicorn or opening a socket",
+    )
     return parser
 
 
@@ -62,6 +67,13 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+
+    if args.check:
+        # The check path deliberately stops after the same service/app assembly
+        # used by normal startup. This proves local model admission and storage
+        # initialization without importing the ASGI server or opening a socket.
+        print("SIDRA AI startup check passed; no socket opened")
+        return 0
 
     try:
         import uvicorn
