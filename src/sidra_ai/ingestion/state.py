@@ -78,11 +78,20 @@ class IngestionState:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "IngestionState":
+        if "version" not in data:
+            raise ValueError("persisted ingestion state is missing its schema version")
+        version = data["version"]
+        if isinstance(version, bool) or not isinstance(version, int) or version != 1:
+            raise ValueError("persisted ingestion state has an unsupported schema version")
+
+        if "repositories" not in data or not isinstance(data["repositories"], dict):
+            raise ValueError("persisted ingestion state is missing its repository map")
+
         return cls(
-            version=int(data.get("version", 1)),
+            version=version,
             repositories={
                 key: RepositoryState.from_dict(value)
-                for key, value in (data.get("repositories") or {}).items()
+                for key, value in data["repositories"].items()
             },
         )
 
