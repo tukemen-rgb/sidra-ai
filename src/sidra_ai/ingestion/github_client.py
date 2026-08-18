@@ -472,6 +472,22 @@ class GitHubReadOnlyClient:
         if not isinstance(comparison, dict):
             raise GitHubAPIError("GitHub compare returned a non-object response")
 
+        # GitHub's real compare response reports whether ``head`` is actually
+        # ahead of ``base``. A force-push/default-branch rewrite can make the
+        # stored cursor diverged or behind; treating that payload as an ordinary
+        # incremental window would pair the new cursor with a mixed/orphaned
+        # RAG history. Preserve compatibility with older deterministic test
+        # transports that omit ``status``, but fail closed on any explicit
+        # non-forward relation.
+        status = comparison.get("status")
+        if status is not None and (
+            not isinstance(status, str) or status.strip().lower() != "ahead"
+        ):
+            raise GitHubAPIError(
+                "GitHub compare is not a forward-only history window; "
+                "refusing to advance the SHA cursor"
+            )
+
         raw_commits = comparison.get("commits") or []
         if not isinstance(raw_commits, list):
             raise GitHubAPIError("GitHub compare returned a malformed commit list")
