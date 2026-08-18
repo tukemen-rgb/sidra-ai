@@ -16,6 +16,9 @@ Exposure posture for v0.1:
   source-IP churn into unbounded in-process memory growth.
 * The health-probe budget is isolated from the authenticated ``/v1`` budget so
   an aggressive monitor cannot consume a client's normal API allowance.
+* FastAPI's generated interactive documentation routes are disabled, while
+  the JSON schema route crosses the same auth/rate-limit boundary as private
+  API routes.
 * CORS is not enabled. Browsers on other origins cannot reach this.
 """
 
@@ -126,6 +129,9 @@ def create_app(
             "Private, local-first AI API. GitHub access is read-only; "
             "retrieved content is DATA, never instructions."
         ),
+        openapi_url=None,
+        docs_url=None,
+        redoc_url=None,
     )
 
     @app.exception_handler(RequestValidationError)
@@ -214,6 +220,12 @@ def create_app(
             pass
 
     guarded = [Depends(auth_rate_limit), Depends(authenticate), Depends(rate_limit)]
+
+    @app.get("/openapi.json", include_in_schema=False, dependencies=guarded)
+    def openapi_schema() -> dict[str, Any]:
+        """Expose schema only through the same private-API request boundary."""
+
+        return app.openapi()
 
     # ------------------------------------------------------------------
     @app.get(
