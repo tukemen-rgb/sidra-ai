@@ -61,7 +61,7 @@ that API composition root until a separate reviewed exposure change is made.
 | `retrieval/` | chunking, index, BM25 search | only `ALLOW` content is indexable |
 | `models/` | replaceable local backends | only verified local backends can be selected; no paid API can be registered |
 | `evals/` | offline security/grounding regression suite | runs with no network and no model weights |
-| `api/` | private HTTP surface | four routes; no write/deploy/Web-fetch route exists |
+| `api/` | private HTTP surface | four service routes plus one guarded schema endpoint; interactive docs disabled; no write/deploy/Web-fetch route exists |
 
 ## Post-v0.1 Fetch Plane boundary
 
@@ -199,6 +199,7 @@ tests/embedding callers and is not used by the `sidra-api` entry point.
 ## API surface
 
 - `GET /health` — minimal unauthenticated health status, no repository/content details.
+- `GET /openapi.json` — authenticated/rate-limited schema discovery; Swagger UI and ReDoc are disabled rather than exposed as separate routes.
 - `POST /v1/retrieve` — authenticated/rate-limited retrieval without invoking the model.
 - `POST /v1/chat` — authenticated/rate-limited grounded local-model chat.
 - `POST /v1/github/analyze` — authenticated/rate-limited read-only GitHub ingestion + analysis.
