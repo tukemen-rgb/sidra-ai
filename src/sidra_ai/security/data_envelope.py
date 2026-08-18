@@ -39,8 +39,9 @@ _DELIMITER_SPOOFS = re.compile(
     r"|<\|im_(start|end)\|>|<\|(system|user|assistant)\|>|</?\s*system\s*>)"
 )
 
-#: Zero-width / bidi characters that hide payloads from human review.
-_INVISIBLE = re.compile(r"[​-‏‪-‮⁠-⁤﻿]")
+#: Zero-width / bidi characters that hide payloads from human review. Include
+#: Unicode bidi isolate controls (U+2066..U+2069), not only embeddings/overrides.
+_INVISIBLE = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
 
 #: Block labels are generated internally as ``S1``, ``S2`` ... . Keep the
 #: public helper fail-closed so a caller cannot smuggle prompt syntax through
@@ -48,9 +49,10 @@ _INVISIBLE = re.compile(r"[​-‏‪-‮⁠-⁤﻿]")
 _SAFE_BLOCK_LABEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}\Z")
 
 #: Prompt-facing provenance metadata is untrusted too. Git paths can legally
-#: contain control characters, including newlines. A hostile path must never
-#: be able to create a second prompt line or a forged data/system delimiter.
-_PROMPT_METADATA_CONTROL = re.compile(r"[\x00-\x1f\x7f\u2028\u2029]")
+#: contain control characters, including newlines. C1 controls are included
+#: because U+0085 (NEL) is treated as a line boundary by Unicode-aware text
+#: processing and must not create a second logical prompt line.
+_PROMPT_METADATA_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 
 
 class InstructionAuthorityError(RuntimeError):
