@@ -90,6 +90,39 @@ def _env_list(name: str, default: Iterable[str]) -> tuple[str, ...]:
     return tuple(item.strip() for item in raw.split(",") if item.strip())
 
 
+def _validate_allowed_repositories(repositories: Iterable[str]) -> None:
+    """Require one unambiguous GitHub ``owner/name`` identity per entry.
+
+    API request schemas already reject duplicate logical repositories, but the
+    configured default scope can bypass those schemas when GitHub analysis is
+    invoked without an explicit repository list. Keep the configuration
+    boundary equally strict so case-only duplicates cannot multiply ingestion
+    work or create ambiguous authorization metadata.
+    """
+
+    seen: set[str] = set()
+    for repository in repositories:
+        owner, separator, name = repository.partition("/")
+        if (
+            repository != repository.strip()
+            or any(char.isspace() for char in repository)
+            or separator != "/"
+            or not owner
+            or not name
+            or "/" in name
+        ):
+            raise UnsafeConfigurationError(
+                "allowed repositories must use exactly one non-empty 'owner/name' identifier"
+            )
+
+        normalized = repository.casefold()
+        if normalized in seen:
+            raise UnsafeConfigurationError(
+                "allowed repositories must not contain case-insensitive duplicates"
+            )
+        seen.add(normalized)
+
+
 @dataclass(frozen=True)
 class Settings:
     """Immutable runtime configuration."""
@@ -260,11 +293,7 @@ class Settings:
         if self.max_input_bytes <= 0:
             raise UnsafeConfigurationError("max_input_bytes must be positive")
 
-        for repository in self.allowed_repositories:
-            if "/" not in repository:
-                raise UnsafeConfigurationError(
-                    f"allowed repository {repository!r} must be 'owner/name'"
-                )
+        _validate_allowed_repositories(self.allowed_repositories)
 
     def redacted_dict(self) -> dict[str, object]:
         """Serializable view. Secrets are reported as presence flags only."""
