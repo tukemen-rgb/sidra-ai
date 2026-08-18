@@ -64,7 +64,29 @@ def test_configured_model_uses_exact_observed_vram_and_context_cap() -> None:
     assert routed.decision.usable_vram_mib == 2488
     assert routed.decision.planned_context_tokens == 2000
     assert getattr(routed.adapter, "max_context_tokens") == 2000
+    assert routed.adapter.options["quantization"] == "Q4_K_M"
     assert routed.adapter.requires_paid_api is False
+
+
+def test_adapter_options_cannot_override_reviewed_quantization() -> None:
+    def forbidden_probe(*args, **kwargs):
+        raise AssertionError("hardware probe must not run for conflicting provenance")
+
+    with pytest.raises(
+        ConfiguredModelManifestError,
+        match="quantization must come from the reviewed manifest",
+    ):
+        route_configured_adapter_with_nvidia_probe(
+            _manifest(_model("local-q4", weights_vram_mib=1800)),
+            backend="ollama",
+            model="local-q4",
+            planned_context_tokens=2000,
+            runner=forbidden_probe,
+            adapter_options={
+                "endpoint": "http://127.0.0.1:11434",
+                "quantization": "Q8_0",
+            },
+        )
 
 
 def test_missing_configured_model_fails_before_hardware_probe() -> None:
