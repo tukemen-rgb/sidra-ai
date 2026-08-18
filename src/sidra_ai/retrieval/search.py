@@ -15,6 +15,7 @@ the same repository content written in their common forms.
 
 from __future__ import annotations
 
+import abc
 import math
 import re
 import unicodedata
@@ -339,6 +340,46 @@ class BM25Retriever:
         return _diversify_results(scored, top_k)
 
 
-#: The interface every retriever must satisfy. Kept as an alias so callers
-#: depend on the concept, not the current implementation.
-Retriever = BM25Retriever
+class Retriever(abc.ABC):
+    """What every retrieval backend must provide.
+
+    v0.1 ships one implementation, :class:`BM25Retriever`, chosen because it
+    is deterministic and needs no model weights - evals stay stable and the
+    service runs on a clean machine. The reason this is an abstract base
+    rather than an alias for that one class is the swap it exists to allow:
+    replacing lexical matching with a local embedding model, without the API
+    or the service layer knowing.
+
+    Two properties are load-bearing for anything that implements this.
+
+    **Results carry provenance.** A retriever returns
+    :class:`SearchResult` objects wrapping a
+    :class:`~sidra_ai.documents.Chunk`, and the chunk keeps the full
+    provenance of the document it came from. A backend that returns bare text
+    breaks citation, which is the point of the system.
+
+    **Filters are honoured, not approximated.** ``repositories`` and
+    ``source_types`` are access scope, not ranking hints. Returning a chunk
+    from outside the requested repositories is a scope violation regardless of
+    how relevant it looked.
+    """
+
+    @abc.abstractmethod
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        repositories: Sequence[str] | None = None,
+        source_types: Iterable[SourceType] | None = None,
+        min_score: float = 0.0,
+    ) -> list[SearchResult]:
+        """Return at most ``top_k`` results, most relevant first.
+
+        Implementations must return an empty list rather than raising when the
+        query is empty or nothing matches: "no evidence" is an answer the
+        service knows how to report, an exception is not.
+        """
+
+
+Retriever.register(BM25Retriever)

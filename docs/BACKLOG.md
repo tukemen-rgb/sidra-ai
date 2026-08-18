@@ -83,7 +83,11 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 - [x] 日本語 bigram トークナイザの精度検証と回帰テスト。
       → 実装済み。`test_tokenizer_handles_japanese` と
       `evals/retrieval_quality.py` の日英混在ケースで担保されている。
-- [~] 作業中 2026-08-18 15:30 UTC — `Retriever` を ABC 化し、ローカル埋め込みモデルへ差し替え可能にする。
+- [x] `Retriever` を ABC 化し、ローカル埋め込みモデルへ差し替え可能にする。
+      → 完了。`Retriever` は `abc.ABC` になり `search()` が抽象メソッド。
+      `BM25Retriever` を register 済み。差し替え時に守るべき 2 点
+      （結果が provenance を保つ / フィルタは範囲であってヒントではない）を
+      docstring とテストで固定した。
 
 ## 厳守事項
 

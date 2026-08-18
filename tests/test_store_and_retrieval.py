@@ -350,3 +350,71 @@ def test_search_fills_remaining_slots_when_only_one_document_matches(store: Docu
 
     assert len(results) == 3
     assert {result.provenance.path for result in results} == {"only.md"}
+
+
+# --- the Retriever interface -------------------------------------------
+# The abstract base exists for one reason: swapping BM25 for a local
+# embedding model without the service layer knowing. These tests pin the two
+# properties that swap must preserve.
+
+def test_bm25_satisfies_the_retriever_interface(store: DocumentStore) -> None:
+    from sidra_ai.retrieval.search import BM25Retriever, Retriever
+
+    assert issubclass(BM25Retriever, Retriever)
+    assert isinstance(BM25Retriever(store), Retriever)
+
+
+def test_retriever_cannot_be_instantiated_directly() -> None:
+    from sidra_ai.retrieval.search import Retriever
+
+    with pytest.raises(TypeError):
+        Retriever()  # type: ignore[abstract]
+
+
+def test_an_alternative_backend_only_needs_search(store: DocumentStore) -> None:
+    """A stand-in implementation must satisfy every caller of the interface."""
+
+    from sidra_ai.retrieval.search import Retriever, SearchResult
+
+    class StubRetriever(Retriever):
+        def search(self, query, *, top_k=5, repositories=None,
+                   source_types=None, min_score=0.0) -> list[SearchResult]:
+            return []
+
+    stub = StubRetriever()
+    assert isinstance(stub, Retriever)
+    assert stub.search("anything") == []
+
+
+def test_results_keep_provenance_for_citation(store: DocumentStore) -> None:
+    """A backend returning bare text would break citation entirely."""
+
+    from sidra_ai.retrieval.search import BM25Retriever
+
+    store.add(_document("retrieval augmented generation over github"))
+    result = BM25Retriever(store).search("retrieval github", top_k=1)[0]
+    for field in ("repository", "path", "commit_sha", "source_type", "license"):
+        assert getattr(result.provenance, field), f"lost provenance field {field}"
+
+
+def test_repository_filter_is_scope_not_a_ranking_hint(store: DocumentStore) -> None:
+    """Returning an out-of-scope chunk is a violation however relevant it looked."""
+
+    from sidra_ai.retrieval.search import BM25Retriever
+
+    store.add(_document("shared keyword appears here"))
+    results = BM25Retriever(store).search(
+        "shared keyword", top_k=5, repositories=["tukemen-rgb/Fg"]
+    )
+    assert results == []
+
+
+def test_empty_query_returns_no_evidence_rather_than_raising(
+    store: DocumentStore,
+) -> None:
+    """"No evidence" is an answer the service reports; an exception is not."""
+
+    from sidra_ai.retrieval.search import BM25Retriever
+
+    store.add(_document("something indexed"))
+    assert BM25Retriever(store).search("   ") == []
