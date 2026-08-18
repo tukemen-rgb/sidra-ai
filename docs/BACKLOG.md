@@ -70,7 +70,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       解放は「人が理由付きで承認した記録を残す」だけで、自動再索引はしない。
       QUARANTINE のみ解放可（BLOCK は方針上の拒否であり再判断の対象外）。
       操作者名と 8 文字以上の理由が必須。値は既定で表示しない。
-- [ ] **索引の永続化。**プロセス再起動で消える。sqlite + FTS5 を想定。
+- [~] 作業中 2026-08-18 15:32 UTC — **索引の永続化。**プロセス再起動で消える。sqlite + FTS5 を想定。
       `DocumentStore` の外部インターフェースは変えない。
 - [ ] `docs/SECURITY.md` の「既知のギャップ」を現状に合わせて更新。
       解消済みのものが残っている。
