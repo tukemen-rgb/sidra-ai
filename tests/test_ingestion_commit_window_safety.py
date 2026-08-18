@@ -46,6 +46,7 @@ def test_compare_rejects_incremental_window_larger_than_index_limit(
         monkeypatch,
         fake_github,
         {
+            "status": "ahead",
             "total_commits": count,
             "commits": [_commit(fake_github, index) for index in range(1, count + 1)],
             "files": [],
@@ -63,6 +64,7 @@ def test_compare_rejects_github_truncated_commit_window(
         monkeypatch,
         fake_github,
         {
+            "status": "ahead",
             "total_commits": 3,
             "commits": [_commit(fake_github, 1), _commit(fake_github, 2)],
             "files": [],
@@ -96,6 +98,7 @@ def test_oversized_incremental_window_preserves_sha_cursor_and_rag_snapshot(
         monkeypatch,
         fake_github,
         {
+            "status": "ahead",
             "total_commits": count,
             "commits": [_commit(fake_github, index) for index in range(1, count + 1)],
             "files": [{"filename": "README.md"}],
