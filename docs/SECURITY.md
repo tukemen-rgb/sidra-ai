@@ -92,14 +92,28 @@ answerable without storing the key.
   starting.
 - Bearer auth applies to all `/v1` routes whenever a token is configured;
   comparison is constant-time.
-- Per-client rate limit on all `/v1` routes.
+- Per-client rate limiting applies to all API routes, with a separate bounded
+  budget for the unauthenticated health probe.
 - CORS is not enabled.
-- `/health` is unauthenticated but reports only presence flags for tokens,
-  never values.
+- `/health` is unauthenticated but returns only status, version, local-model
+  availability, and the constant GitHub-write-disabled flag. It does not expose
+  repository names, model names/endpoints, token-presence flags, index details,
+  or backend exception diagnostics.
+- `/v1/retrieve`, `/v1/chat`, and `/v1/github/analyze` record metadata-only
+  local audit events. Raw operator text, model output, authorization headers,
+  tokens, retrieved content, and gate finding evidence are excluded from the
+  audit schema.
 
 Secrets are never fields on `Settings`: `api_token` and `github_token` are
 properties read from the environment on access, so they cannot appear in a
 `repr`, a log line, or a serialized config dump.
+
+Model output is a separate disclosure boundary. `OutputGuard` screens local
+model text before it can be returned by chat/analyze, including bounded checks
+for reversible base64/base64url, percent, hex, HTML-entity, and code-escape
+representations. Secret-like or high-confidence PII findings withhold the whole
+answer; detector failures fail closed and the original blocked output is not
+persisted by the guard.
 
 ## Operational rules
 
@@ -114,18 +128,23 @@ properties read from the environment on access, so they cannot appear in a
 
 ## Known gaps in v0.1
 
-These are real and should be closed before the API leaves loopback:
+These are real and should be closed or explicitly accepted before widening the
+runtime boundary:
 
 1. **Rate limiting is in-process.** Correct for one node; a multi-node
    deployment needs a shared counter.
-2. **No audit log for queries.** Ingestion decisions are recorded; chat
-   requests are not persisted.
+2. **API audit durability is best-effort.** Audit events are local and
+   metadata-only, but an audit-file `OSError` deliberately does not convert an
+   otherwise safe API response into a failure. Stronger durability/alerting is
+   a separate operational control.
 3. **Injection detection is heuristic.** It will miss novel phrasings. This
    is why the capability-level guarantee, not the detector, is the defense.
 4. **High-entropy detection false-positives** on hashes and encoded assets.
    Reported at medium severity and does not quarantine on its own.
-5. **No secret scanning of the model's output.** The system prompt forbids
-   emitting credentials; nothing enforces it yet.
+5. **Output screening is heuristic and bounded.** The guard covers the reviewed
+   secret/PII detectors and several reversible encodings with strict work
+   limits, but it is not a proof of non-disclosure. Capability minimization and
+   keeping secret material out of model context remain primary controls.
 6. **Quarantine has no release workflow.** Content accumulates; a human must
    read the JSONL directly.
 7. **No signature verification of GitHub responses** beyond TLS.
