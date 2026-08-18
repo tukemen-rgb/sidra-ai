@@ -41,7 +41,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 解消。発火の 98.9% が `.json` データファイルだった。密度で判定し、
       1 文書 5 件超は `high_entropy_dataset` として 1 件に集約。
       発火 1022→266、判定は不変。`docs/GATE_FALSE_POSITIVE_BASELINE.md` 参照。
-- [ ] **RFC 2606 予約ドメイン（`example.com`）の誤検知。**UI プレースホルダ
+- [~] 作業中 2026-08-18 15:22 UTC — **RFC 2606 予約ドメイン（`example.com`）の誤検知。**UI プレースホルダ
       `placeholder="mail@example.com"` が個人メール扱いで 4 文書が隔離される。
       修正自体は容易だが、output guard のテスト 5 件が `@example.com` を
       「実在する個人アドレス」の代表値として使っているため、そのサンプル値を
