@@ -19,6 +19,35 @@ _LITERAL_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<![A-Za-z0-9_])\d+/\d+(?![A-Za-z0-9_])"),
     re.compile(r"(?<![A-Za-z0-9_.])v?\d+\.\d+(?:\.\d+)?(?![A-Za-z0-9_.])", re.IGNORECASE),
     re.compile(r"(?<![A-Za-z0-9_])[0-9a-f]{7,40}(?![A-Za-z0-9_])", re.IGNORECASE),
+    # Ordinary counts matter in repository/status answers too. Bind the number
+    # to its noun so evidence containing the same number for a different metric
+    # cannot launder a hallucinated test/file/case count. Exclude common date,
+    # ratio, version and URL separators on the left to avoid extracting a
+    # suffix such as ``15 tests`` from ``2026-08-15 tests``.
+    re.compile(
+        r"(?<![A-Za-z0-9_./:-])\d[\d,]*\s+"
+        r"(?:pull requests?|prs?|tests?|cases?|checks?|commits?|files?|"
+        r"repositories?|repos?|models?|routes?|issues?|distributions?|"
+        r"documents?|chunks?|sources?)(?![A-Za-z0-9_])",
+        re.IGNORECASE,
+    ),
+    # CI summaries often omit the count noun entirely (for example
+    # ``595 passed``). Treat the status word as the metric so the same number
+    # in ``skipped``/``failed`` cannot support a hallucinated ``passed`` total.
+    re.compile(
+        r"(?<![A-Za-z0-9_./:-])\d[\d,]*\s+"
+        r"(?:passed|failed|errors?|warnings?|skipped|xfailed|xpassed)"
+        r"(?![A-Za-z0-9_])",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?<![A-Za-z0-9_./:-])\d[\d,]*\s*"
+        r"(?:件(?:の)?(?:テスト|ケース|チェック|コミット|ファイル|リポジトリ|"
+        r"モデル|ルート|課題|ソース|ドキュメント|チャンク)|"
+        r"(?:テスト|ケース|チェック|コミット|ファイル|リポジトリ|モデル|"
+        r"ルート|課題|ソース|ドキュメント|チャンク))"
+        r"(?![A-Za-z0-9_])"
+    ),
 )
 _TRAILING_CITATIONS = re.compile(r"([.!?。！？])\s*((?:\[(?:S\d+)\]\s*)+)")
 _CLAIM_SPLIT = re.compile(r"(?<=[。！？])|(?<=[.!?])\s+|\n+")
@@ -102,6 +131,9 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
     evidence = {
         "S1": "The private API binds to 127.0.0.1:8787 by default. The integration checkpoint is commit 902b37e.",
         "S2": "The security evaluation reports 15/15 cases passing on 2026-08-15.",
+        "S3": "The exact integration gate completed with 591 tests, 57 cases, and 21 distributions.",
+        "S4": "統合ゲートでは591件のテストが通過しました。",
+        "S5": "Pytest completed with 591 passed, 2 skipped, and 1 warning.",
     }
     supported = evaluate_literal_support(
         "The API binds to 127.0.0.1:8787 and checkpoint 902b37e is documented. [S1]", evidence
@@ -112,6 +144,34 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         "The private API binds to 15/15. [S1] The security evaluation reports checkpoint 902b37e. [S2]", evidence
     )
     japanese_citation_laundering = evaluate_literal_support("評価結果は15/15 [S1]。統合checkpointは902b37e [S2]。", evidence)
+    supported_counts = evaluate_literal_support(
+        "The exact integration gate completed with 591 tests, 57 cases, and 21 distributions. [S3]",
+        evidence,
+    )
+    invented_test_count = evaluate_literal_support(
+        "The exact integration gate completed with 593 tests, 57 cases, and 21 distributions. [S3]",
+        evidence,
+    )
+    cross_metric_count_laundering = evaluate_literal_support(
+        "The exact integration gate completed with 57 tests and 591 cases. [S3]",
+        evidence,
+    )
+    japanese_invented_test_count = evaluate_literal_support(
+        "統合ゲートでは593件のテストが通過しました。[S4]",
+        evidence,
+    )
+    supported_ci_status_counts = evaluate_literal_support(
+        "Pytest completed with 591 passed, 2 skipped, and 1 warning. [S5]",
+        evidence,
+    )
+    invented_ci_pass_count = evaluate_literal_support(
+        "Pytest completed with 593 passed, 2 skipped, and 1 warning. [S5]",
+        evidence,
+    )
+    cross_status_count_laundering = evaluate_literal_support(
+        "Pytest completed with 591 passed, 2 failed, and 1 warning. [S5]",
+        evidence,
+    )
 
     failures: list[str] = []
     if not supported.passed:
@@ -124,12 +184,29 @@ def run_literal_support_suite() -> tuple[EvalOutcome, ...]:
         failures.append("cross-sentence citation laundering escaped exact-literal grounding")
     if japanese_citation_laundering.passed:
         failures.append("Japanese no-whitespace citation laundering escaped exact-literal grounding")
+    if not supported_counts.passed:
+        failures.append("supported repository/status counts were rejected")
+    if invented_test_count.passed or "593 tests" not in invented_test_count.unsupported_literals:
+        failures.append("invented ordinary test count escaped exact-literal grounding")
+    if cross_metric_count_laundering.passed:
+        failures.append("same-number cross-metric count laundering escaped exact-literal grounding")
+    if (
+        japanese_invented_test_count.passed
+        or "593件のテスト" not in japanese_invented_test_count.unsupported_literals
+    ):
+        failures.append("Japanese invented ordinary test count escaped exact-literal grounding")
+    if not supported_ci_status_counts.passed:
+        failures.append("supported CI status counts were rejected")
+    if invented_ci_pass_count.passed or "593 passed" not in invented_ci_pass_count.unsupported_literals:
+        failures.append("invented bare CI pass count escaped exact-literal grounding")
+    if cross_status_count_laundering.passed or "2 failed" not in cross_status_count_laundering.unsupported_literals:
+        failures.append("same-number cross-status count laundering escaped exact-literal grounding")
 
     return (
         EvalOutcome(
             "rag_exact_literal_support",
             not failures,
-            "cited IP/port, commit, date, and fraction literals must exist in same-claim evidence",
+            "cited IP/port, commit, date, fraction and repository/CI count literals must exist in same-claim evidence",
             tuple(failures),
         ),
     )
