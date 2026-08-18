@@ -150,13 +150,25 @@ runtime boundary:
 3. **Injection detection is heuristic.** It will miss novel phrasings. This
    is why the capability-level guarantee, not the detector, is the defense.
 4. **High-entropy detection false-positives** on hashes and encoded assets.
-   Reported at medium severity and does not quarantine on its own.
+   Reported at medium severity and never quarantines on its own. Dense runs
+   (more than five in one document) collapse into a single LOW finding, since
+   that density means encoded data rather than a leaked credential; every span
+   is still redacted. Measured: 98.9% of firings were inside `.json` files.
+
+
 5. **Output screening is heuristic and bounded.** The guard covers the reviewed
    secret/PII detectors and several reversible encodings with strict work
    limits, but it is not a proof of non-disclosure. Capability minimization and
    keeping secret material out of model context remain primary controls.
-6. **Quarantine has no release workflow.** Content accumulates; a human must
-   read the JSONL directly.
+6. **Quarantine review is content-blind on provenance.** The release
+   workflow exists (`sidra-quarantine list / show / release`), but the audit
+   boundary deliberately drops an entry's path, URL and author because those
+   are attacker-controlled and never pass through the detectors. A reviewer
+   therefore identifies an entry by repository, source type, findings and
+   redacted content - not by filename. That is a deliberate trade, and it
+   makes review harder than it looks on paper.
+
+
 7. **No signature verification of GitHub responses** beyond TLS.
 8. **Chunk-level trust is inherited from the document**, so a doc that quotes
    a hostile issue is trusted at document level.
