@@ -298,35 +298,45 @@ class QuarantineStore:
         """Return provenance safe to persist at the quarantine audit boundary.
 
         ``BLOCK`` may occur before secret/PII inspection for source rejection
-        or oversized input. Any repository, path, URL, author, license, commit
-        field, or ``extra`` value on a blocked record is therefore uninspected
-        attacker-controlled metadata. Persisting ``Provenance.to_dict()`` for
-        such a record would create a secondary secret/PII disclosure channel.
+        or oversized input, so all raw string provenance is dropped there.
 
-        Keep typed, non-secret attribution fields plus lengths only for every
-        blocked record. Lengths are operationally useful without creating the
-        offline-guessing oracle that a deterministic digest would. Provenance
-        for allowlisted ``QUARANTINE`` findings is unchanged so normal human
-        review attribution is preserved.
+        ``QUARANTINE`` happens only after source/repository allowlist checks,
+        but the remaining provenance fields (path, URL, author, license,
+        commit, and ``extra``) are still attacker-controlled and are not passed
+        through the content secret/PII detectors. Persist only the already
+        allowlist-bound source/repository plus typed attribution and lengths for
+        those remaining fields. This keeps a repository-level review anchor
+        without creating a secondary secret/PII persistence channel or a
+        low-entropy digest oracle.
         """
 
         if provenance is None:
             return None
-        if result.decision is not Decision.BLOCK:
+        if result.decision is Decision.ALLOW:
             return provenance.to_dict()
-        return {
+
+        common = {
             "source_type": provenance.source_type.value,
             "trust_level": provenance.trust_level.value,
             "timestamp": provenance.timestamp.isoformat(),
             "retrieved_at": provenance.retrieved_at.isoformat(),
-            "source_length": len(provenance.source),
-            "repository_length": len(provenance.repository),
             "path_length": len(provenance.path),
             "commit_sha_length": len(provenance.commit_sha),
             "license_length": len(provenance.license),
             "url_length": len(provenance.url),
             "author_length": len(provenance.author),
             "extra_count": len(provenance.extra),
+        }
+        if result.decision is Decision.QUARANTINE:
+            return {
+                "source": provenance.source,
+                "repository": provenance.repository,
+                **common,
+            }
+        return {
+            **common,
+            "source_length": len(provenance.source),
+            "repository_length": len(provenance.repository),
         }
 
     def record(
