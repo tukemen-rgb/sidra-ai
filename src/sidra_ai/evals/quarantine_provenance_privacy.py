@@ -3,8 +3,7 @@
 Source allowlist and oversized-input rejection both short-circuit secret/PII
 inspection by design. This suite proves that attacker-controlled provenance and
 body content still cannot be persisted through the quarantine audit boundary,
-while normal attribution for allowlisted quarantined documents remains
-available for human review.
+while allowlisted quarantines retain only a repository-level review anchor.
 """
 
 from __future__ import annotations
@@ -200,16 +199,21 @@ def _oversized_block_provenance_privacy() -> EvalOutcome:
 
 def _allowlisted_quarantine_attribution() -> EvalOutcome:
     failures: list[str] = []
-    synthetic_secret = "ghp_" + ("S" * 24)
+    metadata_secret = "ghp_" + ("M" * 24)
+    metadata_pii = "metadata.person@example.com"
+    body_secret = "ghp_" + ("S" * 24)
     provenance = Provenance(
         source="github",
         repository="safe/repo",
-        path="docs/review.md",
-        commit_sha="a" * 40,
+        path=f"docs/{metadata_pii}-{metadata_secret}.md",
+        commit_sha=metadata_secret,
         timestamp=datetime(2026, 8, 17, tzinfo=timezone.utc),
         source_type=SourceType.DOCS,
-        trust_level=TrustLevel.INTERNAL_REPO,
-        license="proprietary",
+        trust_level=TrustLevel.EXTERNAL,
+        license=metadata_pii,
+        url=f"https://example.invalid/{metadata_secret}",
+        author=metadata_pii,
+        extra={"note": metadata_secret, metadata_pii: "value"},
     )
 
     with TemporaryDirectory() as data_dir:
@@ -219,7 +223,7 @@ def _allowlisted_quarantine_attribution() -> EvalOutcome:
             quarantine_store=store,
         )
         result, screened = gate.screen_document(
-            Document(content=f"token={synthetic_secret}", provenance=provenance)
+            Document(content=f"token={body_secret}", provenance=provenance)
         )
         entries = store.entries()
 
@@ -231,11 +235,41 @@ def _allowlisted_quarantine_attribution() -> EvalOutcome:
         failures.append(f"expected one quarantine audit record, got {len(entries)}")
     else:
         entry = entries[0]
-        if entry.get("provenance") != provenance.to_dict():
-            failures.append("allowlisted quarantine lost normal source attribution")
+        expected_provenance = {
+            "source": "github",
+            "repository": "safe/repo",
+            "source_type": SourceType.DOCS.value,
+            "trust_level": TrustLevel.EXTERNAL.value,
+            "timestamp": provenance.timestamp.isoformat(),
+            "retrieved_at": provenance.retrieved_at.isoformat(),
+            "path_length": len(provenance.path),
+            "commit_sha_length": len(provenance.commit_sha),
+            "license_length": len(provenance.license),
+            "url_length": len(provenance.url),
+            "author_length": len(provenance.author),
+            "extra_count": len(provenance.extra),
+        }
+        if entry.get("provenance") != expected_provenance:
+            failures.append("allowlisted quarantine retained more than repository-level attribution")
+
         serialized = json.dumps(entry, ensure_ascii=False)
-        if synthetic_secret in serialized:
-            failures.append("detected secret survived into allowlisted quarantine audit")
+        forbidden = (
+            metadata_secret,
+            metadata_pii,
+            body_secret,
+            provenance.path,
+            provenance.commit_sha,
+            provenance.license,
+            provenance.url,
+            provenance.author,
+        )
+        if any(value in serialized for value in forbidden):
+            failures.append("allowlisted quarantine leaked uninspected provenance or body secret")
+        if any(
+            str(key) in serialized or str(value) in serialized
+            for key, value in provenance.extra.items()
+        ):
+            failures.append("allowlisted quarantine leaked provenance extra data")
         safe_content = entry.get("content")
         if not isinstance(safe_content, str) or "[REDACTED:" not in safe_content:
             failures.append("allowlisted quarantine did not retain a sanitized review copy")
@@ -243,7 +277,10 @@ def _allowlisted_quarantine_attribution() -> EvalOutcome:
     return EvalOutcome(
         case_name="security_allowlisted_quarantine_attribution",
         passed=not failures,
-        detail="normal quarantines retain attribution but never raw detected secrets",
+        detail=(
+            "allowlisted quarantine keeps repository attribution while dropping "
+            "uninspected provenance values"
+        ),
         failures=tuple(failures),
     )
 
