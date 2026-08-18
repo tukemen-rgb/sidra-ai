@@ -288,6 +288,12 @@ class Settings:
         if not self.data_dir.strip():
             raise UnsafeConfigurationError("data_dir must not be empty or whitespace")
 
+        token = self.api_token
+        if token and not all(0x21 <= ord(char) <= 0x7E for char in token):
+            raise UnsafeConfigurationError(
+                "SIDRA_API_TOKEN must contain only visible ASCII characters when set"
+            )
+
         if not self.is_localhost_only:
             if not self.allow_public_bind:
                 raise UnsafeConfigurationError(
@@ -295,14 +301,11 @@ class Settings:
                     "SIDRA_ALLOW_PUBLIC_BIND=true only after authentication and "
                     "rate limiting are reviewed"
                 )
-            token = self.api_token
             if not token:
                 raise UnsafeConfigurationError(
                     "non-loopback bind requires SIDRA_API_TOKEN to be set"
                 )
-            if len(token) < MIN_PUBLIC_API_TOKEN_CHARS or not all(
-                0x21 <= ord(char) <= 0x7E for char in token
-            ):
+            if len(token) < MIN_PUBLIC_API_TOKEN_CHARS:
                 raise UnsafeConfigurationError(
                     "non-loopback bind requires SIDRA_API_TOKEN to contain at least "
                     f"{MIN_PUBLIC_API_TOKEN_CHARS} visible ASCII characters"
