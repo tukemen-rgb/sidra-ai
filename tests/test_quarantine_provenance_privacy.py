@@ -140,30 +140,66 @@ def test_oversized_block_provenance_is_context_free_before_secret_inspection(tmp
         assert raw_extra_value not in serialized
 
 
-def test_allowlisted_quarantine_keeps_normal_source_attribution(tmp_path) -> None:
+def test_allowlisted_quarantine_minimizes_uninspected_provenance(tmp_path) -> None:
+    metadata_secret = "ghp_" + "M" * 24
+    metadata_pii = "metadata.person@example.com"
+    body_secret = "ghp_" + "Z" * 24
     provenance = Provenance(
         source="github",
         repository="safe/repo",
-        path="docs/review.md",
-        commit_sha="a" * 40,
+        path=f"docs/{metadata_pii}-{metadata_secret}.md",
+        commit_sha=metadata_secret,
         timestamp=datetime(2026, 8, 17, tzinfo=timezone.utc),
         source_type=SourceType.DOCS,
-        trust_level=TrustLevel.INTERNAL_REPO,
-        license="proprietary",
+        trust_level=TrustLevel.EXTERNAL,
+        license=metadata_pii,
+        url=f"https://example.invalid/{metadata_secret}",
+        author=metadata_pii,
+        extra={"note": metadata_secret, metadata_pii: "value"},
     )
     store = QuarantineStore(tmp_path / "quarantine.jsonl")
     gate = SecurityGate(
         allowed_repositories=("safe/repo",),
         quarantine_store=store,
     )
-    synthetic_secret = "ghp_" + "Z" * 24
 
     result, screened = gate.screen_document(
-        Document(content=f"token={synthetic_secret}", provenance=provenance)
+        Document(content=f"token={body_secret}", provenance=provenance)
     )
 
     assert result.decision is Decision.QUARANTINE
     assert screened is None
     entry = store.entries()[0]
-    assert entry["provenance"] == provenance.to_dict()
-    assert synthetic_secret not in json.dumps(entry, ensure_ascii=False)
+    assert entry["provenance"] == {
+        "source": "github",
+        "repository": "safe/repo",
+        "source_type": SourceType.DOCS.value,
+        "trust_level": TrustLevel.EXTERNAL.value,
+        "timestamp": provenance.timestamp.isoformat(),
+        "retrieved_at": provenance.retrieved_at.isoformat(),
+        "path_length": len(provenance.path),
+        "commit_sha_length": len(provenance.commit_sha),
+        "license_length": len(provenance.license),
+        "url_length": len(provenance.url),
+        "author_length": len(provenance.author),
+        "extra_count": len(provenance.extra),
+    }
+    assert entry["content_retention"] == "sanitized"
+    assert isinstance(entry["content"], str)
+    assert "[REDACTED:" in entry["content"]
+
+    serialized = json.dumps(entry, ensure_ascii=False)
+    for sensitive in (
+        metadata_secret,
+        metadata_pii,
+        body_secret,
+        provenance.path,
+        provenance.commit_sha,
+        provenance.license,
+        provenance.url,
+        provenance.author,
+    ):
+        assert sensitive not in serialized
+    for raw_extra_key, raw_extra_value in provenance.extra.items():
+        assert raw_extra_key not in serialized
+        assert raw_extra_value not in serialized
