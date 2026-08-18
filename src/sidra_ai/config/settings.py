@@ -84,9 +84,13 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _env_list(name: str, default: Iterable[str]) -> tuple[str, ...]:
+    """Read a comma-separated list without broadening an explicit empty value."""
+
     raw = os.environ.get(name)
-    if raw is None or not raw.strip():
+    if raw is None:
         return tuple(default)
+    if not raw.strip():
+        return ()
     return tuple(item.strip() for item in raw.split(",") if item.strip())
 
 
