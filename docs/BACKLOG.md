@@ -127,7 +127,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       機械的手段なのに、人が思い出したときにしか走らない。8 桁国際番号の
       → 完了。push / PR で必ず走る。テストでも「CI に入っていること」自体を
       検査している（パイプラインから外れた検査は制御ではないため）。
-- [ ] **解放された quarantine を索引へ戻す経路。**`sidra-quarantine release`
+- [~] 作業中 2026-08-18 15:43 UTC — **解放された quarantine を索引へ戻す経路。**`sidra-quarantine release`
       は承認を記録するが、**それを読んで再索引する側が無い**。承認しても
       何も起きないので、ワークフローが半分しか閉じていない。
       `released_entries()` を使い、ingestion 側に取り込み口を作る。
