@@ -465,6 +465,9 @@ def test_type_annotations_are_not_assigned_secrets(
         ("電話は09012345678まで", "phone_jp"),
         ("0120-123-456 へどうぞ", "phone_jp"),
         ("call +81-90-1234-5678", "phone_intl"),
+        # The international pattern bottoms out at eight digits. A nine-digit
+        # floor looked harmless and silently removed this case.
+        ("call +1-2-345-678", "phone_intl"),
     ],
 )
 def test_real_phone_numbers_survive_the_length_check(
