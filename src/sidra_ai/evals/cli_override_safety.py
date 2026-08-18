@@ -23,12 +23,12 @@ from sidra_ai.evals.cases import EvalOutcome
 def _invoke(
     settings: Settings,
     argv: list[str],
-) -> tuple[int, list[tuple[str, int]], str, str]:
-    calls: list[tuple[str, int]] = []
+) -> tuple[int, list[tuple[str, int, bool]], str, str]:
+    calls: list[tuple[str, int, bool]] = []
     fake_uvicorn = ModuleType("uvicorn")
 
-    def _run(_app: object, *, host: str, port: int) -> None:
-        calls.append((host, port))
+    def _run(_app: object, *, host: str, port: int, proxy_headers: bool) -> None:
+        calls.append((host, port, proxy_headers))
 
     fake_uvicorn.run = _run  # type: ignore[attr-defined]
     stdout = StringIO()
@@ -99,7 +99,7 @@ def _valid_port_override_is_applied_case() -> EvalOutcome:
             ["--port", str(override_port)],
         )
 
-    expected = [(settings.host, override_port)]
+    expected = [(settings.host, override_port, False)]
     if exit_code != 0:
         failures.append(f"valid CLI port override returned {exit_code}: {stderr.strip()}")
     if bind_calls != expected:
@@ -108,7 +108,7 @@ def _valid_port_override_is_applied_case() -> EvalOutcome:
     return EvalOutcome(
         case_name="api_cli_valid_port_override_reaches_exact_bind",
         passed=not failures,
-        detail="valid explicit CLI override must still be applied exactly",
+        detail="valid explicit CLI override must still be applied exactly with proxy rewriting disabled",
         failures=tuple(failures),
     )
 
