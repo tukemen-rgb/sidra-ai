@@ -210,10 +210,18 @@ class Document:
 
     @property
     def doc_id(self) -> str:
-        """Deterministic id: stable across runs, unique per content+origin."""
+        """Deterministic id: stable across runs, unique per content+logical origin."""
 
         digest = hashlib.sha256()
+        # Keep document identity aligned with DocumentStore's logical-source
+        # key. Source system and source type are provenance, not decoration:
+        # two otherwise identical artifacts from distinct logical origins must
+        # never alias the same document/chunk ids and overwrite each other.
+        digest.update(self.provenance.source.encode("utf-8"))
+        digest.update(b"\x00")
         digest.update(self.provenance.repository.encode("utf-8"))
+        digest.update(b"\x00")
+        digest.update(self.provenance.source_type.value.encode("utf-8"))
         digest.update(b"\x00")
         digest.update(self.provenance.path.encode("utf-8"))
         digest.update(b"\x00")
