@@ -166,6 +166,7 @@ def run_incremental_commit_window_safety_suite() -> list[EvalOutcome]:
     """Release-gate commit-window completeness without GitHub or model I/O."""
 
     oversized = {
+        "status": "ahead",
         "total_commits": 3,
         "commits": [
             {"sha": "1" * 40},
@@ -175,6 +176,7 @@ def run_incremental_commit_window_safety_suite() -> list[EvalOutcome]:
         "files": [],
     }
     truncated = {
+        "status": "ahead",
         "total_commits": 3,
         "commits": [
             {"sha": "1" * 40},
