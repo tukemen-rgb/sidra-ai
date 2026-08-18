@@ -75,6 +75,12 @@ class QuarantineEntry:
     findings: tuple[dict[str, Any], ...]
     content_retention: str
     original_length: int
+    document_id: str = ""
+    """Hash over repository, path, commit and content. Reveals none of them,
+    and is recomputable at the next ingestion - which is what makes a release
+    actionable, since the audit record deliberately keeps nothing else that
+    could identify the document."""
+
     raw: dict[str, Any] = field(repr=False, default_factory=dict)
 
     @property
@@ -118,6 +124,7 @@ class QuarantineEntry:
             findings=tuple(gate.get("findings") or ()),
             content_retention=str(record.get("content_retention", "")),
             original_length=int(record.get("original_length") or 0),
+            document_id=str(record.get("document_id") or ""),
             raw=record,
         )
 
@@ -205,6 +212,22 @@ class QuarantineReview:
 
     def released_ids(self) -> set[str]:
         return {r.entry_id for r in self.releases()}
+
+    def released_document_ids(self) -> set[str]:
+        """Document ids a human approved, for the gate to admit on re-ingest.
+
+        Pass this to ``SecurityGate(released_document_ids=...)``. Entries
+        recorded before document ids were kept have none, and are skipped
+        rather than guessed - an approval that cannot be tied to a specific
+        document is not an approval of anything.
+        """
+
+        approved = self.released_ids()
+        return {
+            entry.document_id
+            for entry in self.entries()
+            if entry.document_id and entry.id in approved
+        }
 
     def pending(self) -> list[QuarantineEntry]:
         """Releasable entries a human has not yet acted on."""

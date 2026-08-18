@@ -127,11 +127,20 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       機械的手段なのに、人が思い出したときにしか走らない。8 桁国際番号の
       → 完了。push / PR で必ず走る。テストでも「CI に入っていること」自体を
       検査している（パイプラインから外れた検査は制御ではないため）。
-- [~] 作業中 2026-08-18 15:43 UTC — **解放された quarantine を索引へ戻す経路。**`sidra-quarantine release`
+- [x] **解放された quarantine を索引へ戻す経路。**`sidra-quarantine release`
       は承認を記録するが、**それを読んで再索引する側が無い**。承認しても
       何も起きないので、ワークフローが半分しか閉じていない。
       `released_entries()` を使い、ingestion 側に取り込み口を作る。
-      再索引時も必ず現在のポリシーで再検査すること。
+      → 完了。ただし**設計上の壁があった**: privacy 強化により quarantine の
+      記録から path / commit_sha / license が消えており、記録だけからは
+      Document を再構成できなかった。値を晒さずに解決するため、記録に
+      `document_id`（repository+path+commit+content のハッシュ）だけを追加した。
+      これは中身を明かさず、次回取り込み時に再計算できるので、解放を
+      「その文書に対する承認」として適用できる。
+      `SecurityGate(released_document_ids=...)` が QUARANTINE のみ参照する。
+      BLOCK は方針上の拒否なので承認しても通さない。承認元が壊れていたら
+      fail closed（何も通さない）。findings は記録に残したまま通す
+      （承認は「見た上で受け入れた」であって「何も無かった」ではない）。
 - [ ] **稼働中の索引をポリシー変更時に再検査する。**`load()` は再検査するが、
       既にメモリ上にある文書は再起動まで残る（ギャップ 9）。検知器を厳しく
       した直後の稼働中プロセスは、古い判定のまま動き続ける。

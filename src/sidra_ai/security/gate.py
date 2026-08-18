@@ -23,7 +23,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import AbstractSet, Any, Callable, Sequence
 
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.documents import Document, Provenance
@@ -346,9 +346,27 @@ class QuarantineStore:
         original_length: int,
         provenance: Provenance | None,
         result: GateResult,
+        document_id: str | None = None,
     ) -> None:
+        """Append one audit record.
+
+        ``document_id`` is the only field here that can survive a release and
+        be acted on later. Everything identifying - path, URL, author - is
+        deliberately dropped by :meth:`_audit_provenance` because it is
+        attacker-controlled and never passed through the detectors, which
+        means a released entry cannot be rebuilt into a document from this
+        log at all.
+
+        The id closes that gap without reopening the one it was closing: it
+        is a hash over repository, path, commit and content, so it reveals
+        none of them, and it is recomputable at the next ingestion. A release
+        can therefore be keyed to it and applied when the same document comes
+        back through the gate.
+        """
+
         entry: dict[str, Any] = {
             "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "document_id": document_id,
             "provenance": self._audit_provenance(provenance, result),
             "gate": result.to_dict(),
             "content": safe_content,
@@ -383,10 +401,14 @@ class SecurityGate:
         *,
         allowed_repositories: Sequence[str] | None = None,
         quarantine_store: QuarantineStore | None = None,
+        released_document_ids: Callable[[], AbstractSet[str]] | None = None,
     ) -> None:
         settings = get_settings()
         self.policy = policy or GatePolicy.from_settings(settings)
         self.quarantine_store = quarantine_store
+        #: Optional source of human-approved document ids. Consulted only
+        #: for QUARANTINE; see :meth:`_is_released`.
+        self._released_document_ids = released_document_ids
         self._secret = SecretDetector()
         self._pii = PIIDetector()
         self._injection = PromptInjectionDetector()
@@ -405,6 +427,7 @@ class SecurityGate:
         source: str = "operator",
         repository: str = "",
         provenance: Provenance | None = None,
+        document_id: str | None = None,
     ) -> GateResult:
         """Run every detector and combine the verdicts.
 
@@ -440,6 +463,7 @@ class SecurityGate:
                 decision,
                 redacted=False,
                 provenance=provenance,
+                document_id=document_id,
             )
 
         source_out = self._source.check(source=source, repository=repository)
@@ -457,6 +481,7 @@ class SecurityGate:
                 decision,
                 redacted=False,
                 provenance=provenance,
+                document_id=document_id,
             )
 
         oversize_out = self._oversize.detect(content)
@@ -472,6 +497,7 @@ class SecurityGate:
                 decision,
                 redacted=False,
                 provenance=provenance,
+                document_id=document_id,
             )
 
         secret_out = self._secret.detect(content)
@@ -537,6 +563,7 @@ class SecurityGate:
             decision,
             redacted=redacted,
             provenance=provenance,
+                document_id=document_id,
         )
 
     # ------------------------------------------------------------------
@@ -550,6 +577,7 @@ class SecurityGate:
         *,
         redacted: bool,
         provenance: Provenance | None = None,
+        document_id: str | None = None,
     ) -> GateResult:
         result = GateResult(
             decision=decision,
@@ -569,6 +597,7 @@ class SecurityGate:
                 original_length=len(original),
                 provenance=provenance,
                 result=result,
+                document_id=document_id,
             )
         return result
 
@@ -587,9 +616,26 @@ class SecurityGate:
             source=document.provenance.source,
             repository=document.provenance.repository,
             provenance=document.provenance,
+            document_id=document.doc_id,
         )
 
-        if result.decision is not Decision.ALLOW:
+        if result.decision is Decision.QUARANTINE and self._is_released(document.doc_id):
+            # A human reviewed this exact document and approved it. The
+            # findings stay on the record - the approval says "I looked at
+            # these and accepted them", not "there was nothing to see".
+            result = GateResult(
+                decision=Decision.ALLOW,
+                findings=result.findings,
+                content=result.content,
+                original_length=result.original_length,
+                redacted=result.redacted,
+                reasons=result.reasons
+                + (
+                    "released by human review; quarantine findings retained on "
+                    "the record",
+                ),
+            )
+        elif result.decision is not Decision.ALLOW:
             return result, None
 
         screened = Document(
@@ -601,6 +647,22 @@ class SecurityGate:
         return result, screened
 
     # ------------------------------------------------------------------
+    def _is_released(self, document_id: str) -> bool:
+        """Has a human approved this exact document?
+
+        Only ``QUARANTINE`` consults this. A ``BLOCK`` is a policy refusal -
+        an unpermitted source, an oversized payload - and no amount of human
+        approval turns a boundary into a suggestion.
+        """
+
+        if self._released_document_ids is None:
+            return False
+        try:
+            released = self._released_document_ids()
+        except Exception:  # noqa: BLE001 - a broken registry must not admit
+            return False
+        return document_id in released
+
     def contains_secret(self, content: str) -> bool:
         """Cheap re-check used as defense in depth by the retrieval store."""
 
