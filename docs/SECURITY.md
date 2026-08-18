@@ -69,17 +69,27 @@ delete:
 
 | Decision | Meaning |
 | --- | --- |
-| `ALLOW` | indexable; secret/PII spans already replaced with `[REDACTED:label:fingerprint]` |
-| `QUARANTINE` | kept in full in `.sidra/quarantine.jsonl` (mode 0600) with findings, out of the index until a human releases it |
-| `BLOCK` | not indexed and not passed to the model at all |
+| `ALLOW` | indexable; secret/PII spans already replaced with typed `[REDACTED:…]` placeholders |
+| `QUARANTINE` | kept out of the index; only sanitized review content plus minimized audit provenance is retained in `.sidra/quarantine.jsonl` (mode 0600) |
+| `BLOCK` | not indexed and not passed to the model; quarantine audit is metadata-only and does not retain the blocked body |
+
+For allowlisted quarantined input, persisted provenance keeps only the
+allowlist-bound source/repository, typed fields and timestamps. Uninspected
+`path`, `commit_sha`, `license`, `url`, `author`, and `extra` values are not
+stored verbatim; only lengths/counts are retained where operationally useful.
+Blocked or unpermitted-source input is more restrictive still and does not
+persist attacker-controlled provenance strings merely for audit convenience.
 
 `DocumentStore.add` re-runs the secret check as defense in depth: even a
 hand-forged `ALLOW` verdict cannot smuggle a credential into the index
 (`test_store_rejects_a_forged_allow_verdict`).
 
-Findings never carry the value they report — only a redacted excerpt and a
-salted 8-character fingerprint, so "the same key appears in three files" is
-answerable without storing the key.
+Finding evidence never carries raw surrounding text. Persisted evidence is a
+context-free redacted length marker plus detector/category/reason/offset
+metadata. Redaction placeholders retain an 8-character deterministic
+fingerprint only for an explicit allowlist of high-search-space secret classes;
+PII and low-entropy/unknown secret classes are fingerprint-free to avoid a
+stable offline-guessing oracle.
 
 ### 4. The API is private by default
 
