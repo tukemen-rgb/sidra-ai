@@ -89,6 +89,7 @@ class FakeGitHub:
 
         if tail[0] == "compare":
             return {
+                "status": "ahead",
                 "commits": [self._commit(self.head_sha)],
                 "files": [{"filename": "README.md"}, {"filename": "docs/arch.md"}],
             }
