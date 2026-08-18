@@ -65,7 +65,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### B. 運用に必要な穴
 
-- [ ] **quarantine の release ワークフロー。**隔離された文書が溜まる一方で、
+- [~] 作業中 2026-08-18 15:23 UTC — **quarantine の release ワークフロー。**隔離された文書が溜まる一方で、
       人間が解放する手段が JSONL の直接編集しかない。CLI を作る。
 - [ ] **索引の永続化。**プロセス再起動で消える。sqlite + FTS5 を想定。
       `DocumentStore` の外部インターフェースは変えない。
