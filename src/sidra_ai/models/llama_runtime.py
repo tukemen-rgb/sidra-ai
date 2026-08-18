@@ -14,6 +14,7 @@ endpoint already exposed by llama-server.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from threading import Lock
 from typing import Any
 
 from sidra_ai.models.base import (
@@ -50,22 +51,41 @@ class LlamaCppRuntimeGuard(LocalModelAdapter):
         self.inner = inner
         self.supports_streaming = inner.supports_streaming
         self.expected_context_tokens = int(expected_context_tokens)
+        self._props_client: Any | None = None
+        self._props_client_lock = Lock()
+
+    def _get_props_client(self) -> Any:
+        """Lazily create one proxy-isolated client for repeated `/props` checks."""
+
+        client = self._props_client
+        if client is not None:
+            return client
+
+        with self._props_client_lock:
+            client = self._props_client
+            if client is not None:
+                return client
+            try:
+                import httpx
+
+                client = httpx.Client(trust_env=False)
+            except Exception as exc:  # noqa: BLE001 - normalize local runtime failures
+                raise ModelUnavailableError(
+                    "llama.cpp runtime properties are unavailable"
+                ) from exc
+            self._props_client = client
+            return client
 
     def _fetch_props(self) -> dict[str, Any]:
         endpoint = getattr(self.inner, "endpoint", "")
         if not isinstance(endpoint, str) or not endpoint:
             raise ModelUnavailableError("llama.cpp runtime properties are unavailable")
 
+        client = self._get_props_client()
         try:
-            import httpx
-        except ImportError as exc:  # pragma: no cover - required by normal install
-            raise ModelUnavailableError("llama.cpp runtime properties are unavailable") from exc
-
-        try:
-            response = httpx.get(
+            response = client.get(
                 f"{endpoint}/props",
                 timeout=self.props_timeout_s,
-                trust_env=False,
             )
             response.raise_for_status()
             props = response.json()
