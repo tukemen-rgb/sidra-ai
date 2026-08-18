@@ -261,6 +261,9 @@ def create_app(
     @app.post("/v1/github/analyze", response_model=AnalyzeResponse, dependencies=guarded)
     def analyze(payload: AnalyzeRequest) -> Any:
         current = resolve_service()
+        # Match chat/retrieve: reject the complete repository scope before the
+        # ingestion pipeline can fetch or mutate the local RAG/state snapshot.
+        validate_repositories(current, payload.repositories)
         try:
             result = current.analyze_github(
                 payload.repositories, force=payload.force, question=payload.question
