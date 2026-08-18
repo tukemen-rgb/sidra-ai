@@ -337,9 +337,8 @@ class GitHubIngestionPipeline:
             head_sha=head_sha,
             previous_sha=previous_sha,
             license_id=license_id,
-            first_run=(
-                not previous_sha or force or rehydrate_index or retry_full_snapshot
-            ),
+            first_run=(not previous_sha or force or rehydrate_index),
+            refresh_documentation_snapshot=retry_full_snapshot,
             since=(
                 None
                 if rehydrate_index or retry_full_snapshot
@@ -570,6 +569,7 @@ class GitHubIngestionPipeline:
         previous_sha: str,
         license_id: str,
         first_run: bool,
+        refresh_documentation_snapshot: bool,
         since: str | None,
     ) -> tuple[
         list[Document],
@@ -587,10 +587,10 @@ class GitHubIngestionPipeline:
 
         changed_paths: set[str] = set()
         commits: list[dict[str, Any]] = []
-        full_documentation_refresh = first_run
+        full_documentation_refresh = first_run or refresh_documentation_snapshot
 
         try:
-            if previous_sha and not first_run:
+            if previous_sha and head_sha != previous_sha and not first_run:
                 comparison = self.client.compare(repository, previous_sha, head_sha)
                 commits = list(comparison.get("commits", []))
                 changed_paths = {
@@ -599,7 +599,7 @@ class GitHubIngestionPipeline:
                 retirements = _documentation_retirements(comparison)
                 if _comparison_may_be_truncated(comparison):
                     full_documentation_refresh = True
-            else:
+            elif first_run:
                 commits = self.client.list_commits(repository, head=head_sha)
         except GitHubAPIError as exc:
             errors.append(f"history: {exc}")
