@@ -16,6 +16,9 @@ Exposure posture for v0.1:
   source-IP churn into unbounded in-process memory growth.
 * The health-probe budget is isolated from the authenticated ``/v1`` budget so
   an aggressive monitor cannot consume a client's normal API allowance.
+* FastAPI's generated OpenAPI and interactive documentation routes are
+  disabled, so the private API contract is not exposed through unauthenticated
+  discovery endpoints.
 * CORS is not enabled. Browsers on other origins cannot reach this.
 """
 
@@ -126,6 +129,9 @@ def create_app(
             "Private, local-first AI API. GitHub access is read-only; "
             "retrieved content is DATA, never instructions."
         ),
+        openapi_url=None,
+        docs_url=None,
+        redoc_url=None,
     )
 
     @app.exception_handler(RequestValidationError)
