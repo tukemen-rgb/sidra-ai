@@ -85,8 +85,11 @@ answerable without storing the key.
 
 - Default bind is `127.0.0.1:8787`.
 - Binding elsewhere requires `SIDRA_ALLOW_PUBLIC_BIND=true` **and**
-  `SIDRA_API_TOKEN`. `Settings.validate` raises otherwise, and
-  `sidra-api` exits 2 rather than starting.
+  `SIDRA_API_TOKEN`. For a non-loopback bind, the token must contain at least
+  24 visible ASCII characters. This is a minimum accidental-weakness guard,
+  not an entropy proof; operators should generate a random token.
+  `Settings.validate` raises otherwise, and `sidra-api` exits 2 rather than
+  starting.
 - Bearer auth applies to all `/v1` routes whenever a token is configured;
   comparison is constant-time.
 - Per-client rate limit on all `/v1` routes.
