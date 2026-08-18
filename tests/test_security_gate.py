@@ -489,3 +489,110 @@ def test_real_assigned_secrets_still_detected(gate: SecurityGate, text: str) -> 
 
     result = gate.inspect(text, source="github", repository="tukemen-rgb/Fg")
     assert result.has(FindingCategory.SECRET)
+
+
+# --- entropy density ---------------------------------------------------
+# Measured across the five SIDRA repositories, the entropy detector fired
+# 3580 times and 3539 of those (98.9%) were inside .json data files. Raising
+# the threshold cannot fix that - the noise is genuinely high-entropy, 5.2 to
+# 5.3 bits per character - so density is used instead: one unexplained blob
+# is suspicious, five hundred of them is a dataset.
+#
+# Fixtures are generated over a 64-symbol alphabet. Hex digests top out at
+# 4.0 bits per character and never reach the 4.2 threshold, so a hex string
+# would silently test nothing.
+
+_ENTROPY_ALPHABET = (
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+)
+
+
+def _entropy_blob(index: int, length: int = 44) -> str:
+    """Deterministic ~5.5 bits/char string, distinct per index."""
+
+    return "".join(
+        _ENTROPY_ALPHABET[(index * 7 + position * 13) % 64]
+        for position in range(length)
+    )
+
+
+def _dense_payload(count: int) -> str:
+    import json
+
+    return json.dumps([{"h": _entropy_blob(i)} for i in range(count)])
+
+
+def test_entropy_fixture_actually_clears_the_threshold() -> None:
+    """Guard the guard: a fixture below 4.2 would test nothing."""
+
+    from sidra_ai.security.detectors import shannon_entropy
+
+    assert shannon_entropy(_entropy_blob(0)) > 4.2
+
+
+def test_a_few_high_entropy_strings_are_reported_individually(
+    gate: SecurityGate,
+) -> None:
+    content = "\n".join(f"value_{i} = {_entropy_blob(i)}" for i in range(3))
+    result = gate.inspect(content, source="github", repository="tukemen-rgb/site")
+    detectors = [f.detector for f in result.findings]
+    assert "high_entropy" in detectors
+    assert "high_entropy_dataset" not in detectors
+
+
+def test_dense_high_entropy_collapses_to_one_finding(gate: SecurityGate) -> None:
+    """A search index must not produce hundreds of separate findings."""
+
+    result = gate.inspect(
+        _dense_payload(200), source="github", repository="tukemen-rgb/site"
+    )
+    entropy_findings = [
+        f for f in result.findings if f.detector.startswith("high_entropy")
+    ]
+    assert len(entropy_findings) == 1, (
+        f"expected one collapsed finding, got {len(entropy_findings)}"
+    )
+    finding = entropy_findings[0]
+    assert finding.detector == "high_entropy_dataset"
+    assert finding.severity is Severity.LOW
+    assert finding.metadata["count"] == 200
+
+
+def test_collapsed_entropy_still_redacts_every_span(gate: SecurityGate) -> None:
+    """Collapsing the report must not stop the redaction."""
+
+    result = gate.inspect(
+        _dense_payload(50), source="github", repository="tukemen-rgb/site"
+    )
+    for index in range(50):
+        assert _entropy_blob(index) not in result.content, (
+            f"high-entropy span {index} survived into output"
+        )
+    assert "[REDACTED:" in result.content
+
+
+def test_dense_entropy_alone_does_not_quarantine(gate: SecurityGate) -> None:
+    """A data file is not a credential leak; it must stay indexable."""
+
+    from sidra_ai.security.decisions import Decision
+
+    result = gate.inspect(
+        _dense_payload(50), source="github", repository="tukemen-rgb/site"
+    )
+    assert result.decision is Decision.ALLOW
+
+
+def test_a_real_credential_among_dense_entropy_is_still_critical(
+    gate: SecurityGate,
+) -> None:
+    """The collapse must never hide a provider-prefixed credential."""
+
+    import json
+
+    token = "ghp_" + "4" * 36
+    payload = json.dumps(
+        [{"h": _entropy_blob(i)} for i in range(50)] + [{"deploy": token}]
+    )
+    result = gate.inspect(payload, source="github", repository="tukemen-rgb/site")
+    assert "github_token" in {f.detector for f in result.findings}
+    assert token not in result.content

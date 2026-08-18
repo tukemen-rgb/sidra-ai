@@ -213,8 +213,14 @@ class SecretDetector:
 
     name = "secret"
 
-    def __init__(self, entropy_threshold: float = 4.2) -> None:
+    def __init__(
+        self, entropy_threshold: float = 4.2, max_entropy_findings: int = 5
+    ) -> None:
         self.entropy_threshold = entropy_threshold
+        #: Above this many entropy hits in one document, the run is reported
+        #: once as encoded data instead of item by item. See
+        #: :meth:`_entropy_findings`.
+        self.max_entropy_findings = max_entropy_findings
 
     def detect(self, content: str) -> DetectionOutput:
         findings: list[Finding] = []
@@ -262,31 +268,90 @@ class SecretDetector:
                 )
             )
 
+        entropy_hits: list[tuple[int, int, float]] = []
         for match in _HIGH_ENTROPY_CANDIDATE.finditer(content):
             start, end = match.span()
             if any(s <= start and end <= e for s, e, _ in spans):
                 continue
             candidate = match.group()
-            if shannon_entropy(candidate) < self.entropy_threshold:
+            entropy = shannon_entropy(candidate)
+            if entropy < self.entropy_threshold:
                 continue
-            spans.append((start, end, "high_entropy"))
-            findings.append(
-                Finding(
-                    category=FindingCategory.SECRET,
-                    severity=Severity.MEDIUM,
-                    detector="high_entropy",
-                    reason=(
-                        "high-entropy string; may be a credential, may be a "
-                        "hash or encoded asset - needs human confirmation"
-                    ),
-                    evidence=excerpt(content, start, end),
-                    start=start,
-                    end=end,
-                    metadata={"entropy": round(shannon_entropy(candidate), 3)},
-                )
-            )
+            entropy_hits.append((start, end, entropy))
+
+        findings.extend(self._entropy_findings(content, entropy_hits, spans))
 
         return DetectionOutput(tuple(findings), tuple(spans))
+
+    # ------------------------------------------------------------------
+    def _entropy_findings(
+        self,
+        content: str,
+        hits: list[tuple[int, int, float]],
+        spans: list[tuple[int, int, str]],
+    ) -> list[Finding]:
+        """Report entropy hits, collapsing dense runs into one finding.
+
+        Density inverts the signal. One unexplained high-entropy blob in prose
+        is worth a look; five hundred of them is a dataset - a search index, a
+        lockfile, a fixture - and reporting each one individually buries the
+        findings that matter under thousands that do not.
+
+        Measured across the five SIDRA repositories, this detector fired 3580
+        times and 3539 of those (98.9%) were inside ``.json`` data files. The
+        threshold cannot fix that: the noise genuinely is high-entropy, at 5.2
+        to 5.3 bits per character, so raising the bar drops real credentials
+        first.
+
+        Above the density limit the run is reported once, at LOW severity, as
+        what it is - encoded data - and the spans are still redacted so that
+        nothing high-entropy reaches the index verbatim either way.
+        """
+
+        if not hits:
+            return []
+
+        if len(hits) <= self.max_entropy_findings:
+            findings = []
+            for start, end, entropy in hits:
+                spans.append((start, end, "high_entropy"))
+                findings.append(
+                    Finding(
+                        category=FindingCategory.SECRET,
+                        severity=Severity.MEDIUM,
+                        detector="high_entropy",
+                        reason=(
+                            "high-entropy string; may be a credential, may be a "
+                            "hash or encoded asset - needs human confirmation"
+                        ),
+                        evidence=excerpt(content, start, end),
+                        start=start,
+                        end=end,
+                        metadata={"entropy": round(entropy, 3)},
+                    )
+                )
+            return findings
+
+        for start, end, _ in hits:
+            spans.append((start, end, "high_entropy"))
+        mean = sum(entropy for _, _, entropy in hits) / len(hits)
+        return [
+            Finding(
+                category=FindingCategory.SECRET,
+                severity=Severity.LOW,
+                detector="high_entropy_dataset",
+                reason=(
+                    f"{len(hits)} high-entropy strings in one document; that "
+                    "density indicates encoded data rather than a leaked "
+                    "credential. Spans are still redacted"
+                ),
+                metadata={
+                    "count": len(hits),
+                    "mean_entropy": round(mean, 3),
+                    "threshold": self.max_entropy_findings,
+                },
+            )
+        ]
 
 
 # ---------------------------------------------------------------------------

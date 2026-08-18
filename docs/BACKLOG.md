@@ -36,10 +36,11 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### A. セキュリティゲートの精度（測定済み・根拠あり）
 
-- [~] 作業中 2026-08-18 15:16 UTC — **`high_entropy` の発火 1018 回を減らす。**ほぼ全文書で 1 回以上鳴る。
+- [x] **`high_entropy` の発火 1018 回を減らす。**ほぼ全文書で 1 回以上鳴る。
       MEDIUM なので隔離はしないが、監査記録が埋まり、本当の検知が埋もれる。
-      ハッシュ・base64 アセット・minify 済みコードが主因。閾値だけでなく
-      「どの文脈で鳴らさないか」を決める。
+      → 解消。発火の 98.9% が `.json` データファイルだった。密度で判定し、
+      1 文書 5 件超は `high_entropy_dataset` として 1 件に集約。
+      発火 1022→266、判定は不変。`docs/GATE_FALSE_POSITIVE_BASELINE.md` 参照。
 - [ ] **RFC 2606 予約ドメイン（`example.com`）の誤検知。**UI プレースホルダ
       `placeholder="mail@example.com"` が個人メール扱いで 4 文書が隔離される。
       修正自体は容易だが、output guard のテスト 5 件が `@example.com` を
