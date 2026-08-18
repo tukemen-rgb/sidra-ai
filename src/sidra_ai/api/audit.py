@@ -17,14 +17,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+from sidra_ai.security.detectors import PIIDetector, SecretDetector
+
+
+_SECRET_DETECTOR = SecretDetector()
+_PII_DETECTOR = PIIDetector()
+_REDACTED_REPOSITORY = "<redacted-repository>"
+
 
 @dataclass(frozen=True)
 class ApiAuditEvent:
     """One metadata-only API audit event.
 
     ``input_chars`` records only the length of operator input. Citation
-    provenance is reduced to repository names; paths, content, prompts and
-    values detected by the security gate are deliberately excluded.
+    provenance is reduced to repository names; repository identifiers that
+    match the secret/PII detectors are replaced with a constant placeholder.
+    Paths, content, prompts and values detected by the security gate are
+    deliberately excluded.
     """
 
     operation: str
@@ -65,6 +74,35 @@ class ApiAuditLog:
     @staticmethod
     def _repositories(values: Iterable[str]) -> tuple[str, ...]:
         return tuple(sorted({value for value in values if value}))
+
+    @staticmethod
+    def _audit_repository(value: str) -> str:
+        """Return repository metadata safe enough for local persistence.
+
+        Repository identifiers normally look like ``owner/name``, but this
+        reducer must not assume every value reaching a response citation is
+        canonical. Tainted provenance can otherwise turn the metadata-only
+        audit sink into a secondary persistence path for a credential or PII.
+        Any secret/PII detector hit therefore replaces the complete identifier
+        with one context-free constant: no source text, length or fingerprint
+        is retained.
+        """
+
+        if _SECRET_DETECTOR.detect(value).findings or _PII_DETECTOR.detect(value).findings:
+            return _REDACTED_REPOSITORY
+        return value
+
+    @staticmethod
+    def _audit_repositories(values: Iterable[str]) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                {
+                    ApiAuditLog._audit_repository(value)
+                    for value in values
+                    if value
+                }
+            )
+        )
 
     @staticmethod
     def _reject_parent_traversal(path: Path) -> None:
@@ -244,7 +282,8 @@ class ApiAuditLog:
 
         Only explicitly selected keys are inspected. Security reasons,
         findings, model text, retrieved chunks and request content are never
-        serialized.
+        serialized. Citation repository identifiers are additionally screened
+        for secret/PII shapes before persistence.
 
         ``github_analyze`` wraps the actual chat result under ``analysis``.
         Audit outcome, decision and citations must therefore be derived from
@@ -305,7 +344,7 @@ class ApiAuditLog:
                 decision=decision,
                 input_chars=max(0, input_chars),
                 repository_count=len(self._repositories(requested_repositories)),
-                citation_repositories=self._repositories(citation_repositories),
+                citation_repositories=self._audit_repositories(citation_repositories),
                 model_invoked=model_invoked,
             )
         )
