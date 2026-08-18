@@ -11,6 +11,7 @@ Design rules for v0.1:
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 from typing import Iterable
@@ -162,9 +163,10 @@ class Settings:
 
     # ------------------------------------------------------------------
     def __post_init__(self) -> None:
-        # Enforce the GitHub credential boundary even for callers that
+        # Enforce GitHub network/credential boundaries even for callers that
         # construct Settings directly instead of using Settings.from_env().
         self._validate_github_api_base()
+        self._validate_github_request_timeout()
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -223,6 +225,20 @@ class Settings:
     def is_repository_allowed(self, repository: str) -> bool:
         return repository.lower() in {r.lower() for r in self.allowed_repositories}
 
+    def _validate_github_request_timeout(self) -> None:
+        """Keep read-only GitHub calls on a finite positive deadline."""
+
+        timeout = self.github_request_timeout
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+        ):
+            raise UnsafeConfigurationError(
+                "github_request_timeout must be a finite positive number"
+            )
+
     def _validate_github_api_base(self) -> None:
         """Pin authenticated GitHub ingestion to the official HTTPS origin.
 
@@ -261,6 +277,7 @@ class Settings:
         """Enforce the v0.1 safety invariants."""
 
         self._validate_github_api_base()
+        self._validate_github_request_timeout()
 
         if self.port < 1 or self.port > 65535:
             raise UnsafeConfigurationError("port out of range")
