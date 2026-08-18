@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from sidra_ai.config.settings import Settings, UnsafeConfigurationError
+from sidra_ai.config.settings import (
+    DEFAULT_ALLOWED_REPOSITORIES,
+    Settings,
+    UnsafeConfigurationError,
+)
 
 
 def test_settings_reject_case_insensitive_duplicate_repositories() -> None:
@@ -39,6 +43,27 @@ def test_from_env_rejects_duplicate_default_scope_before_startup(
 
     with pytest.raises(UnsafeConfigurationError, match="case-insensitive duplicates"):
         Settings.from_env()
+
+
+@pytest.mark.parametrize("raw", ("", "   ", " , "))
+def test_from_env_explicit_empty_allowlist_never_broadens_to_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+    raw: str,
+) -> None:
+    monkeypatch.setenv("SIDRA_ALLOWED_REPOSITORIES", raw)
+
+    settings = Settings.from_env()
+
+    assert settings.allowed_repositories == ()
+    assert not settings.is_repository_allowed("tukemen-rgb/sidra-ai")
+
+
+def test_from_env_unset_allowlist_retains_reviewed_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIDRA_ALLOWED_REPOSITORIES", raising=False)
+
+    assert Settings.from_env().allowed_repositories == DEFAULT_ALLOWED_REPOSITORIES
 
 
 def test_distinct_normal_repository_identifiers_remain_valid() -> None:
