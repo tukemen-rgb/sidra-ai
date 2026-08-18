@@ -44,6 +44,18 @@ _NO_EVIDENCE_MARKERS = (
 _ABSTENTION_BENIGN_TAILS = frozenset(
     {
         "matched this question",
+        "matched the question",
+        "for this question",
+        "for the question",
+        "for this request",
+        "to answer",
+        "to answer this question",
+        "to answer the question",
+        "to answer your question",
+        "to answer this request",
+        "this question",
+        "the question",
+        "your question",
         "was found",
         "were found",
         "is available",
@@ -68,6 +80,7 @@ _ABSTENTION_EXACT_ADVISORIES = frozenset(
         "追加の資料を提供してください",
         "別の質問を試してください",
         "再度質問してください",
+        "確認してください",
         "資料を追加してください",
         "情報を追加してください",
     }
