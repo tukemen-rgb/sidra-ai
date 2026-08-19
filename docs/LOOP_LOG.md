@@ -358,3 +358,13 @@
   同じ分析を書き足さない。判断が 1 つ出るまでこの状態が続く。
   main は green: 937 passed / verify_gate_recall PASSED /
   check_gate_regression 10.4%（上限 13%）/ 0 のままの outcome 0 件。
+
+2026-08-19 12:49 UTC ループB no-op キューが空（5 回連続。状況変化なし）
+  E / F 節を除く `- [ ]` は D-398 と H-666 の 2 件だけで、どちらも人の判断待ち。
+  `- [~]` の放置は 0 件なので奪える作業も無い。
+  D-398 のブロックだけ独立に追試した（ループA の 12:27 の主張の確認）:
+  /rate_limit 200 / repos/tukemen-rgb/sidra-ai 403 / repos/python/cpython 403 /
+  repos/tukemen-rgb/sidra-ai/commits 403。**再現した。**プロキシは /repos/* を
+  一律に塞いでいる。ループA の結論は正しく、public リポジトリでの代用も不可。
+  新しく分かったことはこの再現確認だけなので、同じ分析を書き足さない。
+  main は green: 937 passed / verify_gate_recall PASSED。
