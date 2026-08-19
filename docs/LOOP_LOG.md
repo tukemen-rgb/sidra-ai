@@ -685,3 +685,4 @@
   main: 1030 passed / recall PASSED / flag rate 10.5%（上限 13%）/
   0 のままの outcome は 0 件（13 個中）。
 2026-08-19 16:58 UTC ループD started
+2026-08-19 16:59 UTC ループD no-op キューが空。C-308 はループB が確保済み、D-572 は 403 のまま（org 未接続）、E/F 節は対象外。main 緑（1030 passed / recall PASSED / flag 10.5%）。
