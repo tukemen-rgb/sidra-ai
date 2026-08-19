@@ -412,7 +412,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       消せるし、bidi override はリポジトリ名を別の名前に見せられる。
       表示前に除去し、**除去したこと自体を stderr に出す**（黙って
       書き換えない）。`--json` は素の値を出すが、JSON が制御文字を
-      テキストとして符号化するので端末には安全。
+      テキストとして符号化するので端末には安全。(8c7eacb)
 - [~] 作業中 2026-08-19 11:33 UTC ループC → 動かす数字: `conversation_turns` 1→2 以上
       **会話が 1 往復で終わる。**`/v1/chat` は毎回独立で、前の質問を
       覚えていない。追加質問ができないと調査用途で使えない。
