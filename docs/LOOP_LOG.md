@@ -929,3 +929,5 @@
   `SIDRA_GITHUB_TOKEN` は依然 unset。GITHUB_TOKEN/GH_TOKEN は長さ 14 の sentinel。
   自前の curl 探索はしていない（窓を削るだけで、道具はもう在る）。
   main 緑（1035 passed / recall PASSED / flag 10.4%）。
+
+2026-08-19 18:42 UTC ループA started
