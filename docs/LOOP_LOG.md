@@ -1030,3 +1030,11 @@
   **前回 19:20 の起動は git push が資格情報エラーで不能だったため手順1で終了していた**（fetch は通り、他3本は正常に push できていたのでこのセッション固有）。今回は復旧している。
 
 2026-08-19 19:42 UTC ループA started
+
+2026-08-19 19:44 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。19:24 から状況変化なし。
+  `- [~]` 0 件、E / F を除く `- [ ]` は D-683 のみ。`/repos/*` は叩いていない。
+  SIDRA_GITHUB_TOKEN は unset のまま（presence のみ確認・値は未出力）。
+  全ゲート実測: 1035 passed / verify_gate_recall PASSED /
+  check_gate_regression 10.2%（上限 13%）/ check_answerable_regression exit 0
+  （11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
