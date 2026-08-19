@@ -473,7 +473,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### H. 品質・堅牢性
 
-- [ ] → 動かす数字: なし（不変条件の強化なので `- [記録]` 決着でよい）
+- [~] 作業中 2026-08-19 11:51 UTC ループC → 動かす数字: なし（不変条件の強化なので `- [記録]` 決着でよい）
       **chunk 単位の trust が document から継承される**（SECURITY ギャップ 8）。
       敵対的な issue を引用した docs は、document 単位では INTERNAL_REPO の
       まま。引用部分だけ EXTERNAL に落とす。
