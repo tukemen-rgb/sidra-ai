@@ -185,7 +185,27 @@ runtime boundary:
 
 7. **No signature verification of GitHub responses** beyond TLS.
 8. **Chunk-level trust is inherited from the document**, so a doc that quotes
-   a hostile issue is trusted at document level.
+   a hostile issue is trusted at document level. **Accepted, not fixed**, and
+   pinned by `tests/test_chunk_trust_inheritance_policy.py`.
+   The repair would be to detect quoted material and drop those chunks to
+   `EXTERNAL`. Three measurements argue against it. The hostile case never
+   becomes a chunk: an internal document quoting attack-shaped text is
+   quarantined whole, before chunking, so there is nothing left to demote.
+   Demotion would grant no permission change either — `INTERNAL_REPO` and
+   `EXTERNAL` are both in `DATA_ONLY_TRUST_LEVELS`, so the label is what the
+   envelope prints and what a citation reports, not a capability. And the
+   signal is absent: of 126 admitted chunks in this repository, 0 contain a
+   markdown blockquote while 16 contain a code fence, so a blockquote rule
+   fires on nothing and a fence rule would relabel 16 chunks of SIDRA's own
+   commands as external — every one a false demotion, in a label whose worth
+   is its precision (gap 4 and the false-positive ceiling exist for the same
+   reason).
+   Accepted residual: a *benign* quotation of third-party text inside an
+   internal document reads as `internal_repo`. It is DATA either way.
+   This reopens if the pinning test's first case fails. That the
+   document-level gate catches the hostile quote is an observation about the
+   detectors, not a property of the chunker; if a detector change lets one
+   through, the demotion is worth re-costing.
 9. **The index is a cache of past decisions.** `DocumentStore.load()`
    re-screens every record under current policy precisely because a document
    admitted under an older detector must not be resurrected by a restart.

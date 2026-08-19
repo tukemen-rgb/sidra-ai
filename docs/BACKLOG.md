@@ -473,10 +473,34 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### H. 品質・堅牢性
 
-- [~] 作業中 2026-08-19 11:51 UTC ループC → 動かす数字: なし（不変条件の強化なので `- [記録]` 決着でよい）
+- [記録] → 動かす数字: なし（`--compare` は 1 を返す） (COMMIT_HASH)
       **chunk 単位の trust が document から継承される**（SECURITY ギャップ 8）。
       敵対的な issue を引用した docs は、document 単位では INTERNAL_REPO の
       まま。引用部分だけ EXTERNAL に落とす。
+      → 方針決定: **落とさない。chunk は document の trust を継承し続ける。**
+      `docs/SECURITY.md` ギャップ 8 に決定と理由を記録し、
+      `tests/test_chunk_trust_inheritance_policy.py` で固定した。
+      測って決めた。理由 3 つ:
+      1. **危険な側は chunk にならない。**敵対的な引用を含む内部文書は
+         chunk 化の前に document 単位で隔離される（en/ja の injection、
+         role spoof の 3 形とも QUARANTINE を実測）。存在しない chunk を
+         降格しても得るものが無い。
+      2. **降格しても権限は 1 ミリも変わらない。**`INTERNAL_REPO` も
+         `EXTERNAL` も `DATA_ONLY_TRUST_LEVELS` の中で、どちらも
+         instruction にならない。変わるのは envelope が印字するラベルと
+         citation の表示だけ。
+      3. **手掛かりが存在せず、似た構文は自分のものだった。**このリポジトリの
+         索引化済み 126 chunk のうち **blockquote を含むものは 0 件**、
+         code fence は 16 件。blockquote 規則は何にも当たらず、fence 規則は
+         SIDRA 自身のコマンド 16 件を「外部」と貼り替える（全件が誤降格）。
+         ラベルの価値は精度なので、これは誤検知率の上限を置いているのと
+         同じ理由で割に合わない。
+      受け入れる残り: **無害な**第三者引用を含む内部文書は
+      `internal_repo` のまま表示される。どちらにせよ DATA。
+      再検討の条件: 固定テストの 1 番目が落ちたとき。「document 単位の
+      ゲートが敵対的な引用を捕まえる」は検知器についての観測であって
+      chunker の性質ではない。検知器の変更で 1 件でも通ったら、降格の
+      コストを計算し直す価値がある。
 - [ ] → 動かす数字: `retrieval_cases_real` 0→N
       **検索品質に測定値が無い。**誤検知率は測って CI で守っているのに、
       検索の当たり具合は `evals/retrieval_quality.py` の合成ケースだけ。
