@@ -785,7 +785,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       **テストは PyYAML を使わない。**宣言依存ではなく、この開発環境の
       システム image が偶然持っているだけなので、import すると
       **守るはずの CI で collection error になり、手元では通る**。
-      ローカルで clone からやり直して job を再現し、exit 0 を確認した。- [x] → 動かす数字: `audit_failures_visible` **0→1** (b49f6ae)
+      ローカルで clone からやり直して job を再現し、exit 0 を確認した。(b2c9ecf)- [x] → 動かす数字: `audit_failures_visible` **0→1** (b49f6ae)
       **監査ログの耐久性が best-effort**（SECURITY ギャップ 2）。
       書き込み失敗が API の成功応答を失敗に変えない設計は妥当だが、
       **失敗したこと自体が誰にも見えない**。失敗回数を `/health` か
