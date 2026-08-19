@@ -425,7 +425,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       は read-only クライアントが何でも信じ始める入口）。
       証明書エラーが HTTP 応答に変わることで修正を確認した。
 
-- [~] 作業中 2026-08-19 13:09 UTC ループD **実 GitHub API に対する取り込みが一度も検証されていない。**
+- [ ] **実 GitHub API に対する取り込みが一度も検証されていない。**
       取り込み経路のテストはすべて偽トランスポート越しで、本物の API に
       当てたことが無い。差分取得・ページネーション・レート制限・実データの
       形は未検証のまま。上記 CA 修正の確認中に判明した。
@@ -462,8 +462,27 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       - `add_repo` の許可が出ても、**この環境では通らない可能性が高い**。
         許可を求める前に、外に出られる環境かどうかを先に決めるほうが速い。
 
-      **【2026-08-19 承認済み・着手可】社長が `add_repo access:"push"` を
-      許可した（「全てOK」）。** 製品側に書き込みを実装するわけではない
+      **【2026-08-19 12:5x 許可は出たが、それでも通らなかった。】**
+      社長が `add_repo access:"push"` を許可し、実際に実行した。結果:
+      **`tukemen-rgb/sidra-ai` は既に attach 済み**で、attach しても
+      shell からの REST は通らない。403 の本文が**変わった**ことが答えで、
+      これが 3 回目にして正確な診断:
+      ```
+      GitHub access is not enabled for this session.
+      An org admin must connect the Claude GitHub App for this organization.
+      ```
+      つまり壁は「リポジトリ単位の scope」ですらなく、**organization 単位で
+      Claude GitHub App が接続されていないこと**。403 はプロキシが合成して
+      返しており（CONNECT は 200、直後に Connection: close の 403）、
+      GitHub まで到達していない。`add_repo` では動かせない層である。
+      **残る道は 2 つだけ:**
+      (a) org 管理者が Claude GitHub App を接続する（claude.ai の GitHub 設定）。
+      (b) 外に出られる環境で手順を実行する。
+      `git clone` は別レーンなので通る（実証済み）。**REST だけが閉じている。**
+      なお `mcp__github__*` は通るが射影なので fixture にはできない
+      （上の「罠」を参照）。
+      以下は許可前の記録:
+      **社長が `add_repo access:"push"` を許可した（「全てOK」）。** 製品側に書き込みを実装するわけではない
       （厳守事項 3・v0.1 read-only は維持、`test_read_only.py` が固定）。
       session が**製品の読み取り経路を本物の API に当てる**ためだけの許可。
       許可しても**プロキシの `/repos/*` 遮断が外れるとは限らない**ので、
