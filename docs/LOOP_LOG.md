@@ -973,3 +973,4 @@
   ——動かせる作業が朝まで無いため間隔を広げる。
 2026-08-19 18:57 UTC ループD started
 2026-08-19 18:59 UTC ループD no-op キューが空。runner を 1 回だけ叩いて 0/60（Spent 0, exit 2）。待ってはいない——開いていれば完了できるので 1 回は測る価値があり、閉じていれば 0 リクエストで返る。`SIDRA_GITHUB_TOKEN` 未設定のまま。main 緑（1035 passed / recall PASSED / flag 10.4%）。
+- 2026-08-19 19:07 UTC ループB started
