@@ -391,7 +391,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       `/health` は従来どおり件数もリポジトリ名も返さない（未認証のため）。
       `test_no_write_routes_exist` の経路一覧は意図的な厳密一致なので、
       read-only 経路の追加として明示的に更新した。
-      (9449fbc, index_visible 0→1)
+      (1b98006, index_visible 0→1)
 - [~] 作業中 2026-08-19 11:31 UTC ループB → 動かす数字: `ask_without_json` 0→1
       **`sidra ask "質問"` の CLI。**curl で JSON を組み立てないと質問
       できないのは、日常的に使う道具として障害が大きすぎる。

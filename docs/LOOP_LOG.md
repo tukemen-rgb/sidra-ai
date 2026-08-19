@@ -149,7 +149,7 @@
 
   検証: 833 passed / verify_gate_recall PASSED / check_gate_regression 10.0%（rebase 後に再測定）
 
-2026-08-19 11:30 UTC ループA done GET /v1/index（index_visible 0→1、343c725）
+2026-08-19 11:30 UTC ループA done GET /v1/index（index_visible 0→1、1b98006）
   804 passed / verify_gate_recall PASSED / check_gate_regression 10.0%（上限 13%）。
   product_metrics: 0 のままの数字 5→4。
   A 節先頭の「release が早く失効する」は本文が要検討（差分取り込みの不変条件に
