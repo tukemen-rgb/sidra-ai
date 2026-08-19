@@ -512,3 +512,20 @@
   で作り直した。割り当ては前回と同じ:
     A (:02 :22 :42)  B (:07 :26 :47)  C (:14 :32 :50)  D (:17 :38 :57)
   次の発火は 16:07 のループB。
+2026-08-19 16:05 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。0 のままの outcome は 0 件なので
+  選び方は上から順になるが、E / F 節を除く `- [ ]` は D-484 の 1 件だけ。
+  D-484 は要る物が 1 つに絞れている: **社長が `SIDRA_GITHUB_TOKEN` を置くこと。**
+  今回確認したのは「置かれたか」だけ（値は出力していない）:
+  SIDRA_GITHUB_TOKEN は unset、GITHUB_TOKEN / GH_TOKEN は長さ 14 のままで
+  14:51 にループC が 401 を実証した sentinel と同一。状況は変わっていない。
+  匿名クォータの復帰待ちも add_repo の再試行も、項目の指示どおり試していない。
+  検証スクリプトは既に書けているので、作業を先回りで作ることもしない。
+  main の全ゲートを実測（ループD の埋め込みが入った後の基準線）:
+  987 passed / verify_gate_recall PASSED / check_gate_regression 10.5%（上限 13%）/
+  check_answerable_regression は 4 本を fetch し直して exit 0
+  （answered 7/18・直接語 7/11・言い換え 0/7・識別力 +27.8pt・MRR 0.307）。
+  注意: product_metrics の `documents this repo cannot index` が 10.5%→8.8%
+  と出るが、これは分母が 455→520 に増えたため。ゲートは何も良くなっていない
+  （check_gate_regression 自身の母集団では 10.5% で不変）。完了条件の
+  「他のループがきれいな文書を分母に足しただけ」と同じ現象なので進捗にしない。
