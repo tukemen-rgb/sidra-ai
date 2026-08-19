@@ -229,3 +229,11 @@
   これで直接語の外し 4 問のうち 3 問が rank 6/11/12 と惜しいことが判明し、
   言い換え（語彙の問題）と直接語（順位の問題）が別物だと分かった。C 節に項目追加。
   877 passed / verify_gate_recall PASSED。回答可能率 44.4% は不変（測定のみ）。
+2026-08-19 12:02 UTC ループD failed 実 GitHub API 取り込みの検証 — 権限で到達不能
+  add_repo(access:"push") が権限分類器に拒否された。迂回はしていない。
+  旧記述「プロキシが 403」は不正確だったので BACKLOG を書き直した:
+  rate_limit は 200 で届く。403 はリポジトリ単位の認可で、attach 済みの
+  sidra-ai でも API だけ 403。壁は CA でも経路でもなく認可。
+  mcp__github__* の出力は射影（author が profile_url）なので fixture に
+  使うと MCP の形を検査して「実データで通った」と誤認する。使わなかった。
+  コード変更なし。894 passed / verify_gate_recall PASSED。
