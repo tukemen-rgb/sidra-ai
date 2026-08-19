@@ -43,6 +43,30 @@ python scripts/measure_outcomes.py \
 識別力 +27.8pt は「この測定には中身がある」と言える水準（0 に近ければ何も
 測っていない）。
 
+### 下限ができた（2026-08-19 ループB）
+
+この表の数字は**下がっても何も止めなかった**。誤検知率が
+`check_gate_regression.py` を持つ前と同じ状態だったので、同じものを作った。
+
+```
+python scripts/check_answerable_regression.py \
+  tukemen-rgb/sidra-ai=. tukemen-rgb/site=<path> \
+  tukemen-rgb/creater-yard=<path> tukemen-rgb/Fg=<path> \
+  tukemen-rgb/marketing=<path>
+```
+
+下限は 4 本（回答可能 7 / 直接語 6 / 言い換え 1 / 識別力 +15.0pt）。
+混ぜた 1 本にしないのは、直接語と言い換えは壊れ方が違うので片方の改善が
+もう片方の崩壊を隠すから。識別力にも下限があるのは、**鈍くなることで
+満たせる下限は下限ではない**から。部分 checkout では数字を出さずに拒否する。
+
+**まだ CI では走っていない。**4 本の clone が要り、CI の job は
+`Same-SHA offline verification` と名乗っているため（E 節で要判断）。
+それまでは retrieval / chunker / tokenizer / security gate を触った回が
+手で走らせること。**とくにゲートを締めた回**: 索引から文書が消えれば
+回答可能率は落ちる。安全側の変更が製品側で何を失うかは、この 2 つを
+両方走らせて初めて見える。
+
 ### 測れた経緯（前提が 1 つ間違っていた）
 
 このファイルは「この開発環境には sidra-ai しか無いので回答側は測れない」と

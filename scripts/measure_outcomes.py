@@ -383,6 +383,40 @@ def _print_diagnosis(retriever: BM25Retriever, answerable: dict) -> None:
         print(f"  {'':26s} overlap {len(detail['shared'])}/{detail['query_terms']} 語: {shared}")
 
 
+
+def parse_targets(
+    specs: list[str],
+) -> tuple[list[tuple[str, Path]], list[str] | None]:
+    """Split ``repo=path`` arguments into what is present and what is not.
+
+    Returns ``(targets, missing)``. ``missing`` is ``None`` when the arguments
+    themselves are unusable - a malformed spec, or nothing checked out at all -
+    which callers report as a usage error rather than as a measurement.
+    A repository named but absent from disk is a different case: it is
+    returned in ``missing`` so the caller decides whether a partial corpus is
+    acceptable for what it is measuring.
+    """
+
+    targets: list[tuple[str, Path]] = []
+    missing: list[str] = []
+    for spec in specs:
+        if "=" not in spec:
+            print(f"bad target {spec!r}; expected repo=path", file=sys.stderr)
+            return [], None
+        repository, raw_path = spec.split("=", 1)
+        path = Path(raw_path)
+        if not path.is_dir():
+            missing.append(repository)
+            continue
+        targets.append((repository, path))
+
+    if not targets:
+        print("no repository was checked out; nothing measured", file=sys.stderr)
+        return [], None
+
+    return targets, missing
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("targets", nargs="+", metavar="repo=path")
@@ -394,21 +428,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    targets: list[tuple[str, Path]] = []
-    missing: list[str] = []
-    for spec in args.targets:
-        if "=" not in spec:
-            print(f"bad target {spec!r}; expected repo=path", file=sys.stderr)
-            return 2
-        repository, raw_path = spec.split("=", 1)
-        path = Path(raw_path)
-        if not path.is_dir():
-            missing.append(repository)
-            continue
-        targets.append((repository, path))
-
-    if not targets:
-        print("no repository was checked out; nothing measured", file=sys.stderr)
+    targets, missing = parse_targets(args.targets)
+    if missing is None:
         return 2
 
     gate = SecurityGate(

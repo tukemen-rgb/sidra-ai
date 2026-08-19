@@ -237,3 +237,15 @@
   mcp__github__* の出力は射影（author が profile_url）なので fixture に
   使うと MCP の形を検査して「実データで通った」と誤認する。使わなかった。
   コード変更なし。894 passed / verify_gate_recall PASSED。
+2026-08-19 12:18 UTC ループB 記録 検索品質の基準値（--compare は NO MOVEMENT / exit 1）
+  scripts/check_answerable_regression.py。回答可能率は OUTCOMES.md に書いてあるだけで
+  下がっても何も止めなかった = 誤検知率が CI ゲートを持つ前と同じ状態だった。
+  下限 4 本: 回答可能 7 / 直接語 6 / 言い換え 1（緩め不可）/ 識別力 +15.0pt。
+  混ぜた 1 本にしないのは片方の改善が他方の崩壊を隠すから。識別力にも下限を置いたのは
+  「鈍くなることで満たせる下限は下限ではない」から。部分 checkout は exit 2 で拒否。
+  項目の前半（実 5 本の代表質問セット）は着手時点で既に済んでおり
+  retrieval_cases_real は 0 ではなく 18 だった。やったのは後半の基準値化だけ。
+  CI 未投入 = まだ習慣でありゲートではない。4 本の clone が要り、CI job は
+  Same-SHA offline verification と名乗るので厳守事項 7 により E 節へ要判断で回した。
+  907 passed / verify_gate_recall PASSED。
+  **次回への申し送り: 記録が 2 回続いた。次は 0 のままの数字を持つ項目を取ること。**
