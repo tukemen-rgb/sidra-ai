@@ -108,9 +108,11 @@ MIN_DIRECT = 6
 #:
 #: A floor of zero guards nothing, and pretending otherwise is worse than
 #: saying so - which is why a run that measures zero says so on every line of
-#: output rather than passing quietly. This is a recorded failure waiting on
-#: the local-embedding decision in the backlog's judgement section, not a
-#: target that has been met. Raise it the moment a run scores higher: an
+#: output rather than passing quietly. This is a recorded failure, not a
+#: target that has been met. The local-embedding work meant to move it was
+#: approved on 2026-08-19 and is being built in parts; its skeleton is
+#: deliberately identical to BM25, so this number cannot move until a real
+#: backend is wired in. Raise it the moment a run scores higher: an
 #: improvement nobody ratchets is an improvement that regresses unnoticed.
 MIN_PARAPHRASE = 0
 
@@ -174,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  direct       : {direct['answered']}/{direct['scored']}  (floor {MIN_DIRECT})")
     paraphrase_note = ""
     if paraphrase["answered"] == 0:
-        paraphrase_note = "  <- 既知のゼロ。守っていない（E 節の判断待ち）"
+        paraphrase_note = "  <- 既知のゼロ。守っていない（埋め込み実装中・C 節）"
     elif paraphrase["answered"] > MIN_PARAPHRASE:
         paraphrase_note = f"  <- 下限 {MIN_PARAPHRASE} を上回った。この下限を上げること"
     print(
