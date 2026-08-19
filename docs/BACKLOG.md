@@ -305,7 +305,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
-- [ ] **新しい外し 4 問を診断して、正当な手があれば入れる。**
+- [~] 作業中 2026-08-19 16:53 UTC ループB **新しい外し 4 問を診断して、正当な手があれば入れる。**
       26 問体制での実測 (6386388): cy-mvp-scope / cy-payments /
       mkt-what-is-this-repo（直接語）と para-cy-ai-disclosure（言い換え）が
       top-5 に入らない。まず `measure_outcomes.py --diagnose` で正解チャンクの
