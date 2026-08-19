@@ -50,6 +50,30 @@ class ApiAuditEvent:
         return payload
 
 
+@dataclass(frozen=True)
+class AuditDurability:
+    """How the audit sink has been doing, in counts.
+
+    Audit writes are best-effort on purpose: a local disk fault must not turn
+    a safe answer into an HTTP error. The cost of that choice is that a failed
+    write is indistinguishable from an absent one, so an operator reading the
+    log cannot tell "nothing happened" from "the record was lost". These
+    counters are the missing half of that trade (SECURITY.md gap 2).
+
+    ``last_failure_kind`` is an exception class name and nothing else. The
+    message would carry the audit path, and this summary crosses an API
+    boundary; a class name says whether the disk is full or the permissions
+    are wrong, which is what an operator needs to act.
+    """
+
+    recorded: int = 0
+    failed: int = 0
+    last_failure_kind: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
 class ApiAuditLog:
     """Append metadata-only events to a mode-0600 JSONL file.
 
@@ -70,6 +94,9 @@ class ApiAuditLog:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self._lock = threading.Lock()
+        self._recorded = 0
+        self._failed = 0
+        self._last_failure_kind = ""
 
     @staticmethod
     def _repositories(values: Iterable[str]) -> tuple[str, ...]:
@@ -237,6 +264,21 @@ class ApiAuditLog:
                 raise OSError("audit log write made no progress")
             remaining = remaining[written:]
 
+    def durability(self) -> AuditDurability:
+        """Snapshot of write outcomes since this process started.
+
+        Process-local by design: the counters answer "is the sink working
+        now", and a persisted total would have to survive the very failure it
+        is reporting on.
+        """
+
+        with self._lock:
+            return AuditDurability(
+                recorded=self._recorded,
+                failed=self._failed,
+                last_failure_kind=self._last_failure_kind,
+            )
+
     def record(self, event: ApiAuditEvent) -> None:
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -246,12 +288,25 @@ class ApiAuditLog:
             "utf-8"
         )
 
+        try:
+            with self._lock:
+                fd = self._open_regular_append(self.path)
+                try:
+                    self._write_all(fd, line)
+                finally:
+                    os.close(fd)
+        except OSError as exc:
+            # Counted here rather than at the call site: every caller reaches
+            # the disk through this method, so a future one cannot forget to
+            # report its own losses. The exception still propagates - whether
+            # a lost record should fail the request stays the caller's call.
+            with self._lock:
+                self._failed += 1
+                self._last_failure_kind = type(exc).__name__
+            raise
+
         with self._lock:
-            fd = self._open_regular_append(self.path)
-            try:
-                self._write_all(fd, line)
-            finally:
-                os.close(fd)
+            self._recorded += 1
 
     @staticmethod
     def _model_was_attempted(response: dict[str, object]) -> bool:

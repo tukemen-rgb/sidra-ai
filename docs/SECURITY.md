@@ -147,10 +147,22 @@ runtime boundary:
 
 1. **Rate limiting is in-process.** Correct for one node; a multi-node
    deployment needs a shared counter.
-2. **API audit durability is best-effort.** Audit events are local and
-   metadata-only, but an audit-file `OSError` deliberately does not convert an
-   otherwise safe API response into a failure. Stronger durability/alerting is
-   a separate operational control.
+2. **API audit durability is best-effort, but no longer silent.** Audit events
+   are local and metadata-only, and an audit-file `OSError` still deliberately
+   does not convert an otherwise safe API response into a failure. What has
+   changed is that a dropped record is now countable: `ApiAuditLog.durability()`
+   tracks writes recorded, writes failed, and the class name of the most recent
+   failure, and `GET /v1/index` reports them. Before this, a lost record and an
+   operation that never happened read identically in the log, and the reading
+   an attacker prefers was the free one.
+   Two limits remain. The counters are process-local — a total that had to
+   survive the failure it reports on would need the same durable sink that is
+   failing — so a restart resets them and a crash loses them. And they are
+   observable, not alerting: something still has to look. Reporting sits on the
+   authenticated `/v1/index` rather than the open `/health`, because "the audit
+   log is currently failing" is what an attacker seeking unlogged activity
+   would most like to learn without credentials. Stronger durability and
+   alerting remain separate operational controls.
 3. **Injection detection is heuristic.** It will miss novel phrasings. This
    is why the capability-level guarantee, not the detector, is the defense.
 4. **High-entropy detection false-positives** on hashes and encoded assets.

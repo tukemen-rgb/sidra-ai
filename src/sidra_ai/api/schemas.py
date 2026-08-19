@@ -185,6 +185,23 @@ class QuarantineSummary(BaseModel):
     by_finding_category: dict[str, int] = Field(default_factory=dict)
 
 
+class AuditDurabilitySummary(BaseModel):
+    """Whether the audit sink is actually keeping what it is handed.
+
+    Audit writes are best-effort so a disk fault cannot turn a safe answer
+    into an HTTP error. Without these counts that trade is invisible: a lost
+    record looks exactly like an operation that never happened, which is the
+    reading an attacker would prefer an operator to make.
+
+    ``last_failure_kind`` carries an exception class name only. The message
+    would name the audit path.
+    """
+
+    recorded: int = 0
+    failed: int = 0
+    last_failure_kind: str = ""
+
+
 class IndexResponse(BaseModel):
     """What is in the index, so an operator can tell a thin answer from a gap.
 
@@ -199,6 +216,7 @@ class IndexResponse(BaseModel):
     source_types: dict[str, int] = Field(default_factory=dict)
     repositories: list[RepositoryIndexSummary] = Field(default_factory=list)
     quarantine: QuarantineSummary = Field(default_factory=QuarantineSummary)
+    audit: AuditDurabilitySummary = Field(default_factory=AuditDurabilitySummary)
 
 
 class HealthResponse(BaseModel):

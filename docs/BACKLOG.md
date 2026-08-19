@@ -470,8 +470,27 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       検索の当たり具合は `evals/retrieval_quality.py` の合成ケースだけ。
       実 5 リポジトリに対する代表質問セットを作り、上位 k に正解が入る率を
       測って基準値にする。誤検知率と同じ扱いにする。
-- [~] 作業中 2026-08-19 11:42 UTC ループC → 動かす数字: `audit_failures_visible` 0→1
+- [x] → 動かす数字: `audit_failures_visible` **0→1** (COMMIT_HASH)
       **監査ログの耐久性が best-effort**（SECURITY ギャップ 2）。
       書き込み失敗が API の成功応答を失敗に変えない設計は妥当だが、
       **失敗したこと自体が誰にも見えない**。失敗回数を `/health` か
       `/v1/index` に出す。
+      → 完了。`ApiAuditLog.durability()` が recorded / failed /
+      last_failure_kind を数え、`GET /v1/index` が返す。
+      **出す先は `/v1/index` にした。**項目は `/health` でも可としていたが、
+      `/health` は未認証で、「監査ログが今落ちている」は**記録に残らない
+      活動をしたい相手が資格情報なしで最も知りたいこと**。認証のある方に置く。
+      数えるのは `record()` の中（呼び出し側ではなく）。全経路がここを通るので、
+      将来の呼び出し側が自分の取りこぼしを報告し忘れる余地が無い。
+      例外は従来どおり送出し、リクエストを失敗させるかは呼び出し側の判断のまま
+      （app 側は今も握り潰す。ディスク障害で安全な回答を 500 にしない設計は正しい）。
+      `last_failure_kind` は例外クラス名のみ。メッセージは監査ログのパスを
+      含むので API 境界を越えさせない。
+      残る限界 2 つを SECURITY.md ギャップ 2 に記録:
+      カウンタはプロセスローカル（再起動で消える。落ちている sink を跨いで
+      残す totals には、その落ちている sink が要る）、および
+      **観測可能になっただけで通知はしない**（誰かが見に行く必要がある）。
+      併せて `scripts/product_metrics.py` の probe を修正した。probe は
+      `/v1/index` より古く `HealthResponse` しか見ていなかったので、
+      認証側に出すと「出していない」と採点され、**数字を動かすために未認証の
+      `/health` へ出す圧力**になっていた。両方を見るようにした。

@@ -271,6 +271,15 @@ def create_app(
             repositories=None,
             response=result,
         )
+        # Read after recording, so a write that just failed is already
+        # counted. An operator checking whether the sink is healthy should
+        # not have to make a second call to see the answer.
+        #
+        # This sits here rather than on `/health` although the backlog item
+        # allowed either: `/health` is unauthenticated, and "the audit log is
+        # currently failing" is precisely what someone who wants unlogged
+        # activity would like to learn without credentials.
+        result["audit"] = audit_log.durability().to_dict()
         return result
 
     @app.post("/v1/retrieve", response_model=RetrieveResponse, dependencies=guarded)

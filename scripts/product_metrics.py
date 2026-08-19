@@ -280,10 +280,22 @@ def measure_gate(c: Collector) -> None:
 
 
 def measure_observability(c: Collector) -> None:
-    from sidra_ai.api.schemas import HealthResponse
+    """Whether a lost audit record is visible anywhere an operator looks.
+
+    Both responses are inspected, not just ``/health``. This probe predates
+    ``/v1/index``, so ``/health`` was the only place a durability signal could
+    have appeared; reading only ``/health`` now would score one on the
+    authenticated endpoint as absent, and push the next person to publish it
+    on the unauthenticated one to make the number move.
+    """
+
+    from sidra_ai.api.schemas import HealthResponse, IndexResponse
 
     exposed = sorted(
-        name for name in HealthResponse.model_fields if "audit" in name
+        f"{endpoint}:{name}"
+        for endpoint, model in (("/health", HealthResponse), ("/v1/index", IndexResponse))
+        for name in model.model_fields
+        if "audit" in name
     )
     c.add("audit_failures_visible", "audit write failures an operator can see",
           len(exposed),
