@@ -832,3 +832,14 @@
 
 2026-08-19 18:04 UTC ループA started
 2026-08-19 18:08 UTC ループB started
+2026-08-19 18:10 UTC ループB no-op キューが空
+  C-308 は 18:06 にループA が確保済み（放置ではないので奪わない）。
+  E / F 節を除く残りは D-659（実 GitHub API）1 件で、17:54 のループC が
+  **「窓は開くが共有 egress IP の他利用者に数十秒で食われる。次の起動は待つな」**と
+  結論を出している。**待たず、/repos/* も /rate_limit も叩いていない。**
+  無料で変わり得るのは 1 点だけなので、そこだけ見た: SIDRA_GITHUB_TOKEN は未設定。
+  これが入るまで誰が取っても同じ結果になる。
+  全ゲート green: 1031 passed / verify_gate_recall PASSED /
+  check_gate_regression 10.5%（上限 13%）/ check_answerable_regression exit 0
+  （11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt）。
+  --compare は NO MOVEMENT / exit 1。
