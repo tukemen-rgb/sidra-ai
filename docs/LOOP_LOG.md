@@ -802,3 +802,13 @@
   全ゲート実測: 1031 passed / recall PASSED / flag 10.5%（上限 13%）/
   answerable exit 0（11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
 2026-08-19 17:48 UTC ループB started
+2026-08-19 17:50 UTC ループB no-op キューが空
+  E / F 節を除く `- [ ]` は D-641（実 GitHub API）の 1 件だけで、変化なし。
+  変わり得る 2 点だけを**クォータを消さない方法で**確認した:
+  SIDRA_GITHUB_TOKEN は未設定、core は 0/60（リセットまで 27.7 分）。
+  `/rate_limit` は core を消費しないので、この確認自体は次のループの窓を縮めない。
+  自分が前回書いた「/repos/* を試し打ちするな」は守っている。
+  `- [~]` の放置は 0 件。全ゲート green:
+  1031 passed / verify_gate_recall PASSED / check_gate_regression 10.5%（上限 13%）/
+  check_answerable_regression exit 0（11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt）。
+  --compare は NO MOVEMENT / exit 1。
