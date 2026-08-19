@@ -105,8 +105,23 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       不変条件（`inference_skipped` の判定）に触れるので**要検討**。
       `tests/test_security_self_source_policy.py::test_release_expires_on_the_next_head_commit`
       が現状を固定しているので、直したらそのテストを消して SECURITY.md を更新する。
-- [~] 作業中 2026-08-19 11:05 UTC ループA 巨大 JSON（`site` の 2 件）がサイズ上限で BLOCK。データ配列であり文書では
-      ないので妥当だが、検索対象にしたいなら別経路が要る。
+- [x] **巨大 JSON（`site` の 2 件）がサイズ上限で BLOCK。**データ配列であり
+      文書ではないので妥当だが、検索対象にしたいなら別経路が要る。
+      → 方針決定: **別経路は作らない。**`docs/SECURITY.md` ギャップ 12 に
+      決定と理由を記録し、`tests/test_oversize_data_policy.py` で固定した。
+      理由 1: **分割は上限を守らずに単位をすり替える。**超過分をサブ上限の
+      断片に切れば 1 入力が引き起こす下流作業は依然として無限で、ガードは
+      「在るように見えるだけ」になる。上限は境界であって目安ではない。
+      理由 2: **代替経路は既にあり、形も正しい。**`SIDRA_MAX_INPUT_BYTES` を
+      上げればよい。起動時に検証され `redacted_dict()` に出る運用者の明示的
+      判断で、特定のファイル種別だけを免除するコードと違い全入力に等しく効く。
+      理由 3: **レコード配列の索引化は検索を悪くする。**`_diversify_results`
+      は 1 文書が上位を占めると回答が劣化するから在る。数千件の似た
+      レコードを入れるのはその劣化を意図的に起こすのと同じ。
+      取り込みレポートはリポジトリ名・件数・`oversized_input:byte_budget`
+      を返すので、運用者はこの設定判断を実際に下せる。
+      `sidra-quarantine release` で迂回できないことも固定した
+      （BLOCK は方針上の拒否であり、承認の対象ではない）。
 
 ### B. 運用に必要な穴
 
@@ -218,6 +233,24 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       になれば差分取得が実際に効いている。
 
 ### E. 判断が要る（実装せず、社長の判断を待つ）
+
+- [ ] **要判断: BLOCK の監査記録がリポジトリを残さない。**上の調査で判明。
+      取り込みレポートは「site で 2 件、byte_budget」と言えるが、これは
+      `POST /v1/github/analyze` の応答であって永続しない。永続する側
+      （quarantine 監査ログ）は BLOCK について `source` / `repository` を
+      落とし、長さだけを残す。BLOCK は secret/PII 検査より前に起き得るため
+      という理由（ギャップ 6）は**許可リスト拒否の BLOCK では正しい**が、
+      サイズ超過の BLOCK では `repository` は既に許可リストを通過している。
+      QUARANTINE が同じ理由で `source` / `repository` を残しているのと
+      同じ条件が揃っている。
+      **それでも実装しない。**現在の挙動は
+      `tests/test_quarantine_provenance_privacy.py` と
+      `src/sidra_ai/evals/quarantine_provenance_privacy.py` の両方が意図的に
+      固定しており、privacy の保護範囲を狭める変更である。誰かが意図して
+      書いた保護を、ループが黙って反転させる類の変更ではない。
+      直すなら「UNPERMITTED_SOURCE の finding を持たない BLOCK のみ
+      source/repository を残す」で、テストと eval の該当アサーションを
+      同時に更新する。
 
 
 ### F. 積み残し（着手前に価値を再確認すること）

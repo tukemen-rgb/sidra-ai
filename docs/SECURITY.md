@@ -222,6 +222,40 @@ runtime boundary:
    `scripts/measure_gate_baseline.py`. Nothing enforces it: a change that
    doubles it passes CI. The check is a habit, not a gate.
 
+12. **Oversized data files are refused, and this is accepted rather than
+   worked around.** Two JSON record arrays in `tukemen-rgb/site` exceed
+   `max_input_bytes` (512 KiB by default) and are BLOCKed, so SIDRA cannot
+   retrieve them.
+
+   *Decided:* no separate ingestion path is built for them. Splitting an
+   oversized payload into sub-budget pieces would not respect the budget, it
+   would change the unit the budget counts - one input could still drive
+   unbounded downstream work, and the guard would only look like it was
+   there. Indexing record arrays also works against retrieval rather than
+   for it: `_diversify_results` exists because a single document dominating
+   the top-k degrades answers, and a few thousand near-identical records is
+   that failure deliberately. `tests/test_oversize_data_policy.py` pins the
+   refusal, including that `sidra-quarantine release` does not open a
+   review-shaped way around it - a BLOCK is a policy refusal, not a finding
+   to be accepted.
+
+   *What to do instead.* Raise `SIDRA_MAX_INPUT_BYTES`. That is the supported
+   route and it has the right shape: an explicit operator decision, validated
+   at startup, reported by `redacted_dict()`, and applied to every input
+   rather than to a favoured class of file. The ingestion report names the
+   repository, counts the rejection and carries the
+   `oversized_input:byte_budget` label, so the decision is one an operator
+   can actually make.
+
+   *The limit of that attribution.* The report is the response to one
+   `POST /v1/github/analyze` call and is not persisted. The durable record -
+   the quarantine audit log - drops `source` and `repository` for every
+   BLOCK, because a BLOCK can happen before the secret and PII detectors run
+   (gap 6). So after the fact, the log shows that something was refused for
+   size, with its byte count, but not where it came from. Narrowing that
+   deliberately-tested privacy property is a judgement call and is left as a
+   backlog item rather than taken here.
+
 ## Verifying these claims
 
 Do not take the table above on trust. Two commands check the parts that can
