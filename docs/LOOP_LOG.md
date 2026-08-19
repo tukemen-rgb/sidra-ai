@@ -857,3 +857,5 @@
   outcome ではなく、26 問・対照 1 件差は中核パラメータを動かす根拠として弱い。
   採れば「測りやすい数字を動かして進捗と呼ぶ」そのものになる。
   1031 passed / verify_gate_recall PASSED / check_answerable_regression exit 0。
+
+2026-08-19 18:16 UTC ループC started
