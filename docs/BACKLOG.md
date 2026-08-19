@@ -318,7 +318,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       仕組みを入れる。差分が無ければモデルを呼ばない性質は既にあるので、
       頻度を上げてもコストは増えない。**設定で無効化できること**、
       停止中でも API は動くこと。
-- [ ] → 動かす数字: `index_visible` 0→1
+- [~] 作業中 2026-08-19 11:23 UTC ループA → 動かす数字: `index_visible` 0→1
       **何が索引に入っているか外から見えない。**`GET /v1/index` を作る。
       リポジトリ別・source_type 別の件数、最終取り込み時刻、隔離件数。
       **本文は返さない**（引用は `/v1/retrieve` の仕事）。
