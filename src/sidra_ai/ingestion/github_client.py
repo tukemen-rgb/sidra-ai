@@ -296,18 +296,62 @@ class GitHubReadOnlyClient:
                 self._etag_cache.pop(url, None)
                 raise GitHubAPIError(f"not found: {path}", status=404)
             if response.status in (403, 429):
-                # Secondary rate limit. Back off rather than hammering.
+                if not self._is_rate_limited(response):
+                    # GitHub answers 403 both for "slow down" and for "you may
+                    # not read this". Retrying the second one cannot succeed:
+                    # it burns the retry budget, delays the report by the full
+                    # backoff, and hands the operator a rate-limit story for
+                    # what is actually an authorization problem.
+                    #
+                    # Throttling always announces itself in headers - an
+                    # exhausted quota sets `X-RateLimit-Remaining: 0`, a
+                    # secondary limit sets `Retry-After`. A refusal sets
+                    # neither, and an intermediary that blocks the request
+                    # before GitHub sees it sets neither either.
+                    raise GitHubAPIError(
+                        f"GitHub refused {path}: not authorized (no rate-limit "
+                        "headers on the response)",
+                        status=response.status,
+                    )
+                # Rate limited for real. Back off rather than hammering.
                 if attempt < retries:
                     self._sleep(2**attempt)
                     continue
                 raise GitHubAPIError(
-                    f"GitHub rate limited or forbidden for {path}", status=response.status
+                    f"GitHub rate limited for {path}", status=response.status
                 )
             raise GitHubAPIError(
                 f"unexpected status {response.status} for {path}", status=response.status
             )
 
         raise GitHubAPIError(f"request to {path} failed: {last_error}")
+
+    @classmethod
+    def _is_rate_limited(cls, response: Response) -> bool:
+        """Tell a throttling 403 from a refusal, using only response headers.
+
+        GitHub signals throttling two ways: a primary limit exhausts the quota
+        (`X-RateLimit-Remaining: 0`), and a secondary limit asks for a pause
+        (`Retry-After`). A permission failure carries neither. 429 is always
+        throttling, whatever headers accompany it.
+
+        Unparseable or absent headers read as "not throttled" - failing fast on
+        an ambiguous refusal is cheaper than retrying a request that can never
+        succeed, and the caller still sees the status code.
+        """
+
+        if response.status == 429:
+            return True
+        if cls._header(response.headers, "retry-after"):
+            return True
+        remaining = cls._header(response.headers, "x-ratelimit-remaining")
+        if not remaining:
+            return False
+        try:
+            return int(remaining) <= 0
+        except ValueError:
+            return False
+
 
     def _get_json(self, path: str, params: Mapping[str, Any] | None = None) -> Any:
         return self._request(path, params).body
