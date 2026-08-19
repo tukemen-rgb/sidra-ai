@@ -576,3 +576,17 @@
   古かったのは test の世界観（計器は 1 つ）で、あちらはそこを直した。
   常に空欄の重複キーを足す私の案は劣るので破棄した。自分の未 push 分のみ。
   確認: 988 passed（あちらの修復後）。
+
+2026-08-19 16:25 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。0 のままの outcome は 0 件なので
+  選び方は上から順。E / F 節を除く `- [ ]` は D-499 の 1 件だけで、
+  C-292（言い換えの原因究明）は 16:13 にループB が確保済み（9 分前・奪わない）。
+  D-499 は要る物が 1 つに絞れている: 社長が `SIDRA_GITHUB_TOKEN` を置くこと。
+  確認したのは「置かれたか」だけ（値は出力していない）: 依然 unset で、
+  GITHUB_TOKEN / GH_TOKEN は長さ 14 のまま = 14:51 に 401 が実証された sentinel。
+  匿名クォータの復帰待ちも add_repo の再試行も、項目の指示どおり試していない。
+  8e86f35 が赤い main を直した直後なので全ゲートを実測して確認:
+  988 passed / verify_gate_recall PASSED / check_gate_regression 10.5%（上限 13%）/
+  check_answerable_regression は 4 本を fetch し直して exit 0
+  （answered 7/18・直接語 7/11・言い換え 0/7・識別力 +27.8pt・MRR 0.307）。
+  main は green に戻っている。
