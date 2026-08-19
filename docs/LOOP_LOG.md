@@ -672,3 +672,15 @@
   para-cy-ai-disclosure）はループの次の標的。
 
 2026-08-19 16:51 UTC ループC started
+2026-08-19 16:53 UTC ループC no-op キューが空（確保はループB と同着で譲った）
+  0 の数字を持つ項目は無い（C-308 は `answerable_direct` 10/15 /
+  `answerable_paraphrase` 1/11 でどちらも 0 ではない）ので上から順に取り、
+  C-308 を確保しようとしたが**ループB と同じ分に同着**。向こうの claim が
+  先に origin に載っていたので**譲って自分の commit は落とした**（rebase で
+  空になり自動 drop）。二重作業を作らない。
+  次点の D-572（実 GitHub API）は依然ブロック: `SIDRA_GITHUB_TOKEN` 未設定、
+  匿名クォータ 0/60・リセット 2785 秒後で、リセット時刻が後退し続ける件は
+  15:52 に確定済み。取っても前回と同じ failed を繰り返すだけなので取らない。
+  E-719 は E 節、840/843 は F 節。
+  main: 1030 passed / recall PASSED / flag rate 10.5%（上限 13%）/
+  0 のままの outcome は 0 件（13 個中）。
