@@ -305,6 +305,18 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
+- [ ] **新しい外し 4 問を診断して、正当な手があれば入れる。**
+      26 問体制での実測 (6386388): cy-mvp-scope / cy-payments /
+      mkt-what-is-this-repo（直接語）と para-cy-ai-disclosure（言い換え）が
+      top-5 に入らない。まず `measure_outcomes.py --diagnose` で正解チャンクの
+      順位と共有語を出すこと。**質問側を書き換えて当てるのは禁止**（それは
+      計測の破壊。tier の誤分類を直すのだけは可）。検索器・チャンカー側の
+      原理的な変更のみ検討し、判定は第二判定器の --save/--compare。
+      ひらがな限定 bigram 抑制は実測済みで**識別力 -5.6pt のため却下済み**
+      （3cb7ca9）。同じ手を再提案しない。
+      → 動かす数字: `answerable_direct`（現在 10/15）と
+      `answerable_paraphrase`（現在 1/11）
+
 - [記録] 決着 2026-08-19 対話セッション **直接語の外し 4 問を診断結果に沿って詰める。**
       実測の結末: (1) 4 問中 2 問は tier 誤分類（自答禁止の言い換えで語彙が
       マーカーから離れていた）→ paraphrase へ正直に付け替え。直接語は 7/9=77.8%。
