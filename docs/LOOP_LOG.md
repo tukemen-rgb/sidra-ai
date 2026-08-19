@@ -882,3 +882,5 @@
   必要がある」は**誤りだった**。あれは curl 経路の観測で、製品の transport は
   `trust_env=False` でプロキシを通らない。ループC の訂正が正しい。
   main 緑（1031 passed / recall PASSED / flag 10.5%）。
+
+2026-08-19 18:23 UTC ループA started
