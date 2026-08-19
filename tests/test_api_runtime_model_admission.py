@@ -13,6 +13,7 @@ from sidra_ai.api.service import SidraService
 from sidra_ai.config.settings import Settings
 from sidra_ai.models.base import ModelUnavailableError
 from sidra_ai.models.echo import EchoModelAdapter
+from sidra_ai.models.usage import MeteredAdapter
 from sidra_ai.models.hardware import HardwareProbeError
 
 
@@ -148,7 +149,12 @@ def test_sidra_service_uses_runtime_admission_when_model_not_injected(
     settings = _ollama_settings(tmp_path)
     service = SidraService(settings=settings)
 
-    assert service.model is adapter
+    # The admitted adapter is metered, not replaced. Asserting identity on
+    # service.model would break the moment anything wraps it; what matters is
+    # that the adapter admission chose is the one actually generating.
+    assert isinstance(service.model, MeteredAdapter)
+    assert service.model.inner is adapter
+    assert service.model.backend == adapter.backend
     assert service.model_admission is admission
     assert captured == {"settings": settings, "data_dir": tmp_path}
 
@@ -166,5 +172,6 @@ def test_explicit_model_injection_remains_test_only_escape_hatch(
         model=injected,
     )
 
-    assert service.model is injected
+    assert isinstance(service.model, MeteredAdapter)
+    assert service.model.inner is injected
     assert service.model_admission is None

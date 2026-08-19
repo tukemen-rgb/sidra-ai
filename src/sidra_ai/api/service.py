@@ -19,6 +19,7 @@ from sidra_ai.models.base import (
     LocalModelAdapter,
     ModelUnavailableError,
 )
+from sidra_ai.models.usage import MeteredAdapter, UsageLedger
 from sidra_ai.retrieval.search import BM25Retriever, SearchResult
 from sidra_ai.retrieval.store import DocumentStore
 from sidra_ai.security.data_envelope import build_data_context
@@ -53,6 +54,7 @@ class SidraService:
         output_guard: OutputGuard | None = None,
         client: GitHubReadOnlyClient | None = None,
         state_store: StateStore | None = None,
+        usage_ledger: UsageLedger | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         data_dir = Path(self.settings.data_dir)
@@ -72,6 +74,13 @@ class SidraService:
             # The real sidra-api entry point never supplies this override.
             self.model = model
             self.model_admission = None
+
+        # Meter whatever backend was selected. Wrapping rather than changing
+        # each adapter means a future backend is measured by construction,
+        # not by someone remembering to add the call.
+        self.usage = usage_ledger or UsageLedger(data_dir / "usage.jsonl")
+        self.model = MeteredAdapter(self.model, self.usage)
+
         self.state_store = state_store or StateStore(data_dir / "state.json")
         self._client = client
 
@@ -139,7 +148,7 @@ class SidraService:
                 "results": [],
                 "security": gate_result.to_dict(),
                 "model_invoked": False,
-                "external_api_cost_usd": 0.0,
+                "external_api_cost_usd": self.usage.totals()["external_api_cost_usd"],
             }
 
         results: list[SearchResult] = self.retriever.search(
@@ -155,7 +164,7 @@ class SidraService:
             ],
             "security": gate_result.to_dict(),
             "model_invoked": False,
-            "external_api_cost_usd": 0.0,
+            "external_api_cost_usd": self.usage.totals()["external_api_cost_usd"],
         }
 
     # ------------------------------------------------------------------
@@ -228,7 +237,7 @@ class SidraService:
             "name": generation.model,
             "input_tokens_estimate": generation.input_tokens_estimate,
             "output_tokens_estimate": generation.output_tokens_estimate,
-            "external_api_cost_usd": 0.0,
+            "external_api_cost_usd": self.usage.totals()["external_api_cost_usd"],
         }
         guarded_output = self.output_guard.scan(generation.text)
         if guarded_output.blocked:
