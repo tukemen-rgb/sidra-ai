@@ -105,3 +105,20 @@
   ingestion_automatic 0→1。0 のままの数字は 5→4。
   813 passed / verify_gate_recall PASSED / check_gate_regression 10.2%（上限 13%）。
   既定は無効、60 秒未満は拒否、定期実行はモデルへの経路を持たない。
+
+
+2026-08-19 11:27 UTC ループB moved なし / 測定の修復（完了条件の二重実装は取り下げ）
+  同じ指示（完了条件をコミットから外の数字へ）を A/C 側が先に実装していたので、
+  自分の第三の実装（docs/OUTCOMES.md + measure_outcomes.py 相当）は push せず破棄した。
+  product_metrics.py と measure_outcomes.py の 2 本で足りている。
+  代わりに c498f8d の measure_outcomes.py の欠陥を修正:
+  **答案ファイル src/sidra_ai/evals/outcome_questions.py が索引に入っていた。**
+  sidra-ai だけの checkout で走らせると Fg / site が 1 つも無いのに
+  18/18 rank 1・回答可能率 100.0%・MRR 1.000 と出る。根拠チャンクは
+  18 問すべて outcome_questions.py 自身だった（実測して確認）。
+  修正 3 点: 答案ファイルをコーパスから除外 / 根拠チャンクは質問の対象
+  リポジトリのものに限る / 採点 0 問のとき 0.0% ではなく「測定不能」と出す。
+  tests/test_outcome_corpus_isolation.py で固定（修正前は 4 件とも落ちる）。
+  OUTCOMES.md の基準値は回答側を取り下げ、到達率 90.3% のみ有効として残した。
+  正しい回答可能率は 5 リポジトリを checkout できる環境で再測定が要る（キュー 0 節）。
+  801 passed / recall PASSED / flag rate 10.0%。

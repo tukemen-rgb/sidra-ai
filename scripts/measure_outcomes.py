@@ -90,8 +90,21 @@ def head_sha(repo_root: Path) -> str:
     return "0" * 40
 
 
+#: The question set states every ``answer_marker`` verbatim, so indexing it
+#: hands the retriever the answer key. Measured against a checkout of this
+#: repository alone, every question scored rank 1 - and the evidence chunk was
+#: ``src/sidra_ai/evals/outcome_questions.py`` each time. The grounding check
+#: passed for the same reason: it found the marker in the file that declares
+#: it. A corpus that contains the answer key measures nothing, and it does so
+#: while printing 100%.
+EXCLUDED_FROM_CORPUS = ("src/sidra_ai/evals/outcome_questions.py",)
+
+
 def iter_files(repo_root: Path):
-    """Yield (relative_path, content) for readable text files."""
+    """Yield (relative_path, content) for readable text files.
+
+    The answer key is skipped: see ``EXCLUDED_FROM_CORPUS``.
+    """
 
     for path in sorted(repo_root.rglob("*")):
         if not path.is_file():
@@ -99,6 +112,8 @@ def iter_files(repo_root: Path):
         if any(part in SKIP_DIRS for part in path.parts):
             continue
         if path.suffix.lower() not in TEXT_SUFFIXES:
+            continue
+        if path.relative_to(repo_root).as_posix() in EXCLUDED_FROM_CORPUS:
             continue
         try:
             content = path.read_text(encoding="utf-8")
@@ -161,16 +176,25 @@ def ingest(
     return per_repo
 
 
-def marker_present_in_corpus(marker: str, targets: list[tuple[str, Path]]) -> bool:
+def marker_present_in_corpus(
+    marker: str, repository: str, targets: list[tuple[str, Path]]
+) -> bool:
     """Check the marker exists on disk, before retrieval is even involved.
 
     Guards against a question drifting into self-reference: if someone adds
     a document so a question passes, this still returns True, but if a
     question is written with no basis in the corpus at all it fails loudly
     instead of scoring zero forever and looking like a retrieval problem.
+
+    Only the question's own repository counts. Searching every target lets a
+    question about one repository be grounded by a copy of its marker
+    somewhere else - which is exactly how the answer key grounded all 18
+    questions while none of the repositories they name was checked out.
     """
 
-    for _repository, root in targets:
+    for candidate, root in targets:
+        if candidate != repository:
+            continue
         for _rel_path, content in iter_files(root):
             if marker in content:
                 return True
@@ -200,7 +224,9 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
     ungrounded: list[str] = []
 
     for question in OUTCOME_QUESTIONS:
-        if not marker_present_in_corpus(question.answer_marker, targets):
+        if not marker_present_in_corpus(
+            question.answer_marker, question.repository, targets
+        ):
             ungrounded.append(question.name)
             rows.append({
                 "name": question.name,
@@ -220,6 +246,12 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
             control_hits += 1
         rank = None
         for position, result in enumerate(results, start=1):
+            # The chunk has to come from the repository the question is about.
+            # Without that condition a copy of the marker anywhere in the
+            # corpus counts as the answer, which is how the answer key scored
+            # rank 1 on every question it also defined.
+            if result.chunk.provenance.repository != question.repository:
+                continue
             if question.answer_marker in result.chunk.content:
                 rank = position
                 break
@@ -337,19 +369,30 @@ def main() -> int:
     print("--- 外の数字 ---")
     print(f"到達率        {100 * report['corpus']['reachability_rate']:.1f}%"
           f"  ({allowed}/{total} 文書が検索可能)")
-    print(f"回答可能率    {100 * answerable['answerable_rate']:.1f}%"
-          f"  ({answerable['answered']}/{answerable['scored']} 問で根拠を top-{TOP_K} に提示)")
+    if not answerable["scored"]:
+        # 0/0 must not render as 0.0%. A rate printed over an empty
+        # denominator reads as "retrieval found nothing", when what actually
+        # happened is that no question had a corpus to be answered from.
+        print("回答可能率    測定不能  (採点できた問 0 問。下の未接地を見ること)")
+    else:
+        print(f"回答可能率    {100 * answerable['answerable_rate']:.1f}%"
+              f"  ({answerable['answered']}/{answerable['scored']} 問で根拠を top-{TOP_K} に提示)")
     for tier in ("direct", "paraphrase"):
         bucket = answerable["by_tier"].get(tier)
         if bucket:
             label = "  うち直接語" if tier == "direct" else "  うち言い換え"
             print(f"{label:12s}  {100 * bucket['rate']:.1f}%"
                   f"  ({bucket['answered']}/{bucket['scored']})")
-    print(f"MRR           {answerable['mrr']:.3f}")
-    print(f"対照(無関係)  {100 * answerable['control_rate']:.1f}%"
-          f"  ({answerable['control_hits']}/{answerable['scored']} 他リポジトリの根拠が紛れ込む)")
-    print(f"識別力        {100 * answerable['discrimination']:+.1f} ポイント"
-          f"  (回答可能率 - 対照。ここが 0 に近い数字は何も測っていない)")
+    if answerable["scored"]:
+        print(f"MRR           {answerable['mrr']:.3f}")
+        print(f"対照(無関係)  {100 * answerable['control_rate']:.1f}%"
+              f"  ({answerable['control_hits']}/{answerable['scored']} 他リポジトリの根拠が紛れ込む)")
+        print(f"識別力        {100 * answerable['discrimination']:+.1f} ポイント"
+              f"  (回答可能率 - 対照。ここが 0 に近い数字は何も測っていない)")
+    else:
+        print("MRR           測定不能")
+        print("対照(無関係)  測定不能")
+        print("識別力        測定不能  (質問の対象リポジトリが 1 つも checkout されていない)")
     print()
     for row in answerable["rows"]:
         mark = {"hit": "OK  ", "miss": "MISS", "ungrounded": "??? "}[row["status"]]

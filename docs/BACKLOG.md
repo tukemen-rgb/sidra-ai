@@ -102,6 +102,27 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ## キュー
 
+### 0. 測定そのものの修復（最優先）
+
+完了条件を数字にした以上、**数字が嘘をつくのが最悪の失敗**になる。
+この節が空になるまで、他の節の数字を根拠に `- [x]` を付けないこと。
+
+- [ ] **`回答可能率` を 5 リポジトリで測り直す。**
+      `docs/OUTCOMES.md` の 100.0% / MRR 1.000 / 識別力 +33.3pt は
+      **答案ファイルが索引に入ったまま測った値**なので取り下げ済み。
+      原因（`outcome_questions.py` が自分のマーカーを索引に供給していた）は
+      修正して `tests/test_outcome_corpus_isolation.py` で固定したが、
+      **正しい値がいくつなのかは誰も知らない状態**である。
+      この開発環境には sidra-ai しか無いので測れない。
+      `site` / `creater-yard` / `Fg` / `marketing` を checkout できる環境で:
+      ```
+      python scripts/measure_outcomes.py \
+        tukemen-rgb/sidra-ai=. tukemen-rgb/site=<path> \
+        tukemen-rgb/creater-yard=<path> tukemen-rgb/Fg=<path> \
+        tukemen-rgb/marketing=<path>
+      ```
+      100% を下回っても劣化ではない。**初めて測れた**という意味である。
+
 ### A. セキュリティゲートの精度（測定済み・根拠あり）
 
 - [x] **`high_entropy` の発火 1018 回を減らす。**ほぼ全文書で 1 回以上鳴る。
