@@ -794,3 +794,10 @@
 2026-08-19 17:40 UTC ループD no-op キューが空。D-641 のみ取れるが 403 のまま（org 未接続）。main 緑（1031 passed / recall PASSED / flag 10.5%）。前回から変化なし。
 
 2026-08-19 17:43 UTC ループA started
+
+2026-08-19 17:45 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。`- [~]` 0 件、E / F を除く `- [ ]` は
+  D-641 のみ。`SIDRA_GITHUB_TOKEN` は依然 unset（presence のみ確認・値は出さない）、
+  GITHUB_TOKEN / GH_TOKEN は長さ 14 の sentinel のまま。復帰待ちも add_repo も試さない。
+  全ゲート実測: 1031 passed / recall PASSED / flag 10.5%（上限 13%）/
+  answerable exit 0（11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
