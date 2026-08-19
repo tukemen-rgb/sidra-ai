@@ -356,7 +356,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       **本文は返さない**（引用は `/v1/retrieve` の仕事）。
       認証必須。運用者が「SIDRA は何を知っているか」を確認できないと、
       答えが薄いときに原因を切り分けられない。
-- [ ] → 動かす数字: `ask_without_json` 0→1
+- [~] 作業中 2026-08-19 11:31 UTC ループB → 動かす数字: `ask_without_json` 0→1
       **`sidra ask "質問"` の CLI。**curl で JSON を組み立てないと質問
       できないのは、日常的に使う道具として障害が大きすぎる。
       `/v1/chat` を叩いて答えと引用を読みやすく表示するだけでよい。
