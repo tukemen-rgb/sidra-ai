@@ -791,3 +791,4 @@
   main: 1031 passed / recall PASSED / flag rate 10.5%（上限 13%）/
   0 のままの outcome は 0 件（13 個中）。
 2026-08-19 17:39 UTC ループD started
+2026-08-19 17:40 UTC ループD no-op キューが空。D-641 のみ取れるが 403 のまま（org 未接続）。main 緑（1031 passed / recall PASSED / flag 10.5%）。前回から変化なし。
