@@ -629,3 +629,8 @@
   （/rate_limit は core を消費しないので状態確認はそちらで足りる。）
   数字は動かない（--compare は NO MOVEMENT / exit 1）。項目は - [ ] へ戻した。
   main は green: 988 passed / verify_gate_recall PASSED。
+2026-08-19 16:36 UTC 対話セッション done 完了判定の計器修理（answerable の第二判定器）
+  check_answerable_regression.py に --save/--compare を実装。0=動いた/1=動かない/2=悪化。
+  コーパスの HEAD を snapshot に刻み、save と compare の間に他リポジトリが動いたら
+  「その movement は他人の push かもしれない」と明示的に警告する。
+  1000 passed / recall PASSED。BACKLOG 完了条件に第二判定器として明記済み。

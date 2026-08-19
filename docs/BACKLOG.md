@@ -58,6 +58,22 @@ CLI は実際に呼んで、検索スコアは suite を走らせて）。ソー
 
 **`--compare` の終了コードがそのまま判定**なので、目分量で決めない。
 
+**例外が 1 つある。**項目の `→ 動かす数字:` が `answerable_*` のときは、
+判定器は `product_metrics.py` ではなく **`check_answerable_regression.py` の
+`--save` / `--compare`** を使う（意味論は同一: 0=動いた / 1=動かない / 2=悪化）。
+理由: `product_metrics.py` は設計としてオフライン数秒で走る計器なので、
+5 checkout の要る回答可能率は載せられない。載っていない数字は `--compare` で
+動けないため、こちらの判定器を使う。手順:
+
+```
+python scripts/check_answerable_regression.py <5つの repo=path> --save /tmp/ans-before.json
+# ... 実装 ...
+python scripts/check_answerable_regression.py <5つの repo=path> --compare /tmp/ans-before.json
+```
+
+出力の `corpus moved` 警告が出たら、動いた数字は他人の push 由来かもしれない。
+--save を取り直して確かめてから完了にすること。
+
 | 終了コード | 判定 | すること |
 | --- | --- | --- |
 | 0 | outcome が動いた（または測れるようになった） | `- [x]`。出力の `LOOP_LOG:` 行を貼る |
@@ -888,7 +904,11 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### H. 品質・堅牢性
 
-- [~] 作業中 2026-08-19 16:29 UTC 対話セッション **完了判定の計器に、肝心の数字が載っていない。**
+- [記録] 対応済み 2026-08-19 対話セッション **完了判定の計器に、肝心の数字が載っていない。**
+      → `check_answerable_regression.py` に `--save`/`--compare` を実装（意味論は
+      product_metrics と同一、コーパス移動の警告つき、テスト 12 件で固定）。
+      完了条件に第二判定器として明記。数字は動かないが、**これが入って初めて
+      answerable_* の改善が「完了」になれる**——判定器自身の修理はその一言で正当化する。
       完了条件は `product_metrics.py --compare` の終了コードだが、その計器に
       回答可能率（直接語 7/11・言い換え 0/7）が**入っていない**。5 checkout が
       要るという理由で `[context]` の「質問数 18」だけが載っている。

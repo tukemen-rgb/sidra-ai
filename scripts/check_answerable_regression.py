@@ -65,6 +65,7 @@ No document content is printed: question names, counts and ranks only.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -73,6 +74,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT.parent / "src"))
 
 from measure_outcomes import (  # noqa: E402
+    head_sha,
     ingest,
     measure_answerable,
     parse_targets,
@@ -147,10 +149,117 @@ METRIC_KEYS = frozenset(
 )
 
 
+#: What each number is allowed to prove under ``--compare``, mirroring
+#: ``product_metrics.py``: an *outcome* moving up is completion evidence, a
+#: *guard* moving down is a regression, and a guard moving up proves nothing.
+#: ``answerable_mrr`` is a guard here for the same reason discrimination is:
+#: both can be traded away silently while a headline count improves, so a
+#: drop must fail the run, but a rise must not be bankable as "done".
+_OUTCOME_KEYS = ("answerable_total", "answerable_direct", "answerable_paraphrase")
+_GUARD_KEYS = ("answerable_discrimination", "answerable_mrr")
+
+#: Smallest guard change that counts as movement rather than measurement
+#: noise. The outcome keys are integer question counts and need no slack.
+_GUARD_MIN_MOVE = {"answerable_discrimination": 2.0, "answerable_mrr": 0.02}
+
+
+def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
+    direct = result["by_tier"].get("direct", {"answered": 0})
+    paraphrase = result["by_tier"].get("paraphrase", {"answered": 0})
+    return {
+        "answerable_total": result["answered"],
+        "answerable_direct": direct["answered"],
+        "answerable_paraphrase": paraphrase["answered"],
+        "answerable_discrimination": round(100 * result["discrimination"], 1),
+        "answerable_mrr": round(result["mrr"], 3),
+        # The corpus is other people's repositories and it moves on its own.
+        # Recording the heads makes "the number moved" attributable: if the
+        # heads differ between --save and --compare, the movement may belong
+        # to someone else's push, not to the change under test.
+        "corpus_heads": {repo: head_sha(path)[:12] for repo, path in targets},
+    }
+
+
+def _compare(before: dict, now: dict) -> int:
+    """Report movement since ``before`` with product_metrics semantics.
+
+    Exit 0: an outcome count rose. Exit 1: nothing moved. Exit 2: an outcome
+    fell or a guard dropped by more than its noise floor. Floor enforcement
+    has already happened by the time this runs, so a run that gets here is at
+    least as good as the pinned floors.
+    """
+
+    drifted = [
+        f"{repo} {before.get('corpus_heads', {}).get(repo, '?')} -> {sha}"
+        for repo, sha in now.get("corpus_heads", {}).items()
+        if before.get("corpus_heads", {}).get(repo) not in (None, sha)
+    ]
+    if drifted:
+        print(
+            "corpus moved between --save and --compare: " + "; ".join(drifted)
+        )
+        print(
+            "Movement below may belong to those pushes rather than to the "
+            "change under test. Re-run --save on the current corpus if in doubt."
+        )
+
+    moved: list[str] = []
+    broken: list[str] = []
+    for key in _OUTCOME_KEYS:
+        old, new_value = before.get(key), now[key]
+        if old is None:
+            moved.append(f"{key} (newly measured) -> {new_value}")
+        elif new_value > old:
+            moved.append(f"{key} {old} -> {new_value}")
+        elif new_value < old:
+            broken.append(f"{key} {old} -> {new_value}")
+    for key in _GUARD_KEYS:
+        old, new_value = before.get(key), now[key]
+        if old is None:
+            continue
+        if old - new_value >= _GUARD_MIN_MOVE[key]:
+            broken.append(f"{key} {old} -> {new_value} (guard)")
+
+    for line in broken:
+        print(f"  WORSE  {line}")
+    for line in moved:
+        print(f"  BETTER {line}")
+    print()
+    if broken:
+        print(f"REGRESSED: {len(broken)} number(s) moved the wrong way. Do not merge.")
+        return 2
+    if not moved:
+        print("NO MOVEMENT: no answerable outcome changed.")
+        return 1
+    print(f"MOVED: {len(moved)} outcome number(s).")
+    for line in moved:
+        print(f"LOOP_LOG: {line}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments:
         print(__doc__, file=sys.stderr)
+        return 2
+
+    save_path: Path | None = None
+    compare_path: Path | None = None
+    for flag in ("--save", "--compare"):
+        if flag in arguments:
+            index = arguments.index(flag)
+            try:
+                value = arguments[index + 1]
+            except IndexError:
+                print(f"{flag} needs a path", file=sys.stderr)
+                return 2
+            del arguments[index : index + 2]
+            if flag == "--save":
+                save_path = Path(value)
+            else:
+                compare_path = Path(value)
+    if save_path and compare_path:
+        print("--save and --compare are exclusive", file=sys.stderr)
         return 2
 
     targets, missing = parse_targets(arguments)
@@ -237,7 +346,8 @@ def main(argv: list[str] | None = None) -> int:
         missed = [row["name"] for row in result["rows"] if row["status"] == "miss"]
         if missed:
             print("\nmissed: " + ", ".join(missed), file=sys.stderr)
-        return 1
+        # Under --compare a floor failure is a regression, not a mere miss.
+        return 2 if compare_path else 1
 
     if paraphrase["answered"] == 0:
         # Passing on a floor of zero is not the same as being fine. Saying so
@@ -248,9 +358,20 @@ def main(argv: list[str] | None = None) -> int:
             f"{paraphrase['scored']} and its floor guards nothing. "
             "That is the recorded state, not a passing grade."
         )
-        return 0
+    else:
+        print("\nOK: every floor held.")
 
-    print("\nOK: every floor held.")
+    snapshot = _snapshot(result, targets)
+    if save_path is not None:
+        save_path.write_text(
+            json.dumps(snapshot, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        print(f"saved -> {save_path}")
+    if compare_path is not None:
+        print()
+        return _compare(
+            json.loads(compare_path.read_text(encoding="utf-8")), snapshot
+        )
     return 0
 
 
