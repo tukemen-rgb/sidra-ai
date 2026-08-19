@@ -128,6 +128,77 @@ python scripts/check_answerable_regression.py \
 `torch` + `transformers` を実質必須にする代償に見合うか。既定は無効のままに
 してあるので、**入れないという判断でも何も壊れない。**
 
+### 言い換え 0/7 の原因を検索器の外に探した（2026-08-19 ループB）
+
+社長判断「埋め込み検索はまだしない」を受け、**検索器ではなく取り込み側**を
+3 段階で切り分けた。結論から言うと **(3) 語彙の橋が本当に無い**が確定した。
+
+**(1) そもそも索引に入っていないのでは → 違う。7 問とも入っている。**
+
+| 質問 | 正解の所在 | 索引 |
+|---|---|---|
+| para-monetise-works | site:docs/revenue-model.md | あり |
+| para-overseas-users | site:docs/culture.md | あり |
+| para-cost-to-creator | site:docs/upload-copy.md | あり |
+| para-single-number | Fg:README.md | あり |
+| para-real-bottleneck | Fg:docs/STRATEGY.md | あり |
+| para-compete-with-steam | Fg:docs/STRATEGY.md | あり |
+| para-lifetime-perk | Fg:docs/KPI.md | あり |
+
+取り込み範囲・件数上限の問題ではない。**この線は潰れた。**
+
+**(2) チャンク境界が答えと文脈語を分断しているのでは → 分断は実在する。
+ただし直しても届かない。**
+
+質問と共有する語数を、正解チャンク単体と、それが属する文書全体で比べた:
+
+| 質問 | チャンクとの共有 | 文書全体との共有 | 境界が捨てている語数 |
+|---|---:|---:|---:|
+| para-monetise-works | 2/21 | 11/21 | **9** |
+| para-cost-to-creator | 3/22 | 12/22 | **9** |
+| para-overseas-users | 3/21 | 10/21 | **7** |
+| para-single-number | 5/23 | 8/23 | 3 |
+| para-compete-with-steam | 1/14 | 3/14 | 2 |
+| para-real-bottleneck | 1/20 | 1/20 | 0 |
+| para-lifetime-perk | 1/23 | 1/23 | 0 |
+
+**分断は本物である。**文書単位で引き直すと順位も大きく上がる:
+
+| 質問 | チャンク単位の順位 | 文書単位の順位 |
+|---|---:|---:|
+| para-monetise-works | >200 | **12** |
+| para-cost-to-creator | 126 | **6** |
+| para-overseas-users | 112 | **9** |
+| para-single-number | 45 | 18 |
+| para-compete-with-steam | >200 | 33 |
+| para-real-bottleneck | 82 | 82 |
+| para-lifetime-perk | 58 | 63 |
+
+**それでも top-5 に入るものは 1 つも無い。**チャンクのスコアに親文書の
+スコアを足す方式（λ を 0.25〜4.0 で走査）も試したが、**言い換えは全ての
+λ で 0/7**、λ≥2 では直接語が 7/11→6/11 と**悪化**した。
+境界は原因の一部だが、**直しても届かない**。
+
+**(3) したがって語彙の橋が無いことが確定した。**
+
+決め手は「文書全体の語彙を全部与えても、正解文書が top-5 に入らない」こと。
+上位を占めるのは毎回**長くて話題が隣接する文書**である
+（`docs/research/proposals.md`、`docs/research/case-studies.md`、
+`docs/decisions.md`、各 `README.md`）。事業の話を広く書いた文書は
+どの質問の語彙も少しずつ含むので、狭く正確に答えている文書に勝ってしまう。
+BM25 に渡せる信号が無い、という以前の結論が**取り込み側からも確認された**。
+
+**ついでに測って、そして訂正したこと。**文書単位の実験では
+`sidra-ai:docs/LOOP_LOG.md` が Fg の戦略文書を抜いて 1 位に出た。
+自分たちの作業ログが製品の索引を汚しているように見えたので数えたが、
+**製品の実際の経路（チャンク単位）では 18 問 × top-5 = 90 枠のうち
+sidra-ai の文書は 2 枠だけ**だった（`docs/LANES.md` と `docs/LOOP_LOG.md`
+が 1 枠ずつ）。文書単位の実験が実物より悪く見せていた。
+**小さいが 0 ではないので、増え続けるなら見ること。**
+
+→ E 節へ差し戻した（再上申の材料）。**残る手は意味検索しかない**ことが、
+今度は検索器の外側からも確かめられた。
+
 ### いちばん大きい発見: 言い換えに弱い
 
 | 問いの種類 | 回答可能率 |

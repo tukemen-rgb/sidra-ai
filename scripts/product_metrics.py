@@ -105,8 +105,15 @@ class Collector:
     def add(self, *args, **kwargs) -> None:
         self.metrics.append(Metric(*args, **kwargs))
 
-    def unmeasurable(self, key: str, label: str, reason: str) -> None:
-        self.metrics.append(Metric(key, label, None, detail=reason))
+    def unmeasurable(self, key: str, label: str, reason: str, kind: str = CONTEXT) -> None:
+        """Record a number this script cannot produce, and say why.
+
+        ``kind`` matters for outcomes measured somewhere else: ``compare``
+        counts a previously unmeasurable outcome that gains a value, so
+        classifying one as context would quietly make that transition
+        invisible.
+        """
+        self.metrics.append(Metric(key, label, None, detail=reason, kind=kind))
 
 
 def _quiet():
@@ -231,6 +238,20 @@ def measure_answer_quality(c: Collector) -> None:
     from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS
 
     paraphrase = sum(1 for q in OUTCOME_QUESTIONS if q.tier == "paraphrase")
+    # Named by a backlog item, and deliberately absent from this script: it
+    # needs the four external checkouts, and cloning them here would make the
+    # quick local report depend on somebody else's repositories being up. It
+    # is registered rather than omitted because an item cannot promise to move
+    # a number that does not exist, and because `compare` counts an outcome
+    # that becomes measurable.
+    c.unmeasurable(
+        "answerable_paraphrase",
+        "paraphrased questions SIDRA can answer",
+        "needs all five checkouts: scripts/check_answerable_regression.py "
+        "(last measured 0/7)",
+        kind=OUTCOME,
+    )
+
     c.add("retrieval_cases_real", "retrieval cases against the 5 real repos",
           len(OUTCOME_QUESTIONS),
           detail=f"src/sidra_ai/evals/outcome_questions.py; "
