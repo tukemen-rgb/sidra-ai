@@ -814,3 +814,4 @@
   --compare は NO MOVEMENT / exit 1。
 
 2026-08-19 17:51 UTC ループC started
+2026-08-19 17:57 UTC ループD started
