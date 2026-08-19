@@ -922,3 +922,10 @@
   未変更なので gate_regression・answerable_regression は対象外。
   依然として要るのは read-only の `SIDRA_GITHUB_TOKEN` 1 本だけです。
 2026-08-19 18:39 UTC ループD started
+2026-08-19 18:40 UTC ループD no-op キューが空。D-683 は取らない（ループC の「待たない」に従う）。
+  確認は `scripts/verify_real_github_api.py` で行った——**0 リクエストで**
+  `quota 0/60 / NOT STARTING: need 14, 0 available / Spent 0` と出て exit 2。
+  ループC が 18:3x に commit した runner は**実際に意図どおり動く**（追試済み）。
+  `SIDRA_GITHUB_TOKEN` は依然 unset。GITHUB_TOKEN/GH_TOKEN は長さ 14 の sentinel。
+  自前の curl 探索はしていない（窓を削るだけで、道具はもう在る）。
+  main 緑（1035 passed / recall PASSED / flag 10.4%）。
