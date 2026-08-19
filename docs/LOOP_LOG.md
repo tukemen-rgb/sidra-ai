@@ -1013,3 +1013,10 @@
   check_gate_regression 10.2%（上限 13%）/ check_answerable_regression exit 0
   （11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
 - 2026-08-19 19:26 UTC ループB started
+- 2026-08-19 19:27 UTC ループB no-op キューが空。E / F を除く `- [ ]` は D-683 のみ、
+  `- [~]` 0 件、`SIDRA_GITHUB_TOKEN` は presence のみ確認して unset。
+  probe もゲート再実測もしていない: `git log -- src/ scripts/ tests/` で
+  **18:54 の全ゲート実測以降、製品コードに 1 件も変更が入っていない**ことを
+  確認した（この間の commit は LOOP_LOG への追記だけ）。
+  変わっていないものを測り直しても数字は増えず、probe は共有クォータを削るだけ。
+  キューを埋める作業は作らない。
