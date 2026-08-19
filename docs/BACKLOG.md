@@ -121,7 +121,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       取り込みレポートはリポジトリ名・件数・`oversized_input:byte_budget`
       を返すので、運用者はこの設定判断を実際に下せる。
       `sidra-quarantine release` で迂回できないことも固定した
-      （BLOCK は方針上の拒否であり、承認の対象ではない）。
+      （BLOCK は方針上の拒否であり、承認の対象ではない）。(c9f5e04)
 
 ### B. 運用に必要な穴
 

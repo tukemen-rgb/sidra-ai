@@ -95,3 +95,8 @@
   CreatorYard ループが同じ形で 11 日間動き続けていること。
   推測ではなく、現に動いている構成を写した。
 2026-08-19 11:04 UTC ループD done SIDRA が自分自身のセキュリティ実装を検索できない（方針決定・不変更、72b43bd）
+
+2026-08-19 11:13 UTC ループA done 巨大 JSON のサイズ上限 BLOCK（別経路は作らない方針で決着 c9f5e04）
+  726 passed / verify_gate_recall PASSED / check_gate_regression 10.1%（上限 13%）。
+  調査中に見つけた「BLOCK の監査記録がリポジトリを残さない」は privacy 保護を
+  狭める変更なので実装せず、E 節に要判断として記録した。
