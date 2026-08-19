@@ -473,7 +473,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### H. 品質・堅牢性
 
-- [記録] → 動かす数字: なし（`--compare` は 1 を返す） (COMMIT_HASH)
+- [記録] → 動かす数字: なし（`--compare` は 1 を返す） (5d81eb7)
       **chunk 単位の trust が document から継承される**（SECURITY ギャップ 8）。
       敵対的な issue を引用した docs は、document 単位では INTERNAL_REPO の
       まま。引用部分だけ EXTERNAL に落とす。

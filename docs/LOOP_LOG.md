@@ -202,3 +202,18 @@
   索引の同一性も _logical_source_key であって doc_id ではない。
   commit 成分は承認の失効以外に何もしていなかった。
   887 passed / verify_gate_recall PASSED / check_gate_regression 10.5%（上限 13%）。
+
+2026-08-19 11:56 UTC ループC 記録 chunk 単位の trust 継承（SECURITY ギャップ 8・降格しない） (5d81eb7)
+  提案されていた直し（引用部分を EXTERNAL に落とす）を測って却下した。
+  1. 敵対的な引用を含む内部文書は chunk 化の前に document 単位で隔離される
+     （en/ja injection・role spoof の 3 形とも QUARANTINE を実測）。
+     存在しない chunk は降格できない。
+  2. INTERNAL_REPO も EXTERNAL も DATA_ONLY。降格しても権限は変わらない。
+  3. 索引化済み 126 chunk のうち blockquote は **0 件**、code fence は 16 件。
+     blockquote 規則は何にも当たらず、fence 規則は SIDRA 自身のコマンドを
+     16 件まとめて誤降格する。
+  受け入れる残り（無害な第三者引用が internal_repo のまま）も明記した。
+  1 番目のケースは検知器についての観測なので、テストにして制御に変えた。
+  検知器の変更でギャップ 8 が生き返ったらそこで落ちる。
+  外の数字: 動かない（--compare 1）。正当化は「選択肢を潰した」。
+  検証: 894 passed / recall PASSED / flag rate 10.7%
