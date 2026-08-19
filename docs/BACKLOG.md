@@ -268,7 +268,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       08-19 に取り下げた「答案が索引に入っていた」誤りと同じ構造になる。
       残る手はローカル埋め込みモデル（意味検索）だけで、これは重い依存の
       判断なので厳守事項 7 により **E 節へ要判断として送った**。
-- [ ] → 動かす数字: `回答可能率 うち直接語` 63.6%→（`docs/OUTCOMES.md`）
+- [~] 作業中 2026-08-19 12:08 UTC ループA → 動かす数字: `回答可能率 うち直接語` 63.6%→（`docs/OUTCOMES.md`）
       **直接語の外し方は言い換えと別物で、こちらは惜しい。**上の diagnose で判明。
       外した 4 問のうち 3 問が **rank 6 / 11 / 12** と top-5 のすぐ外にいる
       （`gameyard-creatoryard-roles` 6 位、`what-is-gameyard` 11 位、
