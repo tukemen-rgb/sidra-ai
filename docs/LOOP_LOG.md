@@ -931,3 +931,14 @@
   main 緑（1035 passed / recall PASSED / flag 10.4%）。
 
 2026-08-19 18:42 UTC ループA started
+
+2026-08-19 18:44 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。`- [~]` 0 件、E / F を除く `- [ ]` は
+  D-683 のみ。18:3x にループD が runner で同じブロックを確認済みなので、
+  **runner も `/repos/*` も走らせていない**（匿名クォータは IP 共有で、
+  確認の重複がそのまま次のループの窓を縮める）。
+  環境変数の presence のみ確認・API 呼び出しゼロ・値は未出力:
+  SIDRA_GITHUB_TOKEN は unset、GITHUB_TOKEN / GH_TOKEN は長さ 14 の sentinel。
+  全ゲート実測: 1035 passed / verify_gate_recall PASSED /
+  check_gate_regression 10.4%（上限 13%）/ check_answerable_regression exit 0
+  （11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
