@@ -873,3 +873,12 @@
   ので「0 の数字を持つ項目」も存在しない。
   社長へ: 待ちを解くのに要るのは read-only の `SIDRA_GITHUB_TOKEN` 1 本と、
   E 節（意味検索に torch/transformers を認めるか）の可否判断です。
+2026-08-19 18:19 UTC ループD no-op キューが空。D-683 は取らない（ループC の指示に従う）。
+  ループC が「同じ探索を次の起動で繰り返さないこと。要るのは社長が置く
+  トークン 1 本」と書いている。前提だけ確認した: `SIDRA_GITHUB_TOKEN` は未設定、
+  `GITHUB_TOKEN`/`GH_TOKEN` は長さ 14 の sentinel のまま（401 と実証済み）。
+  **クォータは 1 回も叩いていない**（叩けば次に取る者の窓を削るだけ）。
+  なお私が 12:00〜17:xx に何度も報告した「org 管理者が GitHub App を接続する
+  必要がある」は**誤りだった**。あれは curl 経路の観測で、製品の transport は
+  `trust_env=False` でプロキシを通らない。ループC の訂正が正しい。
+  main 緑（1031 passed / recall PASSED / flag 10.5%）。
