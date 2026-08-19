@@ -305,6 +305,25 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
+- [ ] **質問がプロダクト名を挙げているのに、当のリポジトリの文書が他人の分析に負ける問題への、まだ試していない正当な手: 名指しルーティング。**
+      e22bf97 が特定した原因（「X を論じる他人の文書は X の名を X 自身より
+      多く繰り返すので、TF で X 自身に勝つ」）への対処。運用者が
+      「CreatorYard の…」と訊いたら creater-yard の文書を優先するのは、
+      評価への合わせ込みではなく**製品の能力**（/v1/chat は既に
+      `repositories` 絞り込みを持つが、運用者にリポジトリ名を知らせるのは
+      間違った要求。プロダクト名→リポジトリの別名表は 5 本に閉じている）。
+      **設計上の注意（実測済みの罠）:** ハードな絞り込みは
+      gameyard-creatoryard-roles / positioning を**壊す**——製品名を挙げた
+      質問の答えが Fg（全社戦略）にあるため。したがって (a) ソフトな
+      ブースト、または (b) 名指しリポジトリ＋全体のマージ、のどちらかで
+      設計し、両方測って良い方を採ること。e22bf97 の「リポジトリ毎チャンク
+      上限」は非単調で却下済み——再提案しない。
+      判定は第二判定器の --save/--compare。識別力 guard（-2pt で exit 2）が
+      ノイズ買いを防ぐ。
+      → 動かす数字: `answerable_direct`（現在 10/15。標的は cy-mvp-scope /
+      cy-payments / mkt-what-is-this-repo の rank 30/116/105）と
+      `answerable_paraphrase`（para-cy-ai-disclosure が rank 51）
+
 - [記録] **4 問を診断した。原因は特定できたが、正当な手は見つからなかった。**
       正当化: 原因を 1 つに特定し、**偶然で +1 する変更を 1 つ潰した**。
       数字は動かない（`--compare` は NO MOVEMENT / exit 1）。製品コードは無変更。
