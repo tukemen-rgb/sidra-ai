@@ -605,3 +605,4 @@
   answerable_paraphrase という測れない数字を約束し、test が落ちていた）。
   名前を消すのではなく「測れない理由付き」で outcome として登録した。
   987 passed / verify_gate_recall PASSED。E 節へ再上申の材料を追加。
+2026-08-19 16:28 UTC ループB started
