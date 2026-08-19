@@ -311,7 +311,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 現状の SIDRA は「5 リポジトリを読んで引用付きで答える」ところまで来たが、
 **運用に載せるには足りない**。以下は使えるようにするための具体作業。
 
-- [ ] → 動かす数字: `ingestion_automatic` 0→1
+- [~] 作業中 2026-08-19 11:21 UTC ループD → 動かす数字: `ingestion_automatic` 0→1
       **取り込みが手動でしか走らない。**誰かが `POST /v1/github/analyze` を
       叩かないと知識が古びる。自社ホスト AI が「最後に叩いた時点の記憶」で
       答えるのは事故のもと。バックグラウンドで定期的に差分取り込みを回す
