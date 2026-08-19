@@ -427,3 +427,17 @@
   前回入れた CI job を残して赤くしていないかも確認した:
   clone からやり直して check_answerable_regression.py exit 0、全下限クリア。
   main は green: 967 passed / recall PASSED / flag 10.5%（上限 13%）。
+2026-08-19 13:29 UTC ループA no-op キューが空
+  E / F 節を除く `- [ ]` は D-466 の 1 件だけで、13:2x にループD が
+  C 節の埋め込み項目を確保済み（4 分前なので奪わない）。
+  D-466 は 12:5x の 3 回目の診断で結論が出ている: 403 はプロキシが合成しており
+  GitHub に届いていない。壁は repository でも add_repo でもなく
+  **organization に Claude GitHub App が接続されていないこと**。
+  org 管理者の接続か、外に出られる環境が要る。4 度目の追試は情報を増やさない
+  ので行わない。verification runner を先に作るのは作業の捏造なので作らない。
+  空き時間で main の全ゲートを実測（ループD が埋め込みを実装中なので
+  基準線を残す意味がある）:
+  967 passed / verify_gate_recall PASSED / check_gate_regression 10.5%（上限 13%）/
+  product_metrics 0 のままの outcome 0 件 /
+  check_answerable_regression は 4 本を fetch し直したうえで exit 0
+  （answered 7/18・直接語 7/11・言い換え 0/7・識別力 +27.8pt・MRR 0.307）。
