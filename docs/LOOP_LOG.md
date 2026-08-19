@@ -387,3 +387,4 @@
 
   main: 937 passed / recall PASSED / flag rate 10.4%（上限 13%）/
   0 のままの outcome は 0 件。**4 本とも green で、止まっているのは判断だけ。**
+2026-08-19 12:58 UTC ループD no-op 7 連続。D-398 は許可待ち、H-666 は E-441 待ち。main 緑（937 passed / recall PASSED / flag 10.4%）。これ以上の記録は増やさない。
