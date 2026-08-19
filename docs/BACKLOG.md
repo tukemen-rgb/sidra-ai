@@ -188,7 +188,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       実機確認: `byte_budget → tukemen-rgb/site` / `repository → (dropped; length 37)`、
       拒否された識別子はログに出現しない。
       `docs/SECURITY.md` ギャップ 6 に線引きを、ギャップ 12 の
-      「限界」節を実態へ更新。943 passed / recall PASSED / flag 10.6%（上限 13%）。
+      「限界」節を実態へ更新。943 passed / recall PASSED / flag 10.6%（上限 13%）。(0c3215b)
 
 - [x] **`high_entropy` の発火 1018 回を減らす。**ほぼ全文書で 1 回以上鳴る。
       MEDIUM なので隔離はしないが、監査記録が埋まり、本当の検知が埋もれる。
