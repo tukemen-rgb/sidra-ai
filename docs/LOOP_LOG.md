@@ -1199,3 +1199,9 @@
   SIDRA_EMBEDDING_MODEL_PATH と e5 の prefix 2 つを設定（.env.example 参照）。
 
 2026-08-19 22:03 UTC ループA started
+2026-08-19 22:04 UTC 対話セッション 夜間チェック#2
+  (1) 新規 failed 1 件（21:45 ループA・実API 窓閉、正しく差し戻し済み）。done 側は
+  自分の埋め込み有効化 87049a5 のみで検証済み。(2) SIDRA_GITHUB_TOKEN 依然 unset。
+  (3) 放置 claim なし。(4) ゲート実測: 1041 passed / recall PASSED /
+  answerable 両構成とも exit 0（bm25 11/26・semantic 13/26、それぞれの下限保持）。
+  (5) 異常なし。(6) 次は 3 時間後。
