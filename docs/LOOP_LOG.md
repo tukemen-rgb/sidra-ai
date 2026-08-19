@@ -176,3 +176,18 @@
   「この環境では測れない」は誤りだった。4 本とも public で clone できる。
   最大の発見: 直接語 63.6% に対し言い換え 14.3%（4.5 倍差）。C 節に追加。
   856 passed / verify_gate_recall PASSED / check_gate_regression 10.3%（上限 13%）。
+
+2026-08-19 11:48 UTC ループC done 監査ログの耐久性が best-effort | audit_failures_visible 0 -> 1 (b49f6ae)
+  `ApiAuditLog.durability()`（recorded / failed / last_failure_kind）を
+  `GET /v1/index` が返す。落ちた記録と「その操作が起きなかった」が
+  ログ上で同じに見える状態を終わらせた。攻撃者に都合のよい方の読みが
+  無料だった、というのがギャップ 2 の中身。
+  **/health ではなく /v1/index に出した。**項目はどちらでも可としていたが、
+  /health は未認証で、「監査ログが今落ちている」は記録を残さず動きたい
+  相手が資格情報なしで最も知りたいこと。
+  数えるのは record() の中。全経路がそこを通るので、将来の呼び出し側が
+  自分の取りこぼしを報告し忘れる余地が無い。例外は従来どおり送出。
+  probe も直した。/v1/index より古く HealthResponse しか見ていなかったので、
+  そのままだと**数字を動かすために未認証側へ出す圧力**になっていた。
+  残る限界（プロセスローカル / 通知はしない）は SECURITY.md ギャップ 2。
+  検証: 885 passed / recall PASSED / flag rate 10.5%
