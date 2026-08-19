@@ -189,7 +189,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       代わりの答えは「リポジトリを読む」。索引は便宜であって正本ではない。
       どうしても索引に入れたい 1 件は `sidra-quarantine release` で版ごとに承認する。(72b43bd)
 
-- [ ] **quarantine の release が必要以上に早く失効する。**上の項目の調査で判明。
+- [~] 作業中 2026-08-19 11:43 UTC ループA **quarantine の release が必要以上に早く失効する。**上の項目の調査で判明。
       release は `doc_id`（repository+path+commit+content）で承認するので、
       「レビューした版だけを通す」性質は正しい。しかし取り込み側は全文書に
       **リポジトリの HEAD sha** を刻むため、当該ファイルが変わらなくても
