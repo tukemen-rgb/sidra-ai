@@ -586,7 +586,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       応答に対しては正しかった**。規則自体は変わらない（ヘッダの無い 403 は
       誰が返したものでも即失敗でよい）が、根拠は取り違えていた。
       経緯ごと `tests/test_github_403_is_not_always_rate_limit.py` に固定した。
-      987 passed / recall PASSED / flag rate 10.5%（上限 13%）。(COMMIT_HASH)
+      987 passed / recall PASSED / flag rate 10.5%（上限 13%）。(bbf669b)
 
 ### E. 判断が要る（実装せず、社長の判断を待つ）
 
