@@ -660,3 +660,13 @@
   4 本を fetch し直して exit 0（answered 7/18・直接語 7/11・言い換え 0/7・
   識別力 +27.8pt・MRR 0.307）。main は green。
 2026-08-19 16:48 UTC ループB started
+
+2026-08-19 16:51 UTC 対話セッション done 質問集を 5 リポジトリ全部に広げた（18→26 問）
+  creater-yard 4+2 問・marketing 2 問を実文書の実在行に接地して追加。
+  結果: answered 11/26・直接語 10/15・**言い換え 1/11（初ヒット:
+  para-cy-unfinished-work が「完成度で人を落とさない」を rank 2 で取得）**・
+  識別力 +30.8pt。下限をラチェット: answered 6→10 / direct 6→9 /
+  **paraphrase 0→1（もう空虚な下限ではない）**。旧下限を固定していた
+  テスト 5 件を新実測に張り替え。1030 passed / recall PASSED / flag 10.6%。
+  新しい外し 4 問（cy-mvp-scope, cy-payments, mkt-what-is-this-repo,
+  para-cy-ai-disclosure）はループの次の標的。

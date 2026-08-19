@@ -97,26 +97,23 @@ from sidra_ai.security.gate import GatePolicy, SecurityGate  # noqa: E402
 #:
 #: Each floor sits one question below what was measured, for churn in the four
 #: repositories this project does not own.
-MIN_ANSWERED = 6
-MIN_DIRECT = 6
+#: Re-pinned 2026-08-19 after the question set grew from 18 to 26 (four
+#: CreatorYard and two marketing direct questions, two CreatorYard
+#: paraphrases): measured 11/26 answered, 10/15 direct, 1/11 paraphrased,
+#: discrimination +30.8. One question of slack, as before.
+MIN_ANSWERED = 10
+MIN_DIRECT = 9
 
-#: Zero, because that is what paraphrased questions actually score.
-#:
-#: The previous floor of 1 was argued for on the grounds that the paraphrase
-#: rate must never be allowed to reach zero silently. The argument was right
-#: and the number was wrong: it had already been zero. The single hit it was
-#: pinned to came from a ``.tsx`` file the product does not ingest, so the
-#: floor asserted a level the real system had never reached.
-#:
-#: A floor of zero guards nothing, and pretending otherwise is worse than
-#: saying so - which is why a run that measures zero says so on every line of
-#: output rather than passing quietly. This is a recorded failure, not a
-#: target that has been met. The local-embedding work meant to move it was
-#: approved on 2026-08-19 and is being built in parts; its skeleton is
-#: deliberately identical to BM25, so this number cannot move until a real
-#: backend is wired in. Raise it the moment a run scores higher: an
-#: improvement nobody ratchets is an improvement that regresses unnoticed.
-MIN_PARAPHRASE = 0
+#: One, as of 2026-08-19: `para-cy-unfinished-work` retrieves
+#: "完成度で人を落とさない" at rank 2 on the product-identical corpus. The
+#: first paraphrase hit this project has had, and the reason this floor is
+#: no longer zero. It is deliberately NOT one-below-measurement: one below
+#: would be zero, zero guards nothing, and the entire point of this number
+#: is that the paraphrase rate must never return to zero silently. If this
+#: fails against a green main because the CreatorYard culture line moved,
+#: lower it back with the reason in the commit - that is the documented
+#: escape hatch, not a reason to leave the floor vacuous.
+MIN_PARAPHRASE = 1
 
 #: Discrimination, in points. Measured at +27.8. The floor is well below that
 #: because the quantity is noisier than the others - it moves when any of five

@@ -136,6 +136,45 @@ OUTCOME_QUESTIONS: tuple[OutcomeQuestion, ...] = (
         repository="tukemen-rgb/site",
     ),
 
+    # --- tukemen-rgb/creater-yard (CreatorYard) ------------------------
+    OutcomeQuestion(
+        name="cy-mvp-scope",
+        question="CreatorYard の MVP にはどの機能が入りますか",
+        answer_marker="MVP は Story のみ",
+        repository="tukemen-rgb/creater-yard",
+    ),
+    OutcomeQuestion(
+        name="cy-withdrawal-condition",
+        question="CreatorYard の撤退条件はどう決まっていますか",
+        answer_marker="書き手 10 人・Story 30 本",
+        repository="tukemen-rgb/creater-yard",
+    ),
+    OutcomeQuestion(
+        name="cy-payments",
+        question="CreatorYard に決済や販売の機能はありますか",
+        answer_marker="決済は持たない",
+        repository="tukemen-rgb/creater-yard",
+    ),
+    OutcomeQuestion(
+        name="cy-ranking-culture",
+        question="CreatorYard でランキングや称号は導入しますか",
+        answer_marker="数字を競争にしない",
+        repository="tukemen-rgb/creater-yard",
+    ),
+    # --- tukemen-rgb/marketing -----------------------------------------
+    OutcomeQuestion(
+        name="mkt-what-is-this-repo",
+        question="marketing リポジトリは何をする場所ですか",
+        answer_marker="シドラスタジオのマーケティング戦略・営業資料をつくる",
+        repository="tukemen-rgb/marketing",
+    ),
+    OutcomeQuestion(
+        name="mkt-deliverables-location",
+        question="完成した営業資料はどのディレクトリに置きますか",
+        answer_marker="docs/deliverables",
+        repository="tukemen-rgb/marketing",
+    ),
+
     # --- paraphrased: the operator's words, not the document's ---------
     # Written by deliberately avoiding the vocabulary that surrounds each
     # answer, so a lexical retriever has nothing to latch onto. These are
@@ -188,6 +227,20 @@ OUTCOME_QUESTIONS: tuple[OutcomeQuestion, ...] = (
         question="キャンペーンでずっと使える特典を付けてもいいですか",
         answer_marker="永久無料・永年特典は将来原価を見積もれない限り提供しない",
         repository="tukemen-rgb/Fg",
+        tier="paraphrase",
+    ),
+    OutcomeQuestion(
+        name="para-cy-unfinished-work",
+        question="まだ途中のゲームしか無いのですが載せて大丈夫ですか",
+        answer_marker="完成度で人を落とさない",
+        repository="tukemen-rgb/creater-yard",
+        tier="paraphrase",
+    ),
+    OutcomeQuestion(
+        name="para-cy-ai-disclosure",
+        question="生成 AI で作った部分は黙っておいたほうがいいですか",
+        answer_marker="隠さず書ける",
+        repository="tukemen-rgb/creater-yard",
         tier="paraphrase",
     ),
 )

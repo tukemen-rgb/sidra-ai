@@ -90,38 +90,41 @@ def test_a_malformed_target_is_rejected(check, capsys):
 # --- the floors themselves ---------------------------------------------
 
 def test_the_floors_sit_below_the_recorded_measurement(check):
-    """Measured 2026-08-19 12:21: 7/18 answerable, 7/11 direct, 0/7 paraphrase.
+    """Measured 2026-08-19 over the 26-question set: 11 answered, 10 direct.
 
     A floor above its measurement fails on a green tree; a floor far below it
     passes through a real regression. One question of slack absorbs churn in
     the four repositories this project does not own.
 
-    The earlier version of this test asserted 7 and 1, pinned to a measurement
-    that walked 426 documents the product never ingests. When the corpus was
-    corrected the floors went red against a green main, which is how a check
-    gets switched off.
+    The first floors here (7/6/1) were pinned to a measurement that walked
+    426 documents the product never ingests and went red against a green
+    main. The second set (6/6/0) was honest but measured over 18 questions;
+    the set grew to 26 when CreatorYard and marketing gained coverage, and
+    counts are only comparable over the same set - so the floors moved with
+    the measurement, in the same commit, as the re-pinning rule requires.
     """
-    assert check.MIN_ANSWERED == 6, "measured 7; floor is one question below"
-    assert check.MIN_DIRECT == 6, "measured 7; floor is one question below"
+    assert check.MIN_ANSWERED == 10, "measured 11; floor is one question below"
+    assert check.MIN_DIRECT == 9, "measured 10; floor is one question below"
     assert check.MIN_DISCRIMINATION_POINTS == pytest.approx(15.0)
 
 
-def test_a_vacuous_paraphrase_floor_says_so_instead_of_passing_quietly(
-    check, capsys
-):
-    """Zero is the honest floor, and an honest floor admits it guards nothing.
+def test_the_paraphrase_floor_finally_guards_something(check):
+    """One, because one paraphrase question now actually retrieves.
 
-    Paraphrased questions score 0/7, so their floor cannot protect anything.
-    Deleting it would make the failure invisible; leaving it silent would let
-    a passing run read as a healthy one. It stays, and it announces itself.
+    `para-cy-unfinished-work` finds "完成度で人を落とさない" at rank 2 on the
+    product-identical corpus - the first paraphrase hit this project has had.
+    The floor is deliberately NOT one-below-measurement: one below one is
+    zero, zero guards nothing, and this number exists so the paraphrase rate
+    can never return to zero silently. If it goes red on a green main because
+    the CreatorYard culture line moved, lowering it back with a reason is the
+    documented escape hatch.
     """
-    assert check.MIN_PARAPHRASE == 0, "measured 0; a higher floor would be red on green"
+    assert check.MIN_PARAPHRASE == 1
 
     source = (ROOT / "scripts" / "check_answerable_regression.py").read_text(
         encoding="utf-8"
     )
-    assert "既知のゼロ" in source, "a zero paraphrase score must be called out per-line"
-    assert "guards nothing" in source, "a passing run must not read as a healthy one"
+    assert "既知のゼロ" in source, "a zero paraphrase run must still be called out"
 
 
 def _stub_measurement(check, monkeypatch, tmp_path, *, answered, direct, para, control=2):
@@ -169,22 +172,28 @@ def test_beating_the_paraphrase_floor_demands_that_the_floor_be_raised(
     higher, the run has to say the floor is now behind reality - otherwise the
     next slide back to zero passes as compliance.
     """
-    code = _stub_measurement(check, monkeypatch, tmp_path, answered=9, direct=7, para=2)
+    code = _stub_measurement(check, monkeypatch, tmp_path, answered=12, direct=10, para=2)
     out = capsys.readouterr().out
 
     assert code == 0
     assert "この下限を上げること" in out
 
 
-def test_a_zero_paraphrase_run_is_not_reported_as_healthy(
+def test_a_slide_back_to_zero_paraphrase_now_fails(
     check, monkeypatch, tmp_path, capsys
 ):
-    code = _stub_measurement(check, monkeypatch, tmp_path, answered=7, direct=7, para=0)
-    out = capsys.readouterr().out
+    """The old behavior - zero passing with a callout - is retired.
 
-    assert code == 0
-    assert "既知のゼロ" in out
-    assert "guards nothing" in out
+    While the floor was vacuous, a zero run could only be annotated. Now that
+    a paraphrase question genuinely retrieves, returning to zero is a
+    regression and must say so with a failing exit, not a sad footnote.
+    """
+    code = _stub_measurement(check, monkeypatch, tmp_path, answered=11, direct=10, para=0)
+    captured = capsys.readouterr()
+
+    assert code == 1
+    assert "paraphrase 0 < 1" in captured.err
+    assert "既知のゼロ" in captured.out
 
 
 def test_a_real_regression_still_fails(check, monkeypatch, tmp_path, capsys):
@@ -193,8 +202,8 @@ def test_a_real_regression_still_fails(check, monkeypatch, tmp_path, capsys):
     err = capsys.readouterr().err
 
     assert code == 1
-    assert "answered 4 < 6" in err
-    assert "direct 3 < 6" in err
+    assert "answered 4 < 10" in err
+    assert "direct 3 < 9" in err
 
 
 def test_every_tier_is_floored_separately(check):
