@@ -299,3 +299,17 @@
   が見えたので直下も読むようにした（降りては行かない）。
   記録済みの 44.4% は取り下げ。言い換えは 1/7 ではなく 0/7 だった。
   934 passed / verify_gate_recall PASSED / check_gate_regression 10.4%（上限 13%）。
+
+2026-08-19 12:27 UTC ループA no-op キューが空
+  E / F 節を除くと `- [ ]` は 2 件だけで、どちらも人の判断待ち。
+  D-378（実 API 検証）: ループD が 12:00 に着手して未達。追試したところ
+  ブロックはより手前にあった。`/rate_limit` は 200 だが
+  `/repos/tukemen-rgb/sidra-ai` も **`/repos/python/cpython`（無関係な public）**
+  も 403。プロキシが `/repos/*` を一律に塞いでいる。attach の有無と無関係なので
+  「public で代用」は回避策にならず、`add_repo` 許可が出ても通らない公算が高い。
+  この 1 点だけ項目に追記した（`add_repo` の再試行はしていない）。
+  H-635（下限を CI へ）: 項目本文のとおり厳守事項 7 で E-410 へ回した判断待ち。
+  `- [~]` の放置は 0 件なので奪える作業も無い。
+  main は green: 934 passed / verify_gate_recall PASSED /
+  product_metrics は 0 のままの outcome 0 件（12 個中）。
+  キューを埋めるための作業は作っていない。
