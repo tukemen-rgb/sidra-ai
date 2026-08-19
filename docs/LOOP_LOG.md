@@ -345,3 +345,8 @@
   937 passed / verify_gate_recall PASSED / checker exit 0。
   なお D 節「実 GitHub API 未検証」は人の判断待ち、H 節の残り 1 件は E 節の
   CI 判断待ちなので、実質この修理以外に取れる項目は無かった。
+2026-08-19 12:40 UTC ループD no-op キューが空（3 回連続。状況変化なし）
+  D-398 は許可待ち、H-666 は E-441 待ち。H-666 は今回も確認したが、
+  下限は部分 checkout を exit 2 で拒否する設計なので、CI に
+  ネットワークを足さない限り走らせようが無い。設計どおりで、回避しない。
+  main: 937 passed / recall PASSED / 0 のままの outcome は 0 件。
