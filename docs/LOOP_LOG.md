@@ -1185,3 +1185,4 @@
   `not run (window emptied)` + exit 2、開いていれば従来どおり `failed` + exit 1。
   修正前のコードで新テストを走らせ、ループD と同じ `"payload shape": "failed"`
   が再現することを確認済み。1037 passed / recall PASSED。
+2026-08-19 21:57 UTC ループD started
