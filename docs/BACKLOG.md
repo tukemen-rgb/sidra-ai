@@ -868,6 +868,24 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### H. 品質・堅牢性
 
+- [~] 作業中 2026-08-19 16:29 UTC 対話セッション **完了判定の計器に、肝心の数字が載っていない。**
+      完了条件は `product_metrics.py --compare` の終了コードだが、その計器に
+      回答可能率（直接語 7/11・言い換え 0/7）が**入っていない**。5 checkout が
+      要るという理由で `[context]` の「質問数 18」だけが載っている。
+      つまり **C 節の言い換え改善が本当に成功しても exit 1（成果なし）と
+      誤判定される**。改善が構造的に「完了」になれない計器は、完了条件を
+      変えた意味を半分失わせる。
+      直し方: checkout の自動発見（`/workspace/tukemen-rgb/<name>` ほか）を
+      試み、5 本揃うときだけ `answerable_direct` / `answerable_paraphrase` を
+      `[outcome]` として測る（実測は `measure_outcomes.py` の機構を再利用）。
+      揃わないときは `-`（理由: clone コマンド）で出す——0 に見せない。
+      MRR と識別力は `[guard]`（下がったら exit 2。鈍らせて満たす偽改善を塞ぐ）。
+      detail に 5 本の HEAD 短 sha を刻む——コーパス側の変化で数字が動いたとき、
+      どの変化かを追えるようにする。**ネットワークへは勝手に出ない**（clone は
+      しない。あるものを読むだけ）。
+      → 動かす数字: なし（計器自身の修理。ただしこれが入って初めて
+      C 節の answerable_paraphrase が `--compare` で動ける）
+
 - [記録] → 動かす数字: なし（`--compare` は 1 を返す） (5d81eb7)
       **chunk 単位の trust が document から継承される**（SECURITY ギャップ 8）。
       敵対的な issue を引用した docs は、document 単位では INTERNAL_REPO の
