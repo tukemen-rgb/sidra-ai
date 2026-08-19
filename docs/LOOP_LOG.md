@@ -812,3 +812,5 @@
   1031 passed / verify_gate_recall PASSED / check_gate_regression 10.5%（上限 13%）/
   check_answerable_regression exit 0（11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt）。
   --compare は NO MOVEMENT / exit 1。
+
+2026-08-19 17:51 UTC ループC started
