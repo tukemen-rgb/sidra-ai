@@ -89,25 +89,111 @@ def test_a_malformed_target_is_rejected(check, capsys):
 # --- the floors themselves ---------------------------------------------
 
 def test_the_floors_sit_below_the_recorded_measurement(check):
-    """Measured 2026-08-19: 8/18 answerable, 7/11 direct, 1/7 paraphrase.
+    """Measured 2026-08-19 12:21: 7/18 answerable, 7/11 direct, 0/7 paraphrase.
 
     A floor above its measurement fails on a green tree; a floor far below it
     passes through a real regression. One question of slack absorbs churn in
     the four repositories this project does not own.
+
+    The earlier version of this test asserted 7 and 1, pinned to a measurement
+    that walked 426 documents the product never ingests. When the corpus was
+    corrected the floors went red against a green main, which is how a check
+    gets switched off.
     """
-    assert check.MIN_ANSWERED == 7, "measured 8; floor is one question below"
+    assert check.MIN_ANSWERED == 6, "measured 7; floor is one question below"
     assert check.MIN_DIRECT == 6, "measured 7; floor is one question below"
     assert check.MIN_DISCRIMINATION_POINTS == pytest.approx(15.0)
 
 
-def test_the_paraphrase_floor_cannot_be_slackened_to_zero(check):
-    """One is the bottom of the range, so there is nowhere to give slack from.
+def test_a_vacuous_paraphrase_floor_says_so_instead_of_passing_quietly(
+    check, capsys
+):
+    """Zero is the honest floor, and an honest floor admits it guards nothing.
 
-    A floor of zero would be satisfied by paraphrased questions failing
-    completely - the exact condition the local-embedding decision in the
-    backlog exists to address, and the one that must not pass silently.
+    Paraphrased questions score 0/7, so their floor cannot protect anything.
+    Deleting it would make the failure invisible; leaving it silent would let
+    a passing run read as a healthy one. It stays, and it announces itself.
     """
-    assert check.MIN_PARAPHRASE >= 1
+    assert check.MIN_PARAPHRASE == 0, "measured 0; a higher floor would be red on green"
+
+    source = (ROOT / "scripts" / "check_answerable_regression.py").read_text(
+        encoding="utf-8"
+    )
+    assert "既知のゼロ" in source, "a zero paraphrase score must be called out per-line"
+    assert "guards nothing" in source, "a passing run must not read as a healthy one"
+
+
+def _stub_measurement(check, monkeypatch, tmp_path, *, answered, direct, para, control=2):
+    """Run main() against a fabricated measurement.
+
+    The five checkouts are not available in the test environment, so ingestion
+    and scoring are replaced. What is under test here is the reporting and the
+    floor comparison, both of which run for real.
+    """
+    from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS
+
+    targets = []
+    for repository in sorted({q.repository for q in OUTCOME_QUESTIONS}):
+        path = tmp_path / repository.replace("/", "_")
+        path.mkdir()
+        targets.append(f"{repository}={path}")
+
+    monkeypatch.setattr(check, "ingest", lambda *_a, **_k: {})
+    monkeypatch.setattr(
+        check,
+        "measure_answerable",
+        lambda *_a, **_k: {
+            "scored": 18,
+            "answered": answered,
+            "mrr": 0.3,
+            "by_tier": {
+                "direct": {"answered": direct, "scored": 11},
+                "paraphrase": {"answered": para, "scored": 7},
+            },
+            "control_hits": control,
+            "discrimination": 0.278,
+            "ungrounded": [],
+            "rows": [],
+        },
+    )
+    return check.main(targets)
+
+
+def test_beating_the_paraphrase_floor_demands_that_the_floor_be_raised(
+    check, monkeypatch, tmp_path, capsys
+):
+    """An improvement nobody ratchets is an improvement that regresses unseen.
+
+    The floor is zero because the measurement is zero. The moment a run scores
+    higher, the run has to say the floor is now behind reality - otherwise the
+    next slide back to zero passes as compliance.
+    """
+    code = _stub_measurement(check, monkeypatch, tmp_path, answered=9, direct=7, para=2)
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "この下限を上げること" in out
+
+
+def test_a_zero_paraphrase_run_is_not_reported_as_healthy(
+    check, monkeypatch, tmp_path, capsys
+):
+    code = _stub_measurement(check, monkeypatch, tmp_path, answered=7, direct=7, para=0)
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "既知のゼロ" in out
+    assert "guards nothing" in out
+
+
+def test_a_real_regression_still_fails(check, monkeypatch, tmp_path, capsys):
+    """The floors have to bite, or re-pinning them was just lowering the bar."""
+    code = _stub_measurement(check, monkeypatch, tmp_path, answered=4, direct=3, para=0)
+    err = capsys.readouterr().err
+
+    assert code == 1
+    assert "answered 4 < 6" in err
+    assert "direct 3 < 6" in err
 
 
 def test_every_tier_is_floored_separately(check):
