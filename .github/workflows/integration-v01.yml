@@ -152,3 +152,72 @@ jobs:
           SIDRA_MODEL_BACKEND: echo
           SIDRA_HOST: 127.0.0.1
         run: python scripts/check_gate_regression.py
+
+  # The answerable rate had the same problem the false-positive rate used to
+  # have: measured, written into docs/OUTCOMES.md, and enforced by nobody. It
+  # could not join the job above because it needs the four other repositories
+  # SIDRA reads, and that job's whole claim is that it runs offline against
+  # one SHA. So it gets its own job: the offline assertion stays true where it
+  # is made, and the network stays in the one place that needs it.
+  answerable:
+    name: Answerable rate against the real repositories
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PIP_CONSTRAINT: ${{ github.workspace }}/.github/ci-constraints.txt
+
+    steps:
+      - name: Checkout exact source SHA without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install verification dependencies through pinned constraints
+        run: python -m pip install -e ".[dev]"
+
+      # Plain unauthenticated clones, not actions/checkout: nothing here needs
+      # credentials, and a corpus fetched with the workflow token would be a
+      # token handed to four repositories for no reason. --depth 1 is enough
+      # because the measurement asks git for nothing but rev-parse HEAD.
+      #
+      # A clone that fails is an availability problem, not a regression. It is
+      # still a red build - skipping quietly would turn this job into the kind
+      # of check that reports success while measuring nothing - but it says
+      # which one it was, so nobody answers it by lowering a floor.
+      - name: Clone the four repositories SIDRA reads
+        shell: bash
+        run: |
+          mkdir -p "${RUNNER_TEMP}/corpus"
+          for repo in site creater-yard Fg marketing; do
+            if ! git clone --depth 1 --quiet \
+                "https://github.com/tukemen-rgb/${repo}" \
+                "${RUNNER_TEMP}/corpus/${repo}"; then
+              echo "::error::could not clone tukemen-rgb/${repo}." >&2
+              echo "This is a corpus availability failure, not a retrieval regression." >&2
+              echo "Do not lower a floor in response to it." >&2
+              exit 1
+            fi
+          done
+
+      # Tightening a detector removes documents from the index, and removed
+      # documents cost answers. Until this ran here, that trade showed up in
+      # the safety report and in nobody else's.
+      - name: Check SIDRA still answers the questions it could answer
+        env:
+          SIDRA_MODEL_BACKEND: echo
+          SIDRA_HOST: 127.0.0.1
+        run: |
+          python scripts/check_answerable_regression.py \
+            tukemen-rgb/sidra-ai=. \
+            "tukemen-rgb/site=${RUNNER_TEMP}/corpus/site" \
+            "tukemen-rgb/creater-yard=${RUNNER_TEMP}/corpus/creater-yard" \
+            "tukemen-rgb/Fg=${RUNNER_TEMP}/corpus/Fg" \
+            "tukemen-rgb/marketing=${RUNNER_TEMP}/corpus/marketing"

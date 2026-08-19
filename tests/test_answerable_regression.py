@@ -14,6 +14,7 @@ file, rather than something that slides down while nobody is reading.
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -265,3 +266,95 @@ def test_parse_targets_separates_absent_repositories_from_unusable_arguments(
 
     _targets, missing = measure.parse_targets(["tukemen-rgb/site=/nonexistent-path"])
     assert missing is None, "nothing checked out at all leaves nothing to measure"
+
+
+# --- wired into the pipeline -------------------------------------------
+# These read the workflow as text rather than parsing it. PyYAML is not a
+# dependency of this project and is absent from a clean CI interpreter, so a
+# test that imported it would fail to collect on the very pipeline it is
+# meant to protect - while passing locally, where the system image happens to
+# ship it.
+
+
+def _workflow() -> str:
+    return (ROOT / ".github" / "workflows" / "integration-v01.yml").read_text(
+        encoding="utf-8"
+    )
+
+
+def _job_block(name: str) -> str:
+    """Return one job's text, from its key to the next job at the same indent."""
+    text = _workflow()
+    start = text.index(f"\n  {name}:\n")
+    rest = text[start + 1 :]
+    following = re.search(r"^  [a-z][a-z0-9_-]*:$", rest[1:], re.MULTILINE)
+    return rest if following is None else rest[: following.start() + 1]
+
+
+def test_ci_runs_the_answerable_check():
+    """A check that is not in the pipeline is a habit, not a control.
+
+    This floor spent its first hours exactly where the false-positive rate
+    used to be: real, documented, and enforced by whoever remembered.
+    """
+    assert "check_answerable_regression.py" in _job_block("answerable")
+
+
+def test_the_offline_job_stays_offline():
+    """The network was allowed into a new job, not into the existing one.
+
+    "Same-SHA offline verification" is a claim that job makes about itself.
+    Cloning four repositories inside it would quietly make that claim false,
+    which is why the approved option was a separate job.
+    """
+    offline = _job_block("verify")
+
+    assert "Same-SHA offline verification" in offline
+    assert "git clone" not in offline, "the offline job now fetches a corpus"
+    assert "check_answerable_regression" not in offline
+
+
+def test_the_corpus_is_cloned_without_credentials():
+    """Four repositories do not need the workflow token, so they do not get it.
+
+    actions/checkout persists credentials by default; a plain clone carries
+    none. Nothing in this job authenticates, and nothing in it should.
+    """
+    job = _job_block("answerable")
+    # Comments discuss credentials at length; only what the runner executes
+    # is evidence about what it does.
+    executable = "\n".join(
+        line for line in job.splitlines() if not line.lstrip().startswith("#")
+    )
+
+    assert "git clone --depth 1" in executable, "a full history is fetched for no reason"
+    assert "token" not in executable.lower()
+    assert "secrets." not in executable, "a secret reaches a job that needs none"
+
+    # actions/checkout appears once, for this repository, and with the same
+    # credential handling as the offline job.
+    assert job.count("uses: actions/checkout") == 1
+    assert "persist-credentials: false" in job
+
+
+def test_a_failed_clone_is_not_mistaken_for_a_regression():
+    """The two failures need opposite responses.
+
+    A missing corpus is an availability problem; a breached floor is a
+    retrieval problem. Answering the first by lowering a floor is how a gate
+    gets quietly disarmed.
+    """
+    job = _job_block("answerable")
+
+    assert "not a retrieval regression" in job
+    assert "Do not lower a floor" in job
+
+
+def test_every_repository_the_questions_name_is_cloned():
+    """A partial corpus is refused at exit 2, so a missing clone wastes a run."""
+    from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS
+
+    job = _job_block("answerable")
+
+    for repository in {question.repository for question in OUTCOME_QUESTIONS}:
+        assert repository in job, f"{repository} is never cloned or passed"

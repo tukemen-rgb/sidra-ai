@@ -767,18 +767,25 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       勝手に動くため。2 問動いたらコーパスからの信号、1 問なら他人の平日。
       部分 checkout では**数字を出さずに exit 2 で拒否する**。4 本で測った値が
       下限を割るのは変更のせいではないので、そこで下限を下げさせないため。
-- [~] 作業中 2026-08-19 13:13 UTC ループB → 動かす数字: なし（CI に入って初めて「誤検知率と同じ扱い」になる）
-      **【2026-08-19 承認済み・着手可】上の下限を CI に入れる。**
-      `check_gate_regression.py` は CI にあるのでゲートだが、こちらは手で
-      走らせる限り**習慣**にとどまる。4 本の外部リポジトリの clone が要る。
-      → E 節で **選択肢 (a) が承認された**: 既存の
-      `Same-SHA offline verification` job は**オフラインのまま触らない**。
-      **別 job** を足し、そこだけが public な 4 本を clone する。
-      オフラインの主張は job 単位で保たれる。
-      条件: clone は `--depth 1` で足りる（`rev-parse HEAD` しか使わない）。
-      部分 checkout は exit 2 で拒否する現行の設計を変えないこと。
-      **下限を下げる方向の変更は、このファイルの意図的な編集と理由が要る。**
-- [x] → 動かす数字: `audit_failures_visible` **0→1** (b49f6ae)
+- [x] → 動かす数字: なし（習慣をゲートにした。`--compare` は NO MOVEMENT）
+      **上の下限を CI に入れた。**（承認された選択肢 (a)）
+      → 別 job `Answerable rate against the real repositories` を足した。
+      既存の `Same-SHA offline verification` job は**1 バイトも触っていない**
+      （diff は 69 行の追加のみ）。オフラインの主張は job 単位で保たれる。
+      **credentials を渡さない。**`actions/checkout` は既定で認証情報を
+      残すので、コーパスの取得は素の `git clone --depth 1` にした。
+      4 本のリポジトリに workflow token を渡す理由が無い。
+      **clone 失敗と下限割れを区別する。**前者は可用性の問題、後者は検索の
+      問題で、必要な対応が正反対。clone が失敗したら
+      `not a retrieval regression` / `Do not lower a floor` と明示して落ちる。
+      黙って skip しないのは、**測っていないのに成功と報告する検査**に
+      なるため（このリポジトリが 08-19 に 1 度やった失敗と同じ形）。
+      CI に入っていること自体を `tests/test_answerable_regression.py` が検査する
+      （offline job に `git clone` が混入したら落ちる。実際に混入させて確認済み）。
+      **テストは PyYAML を使わない。**宣言依存ではなく、この開発環境の
+      システム image が偶然持っているだけなので、import すると
+      **守るはずの CI で collection error になり、手元では通る**。
+      ローカルで clone からやり直して job を再現し、exit 0 を確認した。- [x] → 動かす数字: `audit_failures_visible` **0→1** (b49f6ae)
       **監査ログの耐久性が best-effort**（SECURITY ギャップ 2）。
       書き込み失敗が API の成功応答を失敗に変えない設計は妥当だが、
       **失敗したこと自体が誰にも見えない**。失敗回数を `/health` か

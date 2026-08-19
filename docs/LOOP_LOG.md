@@ -406,3 +406,13 @@
   956 passed / recall PASSED / 下限は全て保持（言い換えは 0/7 のまま）。
   D-398 は許可が出たが**通らなかった**: 壁は org 単位で Claude GitHub App が
   未接続であること（403 本文が変わって判明）。add_repo では動かせない層。
+2026-08-19 13:18 UTC ループB done 回答可能率の下限を CI に入れた（承認された選択肢 (a)）
+  別 job を追加。既存の Same-SHA offline verification job は 1 バイトも触っていない
+  （diff は 69 行の追加のみ）。コーパスは素の git clone --depth 1 で取得し、
+  workflow token を 4 本に渡さない。clone 失敗は「可用性の問題であって検索の回帰ではない」
+  と明示して落とす（黙って skip すると測らずに成功と報告する検査になる）。
+  テストは PyYAML を使わない — 宣言依存ではなくシステム image が偶然持っているだけで、
+  import すると守るはずの CI で collection error になり手元だけ通る。
+  ローカルで clone からやり直して job を再現し exit 0 を確認。
+  offline job に git clone を混入させてテストが落ちることも確認済み。
+  942 passed / verify_gate_recall PASSED。数字は動かない（習慣をゲートにした回）。
