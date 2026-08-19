@@ -122,6 +122,30 @@ MIN_PARAPHRASE = 0
 #: question - and because its job is to catch a collapse, not a wobble.
 MIN_DISCRIMINATION_POINTS = 15.0
 
+#: The numbers this file enforces, under the names a backlog item may promise
+#: to move.
+#:
+#: `product_metrics.py` is not the only place outcome numbers live. It has to
+#: run offline in seconds, so it cannot measure anything that needs the four
+#: external checkouts - which is exactly why the answerable numbers are
+#: enforced here instead. A backlog item promising to move one of these is
+#: promising something real, and
+#: `tests/test_product_metrics.py::test_every_metric_the_backlog_names_exists`
+#: reads both registries so it can tell that from a promise about a number
+#: nobody measures.
+#:
+#: One name per floor above. `test_answerable_metric_names_track_the_floors`
+#: fails if a floor is added without one, because a floor with no name cannot
+#: be promised and a name with no floor guards nothing.
+METRIC_KEYS = frozenset(
+    {
+        "answerable_total",
+        "answerable_direct",
+        "answerable_paraphrase",
+        "answerable_discrimination",
+    }
+)
+
 
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)

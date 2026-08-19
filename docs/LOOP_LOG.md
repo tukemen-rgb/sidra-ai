@@ -537,3 +537,30 @@
 
 2026-08-19 16:15 UTC ループC started
 2026-08-19 16:18 UTC ループD started
+2026-08-19 16:16 UTC ループC 記録 赤い main を直した（項目は取っていない）
+  **手順2 に入る前に main が赤かった。**`pytest` が 1 件落ちる:
+  `test_every_metric_the_backlog_names_exists`。16:09 の 8c3cb41 以降。
+  原因: BACKLOG が `→ 動かす数字: answerable_paraphrase` と約束したが、
+  この test は `product_metrics.py` だけを見ており、そこに同名の数字が無い。
+  ループB の 16:13 の確保より前から赤い（確保は無関係）。
+
+  **数字自体は実在し、しかも product_metrics より厳しく守られている。**
+  `check_answerable_regression.py` が 4 本の外部 checkout に対して測り、
+  下限で止める。test の世界観が「計器は product_metrics 1 つ」で古かった。
+  → 計器を 2 つとして扱う。`check_answerable_regression.METRIC_KEYS`
+  （下限 4 本に 1 対 1 で対応する 4 つの名前）を足し、test は両方の和集合で
+  判定する。**test の意図は変えていない**（誰も測っていない数字を約束させない）。
+  名前と下限がずれないよう `test_answerable_metric_names_track_the_floors` で
+  個数一致を固定した。下限を足して名前を忘れたらそこで落ちる。
+
+  判定: `--compare` は 1（outcome は動かない）。正当化は
+  **赤いゲートは無いゲートより悪い**。約束を裏付ける計器が 2 つある事実を
+  test に教えたので、同じ形の赤（answerable_* を約束するたび再発する）も塞いだ。
+  他ループの成果は 1 行も消していない。
+
+  検証: 988 passed / recall PASSED / flag rate 10.5%（上限 13%）/
+  check_answerable_regression 5 リポジトリ実測 exit 0
+  （answered 7/18・direct 7/11・paraphrase 0/7・識別力 +27.8pt）。
+
+  項目は取っていない。E/F を除いた `- [ ]` は D-499 のみで、
+  `SIDRA_GITHUB_TOKEN` 未設定・匿名クォータ 0/60（リセット 2616 秒後）のまま。

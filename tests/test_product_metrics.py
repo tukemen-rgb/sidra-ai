@@ -33,14 +33,39 @@ def metrics():
     return {m.key: m for m in product_metrics.collect().metrics}
 
 
+def _measured_keys(metrics) -> set[str]:
+    """Every name an outcome number is measured under, across both instruments.
+
+    `product_metrics.py` is not the whole registry. It runs offline in seconds,
+    so the answerable numbers - which need the four external checkouts - are
+    measured and floor-enforced by `check_answerable_regression.py` instead.
+    Reading only the first one would call a promise about `answerable_*`
+    unmeasured when it is in fact the better-guarded half of the two.
+    """
+
+    import check_answerable_regression
+
+    return set(metrics) | set(check_answerable_regression.METRIC_KEYS)
+
+
 def test_every_metric_the_backlog_names_exists(metrics) -> None:
     """A backlog item cannot promise to move a number nobody measures."""
 
     named = set(
         re.findall(r"→ 動かす数字: `([a-z0-9_]+)`", BACKLOG.read_text(encoding="utf-8"))
     )
+    measured = _measured_keys(metrics)
     assert named, "the backlog no longer tags items with the number they move"
-    assert named <= set(metrics), sorted(named - set(metrics))
+    assert named <= measured, sorted(named - measured)
+
+
+def test_answerable_metric_names_track_the_floors() -> None:
+    """A floor with no name cannot be promised; a name with no floor guards nothing."""
+
+    import check_answerable_regression as car
+
+    floors = {name for name in dir(car) if name.startswith("MIN_")}
+    assert len(car.METRIC_KEYS) == len(floors), sorted(car.METRIC_KEYS) + sorted(floors)
 
 
 def test_no_probe_crashed(metrics) -> None:
