@@ -45,7 +45,9 @@ A〜D 節を 3 週間かけて閉じ続けた間、**SIDRA に質問するには
 一覧と現在値はこれで出す:
 
 ```
-python scripts/product_metrics.py
+python scripts/product_metrics.py --save /tmp/before.json
+# ... 1 件やる ...
+python scripts/product_metrics.py --compare /tmp/before.json
 ```
 
 出力は差分ではなく**実際に経路を動かして**測る（ルートは組み立てた app から、
@@ -53,6 +55,15 @@ CLI は実際に呼んで、検索スコアは suite を走らせて）。ソー
 端から端まで動かないものは 0 と出る。それが狙い。
 
 ### 判定
+
+**`--compare` の終了コードがそのまま判定**なので、目分量で決めない。
+
+| 終了コード | 判定 | すること |
+| --- | --- | --- |
+| 0 | outcome が動いた（または測れるようになった） | `- [x]`。出力の `LOOP_LOG:` 行を貼る |
+| 1 | どの outcome も動かなかった | `- [記録]` か `- [ ]` へ差し戻し |
+| 2 | outcome が悪化 / guard を壊した | **マージしない。** revert |
+
 
 - **`- [x]`** … 上記のどれか 1 つが動いた。行に `(<hash>, <数字> A→B)` を書く。
   作業の前後で `product_metrics.py` を走らせ、両方の値を commit message に残す。
@@ -72,6 +83,23 @@ CLI は実際に呼んで、検索スコアは suite を走らせて）。ソー
 `attacks the recall set proves are caught`）を都合よく動かして「進捗」に
 しないこと。誤検知率を下げるために検知を削るのは後退であって前進ではない。
 そのために `verify_gate_recall.py` と `check_gate_regression.py` が別に在る。
+
+**この懸念は文章での注意喚起から機械的な判定に移した。**出力の数字は
+3 階級に分かれていて、`[outcome]` 以外は動いても完了の根拠にならない。
+
+- `[outcome]` — 運用者が気づく能力。**これだけが根拠になる**
+- `[guard]` — 守るべき線。守るのは前提であって前進ではない（壊したら 2）
+- `[context]` — 実在するが**こちらが書いた量**の数。根拠にならない
+
+`attacks the recall set proves are caught` が `[context]` なのは、検体を
+1 件書けば増えるから。同じ理由で `retrieval_cases_*` も `[context]`。
+分類の無い数字は `[context]` に落ちる（誰もまだ根拠だと主張していない数字を、
+黙って根拠にしないため）。
+
+率にも最小幅がある。`documents this repo cannot index` は 08-19 の午前中に
+**10.6% → 10.2% へ下がったが、ゲートは何も良くなっていない**。他のループが
+きれいな文書を分母に足しただけだった。0.5 ポイント未満の増減は良い方向でも
+悪い方向でも無視する。
 
 ## 検証（省略不可）
 

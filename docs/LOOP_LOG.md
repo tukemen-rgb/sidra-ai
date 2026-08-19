@@ -122,3 +122,29 @@
   OUTCOMES.md の基準値は回答側を取り下げ、到達率 90.3% のみ有効として残した。
   正しい回答可能率は 5 リポジトリを checkout できる環境で再測定が要る（キュー 0 節）。
   801 passed / recall PASSED / flag rate 10.0%。
+
+2026-08-19 11:29 UTC ループC 記録 完了条件の判定を機械化（数字は動かない）
+  A/B/D の 3 本が同じ指示を受けて別々に実装していた。**4 本目を足さない。**
+  自分で書いた `scripts/metrics_snapshot.py` は push 前に捨て、
+  既に着地していた `product_metrics.py` に足りない部分だけを載せた。
+  `measure_outcomes.py` / `OUTCOMES.md` の方が「外」の定義として強い。
+
+  3 本に共通して欠けていたもの: **判定そのもの。**「done は数字が動いた
+  こと」と書いてあるが、動いたかを計算するものが無く、目分量だった。
+
+  足したもの: `--save` / `--compare`（終了コード 0=動いた / 1=no-op /
+  2=悪化）、数字の 3 階級（outcome / guard / context）、率の最小幅。
+
+  塞いだ穴は 2 つとも実在する:
+  1. `attacks the recall set proves are caught` は検体を 1 件書けば増える。
+     これで「数字が動いた」と言えるなら、条件は commit 数に戻る。→ context。
+  2. `documents this repo cannot index` は今朝 10.6% → 10.2% に下がった。
+     ゲートは何も良くなっていない。他のループがきれいな文書を分母に
+     足しただけ。→ 0.5 ポイント未満は無視。
+
+  **この変更自体の判定: 記録（done ではない）。**
+  `--compare` は 1 を返す。outcome は 1 つも動いていない。
+  正当化: 動かない代わりに、動いていないものを動いたと言える経路を 2 本
+  潰した。定規は自分では測れない。
+
+  検証: 833 passed / verify_gate_recall PASSED / check_gate_regression 10.0%（rebase 後に再測定）
