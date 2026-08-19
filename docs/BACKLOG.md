@@ -462,7 +462,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       検索の当たり具合は `evals/retrieval_quality.py` の合成ケースだけ。
       実 5 リポジトリに対する代表質問セットを作り、上位 k に正解が入る率を
       測って基準値にする。誤検知率と同じ扱いにする。
-- [ ] → 動かす数字: `audit_failures_visible` 0→1
+- [~] 作業中 2026-08-19 11:42 UTC ループC → 動かす数字: `audit_failures_visible` 0→1
       **監査ログの耐久性が best-effort**（SECURITY ギャップ 2）。
       書き込み失敗が API の成功応答を失敗に変えない設計は妥当だが、
       **失敗したこと自体が誰にも見えない**。失敗回数を `/health` か
