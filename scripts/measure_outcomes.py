@@ -57,13 +57,12 @@ from sidra_ai.documents import (  # noqa: E402
     TrustLevel,
 )
 from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS  # noqa: E402
+from sidra_ai.ingestion.scope import is_documentation_path  # noqa: E402
 from sidra_ai.retrieval.search import BM25Retriever, tokenize  # noqa: E402
 from sidra_ai.retrieval.store import DocumentStore  # noqa: E402
 from sidra_ai.security.decisions import Decision  # noqa: E402
 from sidra_ai.security.gate import GatePolicy, SecurityGate  # noqa: E402
 
-TEXT_SUFFIXES = {".md", ".txt", ".rst", ".py", ".ts", ".tsx", ".js", ".jsx",
-                 ".json", ".yml", ".yaml", ".toml", ".html", ".css", ".sh"}
 SKIP_DIRS = {".git", "node_modules", ".next", "dist", "build", "__pycache__",
              ".venv", "venv", ".pytest_cache", "coverage", ".sidra"}
 
@@ -101,7 +100,24 @@ EXCLUDED_FROM_CORPUS = ("src/sidra_ai/evals/outcome_questions.py",)
 
 
 def iter_files(repo_root: Path):
-    """Yield (relative_path, content) for readable text files.
+    """Yield (relative_path, content) for the files the pipeline would ingest.
+
+    Scope comes from :func:`sidra_ai.ingestion.scope.is_documentation_path`,
+    the same rule ``GitHubReadOnlyClient.list_docs_paths`` walks: the README,
+    and documentation files under ``docs/``.
+
+    This used to walk every text file in the checkout - ``.py``, ``.tsx``,
+    ``.json``, ``.sh`` and more. That made the corpus 5.5 times the size of
+    the one SIDRA actually holds (520 files against 94 across the five
+    repositories), and application source then outranked the documents
+    carrying the answers: a business question could return
+    ``app/faq/page.tsx`` while the specification sat at rank 10. Every number
+    below it was therefore about a system that does not exist.
+
+    Two gaps remain, and they are under-measurement rather than the reverse:
+    commits, pull requests and issues are part of the real index but cannot
+    be read from a checkout, and ``max_items_per_source`` bounds each real
+    repository at 50 documentation files while this walk has no bound.
 
     The answer key is skipped: see ``EXCLUDED_FROM_CORPUS``.
     """
@@ -111,7 +127,7 @@ def iter_files(repo_root: Path):
             continue
         if any(part in SKIP_DIRS for part in path.parts):
             continue
-        if path.suffix.lower() not in TEXT_SUFFIXES:
+        if not is_documentation_path(path.relative_to(repo_root).as_posix()):
             continue
         if path.relative_to(repo_root).as_posix() in EXCLUDED_FROM_CORPUS:
             continue

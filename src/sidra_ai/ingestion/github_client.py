@@ -23,6 +23,7 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Protocol
 from urllib.parse import quote, urlencode, urljoin, urlparse
 
 from sidra_ai.config.settings import Settings, get_settings
+from sidra_ai.ingestion.scope import DOCUMENTATION_ROOTS, DOCUMENTATION_SUFFIXES
 
 #: The only HTTP method this package may ever issue.
 ALLOWED_HTTP_METHODS = frozenset({"GET"})
@@ -429,7 +430,10 @@ class GitHubReadOnlyClient:
             raise
 
     def list_docs_paths(
-        self, repository: str, ref: str | None = None, roots: Iterable[str] = ("docs",)
+        self,
+        repository: str,
+        ref: str | None = None,
+        roots: Iterable[str] = DOCUMENTATION_ROOTS,
     ) -> list[dict[str, Any]]:
         """Recursively list a complete bounded documentation snapshot.
 
@@ -439,6 +443,16 @@ class GitHubReadOnlyClient:
         tree ends (exactly-at-limit is safe) or one additional eligible file is
         observed. The latter fails closed instead of returning a partial list
         that the pipeline could mistake for proof that older paths were deleted.
+
+        The repository root is listed too, but **not descended into**. A
+        repository's top-level ``SPEC.md`` or ``TODO.md`` is documentation by
+        any reading, and reading the root README while ignoring the
+        specification beside it was an arbitrary gap - measured against the
+        real repositories, ``site/SPEC.md`` carries the answer to four of the
+        eighteen operator questions in ``outcome_questions.py``. Descending
+        from the root is what must not happen: that walks the entire
+        repository, so an ``app/`` or ``node_modules/`` tree would turn one
+        ingestion into thousands of fetches.
         """
 
         self._assert_allowed(repository)
@@ -446,6 +460,22 @@ class GitHubReadOnlyClient:
         pending = list(roots)
         seen: set[str] = set()
         limit = self.settings.max_items_per_source
+
+        def take(entry: dict[str, Any]) -> None:
+            found.append(entry)
+            if len(found) > limit:
+                raise GitHubAPIError(
+                    "documentation snapshot exceeds configured item limit; "
+                    "refusing to treat a partial listing as complete"
+                )
+
+        root_entries = self.get_contents(repository, "", ref)
+        if isinstance(root_entries, list):
+            for entry in root_entries:
+                if entry.get("type") != "file":
+                    continue
+                if entry.get("name", "").lower().endswith(DOCUMENTATION_SUFFIXES):
+                    take(entry)
 
         while pending:
             current = pending.pop(0)
@@ -458,15 +488,10 @@ class GitHubReadOnlyClient:
             for entry in entries:
                 if entry.get("type") == "dir":
                     pending.append(entry["path"])
-                elif entry.get("type") == "file" and entry.get("name", "").lower().endswith(
-                    (".md", ".markdown", ".txt", ".rst")
-                ):
-                    found.append(entry)
-                    if len(found) > limit:
-                        raise GitHubAPIError(
-                            "documentation snapshot exceeds configured item limit; "
-                            "refusing to treat a partial listing as complete"
-                        )
+                elif entry.get("type") == "file" and entry.get(
+                    "name", ""
+                ).lower().endswith(DOCUMENTATION_SUFFIXES):
+                    take(entry)
         return found
 
     # --- history --------------------------------------------------------
