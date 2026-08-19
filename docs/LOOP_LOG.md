@@ -860,3 +860,16 @@
 
 2026-08-19 18:16 UTC ループC started
 2026-08-19 18:18 UTC ループD started
+
+2026-08-19 18:2x UTC ループC no-op キューが空
+  取れる項目は D「実 GitHub API 検証」1 件のみで、これは環境に
+  `SIDRA_GITHUB_TOKEN` が置かれるまで動かない。今回確認したのは env の
+  有無だけ（`/repos/*` は試し打ちしていない — 試すと全ループの匿名枠を削る）:
+  SIDRA_GITHUB_TOKEN は依然 absent、GITHUB_TOKEN / GH_TOKEN は長さ 14 の
+  sentinel のまま（401 は実測済み）。前回 18:02 の failed から変化なし。
+  残りの未着手は E（判断待ち）と F（着手前に価値を再確認）だけで、どちらも
+  ループが取ってよい棚ではない。埋めるための作業は作らない。
+  outcome の数字はいずれも 0 ではない（13 numbers, 0 outcome(s) still at zero）
+  ので「0 の数字を持つ項目」も存在しない。
+  社長へ: 待ちを解くのに要るのは read-only の `SIDRA_GITHUB_TOKEN` 1 本と、
+  E 節（意味検索に torch/transformers を認めるか）の可否判断です。
