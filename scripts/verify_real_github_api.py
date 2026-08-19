@@ -121,6 +121,33 @@ def read_quota(ca_bundle: str) -> dict[str, int]:
     return core
 
 
+def window_emptied(ca_bundle: str) -> bool:
+    """Did the shared window run dry, as opposed to a check finding a fault?
+
+    `BudgetedTransport` keeps this run from draining the quota, but it counts
+    only our own calls. The anonymous window is per egress IP and four loops
+    plus unrelated traffic share it, so it can empty *underneath* a run that
+    started with room. GitHub answers that with the same 403 a broken client
+    would draw, and the runner used to file both under "failed" - which is how
+    loop D's 21:42 run left `payload shape: failed` in the backlog with no
+    cause, for a check that had found nothing wrong.
+
+    Reading `/rate_limit` back settles it by mechanism rather than by parsing
+    the message, and that endpoint does not itself consume core. Remaining at
+    zero means the window emptied; anything above zero means the failure was
+    real and belongs to the check.
+
+    An unreadable `/rate_limit` reads as "not the window", because calling a
+    genuine defect a quota problem is the more expensive mistake: it files a
+    real fault as weather and nobody looks again.
+    """
+
+    try:
+        return int(read_quota(ca_bundle).get("remaining", 1)) < 1
+    except (GitHubAPIError, ValueError, TypeError):
+        return False
+
+
 def check_payload_shape(client: Any, repo: str, out: dict[str, Any]) -> bool:
     """The fields the normalizer reads must be the fields GitHub sends.
 
@@ -257,15 +284,27 @@ def main(argv: list[str] | None = None) -> int:
     verdicts: dict[str, str] = {}
 
     print("\nchecks:")
+    drained = False
     for name, check in checks:
+        if drained:
+            print(f"  {name}: NOT RUN - the shared window emptied earlier in this run")
+            verdicts[name] = "not run (window emptied)"
+            continue
         try:
             verdicts[name] = "confirmed" if check(client, repo, results) else "not confirmed"
         except QuotaExhausted as exc:
             print(f"  {name}: STOPPED - {exc}")
             verdicts[name] = "not run (budget)"
         except GitHubAPIError as exc:
-            print(f"  {name}: FAILED - {exc}")
-            verdicts[name] = "failed"
+            if window_emptied(ca_bundle):
+                # Not this check's fault, and recording it as one would leave a
+                # false defect in the backlog for the next loop to chase.
+                drained = True
+                print(f"  {name}: NOT RUN - the shared window emptied mid-run ({exc})")
+                verdicts[name] = "not run (window emptied)"
+            else:
+                print(f"  {name}: FAILED - {exc}")
+                verdicts[name] = "failed"
 
     print(f"\nrequests spent: {transport.calls} (budget {transport.budget})")
     for name, verdict in verdicts.items():
@@ -274,7 +313,19 @@ def main(argv: list[str] | None = None) -> int:
     results["requests_spent"] = transport.calls
     print("RESULTS " + json.dumps(results, ensure_ascii=False, sort_keys=True))
 
-    return 0 if all(v == "confirmed" for v in verdicts.values()) else 1
+    if all(v == "confirmed" for v in verdicts.values()):
+        return 0
+    if any(v.startswith("not run") for v in verdicts.values()):
+        # Nothing was determined, which is not the same as a check failing.
+        # Exiting 1 here would read as "the product is wrong" and get written
+        # down as such; 2 says the run never reached a verdict.
+        print(
+            "\nINCONCLUSIVE: at least one check never reached a verdict.\n"
+            "Do not record these as failures. Place a read-only\n"
+            "SIDRA_GITHUB_TOKEN and rerun; 5000/hour finishes in one pass."
+        )
+        return 2
+    return 1
 
 
 if __name__ == "__main__":

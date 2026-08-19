@@ -102,3 +102,78 @@ def test_the_runner_the_backlog_points_at_exists() -> None:
     backlog = (ROOT / "docs" / "BACKLOG.md").read_text(encoding="utf-8")
     assert "scripts/verify_real_github_api.py" in backlog
     assert (ROOT / "scripts" / "verify_real_github_api.py").exists()
+
+
+class _StubClient:
+    """A client whose calls fail the way an emptied window fails."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def get_repository(self, repo):  # noqa: D102
+        raise self._error
+
+    def get_head_sha(self, repo):  # noqa: D102
+        raise self._error
+
+    def list_commits(self, repo):  # noqa: D102
+        raise self._error
+
+    def compare(self, repo, base, head):  # noqa: D102
+        raise self._error
+
+
+def _run_with_stub(monkeypatch, error, remaining_after):
+    """Drive main() past its quota gate with every request failing."""
+
+    quotas = iter(({"remaining": 60, "limit": 60}, {"remaining": remaining_after, "limit": 60}))
+    monkeypatch.setattr(verify, "read_quota", lambda ca: next(quotas, {"remaining": remaining_after, "limit": 60}))
+    monkeypatch.setattr(verify, "HttpxTransport", lambda **kw: _Recorder())
+    import sidra_ai.ingestion.github_client as gh
+
+    monkeypatch.setattr(gh, "GitHubReadOnlyClient", lambda *a, **kw: _StubClient(error))
+    return verify.main([])
+
+
+def test_a_window_that_empties_mid_run_is_not_reported_as_a_failed_check(
+    monkeypatch, capsys
+) -> None:
+    """The distinction the budget was supposed to protect, where it leaked.
+
+    `BudgetedTransport` counts our own calls, so it cannot see the shared
+    window emptying underneath a run that started with room. GitHub answers
+    that with the same 403 a broken client draws. Filing it as `failed` is
+    what left `payload shape: failed` in the backlog on 2026-08-19 with no
+    cause - a defect recorded against code that had nothing wrong with it.
+    """
+
+    exit_code = _run_with_stub(
+        monkeypatch,
+        verify.GitHubAPIError("GitHub rate limited for /repos/x", status=403),
+        remaining_after=0,
+    )
+
+    out = capsys.readouterr().out
+    assert "not run (window emptied)" in out
+    assert "failed" not in out, "an emptied window must never read as a failed check"
+    assert exit_code == 2, "nothing was determined, which is not the same as failing"
+
+
+def test_a_real_failure_is_still_called_a_failure(monkeypatch, capsys) -> None:
+    """The other half: the escape hatch must not swallow genuine defects.
+
+    If a quota-shaped excuse could absorb any error, the runner would report a
+    broken normalizer as weather. With the window still open, a failure is the
+    check's own and has to be recorded that way.
+    """
+
+    exit_code = _run_with_stub(
+        monkeypatch,
+        verify.GitHubAPIError("unexpected status 500 for /repos/x", status=500),
+        remaining_after=57,
+    )
+
+    out = capsys.readouterr().out
+    assert "FAILED" in out
+    assert "not run (window emptied)" not in out
+    assert exit_code == 1
