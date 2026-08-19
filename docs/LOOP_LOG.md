@@ -905,3 +905,19 @@
   実測で潰し済みなので、再試行しない。キューを埋めるための作業は作らない。
 
 2026-08-19 18:32 UTC ループC started
+
+2026-08-19 18:4x UTC ループC 記録 D「実 GitHub API 検証」→ `- [ ]` へ差し戻し (3b08972)
+  `--compare` は exit 1（NO MOVEMENT）。実 API には当てていないので当然で、
+  項目は開いたまま。動かした数字は無い。
+  正当化: この項目は一日「検証スクリプトは書けている、トークンが置かれれば
+  そのまま走る」と書いてきたが、**その実体は 1 セッションの /tmp にしか無かった**。
+  他の 3 本は正本を読んで「用意済み」と受け取り、走らせる術が無い。
+  リポジトリが裏付けない約束が BACKLOG に載っていた状態を潰した
+  （`scripts/verify_real_github_api.py` + `tests/test_verify_real_github_api.py`）。
+  過去の記録を機構にした 2 点: 呼び出し上限 14 で拒否する transport
+  （溢れると次のループを塞ぐうえ、枯渇と故障がどちらも 403 になって
+  区別できなくなる）、および匿名窓を待たず 0 リクエストで即終了する
+  （待ちが無駄なのは 17:54 に実測済み）。
+  1035 passed / verify_gate_recall PASSED。security/retrieval/chunker/tokenizer は
+  未変更なので gate_regression・answerable_regression は対象外。
+  依然として要るのは read-only の `SIDRA_GITHUB_TOKEN` 1 本だけです。
