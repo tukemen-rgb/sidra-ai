@@ -178,12 +178,44 @@ runtime boundary:
    manual is *calling* it: nothing triggers a rescreen automatically when a
    detector changes, so the window between fixing a detector and applying the
    fix is now bounded by an operator rather than by a restart.
-10. **The gate quarantines a portion of this repository's own source.**
-   Files describing attack patterns - the detectors, the envelope, their
-   tests - legitimately contain injection strings and synthetic credentials,
-   so SIDRA cannot retrieve its own security implementation. Measured at 8.4%
-   of sidra-ai's documents. Arguably correct behaviour, but it means the
-   assistant cannot answer questions about its own defenses from the index.
+10. **The gate quarantines a portion of this repository's own source, and
+   this is accepted rather than fixed.** Files describing attack patterns -
+   the detectors, the envelope, their tests - legitimately contain injection
+   strings and synthetic credentials, because that is what a detector's
+   source code *is*. SIDRA therefore cannot retrieve its own security
+   implementation. Measured 2026-08-19 at 41 of 387 documents (10.6%) with
+   `scripts/measure_gate_baseline.py` - a count that includes the test file
+   pinning this decision, which quarantines itself for the same reason.
+
+   *Decided:* the gate keeps judging content only. No path, directory or
+   repository is exempt, and `src/sidra_ai/security/**` is not special.
+   `path` is attacker-controlled provenance - gap 6 drops it from the audit
+   record for exactly that reason - so an exemption keyed on it would be a
+   hole shaped like a path: any document claiming the right path gets an
+   unscreened channel into the index, and paths are not unique across the
+   five allowlisted repositories. "Its own source" is also not a property
+   the gate can see; sidra-ai is one allowlist entry among five, and giving
+   it a private trust tier would make the gate's strictness depend on which
+   repository asked. The relief bought - a handful of files becoming
+   searchable - does not pay for that. `tests/test_security_self_source_policy.py`
+   pins the refusal.
+
+   *What to do instead.* Read the files in the repository. Retrieval is a
+   convenience here, not the system of record, and the answer to "how does
+   SIDRA defend itself" is in git either way. If a specific document must be
+   in the index, `sidra-quarantine release` approves it by version, with an
+   operator and a reason, and the ingestion side honours it.
+
+   *The cost of that route, measured.* A release is bound to a `doc_id` over
+   repository, path, commit and content, so approval cannot carry over to
+   content the reviewer never saw - that part is correct and deliberate. But
+   the ingestion pipeline stamps every document with the repository HEAD, so
+   an unchanged file draws a new `doc_id` whenever *any* file in the
+   repository is committed. Releases therefore lapse on the next commit
+   rather than on the next edit to the released file, which for this
+   repository's own security source makes the route close to single-use.
+   That over-expiry is tracked as its own backlog item; until it is fixed,
+   the honest recommendation is the repository, not the index.
 11. **False-positive rate is measured, not bounded.** The current figure is
    3.5% of documents across the five allowlisted repositories
    (`docs/GATE_FALSE_POSITIVE_BASELINE.md`), re-measurable with
