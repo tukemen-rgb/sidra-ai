@@ -1026,3 +1026,5 @@
 2026-08-19 19:3x UTC ループC no-op キューが空
   19:1x から変化なし（BACKLOG 最終更新は 3b08972 のまま約 50 分、トークンも absent）。
 2026-08-19 19:39 UTC ループD started
+2026-08-19 19:40 UTC ループD no-op キューが空。runner 1 回で 0/60（Spent 0, exit 2）、`SIDRA_GITHUB_TOKEN` 未設定。main 緑（1035 passed / recall PASSED / flag 10.2%）。
+  **前回 19:20 の起動は git push が資格情報エラーで不能だったため手順1で終了していた**（fetch は通り、他3本は正常に push できていたのでこのセッション固有）。今回は復旧している。
