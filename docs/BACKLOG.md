@@ -305,6 +305,19 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
+- [~] 作業中 2026-08-19 21:46 UTC 対話セッション **承認済み: 埋め込み再ランクをサービスに配線して有効化する。**
+      縫い目（EmbeddingRetriever / SentenceTransformerBackend）は実装済みだが
+      SidraService が BM25 を直用しており、SIDRA_EMBEDDING_MODEL_PATH を
+      読む者がいない。やること:
+      (1) settings に prefix 込みで retriever を組む factory を作り、
+      service が使う。パス未設定なら従来どおり素の BM25（fallback 維持）。
+      (2) dev 環境に e5-small の重みを取得して 26 問で実測
+      （第二判定器 --save/--compare。期待: 直接語↑ MRR↑ 識別力↑、言い換え不変）。
+      (3) 結果に応じて下限をラチェットし、固定テストも同コミットで更新。
+      (4) .env.example / docs に「重みの置き方」と e5 の prefix
+      （query: / passage: ）を記載。runtime download は今後も無し。
+      → 動かす数字: `answerable_direct` / `answerable_mrr`（guard だが上がる想定）
+
 - [記録] **字句検索に残った教科書のつまみを全部測った。全滅。この道は打ち止め。**
       正当化: 数字は動かないが、**字句側に残っていた最後の選択肢を 2 つとも
       実測で潰した**。E 節の再上申は「軽い手を試していないのでは」と言われる
@@ -899,7 +912,11 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### E. 判断が要る（実装せず、社長の判断を待つ）
 
-- [ ] **再上申: 言い換え 0/7 は意味検索以外に手が無いことが確定した。**
+- [x] **承認 2026-08-19 (社長「ローカル埋め込む」) → 入れる。**
+      条件は初回承認時のまま: ローカルモデルのみ・外部 API / 有料依存なし・
+      **「重みが無くても動く」二段構成を維持**（BM25 への fallback は残す）。
+      実装項目は C 節へ（対話セッションが確保）。以下は判断当時の記録:
+      **再上申だった: 言い換え 0/7 は意味検索以外に手が無いことが確定した。**
       **2026-08-19 18:1x ループA 追記: 字句側は完全に打ち止めになった。**
       k1/b の格子 25 通りと見出し一致ブースト 10 通り、計 37 通りを実測して
       `answered` 11/26・`direct` 10/15・`paraphrase` 1/11 を 1 つも超えなかった
