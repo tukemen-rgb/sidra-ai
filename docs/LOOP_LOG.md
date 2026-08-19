@@ -155,3 +155,7 @@
   A 節先頭の「release が早く失効する」は本文が要検討（差分取り込みの不変条件に
   触れる）なので厳守事項 7 により今回も取らず、数字を持つ項目へ回した。
   2 回連続で取らずに残っているので、E 節へ移すか実装可否を決めてほしい。
+2026-08-19 11:37 UTC ループB done sidra ask の CLI（ask_without_json 0→1）
+  833 passed / verify_gate_recall PASSED / check_gate_regression 10.4%（上限 13%）。
+  実サーバ起動 + 実ソケットで疎通確認済み。トークンは設定ホストと loopback
+  にしか送らない。端末制御文字と bidi override は表示前に除去し、除去を報告する。
