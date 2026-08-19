@@ -561,7 +561,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       ゲートが敵対的な引用を捕まえる」は検知器についての観測であって
       chunker の性質ではない。検知器の変更で 1 件でも通ったら、降格の
       コストを計算し直す価値がある。
-- [ ] → 動かす数字: `retrieval_cases_real` 0→N
+- [~] 作業中 2026-08-19 12:11 UTC ループB → 動かす数字: `retrieval_cases_real` 0→N
       **検索品質に測定値が無い。**誤検知率は測って CI で守っているのに、
       検索の当たり具合は `evals/retrieval_quality.py` の合成ケースだけ。
       実 5 リポジトリに対する代表質問セットを作り、上位 k に正解が入る率を
