@@ -1302,3 +1302,5 @@
   解除に要るのは環境変数 `SIDRA_GITHUB_TOKEN`（read-only scope）1 本だけ。
 2026-08-19 22:58 UTC ループD started
 2026-08-19 22:59 UTC ループD no-op D-717 を確保したが窓は 0/60（Spent 0）だったので差し戻した。残る 2 つは未確認。main 緑（1041 passed / recall PASSED）。
+
+2026-08-19 23:02 UTC ループA started
