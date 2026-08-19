@@ -306,6 +306,17 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 ### C. 検索品質
 
 - [~] 作業中 2026-08-19 22:46 UTC 対話セッション **semantic 構成の外し 13 問を診断する（有効化後の新しい地形）。**
+      **診断済み (対話セッション実測)。外れ 13 問の内訳:**
+      - **候補窓（100 位）の外が 7 問**: play-start-success-rate(150) /
+        cy-payments(114) / mkt-what-is-this-repo(105) / para-overseas-users(206) /
+        para-cost-to-creator(124) / para-monetise-works・para-compete-with-steam
+        （400 位以内に無し——この 2 問は窓をいくら広げても届かない）
+      - **窓の中で reranker が top-5 へ上げないのが 6 問**: cy-mvp-scope
+        (31→13) / submission-fee (95→29) / para-cy-ai-disclosure (50→45) /
+        para-single-number (44→83 **降格**) / para-lifetime-perk (59→86 **降格**) /
+        para-real-bottleneck (81→窓内圏外)
+      **e5 は関係ない候補を上げるより先に、正解を降格させることがある**
+      （para-single-number 44→83 等）。窓拡大の格子 (40/80) を測定中。
       埋め込み有効化（87049a5）後の実測は 13/26。残る外れ 13 問
       （直接語 4・言い換え 9）は**まだ誰も semantic 構成で診断していない**
       （これまでの全診断は BM25 構成）。やること:
