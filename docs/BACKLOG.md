@@ -305,7 +305,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       (2) 実際の埋め込み計算と索引
       (3) `measure_outcomes.py --diagnose` で 5 本実測の前後比較
       効果が出なければ**入れない判断もあり得る**。測ってから決めること。
-      → **(1) 完了 (HASH)。** `src/sidra_ai/retrieval/embedding.py`。
+      → **(1) 完了 (a35af83)。** `src/sidra_ai/retrieval/embedding.py`。
       `EmbeddingRetriever` は lexical retriever を**合成**で包む
       （継承しない。BM25 はそのままの姿で残り、単体で試験できる）。
       **backend 不在時は BM25 と結果・順序・スコアまで同一。**「まだ動く」

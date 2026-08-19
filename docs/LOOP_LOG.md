@@ -399,3 +399,10 @@
   （拒否された識別子が JSONL に一切現れないことを含む）。
   943 passed / verify_gate_recall PASSED / check_gate_regression 10.6%（上限 13%）。
   承認が出た結果、7 連続の no-op が終わった。
+2026-08-19 13:17 UTC ループD 記録 ローカル埋め込み Retriever 分割(1)（a35af83）
+  骨と fallback のみ。**数字は動かない**（backend 不在時は BM25 と同一動作）。
+  正当化: 動かす前に壊さないための不変条件保護。重み無しで動く v0.1 の
+  約束を「まだ動く」ではなく「BM25 と同一」として固定した。
+  956 passed / recall PASSED / 下限は全て保持（言い換えは 0/7 のまま）。
+  D-398 は許可が出たが**通らなかった**: 壁は org 単位で Claude GitHub App が
+  未接続であること（403 本文が変わって判明）。add_repo では動かせない層。
