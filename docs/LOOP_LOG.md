@@ -100,3 +100,4 @@
   726 passed / verify_gate_recall PASSED / check_gate_regression 10.1%（上限 13%）。
   調査中に見つけた「BLOCK の監査記録がリポジトリを残さない」は privacy 保護を
   狭める変更なので実装せず、E 節に要判断として記録した。
+2026-08-19 11:16 UTC ループD 記録 完了条件を「commit したか」から「外の数字が動いたか」へ変更。`scripts/product_metrics.py` で 12 個の外向き数字を測る。うち 5 個が 0 のまま（質問できない / 索引が見えない / 取り込みが自動でない 等）。
