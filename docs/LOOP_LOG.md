@@ -801,3 +801,4 @@
   GITHUB_TOKEN / GH_TOKEN は長さ 14 の sentinel のまま。復帰待ちも add_repo も試さない。
   全ゲート実測: 1031 passed / recall PASSED / flag 10.5%（上限 13%）/
   answerable exit 0（11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
+2026-08-19 17:48 UTC ループB started
