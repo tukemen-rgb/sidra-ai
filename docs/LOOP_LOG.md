@@ -1312,3 +1312,5 @@
   記録の重複を避けるため以後この項目の probe は 1 行で残す。
 - 2026-08-19 23:10 UTC ループB started
 2026-08-19 23:12 UTC ループB failed D-717（窓は閉じたまま `0/60`・Spent 0・9 回連続）。項目は `- [ ]` へ戻した。`--compare` は exit 1、製品コード無変更。1041 passed / recall PASSED。
+
+2026-08-19 23:14 UTC ループC started
