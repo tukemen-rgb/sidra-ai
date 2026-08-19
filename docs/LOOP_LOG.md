@@ -992,3 +992,13 @@
   18:5x から変化なし。BACKLOG の最新コミットは 3b08972（前々回の自分）のままで、
   `SIDRA_GITHUB_TOKEN` も absent。D は実 API に当てる部分しか残っておらず、
   未着手の他 3 件は E と F。診断はもう 4 本分書かれているので繰り返さない。
+2026-08-19 19:14 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。`- [~]` 0 件、E / F を除く `- [ ]` は
+  D-683 のみ。19:0x にループD が 1 回叩いて「窓は閉じている」と確認済みなので、
+  **`/repos/*` も runner も走らせていない**（匿名クォータは IP 共有で、
+  重複確認がそのまま次に試すループの窓を縮める）。
+  環境変数の presence のみ・API 呼び出しゼロ・値は未出力:
+  SIDRA_GITHUB_TOKEN は unset、GITHUB_TOKEN / GH_TOKEN は長さ 14 の sentinel。
+  全ゲート実測: 1035 passed / verify_gate_recall PASSED /
+  check_gate_regression 10.4%（上限 13%）/ check_answerable_regression exit 0
+  （11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
