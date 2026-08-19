@@ -57,7 +57,7 @@ from sidra_ai.documents import (  # noqa: E402
     TrustLevel,
 )
 from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS  # noqa: E402
-from sidra_ai.retrieval.search import BM25Retriever  # noqa: E402
+from sidra_ai.retrieval.search import BM25Retriever, tokenize  # noqa: E402
 from sidra_ai.retrieval.store import DocumentStore  # noqa: E402
 from sidra_ai.security.decisions import Decision  # noqa: E402
 from sidra_ai.security.gate import GatePolicy, SecurityGate  # noqa: E402
@@ -201,6 +201,56 @@ def marker_present_in_corpus(
     return False
 
 
+#: How deep to look for the answering chunk when the top-k missed it. A miss
+#: at rank 12 and a miss at "not present at all" call for opposite work -
+#: reranking versus a different notion of similarity - and the plain report
+#: cannot tell them apart.
+DIAGNOSE_DEPTH = 200
+
+
+def diagnose_miss(retriever: BM25Retriever, question) -> dict:
+    """Explain one miss: how far the evidence was, and what the query shared.
+
+    Only tokens the operator's own question already contains are reported.
+    The set printed is the intersection of query and document tokens, so it
+    is a subset of the question - it says "your wording reached this far" and
+    reveals nothing about the document that the asker did not already write.
+    """
+
+    # The index is built lazily on the first search. Reading the chunk list
+    # before that yields an empty corpus, which would report every question as
+    # having no evidence anywhere - a diagnosis that is not only wrong but
+    # points at the corpus instead of at retrieval.
+    retriever._ensure_index()
+
+    gold = [
+        chunk for chunk in retriever._chunks
+        if chunk.provenance.repository == question.repository
+        and question.answer_marker in chunk.content
+    ]
+    if not gold:
+        return {"rank": None, "gold_chunks": 0, "shared": (), "query_terms": 0}
+
+    deep = retriever.search(question.question, top_k=DIAGNOSE_DEPTH)
+    rank = None
+    for position, result in enumerate(deep, start=1):
+        if (
+            result.chunk.provenance.repository == question.repository
+            and question.answer_marker in result.chunk.content
+        ):
+            rank = position
+            break
+
+    query_terms = set(tokenize(question.question))
+    shared = sorted(query_terms & set(tokenize(gold[0].content)))
+    return {
+        "rank": rank,
+        "gold_chunks": len(gold),
+        "shared": tuple(shared),
+        "query_terms": len(query_terms),
+    }
+
+
 def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]) -> dict:
     """Ask each question and see whether the answering evidence comes back.
 
@@ -301,10 +351,47 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
     }
 
 
+def _print_diagnosis(retriever: BM25Retriever, answerable: dict) -> None:
+    """Say why each miss missed, so the next attempt is not a guess.
+
+    A bare MISS invites the cheapest hypothesis - "retrieval needs tuning" -
+    and three sessions of tuning. The two numbers here separate the cases:
+    a rank just past the cut-off is a ranking problem, and an answering chunk
+    that shares only grammatical fragments with the question is a vocabulary
+    problem that no amount of reweighting reaches.
+    """
+
+    misses = [row for row in answerable["rows"] if row["status"] == "miss"]
+    if not misses:
+        return
+
+    by_name = {question.name: question for question in OUTCOME_QUESTIONS}
+    print("\n--- 外した問の内訳 ---")
+    print("rank は top-{0} の外まで見た順位。overlap は質問と根拠が共有する語数。".format(
+        DIAGNOSE_DEPTH))
+    print("表示する語は質問側にもある語だけなので、文書の中身は出さない。\n")
+
+    for row in misses:
+        question = by_name.get(row["name"])
+        if question is None:
+            continue
+        detail = diagnose_miss(retriever, question)
+        rank = detail["rank"]
+        where = f"rank {rank}" if rank else f">{DIAGNOSE_DEPTH} 位（届いていない）"
+        shared = "、".join(detail["shared"][:6]) or "なし"
+        print(f"  {row['name']:26s} [{question.tier}] {where}")
+        print(f"  {'':26s} overlap {len(detail['shared'])}/{detail['query_terms']} 語: {shared}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("targets", nargs="+", metavar="repo=path")
     parser.add_argument("--json", action="store_true", help="emit JSON only")
+    parser.add_argument(
+        "--diagnose",
+        action="store_true",
+        help="for each miss, how far the evidence was and what the query shared",
+    )
     args = parser.parse_args()
 
     targets: list[tuple[str, Path]] = []
@@ -398,6 +485,9 @@ def main() -> int:
         mark = {"hit": "OK  ", "miss": "MISS", "ungrounded": "??? "}[row["status"]]
         rank = f"rank {row['rank']}" if row["rank"] else "-"
         print(f"  {mark} {row['name']:32s} {row['repository']:24s} {rank}")
+
+    if args.diagnose:
+        _print_diagnosis(retriever, answerable)
 
     if answerable["ungrounded"]:
         print("\nungrounded questions (no evidence in the corpus): "

@@ -118,3 +118,104 @@ def test_an_unmeasurable_run_does_not_print_a_rate(script, capsys, monkeypatch):
     assert exit_code == 1, "an unmeasurable run must not exit clean"
     assert "回答可能率    測定不能" in report
     assert "回答可能率    0.0%" not in report
+
+
+def test_a_miss_reports_how_far_the_evidence_was(script, tmp_path) -> None:
+    """A bare MISS invites the cheapest hypothesis and hours of wrong work.
+
+    Rank 6 and "not in the top 200" need opposite fixes - reranking versus a
+    different notion of similarity - so the report has to distinguish them.
+    """
+    from sidra_ai.evals.outcome_questions import OutcomeQuestion
+    from sidra_ai.retrieval.search import BM25Retriever
+    from sidra_ai.retrieval.store import DocumentStore
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "answer.md").write_text(
+        "配信の方針について。海外の利用者にも同じ条件で提供する。", encoding="utf-8"
+    )
+    for index in range(3):
+        (repo / f"noise{index}.md").write_text(
+            f"無関係な配信ログ {index}。配信の方針とは関係がない。", encoding="utf-8"
+        )
+
+    targets = [("tukemen-rgb/site", repo)]
+    gate = SecurityGate(GatePolicy(), allowed_repositories=["tukemen-rgb/site"])
+    store = DocumentStore(gate)
+    script.ingest(targets, store, gate)
+
+    question = OutcomeQuestion(
+        name="probe",
+        question="海外の利用者にも同じ条件で提供する",
+        answer_marker="海外の利用者にも同じ条件で提供する",
+        repository="tukemen-rgb/site",
+    )
+    detail = script.diagnose_miss(BM25Retriever(store), question)
+
+    assert detail["gold_chunks"] >= 1
+    assert detail["rank"] == 1
+    assert detail["query_terms"] > 0
+    assert detail["shared"], "an exact-wording question must share tokens with its answer"
+
+
+def test_the_overlap_report_only_names_words_the_question_already_contains(
+    script, tmp_path
+) -> None:
+    """The report must not become a way to read indexed documents.
+
+    It prints an intersection, so every token shown is one the asker wrote.
+    Anything else would be a content leak wearing a diagnostic's clothes.
+    """
+    from sidra_ai.evals.outcome_questions import OutcomeQuestion
+    from sidra_ai.retrieval.search import BM25Retriever, tokenize
+    from sidra_ai.retrieval.store import DocumentStore
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "answer.md").write_text(
+        "配信の方針。これは質問には出てこない固有の記述である。", encoding="utf-8"
+    )
+
+    targets = [("tukemen-rgb/site", repo)]
+    gate = SecurityGate(GatePolicy(), allowed_repositories=["tukemen-rgb/site"])
+    store = DocumentStore(gate)
+    script.ingest(targets, store, gate)
+
+    question = OutcomeQuestion(
+        name="probe",
+        question="配信の方針は何ですか",
+        answer_marker="配信の方針",
+        repository="tukemen-rgb/site",
+    )
+    detail = script.diagnose_miss(BM25Retriever(store), question)
+
+    question_tokens = set(tokenize(question.question))
+    assert set(detail["shared"]) <= question_tokens
+
+
+def test_a_question_with_no_evidence_reports_no_rank(script, tmp_path) -> None:
+    """Nothing to find is not the same as found-but-ranked-badly."""
+    from sidra_ai.evals.outcome_questions import OutcomeQuestion
+    from sidra_ai.retrieval.search import BM25Retriever
+    from sidra_ai.retrieval.store import DocumentStore
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "unrelated.md").write_text("まったく別の話題。", encoding="utf-8")
+
+    targets = [("tukemen-rgb/site", repo)]
+    gate = SecurityGate(GatePolicy(), allowed_repositories=["tukemen-rgb/site"])
+    store = DocumentStore(gate)
+    script.ingest(targets, store, gate)
+
+    question = OutcomeQuestion(
+        name="probe",
+        question="存在しない答えについて",
+        answer_marker="コーパスに無いマーカー",
+        repository="tukemen-rgb/site",
+    )
+    detail = script.diagnose_miss(BM25Retriever(store), question)
+
+    assert detail["gold_chunks"] == 0
+    assert detail["rank"] is None
