@@ -305,6 +305,21 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
+- [~] 作業中 2026-08-19 22:46 UTC 対話セッション **semantic 構成の外し 13 問を診断する（有効化後の新しい地形）。**
+      埋め込み有効化（87049a5）後の実測は 13/26。残る外れ 13 問
+      （直接語 4・言い換え 9）は**まだ誰も semantic 構成で診断していない**
+      （これまでの全診断は BM25 構成）。やること:
+      (1) 重みを用意（`pip install sentence-transformers` →
+      `SentenceTransformer('intfloat/multilingual-e5-small').save('<dir>')`。
+      常駐セッションのコンテナには残るので 1 回だけ）。
+      (2) `SIDRA_EMBEDDING_MODEL_PATH` 等を設定して `measure_outcomes.py
+      --diagnose` を実行し、外れ 13 問の「正解が候補窓（top_k×20=100）に
+      入っているか / 入って落とされたか / 窓の外か」を仕分ける。
+      (3) 窓の外が多ければ candidate_multiplier の格子（10/20/40/80）を測る
+      —— 20 は旧 18 問時代の値で、26 問では未検証。
+      (4) 採否は第二判定器（semantic 構成の下限 12/10/2 と識別力 guard）。
+      → 動かす数字: `answerable_total`（13/26）/ `answerable_paraphrase`（2/11）
+
 - [x] 完了 2026-08-19 対話セッション **承認済み: 埋め込み再ランクをサービスに配線して有効化する。**
       (<see git>, answerable_total 11→13 / answerable_direct 10→11 /
       answerable_paraphrase 1→2、MRR 0.291→0.429、識別力 +30.8pt 不変。
@@ -953,6 +968,20 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       根拠にならない。**次に窓を掴んだ者は、この件を未検証として扱うこと。
 
 ### E. 判断が要る（実装せず、社長の判断を待つ）
+
+- [ ] **要判断: 「本物の回答」を一度も生成したことがない件を、どの機械で解くか。**
+      SIDRA のモデル経路はこれまで echo スタブでしか動いていない。検索は
+      実測できたが、**引用付きの実回答の実物は 1 回も存在しない**。
+      非 echo バックエンドの起動には reviewed manifest + **NVIDIA VRAM
+      プローブ**が必須（fail-closed、静的フォールバック無し）。開発
+      コンテナに GPU は無いので、ここでは設計どおり起動できない。選択肢:
+      (a) **社長機（GPU があれば）で 1 回通す**: Ollama を入れ、manifest を
+          書き、`sidra-api` を起動して実回答を得る。設計変更ゼロ。
+          手順書はループが書ける。
+      (b) CPU 実行を許す設計変更（llama_cpp は CPU でも動く）: VRAM プローブ
+          必須という安全設計を緩める変更なので、社長の明示承認が要る。
+      (c) 保留: 検索品質を先に詰める。
+      推奨は (a)。判断だけください——(a) なら手順書を先に作ります。
 
 - [x] **承認 2026-08-19 (社長「ローカル埋め込む」) → 入れる。**
       条件は初回承認時のまま: ローカルモデルのみ・外部 API / 有料依存なし・
