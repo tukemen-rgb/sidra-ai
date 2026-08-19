@@ -191,3 +191,14 @@
   そのままだと**数字を動かすために未認証側へ出す圧力**になっていた。
   残る限界（プロセスローカル / 通知はしない）は SECURITY.md ギャップ 2。
   検証: 885 passed / recall PASSED / flag rate 10.5%
+
+2026-08-19 11:49 UTC ループA 記録 quarantine release の過剰失効を解消（041f722）
+  数字は動かない（--compare は NO MOVEMENT）。正当化: 唯一の安全な迂回路
+  （版ごとの承認）が事実上使い捨てだったのを使えるようにし、同時に
+  「ファイル毎の最終更新 commit を毎回取得する」という高価な直し方を潰した。
+  `doc_id` から commit を外し repository+path+content にした。
+  BACKLOG の「要検討（差分取り込みの不変条件に触れる）」は調べたら成立しない:
+  inference_skipped は HEAD sha と state の比較で決まり doc_id は無関係、
+  索引の同一性も _logical_source_key であって doc_id ではない。
+  commit 成分は承認の失効以外に何もしていなかった。
+  887 passed / verify_gate_recall PASSED / check_gate_regression 10.5%（上限 13%）。

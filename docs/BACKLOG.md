@@ -207,7 +207,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       レビュアーが見て受け入れたその中身がその場所に在る、という状態そのもの。
       3 つの境界を `tests/test_security_self_source_policy.py` で固定した:
       無関係な commit では失効しない / 編集で失効する / 別の path・別の
-      リポジトリへは移らない。`docs/SECURITY.md` ギャップ 10 を更新。
+      リポジトリへは移らない。`docs/SECURITY.md` ギャップ 10 を更新。(041f722)
 - [x] **巨大 JSON（`site` の 2 件）がサイズ上限で BLOCK。**データ配列であり
       文書ではないので妥当だが、検索対象にしたいなら別経路が要る。
       → 方針決定: **別経路は作らない。**`docs/SECURITY.md` ギャップ 12 に
