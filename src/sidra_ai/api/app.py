@@ -294,12 +294,21 @@ def create_app(
     def chat(payload: ChatRequest) -> Any:
         current = resolve_service()
         validate_repositories(current, payload.repositories)
+        history = [(turn.question, turn.answer) for turn in payload.history or ()]
         result = current.chat(
-            payload.message, top_k=payload.top_k, repositories=payload.repositories
+            payload.message,
+            top_k=payload.top_k,
+            repositories=payload.repositories,
+            history=history,
         )
         record_audit(
             operation="chat",
-            input_chars=len(payload.message),
+            # Replayed turns are model input too. Counting only the new message
+            # would under-report a follow-up carrying eight prior turns as if it
+            # were the same size as a first question. Lengths only; the audit
+            # log never holds request content.
+            input_chars=len(payload.message)
+            + sum(len(question) + len(answer) for question, answer in history),
             repositories=payload.repositories,
             response=result,
         )

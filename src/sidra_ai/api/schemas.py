@@ -36,9 +36,37 @@ def _validate_repository_scope(
     return repositories
 
 
+#: Replayed conversation is bounded harder than the current message. The
+#: message is sent once; every history turn is re-sent on every follow-up, so
+#: an unbounded history is a way to grow one request's prompt without limit.
+#: Eight turns is enough to keep an investigation coherent and small enough
+#: that the whole exchange still fits beside the retrieved evidence.
+MAX_HISTORY_TURNS = 8
+MAX_HISTORY_TURN_CHARS = 8_000
+
+
+class ChatTurn(BaseModel):
+    """One completed exchange, as the client remembers it.
+
+    Both sides are the client's claim, not SIDRA's record: the API keeps no
+    session state in v0.1. They are screened and enveloped as untrusted DATA.
+    """
+
+    question: str = Field(min_length=1, max_length=MAX_HISTORY_TURN_CHARS)
+    answer: str = Field(min_length=1, max_length=MAX_HISTORY_TURN_CHARS)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=32_000)
     top_k: int = Field(default=5, ge=1, le=20)
+    history: list[ChatTurn] | None = Field(
+        default=None,
+        max_length=MAX_HISTORY_TURNS,
+        description=(
+            "Earlier turns of this conversation, oldest first. Treated as "
+            "untrusted DATA, never as instructions."
+        ),
+    )
     repositories: list[RepositoryRef] | None = Field(
         default=None,
         max_length=MAX_REPOSITORY_SCOPE_ITEMS,

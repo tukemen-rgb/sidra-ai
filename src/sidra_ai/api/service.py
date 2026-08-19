@@ -22,7 +22,7 @@ from sidra_ai.models.base import (
 from sidra_ai.models.usage import MeteredAdapter, UsageLedger
 from sidra_ai.retrieval.search import BM25Retriever, SearchResult
 from sidra_ai.retrieval.store import DocumentStore
-from sidra_ai.security.data_envelope import build_data_context
+from sidra_ai.security.data_envelope import build_data_context, build_history_context
 from sidra_ai.security.decisions import Decision, GateResult
 from sidra_ai.security.gate import QuarantineStore, SecurityGate
 from sidra_ai.security.quarantine_review import QuarantineReview
@@ -248,6 +248,7 @@ class SidraService:
         *,
         top_k: int = 5,
         repositories: Sequence[str] | None = None,
+        history: Sequence[tuple[str, str]] | None = None,
     ) -> dict[str, Any]:
         """Answer a question from indexed DATA, with citations.
 
@@ -266,6 +267,15 @@ class SidraService:
         secret/PII finding (or a detector failure) withholds the entire model
         answer with a constant safe message; the original model output is not
         copied into the response, reason, or audit metadata.
+
+        ``history`` carries earlier ``(question, answer)`` turns so a follow-up
+        can refer to what came before. The API stays stateless: the client
+        replays them, which means every turn is a claim rather than a record.
+        They are screened by the same gate as the current message and rendered
+        into the DATA envelope at ``UNVERIFIED`` trust. A replayed turn never
+        reaches ``system_prompt`` or ``user_message``; if it did, any client
+        could write its own instructions by describing them as something SIDRA
+        already said.
         """
 
         gate_result = self.gate.inspect(message, source="operator", repository="")
@@ -278,11 +288,45 @@ class SidraService:
                 "citations": [],
             }
 
+        # Replayed turns are screened before anything else looks at them. An
+        # operator can paste a secret into a follow-up as easily as into a
+        # first question, and a client can put anything at all in `history`.
+        screened_history: list[tuple[str, str]] = []
+        for question, answer in history or ():
+            turn: list[str] = []
+            for side in (question, answer):
+                side_result = self.gate.inspect(side, source="operator", repository="")
+                if side_result.decision is not Decision.ALLOW:
+                    return {
+                        "answer": "",
+                        "refused": True,
+                        "reason": "conversation history blocked by security gate",
+                        "security": side_result.to_dict(),
+                        "citations": [],
+                    }
+                turn.append(side_result.content)
+            screened_history.append((turn[0], turn[1]))
+
         query = gate_result.content
         results: list[SearchResult] = self.retriever.search(
             query, top_k=top_k, repositories=repositories
         )
+        if not results and screened_history:
+            # A follow-up is often unsearchable on its own ("why is that?").
+            # Retry once with the previous question carried in, so the model
+            # gets evidence instead of only the recollection of it. Queries
+            # that already retrieved something are left exactly as they were,
+            # so ordinary single-turn retrieval quality cannot shift.
+            results = self.retriever.search(
+                f"{screened_history[-1][0]} {query}",
+                top_k=top_k,
+                repositories=repositories,
+            )
         data_context, citations = build_data_context([r.chunk for r in results])
+
+        history_context = build_history_context(screened_history)
+        if history_context:
+            data_context = "\n\n".join(part for part in (history_context, data_context) if part)
 
         request = GenerationRequest(
             system_prompt=SYSTEM_PROMPT,
