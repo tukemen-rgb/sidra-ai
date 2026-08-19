@@ -170,7 +170,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### A. セキュリティゲートの精度（測定済み・根拠あり）
 
-- [ ] → 動かす数字: なし（privacy の保護範囲を意図的に広げる変更）
+- [~] 作業中 2026-08-19 13:09 UTC ループA → 動かす数字: なし（privacy の保護範囲を意図的に広げる変更）
       **【2026-08-19 承認済み・着手可】BLOCK の監査記録に source / repository を残す。**
       現在 BLOCK は長さだけを残す。理由（BLOCK は secret/PII 検査より前に
       起き得る＝ギャップ 6）は**許可リスト拒否では正しい**が、サイズ超過の
