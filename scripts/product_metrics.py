@@ -225,17 +225,17 @@ def measure_answer_quality(c: Collector) -> None:
           len(RETRIEVAL_CASES))
 
     # The number that would actually tell us whether search works.
-    corpus = ROOT / "docs" / "RETRIEVAL_QUESTIONS.md"
-    if corpus.exists():
-        questions = sum(
-            1 for line in corpus.read_text(encoding="utf-8").splitlines()
-            if line.strip().startswith("- Q:")
-        )
-        c.add("retrieval_cases_real", "retrieval cases against the 5 real repos",
-              questions, detail=str(corpus.relative_to(ROOT)))
-    else:
-        c.add("retrieval_cases_real", "retrieval cases against the 5 real repos", 0,
-              detail="no question set exists; synthetic cases only")
+    # Read the question set that exists rather than a filename that never
+    # did: this probe reported 0 while 18 real questions were already in
+    # the tree, which is the failure mode section 0 of the backlog is about.
+    from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS
+
+    paraphrase = sum(1 for q in OUTCOME_QUESTIONS if q.tier == "paraphrase")
+    c.add("retrieval_cases_real", "retrieval cases against the 5 real repos",
+          len(OUTCOME_QUESTIONS),
+          detail=f"src/sidra_ai/evals/outcome_questions.py; "
+                 f"{len(OUTCOME_QUESTIONS) - paraphrase} direct, {paraphrase} paraphrased. "
+                 f"Scoring them needs all five checkouts: scripts/measure_outcomes.py")
 
 
 # --- what it costs and what it refuses --------------------------------
