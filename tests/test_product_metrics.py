@@ -110,3 +110,19 @@ def test_json_output_is_machine_readable() -> None:
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     assert "ask_without_json" in payload
+
+
+def test_the_paraphrase_detail_is_derived_not_copied(metrics) -> None:
+    """A number pasted into a report has nothing keeping it honest.
+
+    This line read "(last measured 0/7)" for a day after the question set grew
+    to 26 and a paraphrase question began retrieving. It is read to decide
+    whether the paraphrase problem still exists, so being stale there is worse
+    than being absent. It now quotes the enforced floor, which CI fails on when
+    it stops matching.
+    """
+    import check_answerable_regression as answerable
+
+    detail = metrics["answerable_paraphrase"].detail
+    assert f"floor: {answerable.MIN_PARAPHRASE}" in detail
+    assert "last measured" not in detail, "a measurement was copied back in"

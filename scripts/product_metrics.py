@@ -35,6 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 OUTCOME = "outcome"
@@ -244,11 +245,20 @@ def measure_answer_quality(c: Collector) -> None:
     # is registered rather than omitted because an item cannot promise to move
     # a number that does not exist, and because `compare` counts an outcome
     # that becomes measurable.
+    # Read the enforced floor rather than restating a measurement. The line
+    # used to end "(last measured 0/7)", which was true when written and
+    # wrong within a day: the set grew to 26 questions and a paraphrase
+    # question started retrieving. A number copied into a report has nothing
+    # keeping it honest, and this one is read to decide whether the paraphrase
+    # problem still exists - the worst place to be a day stale. A floor cannot
+    # drift the same way; CI fails when it stops matching.
+    import check_answerable_regression as answerable
+
     c.unmeasurable(
         "answerable_paraphrase",
         "paraphrased questions SIDRA can answer",
         "needs all five checkouts: scripts/check_answerable_regression.py "
-        "(last measured 0/7)",
+        f"(enforced floor: {answerable.MIN_PARAPHRASE})",
         kind=OUTCOME,
     )
 
