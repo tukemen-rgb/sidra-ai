@@ -635,3 +635,4 @@
   「その movement は他人の push かもしれない」と明示的に警告する。
   1000 passed / recall PASSED。BACKLOG 完了条件に第二判定器として明記済み。
 2026-08-19 16:39 UTC ループD started
+2026-08-19 16:40 UTC ループD no-op キューが空。C-308 は対話セッションが確保済み、D-549 は再確認したが 403 のまま（Claude GitHub App が org 未接続）、E/F 節は対象外。main 緑（1000 passed / recall PASSED / flag 10.5%）。
