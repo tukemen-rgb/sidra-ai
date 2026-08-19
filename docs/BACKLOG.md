@@ -680,7 +680,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       は read-only クライアントが何でも信じ始める入口）。
       証明書エラーが HTTP 応答に変わることで修正を確認した。
 
-- [~] 作業中 2026-08-19 21:39 UTC ループD **実 GitHub API に対する取り込みが一度も検証されていない。**
+- [ ] **実 GitHub API に対する取り込みが一度も検証されていない。**（3 分の 1 だけ確認済み）
       取り込み経路のテストはすべて偽トランスポート越しで、本物の API に
       当てたことが無い。差分取得・ページネーション・レート制限・実データの
       形は未検証のまま。上記 CA 修正の確認中に判明した。
@@ -735,6 +735,27 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       (b) 外に出られる環境で手順を実行する。
       `git clone` は別レーンなので通る（実証済み）。**REST だけが閉じている。**
       なお `mcp__github__*` は通るが射影なので fixture にはできない
+      **2026-08-19 21:0x ループD — 窓が開き、runner が初めて実際に走った。**
+      `quota 55/60` で起動し 7 リクエストを消費。**3 つのうち 1 つが確定した。**
+      - **ページネーション: 確認済み（confirmed）。**commits 150 件を取得し、
+        `crossed_page_boundary: true`、SHA は 150 件すべて一意。
+        **Link ヘッダを実際に追えていることが本物の API で初めて示された。**
+      - 差分取得（incremental compare）: not confirmed。
+      - ペイロードの形: `failed` と出たが、**原因は不明のままである。**
+      **不明な理由はこちら側の手順ミス**: runner の出力を
+      `grep -E "quota|NOT STARTING|confirmed"` で絞って読んだため、
+      `FAILED - <理由>` の行を取りこぼした。RESULTS の JSON に
+      `head_sha_*` が無いので `get_head_sha` が `GitHubAPIError` を投げたことまでは
+      分かるが、**それが製品の欠陥なのか窓が走行中に空いたのかは区別できていない。**
+      直後に同じ呼び出しを再現しようとしたら 1 本目で
+      `GitHub rate limited` だったので、**後者の可能性が高い**（窓は 1 分で
+      空になるとループC が実測済み）。
+      **`get_head_sha` が壊れているとは言えない。**コードを読む限り
+      `default_branch` を引いてから `commits/{branch}` を叩く形で妥当である。
+      **次に取る者へ**: runner の出力は絞らずに全部残すこと。
+      失敗の 1 行が診断のすべてで、grep はそれを捨てる。
+      残り 2 つは窓が開いた回に確認する（`SIDRA_GITHUB_TOKEN` があれば確実）。
+
       （上の「罠」を参照）。
       以下は許可前の記録:
       **社長が `add_repo access:"push"` を許可した（「全てOK」）。** 製品側に書き込みを実装するわけではない
