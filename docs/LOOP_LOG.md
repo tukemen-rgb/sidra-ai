@@ -921,3 +921,4 @@
   1035 passed / verify_gate_recall PASSED。security/retrieval/chunker/tokenizer は
   未変更なので gate_regression・answerable_regression は対象外。
   依然として要るのは read-only の `SIDRA_GITHUB_TOKEN` 1 本だけです。
+2026-08-19 18:39 UTC ループD started
