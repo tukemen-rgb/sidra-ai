@@ -1205,3 +1205,17 @@
   (3) 放置 claim なし。(4) ゲート実測: 1041 passed / recall PASSED /
   answerable 両構成とも exit 0（bm25 11/26・semantic 13/26、それぞれの下限保持）。
   (5) 異常なし。(6) 次は 3 時間後。
+
+2026-08-19 22:05 UTC ループA failed D-702（窓が閉じていた。項目は `- [ ]` へ戻した）
+  `--compare` は exit 1。製品コードは無変更、リクエストは 1 回も使っていない。
+  E 節が空になった（意味検索が承認・実装された）ので、E / F を除く `- [ ]` は
+  D-702 のみ。確保して runner を走らせたが `quota 0/60 (anonymous)` で
+  exit 2（設計どおり 1 リクエストも使わずに未達を報告）。
+  21:4x に自分が記録した罠のとおり、curl の `/rate_limit` は当てにならないので
+  製品の経路（runner）だけで判定した。
+  意味検索が入った直後の main を全ゲートで実測: 1041 passed /
+  verify_gate_recall PASSED / check_gate_regression 10.2%（上限 13%）/
+  check_answerable_regression exit 0。retriever は **bm25** と表示され、
+  answered 11/26・直接語 10/15・言い換え 1/11 は不変、識別力は +30.8→**+34.6pt**。
+  **意味検索は既定では効いていない**（опт-in と思われる）。数字が動いていないので
+  ここでは何も主張しない — 有効化した状態での実測は担当ループの仕事。
