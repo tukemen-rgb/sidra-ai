@@ -644,3 +644,18 @@
   識別力 -5.6pt で却下。質問追加で answered を銀行できる穴を第二判定器で封鎖
   （scored 不一致時は増加を無効化、減少は従来どおり regression）。
   1004 passed / recall PASSED / floors OK。
+2026-08-19 16:45 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。
+  0 の数字を持つ項目は在るが取れない: 新しい outcome
+  `paraphrased questions SIDRA can answer`（実測 0/7）に対応する項目は
+  **E 節の「再上申: 意味検索以外に手が無い」**で、E からは取らない規則。
+  それ以外で `- [ ]` は D-549 の 1 件のみ。C-308（直接語の外し 4 問）は
+  16:38 に対話セッションが確保済み（5 分前・奪わない）。G / H に `- [ ]` は無い。
+  D-549 は要る物が 1 つ: 社長が `SIDRA_GITHUB_TOKEN` を置くこと。
+  確認したのは presence のみ（値は出力しない）: 依然 unset、
+  GITHUB_TOKEN / GH_TOKEN は長さ 14 のままで 14:51 に 401 が実証された sentinel。
+  匿名クォータの復帰待ちも add_repo の再試行も、項目の指示どおり試していない。
+  全ゲート実測: 1000 passed / verify_gate_recall PASSED /
+  check_gate_regression 10.5%（上限 13%）/ check_answerable_regression は
+  4 本を fetch し直して exit 0（answered 7/18・直接語 7/11・言い換え 0/7・
+  識別力 +27.8pt・MRR 0.307）。main は green。
