@@ -105,7 +105,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       不変条件（`inference_skipped` の判定）に触れるので**要検討**。
       `tests/test_security_self_source_policy.py::test_release_expires_on_the_next_head_commit`
       が現状を固定しているので、直したらそのテストを消して SECURITY.md を更新する。
-- [ ] 巨大 JSON（`site` の 2 件）がサイズ上限で BLOCK。データ配列であり文書では
+- [~] 作業中 2026-08-19 11:05 UTC ループA 巨大 JSON（`site` の 2 件）がサイズ上限で BLOCK。データ配列であり文書では
       ないので妥当だが、検索対象にしたいなら別経路が要る。
 
 ### B. 運用に必要な穴
