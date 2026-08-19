@@ -305,7 +305,13 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
-- [~] 作業中 2026-08-19 21:46 UTC 対話セッション **承認済み: 埋め込み再ランクをサービスに配線して有効化する。**
+- [x] 完了 2026-08-19 対話セッション **承認済み: 埋め込み再ランクをサービスに配線して有効化する。**
+      (<see git>, answerable_total 11→13 / answerable_direct 10→11 /
+      answerable_paraphrase 1→2、MRR 0.291→0.429、識別力 +30.8pt 不変。
+      第二判定器 exit 0・構成変更由来と明記された movement)
+      build_retriever() を唯一の組み立て点にし、service と両判定器が共用。
+      パス未設定は従来どおり素の BM25（型まで同一）。重み有り構成には
+      専用の下限（12/10/2）を別建てし、無し環境の CI を壊さない。
       縫い目（EmbeddingRetriever / SentenceTransformerBackend）は実装済みだが
       SidraService が BM25 を直用しており、SIDRA_EMBEDDING_MODEL_PATH を
       読む者がいない。やること:

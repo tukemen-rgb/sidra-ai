@@ -104,6 +104,17 @@ from sidra_ai.security.gate import GatePolicy, SecurityGate  # noqa: E402
 MIN_ANSWERED = 10
 MIN_DIRECT = 9
 
+#: Floors for the semantic configuration (weights present and configured).
+#: Measured 2026-08-19 with intfloat/multilingual-e5-small: 13/26 answered,
+#: 11/15 direct, 2/11 paraphrased, discrimination unchanged at +30.8. One
+#: below, same slack policy. Two sets because the two configurations are two
+#: products: a machine without weights must keep passing at the lexical
+#: floors, and a machine with weights must not be allowed to quietly perform
+#: like a machine without them.
+SEMANTIC_MIN_ANSWERED = 12
+SEMANTIC_MIN_DIRECT = 10
+SEMANTIC_MIN_PARAPHRASE = 2
+
 #: One, as of 2026-08-19: `para-cy-unfinished-work` retrieves
 #: "完成度で人を落とさない" at rank 2 on the product-identical corpus. The
 #: first paraphrase hit this project has had, and the reason this floor is
@@ -160,6 +171,24 @@ _GUARD_KEYS = ("answerable_discrimination", "answerable_mrr")
 _GUARD_MIN_MOVE = {"answerable_discrimination": 2.0, "answerable_mrr": 0.02}
 
 
+def _retriever_label() -> str:
+    """Which ranking configuration produced this measurement.
+
+    Snapshots must say what ranked them: a --save taken on plain BM25 and a
+    --compare run with a semantic model measure two different products, and
+    the movement between them belongs to the configuration change - which is
+    sometimes exactly the change under test, but must never pass silently.
+    """
+
+    import os as _os
+
+    return (
+        "bm25+semantic"
+        if _os.environ.get("SIDRA_EMBEDDING_MODEL_PATH", "").strip()
+        else "bm25"
+    )
+
+
 def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
     direct = result["by_tier"].get("direct", {"answered": 0})
     paraphrase = result["by_tier"].get("paraphrase", {"answered": 0})
@@ -177,6 +206,7 @@ def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
         # Question-set sizes. Counts are only comparable over the same set:
         # adding an easy question raises `answered` without the product
         # changing, which would make writing questions bankable as progress.
+        "retriever": _retriever_label(),
         "scored": {
             "direct": direct.get("scored", 0),
             "paraphrase": paraphrase.get("scored", 0),
@@ -192,6 +222,13 @@ def _compare(before: dict, now: dict) -> int:
     has already happened by the time this runs, so a run that gets here is at
     least as good as the pinned floors.
     """
+
+    if before.get("retriever") not in (None, now.get("retriever")):
+        print(
+            f"retriever changed between --save and --compare: "
+            f"{before.get('retriever')} -> {now.get('retriever')}. Movement "
+            "below is attributable to that configuration change."
+        )
 
     drifted = [
         f"{repo} {before.get('corpus_heads', {}).get(repo, '?')} -> {sha}"
@@ -305,7 +342,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     store = DocumentStore(gate)
     ingest(targets, store, gate)
-    result = measure_answerable(BM25Retriever(store), targets)
+    import os as _os
+    from types import SimpleNamespace
+
+    from sidra_ai.retrieval.embedding import build_retriever
+
+    retriever = build_retriever(
+        SimpleNamespace(
+            embedding_model_path=_os.environ.get("SIDRA_EMBEDDING_MODEL_PATH", "").strip(),
+            embedding_query_prefix=_os.environ.get("SIDRA_EMBEDDING_QUERY_PREFIX", ""),
+            embedding_passage_prefix=_os.environ.get("SIDRA_EMBEDDING_PASSAGE_PREFIX", ""),
+        ),
+        store,
+    )
+    backend = getattr(retriever, "backend_name", "bm25")
+    semantic = bool(getattr(retriever, "semantic_enabled", lambda: False)())
+    print(f"retriever      : {'bm25 + ' + backend if semantic else 'bm25'}")
+    result = measure_answerable(retriever, targets)
 
     if result["ungrounded"]:
         print(
@@ -319,16 +372,20 @@ def main(argv: list[str] | None = None) -> int:
     paraphrase = result["by_tier"].get("paraphrase", {"answered": 0, "scored": 0})
     discrimination = 100 * result["discrimination"]
 
-    print(f"answered       : {result['answered']}/{result['scored']}  (floor {MIN_ANSWERED})")
-    print(f"  direct       : {direct['answered']}/{direct['scored']}  (floor {MIN_DIRECT})")
+    semantic_run = _retriever_label() == "bm25+semantic"
+    min_answered = SEMANTIC_MIN_ANSWERED if semantic_run else MIN_ANSWERED
+    min_direct = SEMANTIC_MIN_DIRECT if semantic_run else MIN_DIRECT
+    min_paraphrase = SEMANTIC_MIN_PARAPHRASE if semantic_run else MIN_PARAPHRASE
+    print(f"answered       : {result['answered']}/{result['scored']}  (floor {min_answered})")
+    print(f"  direct       : {direct['answered']}/{direct['scored']}  (floor {min_direct})")
     paraphrase_note = ""
     if paraphrase["answered"] == 0:
         paraphrase_note = "  <- 既知のゼロ。守っていない（埋め込み実装中・C 節）"
-    elif paraphrase["answered"] > MIN_PARAPHRASE:
-        paraphrase_note = f"  <- 下限 {MIN_PARAPHRASE} を上回った。この下限を上げること"
+    elif paraphrase["answered"] > min_paraphrase:
+        paraphrase_note = f"  <- 下限 {min_paraphrase} を上回った。この下限を上げること"
     print(
         f"  paraphrase   : {paraphrase['answered']}/{paraphrase['scored']}  "
-        f"(floor {MIN_PARAPHRASE}){paraphrase_note}"
+        f"(floor {min_paraphrase}){paraphrase_note}"
     )
     print(
         f"discrimination : {discrimination:+.1f} pt  "
@@ -337,12 +394,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"MRR            : {result['mrr']:.3f}")
 
     failures: list[str] = []
-    if result["answered"] < MIN_ANSWERED:
-        failures.append(f"answered {result['answered']} < {MIN_ANSWERED}")
-    if direct["answered"] < MIN_DIRECT:
-        failures.append(f"direct {direct['answered']} < {MIN_DIRECT}")
-    if paraphrase["answered"] < MIN_PARAPHRASE:
-        failures.append(f"paraphrase {paraphrase['answered']} < {MIN_PARAPHRASE}")
+    if result["answered"] < min_answered:
+        failures.append(f"answered {result['answered']} < {min_answered}")
+    if direct["answered"] < min_direct:
+        failures.append(f"direct {direct['answered']} < {min_direct}")
+    if paraphrase["answered"] < min_paraphrase:
+        failures.append(f"paraphrase {paraphrase['answered']} < {min_paraphrase}")
     if discrimination < MIN_DISCRIMINATION_POINTS:
         failures.append(
             f"discrimination {discrimination:+.1f} < {MIN_DISCRIMINATION_POINTS:+.1f}"

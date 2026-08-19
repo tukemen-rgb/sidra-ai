@@ -453,7 +453,19 @@ def main() -> int:
     )
     store = DocumentStore(gate)
     per_repo = ingest(targets, store, gate)
-    retriever = BM25Retriever(store)
+    import os as _os
+    from types import SimpleNamespace
+
+    from sidra_ai.retrieval.embedding import build_retriever
+
+    retriever = build_retriever(
+        SimpleNamespace(
+            embedding_model_path=_os.environ.get("SIDRA_EMBEDDING_MODEL_PATH", "").strip(),
+            embedding_query_prefix=_os.environ.get("SIDRA_EMBEDDING_QUERY_PREFIX", ""),
+            embedding_passage_prefix=_os.environ.get("SIDRA_EMBEDDING_PASSAGE_PREFIX", ""),
+        ),
+        store,
+    )
     answerable = measure_answerable(retriever, targets)
 
     total = sum(c["total"] for c in per_repo.values())

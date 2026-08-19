@@ -1191,3 +1191,9 @@
   未起動なので失敗行は無し）。残る 2 つ（ペイロードの形 / 差分取得）は未確認のまま。
   確保を先にしたのは、窓が開いているとき 2 本が同時に走ると 1 つの結果に
   2 回ぶん払うため。main 緑（1037 passed / recall PASSED / flag 10.2%）。
+
+2026-08-19 22:00 UTC 対話セッション done 埋め込み有効化（社長承認「ローカル埋め込む」）
+  answerable_total 11→13 / direct 10→11 / paraphrase 1→2 / MRR 0.291→0.429 /
+  識別力 +30.8pt 不変。第二判定器 exit 0。重み有り構成の下限 12/10/2 を別建て。
+  1039 passed / recall PASSED。運用メモ: 本番で有効にするには重みを置いて
+  SIDRA_EMBEDDING_MODEL_PATH と e5 の prefix 2 つを設定（.env.example 参照）。

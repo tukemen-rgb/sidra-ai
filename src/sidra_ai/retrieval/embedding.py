@@ -315,3 +315,37 @@ def backend_from_settings(settings=None) -> EmbeddingBackend:
         query_prefix=getattr(settings, "embedding_query_prefix", ""),
         passage_prefix=getattr(settings, "embedding_passage_prefix", ""),
     )
+
+
+def build_retriever(settings, store) -> Retriever:
+    """The one place that decides which retriever the product runs.
+
+    Ranking configuration was previously decided implicitly, by whichever
+    caller happened to construct a retriever - the service used plain BM25
+    while ``SIDRA_EMBEDDING_MODEL_PATH`` sat unread in settings, so the
+    approved semantic pass was unreachable in the actual product. Routing
+    every constructor through here means the service and the measurement
+    scripts cannot quietly rank differently: a number measured elsewhere is
+    a number about this exact configuration.
+
+    With no model path configured this returns plain BM25 - not an
+    ``EmbeddingRetriever`` wrapping an absent backend - so the no-weights
+    configuration stays byte-for-byte the code path it always was.
+
+    ``settings`` is duck-typed (``embedding_model_path`` and the two prefix
+    fields) so the scripts can pass a plain namespace without importing the
+    full Settings machinery.
+    """
+
+    from sidra_ai.retrieval.search import BM25Retriever
+
+    lexical = BM25Retriever(store)
+    model_path = getattr(settings, "embedding_model_path", "") or ""
+    if not model_path:
+        return lexical
+    backend = SentenceTransformerBackend(
+        model_path,
+        query_prefix=getattr(settings, "embedding_query_prefix", "") or "",
+        passage_prefix=getattr(settings, "embedding_passage_prefix", "") or "",
+    )
+    return EmbeddingRetriever(lexical, backend)

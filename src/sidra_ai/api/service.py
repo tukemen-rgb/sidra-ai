@@ -20,7 +20,8 @@ from sidra_ai.models.base import (
     ModelUnavailableError,
 )
 from sidra_ai.models.usage import MeteredAdapter, UsageLedger
-from sidra_ai.retrieval.search import BM25Retriever, SearchResult
+from sidra_ai.retrieval.embedding import build_retriever
+from sidra_ai.retrieval.search import SearchResult
 from sidra_ai.retrieval.store import DocumentStore
 from sidra_ai.security.data_envelope import build_data_context, build_history_context
 from sidra_ai.security.decisions import Decision, GateResult
@@ -65,7 +66,7 @@ class SidraService:
         )
         self.output_guard = output_guard or OutputGuard()
         self.store = store or DocumentStore(self.gate)
-        self.retriever = BM25Retriever(self.store)
+        self.retriever = build_retriever(self.settings, self.store)
         if model is None:
             self.model, self.model_admission = build_runtime_model(
                 self.settings, data_dir=data_dir
