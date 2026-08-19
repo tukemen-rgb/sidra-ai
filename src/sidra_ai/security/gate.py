@@ -358,10 +358,12 @@ class QuarantineStore:
         log at all.
 
         The id closes that gap without reopening the one it was closing: it
-        is a hash over repository, path, commit and content, so it reveals
-        none of them, and it is recomputable at the next ingestion. A release
-        can therefore be keyed to it and applied when the same document comes
-        back through the gate.
+        is a hash over repository, path and content, so it reveals none of
+        them, and it is recomputable at the next ingestion. A release can
+        therefore be keyed to it and applied when the same document comes
+        back through the gate. The commit is deliberately not part of it -
+        see :meth:`Document.doc_id` for why including it expired approvals
+        on edits to unrelated files.
         """
 
         entry: dict[str, Any] = {

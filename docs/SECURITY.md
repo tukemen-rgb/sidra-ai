@@ -222,16 +222,30 @@ runtime boundary:
    in the index, `sidra-quarantine release` approves it by version, with an
    operator and a reason, and the ingestion side honours it.
 
-   *The cost of that route, measured.* A release is bound to a `doc_id` over
-   repository, path, commit and content, so approval cannot carry over to
-   content the reviewer never saw - that part is correct and deliberate. But
-   the ingestion pipeline stamps every document with the repository HEAD, so
-   an unchanged file draws a new `doc_id` whenever *any* file in the
-   repository is committed. Releases therefore lapse on the next commit
-   rather than on the next edit to the released file, which for this
-   repository's own security source makes the route close to single-use.
-   That over-expiry is tracked as its own backlog item; until it is fixed,
-   the honest recommendation is the repository, not the index.
+   *What a release binds to.* A `doc_id` over repository, path and content,
+   so approval cannot carry over to content the reviewer never saw, nor to
+   the same content somewhere they did not look. It lapses when the file is
+   edited, and only then.
+
+   The commit is deliberately not part of that id. It used to be, and
+   because ingestion stamps every document with the repository HEAD rather
+   than the commit that last touched the file, an unchanged file drew a new
+   `doc_id` whenever *any* file in the repository was committed. Approvals
+   expired on unrelated edits, which for this repository's own security
+   source - committed constantly - made release close to single-use. That
+   expiry was an artefact of what the pipeline stamps, not a boundary a
+   reviewer had drawn, so the commit was removed from the id rather than the
+   pipeline being made to fetch a per-file commit for every document on
+   every ingestion.
+
+   The consequence worth stating: identical content reappearing at the same
+   path in the same repository is covered by the earlier approval, including
+   across a revert. That is what content-addressed approval means. If a
+   reviewer needs an approval to stop applying, the file has to change -
+   which is the same condition under which the content they approved stops
+   existing. `tests/test_security_self_source_policy.py` pins all three
+   edges: survives an unrelated commit, lapses on an edit, does not travel
+   to another path or repository.
 11. **False-positive rate is measured, not bounded.** The current figure is
    3.5% of documents across the five allowlisted repositories
    (`docs/GATE_FALSE_POSITIVE_BASELINE.md`), re-measurable with

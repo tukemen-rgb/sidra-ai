@@ -186,16 +186,28 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       代わりの答えは「リポジトリを読む」。索引は便宜であって正本ではない。
       どうしても索引に入れたい 1 件は `sidra-quarantine release` で版ごとに承認する。(72b43bd)
 
-- [~] 作業中 2026-08-19 11:43 UTC ループA **quarantine の release が必要以上に早く失効する。**上の項目の調査で判明。
-      release は `doc_id`（repository+path+commit+content）で承認するので、
-      「レビューした版だけを通す」性質は正しい。しかし取り込み側は全文書に
-      **リポジトリの HEAD sha** を刻むため、当該ファイルが変わらなくても
-      リポジトリに 1 commit 入るたびに `doc_id` が変わり、承認が失効する。
-      結果として release は実質使い捨てになる。
-      直し方は「ファイル自身の最終更新 commit を刻む」方向だが、差分取り込みの
-      不変条件（`inference_skipped` の判定）に触れるので**要検討**。
-      `tests/test_security_self_source_policy.py::test_release_expires_on_the_next_head_commit`
-      が現状を固定しているので、直したらそのテストを消して SECURITY.md を更新する。
+- [記録] **quarantine の release が必要以上に早く失効する。**→ 解消。
+      正当化: **唯一の安全な迂回路（版ごとの承認）が事実上使い捨てだった**のを
+      使えるようにし、同時に高価な誤った直し方を選択肢から潰した。
+      数字は動かない（`--compare` は NO MOVEMENT）。
+      → `doc_id` から `commit_sha` を外した。repository + path + content で承認する。
+      **「要検討」の根拠は調べたら成り立っていなかった。**`inference_skipped` は
+      `RepositoryReport.requires_inference`（HEAD sha と state の比較）で決まり、
+      `doc_id` は一切関与しない。索引の同一性も `_logical_source_key`
+      （source + repository + source_type + path）であって `doc_id` ではない。
+      つまり `doc_id` の commit 成分は**承認の失効以外に何もしていなかった**。
+      **「ファイル自身の最終更新 commit を刻む」方向は採らなかった。**
+      全文書 1 件ずつ追加の GitHub API 呼び出しが要り、ループD が定期取り込みを
+      入れた以上その費用は恒久的に発生する。しかも正確にもならない:
+      ファイルを編集すれば content が変わるので、commit は content が
+      既に表している情報を重複して持つだけだった。
+      失効するのは**ファイルが変わったときだけ**になった。
+      明示しておく代償: 同一 repository・同一 path に同一 content が再出現すれば
+      （revert を含む）以前の承認が効く。それが content 由来の承認の意味であり、
+      レビュアーが見て受け入れたその中身がその場所に在る、という状態そのもの。
+      3 つの境界を `tests/test_security_self_source_policy.py` で固定した:
+      無関係な commit では失効しない / 編集で失効する / 別の path・別の
+      リポジトリへは移らない。`docs/SECURITY.md` ギャップ 10 を更新。
 - [x] **巨大 JSON（`site` の 2 件）がサイズ上限で BLOCK。**データ配列であり
       文書ではないので妥当だが、検索対象にしたいなら別経路が要る。
       → 方針決定: **別経路は作らない。**`docs/SECURITY.md` ギャップ 12 に

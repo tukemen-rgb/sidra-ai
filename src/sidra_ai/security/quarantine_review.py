@@ -76,10 +76,11 @@ class QuarantineEntry:
     content_retention: str
     original_length: int
     document_id: str = ""
-    """Hash over repository, path, commit and content. Reveals none of them,
-    and is recomputable at the next ingestion - which is what makes a release
+    """Hash over repository, path and content. Reveals none of them, and is
+    recomputable at the next ingestion - which is what makes a release
     actionable, since the audit record deliberately keeps nothing else that
-    could identify the document."""
+    could identify the document. The commit is excluded on purpose; see
+    :meth:`Document.doc_id`."""
 
     raw: dict[str, Any] = field(repr=False, default_factory=dict)
 

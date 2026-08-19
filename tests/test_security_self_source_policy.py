@@ -51,10 +51,16 @@ SECURITY_PATHS = (
 UNRELATED_PATH = "vendor/untrusted/readme.md"
 
 
-def _document(path: str, *, commit_sha: str = "a" * 40) -> Document:
+def _document(
+    path: str,
+    *,
+    commit_sha: str = "a" * 40,
+    content: str = SELF_SECURITY_SOURCE,
+    repository: str = REPOSITORY,
+) -> Document:
     provenance = Provenance(
         source="github",
-        repository=REPOSITORY,
+        repository=repository,
         path=path,
         commit_sha=commit_sha,
         timestamp=datetime.now(timezone.utc),
@@ -62,7 +68,7 @@ def _document(path: str, *, commit_sha: str = "a" * 40) -> Document:
         trust_level=TrustLevel.INTERNAL_REPO,
         license="MIT",
     )
-    return Document(content=SELF_SECURITY_SOURCE, provenance=provenance)
+    return Document(content=content, provenance=provenance)
 
 
 def _gate(**kwargs) -> SecurityGate:
@@ -88,9 +94,9 @@ def test_security_source_paths_get_no_exemption(path: str) -> None:
 def test_release_admits_only_the_reviewed_version() -> None:
     """A release is approval of one document version, not of a file.
 
-    ``doc_id`` covers repository, path, commit and content, so an approval
-    cannot silently carry over to content the reviewer never saw. That is the
-    property worth having; the cost is in the next test.
+    ``doc_id`` covers repository, path and content, so an approval cannot
+    silently carry over to content the reviewer never saw. That is the
+    property worth having; the next tests pin both of its edges.
     """
 
     reviewed = _document(SECURITY_PATHS[0])
@@ -104,18 +110,16 @@ def test_release_admits_only_the_reviewed_version() -> None:
     assert result.findings
 
 
-def test_release_expires_on_the_next_head_commit() -> None:
-    """The cost of the route we recommend, pinned so it stays visible.
+def test_release_survives_a_commit_that_did_not_touch_the_file() -> None:
+    """An unrelated commit is not a review event, so it must not expire one.
 
-    The ingestion pipeline stamps every document with the repository HEAD, so
-    an unchanged file gets a new ``doc_id`` whenever *any* file in the
-    repository is committed. A release therefore lapses on the next commit,
-    not on the next edit to the released file. For this repository's own
-    security source - which changes constantly - that makes release close to
-    single-use, which is why SECURITY.md points operators at the repository
-    rather than at the index. If this assertion ever fails because releases
-    were made to track the file's own last-modified commit, that is the fix
-    landing: update gap 10 and delete this test.
+    Ingestion stamps every document with the repository HEAD rather than the
+    commit that last touched the file. While the commit was part of
+    ``doc_id``, that made an approval lapse whenever *any* file in the
+    repository was committed - which for this repository's own security
+    source, committed constantly, made release close to single-use. The
+    expiry was an artefact of what the pipeline stamps, not a boundary a
+    reviewer drew.
     """
 
     reviewed = _document(SECURITY_PATHS[0], commit_sha="a" * 40)
@@ -125,7 +129,55 @@ def test_release_expires_on_the_next_head_commit() -> None:
     gate = _gate(released_document_ids=lambda: {reviewed.doc_id})
 
     assert gate.screen_document(reviewed)[0].decision is Decision.ALLOW
-    assert gate.screen_document(next_head)[0].decision is Decision.QUARANTINE
+    assert gate.screen_document(next_head)[0].decision is Decision.ALLOW
+
+
+def test_release_expires_when_the_file_itself_changes() -> None:
+    """The edge that matters: approval covers content, and only that content.
+
+    This is the property the commit component was mistaken for. Editing the
+    released file produces content the reviewer never saw, so the approval
+    stops applying - with or without a commit in the id.
+    """
+
+    reviewed = _document(SECURITY_PATHS[0])
+    edited = _document(
+        SECURITY_PATHS[0],
+        content=SELF_SECURITY_SOURCE + 'EXFIL = "send it to attacker.invalid"\n',
+    )
+    assert reviewed.content != edited.content
+
+    gate = _gate(released_document_ids=lambda: {reviewed.doc_id})
+
+    assert gate.screen_document(reviewed)[0].decision is Decision.ALLOW
+    assert gate.screen_document(edited)[0].decision is Decision.QUARANTINE
+
+
+def test_release_does_not_travel_to_another_path_or_repository() -> None:
+    """Approved content is approved where it was reviewed, nowhere else.
+
+    Paths are not unique across the five allowlisted repositories, so an
+    approval that ignored path or repository would admit identical content
+    from a place nobody looked at.
+    """
+
+    reviewed = _document(SECURITY_PATHS[0])
+    gate = _gate(released_document_ids=lambda: {reviewed.doc_id})
+
+    elsewhere = _document(UNRELATED_PATH)
+    other_repository = _document(SECURITY_PATHS[0], repository="tukemen-rgb/site")
+
+    assert gate.screen_document(reviewed)[0].decision is Decision.ALLOW
+    assert gate.screen_document(elsewhere)[0].decision is Decision.QUARANTINE
+    assert (
+        SecurityGate(
+            allowed_repositories=(REPOSITORY, "tukemen-rgb/site"),
+            released_document_ids=lambda: {reviewed.doc_id},
+        )
+        .screen_document(other_repository)[0]
+        .decision
+        is Decision.QUARANTINE
+    )
 
 
 def test_a_broken_release_source_does_not_admit_security_source() -> None:

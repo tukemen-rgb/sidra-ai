@@ -210,14 +210,39 @@ class Document:
 
     @property
     def doc_id(self) -> str:
-        """Deterministic id: stable across runs, unique per content+origin."""
+        """Deterministic id: stable across runs, unique per content+origin.
+
+        Repository, path and content - deliberately not ``commit_sha``.
+
+        The id is what a human approval from ``sidra-quarantine release``
+        binds to, and it has to lapse exactly when the reviewer's decision
+        stops applying: when the file's content changes, or when the same
+        content turns up somewhere they did not look. Content is in the
+        digest, so both of those still change it.
+
+        The commit is not, because ingestion stamps every document with the
+        repository HEAD rather than the commit that last touched the file.
+        Including it made the id change whenever *any* file in the repository
+        was committed, which expired approvals on unrelated edits and made
+        release close to single-use. That was an artefact of what the
+        pipeline happens to stamp, not a review boundary anyone chose.
+
+        The consequence worth naming: identical content reappearing at the
+        same path in the same repository is covered by the earlier approval,
+        even across a revert. That is what content-addressed approval means -
+        the reviewer accepted that content at that path, and this is that
+        content at that path.
+
+        Nothing else depends on the commit being here. Index identity is
+        ``DocumentStore._logical_source_key`` (source, repository,
+        source_type, path), and the decision to skip inference compares the
+        repository HEAD against the state store, never a document id.
+        """
 
         digest = hashlib.sha256()
         digest.update(self.provenance.repository.encode("utf-8"))
         digest.update(b"\x00")
         digest.update(self.provenance.path.encode("utf-8"))
-        digest.update(b"\x00")
-        digest.update(self.provenance.commit_sha.encode("utf-8"))
         digest.update(b"\x00")
         digest.update(self.content.encode("utf-8"))
         return digest.hexdigest()[:32]
