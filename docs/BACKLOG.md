@@ -305,7 +305,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
-- [ ] **字句検索に残った教科書のつまみを全部測って、この道を閉じ切る。**
+- [~] 作業中 2026-08-19 18:06 UTC ループA **字句検索に残った教科書のつまみを全部測って、この道を閉じ切る。**
       c916e21 系の訂正で確定した本当の原因は「長い生成ログ（worklog /
       research/designs / autonomous-loop 等）が、狭く正確な文書に
       **リポジトリ内部で**勝つ」。これに対する未測定の教科書手は残り 2 つ:
