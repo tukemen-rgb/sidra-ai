@@ -64,17 +64,27 @@ OUTCOME_QUESTIONS: tuple[OutcomeQuestion, ...] = (
         answer_marker="週次で遊ばれた投稿作品数",
         repository="tukemen-rgb/Fg",
     ),
+    # The two questions below started as direct questions quoting their own
+    # marker. The self-quote guard (test_question_does_not_contain_its_own_answer)
+    # forced a rewording, and the rewording removed every content word the
+    # marker has: measured overlap fell to inflection fragments only, with the
+    # evidence at rank 9 and rank 150. A question whose vocabulary no longer
+    # touches its answer is a paraphrase question in fact, whatever its label
+    # says - and leaving the label wrong made the direct tier report a
+    # retrieval failure that was actually a bookkeeping one.
     OutcomeQuestion(
         name="weekly-active-players-target",
         question="毎週どれだけの人に遊ばれることを目指していますか",
         answer_marker="週次アクティブプレイヤー",
         repository="tukemen-rgb/Fg",
+        tier="paraphrase",
     ),
     OutcomeQuestion(
         name="play-start-success-rate",
         question="ゲームが正しく起動する割合に目標値はありますか",
         answer_marker="プレイ開始成功率",
         repository="tukemen-rgb/Fg",
+        tier="paraphrase",
     ),
     OutcomeQuestion(
         name="perpetual-free-guardrail",

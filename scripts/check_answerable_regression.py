@@ -177,6 +177,13 @@ def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
         # heads differ between --save and --compare, the movement may belong
         # to someone else's push, not to the change under test.
         "corpus_heads": {repo: head_sha(path)[:12] for repo, path in targets},
+        # Question-set sizes. Counts are only comparable over the same set:
+        # adding an easy question raises `answered` without the product
+        # changing, which would make writing questions bankable as progress.
+        "scored": {
+            "direct": direct.get("scored", 0),
+            "paraphrase": paraphrase.get("scored", 0),
+        },
     }
 
 
@@ -203,6 +210,15 @@ def _compare(before: dict, now: dict) -> int:
             "change under test. Re-run --save on the current corpus if in doubt."
         )
 
+    same_set = before.get("scored") == now.get("scored")
+    if not same_set and before.get("scored") is not None:
+        print(
+            "question set changed between --save and --compare "
+            f"({before.get('scored')} -> {now.get('scored')}): counts are not "
+            "comparable, so outcome increases are NOT banked this run. "
+            "Re-run --save on the new set; only a same-set improvement counts."
+        )
+
     moved: list[str] = []
     broken: list[str] = []
     for key in _OUTCOME_KEYS:
@@ -210,7 +226,8 @@ def _compare(before: dict, now: dict) -> int:
         if old is None:
             moved.append(f"{key} (newly measured) -> {new_value}")
         elif new_value > old:
-            moved.append(f"{key} {old} -> {new_value}")
+            if same_set or before.get("scored") is None:
+                moved.append(f"{key} {old} -> {new_value}")
         elif new_value < old:
             broken.append(f"{key} {old} -> {new_value}")
     for key in _GUARD_KEYS:

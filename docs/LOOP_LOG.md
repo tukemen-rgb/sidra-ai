@@ -638,3 +638,9 @@
 2026-08-19 16:40 UTC ループD no-op キューが空。C-308 は対話セッションが確保済み、D-549 は再確認したが 403 のまま（Claude GitHub App が org 未接続）、E/F 節は対象外。main 緑（1000 passed / recall PASSED / flag 10.5%）。
 
 2026-08-19 16:43 UTC ループA started
+
+2026-08-19 16:44 UTC 対話セッション done 直接語診断（記録決着）+ 判定器の穴塞ぎ
+  tier 誤分類 2 問を paraphrase へ付け替え（直接語 7/9）。ひらがな bigram 抑制は
+  識別力 -5.6pt で却下。質問追加で answered を銀行できる穴を第二判定器で封鎖
+  （scored 不一致時は増加を無効化、減少は従来どおり regression）。
+  1004 passed / recall PASSED / floors OK。

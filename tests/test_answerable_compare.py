@@ -35,6 +35,7 @@ def _now(**overrides) -> dict:
         "answerable_discrimination": 27.8,
         "answerable_mrr": 0.307,
         "corpus_heads": {"tukemen-rgb/site": "aaaaaaaaaaaa"},
+        "scored": {"direct": 11, "paraphrase": 7},
     }
     base.update(overrides)
     return base
@@ -110,3 +111,30 @@ def test_every_promised_metric_is_judged(key: str) -> None:
     """A name a backlog item can promise must be either outcome or guard here."""
 
     assert key in _mod._OUTCOME_KEYS or key in _mod._GUARD_KEYS
+
+
+def test_adding_questions_is_not_bankable(capsys) -> None:
+    """A count that rose because the question set grew is not progress.
+
+    Writing an easy question raises `answered` with no product change; if
+    that banked as movement, the rational strategy would be to write
+    questions instead of fixing retrieval. Same-set improvements only.
+    """
+
+    before = _now()
+    after = _now(
+        answerable_total=9,
+        answerable_direct=9,
+        scored={"direct": 13, "paraphrase": 7},
+    )
+    assert _mod._compare(before, after) == 1
+    out = capsys.readouterr().out
+    assert "question set changed" in out
+
+
+def test_a_regression_still_fails_across_question_set_changes() -> None:
+    """Shrinking or reshaping the set must not launder a real drop."""
+
+    before = _now(answerable_direct=7)
+    after = _now(answerable_direct=5, scored={"direct": 9, "paraphrase": 9})
+    assert _mod._compare(before, after) == 2
