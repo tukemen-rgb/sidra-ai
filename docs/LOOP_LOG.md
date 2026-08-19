@@ -160,7 +160,7 @@
   実サーバ起動 + 実ソケットで疎通確認済み。トークンは設定ホストと loopback
   にしか送らない。端末制御文字と bidi override は表示前に除去し、除去を報告する。
 
-2026-08-19 11:40 UTC ループC done 会話が 1 往復で終わる | conversation_turns 1 -> 2 (3c2e011)
+2026-08-19 11:40 UTC ループC done 会話が 1 往復で終わる | conversation_turns 1 -> 2 (b114d6a)
   `ChatRequest.history`（最大 8 往復・各 8000 字）。trust は **UNVERIFIED**。
   API は状態を持たないので履歴はクライアントの主張であって記録ではない。
   `OPERATOR` は instruction authority なので、そこに貼ると「以前こう言った」
