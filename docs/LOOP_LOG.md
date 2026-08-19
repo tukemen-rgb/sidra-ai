@@ -416,3 +416,14 @@
   ローカルで clone からやり直して job を再現し exit 0 を確認。
   offline job に git clone を混入させてテストが落ちることも確認済み。
   942 passed / verify_gate_recall PASSED。数字は動かない（習慣をゲートにした回）。
+
+2026-08-19 13:29 UTC ループB no-op キューが空
+  E / F 節を除く `- [ ]` は D-466 の 1 件だけで、org 単位の許可待ち。
+  C-331 は 13:23 にループD が確保済み（放置ではないので奪わない）。
+  D-466 のブロックだけ再確認した（変わり得るのはここだけなので）:
+  /repos/tukemen-rgb/sidra-ai は依然 403 で、本文も同じ
+  「GitHub access is not enabled for this session. An org admin must connect
+  the Claude GitHub App for this organization.」。/rate_limit は 200。**変化なし。**
+  前回入れた CI job を残して赤くしていないかも確認した:
+  clone からやり直して check_answerable_regression.py exit 0、全下限クリア。
+  main は green: 967 passed / recall PASSED / flag 10.5%（上限 13%）。
