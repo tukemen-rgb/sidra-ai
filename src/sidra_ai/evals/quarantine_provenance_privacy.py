@@ -153,13 +153,17 @@ def _oversized_block_provenance_privacy() -> EvalOutcome:
         if entry.get("content_retention") != "metadata_only":
             failures.append("oversized BLOCK audit was not metadata-only")
         audit_provenance = entry.get("provenance")
+        # The repository cleared the allowlist before the byte budget was
+        # measured, so the record names it: a size rejection nobody can
+        # attribute is a rejection nobody can act on. Everything the
+        # detectors never saw stays a length.
         expected_keys = {
+            "source",
+            "repository",
             "source_type",
             "trust_level",
             "timestamp",
             "retrieved_at",
-            "source_length",
-            "repository_length",
             "path_length",
             "commit_sha_length",
             "license_length",
@@ -169,6 +173,11 @@ def _oversized_block_provenance_privacy() -> EvalOutcome:
         }
         if not isinstance(audit_provenance, dict) or set(audit_provenance) != expected_keys:
             failures.append("oversized BLOCK audit retained raw or unexpected provenance fields")
+        elif (
+            audit_provenance.get("source") != provenance.source
+            or audit_provenance.get("repository") != provenance.repository
+        ):
+            failures.append("oversized BLOCK audit did not attribute the allowlisted repository")
 
         serialized = json.dumps(entry, ensure_ascii=False)
         forbidden = (
@@ -192,7 +201,10 @@ def _oversized_block_provenance_privacy() -> EvalOutcome:
     return EvalOutcome(
         case_name="security_oversized_block_provenance_privacy",
         passed=not failures,
-        detail="oversized BLOCK audit must be context-free before secret/PII inspection",
+        detail=(
+            "oversized BLOCK audit names the allowlisted source/repository and "
+            "nothing the detectors never inspected"
+        ),
         failures=tuple(failures),
     )
 

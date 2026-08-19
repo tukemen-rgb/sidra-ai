@@ -183,6 +183,26 @@ runtime boundary:
    redacted content - not by filename. That is a deliberate trade, and it
    makes review harder than it looks on paper.
 
+   `source` and `repository` are the exception, and which side of the line
+   they fall on is decided by *whether the allowlist rejected*, not by the
+   decision. Both an oversized payload and an unpermitted source are BLOCK,
+   but they are not the same disclosure:
+
+   * An allowlist rejection is the gate refusing a value, so that value is
+     precisely the untrusted thing. Everything, including `source` and
+     `repository`, is persisted only as a length.
+   * Any other outcome - QUARANTINE, or a BLOCK for size - has already
+     cleared the allowlist, so the repository is one of the operator's own
+     configured entries and the record names it.
+
+   Before that distinction existed the record was anonymous for every BLOCK,
+   which made a size rejection impossible to attribute and so impossible to
+   act on. Widening it was an explicit decision, approved 2026-08-19;
+   `tests/test_block_audit_attribution.py` pins both sides, and the eval in
+   `src/sidra_ai/evals/quarantine_provenance_privacy.py` re-checks them at
+   release time. Nothing else moved: path, URL, author, license, commit and
+   `extra` are still lengths, and a BLOCK still retains no body content.
+
 7. **No signature verification of GitHub responses** beyond TLS.
 8. **Chunk-level trust is inherited from the document**, so a doc that quotes
    a hostile issue is trusted at document level. **Accepted, not fixed**, and
@@ -297,14 +317,12 @@ runtime boundary:
    `oversized_input:byte_budget` label, so the decision is one an operator
    can actually make.
 
-   *The limit of that attribution.* The report is the response to one
-   `POST /v1/github/analyze` call and is not persisted. The durable record -
-   the quarantine audit log - drops `source` and `repository` for every
-   BLOCK, because a BLOCK can happen before the secret and PII detectors run
-   (gap 6). So after the fact, the log shows that something was refused for
-   size, with its byte count, but not where it came from. Narrowing that
-   deliberately-tested privacy property is a judgement call and is left as a
-   backlog item rather than taken here.
+   *The durable record says so too.* The ingestion report is the response to
+   one `POST /v1/github/analyze` call and is not persisted, so for a while
+   the quarantine audit log showed only that something had been refused for
+   size and how many bytes it was - a rejection nobody could act on after the
+   fact. It now names `source` and `repository` for a size rejection; see
+   gap 6 for exactly which BLOCKs get that and which do not.
 
 ## Verifying these claims
 

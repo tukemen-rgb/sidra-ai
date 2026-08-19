@@ -50,6 +50,27 @@ _BLOCKING_CATEGORIES = frozenset(
 )
 
 
+def _rejected_by_source_allowlist(result: GateResult) -> bool:
+    """Did the source/repository allowlist itself refuse this input?
+
+    This is the one case where ``source`` and ``repository`` are the
+    untrusted values rather than operator-configured ones, so it decides
+    whether the audit record may name them. Deciding it from the findings
+    rather than from the decision matters: an oversized ``BLOCK`` and an
+    unpermitted-source ``BLOCK`` are the same decision but not the same
+    disclosure, and only the second one is refused before any check on the
+    values could have passed.
+
+    ``inspect`` returns immediately on an allowlist rejection, so a result
+    carrying this category never also carries a later detector's findings.
+    """
+
+    return any(
+        finding.category is FindingCategory.UNPERMITTED_SOURCE
+        for finding in result.findings
+    )
+
+
 @dataclass(frozen=True)
 class GatePolicy:
     """Tunable thresholds. Defaults are the conservative v0.1 posture."""
@@ -297,17 +318,30 @@ class QuarantineStore:
     ) -> dict[str, Any] | None:
         """Return provenance safe to persist at the quarantine audit boundary.
 
-        ``BLOCK`` may occur before secret/PII inspection for source rejection
-        or oversized input, so all raw string provenance is dropped there.
+        The remaining provenance fields (path, URL, author, license, commit
+        and ``extra``) are attacker-controlled and never pass through the
+        content secret/PII detectors, so they are persisted only as lengths.
+        That keeps the audit record from becoming a second place secrets can
+        land, and from becoming a low-entropy digest oracle.
 
-        ``QUARANTINE`` happens only after source/repository allowlist checks,
-        but the remaining provenance fields (path, URL, author, license,
-        commit, and ``extra``) are still attacker-controlled and are not passed
-        through the content secret/PII detectors. Persist only the already
-        allowlist-bound source/repository plus typed attribution and lengths for
-        those remaining fields. This keeps a repository-level review anchor
-        without creating a secondary secret/PII persistence channel or a
-        low-entropy digest oracle.
+        ``source`` and ``repository`` are different: they are bound to the
+        operator's own allowlist. Whether they can be persisted depends on
+        whether the allowlist check *passed*, not on the decision:
+
+        * A rejection by the allowlist itself is the one case where the
+          repository is precisely the untrusted value, and it is refused
+          before any detector runs. Everything stays a length there.
+        * Every other outcome - ``QUARANTINE``, or a ``BLOCK`` for size -
+          has already cleared the allowlist, so the value is one of the
+          operator's configured entries and naming it discloses nothing the
+          operator did not write.
+
+        Until this distinction existed, an oversized ``BLOCK`` was recorded
+        anonymously: the durable log said something was refused for size and
+        gave its byte count, but not where it came from. The ingestion report
+        names the repository, but it is the response to one API call and is
+        not persisted, so after the fact nobody could act on the rejection.
+        Gap 6 of ``docs/SECURITY.md`` explains what stays dropped and why.
         """
 
         if provenance is None:
@@ -327,16 +361,16 @@ class QuarantineStore:
             "author_length": len(provenance.author),
             "extra_count": len(provenance.extra),
         }
-        if result.decision is Decision.QUARANTINE:
+        if _rejected_by_source_allowlist(result):
             return {
-                "source": provenance.source,
-                "repository": provenance.repository,
                 **common,
+                "source_length": len(provenance.source),
+                "repository_length": len(provenance.repository),
             }
         return {
+            "source": provenance.source,
+            "repository": provenance.repository,
             **common,
-            "source_length": len(provenance.source),
-            "repository_length": len(provenance.repository),
         }
 
     def record(

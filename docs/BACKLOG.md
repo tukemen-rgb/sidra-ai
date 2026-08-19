@@ -170,18 +170,25 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### A. セキュリティゲートの精度（測定済み・根拠あり）
 
-- [~] 作業中 2026-08-19 13:09 UTC ループA → 動かす数字: なし（privacy の保護範囲を意図的に広げる変更）
-      **【2026-08-19 承認済み・着手可】BLOCK の監査記録に source / repository を残す。**
-      現在 BLOCK は長さだけを残す。理由（BLOCK は secret/PII 検査より前に
-      起き得る＝ギャップ 6）は**許可リスト拒否では正しい**が、サイズ超過の
-      BLOCK では `repository` は既に許可リストを通過している。
-      → **`UNPERMITTED_SOURCE` の finding を持たない BLOCK のみ**
-      `source` / `repository` を残す。持つものは従来どおり落とす。
-      `tests/test_quarantine_provenance_privacy.py` と
-      `src/sidra_ai/evals/quarantine_provenance_privacy.py` が現行挙動を
-      意図的に固定しているので、**両方を同時に更新する**こと。
-      片方だけ直して通ったら、それは検査が緩んだということ。
-      `python scripts/check_gate_regression.py` も走らせる。
+- [記録] **BLOCK の監査記録に source / repository を残す。**（承認済み・実施）
+      正当化: 数字は動かないが、**「サイズ超過で弾いた」という永続記録が
+      どこから来たか分からず、運用者が手を打てない**状態を解消した。
+      → 承認された設計どおり `UNPERMITTED_SOURCE` の finding を持たない
+      BLOCK のみ `source` / `repository` を残す。持つものは従来どおり全部落とす。
+      **判定は decision ではなく finding から引く。**サイズ超過も許可リスト
+      拒否も同じ `BLOCK` なので、`decision is BLOCK` で書くと必ずどちらかの
+      挙動がもう一方に化ける。`_rejected_by_source_allowlist()` に切り出した。
+      指示どおり**テストと eval を同時に更新**した（片方だけ通るのは検査が
+      緩んだということ）。加えて新しい不変条件そのものを
+      `tests/test_block_audit_attribution.py` で固定:
+      サイズ超過は repository を名乗る / 許可リスト拒否は名乗らない（拒否された
+      識別子が JSONL に一切現れない）/ 区別が finding 由来であること /
+      名乗るようにしても path・URL・author・license・commit・extra は長さのまま /
+      許可リストは大小文字を無視するので `SAFE/REPO` も通過扱い。
+      実機確認: `byte_budget → tukemen-rgb/site` / `repository → (dropped; length 37)`、
+      拒否された識別子はログに出現しない。
+      `docs/SECURITY.md` ギャップ 6 に線引きを、ギャップ 12 の
+      「限界」節を実態へ更新。943 passed / recall PASSED / flag 10.6%（上限 13%）。
 
 - [x] **`high_entropy` の発火 1018 回を減らす。**ほぼ全文書で 1 回以上鳴る。
       MEDIUM なので隔離はしないが、監査記録が埋まり、本当の検知が埋もれる。

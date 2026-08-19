@@ -76,7 +76,19 @@ def test_rejected_document_provenance_is_context_free_in_quarantine(tmp_path) ->
         assert raw_extra_value not in serialized
 
 
-def test_oversized_block_provenance_is_context_free_before_secret_inspection(tmp_path) -> None:
+def test_oversized_block_names_the_repository_it_already_allowlisted(tmp_path) -> None:
+    """A size rejection is attributable; everything uninspected stays a length.
+
+    The repository cleared the allowlist before the byte budget was even
+    measured, so naming it discloses one of the operator's own configured
+    entries and nothing else. Without it the durable record said only that
+    something was refused for size, which no operator can act on.
+
+    What must not follow it: path, URL, author, license, commit and extra are
+    attacker-controlled and never passed through the detectors, so they are
+    still lengths, and no body content is retained at all.
+    """
+
     synthetic_secret = "ghp_" + "O" * 24
     synthetic_pii = "oversized.person@example.com"
     provenance = Provenance(
@@ -109,12 +121,12 @@ def test_oversized_block_provenance_is_context_free_before_secret_inspection(tmp
     assert entry["content_retention"] == "metadata_only"
     audit_provenance = entry["provenance"]
     assert audit_provenance == {
+        "source": "github",
+        "repository": "safe/repo",
         "source_type": SourceType.DOCS.value,
         "trust_level": TrustLevel.INTERNAL_REPO.value,
         "timestamp": provenance.timestamp.isoformat(),
         "retrieved_at": provenance.retrieved_at.isoformat(),
-        "source_length": len(provenance.source),
-        "repository_length": len(provenance.repository),
         "path_length": len(provenance.path),
         "commit_sha_length": len(provenance.commit_sha),
         "license_length": len(provenance.license),
