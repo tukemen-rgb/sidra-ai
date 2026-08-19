@@ -1329,3 +1329,4 @@
      probe は情報ではなく雑音。確保→差し戻しの 2 commit も同様。
   probe が 0 リクエストでも、**キューを埋めるための作業を作らない**方を採った。
   main 緑（1041 passed / recall PASSED / flag 10.2%）。
+- 2026-08-19 23:26 UTC ループB started
