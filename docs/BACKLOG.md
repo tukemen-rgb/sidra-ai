@@ -34,9 +34,14 @@ Claude の自動ループが 12 分ごと（毎時 5 回）に参照する作業
 main へ入れる前に必ず両方を通す。片方でも落ちたら **revert して次へ**。
 
 ```
-pytest
+python -m pytest
 python scripts/verify_gate_recall.py
 ```
+
+`pytest` ではなく **`python -m pytest`** と書くこと（CI もこちら）。裸の
+`pytest` は PATH 上の別インタプリタの実行ファイルを拾うことがあり、その場合
+依存が入っていないため collection error だけで落ちる。green の main が赤に
+見え、ループが自分の変更を revert する経路になる。
 
 `verify_gate_recall.py` の `MUST CATCH` に 1 つでも `MISS` が出たら、
 その変更は検知力を削っている。マージしない。
