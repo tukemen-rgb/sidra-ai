@@ -332,6 +332,7 @@ def test_no_write_routes_exist(api: TestClient) -> None:
     paths = api.get("/openapi.json").json()["paths"]
     assert set(paths) == {
         "/health",
+        "/v1/index",
         "/v1/retrieve",
         "/v1/chat",
         "/v1/github/analyze",

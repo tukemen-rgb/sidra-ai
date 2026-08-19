@@ -127,6 +127,52 @@ class AnalyzeResponse(BaseModel):
     analysis: dict[str, Any] | None = None
 
 
+class RepositoryIndexSummary(BaseModel):
+    """What SIDRA holds for one repository. Counts and cursors, never content."""
+
+    repository: str
+    documents: int = 0
+    source_types: dict[str, int] = Field(default_factory=dict)
+    last_ingested_at: str = ""
+    last_commit_sha: str = ""
+    quarantined: int = 0
+    has_error: bool = False
+    """Whether the last ingestion recorded an error.
+
+    Deliberately a flag rather than the message. ``RepositoryState.last_error``
+    holds up to 500 characters of an exception string that may quote a GitHub
+    response, and this endpoint is a reporting surface, not a debugging one.
+    """
+
+
+class QuarantineSummary(BaseModel):
+    """Counts from the quarantine audit log, or an honest failure to read it."""
+
+    available: bool = True
+    total: int = 0
+    releasable: int = 0
+    released: int = 0
+    pending: int = 0
+    by_decision: dict[str, int] = Field(default_factory=dict)
+    by_finding_category: dict[str, int] = Field(default_factory=dict)
+
+
+class IndexResponse(BaseModel):
+    """What is in the index, so an operator can tell a thin answer from a gap.
+
+    No document text, paths, URLs or authors appear here. Retrieval with
+    citations is ``/v1/retrieve``'s job; this answers "what does SIDRA know
+    about at all", which is the question you ask when an answer looks wrong.
+    """
+
+    documents: int = 0
+    chunks: int = 0
+    redacted_documents: int = 0
+    source_types: dict[str, int] = Field(default_factory=dict)
+    repositories: list[RepositoryIndexSummary] = Field(default_factory=list)
+    quarantine: QuarantineSummary = Field(default_factory=QuarantineSummary)
+
+
 class HealthResponse(BaseModel):
     """Unauthenticated liveness/readiness summary with no topology details."""
 

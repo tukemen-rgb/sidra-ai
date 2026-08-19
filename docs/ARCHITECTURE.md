@@ -200,6 +200,9 @@ tests/embedding callers and is not used by the `sidra-api` entry point.
 
 - `GET /health` — minimal unauthenticated health status, no repository/content details.
 - `GET /openapi.json` — authenticated/rate-limited schema discovery; Swagger UI and ReDoc are disabled rather than exposed as separate routes.
+- `GET /v1/index` — authenticated/rate-limited inventory of what is indexed:
+  per-repository and per-source-type counts, the ingestion cursor, and
+  quarantine totals. Counts only; no document text, path, URL or author.
 - `POST /v1/retrieve` — authenticated/rate-limited retrieval without invoking the model.
 - `POST /v1/chat` — authenticated/rate-limited grounded local-model chat.
 - `POST /v1/github/analyze` — authenticated/rate-limited read-only GitHub ingestion + analysis.

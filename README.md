@@ -33,6 +33,7 @@ sidra-api                   # serves http://127.0.0.1:8787 (loopback only)
 curl http://127.0.0.1:8787/health
 curl -X POST http://127.0.0.1:8787/v1/github/analyze \
   -H 'content-type: application/json' -d '{"repositories":["tukemen-rgb/site"]}'
+curl http://127.0.0.1:8787/v1/index      # what is indexed, counts only
 curl -X POST http://127.0.0.1:8787/v1/retrieve \
   -H 'content-type: application/json' -d '{"query":"What changed recently?"}'
 curl -X POST http://127.0.0.1:8787/v1/chat \
@@ -92,7 +93,7 @@ The verified v0.1 baseline includes:
 5. local model adapters and manifest/observed-VRAM admission for configured non-echo startup
 6. security gate and output guard
 7. offline evaluation suite
-8. private SIDRA API (`/health`, `/v1/retrieve`, `/v1/chat`, `/v1/github/analyze`)
+8. private SIDRA API (`/health`, `/v1/index`, `/v1/retrieve`, `/v1/chat`, `/v1/github/analyze`)
 
 Real-model readiness remains machine-specific: the exact local artifact/tag,
 license/revision/digest evidence, manifest resource values, current free VRAM,

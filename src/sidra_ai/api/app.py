@@ -43,6 +43,7 @@ from sidra_ai.api.schemas import (
     ChatRequest,
     ChatResponse,
     HealthResponse,
+    IndexResponse,
     RetrieveRequest,
     RetrieveResponse,
 )
@@ -252,6 +253,25 @@ def create_app(
         """Unauthenticated and minimal, but bounded before model health work."""
 
         return resolve_service().health()
+
+    @app.get("/v1/index", response_model=IndexResponse, dependencies=guarded)
+    def index() -> Any:
+        """Report what is indexed. Authenticated, and content-free by design.
+
+        Unlike ``/health`` this discloses repository names and counts, which
+        is why it sits behind the same auth and rate limit as retrieval
+        rather than next to the open liveness probe.
+        """
+
+        current = resolve_service()
+        result = current.index_stats()
+        record_audit(
+            operation="index",
+            input_chars=0,
+            repositories=None,
+            response=result,
+        )
+        return result
 
     @app.post("/v1/retrieve", response_model=RetrieveResponse, dependencies=guarded)
     def retrieve(payload: RetrieveRequest) -> Any:

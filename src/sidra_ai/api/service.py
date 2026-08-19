@@ -25,6 +25,7 @@ from sidra_ai.retrieval.store import DocumentStore
 from sidra_ai.security.data_envelope import build_data_context
 from sidra_ai.security.decisions import Decision, GateResult
 from sidra_ai.security.gate import QuarantineStore, SecurityGate
+from sidra_ai.security.quarantine_review import QuarantineReview
 from sidra_ai.security.output_guard import OutputGuard
 
 SYSTEM_PROMPT = """You are SIDRA AI, the self-hosted assistant for SIDRA STUDIO.
@@ -123,6 +124,79 @@ class SidraService:
         }
 
     # ------------------------------------------------------------------
+    def index_stats(self) -> dict[str, Any]:
+        """Describe what is indexed, without disclosing any of it.
+
+        The operator-facing question this answers is "does SIDRA know about
+        this at all?". A thin answer has two very different causes - nothing
+        was ingested, or what was ingested was held back - and without this
+        endpoint they look identical from outside.
+
+        Only counts, cursors and detector category names cross this boundary.
+        No document text, path, URL or author does; those belong to
+        ``/v1/retrieve``, which attaches them to a citation the caller asked
+        for. Every allowlisted repository is listed even when it holds
+        nothing, because "SIDRA has never ingested marketing" is exactly the
+        finding an operator comes here for and an absent row does not say it.
+        """
+
+        store_stats = self.store.stats()
+        state = self.state_store.load()
+
+        per_repository: dict[str, dict[str, int]] = {}
+        for document in self.store.documents():
+            provenance = document.provenance
+            bucket = per_repository.setdefault(provenance.repository, {})
+            key = provenance.source_type.value
+            bucket[key] = bucket.get(key, 0) + 1
+
+        # Allowlisted repositories first and in configured order, then anything
+        # the index holds from outside it. The second group should be empty;
+        # if it is not, this endpoint is the place that shows it.
+        known = list(self.settings.allowed_repositories)
+        extra = sorted(set(per_repository) - set(known))
+
+        repositories = []
+        for repository in known + extra:
+            repository_state = state.get(repository)
+            source_types = per_repository.get(repository, {})
+            repositories.append(
+                {
+                    "repository": repository,
+                    "documents": sum(source_types.values()),
+                    "source_types": dict(sorted(source_types.items())),
+                    "last_ingested_at": repository_state.last_ingested_at,
+                    "last_commit_sha": repository_state.last_commit_sha,
+                    "quarantined": repository_state.quarantined_count,
+                    # The message itself stays out; see RepositoryIndexSummary.
+                    "has_error": bool(repository_state.last_error),
+                }
+            )
+
+        return {
+            "documents": store_stats["documents"],
+            "chunks": store_stats["chunks"],
+            "redacted_documents": store_stats["redacted_documents"],
+            "source_types": dict(sorted(store_stats["source_types"].items())),
+            "repositories": repositories,
+            "quarantine": self._quarantine_summary(),
+        }
+
+    def _quarantine_summary(self) -> dict[str, Any]:
+        """Quarantine counts, or an admission that they could not be read.
+
+        A reporting surface that returns zeros when it failed to read the log
+        is worse than one that returns nothing: it reads as "nothing is held
+        back", which is the opposite of what an unreadable audit log means.
+        """
+
+        path = Path(self.settings.data_dir) / "quarantine.jsonl"
+        try:
+            stats = QuarantineReview(path).stats()
+        except Exception:  # noqa: BLE001 - reporting must not take the API down
+            return {"available": False}
+        return {"available": True, **stats}
+
     def retrieve(
         self,
         query: str,
