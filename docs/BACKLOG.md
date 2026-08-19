@@ -305,6 +305,20 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
+- [~] 作業中 2026-08-19 16:38 UTC 対話セッション **直接語の外し 4 問を診断結果に沿って詰める。**
+      `--diagnose` の実測: 2 問（weekly-active-players-target rank 9 /
+      play-start-success-rate rank 150）は自答禁止テストを通すための言い換えで
+      **実質 paraphrase になっている**（tier 誤分類。共有語が活用断片のみ）。
+      → tier を正直に paraphrase へ直す。カウントは動かないので成果を名乗らない。
+      残り 2 問（gameyard-creatoryard-roles rank 7 / submission-fee rank 95）は
+      本物の取りこぼし。共有語に「てい」「ばれ」等の**ひらがな断片ノイズ**が
+      混ざっている。原理的な手として「ひらがなのみ bigram を索引・照会の両側で
+      抑制する」を**測ってから**入れる（教科書的な日本語 IR の定石であり、
+      特定の質問への合わせ込みではない）。判定は第二判定器の --save/--compare。
+      直接語カウントが増えず、または guard/recall/pytest のどれかが崩れるなら
+      **入れずに** [記録] で理由を残す。
+      → 動かす数字: `answerable_direct`（現在 7。tier 修正後の分母は 9）
+
 - [記録] **言い換え 0/7 の原因は検索器の外にも無かった。**（(3) で終了・選択肢を潰した）
       正当化: **取り込み側という最後の疑いを実測で潰し、E 節へ差し戻す材料を作った。**
       数字は動かない（`--compare` は NO MOVEMENT）。詳細は `docs/OUTCOMES.md`。
