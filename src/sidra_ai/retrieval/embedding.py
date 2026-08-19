@@ -106,15 +106,21 @@ class EmbeddingRetriever(Retriever):
         lexical: Retriever,
         backend: EmbeddingBackend | None = None,
         *,
-        candidate_multiplier: int = 20,
+        candidate_multiplier: int = 10,
     ) -> None:
         self._lexical = lexical
         self._backend = backend or NoEmbeddingBackend()
         #: How far down the lexical list to look for chunks the semantic pass
         #: can promote. Bounded because encoding is the expensive half.
-        #: 20 (a 100-chunk window at the default top_k) is where MRR peaked
-        #: when measured over the five repositories; 400 was no better and
-        #: cost discrimination.
+        #: Measured over the 26-question set on the five repositories:
+        #: 10, 20, 40 and 80 all answer the same 13 questions, so the window
+        #: buys nothing past 50 chunks - the misses are either outside any
+        #: window lexically or ones the model demotes when it does see them.
+        #: What widening does move is discrimination, downward (+30.8pt at
+        #: 10 and 20, +26.9 at 40, +23.1 at 80): a bigger window feeds the
+        #: reranker more plausible-looking foreign chunks. 10 keeps the best
+        #: discrimination, the best measured MRR (0.436 against 0.429 at 20),
+        #: and half the encoding cost of 20.
         self._candidate_multiplier = max(1, candidate_multiplier)
 
     # ------------------------------------------------------------------

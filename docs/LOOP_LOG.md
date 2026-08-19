@@ -1331,3 +1331,8 @@
   main 緑（1041 passed / recall PASSED / flag 10.2%）。
 - 2026-08-19 23:26 UTC ループB started
 2026-08-19 23:27 UTC ループB no-op キューが空。確保も probe もなし。C-308 は対話セッションが実作業中（23:10 に push、30 分規則は落ちたループ用なので奪わない）。D-728 は自分が 23:11 に probe して shut、20 分ローテーションの順番が来ていない。E / F は対象外。main は 23:19 時点で緑、以降 `src/ scripts/ tests/` に commit なし。
+
+2026-08-19 23:30 UTC 対話セッション done semantic 診断＋候補窓 10 採用
+  窓 10/20/40/80 全点で同じ 13 問。拡大は識別力を削るだけ、縮小 10 は
+  MRR 0.436・識別力 +30.8pt 維持・エンコード半分で採用。1041 passed /
+  recall PASSED / semantic 下限 (12/10/2) 保持。
