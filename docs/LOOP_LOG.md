@@ -659,3 +659,4 @@
   check_gate_regression 10.5%（上限 13%）/ check_answerable_regression は
   4 本を fetch し直して exit 0（answered 7/18・直接語 7/11・言い換え 0/7・
   識別力 +27.8pt・MRR 0.307）。main は green。
+2026-08-19 16:48 UTC ループB started
