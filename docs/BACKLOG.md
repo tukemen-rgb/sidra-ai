@@ -328,7 +328,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       スコアは lexical 単位のまま返す（融合値は BM25 スコアの顔をして
       別物になる）。956 passed / 下限は全て保持（言い換えは 0/7 のまま）。
 
-- [記録] **ローカル埋め込み (2)(3) 完了。狙った数字は動かなかった。** (HASH)
+- [記録] **ローカル埋め込み (2)(3) 完了。狙った数字は動かなかった。** (235e467)
       **ローカル埋め込み (2)(3): 実モデルと実測。**(1) の骨は入ったので、
       残りは `EmbeddingBackend` の実装（ローカル・外部 API 不可・有料不可）と、
       `measure_outcomes.py --diagnose` による 5 本実測の前後比較。
