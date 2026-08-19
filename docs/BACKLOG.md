@@ -93,7 +93,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       sidra-ai は allowlist の 1 エントリに過ぎない。得るのは数ファイルの
       索引化だけで、**割に合わない**（`example.com` の却下と同じ判断）。
       代わりの答えは「リポジトリを読む」。索引は便宜であって正本ではない。
-      どうしても索引に入れたい 1 件は `sidra-quarantine release` で版ごとに承認する。
+      どうしても索引に入れたい 1 件は `sidra-quarantine release` で版ごとに承認する。(72b43bd)
 
 - [ ] **quarantine の release が必要以上に早く失効する。**上の項目の調査で判明。
       release は `doc_id`（repository+path+commit+content）で承認するので、
