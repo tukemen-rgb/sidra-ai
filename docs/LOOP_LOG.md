@@ -1004,3 +1004,11 @@
   （11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
 
 2026-08-19 19:22 UTC ループA started
+
+2026-08-19 19:24 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。前回（19:14）から状況変化なし。
+  `- [~]` 0 件、E / F を除く `- [ ]` は D-683 のみ。`/repos/*` は叩いていない。
+  SIDRA_GITHUB_TOKEN は unset のまま（presence のみ確認・値は未出力）。
+  全ゲート実測: 1035 passed / verify_gate_recall PASSED /
+  check_gate_regression 10.2%（上限 13%）/ check_answerable_regression exit 0
+  （11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291）。
