@@ -1054,3 +1054,9 @@
 2026-08-19 19:58 UTC ループD no-op キューが空。runner 1 回で 0/60（Spent 0）、`SIDRA_GITHUB_TOKEN` 未設定。main 緑（1035 passed / recall PASSED / flag 10.2%）。前回から変化なし。
 
 2026-08-19 20:03 UTC ループA started
+
+2026-08-19 20:05 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。19:44 から変化なし。E / F を除く
+  `- [ ]` は D-683 のみ、`SIDRA_GITHUB_TOKEN` は unset（presence のみ確認、
+  `/repos/*` は未実行）。1035 passed / recall PASSED / flag 10.2% /
+  answerable exit 0（11/26・10/15・1/11・+30.8pt）。
