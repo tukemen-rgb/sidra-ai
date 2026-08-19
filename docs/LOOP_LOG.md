@@ -701,3 +701,19 @@
   1030 passed / verify_gate_recall PASSED。
 
 2026-08-19 17:02 UTC ループA started
+
+2026-08-19 17:06 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。`- [~]` は 0 件、E / F 節を除く
+  `- [ ]` は D-606 の 1 件だけで、要る物は 1 つ: `SIDRA_GITHUB_TOKEN`。
+  presence のみ確認（値は出力しない）: 依然 unset、GITHUB_TOKEN / GH_TOKEN は
+  長さ 14 のまま = 401 が実証された sentinel。復帰待ちも add_repo 再試行もしない。
+  全ゲート実測: 1030 passed / verify_gate_recall PASSED /
+  check_gate_regression 10.5%（上限 13%）/ check_answerable_regression exit 0。
+  **言い換えが 0 でなくなっている。**5 リポジトリ実測で
+  answered 11/26（下限 10）・直接語 10/15（下限 9）・**言い換え 1/11（下限 1）**・
+  識別力 +30.8pt・MRR 0.291。設問が 18→26 に増え、再分類も入った結果。
+  **計器に 1 箇所ずれがある（今回は直していない）。**
+  `scripts/product_metrics.py:251` の `(last measured 0/7)` は文字列直書きで、
+  実測は 1/11。値そのものは `-`（要 5 checkout）なので判定は変わらないが、
+  読んだ人は「言い換えは全滅のまま」と受け取る。設問集は直近 1 時間で
+  他ループが動かしている最中なので、確保していない項目を横から書き換えず報告に留めた。
