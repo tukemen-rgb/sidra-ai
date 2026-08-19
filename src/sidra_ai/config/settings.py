@@ -146,6 +146,23 @@ class Settings:
 
     rate_limit_per_minute: int = 60
 
+    embedding_model_path: str = ""
+    """Directory holding a local sentence-transformers model. Empty disables it.
+
+    A path, never a model name: naming a model is what makes a process
+    download one. Empty is a supported deployment - retrieval falls back to
+    BM25, which is slower at finding paraphrases and just as available.
+    """
+
+    embedding_query_prefix: str = ""
+    embedding_passage_prefix: str = ""
+    """Asymmetric markers some retrieval models are trained with.
+
+    e5 wants ``"query: "`` and ``"passage: "``. Left empty for symmetric
+    models. Not inferred from the model directory, because that would break
+    the first time somebody renames it.
+    """
+
     ingest_interval_seconds: int = 0
     """Seconds between background differential ingestions. ``0`` disables it.
 
@@ -204,6 +221,9 @@ class Settings:
             port=_env_int("SIDRA_PORT", DEFAULT_PORT),
             allow_public_bind=_env_bool("SIDRA_ALLOW_PUBLIC_BIND", False),
             rate_limit_per_minute=_env_int("SIDRA_RATE_LIMIT_PER_MINUTE", 60),
+            embedding_model_path=os.environ.get("SIDRA_EMBEDDING_MODEL_PATH", "").strip(),
+            embedding_query_prefix=os.environ.get("SIDRA_EMBEDDING_QUERY_PREFIX", ""),
+            embedding_passage_prefix=os.environ.get("SIDRA_EMBEDDING_PASSAGE_PREFIX", ""),
             ingest_interval_seconds=_env_int("SIDRA_INGEST_INTERVAL_SECONDS", 0),
             model_backend=os.environ.get("SIDRA_MODEL_BACKEND", "echo").strip()
             or "echo",
@@ -388,6 +408,9 @@ class Settings:
             "localhost_only": self.is_localhost_only,
             "allow_public_bind": self.allow_public_bind,
             "rate_limit_per_minute": self.rate_limit_per_minute,
+            # The path itself is deployment topology; report only whether
+            # semantic retrieval is configured at all.
+            "embedding_configured": bool(self.embedding_model_path),
             "ingest_interval_seconds": self.ingest_interval_seconds,
             "model_backend": self.model_backend,
             "model_name": self.model_name,

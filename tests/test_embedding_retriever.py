@@ -295,3 +295,107 @@ def test_empty_query_returns_nothing_rather_than_raising() -> None:
 ])
 def test_cosine(a, b, expected) -> None:
     assert cosine(a, b) == pytest.approx(expected)
+
+
+# --- the configured backend --------------------------------------------
+
+
+def test_a_backend_with_no_path_is_unavailable_and_says_why() -> None:
+    from sidra_ai.retrieval.embedding import SentenceTransformerBackend
+
+    backend = SentenceTransformerBackend("")
+
+    assert backend.available() is False
+    assert backend.unavailable_reason == "no model path configured"
+
+
+def test_a_missing_model_directory_is_unavailable_not_a_download(tmp_path) -> None:
+    """A mistyped path must not become a network fetch."""
+
+    from sidra_ai.retrieval.embedding import SentenceTransformerBackend
+
+    backend = SentenceTransformerBackend(tmp_path / "not-here")
+
+    assert backend.available() is False
+    assert "directory" in backend.unavailable_reason
+
+
+def test_the_unavailable_reason_never_carries_the_path(tmp_path) -> None:
+    """Deployment topology does not belong in a status string."""
+
+    from sidra_ai.retrieval.embedding import SentenceTransformerBackend
+
+    secret_dir = tmp_path / "srv-internal-weights"
+    backend = SentenceTransformerBackend(secret_dir)
+    backend.available()
+
+    assert "srv-internal-weights" not in backend.unavailable_reason
+
+
+def test_prefixes_are_applied_asymmetrically() -> None:
+    """texts[0] is the query; everything after it is a passage."""
+
+    from sidra_ai.retrieval.embedding import SentenceTransformerBackend
+
+    seen: list[list[str]] = []
+    class _Recorder(SentenceTransformerBackend):
+        def available(self) -> bool:
+            return True
+
+    backend = _Recorder("/nonexistent", query_prefix="query: ",
+                        passage_prefix="passage: ")
+
+    class _Model:
+        def encode(self, texts):
+            seen.append(list(texts))
+            return [[1.0, 0.0] for _ in texts]
+
+    backend._model = _Model()
+    backend.encode(["どれくらい費用がかかりますか", "投稿は無料", "多言語化はしない"])
+
+    assert seen == [[
+        "query: どれくらい費用がかかりますか",
+        "passage: 投稿は無料",
+        "passage: 多言語化はしない",
+    ]]
+
+
+def test_encoding_nothing_returns_nothing() -> None:
+    from sidra_ai.retrieval.embedding import SentenceTransformerBackend
+
+    backend = SentenceTransformerBackend("/nonexistent")
+    backend._model = object()
+
+    assert backend.encode([]) == []
+
+
+def test_settings_without_a_path_select_no_backend() -> None:
+    from sidra_ai.config.settings import Settings
+    from sidra_ai.retrieval.embedding import backend_from_settings
+
+    assert backend_from_settings(Settings()).name == "none"
+
+
+def test_settings_with_a_path_select_the_local_backend() -> None:
+    from dataclasses import replace
+
+    from sidra_ai.config.settings import Settings
+    from sidra_ai.retrieval.embedding import backend_from_settings
+
+    configured = replace(Settings(), embedding_model_path="/srv/sidra/model",
+                         embedding_query_prefix="query: ")
+    backend = backend_from_settings(configured)
+
+    assert backend.name == "sentence-transformers"
+    assert backend._query_prefix == "query: "
+
+
+def test_settings_report_whether_embedding_is_configured_not_where() -> None:
+    from dataclasses import replace
+
+    from sidra_ai.config.settings import Settings
+
+    rendered = str(replace(Settings(), embedding_model_path="/srv/secret/weights").redacted_dict())
+
+    assert "embedding_configured': True" in rendered
+    assert "/srv/secret/weights" not in rendered

@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import abc
 import math
+import os
+from pathlib import Path
 from typing import Iterable, Sequence
 
 from sidra_ai.documents import SourceType
@@ -104,12 +106,15 @@ class EmbeddingRetriever(Retriever):
         lexical: Retriever,
         backend: EmbeddingBackend | None = None,
         *,
-        candidate_multiplier: int = 4,
+        candidate_multiplier: int = 20,
     ) -> None:
         self._lexical = lexical
         self._backend = backend or NoEmbeddingBackend()
         #: How far down the lexical list to look for chunks the semantic pass
         #: can promote. Bounded because encoding is the expensive half.
+        #: 20 (a 100-chunk window at the default top_k) is where MRR peaked
+        #: when measured over the five repositories; 400 was no better and
+        #: cost discrimination.
         self._candidate_multiplier = max(1, candidate_multiplier)
 
     # ------------------------------------------------------------------
@@ -202,3 +207,111 @@ class EmbeddingRetriever(Retriever):
         for semantic_rank, index in enumerate(semantic_order):
             scores[index] += 1.0 / (RRF_K + semantic_rank + 1)
         return scores
+
+
+class SentenceTransformerBackend(EmbeddingBackend):
+    """A local sentence-transformers model, loaded from a path on disk.
+
+    **It never downloads.** The path is required and is used as-is; there is
+    no model name that would send the process to a hub on first use. A
+    self-hosted assistant that fetches weights when it starts is a
+    self-hosted assistant that phones out, and the whole point of this
+    project is that it does not. Provision the directory out of band::
+
+        python -c "from sentence_transformers import SentenceTransformer; \\
+            SentenceTransformer('<name>').save('/srv/sidra/model')"
+        export SIDRA_EMBEDDING_MODEL_PATH=/srv/sidra/model
+
+    The import is deferred to first use so that this module - and therefore
+    the retrieval package, and therefore the API - imports on a machine with
+    no torch installed. ``available()`` answers that question honestly
+    instead of raising it at startup.
+    """
+
+    name = "sentence-transformers"
+
+    def __init__(
+        self,
+        model_path: str | os.PathLike[str],
+        *,
+        query_prefix: str = "",
+        passage_prefix: str = "",
+    ) -> None:
+        self._model_path = Path(model_path) if model_path else None
+        self._model: object | None = None
+        self._unavailable_reason = ""
+        # Retrieval-tuned models are asymmetric: they are trained with one
+        # marker on the question and another on the text being searched, and
+        # encoding both the same way throws that training away. e5 wants
+        # "query: " and "passage: ". Left empty for symmetric models, because
+        # guessing the convention from a directory name would break the
+        # moment somebody renames the directory.
+        self._query_prefix = query_prefix
+        self._passage_prefix = passage_prefix
+
+    # ------------------------------------------------------------------
+    @property
+    def unavailable_reason(self) -> str:
+        """Why the backend is not usable. Never a stack trace, never a path."""
+
+        return self._unavailable_reason
+
+    def available(self) -> bool:
+        if self._model is not None:
+            return True
+        if self._model_path is None:
+            self._unavailable_reason = "no model path configured"
+            return False
+        if not self._model_path.is_dir():
+            self._unavailable_reason = "model path is not a directory"
+            return False
+        try:
+            from sentence_transformers import SentenceTransformer
+        except Exception as exc:  # noqa: BLE001 - absent or broken is the same
+            self._unavailable_reason = f"sentence-transformers unusable: {type(exc).__name__}"
+            return False
+        try:
+            # local_files_only keeps a mistyped path from becoming a download.
+            self._model = SentenceTransformer(
+                str(self._model_path), local_files_only=True
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._unavailable_reason = f"model did not load: {type(exc).__name__}"
+            return False
+        self._unavailable_reason = ""
+        return True
+
+    def encode(self, texts: Sequence[str]) -> list[Sequence[float]]:
+        """Encode ``texts``; by this interface's contract ``texts[0]`` is the query."""
+
+        if not self.available():
+            raise RuntimeError(self._unavailable_reason or "embedding backend unavailable")
+        if not texts:
+            return []
+        tagged = [self._query_prefix + texts[0]] + [
+            self._passage_prefix + t for t in texts[1:]
+        ]
+        vectors = self._model.encode(tagged)  # type: ignore[union-attr]
+        return [list(map(float, v)) for v in vectors]
+
+
+def backend_from_settings(settings=None) -> EmbeddingBackend:
+    """Build the configured backend, defaulting to none.
+
+    Absence is the default and is not an error: the service runs without
+    weights, more slowly at finding paraphrases, and that is a supported
+    deployment rather than a broken one.
+    """
+
+    if settings is None:
+        from sidra_ai.config.settings import get_settings
+
+        settings = get_settings()
+    path = getattr(settings, "embedding_model_path", "")
+    if not path:
+        return NoEmbeddingBackend()
+    return SentenceTransformerBackend(
+        path,
+        query_prefix=getattr(settings, "embedding_query_prefix", ""),
+        passage_prefix=getattr(settings, "embedding_passage_prefix", ""),
+    )
