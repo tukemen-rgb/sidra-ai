@@ -24,6 +24,7 @@ Exposure posture for v0.1:
 
 from __future__ import annotations
 
+import contextlib
 import hmac
 import time
 from collections import OrderedDict, deque
@@ -35,6 +36,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from sidra_ai.api.audit import ApiAuditLog
+from sidra_ai.api.refresher import BackgroundRefresher
 from sidra_ai.api.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -122,7 +124,20 @@ def create_app(
     health_limiter = RateLimiter(settings.rate_limit_per_minute)
     audit_log = audit_log or ApiAuditLog(Path(settings.data_dir) / "api_audit.jsonl")
 
+    # Started on startup, stopped on shutdown. Built before the app because
+    # a lifespan handler has to be passed to the constructor.
+    refresher_holder: dict[str, BackgroundRefresher] = {}
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_: FastAPI):
+        refresher_holder["refresher"].start()
+        try:
+            yield
+        finally:
+            refresher_holder["refresher"].stop()
+
     app = FastAPI(
+        lifespan=lifespan,
         title="SIDRA AI",
         version="0.1.0",
         description=(
@@ -301,6 +316,20 @@ def create_app(
             status_code=403,
             content={"detail": _REPOSITORY_FORBIDDEN_DETAIL},
         )
+
+    # ------------------------------------------------------------------
+    # Keep the index current without a human. Off unless configured; see
+    # sidra_ai.api.refresher for why it never reaches the model.
+    def _ingest_once() -> Any:
+        return resolve_service().ingest_only()
+
+    refresher = BackgroundRefresher(
+        ingest=_ingest_once, interval_seconds=settings.ingest_interval_seconds
+    )
+    #: Exposed for tests and for the authenticated index endpoint. Not for
+    #: /health, which is unauthenticated and must not disclose runtime state.
+    app.state.refresher = refresher
+    refresher_holder["refresher"] = refresher
 
     return app
 

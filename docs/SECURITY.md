@@ -135,6 +135,10 @@ persisted by the guard.
 - `.sidra/` is gitignored: it holds quarantined content and indexed text.
 - Files that may hold sensitive material (`quarantine.jsonl`, a persisted
   index) are created mode 0600.
+- Background ingestion (`SIDRA_INGEST_INTERVAL_SECONDS`) is off by default
+  and refuses intervals under 60s. It ingests only and has no route to the
+  model, so an unattended server cannot spend inference on its own. Its
+  status is not on `/health`, which stays unauthenticated and topology-free.
 
 ## Known gaps in v0.1
 

@@ -48,6 +48,11 @@ DEFAULT_PORT = 8787
 #: still generate a random token rather than choosing a memorable phrase.
 MIN_PUBLIC_API_TOKEN_CHARS = 24
 
+#: Floor for an enabled background poller. GitHub's read quota is
+#: shared with operator-driven requests, so a tight loop would spend
+#: the budget the people using SIDRA need.
+MIN_INGEST_INTERVAL_SECONDS = 60
+
 
 class UnsafeConfigurationError(RuntimeError):
     """Raised when a configuration would weaken a v0.1 safety invariant."""
@@ -141,6 +146,15 @@ class Settings:
 
     rate_limit_per_minute: int = 60
 
+    ingest_interval_seconds: int = 0
+    """Seconds between background differential ingestions. ``0`` disables it.
+
+    Off by default: a server that starts polling GitHub because it was
+    upgraded is a surprise, and the surprise is outbound traffic. Enabling it
+    is a deliberate act. The floor below keeps an enabled poller from turning
+    a typo into a rate-limit ban.
+    """
+
     # --- Model backend ---------------------------------------------------
     model_backend: str = "echo"
     model_name: str = "sidra-local-v0"
@@ -190,6 +204,7 @@ class Settings:
             port=_env_int("SIDRA_PORT", DEFAULT_PORT),
             allow_public_bind=_env_bool("SIDRA_ALLOW_PUBLIC_BIND", False),
             rate_limit_per_minute=_env_int("SIDRA_RATE_LIMIT_PER_MINUTE", 60),
+            ingest_interval_seconds=_env_int("SIDRA_INGEST_INTERVAL_SECONDS", 0),
             model_backend=os.environ.get("SIDRA_MODEL_BACKEND", "echo").strip()
             or "echo",
             model_name=os.environ.get("SIDRA_MODEL_NAME", "sidra-local-v0"),
@@ -312,6 +327,18 @@ class Settings:
         if self.rate_limit_per_minute <= 0:
             raise UnsafeConfigurationError("rate_limit_per_minute must be positive")
 
+        if self.ingest_interval_seconds < 0:
+            raise UnsafeConfigurationError(
+                "ingest_interval_seconds must not be negative"
+            )
+        if 0 < self.ingest_interval_seconds < MIN_INGEST_INTERVAL_SECONDS:
+            # Refuse rather than clamp: silently running 60x more often than
+            # asked is worse than refusing to start.
+            raise UnsafeConfigurationError(
+                "ingest_interval_seconds must be 0 (disabled) or at least "
+                f"{MIN_INGEST_INTERVAL_SECONDS}"
+            )
+
         if not self.data_dir.strip():
             raise UnsafeConfigurationError("data_dir must not be empty or whitespace")
 
@@ -361,6 +388,7 @@ class Settings:
             "localhost_only": self.is_localhost_only,
             "allow_public_bind": self.allow_public_bind,
             "rate_limit_per_minute": self.rate_limit_per_minute,
+            "ingest_interval_seconds": self.ingest_interval_seconds,
             "model_backend": self.model_backend,
             "model_name": self.model_name,
             "allowed_repositories": list(self.allowed_repositories),

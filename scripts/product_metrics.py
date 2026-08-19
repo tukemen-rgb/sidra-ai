@@ -138,17 +138,34 @@ def measure_usability(c: Collector) -> None:
 
 
 def measure_freshness(c: Collector) -> None:
-    """Whether the index refreshes without a human poking it."""
+    """Whether the index refreshes without a human poking it.
 
-    import sidra_ai.api.service as service_module
+    Exercised, not grepped: an app is built with an interval configured and
+    started, and the answer is whether a refresher is actually running when
+    it comes up.
+    """
 
-    source = Path(service_module.__file__).read_text(encoding="utf-8")
-    scheduled = any(
-        marker in source
-        for marker in ("BackgroundTask", "asyncio.create_task", "repeat_every")
-    )
-    c.add("ingestion_automatic", "ingestion runs without a human", int(scheduled),
-          detail="manual POST /v1/github/analyze only" if not scheduled else "scheduled")
+    from dataclasses import replace
+
+    from fastapi.testclient import TestClient
+
+    from sidra_ai.api.app import create_app
+    from sidra_ai.config.settings import MIN_INGEST_INTERVAL_SECONDS, Settings
+
+    configured = replace(Settings(), ingest_interval_seconds=MIN_INGEST_INTERVAL_SECONDS)
+    running = False
+    try:
+        app = create_app(settings=configured)
+        with TestClient(app):
+            running = bool(app.state.refresher.status().running)
+    except Exception as exc:  # noqa: BLE001 - an unusable path measures as absent
+        c.add("ingestion_automatic", "ingestion runs without a human", 0,
+              detail=f"does not come up: {type(exc).__name__}")
+        return
+
+    c.add("ingestion_automatic", "ingestion runs without a human", int(running),
+          detail=("SIDRA_INGEST_INTERVAL_SECONDS, off by default, never calls the model"
+                  if running else "manual POST /v1/github/analyze only"))
 
 
 # --- does the answer hold up ------------------------------------------
@@ -228,8 +245,7 @@ def measure_observability(c: Collector) -> None:
     from sidra_ai.api.schemas import HealthResponse
 
     exposed = sorted(
-        name for name in HealthResponse.model_fields
-        if "audit" in name or "fail" in name or "error" in name
+        name for name in HealthResponse.model_fields if "audit" in name
     )
     c.add("audit_failures_visible", "audit write failures an operator can see",
           len(exposed),

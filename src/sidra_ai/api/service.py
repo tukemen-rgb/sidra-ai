@@ -260,6 +260,17 @@ class SidraService:
         }
 
     # ------------------------------------------------------------------
+    def ingest_only(self) -> "IngestionReport":
+        """Ingest changes and stop there, without reaching the model.
+
+        Used by the background refresher. Kept separate from
+        :meth:`analyze_github` so the scheduled path has no route to
+        inference at all - a property that survives future edits to the
+        endpoint's cost checks.
+        """
+
+        return self._pipeline().ingest_all()
+
     def analyze_github(
         self,
         repositories: Sequence[str] | None = None,
