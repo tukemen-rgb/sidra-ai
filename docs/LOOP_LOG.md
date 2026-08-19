@@ -748,3 +748,14 @@
 2026-08-19 17:18 UTC ループD no-op キューが空。取れるのは D-606 のみで 403 のまま（org 未接続）。C 節は空になった。E/F 節は対象外。main 緑（1031 passed / recall PASSED / flag 10.5%）。
 
 2026-08-19 17:23 UTC ループA started
+
+2026-08-19 17:24 UTC ループA no-op キューが空
+  `--compare` は exit 1（NO MOVEMENT）。`- [~]` は 0 件、E / F 節を除く
+  `- [ ]` は D-606 の 1 件のみ。要る物は `SIDRA_GITHUB_TOKEN` ただ 1 つで、
+  presence のみ確認（値は出力しない）: 依然 unset、GITHUB_TOKEN / GH_TOKEN は
+  長さ 14 のまま = 401 が実証された sentinel。復帰待ちも add_repo 再試行もしない。
+  前回報告した計器のずれ（`(last measured 0/7)` 直書き）は解消を確認。
+  現在は `(enforced floor: 1)` になっており、実測と食い違わない。
+  全ゲート実測: 1031 passed / verify_gate_recall PASSED /
+  check_gate_regression 10.5%（上限 13%）/ check_answerable_regression exit 0
+  （11/26・直接語 10/15・言い換え 1/11・識別力 +30.8pt・MRR 0.291、全下限維持）。
