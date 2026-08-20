@@ -396,6 +396,36 @@ checkout されていないのに 18/18 が rank 1、回答可能率 100.0%、MR
 違っていた」を参照。sidra-ai の 18.2% は検知器のソース由来で、
 SECURITY.md ギャップ 10 として受け入れ済み。）
 
+### 埋め込みモデルを変えても答えは 1 問も増えない（2026-08-20 実測・ループB）
+
+同一コーパス・26 問・第二判定器。**3 モデルが同じ 13 問に答え、同じ 13 問を外す。**
+
+| モデル | 次元/規模 | answered | direct | paraphrase | 識別力 | MRR |
+|---|---|---:|---:|---:|---:|---:|
+| `intfloat/multilingual-e5-small`（現行） | 384 / 118M | 13/26 | 11/15 | 2/11 | +30.8pt | 0.436 |
+| `cl-nagoya/ruri-v3-30m`（日本語特化） | 256 / 37M | 13/26 | 11/15 | 2/11 | +23.1pt | 0.357 |
+| `intfloat/multilingual-e5-base` | 768 / 278M | 13/26 | 11/15 | 2/11 | +26.9pt | 0.412 |
+
+**件数ではなく集合が一致している。**答えた問題名を並べて確認した（同一 13 問:
+core-diagnosis, cy-ranking-culture, cy-withdrawal-condition,
+gameyard-creatoryard-roles, localization-policy, mkt-deliverables-location,
+north-star-metric, paid-sales-policy, para-cy-unfinished-work,
+perpetual-free-guardrail, positioning, weekly-active-players-target,
+what-is-gameyard）。件数一致だけを見て「同じ」と書くと、違う 13 問に
+答えているのを見逃す。
+
+**この測定が潰した仮説**: 「残り 13 問の律速は埋め込みモデルの日本語
+言い換え理解である」。設計の違う 3 モデル（多言語小・日本語特化・多言語中）が
+**同じ問題で失敗する**なら、失敗の原因はモデル固有の言語理解ではない。
+候補窓の全域測定（10/20/40/80 も同じ 13）と合わせると、残り 13 問は
+**再ランクの射程外**で、律速は候補生成（BM25）側にある。
+
+日本語特化モデルが多言語モデルより**悪い**（識別力 −7.7pt / MRR −0.079）のは
+直感に反するが、guard は 2 モデルとも悪化しており、勝ったものは無い。
+`.env.example` の推奨は e5-small のまま据え置き。
+
+**やらないこと**: 別の埋め込みモデルを提案する。3 点測って全滅している。
+
 ## それぞれの意味
 
 **到達率** — 実際のコーパスのうち、SIDRA が検索できる割合。

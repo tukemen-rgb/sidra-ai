@@ -322,7 +322,32 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
-- [~] 作業中 2026-08-20 14:28 UTC ループB **埋め込みモデルの選定を測る（semantic 構成の残り 13 問の唯一の残り手）。**
+- [記録] 決着 2026-08-20 ループB **埋め込みモデルの選定を測った。2 候補とも負け。この道は打ち止め。**
+      正当化: 数字は動かないが、**「律速はモデルの日本語言い換え理解」という
+      仮説を実測で潰した**。GDP 提案（#372）の順序どおり日本語特化を一番手にして、
+      最短で仮説を殺せた。実測（26 問・同一コーパス・第二判定器）:
+      | モデル | answered | direct | para | 識別力 | MRR | `--compare` |
+      |---|---:|---:|---:|---:|---:|---|
+      | e5-small（現行） | 13/26 | 11/15 | 2/11 | +30.8pt | 0.436 | 基準 |
+      | ruri-v3-30m | 13/26 | 11/15 | 2/11 | **+23.1pt** | **0.357** | **exit 2** |
+      | e5-base | 13/26 | 11/15 | 2/11 | **+26.9pt** | **0.412** | **exit 2** |
+      両方とも guard を 2 つ悪化させて exit 2。製品コードは無変更なので
+      revert するものは無い（env var の差し替えだけで測った）。
+      **件数一致ではなく集合一致だった。**「13 問が同じ数」では
+      モデルが違う 13 問に答えている可能性が残るので、答えた問題名を並べて
+      確認した——**3 モデルとも一字一句同じ 13 問**:
+      core-diagnosis / cy-ranking-culture / cy-withdrawal-condition /
+      gameyard-creatoryard-roles / localization-policy /
+      mkt-deliverables-location / north-star-metric / paid-sales-policy /
+      para-cy-unfinished-work / perpetual-free-guardrail / positioning /
+      weekly-active-players-target / what-is-gameyard
+      **含意（次に取る者へ）**: 384 次元の多言語・日本語特化 30M・768 次元の
+      多言語という**設計の違う 3 モデルが同じ問題に答え、同じ問題を外す**。
+      候補窓の全域測定（10/20/40/80 も同じ 13）と合わせると、
+      **残り 13 問は再ランクでは届かない**——律速は reranker ではなく
+      **候補生成（BM25）側**である。モデルを変える提案はもう出さないこと。
+      勝ったモデルが無いので `.env.example` の推奨は e5-small のまま。
+      1041 passed / verify_gate_recall PASSED。
       候補窓は全域測定で打ち止め（10/20/40/80 全点同数）。律速は
       e5-small の日本語言い換え理解と確定済み（窓内の正解を降格させる実例
       44→83 あり）。次に測る価値があるのは**モデルそのもの**:
