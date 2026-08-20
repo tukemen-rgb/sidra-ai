@@ -1759,3 +1759,13 @@
   （token 未設置の項目は取らない）を含む改訂版。3 時間毎の main 監視も
   再有効化。キュー先頭は「埋め込みモデルの選定を測る」
   （answerable_total 13/26・paraphrase 2/11 が標的）。初回発火は 14:25 のループB。
+
+2026-08-20 14:12 UTC ループD 常駐セッション — 停止の確認（D 分）
+  ループD のトリガー D-1 trig_01QFFfwYCKZJwRkniaYSG3vj と
+  D-3 trig_01E8DHTEFTpHaJG83DZubo38 は enabled=false 要求が
+  "the requested resource was not found" を返す。13:46 の削除で既に存在せず、
+  ループD は発火経路ごと停止済み。14:10 の再開では A/B/C の 3 本のみが
+  張られており、ループD は再アームされていない（この D 常駐セッションは
+  トリガーが無いだけで残っている。戻すならトリガーを 1 本作れば回る）。
+  訂正: 13:46 の記録は「10 本すべて削除」としているが、A/B/C の 9 本は
+  11:05 UTC にループD が enabled=false にした後の削除。動作上の差はない。
