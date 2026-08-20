@@ -368,7 +368,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       勝ったら .env.example の推奨モデルを差し替え、下限をラチェット。
       → 動かす数字: `answerable_total`（13/26）/ `answerable_paraphrase`（2/11）
 
-- [ ] **質問集に現場質問 3 問を足す（26→29）。GDP 提案 #372 comment 5357238029。**
+- [~] 作業中 2026-08-20 15:28 UTC ループB **質問集に現場質問 3 問を足す（26→29）。GDP 提案 #372 comment 5357238029。**
       **上の「モデル選定」が終わるまで着手しない。**測定範囲を広げる変更なので、
       比較の途中で分母を動かすと**モデル比較の結果が読めなくなる**。
       追加候補（すべて paraphrase tier、SIDRA AI / GAMEYARD に限定。
