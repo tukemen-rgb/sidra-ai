@@ -1847,4 +1847,5 @@
   claim も probe もしていない。1045 passed（13 秒）/ recall PASSED / `--compare` exit 1 /
   作業ツリー無変更。**手順1 の注記（追記）**: `git push … | tail` のようなパイプ付きも
   拒否される。素の `git push origin main` なら通る。add はパス指定 commit で省ける。
-- 2026-08-20 17:26 UTC ループB started
+- 2026-08-20 17:26 UTC ループB started Board=6
+2026-08-20 17:27 UTC ループB no-op キューが空。Board=6 で前回（16:26）から増分ゼロ——読むコメントが無いので本文は取得していない。E / F を除く `- [ ]` は D-861 のみ（token 未充足、presence のみ確認）、`- [~]` 0 件。社長判断待ち 3 件のまま。
