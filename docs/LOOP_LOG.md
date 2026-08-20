@@ -1618,3 +1618,10 @@
 2026-08-20 04:44 UTC ループA no-op キューが空。D-739 は前提条件どおり env を確認し
   `SIDRA_GITHUB_TOKEN` absent なので取らない（claim も probe もしない）。残りは E 2 件・F 2 件、
   `- [~]` 0 件。1041 passed（19 秒）/ recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
+
+2026-08-20 04:45 UTC ループC stopped（社長の指示により一旦停止）
+  未完の確保は無い（`- [~]` 0 件）。作業ツリーは clean、main と同期済み。
+  再開時の状態: 実項目は D-739 のみで、前提条件は `SIDRA_GITHUB_TOKEN` が
+  環境にあること。置かれていれば `python scripts/verify_real_github_api.py` を
+  1 本走らせれば済む（未検証の 3 点を個別に confirmed/not confirmed で報告する）。
+  E 節に判断待ちが 2 件（回答生成をどの機械で解くか / ループ空回りの扱い）。
