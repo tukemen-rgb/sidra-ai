@@ -1605,3 +1605,4 @@
   ループは 10 回/時でクリーンに no-op（最新 04:15「token still absent」）。
   (2) token 依然 unset。(3) 放置 claim なし。(4) ゲート実測: 1041 passed /
   recall PASSED / answerable 両構成 exit 0。(5) 異常なし。
+- 2026-08-20 04:27 UTC ループB started
