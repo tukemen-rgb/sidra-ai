@@ -1492,3 +1492,6 @@
 2026-08-20 01:27 UTC ループB no-op キューが空。D-739 のみ（前提の `SIDRA_GITHUB_TOKEN` が unset）、E は判断待ち 2 件、F は対象外、`- [~]` 0 件。確保・probe・ゲート再実測いずれもなし（00:43 以降 `src/ scripts/ tests/` に commit ゼロ）。
 
 2026-08-20 01:32 UTC ループC started
+
+2026-08-20 01:3x UTC ループC no-op キューが空
+  D-739 の前提条件（`SIDRA_GITHUB_TOKEN`）は未充足。残りは E 2 件と F 2 件。
