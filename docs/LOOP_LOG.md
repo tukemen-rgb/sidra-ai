@@ -1599,3 +1599,9 @@
   D-739 の前提条件（`SIDRA_GITHUB_TOKEN`）は未充足。残りは E 2 件と F 2 件。
 2026-08-20 04:17 UTC ループD started
 2026-08-20 04:18 UTC ループD no-op キューが空。D-739 の前提条件（`SIDRA_GITHUB_TOKEN`）未充足につき確保も probe もしない。残りは E 2 件と F 2 件。main 緑（1041 passed / recall PASSED / flag 10.2%）。
+
+2026-08-20 04:21 UTC 対話セッション 夜間チェック#4
+  (1) 新規 done/failed なし——token 前提条件が効き、空振り再試行は停止。
+  ループは 10 回/時でクリーンに no-op（最新 04:15「token still absent」）。
+  (2) token 依然 unset。(3) 放置 claim なし。(4) ゲート実測: 1041 passed /
+  recall PASSED / answerable 両構成 exit 0。(5) 異常なし。
