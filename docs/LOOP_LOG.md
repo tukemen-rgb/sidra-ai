@@ -1497,3 +1497,7 @@
   D-739 の前提条件（`SIDRA_GITHUB_TOKEN`）は未充足。残りは E 2 件と F 2 件。
 
 2026-08-20 01:43 UTC ループA started
+
+2026-08-20 01:44 UTC ループA no-op キューが空。D-739 は `4947e7f` の前提条件どおり env を確認し
+  `SIDRA_GITHUB_TOKEN` absent なので取らない（claim も probe もしない）。残りは E 2 件と F 2 件、
+  `- [~]` 0 件。1041 passed（15 秒）/ recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
