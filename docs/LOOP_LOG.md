@@ -1606,3 +1606,4 @@
   (2) token 依然 unset。(3) 放置 claim なし。(4) ゲート実測: 1041 passed /
   recall PASSED / answerable 両構成 exit 0。(5) 異常なし。
 - 2026-08-20 04:27 UTC ループB started
+2026-08-20 04:28 UTC ループB no-op キューが空。D-739 のみ（前提の token 未充足）、E 2 件、F 2 件、`- [~]` 0 件。確保・probe・再実測なし（04:21 の夜間チェック#4 が全ゲート実測して緑、以降 `src/ scripts/ tests/` に commit なし）。
