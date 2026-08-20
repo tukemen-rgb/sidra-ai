@@ -101,6 +101,10 @@ from sidra_ai.security.gate import GatePolicy, SecurityGate  # noqa: E402
 #: CreatorYard and two marketing direct questions, two CreatorYard
 #: paraphrases): measured 11/26 answered, 10/15 direct, 1/11 paraphrased,
 #: discrimination +30.8. One question of slack, as before.
+#: Re-pinned 2026-08-20 for 27 questions (`para-ugc-safety-before-players`):
+#: measured 11/27 answered, 10/15 direct, 1/12 paraphrased, discrimination
+#: +25.9. The lexical numbers did not move - the added question is a
+#: paraphrase, and BM25 answers exactly one of those - so these two stand.
 MIN_ANSWERED = 10
 MIN_DIRECT = 9
 
@@ -111,7 +115,20 @@ MIN_DIRECT = 9
 #: products: a machine without weights must keep passing at the lexical
 #: floors, and a machine with weights must not be allowed to quietly perform
 #: like a machine without them.
-SEMANTIC_MIN_ANSWERED = 12
+#: Re-pinned 2026-08-20 for 27 questions: measured 14/27 answered, 11/15
+#: direct, 3/12 paraphrased, discrimination +33.3. `answered` moves 12 -> 13
+#: because the set grew and the added question is answered here; this is a
+#: re-pin to the new set, NOT an improvement (the judge refused to bank it,
+#: which is correct - the denominator moved).
+#: `paraphrase` stays at 2 on purpose, even though the run printed the
+#: ratchet prompt at 3. That prompt exists because this floor used to be
+#: pinned AT measurement, and the comment below says why: one-below would
+#: have been zero, and zero guards nothing. At a measurement of 3 that
+#: reason has expired, so the file's general policy applies again - one
+#: question of slack for churn in the four repositories this project does
+#: not own. The new question's evidence lives in someone else's sales copy,
+#: which is exactly the churn the slack is for.
+SEMANTIC_MIN_ANSWERED = 13
 SEMANTIC_MIN_DIRECT = 10
 SEMANTIC_MIN_PARAPHRASE = 2
 

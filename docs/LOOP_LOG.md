@@ -1795,3 +1795,22 @@
   比較の後 / 実回答の機械選定=E 節へ「社長へ」）。#372 に返信済み。
   1041 passed / verify_gate_recall PASSED。
 - 2026-08-20 15:26 UTC ループB started
+2026-08-20 15:4x UTC ループB 記録 C-371 質問集の拡張（`--compare` は exit 1・`question set changed`）
+  Board=5 だが**増分 2 件は自分の返信**。GDP からの新規入力はゼロ。
+  **総数方式の欠陥**なので BACKLOG の手順に訂正を入れた（投稿者は全員 owner で
+  著者では切り分けられない。帰属フッターで自分の投稿を捨てること）。
+  **3 問中 1 問だけ入れた（26→27 / paraphrase 11→12）。**
+  入れたのは GAMEYARD の `para-ugc-safety-before-players`（marker は
+  site の sales-facts.md に実在確認済み）。
+  **残り 2 問は不変条件に当たるので実装せず E 節へ。**両方とも sidra-ai 自身の
+  SECURITY.md が根拠で、`test_outcome_questions_are_not_answered_by_our_own_
+  repository` が禁止している（自分で書いた散文に対する採点になり、
+  回答可能率が「文書を書けば上がる数字」に化ける）。厳守事項 7。
+  **提案 marker の 1 つは行またぎで実在確認に落ちる**ことも実測して、
+  行内に収まる節に直して E 節に置いた（承認されたらそのまま使える）。
+  実測 27 問・両構成とも全下限保持: bm25 11/27・10/15・1/12・+25.9pt /
+  semantic 14/27・11/15・3/12・+33.3pt。
+  下限を再ピン留め: `SEMANTIC_MIN_ANSWERED` 12→13（実測 14 の 1 問下）。
+  **新集合への貼り直しであって改善ではない。**旧 26 問との率の直接比較は禁止。
+  1045 passed / verify_gate_recall PASSED。
+  **`[記録]` が 2 回続いた（C-325 / C-371）。次は数字つき項目を取ること。**

@@ -180,6 +180,20 @@ OUTCOME_QUESTIONS: tuple[OutcomeQuestion, ...] = (
     # answer, so a lexical retriever has nothing to latch onto. These are
     # expected to be harder, and a low score here is a real finding about
     # the product rather than a defect in the question.
+    # GDP proposed three additions (#372 comment 5357238029). Only this one
+    # could be added: the other two are answered by sidra-ai's own
+    # docs/SECURITY.md, and
+    # test_outcome_questions_are_not_answered_by_our_own_repository forbids
+    # grounding a question in the one repository this project writes. Changing
+    # that invariant is the CEO's call, so it is recorded in the backlog's
+    # section E rather than decided here.
+    OutcomeQuestion(
+        name="para-ugc-safety-before-players",
+        question="知らない人が投稿したゲームを、そのまま利用者に配ってしまいませんか",
+        answer_marker="公開前に 8 段階の検査を必ず通す",
+        repository="tukemen-rgb/site",
+        tier="paraphrase",
+    ),
     OutcomeQuestion(
         name="para-monetise-works",
         question="制作者が自分の作品で稼ぐ手段はうちにありますか",
