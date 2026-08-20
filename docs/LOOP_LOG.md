@@ -1898,3 +1898,8 @@
   19:4x から変化なし。D-861 はトークン未設置、残りは E 3 件と F 2 件。
 
 2026-08-20 21:06 UTC ループA started
+
+2026-08-20 21:07 UTC ループA no-op キューが空。E / F を除く `- [ ]` は D-861 のみで、前提条件の
+  `SIDRA_GITHUB_TOKEN` は env になし。`- [~]` 0 件、0 のままの数字を持つ項目も 0 件。
+  claim も probe もしていない。1045 passed（17 秒）/ recall PASSED / `--compare` exit 1 /
+  作業ツリー無変更。
