@@ -1481,3 +1481,8 @@
   1041 passed / recall PASSED / answerable 両構成 exit 0。(5) 異常なし。
 
 2026-08-20 01:14 UTC ループC started
+
+2026-08-20 01:1x UTC ループC no-op キューが空
+  D-739 は 4947e7f で「トークンが無ければ取らない（claim もしない）」と前提条件付きに
+  なった。env を見て absent なので取らない。probe もしない（監視は不要と決まった）。
+  残りは E 2 件と F 2 件。
