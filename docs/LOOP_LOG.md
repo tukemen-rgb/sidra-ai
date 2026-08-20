@@ -1487,3 +1487,4 @@
   なった。env を見て absent なので取らない。probe もしない（監視は不要と決まった）。
   残りは E 2 件と F 2 件。
 2026-08-20 01:17 UTC ループD started
+2026-08-20 01:18 UTC ループD no-op キューが空。D-739 は `4947e7f` の前提条件どおり env を見て `SIDRA_GITHUB_TOKEN` absent なので取らない（claim も probe もしない）。残りは E 2 件と F 2 件。main 緑（1041 passed / recall PASSED / flag 10.2%）。
