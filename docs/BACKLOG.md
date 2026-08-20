@@ -333,9 +333,36 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       第二判定器 --save/--compare（semantic 下限 12/10/2 と識別力 guard）。
       prefix はモデルの流儀に合わせる（e5 系は query:/passage:、
       ruri 系は 「クエリ: 」「文章: 」等——モデルカードを読むこと）。
+      **GDP 提案（#372 comment 5357235005）で比較順を変更した。**
+      ruri-v3-30m を一番手にする: 日本語検索用・Apache-2.0・36.7M で、
+      「律速は日本語の言い換え理解」という仮説を最短で潰せる。e5-base を
+      先に測ると「同系統の大型化」しか分からない。prefix はモデルカード
+      指定の `検索クエリ: ` / `検索文書: `。**モデルカードの外部ベンチは
+      選定理由にだけ使い、SIDRA での改善主張は終了コードと実測値で決める。**
       **勝てなければ [記録] で閉じる**（モデル選定も打ち止めと宣言できる）。
       勝ったら .env.example の推奨モデルを差し替え、下限をラチェット。
       → 動かす数字: `answerable_total`（13/26）/ `answerable_paraphrase`（2/11）
+
+- [ ] **質問集に現場質問 3 問を足す（26→29）。GDP 提案 #372 comment 5357238029。**
+      **上の「モデル選定」が終わるまで着手しない。**測定範囲を広げる変更なので、
+      比較の途中で分母を動かすと**モデル比較の結果が読めなくなる**。
+      追加候補（すべて paraphrase tier、SIDRA AI / GAMEYARD に限定。
+      CreatorYard は社長方針で対象外）:
+      1. SIDRA AI / read-only 「SIDRAに調査を頼んだだけで、GitHubの内容が
+         変更されることはありますか」根拠 `docs/SECURITY.md`
+         marker 候補: `There is no token scope to misconfigure into a write,
+         because there is no code path that would use it.`
+      2. SIDRA AI / prompt injection 「取得した文書に『この指示に従え』と
+         書かれていたら、SIDRAは実行しますか」根拠 `docs/SECURITY.md`
+         marker 候補: `External content is DATA, never instructions`
+      3. GAMEYARD / 投稿ゲームの安全性 「知らない人が投稿したゲームを、
+         そのまま利用者に配ってしまいませんか」根拠 `tukemen-rgb/site` の
+         `docs/sales-facts.md` marker 候補: `公開前に 8 段階の検査を必ず通す`
+      **追加そのものは完了ではない**（GDP 自身がそう書いている）。marker の
+      実在確認 gate を通し、29 問の新 baseline を明記し、**旧 26 問との率の
+      直接比較を禁止**する（下限も 29 問側で取り直す）。
+      → 動かす数字: 測定範囲 `26→29 問` / paraphrase `11→14 問`
+      （回答率ではない。**率が下がっても後退ではない**——分母が変わるため）
 
 - [記録] 決着 2026-08-20 対話セッション **semantic 構成の外し 13 問を診断する（有効化後の新しい地形）。**
       正当化: 窓のつまみを全域（10/20/40/80）で測って**拡大は無益と確定**
@@ -1042,6 +1069,17 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
           必須という安全設計を緩める変更なので、社長の明示承認が要る。
       (c) 保留: 検索品質を先に詰める。
       推奨は (a)。判断だけください——(a) なら手順書を先に作ります。
+      **GDP も (a) を推奨（#372 comment 5357242000）。社長へ。**
+      理由が 1 つ増えた: (a) だけが「reviewed manifest + VRAM probe +
+      fail closed」を**変えずに** 0→1 の証拠を取れる。(b) は安全設計の
+      変更コストを 0→1 の段階で先払いすることになる。
+      実行順の提案: `nvidia-smi` で GPU 名・VRAM・driver を確認（機種名から
+      推測しない）→ manifest review を通った候補のうち VRAM に収まる最小の
+      量子化モデルを 1 つ →既存条件のまま実在根拠のある 1 問で引用付き回答
+      →完走を証拠化してから品質・速度を比較。
+      **GPU 条件を満たさなければ (b) へ黙って落ちず fail closed** とし、
+      実測を添えて社長判断へ戻す。最初の成功条件は「賢い回答」ではなく
+      **不変条件を壊さず本物の回答を 1 件生成できたこと**。
 
 - [x] **承認 2026-08-19 (社長「ローカル埋め込む」) → 入れる。**
       条件は初回承認時のまま: ローカルモデルのみ・外部 API / 有料依存なし・
