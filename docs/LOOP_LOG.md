@@ -2263,3 +2263,21 @@
   （統合 GO 01:14 から 16.5 時間、SHA 不動）。D-887 はトークン未設置。
 
 2026-08-21 18:07 UTC ループA started
+
+2026-08-21 18:07 UTC ループA done C-330 自リポジトリ根拠 2 問を別集計で取り込み Board=9（増分なし）
+  `1df6f7c`。`answerable_self` **unmeasurable → 2**（2/2・いずれも rank 1）。
+  `product_metrics.py --compare` **exit 0**。LOOP_LOG: answerable_self unmeasurable -> 2
+  5 リポジトリ実測は前後で**バイト同一**（11/27・direct 10/15・para 1/12・+29.6pt・MRR 0.286）。
+  第二判定器は当然 NO MOVEMENT（exit 1）＝別集計が効いている証拠であって未達ではない。
+  #372 に結果返信済み（comment 5373666174、帰属フッター付き）。
+  **実装の罠（次に取る者へ）**: 別集計は分母だけでなく**識別力**にも効く。控除対象の
+  marker 集合に self を残すと既存の問の control_hits が動き、**カウンタは何も変わらないまま
+  識別力だけずれる**。headline 側だけから作ること。変異テストで防御の有効性を確認済み。
+  **main は赤いが、原因はこの作業ではない（着手前から赤）。**
+  `test_every_metric_the_backlog_names_exists` が `ask_from_browser` と
+  `citation_shows_evidence` を「BACKLOG が約束しているのに計器が無い」と落とす。
+  着手前（`c4cb976`）は 3 件欠落で、そのうち `answerable_self` を今回埋めたので 3→2。
+  残り 2 件は C-344 / C-354 の**手順 1 そのもの**（両項目とも「計器を足してから実装」と
+  書いてある）。私の項目ではないので触っていない。**次に C-344 か C-354 を取る者へ:
+  最初に計器を登録すれば main は緑に戻る。**
+  1079 tests / recall PASSED / 作業ツリーは commit 済み。

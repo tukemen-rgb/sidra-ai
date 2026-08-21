@@ -327,7 +327,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
-- [~] 作業中 2026-08-21 18:08 UTC ループA **承認済み: 自リポジトリ根拠の質問を「別集計」で入れる（GDP 提案 2 問）。**
+- [x] 完了 2026-08-21 ループA **承認済み: 自リポジトリ根拠の質問を「別集計」で入れる（GDP 提案 2 問）。** (`1df6f7c`, `answerable_self` unmeasurable→2)
       社長判断 2026-08-20「別集計で許可」。やること:
       (1) OutcomeQuestion に self 枠を作る（tier とは直交する軸なので
       `self_grounded: bool` 等の別フィールドが素直。設計は実装者に任せる）。
@@ -340,6 +340,16 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       は「self 枠以外は禁止」に改める（緩めるのは self 枠だけ）。
       (5) #372 に結果を返信（帰属フッター付き）。
       → 動かす数字: `answerable_self`（新設 0→N。newly measured として判定器が拾う）
+      **実施 2026-08-21 ループA。** (1)〜(5) すべて完了。`answerable_self` は
+      5 リポジトリ不要（根拠が自リポジトリなので）ため `unmeasurable` 登録では
+      なく product_metrics で実測。2/2・いずれも rank 1、`--compare` exit 0。
+      #372 返信は comment 5373666174。
+      **別集計は分母だけでなく識別力にも効く。**控除対象（他リポジトリの
+      marker 集合）に self の marker が残ると既存の問の control_hits が動き、
+      **数えているカウンタは何も変わらないまま識別力だけがずれる**。headline
+      側だけから作ること。`tests/test_self_grounded_tally.py` が self あり/なしの
+      2 回測定で headline ブロックの完全一致を要求する（変異テストで有効性確認済み）。
+      5 リポジトリ実測は前後同一: 11/27・direct 10/15・para 1/12・+29.6pt・MRR 0.286。
 
 - [ ] **使い勝手: ブラウザから質問できる最小画面を付ける（社長指示「使い勝手」）。**
       いま質問手段は CLI（sidra-ask）と手組み JSON のみ。sidra-api に
