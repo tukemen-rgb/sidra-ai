@@ -345,6 +345,13 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
          今回は質問集合を変更せず、取込と引用の smoke 証拠だけを記録する。
       → 動かす数字: `GAMEYARD design source indexed` **0→1** /
         引用付き根拠 **0→1 件**（`answerable_total` ではない）
+      **社長指示 2026-08-21 01:14（#372 comment 5363999723）で条件が 1 つ増えた。**
+      GAMEYARD 側の Claude に PR #17 の review・統合 GO が出ている。完了条件は
+      据え置きだが、**完了時に「取込 SHA」と「引用元 path」を #372 へ記録する**こと。
+      「統合前は blocked のままで正しい」と明示されているので、前倒ししない。
+      **前提の再確認は `git ls-remote` の SHA 比較で足りる**（clone 不要・API
+      クォータ 0）。`f11a170dfdd2960d7871398bb9a8bf51e3bdf4cc` から動いていれば
+      初めて中身を見る。2026-08-21 01:26 ループB 再確認: **同一（未 merge）**。
 
 - [記録] 決着 2026-08-20 ループB **埋め込みモデルの選定を測った。2 候補とも負け。この道は打ち止め。**
       正当化: 数字は動かないが、**「律速はモデルの日本語言い換え理解」という
