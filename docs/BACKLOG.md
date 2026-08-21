@@ -381,7 +381,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       **未計測の残り**: 画面から履歴（follow-up）を送る導線は付けていない。
       `/v1/chat` の `history` は既にあるので、必要なら別項目で。
 
-- [~] 作業中 2026-08-21 18:47 UTC ループC **精度: 引用の中身を運用者が検証できるようにする（社長指示「精度」）。**
+- [x] 完了 2026-08-21 18:5x ループC (f4cc3d5, `citation_shows_evidence` unmeasurable→1) **精度: 引用の中身を運用者が検証できるようにする（社長指示「精度」）。**
       いま /v1/chat は引用メタデータ（repo/path/rank）だけ返し、根拠の
       **本文抜粋を見せない**ので、運用者は答えが正しいか確かめられない。
       引用ごとに該当チャンクの短い抜粋（例: 先頭 200 字、出力ガード通過後の
@@ -390,6 +390,19 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       content-export 面が広がる変更なので、抜粋長の上限をテストで固定する。
       product_metrics に `citation_shows_evidence` を [outcome] で追加してから実装。
       → 動かす数字: `citation_shows_evidence` 0→1
+      **完了 (f4cc3d5)。**`Citation.excerpt` に該当チャンク先頭 200 字を載せる。
+      境界は 2 重: `MAX_CITATION_EXCERPT_CHARS` を**通信路上で**テストが固定し
+      （宣言だけ守って実装が無視する形を落とす）、加えて回答本文と同じ
+      `OutputGuard` を通す。後者が無いと引用がガードの迂回路になる——
+      資格情報を引用しない回答でも、それを含むチャンクは引用し得る。
+      ガードが落とした場合は空ではなく `excerpt_withheld: true` を返す。
+      「見せない」と「中身が無い」は別の事実で、答えを信じるか決める人は
+      区別できる必要がある。
+      **`/v1/retrieve` は本文を出さないまま**（「content-export 面を増やさない
+      source discovery」という既存の設計判断を尊重。テストで固定した）。
+      この項目が抱えていた main の赤（BACKLOG が挙げた数字が未登録）も解消。
+      1068 passed / verify_gate_recall PASSED。`src/sidra_ai/security/` と
+      retrieval/chunker/tokenizer は未変更なので gate/answerable regression は対象外。
       **注意 2026-08-21 18:5x ループB: この項目が起票された時点から
       `python -m pytest` は 1 件 fail している。**
       `test_every_metric_the_backlog_names_exists` は BACKLOG が名前を挙げた

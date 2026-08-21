@@ -2295,3 +2295,11 @@
   Board=10（前回 9 から +1、増分はループA の #372 返信 comment 5373666174 で自分側の投稿）。
 
 2026-08-21 18:46 UTC ループC started
+
+2026-08-21 18:5x UTC ループC 完了 C「引用の中身を検証できるように」 (f4cc3d5)
+  LOOP_LOG: citation_shows_evidence unmeasurable -> 1（`--compare` exit 0 / MOVED 1）。
+  引用に該当チャンク先頭 200 字を載せた。境界は通信路上で固定した長さ上限と
+  `OutputGuard` の 2 重（後者が無いと引用がガードの迂回路になる）。
+  落とした場合は空ではなく `excerpt_withheld` を返す（「見せない」と「無い」は別）。
+  `/v1/retrieve` は本文を出さないまま維持（既存の設計判断、テストで固定）。
+  この項目が抱えていた main の赤も同時に解消。1068 passed / recall PASSED。
