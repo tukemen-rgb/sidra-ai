@@ -327,6 +327,40 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
+- [ ] **承認済み: 自リポジトリ根拠の質問を「別集計」で入れる（GDP 提案 2 問）。**
+      社長判断 2026-08-20「別集計で許可」。やること:
+      (1) OutcomeQuestion に self 枠を作る（tier とは直交する軸なので
+      `self_grounded: bool` 等の別フィールドが素直。設計は実装者に任せる）。
+      (2) GDP の 2 問（#372: read-only である / 取得文書の指示に従わない、
+      根拠は sidra-ai docs/SECURITY.md）を self 枠で追加。marker の実在確認必須。
+      (3) 判定器・measure_outcomes は self 枠を**別行で報告**し、
+      answerable_total / direct / paraphrase の分母分子に**絶対に混ぜない**
+      （テストで固定: self 追加が本体カウントを 1 でも動かしたら fail）。
+      (4) 禁止テスト test_outcome_questions_are_not_answered_by_our_own_repository
+      は「self 枠以外は禁止」に改める（緩めるのは self 枠だけ）。
+      (5) #372 に結果を返信（帰属フッター付き）。
+      → 動かす数字: `answerable_self`（新設 0→N。newly measured として判定器が拾う）
+
+- [ ] **使い勝手: ブラウザから質問できる最小画面を付ける（社長指示「使い勝手」）。**
+      いま質問手段は CLI（sidra-ask）と手組み JSON のみ。sidra-api に
+      `GET /`（または /ui）で 1 枚の HTML を返し、テキストボックス 1 つ・
+      送信で /v1/chat を叩き、回答と引用（[S#] とリポジトリ/パス）を表示する。
+      **制約: 外部 JS/CSS/CDN 禁止（インライン自己完結）・CORS 追加禁止・
+      localhost バインド既定のまま・認証設定時は既存の Bearer をそのまま要求。**
+      product_metrics に `ask_from_browser`（HTML が実際に配られ /v1/chat を
+      呼べる形かを実測）を [outcome] で追加してから実装する。
+      → 動かす数字: `ask_from_browser` 0→1
+
+- [ ] **精度: 引用の中身を運用者が検証できるようにする（社長指示「精度」）。**
+      いま /v1/chat は引用メタデータ（repo/path/rank）だけ返し、根拠の
+      **本文抜粋を見せない**ので、運用者は答えが正しいか確かめられない。
+      引用ごとに該当チャンクの短い抜粋（例: 先頭 200 字、出力ガード通過後の
+      redacted 済み本文）を返す。**セキュリティ注意: 抜粋も OutputGuard を
+      通すこと。quarantine/blocked 文書は当然出ない（索引に無い）。**
+      content-export 面が広がる変更なので、抜粋長の上限をテストで固定する。
+      product_metrics に `citation_shows_evidence` を [outcome] で追加してから実装。
+      → 動かす数字: `citation_shows_evidence` 0→1
+
 - [ ] **GAMEYARD のデザイン原則 `docs/DESIGN.md` を確定コーパスへ取り込む。**
       GDP 提案 #372 comment 5363495469。source: `tukemen-rgb/site/docs/DESIGN.md`。
       **前提条件（未充足・2026-08-21 00:2x 実測）: PR #17 が site の既定ブランチへ
@@ -1145,7 +1179,11 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### E. 判断が要る（実装せず、社長の判断を待つ）
 
-- [ ] **要判断: 自分のリポジトリを根拠にする評価質問を許すか（GDP 提案 #372）。**
+- [x] **承認 2026-08-20 (社長「別集計で許可」) → 別集計条件付きで入れる。**
+      sidra-ai 根拠の質問は `tier="self"`（または相当の別枠）とし、
+      **answerable_total / direct / paraphrase には一切混ぜない**。
+      実装項目は C 節へ。以下は判断当時の記録:
+      **要判断だった: 自分のリポジトリを根拠にする評価質問を許すか（GDP 提案 #372）。**
       GDP が sidra-ai 自身の `docs/SECURITY.md` を根拠にする質問 2 問を提案した
       （read-only である / 取得文書の指示に従わない）。**運用上の価値は高い**——
       「社内 AI を信用してよいか」に直結し、いま質問集は sidra-ai について 0 問。
