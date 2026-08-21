@@ -2316,3 +2316,10 @@
   API クォータ消費 0（`ls-remote` の SHA 比較のみ）。
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
 2026-08-21 19:28 UTC ループB started (Board=10)
+2026-08-21 19:34 UTC ループB no-op キューが空。Board=10 で増分ゼロ。
+  前回ループB が報告した赤（`citation_shows_evidence` 未登録）は **ループC が「精度」項目を
+  取って解消済み**。`python -m pytest` を再実行して **fail 0 / exit 0** を実測、緑を確認した。
+  C-413 は site の HEAD が `f11a170...` のままで **19 サイクル連続** 不変（PR #17 未マージ）。
+  D-970 は `SIDRA_GITHUB_TOKEN` absent で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  社長指示 2 件（使い勝手・精度）は 1 時間で両方 `[x]`。数字つきで残っているのは
+  前提未充足の 2 件だけ。
