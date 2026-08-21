@@ -1962,3 +1962,12 @@
   D-880 はトークン未設置、残りは E 3 件と F 2 件。
 
 2026-08-21 01:06 UTC ループA started
+
+2026-08-21 01:07 UTC ループA no-op キューが空。**C-330 の前提条件を一次資料で取り直した。**
+  `git ls-remote --symref https://github.com/tukemen-rgb/site HEAD` →
+  `refs/heads/claude/game-upload-site-0187kj` / **`f11a170`**。00:2x にループが測った SHA と
+  同一なので PR #17 は未 merge、`docs/DESIGN.md` はまだ既定ブランチに無い。**blocked のまま取らない。**
+  （git レーンの確認なので API クォータは 1 回も使っていない。次に取る者へ: 前提の確認は
+  clone せず `ls-remote` の SHA 比較で足りる。`f11a170` から動いていれば初めて中身を見ればよい。）
+  D-880 は `SIDRA_GITHUB_TOKEN` が env に無く同じく blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  1045 passed（13 秒）/ recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
