@@ -1998,4 +1998,5 @@
   PR #17 は未 merge なので blocked、取らない。D-887 は `SIDRA_GITHUB_TOKEN` absent で同じく blocked。
   E 3 件・F 2 件は対象外、`- [~]` 0 件。API クォータ消費 0。
   1045 passed（19 秒）/ recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
-- 2026-08-21 02:26 UTC ループB started
+- 2026-08-21 02:26 UTC ループB started Board=9
+2026-08-21 02:27 UTC ループB no-op キューが空。Board=9 で増分ゼロ。site の HEAD は `f11a170...` のままで C-330 は blocked、D-887 は token 未充足で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。確認は `ls-remote` 1 回のみ（clone なし・API クォータ 0）。
