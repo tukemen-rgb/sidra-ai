@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from sidra_ai.api.model_admission import build_runtime_model
+from sidra_ai.api.schemas import MAX_CITATION_EXCERPT_CHARS
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline, IngestionReport
@@ -198,6 +199,34 @@ class SidraService:
             return {"available": False}
         return {"available": True, **stats}
 
+    def _attach_excerpts(self, citations: list[dict], chunks: Sequence[Any]) -> None:
+        """Show the opening of each cited chunk, screened like any other output.
+
+        Citations that carry only repository, path and rank ask the operator to
+        trust the answer; an excerpt lets them check it. That makes this a
+        content-export surface, so it is bounded twice over: by
+        ``MAX_CITATION_EXCERPT_CHARS`` and by the same ``OutputGuard`` the
+        generated answer passes through. Quarantined and blocked documents
+        cannot appear here at all - they are never indexed - but a secret that
+        survived ingestion must not walk out through a citation just because
+        the answer text happened not to quote it.
+
+        A blocked excerpt is reported as withheld rather than as empty. The
+        two are different facts and an operator deciding whether to trust an
+        answer needs to tell them apart.
+        """
+
+        for citation, chunk in zip(citations, chunks, strict=True):
+            excerpt = getattr(chunk, "content", "")[:MAX_CITATION_EXCERPT_CHARS]
+            if not excerpt:
+                continue
+            guarded = self.output_guard.scan(excerpt)
+            if guarded.blocked:
+                citation["excerpt"] = ""
+                citation["excerpt_withheld"] = True
+                continue
+            citation["excerpt"] = guarded.content[:MAX_CITATION_EXCERPT_CHARS]
+
     def retrieve(
         self,
         query: str,
@@ -324,6 +353,7 @@ class SidraService:
                 repositories=repositories,
             )
         data_context, citations = build_data_context([r.chunk for r in results])
+        self._attach_excerpts(citations, [r.chunk for r in results])
 
         history_context = build_history_context(screened_history)
         if history_context:

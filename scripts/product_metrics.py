@@ -213,6 +213,71 @@ def measure_usability(c: Collector) -> None:
     c.add("ask_from_browser", "ask a question from a browser", served,
           detail=detail, kind=OUTCOME)
 
+    # 5. Check the answer against its evidence without leaving the response.
+    #
+    # Exercised end to end rather than grepped for a field name: a schema that
+    # declares `excerpt` and a service that never fills it would score the same
+    # as working evidence, and this number exists precisely because
+    # repo/path/rank asks the operator to take the answer on faith.
+    shown, detail = _measure_citation_evidence()
+    c.add("citation_shows_evidence", "citations an operator can verify", shown,
+          detail=detail, kind=OUTCOME)
+
+
+def _measure_citation_evidence() -> tuple[int, str]:
+    """Whether a real /v1/chat citation carries readable evidence.
+
+    Runs against sidra-ai's own checkout, the one corpus that is always
+    present. Returns 1 only when a citation comes back with a non-empty
+    excerpt inside the declared cap - a withheld excerpt is honest but is not
+    something an operator can verify, so it does not count.
+    """
+
+    import importlib.util
+
+    from sidra_ai.api.schemas import MAX_CITATION_EXCERPT_CHARS
+    from sidra_ai.api.service import SidraService
+    from sidra_ai.config.settings import Settings
+
+    spec = importlib.util.spec_from_file_location(
+        "_measure_outcomes_for_citations",
+        Path(__file__).resolve().parent / "measure_outcomes.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    repo = "tukemen-rgb/sidra-ai"
+    targets = [(repo, Path(__file__).resolve().parents[1])]
+    try:
+        with _quiet():
+            gate = module.SecurityGate(
+                module.GatePolicy(), allowed_repositories=[repo]
+            )
+            store = module.DocumentStore(gate)
+            module.ingest(targets, store, gate)
+            service = SidraService(
+                Settings(allowed_repositories=(repo,)), store=store, gate=gate
+            )
+            response = service.chat("How does SIDRA treat retrieved content?")
+    except Exception as exc:  # noqa: BLE001 - an unmeasurable probe reports 0
+        return 0, f"probe failed: {type(exc).__name__}: {exc}"
+
+    citations = response.get("citations") or []
+    if not citations:
+        return 0, "chat returned no citations to carry evidence"
+    with_text = [c for c in citations if c.get("excerpt")]
+    if not with_text:
+        withheld = sum(1 for c in citations if c.get("excerpt_withheld"))
+        return 0, (
+            f"{len(citations)} citation(s), none showing evidence"
+            + (f" ({withheld} withheld by the output guard)" if withheld else "")
+        )
+    longest = max(len(c["excerpt"]) for c in with_text)
+    return 1, (
+        f"{len(with_text)}/{len(citations)} citations carry an excerpt; "
+        f"longest {longest} chars, cap {MAX_CITATION_EXCERPT_CHARS}"
+    )
+
 
 def _references_external_asset(html: str) -> bool:
     """Whether the page would fetch anything off this host to work.

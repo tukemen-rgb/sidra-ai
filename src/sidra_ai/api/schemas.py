@@ -79,6 +79,15 @@ class ChatRequest(BaseModel):
         return _validate_repository_scope(value)
 
 
+#: How much of a cited chunk /v1/chat may show as evidence.
+#:
+#: Every character here is content leaving the process, so the cap is a
+#: security parameter and not a formatting preference: it is pinned by a test
+#: so that widening the export surface has to be a deliberate, reviewed edit
+#: rather than a number somebody nudges while tuning readability.
+MAX_CITATION_EXCERPT_CHARS = 200
+
+
 class Citation(BaseModel):
     label: str
     citation: str
@@ -90,6 +99,14 @@ class Citation(BaseModel):
     license: str
     url: str = ""
     redacted: bool = False
+    #: The opening of the cited chunk, so an operator can check the answer
+    #: against its evidence instead of taking repo/path/rank on faith.
+    #: Empty when the excerpt was withheld - see ``excerpt_withheld``.
+    excerpt: str = ""
+    #: True when evidence exists but the output guard refused to show it.
+    #: Distinguishing this from an empty chunk matters: "we are not showing
+    #: you this" and "there is nothing here" would otherwise look identical.
+    excerpt_withheld: bool = False
 
 
 class RetrieveRequest(BaseModel):
