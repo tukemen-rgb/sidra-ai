@@ -86,9 +86,15 @@ def test_a_marker_is_not_grounded_by_a_different_repository(script, tmp_path):
 def test_this_repository_alone_answers_none_of_the_questions(script):
     """The regression itself, end to end.
 
-    Before the fix this scored 18/18 at rank 1. Every question must now come
-    back ungrounded, because the repositories they ask about are not here.
-    A run that cannot measure has to say so rather than report a rate.
+    Before the fix this scored 18/18 at rank 1. Every headline question must
+    now come back ungrounded, because the repositories they ask about are not
+    here. A run that cannot measure has to say so rather than report a rate.
+
+    The self-grounded questions are the deliberate exception approved on
+    2026-08-20: they *are* answered from this repository, which is why they
+    are counted on their own line. The assertion is therefore against the
+    headline set rather than the whole file - and the point it defends is
+    unchanged, because the headline block is what a rate is printed from.
     """
     targets = [("tukemen-rgb/sidra-ai", ROOT)]
     gate = SecurityGate(GatePolicy(), allowed_repositories=["tukemen-rgb/sidra-ai"])
@@ -101,7 +107,9 @@ def test_this_repository_alone_answers_none_of_the_questions(script):
         "a question was scored against this repository's own files; "
         "the corpus is answering itself"
     )
-    assert len(result["ungrounded"]) == len(OUTCOME_QUESTIONS)
+    headline = [q for q in OUTCOME_QUESTIONS if not q.self_grounded]
+    assert len(result["ungrounded"]) == len(headline)
+    assert result["answered"] == 0
 
 
 def test_an_unmeasurable_run_does_not_print_a_rate(script, capsys, monkeypatch):

@@ -87,26 +87,61 @@ def test_paraphrase_questions_avoid_the_marker_vocabulary(
 
 
 def test_outcome_questions_are_not_answered_by_our_own_repository() -> None:
-    """Grounding the set in sidra-ai would make it self-referential.
+    """Grounding the headline set in sidra-ai would make it self-referential.
 
     sidra-ai is the one repository whose documents this project writes. A
-    question answered from it would be scored against our own prose, which is
-    the inside number the outcome measurement exists to escape.
+    headline question answered from it would be scored against our own prose,
+    which is the inside number the outcome measurement exists to escape.
+
+    The 2026-08-20 approval opened exactly one door: a question may be
+    grounded in sidra-ai *if* it is flagged ``self_grounded`` and therefore
+    tallied apart. The prohibition is loosened for that flag and for nothing
+    else, so an unflagged self-grounded question still fails here.
     """
 
-    self_grounded = [
+    leaked = [
         question.name for question in OUTCOME_QUESTIONS
         if question.repository == "tukemen-rgb/sidra-ai"
+        and not question.self_grounded
     ]
-    assert not self_grounded, (
+    assert not leaked, (
         "outcome questions must be answered by repositories this project does "
-        f"not author; found {self_grounded}"
+        f"not author, unless flagged self_grounded; found {leaked}"
+    )
+
+
+def test_self_grounded_flag_is_only_for_our_own_repository() -> None:
+    """The flag is an exemption, not a way to move any question off the books.
+
+    Without this, a question about someone else's repository could be flagged
+    and quietly vanish from the headline denominator - which is the same
+    number-laundering the separate tally exists to prevent.
+    """
+
+    misflagged = [
+        question.name for question in OUTCOME_QUESTIONS
+        if question.self_grounded
+        and question.repository != "tukemen-rgb/sidra-ai"
+    ]
+    assert not misflagged, (
+        f"self_grounded is only for tukemen-rgb/sidra-ai; found {misflagged}"
     )
 
 
 def test_both_tiers_are_represented() -> None:
     tiers = {question.tier for question in OUTCOME_QUESTIONS}
     assert tiers == {"direct", "paraphrase"}
+
+
+def test_self_grounded_is_orthogonal_to_tier() -> None:
+    """It is a second axis, not a third tier.
+
+    A self-grounded question is still asked in the document's words or in the
+    operator's own, and it is reported under whichever it is.
+    """
+
+    for question in OUTCOME_QUESTIONS:
+        assert question.tier in {"direct", "paraphrase"}, question.name
 
 
 def test_grouping_covers_every_question() -> None:

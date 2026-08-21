@@ -289,7 +289,17 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
     control_hits = 0
     ungrounded: list[str] = []
 
-    for question in OUTCOME_QUESTIONS:
+    # Self-grounded questions are answered by sidra-ai's own documents. They
+    # are measured, but they are kept out of every headline counter here -
+    # including the foreign-marker set that discrimination is computed from,
+    # because letting their markers count as "some other repository" would
+    # move a guard number for the questions that were already being asked.
+    # Adding a self question must be invisible to the headline; that is what
+    # the separate tally means.
+    headline = tuple(q for q in OUTCOME_QUESTIONS if not q.self_grounded)
+    self_questions = tuple(q for q in OUTCOME_QUESTIONS if q.self_grounded)
+
+    for question in headline:
         if not marker_present_in_corpus(
             question.answer_marker, question.repository, targets
         ):
@@ -305,7 +315,7 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
         results = retriever.search(question.question, top_k=TOP_K)
         retrieved_text = " ".join(result.chunk.content for result in results)
         foreign = [
-            other.answer_marker for other in OUTCOME_QUESTIONS
+            other.answer_marker for other in headline
             if other.repository != question.repository
         ]
         if any(marker in retrieved_text for marker in foreign):
@@ -339,9 +349,9 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
                 "status": "hit",
             })
 
-    scored = len(OUTCOME_QUESTIONS) - len(ungrounded)
+    scored = len(headline) - len(ungrounded)
     by_tier: dict[str, dict] = {}
-    for question in OUTCOME_QUESTIONS:
+    for question in headline:
         row = next(r for r in rows if r["name"] == question.name)
         if row["status"] == "ungrounded":
             continue
@@ -352,8 +362,10 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
     for bucket in by_tier.values():
         bucket["rate"] = bucket["answered"] / bucket["scored"] if bucket["scored"] else 0.0
 
+    self_block = _measure_self_grounded(retriever, self_questions, targets)
+
     return {
-        "questions": len(OUTCOME_QUESTIONS),
+        "questions": len(headline),
         "scored": scored,
         "answered": answered,
         "answerable_rate": (answered / scored) if scored else 0.0,
@@ -362,6 +374,70 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
         "control_hits": control_hits,
         "control_rate": (control_hits / scored) if scored else 0.0,
         "discrimination": ((answered - control_hits) / scored) if scored else 0.0,
+        "ungrounded": ungrounded,
+        "rows": rows,
+        "self_grounded": self_block,
+    }
+
+
+def _measure_self_grounded(
+    retriever: BM25Retriever,
+    questions: tuple,
+    targets: list[tuple[str, Path]],
+) -> dict:
+    """Score the sidra-ai-grounded questions on their own line.
+
+    Same scoring rule as the headline set, same marker verification, its own
+    denominator. Nothing computed here is read by the headline numbers, and
+    ``tests/test_self_grounded_tally.py`` fails if that ever stops being true.
+    """
+
+    rows = []
+    answered = 0
+    ungrounded: list[str] = []
+
+    for question in questions:
+        if not marker_present_in_corpus(
+            question.answer_marker, question.repository, targets
+        ):
+            ungrounded.append(question.name)
+            rows.append({
+                "name": question.name,
+                "repository": question.repository,
+                "rank": None,
+                "status": "ungrounded",
+            })
+            continue
+        results = retriever.search(question.question, top_k=TOP_K)
+        rank = None
+        for position, result in enumerate(results, start=1):
+            if result.chunk.provenance.repository != question.repository:
+                continue
+            if question.answer_marker in result.chunk.content:
+                rank = position
+                break
+        if rank is None:
+            rows.append({
+                "name": question.name,
+                "repository": question.repository,
+                "rank": None,
+                "status": "miss",
+            })
+        else:
+            answered += 1
+            rows.append({
+                "name": question.name,
+                "repository": question.repository,
+                "rank": rank,
+                "status": "hit",
+            })
+
+    scored = len(questions) - len(ungrounded)
+    return {
+        "questions": len(questions),
+        "scored": scored,
+        "answered": answered,
+        "rate": (answered / scored) if scored else 0.0,
         "ungrounded": ungrounded,
         "rows": rows,
     }
@@ -529,6 +605,16 @@ def main() -> int:
         print("MRR           測定不能")
         print("対照(無関係)  測定不能")
         print("識別力        測定不能  (質問の対象リポジトリが 1 つも checkout されていない)")
+    self_block = answerable.get("self_grounded") or {}
+    if self_block.get("questions"):
+        # Printed apart from the block above, with its own denominator, so it
+        # cannot be read as part of the headline rate.
+        if self_block["scored"]:
+            print(f"自リポジトリ枠 {100 * self_block['rate']:.1f}%"
+                  f"  ({self_block['answered']}/{self_block['scored']} 問。"
+                  f"上の回答可能率には含めない)")
+        else:
+            print("自リポジトリ枠 測定不能  (採点できた問 0 問)")
     print()
     for row in answerable["rows"]:
         mark = {"hit": "OK  ", "miss": "MISS", "ungrounded": "??? "}[row["status"]]

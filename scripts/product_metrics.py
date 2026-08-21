@@ -216,6 +216,39 @@ def measure_freshness(c: Collector) -> None:
 # --- does the answer hold up ------------------------------------------
 
 
+def _measure_self_grounded_locally() -> float:
+    """Score the self-grounded questions against sidra-ai's own checkout.
+
+    These are the one part of the outcome set whose evidence is in this
+    repository, so unlike the rest of the set they can be scored without
+    anybody else's clone being present.
+    """
+
+    import importlib.util
+
+    from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS
+
+    questions = [q for q in OUTCOME_QUESTIONS if q.self_grounded]
+    if not questions:
+        return 0.0
+
+    spec = importlib.util.spec_from_file_location(
+        "_measure_outcomes_for_self", Path(__file__).resolve().parent / "measure_outcomes.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    targets = [("tukemen-rgb/sidra-ai", Path(__file__).resolve().parents[1])]
+    with _quiet():
+        gate = module.SecurityGate(
+            module.GatePolicy(), allowed_repositories=["tukemen-rgb/sidra-ai"]
+        )
+        store = module.DocumentStore(gate)
+        module.ingest(targets, store, gate)
+        result = module.measure_answerable(module.BM25Retriever(store), targets)
+    return float(result["self_grounded"]["answered"])
+
+
 def measure_answer_quality(c: Collector) -> None:
     from sidra_ai.evals.retrieval_quality import (
         RETRIEVAL_CASES,
@@ -238,7 +271,11 @@ def measure_answer_quality(c: Collector) -> None:
     # the tree, which is the failure mode section 0 of the backlog is about.
     from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS
 
-    paraphrase = sum(1 for q in OUTCOME_QUESTIONS if q.tier == "paraphrase")
+    # Count the headline set only. The self-grounded questions are scored
+    # against sidra-ai, not against the five, so folding them in here would
+    # overstate how much outside material the set actually covers.
+    headline = [q for q in OUTCOME_QUESTIONS if not q.self_grounded]
+    paraphrase = sum(1 for q in headline if q.tier == "paraphrase")
     # Named by a backlog item, and deliberately absent from this script: it
     # needs the four external checkouts, and cloning them here would make the
     # quick local report depend on somebody else's repositories being up. It
@@ -262,10 +299,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # Unlike the four numbers above, this one needs only sidra-ai's own
+    # checkout - the questions are grounded in docs/SECURITY.md - so it is
+    # measured here for real rather than registered as unmeasurable.
+    #
+    # Measured over the sidra-ai corpus alone, which is the same rank the
+    # five-repository run reports for these two questions (both rank 1;
+    # checked 2026-08-21). If that ever stops being true the honest number is
+    # the five-repository one, and this probe should go back to being
+    # `unmeasurable` rather than quietly reporting the easier corpus.
+    c.add("answerable_self", "self-grounded questions SIDRA can answer",
+          _measure_self_grounded_locally(),
+          detail="GDP #372 の 2 問。docs/SECURITY.md が根拠。"
+                 "answerable_total / direct / paraphrase には入れない別集計 "
+                 "(scripts/measure_outcomes.py)",
+          kind=OUTCOME)
+
     c.add("retrieval_cases_real", "retrieval cases against the 5 real repos",
-          len(OUTCOME_QUESTIONS),
+          len(headline),
           detail=f"src/sidra_ai/evals/outcome_questions.py; "
-                 f"{len(OUTCOME_QUESTIONS) - paraphrase} direct, {paraphrase} paraphrased. "
+                 f"{len(headline) - paraphrase} direct, {paraphrase} paraphrased. "
                  f"Scoring them needs all five checkouts: scripts/measure_outcomes.py")
 
 

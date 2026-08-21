@@ -45,6 +45,15 @@ class OutcomeQuestion:
     let a strong ``direct`` score hide the fact that SIDRA cannot follow an
     operator who phrases things their own way -- which is the failure mode
     that matters in use.
+
+    ``self_grounded`` marks the one exception, approved 2026-08-20: a
+    question whose evidence lives in ``tukemen-rgb/sidra-ai`` itself. SIDRA's
+    own security posture is a thing operators genuinely ask about and nobody
+    else documents, so refusing those questions outright left a real gap. But
+    scoring our own prose is exactly the inside number the outcome set exists
+    to escape, so a self-grounded question is **tallied on its own line and
+    never enters the headline counts**. The axis is orthogonal to ``tier``:
+    a self-grounded question is still direct or paraphrased.
     """
 
     name: str
@@ -53,6 +62,7 @@ class OutcomeQuestion:
     repository: str
     tier: str = "direct"
     note: str = ""
+    self_grounded: bool = False
 
 
 # Ordered by repository so a gap in coverage is visible at a glance.
@@ -256,6 +266,32 @@ OUTCOME_QUESTIONS: tuple[OutcomeQuestion, ...] = (
         answer_marker="隠さず書ける",
         repository="tukemen-rgb/creater-yard",
         tier="paraphrase",
+    ),
+    # --- tukemen-rgb/sidra-ai (self-grounded; separate tally) ---------
+    # Approved 2026-08-20 in response to GDP proposal #372. These two ask
+    # about SIDRA's own security posture, which no other repository
+    # documents, and are answered from docs/SECURITY.md. They are scored on
+    # their own line and contribute nothing to answerable_total, the tiers,
+    # MRR, or discrimination - see measure_outcomes._measure_self_grounded.
+    OutcomeQuestion(
+        name="self-github-write-capability",
+        question="Is SIDRA's GitHub access read-only?",
+        answer_marker="ALLOWED_HTTP_METHODS",
+        repository="tukemen-rgb/sidra-ai",
+        self_grounded=True,
+        note="GDP #372: read-only である。docs/SECURITY.md の不変条件 1。",
+    ),
+    OutcomeQuestion(
+        name="self-fetched-document-authority",
+        question="Is external content treated as data or as commands?",
+        # The sentence this belongs to is wrapped in the source, so the marker
+        # is the fragment that actually sits on one line. A marker spanning a
+        # line break is never found and the question scores "ungrounded",
+        # which reads like missing evidence rather than a typo.
+        answer_marker="Successful injection in v0.1 gets a wrong",
+        repository="tukemen-rgb/sidra-ai",
+        self_grounded=True,
+        note="GDP #372: 取得文書の指示に従わない。docs/SECURITY.md の不変条件 2。",
     ),
 )
 
