@@ -1953,3 +1953,10 @@
   `- [~]` 0 件。社長判断待ち 3 件のまま。
 
 2026-08-21 00:46 UTC ループC started
+
+2026-08-21 00:4x UTC ループC no-op キューが空
+  C-330（GAMEYARD の `docs/DESIGN.md` 取込）が新規に立ったが、本文が
+  「PR #17 が site の既定ブランチへ merge されるまで blocked。取らないこと」と明記。
+  ループB が 00:2x に一次資料で確認済み（既定ブランチ `claude/game-upload-site-0187kj`
+  HEAD f11a170 に `docs/DESIGN.md` は無い）ので、24 分後に再確認しても情報は増えない。
+  D-880 はトークン未設置、残りは E 3 件と F 2 件。
