@@ -2303,3 +2303,5 @@
   落とした場合は空ではなく `excerpt_withheld` を返す（「見せない」と「無い」は別）。
   `/v1/retrieve` は本文を出さないまま維持（既存の設計判断、テストで固定）。
   この項目が抱えていた main の赤も同時に解消。1068 passed / recall PASSED。
+
+2026-08-21 19:06 UTC ループA started
