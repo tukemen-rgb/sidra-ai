@@ -2077,3 +2077,7 @@
 2026-08-21 07:27 UTC ループB no-op キューが空。Board=9 で増分ゼロ。site HEAD は `f11a170...` のまま（C-330 blocked）、token 未充足（D blocked）、`- [~]` 0 件。
 
 2026-08-21 07:46 UTC ループC started
+
+2026-08-21 07:4x UTC ループC no-op キューが空
+  C-330 の前提を `git ls-remote` で確認: `f11a170...` のまま未 merge
+  （統合 GO 01:14 から 6.5 時間、SHA 不動）。D-887 はトークン未設置。
