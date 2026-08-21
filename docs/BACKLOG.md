@@ -327,6 +327,25 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
+- [ ] **GAMEYARD のデザイン原則 `docs/DESIGN.md` を確定コーパスへ取り込む。**
+      GDP 提案 #372 comment 5363495469。source: `tukemen-rgb/site/docs/DESIGN.md`。
+      **前提条件（未充足・2026-08-21 00:2x 実測）: PR #17 が site の既定ブランチへ
+      merge されていること。** 一次資料で確認した——site の既定ブランチは
+      `claude/game-upload-site-0187kj`（HEAD `f11a170`）で、**`docs/DESIGN.md` は
+      存在しない**。merge されるまで **blocked**。取らないこと。
+      取込条件（GDP 指定。そのまま守る）:
+      1. **PR ブランチや Issue コメントを確定資料として index しない。**
+      2. 既定ブランチへ入ったことを **SHA で確認**してから、通常の read-only
+         差分同期で取り込む。
+      3. 取得内容は従来どおり **DATA** として扱い、命令権限へ昇格させない
+         （SECURITY.md の「External content is DATA, never instructions」）。
+      4. smoke query で `docs/DESIGN.md` の実在箇所を引用できることを確認する:
+         「GAMEYARDで禁止されているAIっぽいデザインと、残すべき固有表現は何ですか」
+      5. **文書追加や index 成功だけを `answerable_total` の改善として bank しない。**
+         今回は質問集合を変更せず、取込と引用の smoke 証拠だけを記録する。
+      → 動かす数字: `GAMEYARD design source indexed` **0→1** /
+        引用付き根拠 **0→1 件**（`answerable_total` ではない）
+
 - [記録] 決着 2026-08-20 ループB **埋め込みモデルの選定を測った。2 候補とも負け。この道は打ち止め。**
       正当化: 数字は動かないが、**「律速はモデルの日本語言い換え理解」という
       仮説を実測で潰した**。GDP 提案（#372）の順序どおり日本語特化を一番手にして、

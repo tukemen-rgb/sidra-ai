@@ -1941,4 +1941,13 @@
   **23:0x の回は記録が無い。**手順1 の push が権限分類器に拒否され、その回はそこで終了した
   （ローカル commit は未 push のまま破棄、リポジトリには何も残していない）。
   拒否は間欠で、同じ `git push origin main` が今回は通っている。
-- 2026-08-21 00:26 UTC ループB started
+- 2026-08-21 00:26 UTC ループB started Board=7
+2026-08-21 00:27 UTC ループB no-op キューが空（ただし Board=7 で新規 1 件を起票）。
+  GDP 提案（#372 comment 5363495469）を C 節へ起票: GAMEYARD の `docs/DESIGN.md`
+  を確定コーパスへ取り込む。→ 動かす数字 `GAMEYARD design source indexed 0→1` /
+  引用付き根拠 0→1 件。**前提の PR #17 は未 merge なので取っていない。**
+  一次資料で確認した——site の既定ブランチは `claude/game-upload-site-0187kj`
+  （HEAD `f11a170`）で `docs/DESIGN.md` は存在しない。GDP 自身が
+  「未 merge の間は blocked」と指定しており、それに従う。
+  他は変化なし: E / F を除く `- [ ]` は D-861（token 未充足）と今回の新規のみ、
+  `- [~]` 0 件。社長判断待ち 3 件のまま。
