@@ -2095,3 +2095,7 @@
   API クォータ消費 0（site の確認は `git ls-remote`、Board は Issue 1 件の取得のみ）。
 
 2026-08-21 08:45 UTC ループC started
+
+2026-08-21 08:4x UTC ループC no-op キューが空
+  C-330 の前提を `git ls-remote` で確認: `f11a170...` のまま未 merge
+  （統合 GO 01:14 から 7.5 時間、SHA 不動）。D-887 はトークン未設置。
