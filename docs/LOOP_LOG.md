@@ -2388,3 +2388,9 @@
   D-970 はトークン未設置。残りは E 3 件と F 2 件。
 
 2026-08-21 23:06 UTC ループA started
+
+2026-08-21 23:06 UTC ループA no-op キューが空 Board=10（増分なし）。
+  E / F を除く `- [ ]` は 2 件でどちらも前提未充足: C-413（site 既定ブランチ
+  `f11a170` のまま、PR #17 未 merge）/ D-970（`SIDRA_GITHUB_TOKEN` absent）。
+  `- [~]` 0 件、0 のままの数字も 0 件。API クォータ消費 0。
+  1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
