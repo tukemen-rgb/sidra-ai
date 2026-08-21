@@ -2282,3 +2282,14 @@
   最初に計器を登録すれば main は緑に戻る。**
   1079 tests / recall PASSED / 作業ツリーは commit 済み。
 2026-08-21 18:28 UTC ループB started (Board=10)
+2026-08-21 18:56 UTC ループB 完了 **使い勝手（社長指示）: `ask_from_browser` 0 -> 1**（`--compare` exit 0）。
+  `GET /` が自己完結 1 枚 HTML を返し、ブラウザの fetch が既存 `/v1/chat` を叩く。新 endpoint なし。
+  判定は「配ったか」ではなく実際に配って中身を検査（HTML か / `/v1/chat` を名指すか / 入力欄 /
+  **外部 asset 参照 0 件**）。CDN を貼ると「画面は出るがボタンが効かない」構成なので数字側で塞いだ。
+  検証: `python -m pytest` = **1 件 fail**、`verify_gate_recall.py` PASSED（MUST CATCH の MISS 0）。
+  **その 1 件はループB の変更ではない**: `test_every_metric_the_backlog_names_exists` が
+  `citation_shows_evidence`（同時起票の「精度」項目が名前だけ挙げた数字）を要求している。
+  stash して main 単体でも同じ fail を確認済み。当該項目を取った者の最初の一手で消える。
+  代償を隠さず記録: 指示どおり `guarded` に載せたので **token 設定時は素の遷移で開けない**。
+  無認証で殻だけ配る案は E 節へ（こちらでは動かさない）。
+  Board=10（前回 9 から +1、増分はループA の #372 返信 comment 5373666174 で自分側の投稿）。

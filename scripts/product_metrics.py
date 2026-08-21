@@ -177,6 +177,59 @@ def measure_usability(c: Collector) -> None:
           detail=", ".join(history_fields) or "each request is independent",
           kind=OUTCOME)
 
+    # 4. Ask from a browser, with nothing installed.
+    #
+    # Exercised rather than grepped, and the bar is deliberately the whole
+    # path: a page that is served but posts nowhere is not a way to ask a
+    # question, and neither is one whose script tag lives on a CDN this
+    # process cannot reach. So the page has to arrive as HTML, name the
+    # endpoint it submits to, carry a text input, and be self-contained.
+    from fastapi.testclient import TestClient
+
+    served, detail = 0, "no GET route returns an HTML page"
+    for path in ("/", "/ui"):
+        with _quiet(), TestClient(create_app()) as client:
+            response = client.get(path)
+        if response.status_code != 200:
+            continue
+        if "text/html" not in response.headers.get("content-type", ""):
+            detail = f"{path} answers, but not as HTML"
+            continue
+        body = response.text
+        missing = [
+            name
+            for name, present in (
+                ("posts to /v1/chat", "/v1/chat" in body),
+                ("a text input", "<input" in body or "<textarea" in body),
+                ("no external asset", not _references_external_asset(body)),
+            )
+            if not present
+        ]
+        if missing:
+            detail = f"{path} is served but is missing: {', '.join(missing)}"
+            continue
+        served, detail = 1, f"GET {path} -> self-contained page posting to /v1/chat"
+        break
+    c.add("ask_from_browser", "ask a question from a browser", served,
+          detail=detail, kind=OUTCOME)
+
+
+def _references_external_asset(html: str) -> bool:
+    """Whether the page would fetch anything off this host to work.
+
+    A localhost-bound, CORS-free service that pulls a script from a CDN is
+    broken exactly where it matters: on the operator's air-gapped machine,
+    where the page loads and the button does nothing.
+    """
+
+    import re
+
+    for match in re.finditer(r"""(?:src|href)\s*=\s*["']([^"']+)["']""", html):
+        target = match.group(1).strip().lower()
+        if target.startswith(("http://", "https://", "//")):
+            return True
+    return False
+
 
 # --- is what it says current ------------------------------------------
 

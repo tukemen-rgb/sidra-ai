@@ -20,6 +20,10 @@ Exposure posture for v0.1:
   the JSON schema route crosses the same auth/rate-limit boundary as private
   API routes.
 * CORS is not enabled. Browsers on other origins cannot reach this.
+* The one HTML route (``GET /``) is a constant, self-contained page behind the
+  same auth and rate limit as the private API. It carries no index data and
+  fetches nothing off this host, so serving it adds no origin, no asset host
+  and no unauthenticated surface.
 """
 
 from __future__ import annotations
@@ -33,7 +37,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from sidra_ai.api.audit import ApiAuditLog
 from sidra_ai.api.refresher import BackgroundRefresher
@@ -48,6 +52,7 @@ from sidra_ai.api.schemas import (
     RetrieveResponse,
 )
 from sidra_ai.api.service import SidraService, get_service
+from sidra_ai.api.ui import ASK_PAGE
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.ingestion.github_client import RepositoryNotAllowedError
 
@@ -236,6 +241,32 @@ def create_app(
             pass
 
     guarded = [Depends(auth_rate_limit), Depends(authenticate), Depends(rate_limit)]
+
+    @app.get(
+        "/",
+        include_in_schema=False,
+        response_class=HTMLResponse,
+        dependencies=guarded,
+    )
+    def ask_page() -> Any:
+        """Serve the one-page asking UI.
+
+        It sits behind ``guarded`` like every other private route rather than
+        next to ``/health``. That is the conservative choice and it has a
+        cost worth naming: with a token configured, a browser cannot load
+        this page by navigation, because navigation cannot carry an
+        ``Authorization`` header. The page therefore works as a browser UI in
+        the default posture (loopback, no token) and needs a header-capable
+        client otherwise. Serving the shell unauthenticated would fix that,
+        but it widens the unauthenticated surface, which is not a call this
+        route should make on its own.
+
+        No index data passes through here. The page is a constant, and the
+        answer it shows is fetched by the browser from ``/v1/chat``, across
+        the same auth and rate-limit boundary as any other client.
+        """
+
+        return HTMLResponse(ASK_PAGE)
 
     @app.get("/openapi.json", include_in_schema=False, dependencies=guarded)
     def openapi_schema() -> dict[str, Any]:

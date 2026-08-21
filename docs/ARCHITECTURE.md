@@ -199,6 +199,12 @@ tests/embedding callers and is not used by the `sidra-api` entry point.
 ## API surface
 
 - `GET /health` — minimal unauthenticated health status, no repository/content details.
+- `GET /` — authenticated/rate-limited single-page asking UI. A constant, self-contained
+  HTML document: no index data passes through it, it loads nothing off this host, and the
+  answer it displays is fetched by the browser from `POST /v1/chat` across the same
+  boundary as any other client. Because it sits behind auth, a browser can load it by
+  navigation only in the default loopback/no-token posture; with a token configured the
+  page needs a client that can set an `Authorization` header.
 - `GET /openapi.json` — authenticated/rate-limited schema discovery; Swagger UI and ReDoc are disabled rather than exposed as separate routes.
 - `GET /v1/index` — authenticated/rate-limited inventory of what is indexed:
   per-repository and per-source-type counts, the ingestion cursor, and

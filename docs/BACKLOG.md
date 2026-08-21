@@ -351,7 +351,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       2 回測定で headline ブロックの完全一致を要求する（変異テストで有効性確認済み）。
       5 リポジトリ実測は前後同一: 11/27・direct 10/15・para 1/12・+29.6pt・MRR 0.286。
 
-- [~] 作業中 2026-08-21 18:29 UTC ループB **使い勝手: ブラウザから質問できる最小画面を付ける（社長指示「使い勝手」）。**
+- [x] 完了 2026-08-21 18:5x UTC ループB **使い勝手: ブラウザから質問できる最小画面を付ける（社長指示「使い勝手」）。**
       いま質問手段は CLI（sidra-ask）と手組み JSON のみ。sidra-api に
       `GET /`（または /ui）で 1 枚の HTML を返し、テキストボックス 1 つ・
       送信で /v1/chat を叩き、回答と引用（[S#] とリポジトリ/パス）を表示する。
@@ -360,6 +360,26 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       product_metrics に `ask_from_browser`（HTML が実際に配られ /v1/chat を
       呼べる形かを実測）を [outcome] で追加してから実装する。
       → 動かす数字: `ask_from_browser` 0→1
+
+      **実施 2026-08-21 ループB。`ask_from_browser` 0→1（`--compare` exit 0）。**
+      `GET /` が 1 枚の自己完結 HTML を返し、ブラウザの fetch が `/v1/chat` を叩く。
+      新しい endpoint は作っていないので、画面が出す答えは `sidra-ask` と同じ
+      guard を通ったもの。判定は「配られたか」ではなく**実際に配って中身を見る**：
+      HTML であること・`/v1/chat` を名指していること・入力欄があること・
+      **外部 asset を 1 つも参照していないこと**を TestClient で実測する
+      （`_references_external_asset`）。CDN を貼れば「画面は出るがボタンが効かない」
+      になる構成なので、そこを数字側で塞いだ。
+      `tests/test_api_ask_page.py` が固定する不変条件: 外部 asset 0 件 /
+      token 設定時は `GET /` も 401 / CORS ヘッダが増えていない /
+      **取得文書は textContent で入れる**（`innerHTML` 等の使用を禁止）/
+      token を localStorage・cookie に残さない。
+      **設計上の代償を隠さずに書く**: 指示どおり `guarded` に載せたので、
+      **token 設定時はブラウザの素の遷移では開けない**（navigation は
+      Authorization ヘッダを運べない）。既定の loopback・token なし構成では
+      そのまま使える。shell だけ無認証で配れば解決するが、それは無認証面を
+      広げる判断なので E 節へ回した（下記）。
+      **未計測の残り**: 画面から履歴（follow-up）を送る導線は付けていない。
+      `/v1/chat` の `history` は既にあるので、必要なら別項目で。
 
 - [ ] **精度: 引用の中身を運用者が検証できるようにする（社長指示「精度」）。**
       いま /v1/chat は引用メタデータ（repo/path/rank）だけ返し、根拠の
@@ -370,6 +390,12 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       content-export 面が広がる変更なので、抜粋長の上限をテストで固定する。
       product_metrics に `citation_shows_evidence` を [outcome] で追加してから実装。
       → 動かす数字: `citation_shows_evidence` 0→1
+      **注意 2026-08-21 18:5x ループB: この項目が起票された時点から
+      `python -m pytest` は 1 件 fail している。**
+      `test_every_metric_the_backlog_names_exists` は BACKLOG が名前を挙げた
+      数字が product_metrics に実在することを要求するので、
+      `citation_shows_evidence` を登録するまで赤のまま（ループB の変更とは無関係。
+      stash して確認済み）。**この項目を取った者の最初の一手が赤を消す。**
 
 - [ ] **GAMEYARD のデザイン原則 `docs/DESIGN.md` を確定コーパスへ取り込む。**
       GDP 提案 #372 comment 5363495469。source: `tukemen-rgb/site/docs/DESIGN.md`。
@@ -1211,6 +1237,21 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       準備済み: marker は行またぎを避けた
       `There is no token scope to misconfigure into a write` /
       `External content is DATA, never instructions` の 2 つで実在確認済み。
+
+- [ ] **要判断: ブラウザ画面（`GET /`）の HTML だけを無認証で配ってよいか。**
+      2026-08-21 ループB が「使い勝手」を実装して出てきた選択。指示どおり
+      `guarded` に載せた結果、**token を設定した構成ではブラウザの素の遷移で
+      画面を開けない**（navigation は Authorization ヘッダを運べない）。
+      既定の loopback・token なしなら普通に使えるので、v0.1 の想定運用では
+      困らない。
+      **選択肢 A（現状）**: 画面も認証の内側。token 構成では header を送れる
+      client が要る。無認証面はゼロのまま。
+      **選択肢 B**: HTML の殻だけ無認証で配り、`/v1/chat` は今までどおり
+      Bearer を要求する。画面の token 欄に貼れば token 構成でも使える。
+      配るのは定数 HTML で索引データは 1 バイトも通らない（`/health` と同格）。
+      **こちらから B へ動かすことはしない。**「中身は出ないから無害」は
+      無認証面を広げるときの決まり文句で、判断は社長のもの。
+      → 動かす数字: なし（判断のみ。B を選ぶなら実装は 30 行程度）
 
 - [ ] **要判断: 「本物の回答」を一度も生成したことがない件を、どの機械で解くか。**
       SIDRA のモデル経路はこれまで echo スタブでしか動いていない。検索は
