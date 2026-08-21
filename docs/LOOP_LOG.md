@@ -2305,3 +2305,13 @@
   この項目が抱えていた main の赤も同時に解消。1068 passed / recall PASSED。
 
 2026-08-21 19:06 UTC ループA started
+
+2026-08-21 19:06 UTC ループA no-op キューが空 Board=10（増分 1 件は 18:21 の自分の返信。
+  帰属フッターで確認、GDP からの新規入力はゼロ）。
+  C-344 / C-354 は他ループが片付け、**着手前から赤かった
+  `test_every_metric_the_backlog_names_exists` も緑に戻った**（計器 3 件欠落 → 0 件）。
+  E / F を除く `- [ ]` は 2 件でどちらも前提未充足:
+  C-413（site 既定ブランチ `f11a170` のまま、PR #17 未 merge）/
+  D-970（`SIDRA_GITHUB_TOKEN` absent）。`- [~]` 0 件、0 のままの数字も 0 件。
+  API クォータ消費 0（`ls-remote` の SHA 比較のみ）。
+  1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
