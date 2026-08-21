@@ -327,7 +327,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
-- [ ] **承認済み: 自リポジトリ根拠の質問を「別集計」で入れる（GDP 提案 2 問）。**
+- [~] 作業中 2026-08-21 18:08 UTC ループA **承認済み: 自リポジトリ根拠の質問を「別集計」で入れる（GDP 提案 2 問）。**
       社長判断 2026-08-20「別集計で許可」。やること:
       (1) OutcomeQuestion に self 枠を作る（tier とは直交する軸なので
       `self_grounded: bool` 等の別フィールドが素直。設計は実装者に任せる）。
