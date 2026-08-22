@@ -2583,3 +2583,4 @@
   社長が nvidia-smi 実測を提示: GTX 1660 系 / 6144 MiB / driver 462.30 → (a) 採用。
   手順書 docs/RUNBOOK_FIRST_REAL_ANSWER.md を作成（qwen2.5:3b-instruct-q4_K_M、
   要求 2920 MiB ≦ 使用可能枠 約5.3GB）。実行と証拠貼付は社長の手元。
+2026-08-22 12:08 UTC ループA started
