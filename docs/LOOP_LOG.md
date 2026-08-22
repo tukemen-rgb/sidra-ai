@@ -2565,3 +2565,12 @@
   D-992 は `SIDRA_GITHUB_TOKEN` absent で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
   API クォータ消費 0（site は `git ls-remote`、Board は Issue 1 件の取得のみ）。
 2026-08-22 11:06 UTC ループA started
+  no-op キューが空。`- [ ]` は C-413（前提未充足）と D-992（token 前提）のみ、
+  E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  C-413: site の HEAD `9b825d7` -> `98157c1` で合図が鳴ったので tree だけの clone で確認。
+  `docs/` は 28 -> **30 件に増えたが `docs/DESIGN.md` は無い**（実体はマーケティング用
+  ルームの索引を作る commit）。**6 回連続で「動いたが未マージ」。**PR #17 未マージ、blocked 継続。
+  D-992: `SIDRA_GITHUB_TOKEN` unset。コンテナ 2026-08-21 05:11 起動で stale の可能性が
+  あるため断定せず claim しない。
+  Board=10 で増分ゼロ。
+  検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
