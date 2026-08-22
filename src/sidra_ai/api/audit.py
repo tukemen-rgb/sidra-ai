@@ -240,8 +240,12 @@ class ApiAuditLog:
                 raise OSError("audit log path is not a regular file")
             if hasattr(os, "fchmod"):
                 os.fchmod(fd, 0o600)
-            else:  # pragma: no cover - Windows fallback
+            elif os.chmod in os.supports_follow_symlinks:  # pragma: no cover
                 os.chmod(path, 0o600, follow_symlinks=False)
+            else:  # pragma: no cover - Windows: follow_symlinks unsupported;
+                # the path was just re-verified symlink-free and the fd is a
+                # regular file, so tightening by name cannot be redirected.
+                os.chmod(path, 0o600)
             return fd
         except Exception:
             os.close(fd)

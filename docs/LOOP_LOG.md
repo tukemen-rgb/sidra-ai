@@ -2605,3 +2605,12 @@
   可能性があり断定しない。claim せず。
   Board=10 で増分ゼロ。
   検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
+
+2026-08-22 16:2x UTC 対話セッション — Windows 初回実行で見つかった 500 を修正
+  社長機（Windows / Python 3.12）で認証付き全エンドポイントが HTTP 500。原因は
+  監査ログ等 3 箇所の Windows fallback の os.chmod(follow_symlinks=False) が
+  NotImplementedError を投げ、OSError しか想定しない経路を突き抜けたこと。
+  supports_follow_symlinks で分岐する修正 + Windows 形状を再現する回帰テスト 3 件。
+  1071 passed / recall PASSED / gate regression 10.1% ≦ 13%。
+  同席の実測: 社長機から実 GitHub API 到達、site HEAD 025b472 取得（partial_fetch、
+  匿名クォータ枯渇のみ）。
