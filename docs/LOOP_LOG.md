@@ -2624,3 +2624,10 @@
   検証: `python -m pytest` **1071** passed / exit 0（`82464df` の Windows chmod 修正で
   3 件増えている）、`verify_gate_recall.py` PASSED。作業ツリー無変更。
 2026-08-22 21:05 UTC ループA started
+  no-op キューが空。`- [ ]` は C-413（前提未充足）と D-992（token 前提）のみ、
+  E 2 件・F 2 件は対象外、`- [~]` 0 件。他ループの新規 push も無し。
+  C-413: site の HEAD は `025b472` で 2 回続けて不動。合図が鳴らないので clone しない。
+  D-992: `SIDRA_GITHUB_TOKEN` unset。コンテナ 2026-08-21 05:11 起動で stale の可能性が
+  あるため断定せず claim しない。
+  Board=10 で増分ゼロ。
+  検証: `python -m pytest` 1071 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
