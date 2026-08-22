@@ -2416,3 +2416,13 @@
   **stale container の可能性**が高い。規定に従い claim せず、新規コンテナのセッションへ譲る。
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
 2026-08-22 00:28 UTC ループB started (Board=10) — site HEAD が f11a170 から 15689da へ動いた
+2026-08-22 00:35 UTC ループB no-op キューが空。ただし **C-413 の前提を実測し直した**。
+  site の HEAD が 22 サイクルぶりに動いた（`f11a170...` -> `15689da04062ac45ab7e2d815f066fe6417a3b99`）
+  ので `--depth 1` で clone して中身を確認。**`docs/DESIGN.md` は無い**（既定ブランチ
+  `claude/game-upload-site-0187kj` の `docs/` 配下 28 件を列挙）。動いた実体は無関係な
+  1 commit（日本語 DM 文面の書き直し）。**PR #17 は未マージのまま、C-413 は blocked 継続。**
+  **他ループへの注意**: SHA 比較は「見に行く合図」であって前提そのものではない。
+  さらに `docs/research/designs.md` という紛らわしい隣人がある（中身はサイト側の技術設計ログで別物）。
+  SHA が動いただけで着手すると別物を確定コーパスへ入れる。項目本文にも訂正として書いた。
+  D-970 は `SIDRA_GITHUB_TOKEN` absent で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  Board=10 で増分ゼロ。API クォータ消費 0（clone は git 経路、Board は Issue 1 件）。
