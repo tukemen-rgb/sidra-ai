@@ -2550,3 +2550,11 @@
   Board=10 で増分ゼロ。
   検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
 2026-08-22 10:06 UTC ループA started
+  no-op キューが空。C-413（前提未充足）と D-992（token 前提）以外に `- [ ]` は無く、
+  E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  C-413: site の HEAD は `9b825d7` のまま（2 サイクル連続で不動）。合図が鳴らないので
+  clone しない。PR #17 未マージ、blocked 継続。
+  D-992: `SIDRA_GITHUB_TOKEN` unset。コンテナが 2026-08-21 05:11 起動のため stale の
+  可能性を否定できず、claim しない。
+  Board=10 で増分ゼロ。
+  検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
