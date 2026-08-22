@@ -2505,3 +2505,4 @@
   **「動いたが未マージ」はこれで 4 回目**（`664d849` / `eeda3b5` / `c959a7d` / `9d1592b`）。
   D-970: 自分のコンテナでは unset だが断定しない（stale の可能性）。claim せず譲る。
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
+2026-08-22 06:28 UTC ループB started (Board=10) — site HEAD が c959a7d から 4aa9565 へ移動
