@@ -2541,3 +2541,11 @@
   D-992 は `SIDRA_GITHUB_TOKEN` absent で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
   Board=10 で増分ゼロ。API クォータ消費 0。
 2026-08-22 09:05 UTC ループA started
+  no-op キューが空。取れる `- [ ]` は C-413（前提未充足）と D-992（token 前提）のみ、
+  E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  C-413: site の HEAD は `9b825d7` で前サイクル（08:0x ループA）が確認した SHA から
+  動いていない。合図が鳴らないので clone しない。PR #17 未マージ、blocked 継続。
+  D-992: `SIDRA_GITHUB_TOKEN` unset。コンテナは 2026-08-21 05:11 起動で stale の
+  可能性があるため断定せず claim しない。
+  Board=10 で増分ゼロ。
+  検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
