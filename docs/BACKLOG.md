@@ -335,7 +335,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 λ-fusion / k1-b グリッド / 見出しブースト / ひらがな bigram 抑制 /
 名前ルーティング / 候補窓 10-80 / ruri-v3-30m / e5-base）を再提案しない。**
 
-- [ ] **C-980: 引用抜粋の的中率を測って上げる。**`citation_shows_evidence` は
+- [~] 作業中 2026-08-22 23:06 UTC ループA **C-980: 引用抜粋の的中率を測って上げる。**`citation_shows_evidence` は
       「抜粋を出せた」までしか見ていない。出した抜粋が**答えを含んでいるか**は
       未測定。outcome 質問で answered になった各問について、引用抜粋
       （200 字 cap 内）に answer_marker が含まれる率を測る新メトリクス
