@@ -2631,3 +2631,7 @@
   あるため断定せず claim しない。
   Board=10 で増分ゼロ。
   検証: `python -m pytest` 1071 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
+
+2026-08-22 22:5x UTC 対話セッション — real_cited_answer 0→1（社長機で初の引用付き実回答）
+  ollama qwen2.5:3b、manifest+VRAMプローブ admission 通過、引用 [S1]-[S5]、$0.0。
+  詳細は docs/OUTCOMES.md の 2026-08-22 節と BACKLOG E 節の完了記録。

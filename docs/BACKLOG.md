@@ -1299,8 +1299,17 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       設計変更ゼロの (a) が成立。手順書は `docs/RUNBOOK_FIRST_REAL_ANSWER.md`
       （モデルは qwen2.5:3b-instruct-q4_K_M、要求 VRAM 2920 MiB ≦ 使用可能枠
       約 5.3 GB）。実行は社長の手元。ドライバが 2021 年版なので手順 1 で更新を
-      推奨している。**残り: 社長が手順書を実行し、成功の証拠（引用付き回答 +
-      ollama ps）を貼る。**以下は判断当時の記録:
+      推奨している。
+      **完了 2026-08-22 22:4x UTC: real_cited_answer 0→1。**社長機（GTX 1660 Ti /
+      6144 MiB / driver 610.88 更新後）で ollama + qwen2.5:3b-instruct-q4_K_M が
+      reviewed manifest（実測 2.2 GB, 100% GPU, revision 357c53fb659c）+ NVIDIA
+      VRAM プローブの admission を通って起動し、`sidra-ask` が引用 [S1]-[S5]
+      （すべて tukemen-rgb/site@025b472 の実ファイル、[S5] は OutputGuard が
+      一部秘匿）付きの実回答を 1 件生成した。外部 API 費用 $0.0。設計変更ゼロ、
+      不変条件（fail-closed / manifest / probe）は全て維持。副産物として
+      Windows 初実行が chmod(follow_symlinks) の 500 を暴き、修正済み（82464df、
+      回帰テスト 3 件）。同時に実 GitHub API への差分状態（previous_sha 記録→
+      2 回目 inference_skipped:true）も社長機で実測された。以下は判断当時の記録:
       SIDRA のモデル経路はこれまで echo スタブでしか動いていない。検索は
       実測できたが、**引用付きの実回答の実物は 1 回も存在しない**。
       非 echo バックエンドの起動には reviewed manifest + **NVIDIA VRAM
