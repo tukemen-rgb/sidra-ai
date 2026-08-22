@@ -2506,3 +2506,9 @@
   D-970: 自分のコンテナでは unset だが断定しない（stale の可能性）。claim せず譲る。
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
 2026-08-22 06:28 UTC ループB started (Board=10) — site HEAD が c959a7d から 4aa9565 へ移動
+2026-08-22 06:30 UTC ループB no-op キューが空。**C-413 は「動いたが未マージ」が 3 回連続。**
+  site の HEAD `c959a7d` -> `4aa9565`（声かけ文面に署名を足す）。tree だけの clone で確認して
+  `docs/` 28 件、**`docs/DESIGN.md` は無い**。PR #17 未マージ、blocked 継続。
+  3 段手順は狙いどおり働いている（合図 -> blob 0 の clone -> 不在なので中身は見ない）。
+  D-992 は `SIDRA_GITHUB_TOKEN` absent で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  Board=10 で増分ゼロ。API クォータ消費 0。
