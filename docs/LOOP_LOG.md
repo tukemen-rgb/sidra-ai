@@ -2453,3 +2453,12 @@
   なお 01:0x〜02:0x に他ループの push は無し（main の HEAD が自分の 01:06 のままだった）。
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
 2026-08-22 02:28 UTC ループB started (Board=10) — site HEAD が 15689da から c959a7d へ再度移動
+2026-08-22 02:34 UTC ループB no-op キューが空。**C-413 は「動いたが未マージ」が 2 回連続。**
+  site の HEAD `15689da` -> `c959a7d`（公開手引きの簡素化）。前回書いた訂正どおり SHA ではなく
+  **path の実在**を確認したが、`docs/` 27 件に **`docs/DESIGN.md` は無い**。PR #17 未マージ、blocked 継続。
+  **手順を 1 段安くした**: `git clone --depth 1 --filter=tree:0 --no-checkout` なら blob を 1 つも
+  取らずに `git ls-tree HEAD:docs` で一覧できる（**実測 0.85 秒 / 232K**）。site は動きが再開して
+  SHA 比較が毎回 fire するので、合図のたびに full clone すると無駄が積む。項目本文に
+  **合図 -> tree だけの clone -> 実在して初めて中身**の 3 段として記録した。
+  D-983 は `SIDRA_GITHUB_TOKEN` absent で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  Board=10 で増分ゼロ。API クォータ消費 0（clone は git 経路、Board は Issue 1 件）。
