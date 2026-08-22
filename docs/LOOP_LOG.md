@@ -2640,3 +2640,22 @@
   ループA を毎時 :05 に変更（B は停止のまま）。C 節に精度キュー C-980〜C-982 を追加
   （引用抜粋の的中率 / 隔離誤検知の実測 / 言い換えフロア引き上げ）。
 2026-08-22 23:06 UTC ループA started
+  **C-980 (1/2) 完了。**社長指示で 23:0x に精度キュー C-980〜C-982 が入ったので確保。
+  `excerpt_hits_marker` を新設し **unmeasurable→8/10 (80.0%)**、第二判定器 **exit 0**。
+  やったこと: `src/sidra_ai/api/citations.py` に `citation_excerpt` を切り出し、
+  サービスと測定が同じ 1 関数を通るようにした。`measure_outcomes.py` が answered の
+  各問で「見せる抜粋（先頭 200 字・OutputGuard 通過後）に marker が入っているか」を
+  数え、`check_answerable_regression.py` が `excerpt_hits_marker` / `excerpt_scored`
+  として snapshot・比較する（**分母 answered が動いた回は両方向とも比較しない**）。
+  marker は採点にのみ使い、marker を探して窓を選ぶことはしていない。
+  本体は不動: 10/27・直接語 9/15・言い換え 1/12・識別力 +25.9pt・MRR 0.279、
+  `citation_shows_evidence` 1、200 字 cap、OutputGuard 経路すべて不変。
+  外した 2 問（`cy-ranking-culture` / `mkt-deliverables-location`）は窓選択の問題なので
+  **C-983 として分割起票**。基準値は OUTCOMES.md に記録。
+  検証: `python -m pytest` 1079 passed / exit 0、`verify_gate_recall.py` PASSED
+  （security は未変更なので gate regression は対象外）。commit `cc0f634`。
+  注記: `/tmp/sidra-repos` の 4 本を測定前に fetch し直した（site `025b472` /
+  marketing `65375bd` / Fg `ddef0a3` / creater-yard `aa4288e`）。before/after は同一
+  コーパスで、`corpus moved` 警告は出ていない。
+  C-413: site の HEAD は `025b472` で不動、blocked 継続。D-992: token unset・stale の
+  可能性ありで claim せず。Board=10 で増分ゼロ。
