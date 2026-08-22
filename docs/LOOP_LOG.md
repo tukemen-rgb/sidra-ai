@@ -2596,3 +2596,12 @@
   Board=10 で増分ゼロ。トリガは 12:08 の回から「3時間おき」に変更されている。
   検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
 2026-08-22 15:05 UTC ループA started
+  no-op キューが空。`- [ ]` は C-413（前提未充足）と D-992（token 前提）のみ、
+  E 2 件・F 2 件は対象外、`- [~]` 0 件。3 時間おきに変わって最初の回。
+  C-413: site の HEAD `9ab3094` -> `025b472`。tree だけの clone で `docs/` 30 件、
+  **`docs/DESIGN.md` は無い**（実体はマーケ索引にパイロット価格の決定を記録する commit）。
+  **8 回連続で「動いたが未マージ」。**blocked 継続。
+  D-992: `SIDRA_GITHUB_TOKEN` unset。コンテナ 2026-08-21 05:11 起動なので stale の
+  可能性があり断定しない。claim せず。
+  Board=10 で増分ゼロ。
+  検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
