@@ -2534,3 +2534,4 @@
   可能性があり断定しない。claim せず新規コンテナへ譲る。
   Board=10 で増分ゼロ。
   検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
+2026-08-22 08:28 UTC ループB started (Board=10) — site HEAD が 4aa9565 から 9b825d7 へ移動
