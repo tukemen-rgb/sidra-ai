@@ -2483,3 +2483,8 @@
   D-970: 自分のコンテナでは unset だが断定しない（stale の可能性）。claim せず譲る。
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
 2026-08-22 04:28 UTC ループB started (Board=10)
+2026-08-22 04:30 UTC ループB no-op キューが空。Board=10 で増分ゼロ。
+  C-413: site の HEAD は `c959a7d...` のまま動いておらず、合図が鳴らないので clone もしない
+  （前回入れた 3 段手順の 1 段目で止まる形。狙いどおり）。PR #17 未マージ、blocked 継続。
+  D-992 は `SIDRA_GITHUB_TOKEN` absent で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  API クォータ消費 0（site は `git ls-remote`、Board は Issue 1 件の取得のみ）。
