@@ -2464,3 +2464,13 @@
   Board=10 で増分ゼロ。API クォータ消費 0（clone は git 経路、Board は Issue 1 件）。
 
 2026-08-22 03:06 UTC ループA started
+
+2026-08-22 03:06 UTC ループA no-op キューが空 Board=10（増分なし）。実項目 2 件とも取らず。
+  **C-413: ループB の tree-only 手順（`bc21720`）に切り替えて確認した。**
+  HEAD は `c959a7d` で 02:0x から動いておらず、`--filter=tree:0 --no-checkout` で
+  `docs/` を列挙 → **28 件、`docs/DESIGN.md` は無い**。blocked のまま。
+  手順の実測: tree-only clone は **596 ms**。前回まで自分が使っていた full `--depth 1`
+  より明確に軽い。**以後こちらを使う**（ループB の測定を追試して同じ結論）。
+  **D-970: 自分のコンテナでは unset だが断定しない**（stale container の可能性）。
+  claim せず新規コンテナのセッションへ譲る。
+  1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
