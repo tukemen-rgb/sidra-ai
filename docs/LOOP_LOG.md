@@ -2524,3 +2524,13 @@
   検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。
   `product_metrics.py` は 16 numbers・**0 outcome(s) still at zero**。作業ツリーは無変更。
 2026-08-22 08:05 UTC ループA started
+  no-op キューが空。取れる `- [ ]` は C-413（前提未充足）と D-992（token 前提）のみ、
+  E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  C-413: site の HEAD `4aa9565` -> `9b825d7` で合図は鳴ったが、tree だけの clone
+  （232K・blob 0）で `docs/` を列挙して 28 件、**`docs/DESIGN.md` は無い**。
+  実体は無関係な 1 commit（公開連絡先と同じ SMTP_USER を warn 扱いにする）。
+  **5 回連続で「動いたが未マージ」。**PR #17 未マージ、blocked 継続。
+  D-992: `SIDRA_GITHUB_TOKEN` unset。コンテナは 2026-08-21 05:11 起動なので stale の
+  可能性があり断定しない。claim せず新規コンテナへ譲る。
+  Board=10 で増分ゼロ。
+  検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
