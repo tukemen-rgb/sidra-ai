@@ -327,6 +327,47 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 ### C. 検索品質
 
+**社長指示 2026-08-22 22:3x UTC「1時間毎のループして精度高めて」。**
+ループは毎時 :05 の 1 本に変更済み。以下 C-980〜C-982 が精度キュー。
+制約は従来どおり: 外部 LLM 不可・開発コンテナに GPU 無し（回答の正しさの
+測定はモデル実行が要るので対象外、社長機ランの結果待ち）。
+**測定済み却下済みの手法（クエリ拡張 / PRF / 類語辞書 / 文書粒度検索 /
+λ-fusion / k1-b グリッド / 見出しブースト / ひらがな bigram 抑制 /
+名前ルーティング / 候補窓 10-80 / ruri-v3-30m / e5-base）を再提案しない。**
+
+- [ ] **C-980: 引用抜粋の的中率を測って上げる。**`citation_shows_evidence` は
+      「抜粋を出せた」までしか見ていない。出した抜粋が**答えを含んでいるか**は
+      未測定。outcome 質問で answered になった各問について、引用抜粋
+      （200 字 cap 内）に answer_marker が含まれる率を測る新メトリクス
+      `excerpt_hits_marker` を product_metrics か measure_outcomes に足し、
+      基準値を取ってから抜粋選択（チャンク内のどの窓を出すか）を改善する。
+      注意: marker を含む窓を「探して」出すのは答案の後出しになるので禁止。
+      改善はクエリと文書の情報だけで行い、marker は採点にのみ使う。
+      → 動かす数字: `excerpt_hits_marker` unmeasurable→基準値→改善
+      （guard: `citation_shows_evidence` 1 のまま、200 字 cap 不変、
+      OutputGuard 経路不変）
+
+- [ ] **C-981: 隔離の誤検知が到達率を削っていないか実測する。**2026-08-22 の
+      社長機 analyze で site の docs に `secret:high_entropy` /
+      `pii:email_role` の findings が大量に出た。これが正当な文書の隔離なら
+      到達率（現 96.0%）と回答可能率の上限を静かに削る。5 リポジトリ実測で
+      隔離された文書を列挙し、誤隔離（本物の秘密でも PII でもないもの）を
+      分類・件数化する。誤隔離があれば検知器の**精度側だけ**を直す
+      （recall を削る変更は禁止、MUST CATCH 全維持）。
+      → 動かす数字: 誤隔離件数 unmeasurable→N→減、到達率 96.0%→上
+      （guard: `verify_gate_recall` MISS 0 / `check_gate_regression` ≦13%）
+
+- [ ] **C-982: 言い換え質問を全 5 リポジトリへ広げてフロアを上げる。**
+      現在 paraphrase は 12 問中 3 問通過、creater-yard / marketing の
+      言い換えはまだ薄い。各リポジトリに実在 marker の言い換え質問を足して
+      分母を 12→18 以上へ。**カウント増は scored 変化で銀行不可**（第二判定器
+      仕様）。成果として銀行できるのは: (a) 拡大後の実測で
+      `SEMANTIC_MIN_PARAPHRASE` フロアを 2→実測値へ引き上げたこと、
+      (b) 新集合での基準値を OUTCOMES.md に記録したこと。
+      test_outcome_questions の語彙重複禁止（4 文字 run）を全問通すこと。
+      → 動かす数字: paraphrase フロア 2→実測値、分母 12→18+
+      （guard: 本体カウントに self を混ぜない、既存フロア全維持）
+
 - [x] 完了 2026-08-21 ループA **承認済み: 自リポジトリ根拠の質問を「別集計」で入れる（GDP 提案 2 問）。** (`1df6f7c`, `answerable_self` unmeasurable→2)
       社長判断 2026-08-20「別集計で許可」。やること:
       (1) OutcomeQuestion に self 枠を作る（tier とは直交する軸なので
