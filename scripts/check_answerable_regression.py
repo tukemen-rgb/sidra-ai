@@ -180,7 +180,12 @@ METRIC_KEYS = frozenset(
 #: ``answerable_mrr`` is a guard here for the same reason discrimination is:
 #: both can be traded away silently while a headline count improves, so a
 #: drop must fail the run, but a rise must not be bankable as "done".
-_OUTCOME_KEYS = ("answerable_total", "answerable_direct", "answerable_paraphrase")
+_OUTCOME_KEYS = (
+    "answerable_total",
+    "answerable_direct",
+    "answerable_paraphrase",
+    "excerpt_hits_marker",
+)
 _GUARD_KEYS = ("answerable_discrimination", "answerable_mrr")
 
 #: Smallest guard change that counts as movement rather than measurement
@@ -209,12 +214,19 @@ def _retriever_label() -> str:
 def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
     direct = result["by_tier"].get("direct", {"answered": 0})
     paraphrase = result["by_tier"].get("paraphrase", {"answered": 0})
+    excerpt = result.get("excerpt") or {"shows_marker": 0, "answered": 0}
     return {
         "answerable_total": result["answered"],
         "answerable_direct": direct["answered"],
         "answerable_paraphrase": paraphrase["answered"],
         "answerable_discrimination": round(100 * result["discrimination"], 1),
         "answerable_mrr": round(result["mrr"], 3),
+        # Of the questions whose evidence came back, how many show the answer
+        # inside the excerpt the citation carries. Its denominator is
+        # `answered`, which moves on its own, so it is recorded beside the
+        # count and `_compare` refuses to bank a rise across a change of it.
+        "excerpt_hits_marker": excerpt["shows_marker"],
+        "excerpt_scored": excerpt["answered"],
         # The corpus is other people's repositories and it moves on its own.
         # Recording the heads makes "the number moved" attributable: if the
         # heads differ between --save and --compare, the movement may belong
@@ -270,10 +282,28 @@ def _compare(before: dict, now: dict) -> int:
             "Re-run --save on the new set; only a same-set improvement counts."
         )
 
+    # The excerpt count is scored over `answered` questions, and that
+    # denominator is not ours: four of the five repositories move on their own.
+    # Comparing 6/10 against 6/9 as if both were "6" would let a retrieval
+    # regression read as an excerpt improvement, so a changed denominator
+    # makes the count incomparable in both directions rather than merely
+    # unbankable.
+    same_excerpt_set = before.get("excerpt_scored") in (
+        None, now.get("excerpt_scored")
+    )
+    if not same_excerpt_set:
+        print(
+            "excerpt denominator changed between --save and --compare "
+            f"({before.get('excerpt_scored')} -> {now.get('excerpt_scored')} "
+            "answered): excerpt_hits_marker is not comparable this run."
+        )
+
     moved: list[str] = []
     broken: list[str] = []
     for key in _OUTCOME_KEYS:
         old, new_value = before.get(key), now[key]
+        if key == "excerpt_hits_marker" and old is not None and not same_excerpt_set:
+            continue
         if old is None:
             moved.append(f"{key} (newly measured) -> {new_value}")
         elif new_value > old:
@@ -409,6 +439,15 @@ def main(argv: list[str] | None = None) -> int:
         f"(floor {MIN_DISCRIMINATION_POINTS:+.1f})"
     )
     print(f"MRR            : {result['mrr']:.3f}")
+    excerpt = result.get("excerpt") or {}
+    if excerpt.get("answered"):
+        # No floor: this number was first measured 2026-08-22 and a floor
+        # pinned on one reading is a floor pinned on noise. It is reported and
+        # compared; pin it once there are two runs to compare.
+        print(
+            f"excerpt hit    : {excerpt['shows_marker']}/{excerpt['answered']}"
+            f"  ({100 * excerpt['rate']:.1f}% of answered; no floor yet)"
+        )
 
     failures: list[str] = []
     if result["answered"] < min_answered:

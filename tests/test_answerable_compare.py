@@ -36,6 +36,8 @@ def _now(**overrides) -> dict:
         "answerable_mrr": 0.307,
         "corpus_heads": {"tukemen-rgb/site": "aaaaaaaaaaaa"},
         "scored": {"direct": 11, "paraphrase": 7},
+        "excerpt_hits_marker": 4,
+        "excerpt_scored": 7,
     }
     base.update(overrides)
     return base
@@ -138,3 +140,46 @@ def test_a_regression_still_fails_across_question_set_changes() -> None:
     before = _now(answerable_direct=7)
     after = _now(answerable_direct=5, scored={"direct": 9, "paraphrase": 9})
     assert _mod._compare(before, after) == 2
+
+
+def test_a_better_excerpt_is_movement(capsys) -> None:
+    """More citations showing their answer is a product improvement.
+
+    It is the one thing this number exists to reward: same questions answered,
+    same ranks, but the operator can now read the answer in the excerpt rather
+    than being asked to trust the citation.
+    """
+
+    assert _mod._compare(
+        _now(excerpt_hits_marker=4), _now(excerpt_hits_marker=6)
+    ) == 0
+    assert "LOOP_LOG: excerpt_hits_marker 4 -> 6" in capsys.readouterr().out
+
+
+def test_an_excerpt_count_over_a_changed_denominator_is_not_compared(capsys) -> None:
+    """4/7 against 6/9 is not an improvement; it is two different questions.
+
+    The denominator here is `answered`, and four of the five repositories move
+    on their own. Without this rule someone else's push could hand this loop a
+    completion, and - worse - a retrieval regression that drops hard questions
+    would raise the rate it is scored on.
+    """
+
+    assert _mod._compare(
+        _now(excerpt_hits_marker=4, excerpt_scored=7),
+        _now(excerpt_hits_marker=6, excerpt_scored=9),
+    ) == 1
+    out = capsys.readouterr().out
+    assert "excerpt denominator changed" in out
+    assert "BETTER" not in out and "WORSE" not in out
+
+
+def test_a_newly_measured_excerpt_count_is_movement(capsys) -> None:
+    """The unmeasurable -> baseline step, same as any other new number."""
+
+    before = _now()
+    del before["excerpt_hits_marker"]
+    del before["excerpt_scored"]
+
+    assert _mod._compare(before, _now(excerpt_hits_marker=4)) == 0
+    assert "excerpt_hits_marker (newly measured) -> 4" in capsys.readouterr().out

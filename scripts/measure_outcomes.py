@@ -50,6 +50,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from sidra_ai.api.citations import citation_excerpt  # noqa: E402
 from sidra_ai.documents import (  # noqa: E402
     Document,
     Provenance,
@@ -62,6 +63,7 @@ from sidra_ai.retrieval.search import BM25Retriever, tokenize  # noqa: E402
 from sidra_ai.retrieval.store import DocumentStore  # noqa: E402
 from sidra_ai.security.decisions import Decision  # noqa: E402
 from sidra_ai.security.gate import GatePolicy, SecurityGate  # noqa: E402
+from sidra_ai.security.output_guard import OutputGuard  # noqa: E402
 
 SKIP_DIRS = {".git", "node_modules", ".next", "dist", "build", "__pycache__",
              ".venv", "venv", ".pytest_cache", "coverage", ".sidra"}
@@ -288,6 +290,10 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
     answered = 0
     control_hits = 0
     ungrounded: list[str] = []
+    # The same guard the API puts in front of an excerpt. Built once: it is
+    # the product's screening rule, and an excerpt scored without it would be
+    # text no operator will ever be shown.
+    output_guard = OutputGuard()
 
     # Self-grounded questions are answered by sidra-ai's own documents. They
     # are measured, but they are kept out of every headline counter here -
@@ -342,11 +348,20 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
         else:
             answered += 1
             reciprocal_ranks.append(1.0 / rank)
+            excerpt, withheld = citation_excerpt(
+                results[rank - 1].chunk.content, output_guard
+            )
             rows.append({
                 "name": question.name,
                 "repository": question.repository,
                 "rank": rank,
                 "status": "hit",
+                # Does the evidence the operator is *shown* contain the
+                # answer, or only the chunk it was cut from? The marker is
+                # read here and nowhere else: selecting the window by looking
+                # for it would be marking our own exam.
+                "excerpt_shows_marker": question.answer_marker in excerpt,
+                "excerpt_withheld": withheld,
             })
 
     scored = len(headline) - len(ungrounded)
@@ -363,6 +378,7 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
         bucket["rate"] = bucket["answered"] / bucket["scored"] if bucket["scored"] else 0.0
 
     self_block = _measure_self_grounded(retriever, self_questions, targets)
+    excerpt_block = _tally_excerpts(rows)
 
     return {
         "questions": len(headline),
@@ -377,6 +393,35 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
         "ungrounded": ungrounded,
         "rows": rows,
         "self_grounded": self_block,
+        "excerpt": excerpt_block,
+    }
+
+
+def _tally_excerpts(rows: list[dict]) -> dict:
+    """How often the shown excerpt actually contains the answer.
+
+    ``answerable`` says the answering chunk came back. It does not say the
+    operator can see the answer: the citation shows the first
+    ``MAX_CITATION_EXCERPT_CHARS`` characters of that chunk, and a chunk is
+    much longer than that. An answer sitting past the cap is a citation that
+    asks to be trusted, which is the thing citations exist to stop.
+
+    Denominator is answered questions only. A question whose evidence never
+    came back has no excerpt to judge, and folding those in would let a
+    retrieval regression *improve* this rate by removing the hard cases.
+    """
+
+    hits = [row for row in rows if row["status"] == "hit"]
+    shown = sum(1 for row in hits if row["excerpt_shows_marker"])
+    withheld = sum(1 for row in hits if row["excerpt_withheld"])
+    return {
+        "answered": len(hits),
+        "shows_marker": shown,
+        "rate": (shown / len(hits)) if hits else 0.0,
+        "withheld": withheld,
+        "misses": [
+            row["name"] for row in hits if not row["excerpt_shows_marker"]
+        ],
     }
 
 
@@ -615,6 +660,17 @@ def main() -> int:
                   f"上の回答可能率には含めない)")
         else:
             print("自リポジトリ枠 測定不能  (採点できた問 0 問)")
+    excerpt_block = answerable.get("excerpt") or {}
+    if excerpt_block.get("answered"):
+        # Answered says the evidence came back. This says the operator can
+        # read the answer in what the citation actually shows.
+        withheld = (f"、うち出力ガードで非表示 {excerpt_block['withheld']} 件"
+                    if excerpt_block["withheld"] else "")
+        print(f"引用抜粋の的中  {100 * excerpt_block['rate']:.1f}%"
+              f"  ({excerpt_block['shows_marker']}/{excerpt_block['answered']} 問。"
+              f"answered の内訳{withheld})")
+    elif answerable["scored"]:
+        print("引用抜粋の的中  測定不能  (answered 0 問。判定する抜粋が無い)")
     print()
     for row in answerable["rows"]:
         mark = {"hit": "OK  ", "miss": "MISS", "ungrounded": "??? "}[row["status"]]

@@ -9,8 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Sequence
 
+from sidra_ai.api.citations import citation_excerpt
 from sidra_ai.api.model_admission import build_runtime_model
-from sidra_ai.api.schemas import MAX_CITATION_EXCERPT_CHARS
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline, IngestionReport
@@ -217,15 +217,15 @@ class SidraService:
         """
 
         for citation, chunk in zip(citations, chunks, strict=True):
-            excerpt = getattr(chunk, "content", "")[:MAX_CITATION_EXCERPT_CHARS]
-            if not excerpt:
+            content = getattr(chunk, "content", "")
+            if not content:
                 continue
-            guarded = self.output_guard.scan(excerpt)
-            if guarded.blocked:
+            excerpt, withheld = citation_excerpt(content, self.output_guard)
+            if withheld:
                 citation["excerpt"] = ""
                 citation["excerpt_withheld"] = True
                 continue
-            citation["excerpt"] = guarded.content[:MAX_CITATION_EXCERPT_CHARS]
+            citation["excerpt"] = excerpt
 
     def retrieve(
         self,

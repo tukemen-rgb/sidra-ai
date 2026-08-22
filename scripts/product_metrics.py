@@ -417,6 +417,20 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # Same reason, one step further along the pipeline: `answered` says the
+    # evidence came back, this says the operator can read the answer inside
+    # the 200-character excerpt the citation carries. Scoring it needs the
+    # same five checkouts, so it is unmeasurable here rather than approximated
+    # from a corpus of one repository - an excerpt rate measured over sidra-ai
+    # alone would describe a different corpus while wearing the same name.
+    c.unmeasurable(
+        "excerpt_hits_marker",
+        "cited excerpts that contain the answer",
+        "needs all five checkouts: scripts/check_answerable_regression.py "
+        "(reported as `excerpt hit`; measured over answered questions only)",
+        kind=OUTCOME,
+    )
+
     # Unlike the four numbers above, this one needs only sidra-ai's own
     # checkout - the questions are grounded in docs/SECURITY.md - so it is
     # measured here for real rather than registered as unmeasurable.

@@ -335,7 +335,9 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 λ-fusion / k1-b グリッド / 見出しブースト / ひらがな bigram 抑制 /
 名前ルーティング / 候補窓 10-80 / ruri-v3-30m / e5-base）を再提案しない。**
 
-- [~] 作業中 2026-08-22 23:06 UTC ループA **C-980: 引用抜粋の的中率を測って上げる。**`citation_shows_evidence` は
+- [x] 完了 2026-08-22 ループA (`excerpt_hits_marker` unmeasurable→8/10 = 80.0%、第二判定器 exit 0) **C-980 (1/2): 引用抜粋の的中率を測った。**
+      抜粋選択の改善は分割して C-983 へ。以下は起票時の記述:
+      **C-980: 引用抜粋の的中率を測って上げる。**`citation_shows_evidence` は
       「抜粋を出せた」までしか見ていない。出した抜粋が**答えを含んでいるか**は
       未測定。outcome 質問で answered になった各問について、引用抜粋
       （200 字 cap 内）に answer_marker が含まれる率を測る新メトリクス
@@ -346,6 +348,32 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: `excerpt_hits_marker` unmeasurable→基準値→改善
       （guard: `citation_shows_evidence` 1 のまま、200 字 cap 不変、
       OutputGuard 経路不変）
+
+      **実測 2026-08-22 23:2x ループA（site `025b472` / marketing `65375bd`）:
+      answered 10 問のうち 8 問（80.0%）は抜粋に答えが入っていた。**
+      入れた仕掛け: `src/sidra_ai/api/citations.py` に `citation_excerpt` を
+      切り出し、**サービスと測定が同じ 1 関数を通る**ようにした（測定が製品を
+      作り直すと黙って乖離し、存在しないプログラムの数字を報告する）。
+      `measure_outcomes.py` が answered の各問で「見せる抜粋に marker が
+      入っているか」を数え、第二判定器が `excerpt_hits_marker` /
+      `excerpt_scored` として snapshot する。分母が動いた回は**両方向とも
+      比較しない**（他人の push で完了が降ってくるのを防ぐ）。
+      guard は全て不変: `citation_shows_evidence` 1、200 字 cap、OutputGuard 経路、
+      回答可能率 10/27・直接語 9/15・言い換え 1/12・識別力 +25.9pt・MRR 0.279 は
+      追加前後でビット同一。
+
+- [ ] **C-983 (C-980 の後半): 抜粋の窓選択を直して的中 8/10 を上げる。**
+      外している 2 問は `cy-ranking-culture` と `mkt-deliverables-location`。
+      どちらも answered なので検索の問題ではなく、チャンク内で**先頭 200 字を
+      出している**ことが原因。答えはその外にある。
+      **禁止: marker を含む窓を探して出すこと**（答案の後出しになる）。窓の選択は
+      クエリと文書の情報だけで決めること（例: クエリ語が最も密な段落境界から
+      始める）。marker は採点にのみ使う。
+      cap を広げて解決しない。200 字は輸出面のセキュリティ引数で、
+      `tests/` が固定している。
+      → 動かす数字: `excerpt_hits_marker` **8→9 以上**（分母 answered=10 が同じ回で）
+      （guard: `citation_shows_evidence` 1、200 字 cap、OutputGuard 経路、
+      回答可能率・識別力・MRR 全維持）
 
 - [ ] **C-981: 隔離の誤検知が到達率を削っていないか実測する。**2026-08-22 の
       社長機 analyze で site の docs に `secret:high_entropy` /
