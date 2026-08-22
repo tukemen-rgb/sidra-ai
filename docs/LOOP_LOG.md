@@ -2584,3 +2584,14 @@
   手順書 docs/RUNBOOK_FIRST_REAL_ANSWER.md を作成（qwen2.5:3b-instruct-q4_K_M、
   要求 2920 MiB ≦ 使用可能枠 約5.3GB）。実行と証拠貼付は社長の手元。
 2026-08-22 12:08 UTC ループA started
+  no-op キューが空。`- [ ]` は C-413（前提未充足）と D-992（token 前提）のみ。
+  E 節の「本物の回答」は 11:33 の `6ae73d6` で (a) 採用として決着済みだが、残りは
+  **社長の手元での手順書実行**なのでループが取れる作業ではない（手順書は
+  `docs/RUNBOOK_FIRST_REAL_ANSWER.md`）。E 残 2 件・F 2 件は対象外、`- [~]` 0 件。
+  C-413: site の HEAD `98157c1` -> `9ab3094`。tree だけの clone で `docs/` 30 件、
+  **`docs/DESIGN.md` は無い**（実体はマーケ索引に marketing リポジトリへの道しるべを
+  足す commit）。**7 回連続で「動いたが未マージ」。**blocked 継続。
+  D-992: `SIDRA_GITHUB_TOKEN` unset。コンテナ 2026-08-21 05:11 起動で stale の可能性が
+  あるため断定せず claim しない。
+  Board=10 で増分ゼロ。トリガは 12:08 の回から「3時間おき」に変更されている。
+  検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
