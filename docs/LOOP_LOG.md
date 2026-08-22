@@ -2402,3 +2402,16 @@
   self 別集計 2/2・ask_from_browser 0→1・citation_shows_evidence 0→1。
 
 2026-08-22 00:06 UTC ループA started
+
+2026-08-22 00:06 UTC ループA no-op キューが空 Board=10（増分なし）。実項目 2 件とも取らず。
+  **C-413: site の既定ブランチが動いた（`f11a170` → `664d849`）。しかし merge ではない。**
+  SHA が動いたので中身を見た（`clone --depth 1`）。`664d849` は
+  「体験版と製品版ストアページの併記を実装する（storeUrl）」で **PR #17 とは無関係**、
+  **`docs/DESIGN.md` は既定ブランチにまだ存在しない**（`docs/research/designs.md` は別物）。
+  よって blocked のまま。次に取る者へ: **前提条件はファイルの存在であって SHA ではない。**
+  `ls-remote` は「見に行くべきか」の判定にだけ使い、`664d849` から動いていたら
+  また中身を確認すること（SHA が動いた＝merge された、ではない。今回がその実例）。
+  **D-970: 自分のコンテナでは `SIDRA_GITHUB_TOKEN` が unset だが、断定しない。**
+  このセッションのコンテナは 2026-08-19 起動のまま温まっており、`c290883` の注記どおり
+  **stale container の可能性**が高い。規定に従い claim せず、新規コンテナのセッションへ譲る。
+  1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
