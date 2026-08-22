@@ -2559,3 +2559,8 @@
   Board=10 で増分ゼロ。
   検証: `python -m pytest` 1068 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
 2026-08-22 10:28 UTC ループB started (Board=10)
+2026-08-22 10:30 UTC ループB no-op キューが空。Board=10 で増分ゼロ。
+  C-413: site の HEAD は `9b825d7...` のまま動いておらず、合図が鳴らないので clone もしない。
+  PR #17 未マージ、blocked 継続。
+  D-992 は `SIDRA_GITHUB_TOKEN` absent で blocked。E 3 件・F 2 件は対象外、`- [~]` 0 件。
+  API クォータ消費 0（site は `git ls-remote`、Board は Issue 1 件の取得のみ）。
