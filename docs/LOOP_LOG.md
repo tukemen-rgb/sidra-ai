@@ -2476,3 +2476,9 @@
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
 
 2026-08-22 04:06 UTC ループA started
+
+2026-08-22 04:06 UTC ループA no-op キューが空 Board=10（増分なし）。実項目 2 件とも取らず。
+  C-413: site の HEAD は `c959a7d` のまま（02:0x / 03:0x と同一）。3 段手順の
+  第 1 段（合図）が鳴らなかったので **clone はしていない**。blocked のまま。
+  D-970: 自分のコンテナでは unset だが断定しない（stale の可能性）。claim せず譲る。
+  1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
