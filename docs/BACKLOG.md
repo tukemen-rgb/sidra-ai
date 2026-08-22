@@ -1293,7 +1293,14 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       無認証面を広げるときの決まり文句で、判断は社長のもの。
       → 動かす数字: なし（判断のみ。B を選ぶなら実装は 30 行程度）
 
-- [ ] **要判断: 「本物の回答」を一度も生成したことがない件を、どの機械で解くか。**
+- [x] **決定 2026-08-22 (社長が nvidia-smi 実測を提示) → (a) 採用。**
+      社長機は GeForce GTX 1660 系 / VRAM 6144 MiB（実測時空き約 5.8 GB）/
+      ドライバ 462.30。6 GB あれば小型量子化モデルが admission を通るので、
+      設計変更ゼロの (a) が成立。手順書は `docs/RUNBOOK_FIRST_REAL_ANSWER.md`
+      （モデルは qwen2.5:3b-instruct-q4_K_M、要求 VRAM 2920 MiB ≦ 使用可能枠
+      約 5.3 GB）。実行は社長の手元。ドライバが 2021 年版なので手順 1 で更新を
+      推奨している。**残り: 社長が手順書を実行し、成功の証拠（引用付き回答 +
+      ollama ps）を貼る。**以下は判断当時の記録:
       SIDRA のモデル経路はこれまで echo スタブでしか動いていない。検索は
       実測できたが、**引用付きの実回答の実物は 1 回も存在しない**。
       非 echo バックエンドの起動には reviewed manifest + **NVIDIA VRAM
