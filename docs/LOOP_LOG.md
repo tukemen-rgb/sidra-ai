@@ -2490,3 +2490,8 @@
   API クォータ消費 0（site は `git ls-remote`、Board は Issue 1 件の取得のみ）。
 
 2026-08-22 05:06 UTC ループA started
+
+2026-08-22 05:06 UTC ループA no-op キューが空 Board=10（増分なし）。実項目 2 件とも取らず。
+  C-413: site の HEAD は `c959a7d` のまま（02:0x 以降 4 回連続で不動）。合図が鳴らないので
+  clone なし。D-970: 自分のコンテナでは unset だが断定しない（stale の可能性）。
+  1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
