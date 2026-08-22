@@ -2497,3 +2497,11 @@
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
 
 2026-08-22 06:07 UTC ループA started
+
+2026-08-22 06:07 UTC ループA no-op キューが空 Board=10（増分なし）。実項目 2 件とも取らず。
+  C-413: site の HEAD が動いた（`c959a7d` → `9d1592b`）ので 3 段手順の第 2 段を実行。
+  tree-only clone で `docs/` を列挙 → **28 件、`docs/DESIGN.md` は無い**。
+  `9d1592b` は「差出人の表示名 MAIL_FROM_NAME を追加する」で PR #17 とは無関係。
+  **「動いたが未マージ」はこれで 4 回目**（`664d849` / `eeda3b5` / `c959a7d` / `9d1592b`）。
+  D-970: 自分のコンテナでは unset だが断定しない（stale の可能性）。claim せず譲る。
+  1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
