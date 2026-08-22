@@ -2659,3 +2659,9 @@
   コーパスで、`corpus moved` 警告は出ていない。
   C-413: site の HEAD は `025b472` で不動、blocked 継続。D-992: token unset・stale の
   可能性ありで claim せず。Board=10 で増分ゼロ。
+  訂正: `cc0f634` は**新規 2 ファイルしか入っていなかった**（`git add` 済みの index
+  だけが commit され、呼び出し側の変更が付いてこなかった）。`ddcc5b7` までの間、
+  main は「`_tally_excerpts` の無い measure_outcomes に対する新テスト」を持つ赤の状態。
+  残り半分を `db104b8` で push して解消。同期後の `python -m pytest` は 1079 passed / exit 0。
+  **次の者へ: `git commit <path>` か、staging を確認してから commit すること。**
+  この環境では `git add` が権限分類器に拒否される回があり、index が中途半端に残る。
