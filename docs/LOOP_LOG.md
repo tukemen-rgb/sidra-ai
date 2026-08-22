@@ -2415,3 +2415,4 @@
   このセッションのコンテナは 2026-08-19 起動のまま温まっており、`c290883` の注記どおり
   **stale container の可能性**が高い。規定に従い claim せず、新規コンテナのセッションへ譲る。
   1068 passed / recall PASSED / `--compare` exit 1 / 作業ツリー無変更。
+2026-08-22 00:28 UTC ループB started (Board=10) — site HEAD が f11a170 から 15689da へ動いた
