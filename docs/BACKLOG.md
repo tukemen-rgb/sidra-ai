@@ -412,7 +412,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: 誤隔離件数 unmeasurable→N→減、到達率 96.0%→上
       （guard: `verify_gate_recall` MISS 0 / `check_gate_regression` ≦13%）
 
-- [ ] **C-984: ゲーム制作の実務質問セットを作って測る（社長指示の中核）。**
+- [~] 作業中 2026-08-23 13:07 UTC ループA **C-984: ゲーム制作の実務質問セットを作って測る（社長指示の中核）。**
       「クリエイターがゲームを作って GAMEYARD に出すとき実際に聞くこと」を
       site / creater-yard の実在文書に接地した質問として追加する。論点の例:
       ゲームの提出手順・受理条件（site SPEC.md）、デザイン原則の禁止事項と
