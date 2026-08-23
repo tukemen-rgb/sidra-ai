@@ -409,7 +409,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: 誤隔離件数 unmeasurable→N→減、到達率 96.0%→上
       （guard: `verify_gate_recall` MISS 0 / `check_gate_regression` ≦13%）
 
-- [ ] **C-982: 言い換え質問を全 5 リポジトリへ広げてフロアを上げる。**
+- [~] 作業中 2026-08-23 02:05 UTC ループA **C-982: 言い換え質問を全 5 リポジトリへ広げてフロアを上げる。**
       現在 paraphrase は 12 問中 3 問通過、creater-yard / marketing の
       言い換えはまだ薄い。各リポジトリに実在 marker の言い換え質問を足して
       分母を 12→18 以上へ。**カウント増は scored 変化で銀行不可**（第二判定器
