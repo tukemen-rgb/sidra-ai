@@ -2695,3 +2695,20 @@
   security は未変更なので gate regression は対象外。commit `766b4b2`。
   これで C-980 系（測る→上げる）は両方終わり。残る精度キューは C-982（言い換えの拡張）。
 2026-08-23 02:05 UTC ループA started
+  **C-982 は差し戻し。`[記録]` ですらなく `- [ ]` へ戻した（前提条件が 1 つ足りない）。**
+  指示どおり 6 問（creater-yard 3・marketing 3）を作って測った: 分母 12→18、
+  answered 10/33・direct 9/15・paraphrase 1/18。**フロアは全部持った**（10/9/1、
+  識別力 +21.2 ≧ +15.0）。**が、第二判定器は exit 2（マージ禁止）**——識別力 25.9→21.2、
+  MRR 0.279→0.228 が guard 回帰と判定された。**中身は劣化していない**: どちらも採点集合に
+  対する率なので、難しい問を足せば機械的に下がる。同じ run が「question set changed
+  → カウントは比較不能」と言いながら**率だけは比較する**、この非対称が原因。
+  → **exit 2 は守った。revert して push していない。**判定の意味に触れる変更なので
+  ループでは決めず、E 節へ「質問集を広げると guard が下がる件」を選択肢 3 つ付きで起票。
+  C-982 は `- [ ]` に戻し、前提条件としてその判断を明記。commit `b64528c`。
+  作った 6 問の文面と marker は**どこにも書いていない**（BACKLOG は今は隔離されているが、
+  答案を平文で置く場所ではない）。出典の文書パスだけ項目に残した。
+  付随の実測: `sentence_transformers` は未インストール・重みも無いので
+  `SEMANTIC_MIN_PARAPHRASE` の引き上げはこのコンテナでは測れない（PyPI へは到達可能）。
+  また GitHub への匿名 git がこの回の途中から失敗している（site/marketing の fetch が
+  `could not read Username`）。checkout は前回と同じ SHA のままで測定した。
+  検証: pytest 1087 passed / exit 0、`verify_gate_recall.py` PASSED、作業ツリーは戻済み。
