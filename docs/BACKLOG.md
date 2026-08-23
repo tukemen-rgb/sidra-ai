@@ -375,7 +375,22 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       （guard: `citation_shows_evidence` 1、200 字 cap、OutputGuard 経路、
       回答可能率・識別力・MRR 全維持）
 
-- [~] 作業中 2026-08-23 00:05 UTC ループA **C-981: 隔離の誤検知が到達率を削っていないか実測する。**2026-08-22 の
+- [記録] 実測 2026-08-23 ループA **C-981: 隔離の誤検知は到達率を削っていなかった。**（誤隔離 1/5 件・その 1 件は A 節で却下済みの予約ドメイン起因。製品の数字は動かないので `[記録]`）
+      `scripts/measure_quarantine_precision.py` を新設して 5 リポジトリの実際の
+      取り込み範囲（README と `docs/`）を実測: **104 文書中 5 件が quarantine・block 0・
+      到達率 95.2%**。**警報は誤読だった**——findings 52 件のうち **29 件は索引に
+      入っている文書に出ている**。role アドレスは LOW、エントロピーは MEDIUM で、
+      単独では文書を落とさない。**finding は決定ではない。**
+      外れた 5 件: sidra-ai 2 件（`assigned_secret:critical`、合成検体を書いた自分の
+      セキュリティ文書なので正しい）/ creater-yard・marketing 各 1 件（実在ドメインの
+      非 role アドレス、正しい）/ site `docs/research/designs.md` 1 件が**唯一の誤隔離**で、
+      決め手は RFC 2606 予約ドメイン宛のアドレス。これは A 節「却下: RFC 2606 予約
+      ドメインの誤検知」で決着済み（予約ドメインを外すとリポジトリ内の PII 検体が
+      検知されない値になり、漏洩テストが何も検証しなくなる）。よって**検知器は 1 行も
+      触っていない**。内訳は OUTCOMES.md に記録。判定器は `--compare` NO MOVEMENT / exit 1。
+      残り（誤隔離を減らす半分）は、予約ドメイン以外の誤隔離が出てから起票すること。
+      **今は無い。**以下は起票時の記述:
+      **C-981: 隔離の誤検知が到達率を削っていないか実測する。**2026-08-22 の
       社長機 analyze で site の docs に `secret:high_entropy` /
       `pii:email_role` の findings が大量に出た。これが正当な文書の隔離なら
       到達率（現 96.0%）と回答可能率の上限を静かに削る。5 リポジトリ実測で

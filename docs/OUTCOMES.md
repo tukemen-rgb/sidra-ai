@@ -67,6 +67,51 @@ scored 不一致の増加を銀行させない）。率でも「集合が易し�
 marker を探して窓を選ぶのは答案の後出しなので禁止。改善はクエリと文書の
 情報だけで行い、marker は採点にのみ使う（C-983）。
 
+### 隔離の精度（2026-08-23 初測定・C-981）
+
+`scripts/measure_quarantine_precision.py` を 5 リポジトリの**実際の取り込み範囲**
+（README と `docs/` 配下）に当てた結果:
+
+| | 件数 |
+|---|---:|
+| 取り込み範囲の文書 | 104 |
+| 索引から外れた文書（quarantine） | **5** |
+| block | 0 |
+| 到達率 | **95.2%** |
+| findings 合計 | 52 |
+| うち **索引に入った文書に出た findings** | **29** |
+
+**発端の警報は誤読だった。**社長機の analyze が `email_role` /
+`high_entropy`（PII 検知器と秘密検知器のラベル）を大量に出したので
+「ゲートが corpus を食っている」と
+読めたが、**finding は決定ではない**。role アドレスは LOW、エントロピーは
+MEDIUM で、単独では文書を落とさない。実際 52 件の findings のうち 29 件は
+索引に入っている文書に出ており、到達率を 1 文書も削っていない。
+
+外れた 5 件の内訳（値は出さない。判定は文書を読んだ人間の判断）:
+
+| リポジトリ | 文書 | 決め手 | 判定 |
+|---|---|---|---|
+| sidra-ai | `docs/BACKLOG.md` | `assigned_secret:critical` | 正しい隔離（合成検体を書いてある） |
+| sidra-ai | `docs/GATE_FALSE_POSITIVE_BASELINE.md` | `assigned_secret:critical` | 正しい隔離（同上） |
+| site | `docs/research/designs.md` | `email:high` | **誤隔離 1 件**。RFC 2606 予約ドメイン宛のアドレスが個人メール扱い |
+| creater-yard | `docs/HANDOVER.md` | `email:high` | 正しい隔離（実在ドメインの非 role アドレス） |
+| marketing | `docs/gameyard-field-report-2026-08-22.md` | `email:high` | 正しい隔離（同上） |
+
+**誤隔離件数 = 1。そして直さない。**唯一の誤隔離は予約ドメイン起因で、
+これは A 節「却下: RFC 2606 予約ドメインの誤検知」で決着済み——予約ドメインを
+PII 対象外にすると、リポジトリ内の PII 検体が「検知されない値」に変わり、
+監査・provenance・出力の漏洩テストが何も検証しなくなる。得られるのは
+research ログ 1 本の索引化だけで、割に合わない。
+検知器は 1 行も触っていない（`verify_gate_recall` MISS 0 のまま）。
+
+**測定中に踏んだ罠（次に書く者へ）:** 検知器のラベルを `secret:` + ラベル名の形で
+散文に書くと、`assigned_secret:critical` が発火して**その文書自身が隔離される**。
+最初の草稿はこれで `docs/OUTCOMES.md` を索引から落としており、
+`product_metrics --compare` が 8.1%→8.6% の悪化として exit 2 を返した。
+ラベルは `high_entropy` のように接頭辞なしで書くこと。
+
+
 上 2 行の差が今回の製品変更である。**リポジトリ直下の文書（`SPEC.md`、
 `TODO.md` など）を取り込むようにした**結果:
 
