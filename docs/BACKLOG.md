@@ -1432,7 +1432,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       「プロキシ遮断」側へ誤誘導された。直すなら
       `github_client.py:311-315` の文言と、それを固定しているテスト。
 
-- [ ] **shallow clone だと gate 回帰チェックが偽 fail する（実測が嘘をつく）。**
+- [~] 作業中 2026-08-23 19:05 UTC ループA **shallow clone だと gate 回帰チェックが偽 fail する（実測が嘘をつく）。**
       （2026-08-23 D-970 検証セッションで踏んだ。）
       `check_gate_regression.py` のコーパスは「ファイル + 直近 200 コミット
       メッセージ」だが、CCR の新規コンテナは **shallow clone（今回 52 commits）**
