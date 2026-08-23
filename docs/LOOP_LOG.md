@@ -2713,3 +2713,12 @@
   `could not read Username`）。checkout は前回と同じ SHA のままで測定した。
   検証: pytest 1087 passed / exit 0、`verify_gate_recall.py` PASSED、作業ツリーは戻済み。
 2026-08-23 03:05 UTC ループA started
+  no-op キューが空。取れる `- [ ]` は 3 件とも前提未充足:
+  C-982 は前回自分が起票した E 節の判断待ち（前提条件として明記済み）、C-413 は PR #17 未マージ、
+  D-992 は token。E 4 件・F 2 件は対象外、`- [~]` 0 件。
+  **C-413 の合図が今回は取れなかった**: GitHub への匿名 git が `could not read Username` で
+  失敗する（前サイクル途中から継続）。`mcp__github__*` は sidra-ai にしか通っていないので
+  site の HEAD を一次資料で確認する手段が無い。**「動いていない」とは書かない。次の回に再確認。**
+  D-992: `SIDRA_GITHUB_TOKEN` unset。コンテナ 2026-08-21 05:11 起動で stale の可能性あり、claim せず。
+  Board=10 で増分ゼロ。
+  検証: `python -m pytest` 1087 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
