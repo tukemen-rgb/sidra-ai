@@ -371,6 +371,32 @@ OUTCOME_QUESTIONS: tuple[OutcomeQuestion, ...] = (
         tier="paraphrase",
         game_production=True,
     ),
+
+    # --- paraphrases for marketing (C-982) -----------------------------------
+    # The paraphrase tier covered three repositories and called itself a
+    # measurement of five; marketing had no paraphrased question at all. These
+    # three are answered by single lines of its own deliverables.
+    OutcomeQuestion(
+        name="para-mkt-best-hook",
+        question="投稿を促すうえでいちばん響く売り文句は何ですか",
+        answer_marker="作者にとって最も効く一文である",
+        repository="tukemen-rgb/marketing",
+        tier="paraphrase",
+    ),
+    OutcomeQuestion(
+        name="para-mkt-contact-storage",
+        question="連絡先の個人情報を公開の保管場所へ書いてよいですか",
+        answer_marker="メールアドレスは GitHub のどのリポジトリにも置かない",
+        repository="tukemen-rgb/marketing",
+        tier="paraphrase",
+    ),
+    OutcomeQuestion(
+        name="para-mkt-no-adnetwork",
+        question="配信は外部の仲介事業者へ任せますか",
+        answer_marker="広告ネットワークは使わない",
+        repository="tukemen-rgb/marketing",
+        tier="paraphrase",
+    ),
 )
 
 

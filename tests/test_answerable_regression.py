@@ -90,7 +90,7 @@ def test_a_malformed_target_is_rejected(check, capsys):
 # --- the floors themselves ---------------------------------------------
 
 def test_the_floors_sit_below_the_recorded_measurement(check):
-    """Measured 2026-08-19 over the 26-question set: 11 answered, 10 direct.
+    """Measured 2026-08-23 over the 38-question set: 13 answered, 11 direct.
 
     A floor above its measurement fails on a green tree; a floor far below it
     passes through a real regression. One question of slack absorbs churn in
@@ -103,8 +103,8 @@ def test_the_floors_sit_below_the_recorded_measurement(check):
     counts are only comparable over the same set - so the floors moved with
     the measurement, in the same commit, as the re-pinning rule requires.
     """
-    assert check.MIN_ANSWERED == 10, "measured 11; floor is one question below"
-    assert check.MIN_DIRECT == 9, "measured 10; floor is one question below"
+    assert check.MIN_ANSWERED == 12, "measured 13; floor is one question below"
+    assert check.MIN_DIRECT == 10, "measured 11; floor is one question below"
     assert check.MIN_DISCRIMINATION_POINTS == pytest.approx(15.0)
 
 
@@ -202,8 +202,8 @@ def test_a_real_regression_still_fails(check, monkeypatch, tmp_path, capsys):
     err = capsys.readouterr().err
 
     assert code == 1
-    assert "answered 4 < 10" in err
-    assert "direct 3 < 9" in err
+    assert "answered 4 < 12" in err
+    assert "direct 3 < 10" in err
 
 
 def test_every_tier_is_floored_separately(check):

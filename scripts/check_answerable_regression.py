@@ -105,8 +105,14 @@ from sidra_ai.security.gate import GatePolicy, SecurityGate  # noqa: E402
 #: measured 11/27 answered, 10/15 direct, 1/12 paraphrased, discrimination
 #: +25.9. The lexical numbers did not move - the added question is a
 #: paraphrase, and BM25 answers exactly one of those - so these two stand.
-MIN_ANSWERED = 10
-MIN_DIRECT = 9
+#: Re-pinned 2026-08-23 for 38 questions (eight creator-facing questions from
+#: C-984, three marketing paraphrases from C-982): measured 13/38 answered,
+#: 11/18 direct, 2/20 paraphrased, discrimination +23.7. The old 10/9 carried
+#: three and two questions of slack against that, which is looser than this
+#: file's own policy and would have let the C-984 gains leak away unnoticed.
+#: Back to one below the measurement.
+MIN_ANSWERED = 12
+MIN_DIRECT = 10
 
 #: Floors for the semantic configuration (weights present and configured).
 #: Measured 2026-08-19 with intfloat/multilingual-e5-small: 13/26 answered,
@@ -128,9 +134,15 @@ MIN_DIRECT = 9
 #: question of slack for churn in the four repositories this project does
 #: not own. The new question's evidence lives in someone else's sales copy,
 #: which is exactly the churn the slack is for.
-SEMANTIC_MIN_ANSWERED = 13
-SEMANTIC_MIN_DIRECT = 10
-SEMANTIC_MIN_PARAPHRASE = 2
+#: Re-pinned 2026-08-23 on the 38-question set, measured with the weights
+#: fetched that day: 18/38 answered, 13/18 direct, 5/20 paraphrased,
+#: discrimination +34.2. One below each, same slack policy. The paraphrase
+#: floor moving 2 -> 4 is the point of C-982: the tier now covers all five
+#: repositories, and a machine with weights answering five of them must not
+#: be allowed to drop back to two while the headline holds.
+SEMANTIC_MIN_ANSWERED = 17
+SEMANTIC_MIN_DIRECT = 12
+SEMANTIC_MIN_PARAPHRASE = 4
 
 #: One, as of 2026-08-19: `para-cy-unfinished-work` retrieves
 #: "完成度で人を落とさない" at rank 2 on the product-identical corpus. The
@@ -141,6 +153,10 @@ SEMANTIC_MIN_PARAPHRASE = 2
 #: fails against a green main because the CreatorYard culture line moved,
 #: lower it back with the reason in the commit - that is the documented
 #: escape hatch, not a reason to leave the floor vacuous.
+#: Still one on the 38-question set: BM25 measured 2/20 on 2026-08-23, and
+#: one below a measurement of two is one. The three marketing paraphrases
+#: added that day retrieve nothing lexically, which is the expected shape of
+#: this tier and not a reason to move the floor.
 MIN_PARAPHRASE = 1
 
 #: Discrimination, in points. Measured at +27.8. The floor is well below that
