@@ -349,7 +349,7 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
             answered += 1
             reciprocal_ranks.append(1.0 / rank)
             excerpt, withheld = citation_excerpt(
-                results[rank - 1].chunk.content, output_guard
+                results[rank - 1].chunk.content, output_guard, question.question
             )
             rows.append({
                 "name": question.name,

@@ -15,8 +15,8 @@ properties that make the number worth reading:
 * its denominator is answered questions, so a retrieval regression cannot
   raise the rate by removing the questions it was failing;
 * the marker is used for scoring only. A window chosen by searching for the
-  marker would be marking our own exam, so the excerpt is the opening of the
-  chunk exactly as the API takes it.
+  marker would be marking our own exam, so the excerpt is whatever the API
+  would have shown for that query and nothing more.
 """
 
 from __future__ import annotations
@@ -210,3 +210,83 @@ def test_a_withheld_excerpt_is_not_counted_as_shown(mo) -> None:
         "withheld": 1,
         "misses": ["withheld"],
     }
+
+
+# --- window selection (C-983) ------------------------------------------------
+#
+# The excerpt used to be the opening of the chunk, full stop. Two of the ten
+# answered questions had their answer past the cap, so the citation showed
+# none of it. These tests hold the rule that replaced it: move the window to
+# where the question is discussed, using nothing but the query and the
+# document.
+
+LONG_PREAMBLE = "\n".join(f"前置きの行がここに続く{i}。" for i in range(30))
+ANSWER_LINE = "順位付けの文化については、完成度で人を落とさないと決めている。"
+
+
+def test_the_window_moves_to_where_the_query_is_discussed() -> None:
+    from sidra_ai.api.citations import select_excerpt_window
+
+    content = f"{LONG_PREAMBLE}\n{ANSWER_LINE}\n{LONG_PREAMBLE}"
+
+    window = select_excerpt_window(content, "順位付けの文化はどうなっていますか")
+
+    assert ANSWER_LINE in window
+    assert len(window) <= MAX_CITATION_EXCERPT_CHARS
+
+
+def test_a_query_with_nothing_in_common_still_opens_at_the_top() -> None:
+    """The fallback is the old behaviour, so this can only add relevance.
+
+    A window chosen at random when nothing matches would make citations worse
+    than they were for exactly the questions retrieval is already failing.
+    """
+
+    from sidra_ai.api.citations import select_excerpt_window
+
+    content = f"{LONG_PREAMBLE}\n{ANSWER_LINE}"
+
+    assert select_excerpt_window(content, "") == content[:MAX_CITATION_EXCERPT_CHARS]
+    assert select_excerpt_window(content, "zzz qqq") == (
+        content[:MAX_CITATION_EXCERPT_CHARS]
+    )
+
+
+def test_the_window_starts_on_a_line_boundary() -> None:
+    """An excerpt that opens mid-sentence costs more than the relevance buys."""
+
+    from sidra_ai.api.citations import select_excerpt_window
+
+    content = f"{LONG_PREAMBLE}\n{ANSWER_LINE}\n{LONG_PREAMBLE}"
+
+    window = select_excerpt_window(content, "順位付けの文化はどうなっていますか")
+    start = content.index(window)
+
+    assert start == 0 or content[start - 1] == "\n"
+
+
+def test_a_chunk_inside_the_cap_is_shown_whole() -> None:
+    from sidra_ai.api.citations import select_excerpt_window
+
+    content = "短い章。" + ANSWER_LINE
+
+    assert select_excerpt_window(content, "順位付け") == content
+
+
+def test_selection_depends_on_the_query_and_the_document_only() -> None:
+    """The answer marker is not an input, and cannot become one by accident.
+
+    ``select_excerpt_window`` takes two arguments. If a future change wants to
+    pass the marker in to "improve" the rate, it has to change this signature
+    and this test - which is the point: an excerpt chosen by looking for the
+    answer would make ``excerpt_hits_marker`` measure nothing at all.
+    """
+
+    import inspect
+
+    from sidra_ai.api.citations import select_excerpt_window
+
+    assert list(inspect.signature(select_excerpt_window).parameters) == [
+        "content",
+        "query",
+    ]

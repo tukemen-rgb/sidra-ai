@@ -199,7 +199,9 @@ class SidraService:
             return {"available": False}
         return {"available": True, **stats}
 
-    def _attach_excerpts(self, citations: list[dict], chunks: Sequence[Any]) -> None:
+    def _attach_excerpts(
+        self, citations: list[dict], chunks: Sequence[Any], query: str = ""
+    ) -> None:
         """Show the opening of each cited chunk, screened like any other output.
 
         Citations that carry only repository, path and rank ask the operator to
@@ -220,7 +222,7 @@ class SidraService:
             content = getattr(chunk, "content", "")
             if not content:
                 continue
-            excerpt, withheld = citation_excerpt(content, self.output_guard)
+            excerpt, withheld = citation_excerpt(content, self.output_guard, query)
             if withheld:
                 citation["excerpt"] = ""
                 citation["excerpt_withheld"] = True
@@ -353,7 +355,7 @@ class SidraService:
                 repositories=repositories,
             )
         data_context, citations = build_data_context([r.chunk for r in results])
-        self._attach_excerpts(citations, [r.chunk for r in results])
+        self._attach_excerpts(citations, [r.chunk for r in results], query)
 
         history_context = build_history_context(screened_history)
         if history_context:
