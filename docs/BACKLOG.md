@@ -464,7 +464,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: game_production answerable 基準値→改善
       （guard: 既存フロア全維持・同一集合で判定）
 
-- [ ] **C-982: 言い換え質問を全 5 リポジトリへ広げてフロアを上げる。**
+- [~] 作業中 2026-08-23 15:06 UTC ループA **C-982: 言い換え質問を全 5 リポジトリへ広げてフロアを上げる。**
       **2026-08-23 ループA が着手して差し戻した。実装したが判定器が exit 2 を返したので
       マージしていない。前提が 1 つ足りない（E 節へ）。**
       実測（作って測って戻した）: creater-yard 3 問・marketing 3 問を足すと
