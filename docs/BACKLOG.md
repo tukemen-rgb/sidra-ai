@@ -375,7 +375,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       （guard: `citation_shows_evidence` 1、200 字 cap、OutputGuard 経路、
       回答可能率・識別力・MRR 全維持）
 
-- [ ] **C-981: 隔離の誤検知が到達率を削っていないか実測する。**2026-08-22 の
+- [~] 作業中 2026-08-23 00:05 UTC ループA **C-981: 隔離の誤検知が到達率を削っていないか実測する。**2026-08-22 の
       社長機 analyze で site の docs に `secret:high_entropy` /
       `pii:email_role` の findings が大量に出た。これが正当な文書の隔離なら
       到達率（現 96.0%）と回答可能率の上限を静かに削る。5 リポジトリ実測で
