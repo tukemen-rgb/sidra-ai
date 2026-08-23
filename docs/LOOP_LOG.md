@@ -2885,3 +2885,4 @@
   （**ゲートが ALLOW する文書だけ**を見る＝隔離中の BACKLOG は対象外だが、隔離が外れたら fail）。
   判定: `--compare` NO MOVEMENT / exit 1。検証: pytest **1139** passed / exit 0、
   `verify_gate_recall.py` PASSED、フロア全維持。commit `1d69a75`。
+2026-08-23 19:05 UTC ループA started
