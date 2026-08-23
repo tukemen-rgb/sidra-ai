@@ -2736,3 +2736,8 @@
   C-413 は「合図不明」のまま。Board=10 で増分ゼロ。token unset（stale の可能性ありで claim せず）。
   検証: `python -m pytest` 1087 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
 2026-08-23 06:05 UTC ループA started
+  no-op キューが空。`- [ ]` 8 件の内訳は前回と同一（C-982 は E 節判断待ち、C-413 は PR #17、
+  D-992 は token、E 4 件・F 2 件は対象外）。`- [~]` 0 件。
+  匿名 git は 4 サイクル連続で失敗。site の HEAD は確認できず、C-413 は合図不明のまま。
+  Board=10 で増分ゼロ。token unset（stale の可能性ありで claim せず）。
+  検証: `python -m pytest` 1087 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
