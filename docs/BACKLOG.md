@@ -1424,13 +1424,26 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
         `POST /v1/github/analyze` × 2 で、2 回目が **head 一致による**
         `changed: false` + `inference_skipped: true` になること
         （indexed 0 由来の `inference_skipped: true` と混同しないこと）。
-      ついでに記録する文言の欠陥（コード変更はしていない）: 認可 403 の
-      エラーメッセージが `not authorized (no rate-limit headers on the
-      response)` と印字するが、**実際の応答には rate-limit ヘッダが付いている**
-      （分類機構は remaining≠0 / Retry-After 無しを見ており判定は正しい。
-      嘘をつくのは文言だけ）。この文言のせいで今回の一次診断が一度
-      「プロキシ遮断」側へ誤誘導された。直すなら
-      `github_client.py:311-315` の文言と、それを固定しているテスト。
+      なお、この項目に混ざっていた**エラー文言の欠陥**は、トークン権限とは
+      無関係に直せるので下へ切り出した（この項目はトークン待ちのまま）。
+
+- [ ] **認可 403 のエラーメッセージが、応答に付いているヘッダを「無い」と印字する。**
+      （2026-08-23 D-970 検証で発見。上の項目から切り出し。前提条件は無い。）
+      → 動かす数字: なし（診断の文言。製品の数字は動かない）
+      `src/sidra_ai/ingestion/github_client.py:311-315` が認可 403 に対して
+      `GitHub refused {path}: not authorized (no rate-limit headers on the
+      response)` と印字するが、**実際の 403 応答には rate-limit ヘッダが
+      付いている**（`x-github-request-id` あり・本文 "Resource not accessible
+      by personal access token"）。**分類そのものは正しい**——
+      `_is_rate_limited` は remaining≠0 / Retry-After 無しを見ており、
+      「ヘッダが 1 つも無い」ではなく「絞られている証拠が無い」を判定している。
+      嘘をつくのは括弧の中の文言だけ。
+      **実害**: この文言のせいで D-970 の一次診断が一度「プロキシが遮断した」側へ
+      誤誘導された（ヘッダが無い＝GitHub まで届いていない、と読める）。
+      直すのは文言 1 箇所と、必要ならその上のコメント。
+      `tests/test_github_403_is_not_always_rate_limit.py` は `not authorized` の
+      部分文字列しか固定していないので、括弧の中を直してもテストは通る
+      （＝**文言を直したことを固定するテストが無い**ので、直すなら 1 本足す）。
 
 - [記録] 修正 2026-08-23 ループA **shallow clone では「判定不能」と言うようにした（偽 fail の解消）。**（`--compare` NO MOVEMENT / exit 1。安全側の数字は 1 つも動かしていない）
       `check_gate_regression.py` が着手前に `git rev-list --count HEAD` で歴史の深さを見る。
