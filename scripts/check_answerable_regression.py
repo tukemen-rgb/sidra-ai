@@ -279,7 +279,9 @@ def _compare(before: dict, now: dict) -> int:
             "question set changed between --save and --compare "
             f"({before.get('scored')} -> {now.get('scored')}): counts are not "
             "comparable, so outcome increases are NOT banked this run. "
-            "Re-run --save on the new set; only a same-set improvement counts."
+            "Re-run --save on the new set; only a same-set improvement counts. "
+            "Rate guards (discrimination/MRR) are judged by absolute floor "
+            "only this run, for the same reason."
         )
 
     # The excerpt count is scored over `answered` questions, and that
@@ -314,6 +316,16 @@ def _compare(before: dict, now: dict) -> int:
     for key in _GUARD_KEYS:
         old, new_value = before.get(key), now[key]
         if old is None:
+            continue
+        if not same_set and before.get("scored") is not None:
+            # 2026-08-23 (CEO direction, option a): discrimination and MRR
+            # are rates over the scored set, so adding harder questions
+            # lowers them mechanically. Across a set change the *relative*
+            # guard is not comparable in either direction - the absolute
+            # floors (MIN_DISCRIMINATION_POINTS and friends) have already
+            # gated this run before _compare was reached, and they alone
+            # decide. Without this, adding a question was always judged a
+            # regression, and the set could never honestly grow.
             continue
         if old - new_value >= _GUARD_MIN_MOVE[key]:
             broken.append(f"{key} {old} -> {new_value} (guard)")

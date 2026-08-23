@@ -183,3 +183,34 @@ def test_a_newly_measured_excerpt_count_is_movement(capsys) -> None:
 
     assert _mod._compare(before, _now(excerpt_hits_marker=4)) == 0
     assert "excerpt_hits_marker (newly measured) -> 4" in capsys.readouterr().out
+
+
+def test_guard_drop_across_a_set_change_is_not_a_regression(capsys) -> None:
+    """Option (a), CEO direction 2026-08-23: growing the set must be possible.
+
+    Discrimination and MRR are rates over the scored set, so adding harder
+    questions lowers them mechanically. Before this rule, C-982 measured
+    exactly that: six honest paraphrase additions moved discrimination
+    25.9 -> 21.2 and were judged exit 2, so the set could never grow. Across
+    a set change only the absolute floors (enforced before _compare) gate;
+    the relative guard is not comparable in either direction.
+    """
+
+    before = _now()
+    after = _now(
+        answerable_discrimination=21.2,
+        answerable_mrr=0.228,
+        scored={"direct": 11, "paraphrase": 13},
+    )
+    assert _mod._compare(before, after) == 1
+    out = capsys.readouterr().out
+    assert "absolute floor" in out
+
+
+def test_guard_drop_on_the_same_set_still_regresses() -> None:
+    """The set-change exemption must not leak into same-set runs."""
+
+    assert _mod._compare(
+        _now(answerable_discrimination=27.8),
+        _now(answerable_discrimination=21.2),
+    ) == 2

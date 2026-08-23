@@ -2767,3 +2767,10 @@
   no-op キューが空。前回と同一（`- [ ]` 8 件・`- [~]` 0 件、待ち 3 件）。
   匿名 git は 10 サイクル連続で失敗。Board=10 で増分ゼロ。token unset。
   検証: `python -m pytest` 1087 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
+
+2026-08-23 12:4x UTC 対話セッション — 社長指示「ゲーム制作が出来るように AI の精度向上」
+  (1) E 節「質問集を広げると guard が下がる件」を (a) で採用・実装
+  （集合変更 run は率ガード比較不能・絶対値フロアのみ。回帰テスト 2 件）。
+  C-982 の前提充足。(2) ゲーム制作の実務質問セット C-984 / C-985 をキューに追加
+  （game_production 別行タリー）。(3) site PR #17 を社長指示でマージ（4c86ab5、
+  docs/DESIGN.md のみ）→ C-413 の前提充足。1089 passed / recall PASSED。

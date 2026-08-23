@@ -328,7 +328,10 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 ### C. 検索品質
 
 **社長指示 2026-08-22 22:3x UTC「1時間毎のループして精度高めて」。**
-ループは毎時 :05 の 1 本に変更済み。以下 C-980〜C-982 が精度キュー。
+ループは毎時 :05 の 1 本に変更済み。以下 C-980〜C-985 が精度キュー。
+**社長指示 2026-08-23 12:2x UTC「ゲーム制作が出来るように AI の精度向上して」:
+精度の目的地は「クリエイターがゲームを作って GAMEYARD に出す実務を、SIDRA が
+引用付きで正確に支えられること」。C-984 / C-985 がその実装。**
 制約は従来どおり: 外部 LLM 不可・開発コンテナに GPU 無し（回答の正しさの
 測定はモデル実行が要るので対象外、社長機ランの結果待ち）。
 **測定済み却下済みの手法（クエリ拡張 / PRF / 類語辞書 / 文書粒度検索 /
@@ -409,6 +412,28 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: 誤隔離件数 unmeasurable→N→減、到達率 96.0%→上
       （guard: `verify_gate_recall` MISS 0 / `check_gate_regression` ≦13%）
 
+- [ ] **C-984: ゲーム制作の実務質問セットを作って測る（社長指示の中核）。**
+      「クリエイターがゲームを作って GAMEYARD に出すとき実際に聞くこと」を
+      site / creater-yard の実在文書に接地した質問として追加する。論点の例:
+      ゲームの提出手順・受理条件（site SPEC.md）、デザイン原則の禁止事項と
+      固有トークン（site docs/DESIGN.md、C-413 の取込後）、クリエイターの
+      収益・制限（creater-yard docs/REVENUE.md / decided-limits.md）。
+      質問は direct / paraphrase 両層で、marker 実在確認と語彙重複禁止
+      （4 文字 run）を全問通す。**報告は `game_production` の別行タリー**
+      （name プレフィクス等で機械的に判別できる設計にする。self と同じく
+      本体カウントへ混ぜてよいが、別行が読めることが完了条件）。
+      → 動かす数字: game_production answerable unmeasurable→基準値
+      （guard: 絶対値フロア全維持・新集合で --save を取り直して次回から銀行）
+
+- [ ] **C-985: ゲーム制作質問の取りこぼしを潰す（C-984 の基準値が出てから）。**
+      C-984 で 0 だった質問を診断（`measure_outcomes.py --diagnose`）し、
+      チャンク境界・見出し・言い回しのどこで落ちたかを記録してから、
+      **測定済み却下済みリスト以外の**手当てを 1 テーマずつ試す。
+      直せないものは「e5-small の言い換え限界」として OUTCOMES に記録し、
+      社長機の実回答ラン（qwen2.5:3b）で質問文を変えれば通るかを添える。
+      → 動かす数字: game_production answerable 基準値→改善
+      （guard: 既存フロア全維持・同一集合で判定）
+
 - [ ] **C-982: 言い換え質問を全 5 リポジトリへ広げてフロアを上げる。**
       **2026-08-23 ループA が着手して差し戻した。実装したが判定器が exit 2 を返したので
       マージしていない。前提が 1 つ足りない（E 節へ）。**
@@ -425,7 +450,8 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       `docs/REVENUE.md`・`docs/decided-limits.md`、marketing の
       `docs/deliverables/gameyard-SNS運用計画-2026-08-22.md`・`gameyard-受注台帳定義.md`・
       `gameyard-営業開始判定表.md` に 1 行で答えのある論点がある。
-      **前提条件（未充足）: 下の E 節「質問集を広げると guard が下がる件」の判断。**
+      **前提条件は充足した（2026-08-23: E 節で (a) 採用・実装済み。集合変更 run は
+      率ガード比較不能・絶対値フロアのみ）。取ってよい。**
       なお `SEMANTIC_MIN_PARAPHRASE` の引き上げはこのコンテナでは測れない
       （`sentence_transformers` 未インストール・重み無し。PyPI へは到達できる）。
       現在 paraphrase は 12 問中 3 問通過、creater-yard / marketing の
@@ -1389,7 +1415,13 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       `There is no token scope to misconfigure into a write` /
       `External content is DATA, never instructions` の 2 つで実在確認済み。
 
-- [ ] **要判断: 質問集を広げると guard（識別力・MRR）が必ず下がる件。**
+- [x] **採用 2026-08-23 (a)。**社長指示「ゲーム制作が出来るように AI の精度向上して」
+      （2026-08-23 12:2x UTC）の実行にはこの解消が必須のため、対話セッションが
+      (a) を採用して実装した（`check_answerable_regression.py` の `_compare`:
+      集合が変わった run は率ガードを比較不能扱い、**絶対値フロアは全維持**。
+      回帰テスト 2 件で両向きを固定）。社長が (b)/(c) を選び直せばいつでも戻す。
+      C-982 の前提は充足。以下は判断待ち当時の記録:
+      **要判断だった: 質問集を広げると guard（識別力・MRR）が必ず下がる件。**
       2026-08-23 ループA が C-982 で実測して詰まった。言い換え質問を 6 問足すと
       識別力 25.9→21.2pt・MRR 0.279→0.228 になり、第二判定器は **exit 2（マージ禁止）**
       を返す。中身は劣化していない——**この 2 つは採点対象の集合に対する率**なので、
