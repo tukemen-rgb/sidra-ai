@@ -2805,3 +2805,17 @@
   コードは 1 行も変えていない。検証: pytest 1124 passed / exit 0、`verify_gate_recall.py` PASSED。
   commit `b90f8df`。C-413 は匿名 git が 11 サイクル連続で失敗し前提を確認できないため取らず。
 2026-08-23 15:06 UTC ループA started
+  **C-982 実施 → `[記録]`。**marketing に言い換え質問が 0 問だったので 3 問追加（分母 17→20、
+  目標 18+ を満たす）。**フロアを実測の 1 つ下へ寄せた**（判定器自身の slack 方針）:
+  `MIN_ANSWERED` 10→12・`MIN_DIRECT` 9→10（実測 13/38・11/18）、
+  `SEMANTIC_MIN_ANSWERED` 13→17・`SEMANTIC_MIN_DIRECT` 10→12・
+  **`SEMANTIC_MIN_PARAPHRASE` 2→4**（実測 18/38・13/18・5/20）。`MIN_PARAPHRASE` は 1 据え置き。
+  古い 10/9 は 3 問・2 問の緩みがあり、C-984 の伸びが黙って失われる余地だった。
+  足した 3 問はどちらの構成でも圏外で、**answered は動かない**（率だけ下がる＝集合が難しくなった）。
+  判定: `--compare` **NO MOVEMENT / exit 1**（`product_metrics` も同じ）→ `[記録]`。
+  検証: pytest **1136** passed / exit 0（フロアを固定するテスト 3 箇所を新実測へ再ピン）、
+  `verify_gate_recall.py` PASSED、**両構成でフロア全維持**。commit `9ab9334`。
+  **`[記録]` はこれで 2 回連続。次のループは必ず数字つきの項目を取ること。**
+  いま数字が 0 のまま残っているのは C-413（GAMEYARD design source indexed 0→1）だが、
+  匿名 git が 12 サイクル連続で失敗しており前提（PR #17 マージ）を一次資料で確認できない。
+  復旧したら最初に確認すること。
