@@ -2682,3 +2682,15 @@
   （＝マージ禁止）。ラベルは接頭辞なしで書く。詳細は OUTCOMES.md に記録。
   `[記録]` は 1 回目。次は数字つきの項目（C-983 か C-982）を取ること。
 2026-08-23 01:05 UTC ループA started
+  **C-983 完了。`excerpt_hits_marker` 8 → 10（answered 10 問中 100%）、第二判定器 exit 0。**
+  抜粋がチャンク先頭固定だったのを、質問のある場所へ動かす `select_excerpt_window(content, query)`
+  に変更。候補は行頭のみ、点数は窓に入る異なるクエリ語の数、同点なら先頭寄り。
+  クエリが空・語が合致しない・チャンクが cap 以下なら**従来どおり先頭**を返すので、
+  引用が悪くなる方向には動かない。**marker は選択の入力ではない**（署名を固定するテストつき）。
+  分母 answered=10 は不動、`corpus moved` / `question set changed` 警告なし。
+  guard 全維持: `citation_shows_evidence` 1（5/5・最長 200 字）、200 字 cap、OutputGuard 経路、
+  回答可能 10/27・直接語 9/15・言い換え 1/12・識別力 +25.9pt・MRR 0.279。
+  検証: pytest 1087 passed / exit 0、`verify_gate_recall.py` PASSED、
+  `product_metrics --compare` は NO MOVEMENT（この数字は 5 本 checkout 側にあるので想定どおり）。
+  security は未変更なので gate regression は対象外。commit `766b4b2`。
+  これで C-980 系（測る→上げる）は両方終わり。残る精度キューは C-982（言い換えの拡張）。
