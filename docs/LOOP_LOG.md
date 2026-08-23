@@ -2712,3 +2712,4 @@
   また GitHub への匿名 git がこの回の途中から失敗している（site/marketing の fetch が
   `could not read Username`）。checkout は前回と同じ SHA のままで測定した。
   検証: pytest 1087 passed / exit 0、`verify_gate_recall.py` PASSED、作業ツリーは戻済み。
+2026-08-23 03:05 UTC ループA started
