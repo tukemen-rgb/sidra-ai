@@ -362,7 +362,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       回答可能率 10/27・直接語 9/15・言い換え 1/12・識別力 +25.9pt・MRR 0.279 は
       追加前後でビット同一。
 
-- [ ] **C-983 (C-980 の後半): 抜粋の窓選択を直して的中 8/10 を上げる。**
+- [~] 作業中 2026-08-23 01:05 UTC ループA **C-983 (C-980 の後半): 抜粋の窓選択を直して的中 8/10 を上げる。**
       外している 2 問は `cy-ranking-culture` と `mkt-deliverables-location`。
       どちらも answered なので検索の問題ではなく、チャンク内で**先頭 200 字を
       出している**ことが原因。答えはその外にある。
