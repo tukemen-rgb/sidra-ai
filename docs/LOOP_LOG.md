@@ -2752,3 +2752,6 @@
   Board=10 で増分ゼロ。
   検証: `python -m pytest` 1087 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
 2026-08-23 09:05 UTC ループA started
+  no-op キューが空。前回と同一（`- [ ]` 8 件・`- [~]` 0 件、待ち 3 件）。
+  匿名 git は 7 サイクル連続で失敗。Board=10 で増分ゼロ。token unset。
+  検証: `python -m pytest` 1087 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
