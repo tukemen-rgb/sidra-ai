@@ -1432,7 +1432,21 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       「プロキシ遮断」側へ誤誘導された。直すなら
       `github_client.py:311-315` の文言と、それを固定しているテスト。
 
-- [~] 作業中 2026-08-23 19:05 UTC ループA **shallow clone だと gate 回帰チェックが偽 fail する（実測が嘘をつく）。**
+- [記録] 修正 2026-08-23 ループA **shallow clone では「判定不能」と言うようにした（偽 fail の解消）。**（`--compare` NO MOVEMENT / exit 1。安全側の数字は 1 つも動かしていない）
+      `check_gate_regression.py` が着手前に `git rev-list --count HEAD` で歴史の深さを見る。
+      **200 件に満たなければ測らずに `exit 3`（CANNOT JUDGE）**＋「ゲートは無変更・分母が
+      足りない・`git fetch --unshallow` して再実行」と印字する。**1（上限超過）と 3（判定不能）を
+      別の終了コードにした**のが要点で、環境起因を回帰と混ぜない。
+      `tests/test_evals.py::test_gate_regression_check_passes_on_this_commit` は 3 なら
+      **skip**（理由つき）。深い checkout では従来どおり 0 を要求する。
+      **実証**: depth 30 の shallow clone で実行 → `CANNOT JUDGE: this checkout has 30
+      commits` / exit 3。深い当コンテナ（1004 commits）では 9.9% ≤ 13% で exit 0。
+      **測って分かった事実（重要）**: この上限が保っているのは commit メッセージのおかげ。
+      内訳は **ファイル 44/244 = 18.0%・commit 0/200 = 0.0%・混合 44/444 = 9.9%**。
+      **200 件の綺麗なメッセージが率をほぼ半分に薄めている。**分母を変えると 13% 上限は
+      即座に破れるので、この回では触っていない。→ 下に要判断として起票。
+      以下は起票時の記述:
+      **shallow clone だと gate 回帰チェックが偽 fail する（実測が嘘をつく）。**
       （2026-08-23 D-970 検証セッションで踏んだ。）
       `check_gate_regression.py` のコーパスは「ファイル + 直近 200 コミット
       メッセージ」だが、CCR の新規コンテナは **shallow clone（今回 52 commits）**
@@ -1597,6 +1611,20 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       候補窓 10-80 / ruri-v3-30m / e5-base）から再提案しないこと。
       → 動かす数字: `design_source_cited`（BM25 構成で）**0→1**
       （guard: 既存フロア全維持・重み構成の rank 1 を落とさない）
+
+- [ ] **要判断: 誤検知率の分母が commit メッセージで薄まっている。**
+      2026-08-23 ループA が shallow clone の件を直す途中で実測した:
+      **ファイル 44/244 = 18.0%**・**commit メッセージ 0/200 = 0.0%**・**混合 9.9%**。
+      `check_gate_regression.py` の上限 13% はこの混合に対する値で、
+      **綺麗な commit メッセージ 200 件が率をほぼ半分に薄めている**。
+      commit メッセージも実際の索引には入るので混ぜること自体は間違いではないが、
+      「このリポジトリの**文書**の何割が索引に入らないか」を知りたいなら 18.0% が答えで、
+      9.9% はその質問に答えていない。
+      選択肢: (a) 現状維持（混合のまま。ただし薄まっていることを OUTCOMES に明記）。
+      (b) ファイルのみで測り、上限を実測（18.0%）の少し上へ置き直す。
+      (c) 2 本立てにする（ファイル用と混合用）。
+      **(b)(c) は上限の数字が上がるので、ループの一存では動かさない。**
+      → 動かす数字: なし（判断のみ。安全側の定義に触れる）
 
 - [ ] **要判断: ブラウザ画面（`GET /`）の HTML だけを無認証で配ってよいか。**
       2026-08-21 ループB が「使い勝手」を実装して出てきた選択。指示どおり

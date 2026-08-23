@@ -65,7 +65,41 @@ def _documents(root: Path):
             yield path.relative_to(root).as_posix(), content
 
 
-def _commit_messages(root: Path, limit: int = 200):
+#: How many commit messages the flag rate is measured over. They are part of
+#: the corpus because the real index holds them, and they are also - measured
+#: 2026-08-23 - uniformly clean: 0 of 200 flagged, against 18.0% of the files.
+#: The blend is therefore diluted by design, and the number only means what it
+#: says when the full window is actually there.
+COMMIT_WINDOW = 200
+
+#: Exit code for "this environment cannot judge", kept distinct from 1
+#: ("the ceiling was exceeded"). A shallow clone shrinks the denominator
+#: without changing the gate, so reporting it as a regression sends whoever
+#: reads it looking for a change that does not exist - which is what happened
+#: on 2026-08-23, twice, before the cause was found.
+EXIT_CANNOT_JUDGE = 3
+
+
+def _history_depth(root: Path) -> int:
+    """How many commits this checkout actually has.
+
+    A fresh CCR container clones shallow (52 commits, measured). The walk
+    below then finds 52 clean messages instead of 200, the denominator drops
+    by a third, and a gate that has not changed at all posts 14.9% against a
+    13% ceiling.
+    """
+
+    try:
+        out = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=root, capture_output=True, text=True, timeout=60,
+        )
+        return int(out.stdout.strip() or 0)
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return 0
+
+
+def _commit_messages(root: Path, limit: int = COMMIT_WINDOW):
     try:
         out = subprocess.run(
             ["git", "log", f"-{limit}", "--format=%H%x00%s%n%b%x01"],
@@ -83,6 +117,22 @@ def _commit_messages(root: Path, limit: int = 200):
 
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
+
+    depth = _history_depth(root)
+    if depth < COMMIT_WINDOW:
+        print(
+            f"CANNOT JUDGE: this checkout has {depth} commits, fewer than the "
+            f"{COMMIT_WINDOW} the flag rate is measured over.",
+            file=sys.stderr,
+        )
+        print(
+            "The gate is unchanged; the denominator is short. Measuring "
+            "anyway would report a false regression - deepen the clone "
+            "(`git fetch --unshallow`) and run this again.",
+            file=sys.stderr,
+        )
+        return EXIT_CANNOT_JUDGE
+
     gate = SecurityGate(GatePolicy(), allowed_repositories=(REPOSITORY,))
 
     decisions: Counter[str] = Counter()

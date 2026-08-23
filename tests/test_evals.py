@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sidra_ai.evals.audit_path_safety import run_audit_path_safety_suite
 from sidra_ai.evals.cases import GATE_CASES
 from sidra_ai.evals.grounding import evaluate_grounding, run_grounding_suite
@@ -267,7 +269,15 @@ def test_ci_runs_both_verification_scripts() -> None:
 
 
 def test_gate_regression_check_passes_on_this_commit() -> None:
-    """The ceiling must hold on the tree being tested, not just in CI."""
+    """The ceiling must hold on the tree being tested, not just in CI.
+
+    A shallow checkout cannot judge it: the flag rate is measured partly over
+    the last 200 commit messages, which are uniformly clean, so a short
+    history shrinks the denominator and posts a regression the gate did not
+    cause. The script says so with its own exit code and this skips rather
+    than turning an environment into a red build - twice on 2026-08-23 that
+    red sent someone hunting for a change that did not exist.
+    """
 
     import subprocess
     import sys
@@ -278,6 +288,8 @@ def test_gate_regression_check_passes_on_this_commit() -> None:
         [sys.executable, str(root / "scripts" / "check_gate_regression.py")],
         capture_output=True, text=True, timeout=300, cwd=root,
     )
+    if result.returncode == 3:
+        pytest.skip(result.stderr.strip().splitlines()[0])
     assert result.returncode == 0, result.stdout + result.stderr
 
 
