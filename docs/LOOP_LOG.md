@@ -2804,3 +2804,4 @@
   既定構成の `--compare` は NO MOVEMENT / exit 1、`product_metrics --compare` も NO MOVEMENT。
   コードは 1 行も変えていない。検証: pytest 1124 passed / exit 0、`verify_gate_recall.py` PASSED。
   commit `b90f8df`。C-413 は匿名 git が 11 サイクル連続で失敗し前提を確認できないため取らず。
+2026-08-23 15:06 UTC ループA started
