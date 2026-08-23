@@ -2934,3 +2934,4 @@
   api.github.com への直接呼び出しを session scope で 403 にする）ので 1410 は待ちのまま。
   判定: `product_metrics --compare` **NO MOVEMENT / exit 1**。
   検証: `python -m pytest` **1144 passed** / exit 0、`verify_gate_recall.py` PASSED。
+2026-08-23 22:06 UTC ループA started
