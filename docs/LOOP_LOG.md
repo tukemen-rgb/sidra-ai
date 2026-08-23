@@ -2792,3 +2792,15 @@
   分母が 10→13 に増えたためで劣化ではない。(3) `/tmp/ans-before.json` は新集合で
   取り直しが要る（コンテナが消えると失われる）。
 2026-08-23 14:05 UTC ループA started
+  **C-985 実測 → `[記録]`。**外した 5 問を診断し、**重みを取って semantic 構成でも測った**
+  （e5-small を `/tmp/e5-small` に保存。`pip install torch --index-url .../cpu` →
+  `pip install sentence-transformers` → `.save()`。合計 5 分ほど。**このコンテナには残る**）。
+  結果: 制作の実務枠 **BM25 3/8 → e5-small 4/8**。戻ったのは `gp-report-takedown`（11→5）だけ。
+  残り 4 問は semantic でも圏外で、チャンクは 136〜981 字＝病理なし、語の重なり 2〜4 語。
+  **e5-small の言い換え限界**と判定し、質問文の書き換えはしない（採点の緩和になる）。
+  ついでに分かった全体像（semantic・35 問）: answered 18/35・direct 13/18・paraphrase 5/17・
+  識別力 +40.0pt・MRR 0.392。**下限（13/10/2 と MIN_PARAPHRASE=1）は全て古い**が、
+  1 回の測定では動かさない。**同一集合の 2 回目でまとめて引き上げること。**
+  既定構成の `--compare` は NO MOVEMENT / exit 1、`product_metrics --compare` も NO MOVEMENT。
+  コードは 1 行も変えていない。検証: pytest 1124 passed / exit 0、`verify_gate_recall.py` PASSED。
+  commit `b90f8df`。C-413 は匿名 git が 11 サイクル連続で失敗し前提を確認できないため取らず。
