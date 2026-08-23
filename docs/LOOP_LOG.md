@@ -2855,3 +2855,19 @@
   flag rate 14.9% > 13% の**偽 fail** が出た。gate は無変更・決定論的で、
   過去の green コミットでも同環境なら fail する。`git fetch --unshallow` で
   9.9% / OK に戻る。→ BACKLOG に起票（新規 CCR コンテナは全部 shallow で踏む）。
+  **C-413 完了。`design_source_indexed` 0→1・`design_source_cited` 0→1（重み構成）、判定器 exit 0。**
+  **前提が 14 サイクルぶりに満たされた。**まず訂正: これまで「匿名 git が N サイクル連続で失敗」と
+  書いてきたが、**失敗するのは `site` と `marketing` だけ**で `Fg` / `creater-yard` は匿名で引ける。
+  一般的な障害ではなく**リポジトリ単位のアクセス**だった（毎回 site しか叩いていなかったための誤読）。
+  この回のコンテナには `SIDRA_GITHUB_TOKEN` が入っていたので、**token を argv に出さない
+  `GIT_ASKPASS` 経由**で site を read-only に引き、既定ブランチ `2bbbb6afb14a` に
+  **`docs/DESIGN.md` が実在**することを一次資料で確認（`docs/` 31 件）。PR #17 マージ済み。
+  取込・スモークとも GDP 条件どおり。**重み構成では rank 1 で引用でき、素の BM25 では rank 6** で
+  引けない。両方を数字にし、**BM25 側は C-986 として分割起票**。
+  `answered` 13/38 は前後不動で、**文書追加を回答可能率の改善として bank していない**（条件 5）。
+  判定器は `design_source_cited` が 1→0 なら exit 2（テストで固定）。
+  `EmbeddingRetriever.store` を公開（どの検索器でもコーパスを問い合わせられるように）。
+  検証: pytest **1137** passed / exit 0、`verify_gate_recall.py` PASSED、両構成でフロア全維持。
+  commit `e48c02e`。**#372 へ取込 SHA と引用元 path を報告済み**（comment 5387375690）。
+  なお D-970 は別ループが同時刻に確保して完了させている（`e1d1e9a`）。当方の claim は
+  競合したので rebase 中に破棄し、痕跡は残していない。
