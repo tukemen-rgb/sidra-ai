@@ -589,7 +589,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       `citation_shows_evidence` を登録するまで赤のまま（ループB の変更とは無関係。
       stash して確認済み）。**この項目を取った者の最初の一手が赤を消す。**
 
-- [ ] **GAMEYARD のデザイン原則 `docs/DESIGN.md` を確定コーパスへ取り込む。**
+- [~] 作業中 2026-08-23 17:1x UTC ループA **GAMEYARD のデザイン原則 `docs/DESIGN.md` を確定コーパスへ取り込む。**
       GDP 提案 #372 comment 5363495469。source: `tukemen-rgb/site/docs/DESIGN.md`。
       **前提条件（未充足・2026-08-21 00:2x 実測）: PR #17 が site の既定ブランチへ
       merge されていること。** 一次資料で確認した——site の既定ブランチは
