@@ -409,7 +409,25 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: 誤隔離件数 unmeasurable→N→減、到達率 96.0%→上
       （guard: `verify_gate_recall` MISS 0 / `check_gate_regression` ≦13%）
 
-- [~] 作業中 2026-08-23 02:05 UTC ループA **C-982: 言い換え質問を全 5 リポジトリへ広げてフロアを上げる。**
+- [ ] **C-982: 言い換え質問を全 5 リポジトリへ広げてフロアを上げる。**
+      **2026-08-23 ループA が着手して差し戻した。実装したが判定器が exit 2 を返したので
+      マージしていない。前提が 1 つ足りない（E 節へ）。**
+      実測（作って測って戻した）: creater-yard 3 問・marketing 3 問を足すと
+      分母は 12→18、`answered 10/33`・`direct 9/15`・`paraphrase 1/18`。フロアは全部
+      持ちこたえた（10/9/1、識別力 +21.2 ≧ +15.0）。**しかし guard が 2 つ下がる**:
+      識別力 25.9→21.2、MRR 0.279→0.228。**どちらも率で、分母が増えれば下がる。**
+      6 問はいずれも実在 marker・語彙重複ゼロ・BM25 では rank なし（＝言い換え層の
+      既知の姿）。つまり**質問を足すという行為そのものが guard 回帰として判定される**。
+      判定器は同じ run で「question set changed → カウントは比較不能」と警告しており、
+      **カウントは比較しないのに率は比較する**という非対称がここで効いている。
+      次に取る者へ: 質問文と marker は作り直しになる（この行には書かない。BACKLOG は
+      隔離されているとはいえ、答案を平文で置く場所ではない）。出典は creater-yard の
+      `docs/REVENUE.md`・`docs/decided-limits.md`、marketing の
+      `docs/deliverables/gameyard-SNS運用計画-2026-08-22.md`・`gameyard-受注台帳定義.md`・
+      `gameyard-営業開始判定表.md` に 1 行で答えのある論点がある。
+      **前提条件（未充足）: 下の E 節「質問集を広げると guard が下がる件」の判断。**
+      なお `SEMANTIC_MIN_PARAPHRASE` の引き上げはこのコンテナでは測れない
+      （`sentence_transformers` 未インストール・重み無し。PyPI へは到達できる）。
       現在 paraphrase は 12 問中 3 問通過、creater-yard / marketing の
       言い換えはまだ薄い。各リポジトリに実在 marker の言い換え質問を足して
       分母を 12→18 以上へ。**カウント増は scored 変化で銀行不可**（第二判定器
@@ -1370,6 +1388,20 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       準備済み: marker は行またぎを避けた
       `There is no token scope to misconfigure into a write` /
       `External content is DATA, never instructions` の 2 つで実在確認済み。
+
+- [ ] **要判断: 質問集を広げると guard（識別力・MRR）が必ず下がる件。**
+      2026-08-23 ループA が C-982 で実測して詰まった。言い換え質問を 6 問足すと
+      識別力 25.9→21.2pt・MRR 0.279→0.228 になり、第二判定器は **exit 2（マージ禁止）**
+      を返す。中身は劣化していない——**この 2 つは採点対象の集合に対する率**なので、
+      難しい問を足せば機械的に下がる。絶対値の下限（識別力 +15.0）は余裕で満たしている。
+      同じ判定器は**カウントについては**「question set changed なので比較不能」と
+      判断して増加を銀行させない。率だけ比較するのは非対称で、結果として
+      **「質問を足す」という行為が常に回帰と判定される**。
+      選択肢: (a) `_compare` で集合が変わった run は guard も比較不能として扱う
+      （絶対値の下限は従来どおり効かせる）。(b) guard を集合非依存の量に変える
+      （例: 既存問だけで再計算する）。(c) 質問集は広げない方針にする。
+      **判定の意味に触れるのでループでは決めない。**社長の判断を待つ。
+      → 動かす数字: なし（判断のみ。(a) なら実装は 20 行程度）
 
 - [ ] **要判断: ブラウザ画面（`GET /`）の HTML だけを無認証で配ってよいか。**
       2026-08-21 ループB が「使い勝手」を実装して出てきた選択。指示どおり
