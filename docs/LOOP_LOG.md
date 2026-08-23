@@ -2775,3 +2775,19 @@
   （game_production 別行タリー）。(3) site PR #17 を社長指示でマージ（4c86ab5、
   docs/DESIGN.md のみ）→ C-413 の前提充足。1089 passed / recall PASSED。
 2026-08-23 13:07 UTC ループA started
+  **C-984 完了。`game_production_answered` unmeasurable → 3/8（37.5%）、第二判定器 exit 0。**
+  社長指示の中核。「ゲームを作って出す人が実際に聞くこと」8 問（site 6・creater-yard 2）を
+  実在 marker に接地して追加し、`OutcomeQuestion.game_production` で**本体カウントに
+  入れたまま別行タリー**にした（`制作の実務枠` 行 / judge の `game production` 行）。
+  判定器は分母 `game_production_scored` と並べて記録し、**分母が動いた回は比較しない**
+  （質問を足すことが「答えが増えた」に化けない）。
+  新集合の実測: answered 13/35・direct 11/18・paraphrase 2/17・識別力 +25.7pt・MRR 0.265・
+  引用抜粋 11/13。**フロアは全部保持。**12:45 の `3b172b1`（E 節 (a) 採用）のおかげで
+  集合が増えても guard 回帰にならず、素直に測れた。
+  通った 3 問: Godot スレッド書き出し rank 2 / Unity 既定圧縮 rank 4 / ツクール rank 1。
+  外した 5 問（zip 上限・投稿時の検査・通報と公開停止・Story 編集・閲覧者への広告）は C-985。
+  検証: pytest **1124** passed / exit 0、`verify_gate_recall.py` PASSED。commit `fd1c320`。
+  申し送り: (1) paraphrase が 2 になったので C-982 の (a)「MIN_PARAPHRASE 1→2」は
+  **同一集合での 2 回目の実測**で銀行できる。(2) 引用抜粋が 100%→84.6% に見えるのは
+  分母が 10→13 に増えたためで劣化ではない。(3) `/tmp/ans-before.json` は新集合で
+  取り直しが要る（コンテナが消えると失われる）。
