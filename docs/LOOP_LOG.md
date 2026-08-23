@@ -2915,3 +2915,22 @@
   `verify_gate_recall.py` PASSED。`src/sidra_ai/security/` も検索系も触っていないので
   gate 回帰・answerable 回帰は対象外。判定器は回していない（判定する変更が無い）。
 2026-08-23 21:05 UTC ループA started
+  **認可 403 のメッセージを「届いた応答が示したもの」に直した → `[記録]`。**
+  取れる `- [ ]` は 1410（社長の運用 1 手待ち）と本項目のみで、**0 のままの数字を持つ
+  項目は 1 件も無い**（`product_metrics --save` も `0 outcome(s) still at zero`）。
+  BACKLOG 冒頭の「0 の数字を持つ項目が無いときに限り上から順」に従い上から取り、
+  1410 は前提未充足なので次点を取った。**3 回連続の `[記録]` になる**が、
+  数字つきの項目が存在しないので選びようが無い。これ自体が報告事項。
+  中身: `github_client.py` の認可 403 が `not authorized (no rate-limit headers on
+  the response)` と印字していたが、**実際の拒否応答は quota ヘッダを付けて返る**。
+  `_throttling_evidence()` が 3 通りを書き分ける（quota 残あり＝スコープの話 /
+  ヘッダ皆無＝GitHub に届いていない可能性に触れる / 読めない値は引用）。
+  **判定ロジックは 1 行も変えていない**（`_is_rate_limited` 無改造、retry・sleep の
+  既存テスト 9 本そのまま）。文言の後退を落とすテストを 5 本追加。
+  **正当化（数字が動かない理由ではなく、やった理由）**: 計器が嘘をつくのを止めた。
+  この一文のせいで D-970 の一次診断が「プロキシ遮断」へ一度逸れている。偽の仮説を
+  毎回作り直す口を塞いだ。
+  なおトークンのスコープ確認はこのコンテナからは**できない**（proxy が
+  api.github.com への直接呼び出しを session scope で 403 にする）ので 1410 は待ちのまま。
+  判定: `product_metrics --compare` **NO MOVEMENT / exit 1**。
+  検証: `python -m pytest` **1144 passed** / exit 0、`verify_gate_recall.py` PASSED。

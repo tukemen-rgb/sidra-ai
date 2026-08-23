@@ -5,10 +5,19 @@ report by the full backoff, and then tells the operator a rate-limit story for
 what is actually a permissions problem - which sends them to look at quota
 dashboards instead of at the token's scope.
 
-Throttling always announces itself in headers: an exhausted quota sets
+Throttling announces itself in headers: an exhausted quota sets
 `X-RateLimit-Remaining: 0`, and a secondary limit sets `Retry-After`. A refusal
-sets neither. The two cases are therefore separable from headers alone, without
-guessing at message text.
+carries neither *signal* - but it does carry the quota headers, with the quota
+unspent, because GitHub answers a refusal like it answers anything else. The
+two cases are therefore separable from headers alone, without guessing at
+message text.
+
+That distinction is not pedantry. Until 2026-08-23 the refusal message read
+"not authorized (no rate-limit headers on the response)", which is what a
+blocked request looks like, not what a scope failure looks like; a live
+diagnosis of a 403 carrying `x-ratelimit-remaining: 4900` went looking for an
+intermediary because of that sentence. The classifier was right the whole time.
+The tests at the bottom of this file pin what the message is allowed to claim.
 
 A correction worth keeping, because it nearly became the justification for this
 file. A 403 observed through `curl` on 2026-08-19 carried no rate-limit headers
@@ -180,3 +189,69 @@ def test_header_matching_ignores_case() -> None:
         client.get_repository(REPOSITORY)
 
     assert transport.calls == 3, "a lowercase quota header was read as a refusal"
+
+
+# ------------------------------------------- the message reports what it saw
+#
+# The classification above is decided by headers; these hold the sentence the
+# operator actually reads. A message that describes a response other than the
+# one that arrived costs a diagnosis, which is exactly what it did.
+
+
+def _refusal_message(headers: dict[str, str] | None = None) -> str:
+    client = _client(CountingTransport(403, headers))
+    with pytest.raises(GitHubAPIError) as caught:
+        client.get_repository(REPOSITORY)
+    return str(caught.value)
+
+
+def test_a_refusal_with_quota_left_names_the_quota_it_saw() -> None:
+    """The ordinary shape: GitHub answered, and the answer was "no"."""
+
+    message = _refusal_message({"X-RateLimit-Remaining": "4900"})
+
+    assert "not authorized" in message
+    assert "4900" in message, "the header that decided this is not in the message"
+    assert "quota is not spent" in message
+    assert "rate limit" not in message.lower()
+
+
+def test_a_refusal_does_not_claim_headers_that_arrived_were_absent() -> None:
+    """The defect this file's docstring describes, held down directly.
+
+    Any wording is fine as long as it does not deny the header that is sitting
+    on the response - the reader who believes that denial goes looking for a
+    proxy and finds nothing, because there is no proxy.
+    """
+
+    message = _refusal_message({"X-RateLimit-Remaining": "4900"}).lower()
+
+    assert "no rate-limit headers" not in message
+    assert "no x-ratelimit-remaining" not in message
+
+
+def test_a_headerless_refusal_says_so_and_names_the_other_possibility() -> None:
+    """Here the absence is real, and it has two causes worth distinguishing."""
+
+    message = _refusal_message().lower()
+
+    assert "no throttling signal at all" in message
+    assert "blocked before" in message, (
+        "a 403 with no headers at all may never have reached GitHub; the "
+        "message is the only place that can say so"
+    )
+
+
+def test_an_unreadable_quota_header_is_quoted_rather_than_summarised() -> None:
+    """Fails fast either way, but the operator should see the odd value."""
+
+    message = _refusal_message({"X-RateLimit-Remaining": "not-a-number"})
+
+    assert "not-a-number" in message
+    assert "not a number" in message
+
+
+def test_the_two_refusals_do_not_read_alike() -> None:
+    """The point of the change: one sentence used to serve both cases."""
+
+    assert _refusal_message({"X-RateLimit-Remaining": "4900"}) != _refusal_message()

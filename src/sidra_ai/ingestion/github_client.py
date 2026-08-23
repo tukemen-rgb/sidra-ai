@@ -303,14 +303,22 @@ class GitHubReadOnlyClient:
                     # backoff, and hands the operator a rate-limit story for
                     # what is actually an authorization problem.
                     #
-                    # Throttling always announces itself in headers - an
-                    # exhausted quota sets `X-RateLimit-Remaining: 0`, a
-                    # secondary limit sets `Retry-After`. A refusal sets
-                    # neither, and an intermediary that blocks the request
-                    # before GitHub sees it sets neither either.
+                    # Throttling announces itself in headers - an exhausted
+                    # quota sets `X-RateLimit-Remaining: 0`, a secondary limit
+                    # sets `Retry-After`. What separates the two cases is the
+                    # absence of that evidence, not the absence of headers: a
+                    # refusal from GitHub carries the quota headers like any
+                    # other answer, with the quota unspent. Only a request
+                    # blocked before GitHub sees it arrives with none at all.
+                    #
+                    # The message says which of those was observed. The old
+                    # one said "no rate-limit headers on the response" for
+                    # both, which is false for the common case and, on
+                    # 2026-08-23, sent a diagnosis looking for an intermediary
+                    # while the real answer was a token missing a scope.
                     raise GitHubAPIError(
-                        f"GitHub refused {path}: not authorized (no rate-limit "
-                        "headers on the response)",
+                        f"GitHub refused {path}: not authorized "
+                        f"({self._throttling_evidence(response)})",
                         status=response.status,
                     )
                 # Rate limited for real. Back off rather than hammering.
@@ -325,6 +333,36 @@ class GitHubReadOnlyClient:
             )
 
         raise GitHubAPIError(f"request to {path} failed: {last_error}")
+
+    @classmethod
+    def _throttling_evidence(cls, response: Response) -> str:
+        """Describe what the response showed about throttling, for a refusal.
+
+        Only called once ``_is_rate_limited`` has said no, so two things are
+        already known and can be stated as fact: the status is not 429, and
+        there is no ``Retry-After``. What remains is the quota header, and its
+        three shapes are three different stories for whoever reads the error -
+        a scope problem, a blocked request, a header worth looking at by hand.
+        """
+
+        remaining = cls._header(response.headers, "x-ratelimit-remaining").strip()
+        if not remaining:
+            return (
+                "no throttling signal at all: no x-ratelimit-remaining and no "
+                "retry-after, which is also how a request blocked before "
+                "GitHub looks"
+            )
+        try:
+            int(remaining)
+        except ValueError:
+            return (
+                f"x-ratelimit-remaining is {remaining!r}, which is not a "
+                "number, and there is no retry-after"
+            )
+        return (
+            f"x-ratelimit-remaining is {remaining}, so the quota is not spent, "
+            "and there is no retry-after"
+        )
 
     @classmethod
     def _is_rate_limited(cls, response: Response) -> bool:

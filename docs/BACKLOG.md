@@ -1427,7 +1427,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       なお、この項目に混ざっていた**エラー文言の欠陥**は、トークン権限とは
       無関係に直せるので下へ切り出した（この項目はトークン待ちのまま）。
 
-- [~] 作業中 2026-08-23 21:05 UTC ループA **認可 403 のエラーメッセージが、応答に付いているヘッダを「無い」と印字する。**
+- [記録] 修正 2026-08-23 ループA **認可 403 のメッセージが、届いた応答の「証拠」を読み上げるようになった。**（`--compare` NO MOVEMENT / exit 1。**正当化**: 計器が嘘をつくのを止めた——この一文が将来の 403 診断から「プロキシが遮断した」という偽の仮説を毎回作り直すのを潰した）
       （2026-08-23 D-970 検証で発見。上の項目から切り出し。前提条件は無い。）
       → 動かす数字: なし（診断の文言。製品の数字は動かない）
       `src/sidra_ai/ingestion/github_client.py:311-315` が認可 403 に対して
@@ -1442,8 +1442,26 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       誤誘導された（ヘッダが無い＝GitHub まで届いていない、と読める）。
       直すのは文言 1 箇所と、必要ならその上のコメント。
       `tests/test_github_403_is_not_always_rate_limit.py` は `not authorized` の
-      部分文字列しか固定していないので、括弧の中を直してもテストは通る
-      （＝**文言を直したことを固定するテストが無い**ので、直すなら 1 本足す）。
+      部分文字列しか固定していなかったので、括弧の中を直してもテストは通った
+      （＝**文言を直したことを固定するテストが無かった**）。
+      **やったこと**: 括弧の中を「無いもの」ではなく**届いた応答が示したもの**に
+      変えた。`_throttling_evidence()` が 3 通りを書き分ける:
+      (1) `x-ratelimit-remaining is 4900, so the quota is not spent, and there is
+      no retry-after`（＝GitHub は答えた。答えが「否」だった＝スコープの話）
+      (2) `no throttling signal at all: ... which is also how a request blocked
+      before GitHub looks`（＝ヘッダが本当に 1 つも無い唯一の形）
+      (3) 数値が読めないときは値をそのまま引用する。
+      **判定は 1 行も変えていない**（`_is_rate_limited` は無改造。retry / sleep の
+      挙動を固定する既存 9 本はそのまま通る）。
+      **固定**: 同ファイルに 5 本追加（`4900` が本文に出る / `no rate-limit
+      headers` と `no x-ratelimit-remaining` を**名乗らない** / ヘッダ皆無の側は
+      `blocked before` に触れる / 読めない値は引用される / **2 つの文面が
+      一致しない**）。これで文言の後退が落ちる。
+      本文の冒頭 docstring にあった「A refusal sets neither」も同時に直した
+      （拒否は quota ヘッダを**付けて**返す。無いのは「絞られている証拠」だけ）。
+      検証: `python -m pytest` 1144 passed / exit 0、`verify_gate_recall.py`
+      PASSED。`src/sidra_ai/security/` も検索系も無変更なので gate 回帰・
+      answerable 回帰は対象外。
 
 - [記録] 修正 2026-08-23 ループA **shallow clone では「判定不能」と言うようにした（偽 fail の解消）。**（`--compare` NO MOVEMENT / exit 1。安全側の数字は 1 つも動かしていない）
       `check_gate_regression.py` が着手前に `git rev-list --count HEAD` で歴史の深さを見る。
