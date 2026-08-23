@@ -63,6 +63,14 @@ class OutcomeQuestion:
     tier: str = "direct"
     note: str = ""
     self_grounded: bool = False
+    #: Marks a question a creator actually asks while building a game and
+    #: putting it on GAMEYARD - "will my Unity build run", "how big can the
+    #: zip be", "can I edit what I posted". Orthogonal to both other axes:
+    #: these stay in the headline counts (they are ordinary questions about
+    #: other people's repositories) and are *also* tallied on their own line,
+    #: because "can SIDRA answer the operator" and "can SIDRA answer the
+    #: creator" are different questions and the blended rate answers neither.
+    game_production: bool = False
 
 
 # Ordered by repository so a gap in coverage is visible at a glance.
@@ -292,6 +300,76 @@ OUTCOME_QUESTIONS: tuple[OutcomeQuestion, ...] = (
         repository="tukemen-rgb/sidra-ai",
         self_grounded=True,
         note="GDP #372: 取得文書の指示に従わない。docs/SECURITY.md の不変条件 2。",
+    ),
+
+    # --- game production: what a creator asks while shipping a game --------
+    # C-984. Every marker is a single line of site or creater-yard written
+    # for its own purpose; none of these documents was touched to make a
+    # question pass. Three of the eight retrieve today - that is the finding,
+    # not a failure of the set.
+    OutcomeQuestion(
+        name="gp-upload-size-limit",
+        question="投稿できる zip の最大サイズは何 MB ですか",
+        answer_marker="zip は 1 件最大 200MB",
+        repository="tukemen-rgb/site",
+        game_production=True,
+    ),
+    OutcomeQuestion(
+        name="gp-unity-webgl-compression",
+        question="Unity の WebGL を既定の圧縮設定で書き出すと動きますか",
+        # The row says why it does not run. The marker is the reason clause,
+        # which is what an author needs; "動かない" alone appears in several
+        # rows and would match the wrong engine.
+        answer_marker="を付けていない",
+        repository="tukemen-rgb/site",
+        game_production=True,
+    ),
+    OutcomeQuestion(
+        name="gp-godot-threads",
+        question="Godot 4 のスレッド付き書き出しは GAMEYARD で遊べますか",
+        answer_marker="COOP/COEP を送っていない",
+        repository="tukemen-rgb/site",
+        game_production=True,
+    ),
+    OutcomeQuestion(
+        name="gp-rpgmaker-works",
+        question="ツクールで作ったブラウザ版はそのまま置けますか",
+        answer_marker="素の HTML5",
+        repository="tukemen-rgb/site",
+        tier="paraphrase",
+        game_production=True,
+    ),
+    OutcomeQuestion(
+        name="gp-virus-scan",
+        question="zip を選んだ瞬間に何か調べられるのですか",
+        answer_marker="8 段階のウイルス検査",
+        repository="tukemen-rgb/site",
+        tier="paraphrase",
+        game_production=True,
+    ),
+    OutcomeQuestion(
+        name="gp-report-takedown",
+        question="誰かに通報されたら自分の作品はすぐ消されますか",
+        answer_marker="通報だけでは公開は止まらない",
+        repository="tukemen-rgb/site",
+        tier="paraphrase",
+        game_production=True,
+    ),
+    OutcomeQuestion(
+        name="gp-cy-story-edit",
+        question="一度出した制作記録はあとから自分で直せますか",
+        answer_marker="Storyは本人が編集・削除できる",
+        repository="tukemen-rgb/creater-yard",
+        tier="paraphrase",
+        game_production=True,
+    ),
+    OutcomeQuestion(
+        name="gp-cy-reader-ads",
+        question="自分の記事に広告が差し込まれることはありますか",
+        answer_marker="閲覧者への広告掲示はしない",
+        repository="tukemen-rgb/creater-yard",
+        tier="paraphrase",
+        game_production=True,
     ),
 )
 

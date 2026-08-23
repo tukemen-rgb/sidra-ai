@@ -412,7 +412,23 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: 誤隔離件数 unmeasurable→N→減、到達率 96.0%→上
       （guard: `verify_gate_recall` MISS 0 / `check_gate_regression` ≦13%）
 
-- [~] 作業中 2026-08-23 13:07 UTC ループA **C-984: ゲーム制作の実務質問セットを作って測る（社長指示の中核）。**
+- [x] 完了 2026-08-23 ループA (`game_production_answered` unmeasurable→**3/8 = 37.5%**、第二判定器 exit 0) **C-984: ゲーム制作の実務質問セットを作って測った。**
+      8 問（site 6・creater-yard 2）。論点は zip の上限 / Unity WebGL の既定圧縮 /
+      Godot のスレッド書き出し / ツクールのブラウザ版 / 投稿時の検査 / 通報と公開停止 /
+      Story の編集 / 閲覧者への広告。**全問 marker 実在確認済み・言い換え 5 問は
+      4 文字 run 重複ゼロ。**`OutcomeQuestion.game_production` を追加し、
+      本体カウントには**入れたまま**別行で報告する（`制作の実務枠` / judge の
+      `game production` 行）。判定器は `game_production_answered` を分母
+      `game_production_scored` と並べて記録し、**分母が動いた回は比較しない**。
+      新集合の実測: answered **13/35**・direct **11/18**・paraphrase **2/17**・
+      識別力 +25.7pt・MRR 0.265・引用抜粋 11/13。フロアは全部保持。
+      **次に取る者へ 2 点**: (1) paraphrase が 2 になったので C-982 の (a)
+      「`MIN_PARAPHRASE` を 1→2」が同一集合の 2 回目の実測で銀行できる。
+      (2) 抜粋の的中が 100%→84.6% に見えるのは**新しく answered になった問の
+      答えが窓の外**にあるためで、劣化ではない（分母が 10→13）。C-983 の窓選択は
+      そのまま効いている。
+      以下は起票時の記述:
+      **C-984: ゲーム制作の実務質問セットを作って測る（社長指示の中核）。**
       「クリエイターがゲームを作って GAMEYARD に出すとき実際に聞くこと」を
       site / creater-yard の実在文書に接地した質問として追加する。論点の例:
       ゲームの提出手順・受理条件（site SPEC.md）、デザイン原則の禁止事項と

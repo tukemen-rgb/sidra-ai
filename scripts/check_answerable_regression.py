@@ -185,6 +185,7 @@ _OUTCOME_KEYS = (
     "answerable_direct",
     "answerable_paraphrase",
     "excerpt_hits_marker",
+    "game_production_answered",
 )
 _GUARD_KEYS = ("answerable_discrimination", "answerable_mrr")
 
@@ -215,6 +216,7 @@ def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
     direct = result["by_tier"].get("direct", {"answered": 0})
     paraphrase = result["by_tier"].get("paraphrase", {"answered": 0})
     excerpt = result.get("excerpt") or {"shows_marker": 0, "answered": 0}
+    game = result.get("game_production") or {"answered": 0, "scored": 0}
     return {
         "answerable_total": result["answered"],
         "answerable_direct": direct["answered"],
@@ -227,6 +229,11 @@ def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
         # count and `_compare` refuses to bank a rise across a change of it.
         "excerpt_hits_marker": excerpt["shows_marker"],
         "excerpt_scored": excerpt["answered"],
+        # The creator-facing subset, recorded beside its own denominator for
+        # the same reason: these counts are only comparable over the same
+        # questions, and the set grows as coverage is filled in.
+        "game_production_answered": game["answered"],
+        "game_production_scored": game["scored"],
         # The corpus is other people's repositories and it moves on its own.
         # Recording the heads makes "the number moved" attributable: if the
         # heads differ between --save and --compare, the movement may belong
@@ -293,6 +300,16 @@ def _compare(before: dict, now: dict) -> int:
     same_excerpt_set = before.get("excerpt_scored") in (
         None, now.get("excerpt_scored")
     )
+    same_game_set = before.get("game_production_scored") in (
+        None, now.get("game_production_scored")
+    )
+    if not same_game_set:
+        print(
+            "game-production question set changed between --save and --compare "
+            f"({before.get('game_production_scored')} -> "
+            f"{now.get('game_production_scored')} scored): "
+            "game_production_answered is not comparable this run."
+        )
     if not same_excerpt_set:
         print(
             "excerpt denominator changed between --save and --compare "
@@ -305,6 +322,8 @@ def _compare(before: dict, now: dict) -> int:
     for key in _OUTCOME_KEYS:
         old, new_value = before.get(key), now[key]
         if key == "excerpt_hits_marker" and old is not None and not same_excerpt_set:
+            continue
+        if key == "game_production_answered" and old is not None and not same_game_set:
             continue
         if old is None:
             moved.append(f"{key} (newly measured) -> {new_value}")
@@ -451,6 +470,13 @@ def main(argv: list[str] | None = None) -> int:
         f"(floor {MIN_DISCRIMINATION_POINTS:+.1f})"
     )
     print(f"MRR            : {result['mrr']:.3f}")
+    game = result.get("game_production") or {}
+    if game.get("scored"):
+        print(
+            f"game production : {game['answered']}/{game['scored']}"
+            f"  ({100 * game['rate']:.1f}% of the creator-facing subset; "
+            "no floor yet)"
+        )
     excerpt = result.get("excerpt") or {}
     if excerpt.get("answered"):
         # No floor: this number was first measured 2026-08-22 and a floor

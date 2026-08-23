@@ -38,6 +38,8 @@ def _now(**overrides) -> dict:
         "scored": {"direct": 11, "paraphrase": 7},
         "excerpt_hits_marker": 4,
         "excerpt_scored": 7,
+        "game_production_answered": 3,
+        "game_production_scored": 8,
     }
     base.update(overrides)
     return base
@@ -214,3 +216,30 @@ def test_guard_drop_on_the_same_set_still_regresses() -> None:
         _now(answerable_discrimination=27.8),
         _now(answerable_discrimination=21.2),
     ) == 2
+
+
+def test_more_creator_questions_answered_is_movement(capsys) -> None:
+    """The number the CEO's direction points at, judged like any other."""
+
+    assert _mod._compare(
+        _now(game_production_answered=3), _now(game_production_answered=5)
+    ) == 0
+    assert "LOOP_LOG: game_production_answered 3 -> 5" in capsys.readouterr().out
+
+
+def test_a_creator_count_over_a_changed_subset_is_not_compared(capsys) -> None:
+    """Filling in coverage is not the same as answering more.
+
+    The creator-facing set is expected to grow as topics are added, and 5/12
+    against 3/8 is two different measurements. Comparing them would let
+    writing questions read as product progress - the same trap the headline
+    counts already refuse.
+    """
+
+    assert _mod._compare(
+        _now(game_production_answered=3, game_production_scored=8),
+        _now(game_production_answered=5, game_production_scored=12),
+    ) == 1
+    out = capsys.readouterr().out
+    assert "game-production question set changed" in out
+    assert "BETTER" not in out and "WORSE" not in out

@@ -379,6 +379,7 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
 
     self_block = _measure_self_grounded(retriever, self_questions, targets)
     excerpt_block = _tally_excerpts(rows)
+    game_block = _tally_game_production(rows, headline)
 
     return {
         "questions": len(headline),
@@ -394,6 +395,33 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
         "rows": rows,
         "self_grounded": self_block,
         "excerpt": excerpt_block,
+        "game_production": game_block,
+    }
+
+
+def _tally_game_production(rows: list[dict], headline: tuple) -> dict:
+    """Score the creator-facing questions on their own line.
+
+    These are ordinary questions about other people's repositories, so unlike
+    the self-grounded tier they belong in the headline counts and stay there.
+    What they need is *visibility*: "SIDRA answers 10 of 27" says nothing
+    about whether it answers the person shipping a game, and that is the
+    question the work was pointed at. Reporting the subset separately is the
+    only way the two can move independently in the record.
+    """
+
+    names = {q.name for q in headline if q.game_production}
+    if not names:
+        return {"questions": 0, "scored": 0, "answered": 0, "rate": 0.0, "misses": []}
+    subset = [row for row in rows if row["name"] in names]
+    scored = [row for row in subset if row["status"] != "ungrounded"]
+    answered = [row for row in scored if row["status"] == "hit"]
+    return {
+        "questions": len(subset),
+        "scored": len(scored),
+        "answered": len(answered),
+        "rate": (len(answered) / len(scored)) if scored else 0.0,
+        "misses": [row["name"] for row in scored if row["status"] != "hit"],
     }
 
 
@@ -671,6 +699,13 @@ def main() -> int:
               f"answered の内訳{withheld})")
     elif answerable["scored"]:
         print("引用抜粋の的中  測定不能  (answered 0 問。判定する抜粋が無い)")
+    game_block = answerable.get("game_production") or {}
+    if game_block.get("scored"):
+        # A subset of the headline, printed apart: the blended rate cannot say
+        # whether SIDRA answers the person actually shipping a game.
+        print(f"制作の実務枠  {100 * game_block['rate']:.1f}%"
+              f"  ({game_block['answered']}/{game_block['scored']} 問。"
+              f"上の回答可能率にも含まれる)")
     print()
     for row in answerable["rows"]:
         mark = {"hit": "OK  ", "miss": "MISS", "ungrounded": "??? "}[row["status"]]
