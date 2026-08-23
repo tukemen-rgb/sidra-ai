@@ -70,6 +70,11 @@ SKIP_DIRS = {".git", "node_modules", ".next", "dist", "build", "__pycache__",
 
 TOP_K = 5
 
+#: GDP #372 の取込条件 4。質問文はそのまま使う - 言い換えるとスモークにならない。
+DESIGN_SOURCE_REPOSITORY = "tukemen-rgb/site"
+DESIGN_SOURCE_PATH = "docs/DESIGN.md"
+DESIGN_SMOKE_QUERY = "GAMEYARDで禁止されているAIっぽいデザインと、残すべき固有表現は何ですか"
+
 
 def head_sha(repo_root: Path) -> str:
     """Return the checked-out commit, or a synthetic one when git is absent.
@@ -380,6 +385,7 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
     self_block = _measure_self_grounded(retriever, self_questions, targets)
     excerpt_block = _tally_excerpts(rows)
     game_block = _tally_game_production(rows, headline)
+    design_block = _measure_design_source(retriever, output_guard)
 
     return {
         "questions": len(headline),
@@ -396,6 +402,58 @@ def measure_answerable(retriever: BM25Retriever, targets: list[tuple[str, Path]]
         "self_grounded": self_block,
         "excerpt": excerpt_block,
         "game_production": game_block,
+        "design_source": design_block,
+    }
+
+
+def _measure_design_source(retriever: BM25Retriever, output_guard: OutputGuard) -> dict:
+    """Is GAMEYARD's design document in the corpus, and can it be cited?
+
+    Two facts, not one. A document can be indexed and still be unreachable -
+    that is most of what the answerable measurement keeps finding - so
+    "indexed" alone would be the kind of number that reports success for
+    having added a file. The second fact is the one an operator cares about:
+    ask the question the document exists to answer, and see whether the
+    citation that comes back is from it, with an excerpt the output guard
+    allowed through.
+
+    The smoke query is the one GDP specified, verbatim. Rewording it until it
+    passes would measure our phrasing rather than the corpus.
+    """
+
+    documents = [
+        document
+        for document in retriever.store.documents()
+        if document.provenance.repository == DESIGN_SOURCE_REPOSITORY
+        and document.provenance.path == DESIGN_SOURCE_PATH
+    ]
+    if not documents:
+        return {"indexed": 0, "cited": 0, "rank": None, "commit_sha": ""}
+
+    rank = None
+    for position, result in enumerate(
+        retriever.search(DESIGN_SMOKE_QUERY, top_k=TOP_K), start=1
+    ):
+        provenance = result.chunk.provenance
+        if (
+            provenance.repository != DESIGN_SOURCE_REPOSITORY
+            or provenance.path != DESIGN_SOURCE_PATH
+        ):
+            continue
+        excerpt, withheld = citation_excerpt(
+            result.chunk.content, output_guard, DESIGN_SMOKE_QUERY
+        )
+        if excerpt and not withheld:
+            rank = position
+        break
+
+    return {
+        "indexed": 1,
+        "cited": int(rank is not None),
+        "rank": rank,
+        # Which commit the corpus holds it at. GDP asked for the SHA to be
+        # recorded, and a citation is only checkable against one.
+        "commit_sha": documents[0].provenance.commit_sha[:12],
     }
 
 
@@ -699,6 +757,13 @@ def main() -> int:
               f"answered の内訳{withheld})")
     elif answerable["scored"]:
         print("引用抜粋の的中  測定不能  (answered 0 問。判定する抜粋が無い)")
+    design_block = answerable.get("design_source") or {}
+    if design_block.get("indexed"):
+        where = (f"rank {design_block['rank']} で引用できる"
+                 if design_block["cited"] else "**引用できない**")
+        print(f"GAMEYARD デザイン原則  索引済み（{design_block['commit_sha']}）・{where}")
+    elif answerable["scored"]:
+        print("GAMEYARD デザイン原則  未取込")
     game_block = answerable.get("game_production") or {}
     if game_block.get("scored"):
         # A subset of the headline, printed apart: the blended rate cannot say

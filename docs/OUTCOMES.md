@@ -90,6 +90,27 @@ site 6 問（zip の上限 / Unity WebGL の既定圧縮 / Godot のスレッド
 ツクール rank 1）。外したのは zip 上限・投稿時の検査・通報と公開停止・
 Story の編集・閲覧者への広告の 5 問で、診断は C-985。
 
+### GAMEYARD デザイン原則の取込と引用（2026-08-23・C-413）
+
+PR #17 が site の既定ブランチへマージされ、**`docs/DESIGN.md` が実在**するように
+なったので取り込んだ。取込 SHA **`2bbbb6afb14a`**（既定ブランチ
+`claude/game-upload-site-0187kj`、`docs/` 31 件）。
+
+| 数字 | 前 | 後 |
+|---|---:|---:|
+| `design_source_indexed` | 0 | **1** |
+| `design_source_cited`（重み構成） | 0 | **1**（rank 1） |
+| `design_source_cited`（素の BM25） | 0 | 0（**rank 6** — top-5 の外） |
+
+スモーク質問は GDP 指定のまま「GAMEYARDで禁止されているAIっぽいデザインと、
+残すべき固有表現は何ですか」。重み構成では rank 1 で
+`tukemen-rgb/site docs/DESIGN.md` を引き、200 字の抜粋が出力ガードを通過した。
+**素の BM25 では rank 6 で引用できない**——両方を数字にしてある（C-986）。
+
+**文書を足したことを回答可能率の改善として bank していない**（GDP 条件 5）:
+answered は 13/38 で前後不動、質問集も変えていない。判定器に載せたのは
+indexed / cited の 2 つだけで、**cited が 1→0 に落ちたら exit 2**。
+
 ### 38 問（言い換えを 5 リポジトリ全部へ）での基準値（2026-08-23・C-982）
 
 marketing に言い換え質問が 1 問も無かったので 3 問足した。言い換え層の分母は

@@ -40,6 +40,8 @@ def _now(**overrides) -> dict:
         "excerpt_scored": 7,
         "game_production_answered": 3,
         "game_production_scored": 8,
+        "design_source_indexed": 1,
+        "design_source_cited": 1,
     }
     base.update(overrides)
     return base
@@ -243,3 +245,17 @@ def test_a_creator_count_over_a_changed_subset_is_not_compared(capsys) -> None:
     out = capsys.readouterr().out
     assert "game-production question set changed" in out
     assert "BETTER" not in out and "WORSE" not in out
+
+
+def test_losing_the_design_citation_is_a_regression(capsys) -> None:
+    """Indexed is not enough, and dropping out of the citation is not neutral.
+
+    GAMEYARD's design document was ingested on the condition that the
+    question it exists to answer returns it. If a later change indexes it and
+    stops citing it, the file is still there and the operator still cannot
+    see it - which is the failure mode this pair of numbers was added to
+    make visible.
+    """
+
+    assert _mod._compare(_now(design_source_cited=1), _now(design_source_cited=0)) == 2
+    assert "WORSE  design_source_cited 1 -> 0" in capsys.readouterr().out

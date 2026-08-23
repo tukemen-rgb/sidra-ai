@@ -202,6 +202,8 @@ _OUTCOME_KEYS = (
     "answerable_paraphrase",
     "excerpt_hits_marker",
     "game_production_answered",
+    "design_source_indexed",
+    "design_source_cited",
 )
 _GUARD_KEYS = ("answerable_discrimination", "answerable_mrr")
 
@@ -233,6 +235,7 @@ def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
     paraphrase = result["by_tier"].get("paraphrase", {"answered": 0})
     excerpt = result.get("excerpt") or {"shows_marker": 0, "answered": 0}
     game = result.get("game_production") or {"answered": 0, "scored": 0}
+    design = result.get("design_source") or {"indexed": 0, "cited": 0}
     return {
         "answerable_total": result["answered"],
         "answerable_direct": direct["answered"],
@@ -250,6 +253,12 @@ def _snapshot(result: dict, targets: list[tuple[str, "Path"]]) -> dict:
         # questions, and the set grows as coverage is filled in.
         "game_production_answered": game["answered"],
         "game_production_scored": game["scored"],
+        # GAMEYARD's design document: in the corpus at all, and citable when
+        # the question it exists to answer is asked. Two facts because a file
+        # that is indexed and unreachable is the failure this project keeps
+        # finding, and "indexed" alone would report success for adding it.
+        "design_source_indexed": design["indexed"],
+        "design_source_cited": design["cited"],
         # The corpus is other people's repositories and it moves on its own.
         # Recording the heads makes "the number moved" attributable: if the
         # heads differ between --save and --compare, the movement may belong
@@ -486,6 +495,12 @@ def main(argv: list[str] | None = None) -> int:
         f"(floor {MIN_DISCRIMINATION_POINTS:+.1f})"
     )
     print(f"MRR            : {result['mrr']:.3f}")
+    design = result.get("design_source") or {}
+    if design.get("indexed"):
+        print(
+            f"design source  : indexed at {design['commit_sha']}; "
+            + (f"cited at rank {design['rank']}" if design["cited"] else "NOT citable")
+        )
     game = result.get("game_production") or {}
     if game.get("scored"):
         print(

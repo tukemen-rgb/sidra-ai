@@ -139,6 +139,18 @@ class EmbeddingRetriever(Retriever):
             return False
 
     # ------------------------------------------------------------------
+    @property
+    def store(self):
+        """The one index, reached through the lexical retriever it wraps.
+
+        Callers that need to ask what is in the corpus - a smoke check that a
+        specific document was ingested, say - should not have to know which
+        retriever they were handed or reach into a private attribute to find
+        out.
+        """
+
+        return self._lexical.store
+
     def search(
         self,
         query: str,

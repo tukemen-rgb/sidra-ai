@@ -423,6 +423,20 @@ def measure_answer_quality(c: Collector) -> None:
     # same five checkouts, so it is unmeasurable here rather than approximated
     # from a corpus of one repository - an excerpt rate measured over sidra-ai
     # alone would describe a different corpus while wearing the same name.
+    # GAMEYARD's design document: is it in the corpus, and does the question
+    # it exists to answer return it. Both need the site checkout, so both are
+    # unmeasurable here rather than approximated - and the second is the one
+    # that matters, because an indexed document nobody can retrieve is the
+    # failure this project keeps finding.
+    c.unmeasurable(
+        "design_source_cited",
+        "GAMEYARD design principles citable",
+        "needs all five checkouts: scripts/check_answerable_regression.py "
+        "(reported as `design source`; cited at rank 1 with weights, rank 6 "
+        "without - see C-986)",
+        kind=OUTCOME,
+    )
+
     c.unmeasurable(
         "excerpt_hits_marker",
         "cited excerpts that contain the answer",

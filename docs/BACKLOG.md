@@ -589,7 +589,24 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       `citation_shows_evidence` を登録するまで赤のまま（ループB の変更とは無関係。
       stash して確認済み）。**この項目を取った者の最初の一手が赤を消す。**
 
-- [~] 作業中 2026-08-23 17:1x UTC ループA **GAMEYARD のデザイン原則 `docs/DESIGN.md` を確定コーパスへ取り込む。**
+- [x] 完了 2026-08-23 ループA (`design_source_indexed` **0→1**・`design_source_cited` **0→1（重み構成）**、第二判定器 exit 0) **GAMEYARD のデザイン原則を確定コーパスへ取り込んだ。**
+      **前提が満たされた**: site の既定ブランチ `claude/game-upload-site-0187kj` の
+      **`2bbbb6afb14a`** に `docs/DESIGN.md` が実在（`docs/` 31 件）。PR ブランチや
+      Issue コメントではなく既定ブランチを SHA で確認してから取り込んだ（条件 1・2）。
+      内容は従来どおり DATA として扱い、命令権限へは昇格させていない（条件 3）。
+      **スモーク（条件 4、質問文は GDP 指定のまま）**: 重み構成（e5-small）で
+      **rank 1・引用元 `tukemen-rgb/site docs/DESIGN.md`・200 字の抜粋が出力ガードを通過**。
+      素の BM25 では **rank 6** で top-5 に入らない（＝引用できない）。両方を数字にした。
+      **文書追加を `answerable_total` の改善として bank していない**（条件 5）:
+      13/38 は前後で不動、質問集も変更していない。判定器に載せたのは
+      `design_source_indexed` / `design_source_cited` の 2 つだけで、**cited が 1→0 に
+      落ちたら exit 2**（テストで固定）。
+      実装: `measure_outcomes._measure_design_source`、`EmbeddingRetriever.store` を公開
+      （どの検索器を渡されたかに関わらずコーパスの中身を問い合わせられるように）。
+      **#372 へ取込 SHA と引用元 path を記録済み。**
+      **残り**: 既定（重み無し）構成では rank 6 のままで引用できない。**C-986 として分割**。
+      以下は起票時の記述:
+      **GAMEYARD のデザイン原則 `docs/DESIGN.md` を確定コーパスへ取り込む。**
       GDP 提案 #372 comment 5363495469。source: `tukemen-rgb/site/docs/DESIGN.md`。
       **前提条件（未充足・2026-08-21 00:2x 実測）: PR #17 が site の既定ブランチへ
       merge されていること。** 一次資料で確認した——site の既定ブランチは
@@ -1549,6 +1566,15 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       （例: 既存問だけで再計算する）。(c) 質問集は広げない方針にする。
       **判定の意味に触れるのでループでは決めない。**社長の判断を待つ。
       → 動かす数字: なし（判断のみ。(a) なら実装は 20 行程度）
+
+- [ ] **C-986 (C-413 の後半): 重み無しの既定構成でもデザイン原則を引用できるようにする。**
+      いま `docs/DESIGN.md` は BM25 で **rank 6**（top-5 のすぐ外）。重み構成では rank 1。
+      GDP のスモーク質問はそのまま使うこと。**質問文を変えて通すのは禁止。**
+      測定済み却下済みリスト（クエリ拡張 / PRF / 類語辞書 / 文書粒度検索 / λ-fusion /
+      k1-b グリッド / 見出しブースト / ひらがな bigram 抑制 / 名前ルーティング /
+      候補窓 10-80 / ruri-v3-30m / e5-base）から再提案しないこと。
+      → 動かす数字: `design_source_cited`（BM25 構成で）**0→1**
+      （guard: 既存フロア全維持・重み構成の rank 1 を落とさない）
 
 - [ ] **要判断: ブラウザ画面（`GET /`）の HTML だけを無認証で配ってよいか。**
       2026-08-21 ループB が「使い勝手」を実装して出てきた選択。指示どおり
