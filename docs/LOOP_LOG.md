@@ -2886,3 +2886,15 @@
   判定: `--compare` NO MOVEMENT / exit 1。検証: pytest **1139** passed / exit 0、
   `verify_gate_recall.py` PASSED、フロア全維持。commit `1d69a75`。
 2026-08-23 19:05 UTC ループA started
+  **shallow clone の偽 fail を修正 → `[記録]`（安全側の数字は 1 つも動かしていない）。**
+  `check_gate_regression.py` が `git rev-list --count HEAD` で歴史の深さを先に見て、
+  **200 件未満なら測らずに exit 3（CANNOT JUDGE）**＋理由と直し方を印字する。
+  **1（上限超過）と 3（判定不能）を別コードにした**のが要点。テストは 3 なら理由つきで skip。
+  実証: depth 30 の clone → exit 3、当コンテナ（1004 commits）→ 9.9% ≤ 13% で exit 0。
+  **測って分かった重要事実**: 上限 13% を保っているのは commit メッセージ。
+  **ファイル 44/244 = 18.0%・commit 0/200 = 0.0%・混合 9.9%** で、綺麗なメッセージ 200 件が
+  率をほぼ半分に薄めている。分母を変えると 13% は即破れるので触らず、**E 節へ要判断として起票**。
+  判定: `product_metrics --compare` NO MOVEMENT / exit 1。
+  検証: pytest **1139** passed / exit 0、`verify_gate_recall.py` PASSED、
+  `check_gate_regression.py` 9.9%（上限 13%）。commit `3f84342`。
+  なお token の Issues/PR 権限の項目（1410）は**社長の運用 1 手待ち**なので取っていない。
