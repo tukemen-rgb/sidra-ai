@@ -441,7 +441,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: game_production answerable unmeasurable→基準値
       （guard: 絶対値フロア全維持・新集合で --save を取り直して次回から銀行）
 
-- [ ] **C-985: ゲーム制作質問の取りこぼしを潰す（C-984 の基準値が出てから）。**
+- [~] 作業中 2026-08-23 14:05 UTC ループA **C-985: ゲーム制作質問の取りこぼしを潰す（C-984 の基準値が出てから）。**
       C-984 で 0 だった質問を診断（`measure_outcomes.py --diagnose`）し、
       チャンク境界・見出し・言い回しのどこで落ちたかを記録してから、
       **測定済み却下済みリスト以外の**手当てを 1 テーマずつ試す。
