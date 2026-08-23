@@ -2666,3 +2666,18 @@
   **次の者へ: `git commit <path>` か、staging を確認してから commit すること。**
   この環境では `git add` が権限分類器に拒否される回があり、index が中途半端に残る。
 2026-08-23 00:05 UTC ループA started
+  **C-981 実測完了 → `[記録]`（製品の数字は動かない）。**
+  `scripts/measure_quarantine_precision.py` を新設。5 リポジトリの実際の取り込み範囲で
+  **104 文書中 quarantine 5・block 0・到達率 95.2%**。findings 52 件のうち **29 件は
+  索引に入っている文書に出ている**——**finding は決定ではない**（role は LOW、
+  entropy は MEDIUM で単独では落とさない）。発端の警報は誤読だった。
+  誤隔離は **1 件**（site `docs/research/designs.md`、RFC 2606 予約ドメイン起因）で、
+  A 節「却下」で決着済みのため**検知器は 1 行も触っていない**。他 4 件は正しい隔離。
+  判定: `product_metrics --compare` **NO MOVEMENT / exit 1** → `- [記録]`。
+  検証: pytest 1082 passed / exit 0、`verify_gate_recall.py` PASSED、
+  `check_gate_regression.py` 10.0%（上限 13%）。commit `cb27ccc`。
+  **罠を 1 つ踏んだので記録:** 検知器のラベルを `secret:` + 名前の形で散文に書くと
+  `assigned_secret:critical` が発火し、**その文書自身が索引から落ちる**。草稿がこれで
+  OUTCOMES.md を落とし、判定器が 8.1%→8.6% の悪化として **exit 2** を返した
+  （＝マージ禁止）。ラベルは接頭辞なしで書く。詳細は OUTCOMES.md に記録。
+  `[記録]` は 1 回目。次は数字つきの項目（C-983 か C-982）を取ること。
