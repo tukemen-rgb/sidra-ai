@@ -2694,3 +2694,4 @@
   `product_metrics --compare` は NO MOVEMENT（この数字は 5 本 checkout 側にあるので想定どおり）。
   security は未変更なので gate regression は対象外。commit `766b4b2`。
   これで C-980 系（測る→上げる）は両方終わり。残る精度キューは C-982（言い換えの拡張）。
+2026-08-23 02:05 UTC ループA started
