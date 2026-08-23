@@ -2833,3 +2833,25 @@
   E 2 件・F 2 件は対象外、`- [~]` 0 件。
   検証: `python -m pytest` 1136 passed / exit 0、`verify_gate_recall.py` PASSED。作業ツリー無変更。
 2026-08-23 17:05 UTC ループA started
+2026-08-23 17:1x UTC D-970 検証セッション（単発・token 配備後）
+  **D-970 完了。`SIDRA_GITHUB_TOKEN` が新規コンテナに present（len 93）。**
+  実 API 未検証だった 3 点を全て confirmed:
+  - `scripts/verify_real_github_api.py`（6 リクエスト・budget 14）:
+    payload shape OK / pagination 150 commits・150 unique・boundary crossed /
+    incremental `compare(head,head)` = identical・ahead_by 0・files 0。
+  - `sidra-api`(echo) + `POST /v1/github/analyze` × 2（tukemen-rgb/site）:
+    1 回目 head_sha `2bbbb6af…` を実 API から取得、indexed 0 / quarantined 1。
+    2 回目 `inference_skipped: true` — ただし indexed 0 由来で head 一致 skip では
+    ない。原因はトークンに Issues/PR read が無く pulls/issues が 403 →
+    `partial_fetch` で head 非永続（設計どおり）。**製品欠陥ゼロ。**
+    403 は本物の GitHub 応答（x-github-request-id あり）で、必要権限は
+    `x-accepted-github-permissions` が issues=read / pull_requests=read と明示。
+    → BACKLOG に運用項目として起票（トークンへ 2 権限追加）。
+  API 消費概数: 約 100（analyze 2 回 ≈ 90 + 診断 4 + runner 6）。認証済み残量
+  約 4900/5000。トークン値・Authorization ヘッダは一切記録していない。
+  検証: `python -m pytest` **1136 passed / exit 0**（コード無変更、docs のみ）。
+  罠を 1 つ踏んだので記録: このコンテナの clone は **shallow（52 commits）**で、
+  `check_gate_regression.py` の分母（コミットメッセージ最大 200 件）が縮み、
+  flag rate 14.9% > 13% の**偽 fail** が出た。gate は無変更・決定論的で、
+  過去の green コミットでも同環境なら fail する。`git fetch --unshallow` で
+  9.9% / OK に戻る。→ BACKLOG に起票（新規 CCR コンテナは全部 shallow で踏む）。

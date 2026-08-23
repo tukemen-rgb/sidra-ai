@@ -1168,7 +1168,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       は read-only クライアントが何でも信じ始める入口）。
       証明書エラーが HTTP 応答に変わることで修正を確認した。
 
-- [~] **実 GitHub API に対する取り込みが一度も検証されていない。**
+- [x] **実 GitHub API に対する取り込みが一度も検証されていない。**
       **重要（2026-08-21 追加）: 社長が token を環境設定に保存済み。ただし
       環境変数は新規コンテナにしか入らないため、温まったままの常駐コンテナ
       で `unset` と見えても「未設置」と断定しないこと。**自分のコンテナで
@@ -1356,6 +1356,79 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       置いたら手順をそのまま実行できる。未検証で残るのは
       差分取得 / ページネーション / 実データの形 の 3 つ
       （レート制限の側は下の `- [記録]` で 1 つ閉じた）。
+
+      **2026-08-23 D-970 検証セッション — 完了。3 つとも実 API で confirmed。**
+      `SIDRA_GITHUB_TOKEN` が新規コンテナに present（長さ 93。値は記録しない）。
+      製品 transport で `/rate_limit` は **limit 5000（認証済み）**を返した —
+      トークンは実際に効いている。実測は 2 経路:
+      **(1) `scripts/verify_real_github_api.py`（tukemen-rgb/sidra-ai、6 リクエスト）:**
+      - payload shape: **confirmed。**`full_name` 一致 / `default_branch='main'` /
+        head_sha 40 hex。normalizer が読むフィールドは実 API に全部あった。
+      - pagination: **confirmed（再確認）。**150 commits / 150 unique /
+        `crossed_page_boundary: true`。
+      - incremental compare: **confirmed。**`compare(head,head)` が
+        `status='identical'` / `ahead_by=0` / `files=0`。**2 回目の
+        `inference_skipped` の下にある機構そのもの**が実 API で空差分を返した。
+      21:42 の `get_head_sha` failed は再現せず — やはり窓の枯渇で、製品の欠陥では
+      なかった。なお runner の quota 表示は `read_quota` が無認証で引くため
+      **匿名窓（35/60）を表示したまま認証済みクォータを消費する**。読み手を
+      誤誘導する系の表示だが、判定には使われていないので数字の嘘ではない。
+      **(2) `sidra-api`（echo）+ `POST /v1/github/analyze` × 2（tukemen-rgb/site）:**
+      1 回目で **head_sha `2bbbb6af…` を実 API から取得**、README 1 件を収集し
+      Security Gate が quarantine（indexed 0 / quarantined 1）。2 回目も
+      `inference_skipped: true` は返ったが、**これは indexed 0 による
+      requires_inference=false であって head 一致 skip ではない**（誤読しないこと）。
+      head 一致 skip まで到達しなかった原因は製品ではなく**トークンの権限**:
+      `pulls` / `issues` が 403 になり `partial_fetch` → 設計どおり head_sha を
+      永続化しない（不完全なスナップショットで RAG を置き換えない不変条件）。
+      403 は本物の GitHub 応答（`x-github-request-id` あり・rate-limit ヘッダあり・
+      本文 "Resource not accessible by personal access token"）で、プロキシ合成では
+      ない。必要権限は応答ヘッダ `x-accepted-github-permissions` が明示:
+      **`issues=read` と `pull_requests=read`**。→ 下の新項目に切り出した。
+      endpoint 経路の head 一致 skip 自体は社長機で実測済み（下の 2026-08-2x 記録
+      「previous_sha 記録→ 2 回目 inference_skipped:true」）なので、この項目の
+      未検証 3 点はこれで全て閉じた。消費リクエスト概数: analyze 2 回で約 90、
+      診断 4、runner 6。認証済み残量は約 4900/5000。
+
+- [ ] **トークンに Issues/PR の read 権限が無く、取り込みが毎回 partial_fetch で終わる。**
+      （2026-08-23 D-970 検証で発見。上の項目から切り出し。）
+      現行の fine-grained token（read-only・5 リポジトリ）は Contents/Metadata は
+      読めるが、`repos/*/pulls` と `repos/*/issues` が 403
+      "Resource not accessible by personal access token" になる。結果:
+      - どのリポジトリも `skipped_reason: partial_fetch` / `indexed 0` のままで、
+        **head_sha が永続化されず（設計どおり）、差分 skip も RAG 索引も
+        一切始まらない**。定期取り込み（refresher）は毎周期フル再取得を
+        試みては同じ 403 で捨てる。
+      - 修正は運用側 1 手: 社長がトークンに **Issues: read と
+        Pull requests: read** を足す（必要権限は GitHub 自身が
+        `x-accepted-github-permissions: issues=read` / `pull_requests=read` で
+        名指ししている）。製品コードの変更は不要。
+      - 権限が付いたら受け入れは上の項目の手順そのまま:
+        `POST /v1/github/analyze` × 2 で、2 回目が **head 一致による**
+        `changed: false` + `inference_skipped: true` になること
+        （indexed 0 由来の `inference_skipped: true` と混同しないこと）。
+      ついでに記録する文言の欠陥（コード変更はしていない）: 認可 403 の
+      エラーメッセージが `not authorized (no rate-limit headers on the
+      response)` と印字するが、**実際の応答には rate-limit ヘッダが付いている**
+      （分類機構は remaining≠0 / Retry-After 無しを見ており判定は正しい。
+      嘘をつくのは文言だけ）。この文言のせいで今回の一次診断が一度
+      「プロキシ遮断」側へ誤誘導された。直すなら
+      `github_client.py:311-315` の文言と、それを固定しているテスト。
+
+- [ ] **shallow clone だと gate 回帰チェックが偽 fail する（実測が嘘をつく）。**
+      （2026-08-23 D-970 検証セッションで踏んだ。）
+      `check_gate_regression.py` のコーパスは「ファイル + 直近 200 コミット
+      メッセージ」だが、CCR の新規コンテナは **shallow clone（今回 52 commits）**
+      なので分母だけが縮み、gate 無変更・決定論的のまま
+      flag rate 14.9% > 13% で `test_gate_regression_check_passes_on_this_commit`
+      が fail する。過去の green コミットに checkout しても同環境なら fail する
+      ので、「自分の変更が gate を悪化させた」と誤診しやすい（今回も一度そちらへ
+      誤誘導された）。`git fetch --unshallow` 後は 9.9% / OK。
+      直すなら: スクリプトが `git rev-list --count` で歴史の深さを見て、
+      200 件に満たない場合は (a) 率ではなくファイル側だけで判定する、または
+      (b) 「shallow clone のため分母不足」と明示して exit 2（判定不能）にする。
+      枯渇と故障を分けた下の `- [記録]` と同じ発想で、環境起因と回帰を
+      同じ FAILED に混ぜないこと。
 
 - [記録] **検証器が「壊れている」と「使い切った」を同じ `failed` と書いていた。**
       （上の項目を確保して判明。`--compare` は exit 1。）
