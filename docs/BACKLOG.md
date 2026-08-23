@@ -441,7 +441,21 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: game_production answerable unmeasurable→基準値
       （guard: 絶対値フロア全維持・新集合で --save を取り直して次回から銀行）
 
-- [~] 作業中 2026-08-23 14:05 UTC ループA **C-985: ゲーム制作質問の取りこぼしを潰す（C-984 の基準値が出てから）。**
+- [記録] 実測 2026-08-23 ループA **C-985: 外した 5 問を診断した。埋め込みで戻るのは 1 問だけ。**（既定構成の `--compare` は NO MOVEMENT / exit 1。**製品の数字は動かないので `[記録]`**）
+      重みを取得して semantic 構成でも測った（e5-small。`pip install sentence-transformers`
+      → `SentenceTransformer('intfloat/multilingual-e5-small').save('/tmp/e5-small')`、約 3 分）。
+      **BM25 3/8 → e5-small 4/8。**戻ったのは `gp-report-takedown`（rank 11→5）だけ。
+      残る 4 問（`gp-upload-size-limit` / `gp-virus-scan` / `gp-cy-story-edit` /
+      `gp-cy-reader-ads`）は semantic でも圏外。**チャンクの病理ではない**（136〜981 字）。
+      語の重なりが 2〜4 語しかなく、**e5-small の言い換え理解の限界**。検索器のつまみでは届かない。
+      同時に測れた semantic 構成の全体像: answered **18/35**・direct 13/18・
+      paraphrase **5/17**・識別力 **+40.0pt**・MRR 0.392（下限 13/10/2 を全て上回る）。
+      **下限は動かしていない**——1 回の測定で下限を動かさない。同一集合の 2 回目が出たら
+      `SEMANTIC_MIN_*` と `MIN_PARAPHRASE` をまとめて引き上げること（C-982 の (a) もこれ）。
+      次に試す価値があるのは社長機の実回答ラン（qwen2.5:3b）。**質問文を変えて通すのは禁止**
+      （検索の改善ではなく採点の緩和になる）。内訳は OUTCOMES.md。
+      以下は起票時の記述:
+      **C-985: ゲーム制作質問の取りこぼしを潰す（C-984 の基準値が出てから）。**
       C-984 で 0 だった質問を診断（`measure_outcomes.py --diagnose`）し、
       チャンク境界・見出し・言い回しのどこで落ちたかを記録してから、
       **測定済み却下済みリスト以外の**手当てを 1 テーマずつ試す。
