@@ -1447,7 +1447,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       検証: `python -m pytest` 1144 passed / exit 0、`verify_gate_recall.py` PASSED。
       詳細は `docs/OUTCOMES.md`「2026-08-24: トークンに Issues/PR read が付いて…」節。
 
-- [~] 作業中 2026-08-24 16:13 UTC ループA **実 GitHub 取り込みの成果が、どの判定器にも載っていない。**
+- [記録] 実装 2026-08-24 ループA **実取り込みを測る第二判定器を作った（`check_ingestion_regression.py`。実 API で 482 文書 / 5 リポジトリ / 完全取得 5 を計測）。**（`product_metrics --compare` は **NO MOVEMENT / exit 1**。**正当化**: 見えていなかった数字が測れるようになった——1 日半の間、取り込みが全滅していたのに両判定器とも NO MOVEMENT を返し続けた穴を塞いだ。**`[x]` を名乗っていないのは、新設した判定器で自分を採点するのが自作自演だから**で、どちらの判定器が正かは E 節へ回した）
       （2026-08-24 ループA。上の受け入れで判明。判定器自身が「0 のままの数字を
       測れるようにしろ」と印字した件。）
       → 動かす数字: `github_documents_indexed` unmeasurable→482（実測値を bank）
@@ -1464,6 +1464,33 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       answerable の `corpus moved` と同じ扱いにして、head_sha が動いた回は
       増加を bank しないこと。さもないと「他所が文書を足した」を
       こちらの成果として計上してしまう。
+
+      **やったこと 2026-08-24 ループA**: `scripts/check_ingestion_regression.py`
+      を新設（`--save` / `--compare`、意味論は既存 2 判定器と同一。
+      **0=動いた / 1=動かない / 2=悪化（マージ禁止） / 3=判定不能**）。
+      測るのは製品の経路そのもの（`POST /v1/github/analyze`）で、
+      内部関数ではない。記録する数字:
+      - outcome: `github_documents_indexed`（総索引数）/
+        `github_repositories_indexed`（索引を持つリポジトリ数）
+      - guard: `github_complete_fetches`（**partial_fetch でも error でもない**
+        リポジトリ数。`index_rehydrated` は head 一致 skip なので完全扱い）。
+        **総数が増えていても完全取得が 1 本減れば exit 2** にした——
+        今回の障害はまさに「総数が 0 なのに誰も気づかない」形だった。
+      - フロア: 文書 **400**（実測 482 の下）/ 索引ありリポジトリ **5**。
+      - `corpus_heads` を併記し、**head が動いた回は増加を bank しない**
+        （減少は head が動いていても必ず報告する。権限喪失を黙らせないため）。
+      **判定不能を分けた**（exit 3）: token 未設定 / 転送失敗 / 全リポジトリ失敗。
+      環境の穴が「製品が壊れた」に見えるのを防ぐ。TLS 失敗時は
+      `SIDRA_CA_BUNDLE` を名指しせよと印字する（**検証は切らない**）。
+      **実測**: 482 文書（Fg 69 / creater-yard 116 / marketing 74 /
+      sidra-ai 113 / site 110）、完全取得 5、フロア全維持。`--compare` は
+      同一状態で NO MOVEMENT / exit 1 を返すことも確認。
+      テスト 18 本（`tests/test_ingestion_regression.py`、**網に触れない**——
+      analyze 応答を注入する）。特に固定したのは:
+      他人の push による増加は bank しない / 減少は head が動いても報告する /
+      完全取得が減れば総数が増えても exit 2 / フロア割れは baseline として
+      保存しない / token 無しは exit 3。
+      検証: `python -m pytest` **1162 passed** / exit 0、`verify_gate_recall.py` PASSED。
 
 - [記録] 修正 2026-08-23 ループA **認可 403 のメッセージが、届いた応答の「証拠」を読み上げるようになった。**（`--compare` NO MOVEMENT / exit 1。**正当化**: 計器が嘘をつくのを止めた——この一文が将来の 403 診断から「プロキシが遮断した」という偽の仮説を毎回作り直すのを潰した）
       （2026-08-23 D-970 検証で発見。上の項目から切り出し。前提条件は無い。）
@@ -1680,6 +1707,26 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       候補窓 10-80 / ruri-v3-30m / e5-base）から再提案しないこと。
       → 動かす数字: `design_source_cited`（BM25 構成で）**0→1**
       （guard: 既存フロア全維持・重み構成の rank 1 を落とさない）
+
+- [ ] **要判断: 網と token の要る数字は、どの判定器が「完了」を決めるのか。**
+      （2026-08-24 ループA。実取り込みの判定器を作った回に踏んだ。）
+      完了条件には例外が 1 つ書いてある——`→ 動かす数字:` が **`answerable_*`**
+      のときは `product_metrics.py` ではなく `check_answerable_regression.py`
+      が判定器になる。理由として書かれているのは「product_metrics は
+      オフライン数秒で走る計器なので 5 checkout の要る数字は載せられない。
+      **載っていない数字は `--compare` で動けない**」で、この理由は
+      **`github_documents_indexed` にもそのまま当てはまる**（token と網が要る）。
+      しかし例外の**書き方は `answerable_*` の列挙**なので、文面どおりなら
+      実取り込みは永遠に `product_metrics` が判定し、永遠に NO MOVEMENT になる。
+      実際 2026-08-24 は 2 回続けてそうなった（indexed 0→482 と、それを測る
+      判定器の新設）。どちらも実世界では動いているのに、判定は `[記録]` 止まり。
+      選択肢: (a) 例外を「その数字を載せている判定器が判定する」と一般化する。
+      (b) `answerable_*` に加えて `github_*` も名指しで列挙する。
+      (c) 現状維持（網の要る成果は `[記録]` 止まりでよいと決める）。
+      **ループの一存で決めない理由**: これは「何をもって完了とするか」の規則で、
+      しかも**自分が作った判定器で自分を採点してよいか**という話でもある。
+      緩めれば「判定器を作れば `[x]` が出る」という抜け道になり得る。
+      → 動かす数字: なし（判断のみ。完了条件の文面に触れる）
 
 - [ ] **要判断: 誤検知率の分母が commit メッセージで薄まっている。**
       2026-08-23 ループA が shallow clone の件を直す途中で実測した:

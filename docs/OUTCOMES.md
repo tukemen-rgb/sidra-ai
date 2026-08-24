@@ -752,3 +752,44 @@ email_role 系の検知（ラベルは接頭辞を書くと自リポジトリの
 環境プロキシを無視する設計なので、TLS を終端する網では CA を明示しないと
 届かない（**検証を切るのではなく CA を名指しする**のが設計者の意図で、
 `HttpxTransport` の docstring がそう書いている）。
+
+## 2026-08-24: 実取り込みを測る第二判定器（482 文書 / 完全取得 5）
+
+前節の受け入れで分かったのは「実世界で 0→482 が動いたのに、**その数字を
+載せている計器が無い**」という穴だった。`scripts/check_ingestion_regression.py`
+を新設して塞いだ。測るのは製品の経路そのもの（`POST /v1/github/analyze`）。
+
+| 種別 | 数字 | 実測 2026-08-24 |
+|---|---|---:|
+| outcome | `github_documents_indexed` | **482** |
+| outcome | `github_repositories_indexed` | **5** |
+| guard | `github_complete_fetches` | **5** |
+
+| repository | documents |
+|---|---:|
+| tukemen-rgb/creater-yard | 116 |
+| tukemen-rgb/sidra-ai | 113 |
+| tukemen-rgb/site | 110 |
+| tukemen-rgb/marketing | 74 |
+| tukemen-rgb/Fg | 69 |
+
+**設計で気をつけた 3 点**
+
+1. **他人の push を成果にしない。** head_sha を併記し、`--save` と `--compare`
+   の間で head が動いた回は増加を bank しない（answerable の `corpus moved`
+   と同じ扱い）。ただし**減少は head が動いていても必ず報告する**——権限喪失を
+   黙らせないため。
+2. **総数だけ見ない。** 完全取得（`partial_fetch` でも `error` でもない）
+   リポジトリ数を guard にした。**総数が増えていても完全取得が 1 本減れば
+   exit 2**。今回の障害は「総数 0 なのに誰も気づかない」形だった。
+3. **判定不能を分けた（exit 3）。** token 未設定・転送失敗・全リポジトリ失敗は
+   環境の穴であって製品の回帰ではない。TLS 失敗時は `SIDRA_CA_BUNDLE` を
+   名指しせよと印字する（**検証は切らない**）。
+
+フロアは文書 **400**（実測 482 の下）/ 索引ありリポジトリ **5**。
+テストは 18 本で、いずれも**網に触れない**（analyze 応答を注入する）。
+
+**判定**: `product_metrics --compare` は **NO MOVEMENT / exit 1**。
+新しい判定器の初回は「newly measured → 482」を返すが、**新設した判定器で
+自分を採点するのは自作自演**なので `[x]` は名乗っていない。
+「網と token の要る数字はどの判定器が完了を決めるのか」は E 節へ回した。

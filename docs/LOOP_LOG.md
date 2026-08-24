@@ -3012,3 +3012,19 @@
   索引数が動くので、head が動いた回は bank しない、という落とし穴も先に書いた）。
   検証: `python -m pytest` **1144 passed** / exit 0、`verify_gate_recall.py` PASSED。
 2026-08-24 16:13 UTC ループA started
+  **実取り込みの第二判定器を新設 → `[記録]`。**`scripts/check_ingestion_regression.py`
+  （`--save`/`--compare`、0=動いた/1=動かない/2=悪化/**3=判定不能**）。測るのは製品の経路
+  （`POST /v1/github/analyze`）。**実測: 482 文書 / 索引ありリポジトリ 5 / 完全取得 5**
+  （Fg 69・creater-yard 116・marketing 74・sidra-ai 113・site 110）、フロアは 400 と 5。
+  設計で効かせた 3 点: (1) head_sha を併記し**他人の push による増加は bank しない**
+  （**減少は head が動いても必ず報告**＝権限喪失を黙らせない）、(2) 完全取得数を guard にし
+  **総数が増えても 1 本 partial になれば exit 2**、(3) token 無し・転送失敗・全滅は
+  **exit 3（判定不能）**で環境の穴を回帰と混ぜない（TLS 失敗は `SIDRA_CA_BUNDLE` を
+  名指しせよと印字。検証は切らない）。テスト 18 本は**網に触れない**（応答を注入）。
+  判定: `product_metrics --compare` **NO MOVEMENT / exit 1** → `[記録]`。
+  **新判定器の初回は「newly measured → 482」だが、自分で作った計器で自分を採点するのは
+  自作自演なので `[x]` を名乗らない。**「網と token の要る数字はどの判定器が完了を決めるか」
+  は E 節に要判断として起票（例外の文面が `answerable_*` の列挙になっているため、
+  文面どおりだと実取り込みは永遠に NO MOVEMENT になる）。
+  検証: `python -m pytest` **1162 passed** / exit 0、`verify_gate_recall.py` PASSED。
+  `src/` は無変更なので gate 回帰・answerable 回帰は対象外。
