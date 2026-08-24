@@ -2990,3 +2990,7 @@
   よって C-986（BM25 構成の design_source_cited 0→1）は blocked のまま。
   ローカル checkout は新 HEAD へ更新した（次に測るときの分母は `11028c6df954`。
   コーパスが動いたので、次の測定では `corpus moved` 警告が出る想定）。
+
+2026-08-24 15:0x UTC 対話セッション — 社長がトークンへ Issues/PR read を追加（「対応した」）
+  BACKLOG の該当項目に前提充足を記録。次の毎時ループが受け入れ手順
+  （analyze×2 → head一致 skip）を実測する。

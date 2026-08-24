@@ -1409,6 +1409,9 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 
 - [ ] **トークンに Issues/PR の read 権限が無く、取り込みが毎回 partial_fetch で終わる。**
       （2026-08-23 D-970 検証で発見。上の項目から切り出し。）
+      **前提充足 2026-08-24 14:5x UTC: 社長がトークンに Issues: Read-only と
+      Pull requests: Read-only を追加した（対話セッションで報告あり。トークン値は
+      不変なので環境変数の再設定は不要）。取ってよい。**受け入れは下記の手順どおり。
       現行の fine-grained token（read-only・5 リポジトリ）は Contents/Metadata は
       読めるが、`repos/*/pulls` と `repos/*/issues` が 403
       "Resource not accessible by personal access token" になる。結果:
