@@ -2958,3 +2958,5 @@
   トークンのスコープはこのコンテナからは確認不能（proxy が api.github.com を遮断）。
   コードは前回検証時の木から無変更のため pytest は回していない。
 2026-08-24 01:06 UTC ループA started
+  **no-op キューが空**（4 周連続）。Board=12・site HEAD `2bbbb6afb14a` ともに不変。
+  コードも無変更なので pytest は回していない。
