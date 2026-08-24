@@ -1447,7 +1447,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       検証: `python -m pytest` 1144 passed / exit 0、`verify_gate_recall.py` PASSED。
       詳細は `docs/OUTCOMES.md`「2026-08-24: トークンに Issues/PR read が付いて…」節。
 
-- [ ] **実 GitHub 取り込みの成果が、どの判定器にも載っていない。**
+- [~] 作業中 2026-08-24 16:13 UTC ループA **実 GitHub 取り込みの成果が、どの判定器にも載っていない。**
       （2026-08-24 ループA。上の受け入れで判明。判定器自身が「0 のままの数字を
       測れるようにしろ」と印字した件。）
       → 動かす数字: `github_documents_indexed` unmeasurable→482（実測値を bank）
