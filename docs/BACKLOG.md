@@ -1407,7 +1407,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       未検証 3 点はこれで全て閉じた。消費リクエスト概数: analyze 2 回で約 90、
       診断 4、runner 6。認証済み残量は約 4900/5000。
 
-- [ ] **トークンに Issues/PR の read 権限が無く、取り込みが毎回 partial_fetch で終わる。**
+- [~] 作業中 2026-08-24 15:06 UTC ループA **トークンに Issues/PR の read 権限が無く、取り込みが毎回 partial_fetch で終わる。**
       （2026-08-23 D-970 検証で発見。上の項目から切り出し。）
       **前提充足 2026-08-24 14:5x UTC: 社長がトークンに Issues: Read-only と
       Pull requests: Read-only を追加した（対話セッションで報告あり。トークン値は
