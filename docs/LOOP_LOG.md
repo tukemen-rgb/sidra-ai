@@ -2957,3 +2957,4 @@
   **`docs/DESIGN.md` §9 に日本語行は入っていない**（`git ls-remote` で確認）。
   トークンのスコープはこのコンテナからは確認不能（proxy が api.github.com を遮断）。
   コードは前回検証時の木から無変更のため pytest は回していない。
+2026-08-24 01:06 UTC ループA started
