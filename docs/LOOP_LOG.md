@@ -2995,3 +2995,19 @@
   BACKLOG の該当項目に前提充足を記録。次の毎時ループが受け入れ手順
   （analyze×2 → head一致 skip）を実測する。
 2026-08-24 15:06 UTC ループA started
+  **トークンの受け入れを実測 → `[記録]`。実世界では indexed 0 → 482、判定器は NO MOVEMENT。**
+  社長がトークンへ Issues/PR read を足したので前提が充足し、16 周ぶりに項目を取れた。
+  一次資料: `repos/site/pulls` **200（15 件）**・`repos/site/issues` **200（2 件）**。
+  `POST /v1/github/analyze` 1 回目 → `changed: true` / indexed **110** / head `c4dd3e40…` /
+  **`skipped_reason` 空（partial_fetch が消えた）**、2・3 回目 → `changed: false` /
+  **`previous_sha` が head と一致** / `index_rehydrated` / `no new commits...` ＝
+  **head 一致 skip**（D-970 で警告した「indexed 0 由来」ではない）。
+  残り 4 本も同経路で creater-yard 116 / Fg 69 / marketing 74 / sidra-ai 113、**計 482 文書**。
+  **このコンテナで実 API に当てるには `SIDRA_CA_BUNDLE=/root/.ccr/ca-bundle.crt` が要る**
+  （製品 transport は `trust_env=False` で環境プロキシを無視する設計。検証は切らない）。
+  判定: `product_metrics --compare` **NO MOVEMENT / exit 1** → `[記録]`。
+  **正当化**: 実世界では動いたが**この数字を載せている計器が無い**（判定器はオフライン設計）。
+  数字を名乗らず、`github_documents_indexed` を `unmeasurable()` として登録し、
+  「実取り込みを第二判定器に載せる」を `→ 動かす数字:` つきで起票した（他人の push で
+  索引数が動くので、head が動いた回は bank しない、という落とし穴も先に書いた）。
+  検証: `python -m pytest` **1144 passed** / exit 0、`verify_gate_recall.py` PASSED。

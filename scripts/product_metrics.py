@@ -437,6 +437,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # Ingestion against the real API. `ingestion_automatic` below says the
+    # refresher runs; it says nothing about whether a run produces an index.
+    # Between 2026-08-23 and 2026-08-24 every repository came back
+    # `partial_fetch` with `indexed 0` because the token could not read pulls
+    # or issues, and no number here moved - the instrument had nothing to say
+    # about the one thing that was broken. Registering the name does not fix
+    # that, but it stops the gap being invisible: whoever measures it against
+    # the real API banks a value here.
+    #
+    # Not measured in this script on purpose. It needs a token and the
+    # network, and this instrument is the one that has to run offline in
+    # seconds; approximating it from a local corpus would report a number
+    # about a program nobody runs.
+    c.unmeasurable(
+        "github_documents_indexed",
+        "documents the real ingestion path indexed",
+        "needs SIDRA_GITHUB_TOKEN and network: POST /v1/github/analyze over "
+        "the five repositories (measured 482 on 2026-08-24; see "
+        "docs/OUTCOMES.md)",
+        kind=OUTCOME,
+    )
+
     c.unmeasurable(
         "excerpt_hits_marker",
         "cited excerpts that contain the answer",

@@ -1407,7 +1407,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       未検証 3 点はこれで全て閉じた。消費リクエスト概数: analyze 2 回で約 90、
       診断 4、runner 6。認証済み残量は約 4900/5000。
 
-- [~] 作業中 2026-08-24 15:06 UTC ループA **トークンに Issues/PR の read 権限が無く、取り込みが毎回 partial_fetch で終わる。**
+- [記録] 受け入れ完了 2026-08-24 ループA **トークンに Issues/PR read が付き、取り込みが全 5 リポジトリで実際に索引を作った（indexed 0 → 482、head 一致 skip も確認）。**（`product_metrics --compare` は **NO MOVEMENT / exit 1**。**正当化**: 実世界では動いたが**この数字を載せている計器が無い**——判定器はオフライン設計で実取り込みを測れない。数字を名乗らず、計器に載せる項目を下に起票した）
       （2026-08-23 D-970 検証で発見。上の項目から切り出し。）
       **前提充足 2026-08-24 14:5x UTC: 社長がトークンに Issues: Read-only と
       Pull requests: Read-only を追加した（対話セッションで報告あり。トークン値は
@@ -1428,7 +1428,42 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
         `changed: false` + `inference_skipped: true` になること
         （indexed 0 由来の `inference_skipped: true` と混同しないこと）。
       なお、この項目に混ざっていた**エラー文言の欠陥**は、トークン権限とは
-      無関係に直せるので下へ切り出した（この項目はトークン待ちのまま）。
+      無関係に直せるので下へ切り出した（そちらは 2026-08-23 に修正済み）。
+
+      **実測 2026-08-24 15:2x UTC ループA — 受け入れは通った。**
+      `repos/site/pulls` **200（15 件）** / `repos/site/issues` **200（2 件）**。
+      `POST /v1/github/analyze` 1 回目: `changed: true` / **indexed 110** /
+      quarantined 1 / `head_sha c4dd3e40…` / `previous_sha` 空 /
+      **`skipped_reason` 空（partial_fetch が消えた）**。
+      2 回目・3 回目: `inference_skipped: true`・`changed: false`・
+      **`previous_sha` が head と一致**・`skipped_reason: index_rehydrated`・
+      理由文 `no new commits since the last ingestion; model not invoked`。
+      **＝ head 一致による skip**（D-970 で警告した「indexed 0 由来」ではない）。
+      残り 4 リポジトリも同じ経路で **creater-yard 116 / Fg 69 / marketing 74 /
+      sidra-ai 113**、合計 **482 文書**・隔離 9・`skipped_reason` は全て空。
+      **このコンテナで再現するには `SIDRA_CA_BUNDLE=/root/.ccr/ca-bundle.crt`**
+      が要る（製品 transport は `trust_env=False` で環境プロキシを無視するので、
+      TLS を終端する網では CA を名指しする必要がある。検証は切らない）。
+      検証: `python -m pytest` 1144 passed / exit 0、`verify_gate_recall.py` PASSED。
+      詳細は `docs/OUTCOMES.md`「2026-08-24: トークンに Issues/PR read が付いて…」節。
+
+- [ ] **実 GitHub 取り込みの成果が、どの判定器にも載っていない。**
+      （2026-08-24 ループA。上の受け入れで判明。判定器自身が「0 のままの数字を
+      測れるようにしろ」と印字した件。）
+      → 動かす数字: `github_documents_indexed` unmeasurable→482（実測値を bank）
+      いま `product_metrics.py` が持つ取り込み系の数字は
+      `ingestion_automatic`（refresher が動くか）だけで、**実 API から何文書を
+      索引できたか**はどこにも無い。そのため 2026-08-24 の受け入れは
+      「実世界で 0→482」なのに `--compare` は NO MOVEMENT を返した。
+      **設計上の制約**: `product_metrics.py` はオフライン数秒で走る計器なので、
+      トークンと通信の要る実取り込みをそこで測ってはいけない（answerable と
+      同じ形）。したがって **第二判定器側**（`--save` / `--compare` を持つ
+      別スクリプト）に置き、`product_metrics.py` には `unmeasurable()` として
+      名前だけ登録するのが筋。
+      **落とし穴（先に書いておく）**: 索引数は**他人の push で勝手に増減する**。
+      answerable の `corpus moved` と同じ扱いにして、head_sha が動いた回は
+      増加を bank しないこと。さもないと「他所が文書を足した」を
+      こちらの成果として計上してしまう。
 
 - [記録] 修正 2026-08-23 ループA **認可 403 のメッセージが、届いた応答の「証拠」を読み上げるようになった。**（`--compare` NO MOVEMENT / exit 1。**正当化**: 計器が嘘をつくのを止めた——この一文が将来の 403 診断から「プロキシが遮断した」という偽の仮説を毎回作り直すのを潰した）
       （2026-08-23 D-970 検証で発見。上の項目から切り出し。前提条件は無い。）

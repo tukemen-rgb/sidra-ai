@@ -703,3 +703,52 @@ what-is-gameyard）。件数一致だけを見て「同じ」と書くと、違�
 [S2] SPEC.md を根拠に「明示されていない」と述べつつ候補を推論したもので、
 3B モデルの推論の質はこれから測る。この日の成功条件は最初から
 「不変条件を壊さず本物の回答を 1 件」であり、それは満たされた。
+
+## 2026-08-24: トークンに Issues/PR read が付いて、取り込みが実際に索引を作った
+
+社長がトークンへ **Issues: Read-only / Pull requests: Read-only** を追加した。
+その前後で何が変わったかを、製品の経路（`POST /v1/github/analyze`）で実測した。
+
+| | 前（2026-08-23 D-970） | 後（2026-08-24 15:2x） |
+|---|---|---|
+| `repos/*/pulls` | 403 not accessible | **200（site で 15 件）** |
+| `repos/*/issues` | 403 not accessible | **200（site で 2 件）** |
+| 取り込み結果 | `partial_fetch` / indexed **0** | 全 5 リポジトリで **indexed 482** |
+| head_sha の永続化 | されない（設計どおり） | **される** |
+| 2 回目の analyze | `inference_skipped` は出るが **indexed 0 由来** | **head 一致由来**（下記） |
+
+**リポジトリ別（1 回目、いずれも `skipped_reason` 空・`previous_sha` 空）**
+
+| repository | indexed | quarantined | head_sha |
+|---|---:|---:|---|
+| tukemen-rgb/site | 110 | 1 | `c4dd3e40dcf5` |
+| tukemen-rgb/creater-yard | 116 | 3 | `aa4288e3796c` |
+| tukemen-rgb/Fg | 69 | 0 | `ddef0a3f4092` |
+| tukemen-rgb/marketing | 74 | 1 | `caf112e32458` |
+| tukemen-rgb/sidra-ai | 113 | 5 | `c362e7563638` |
+
+**head 一致 skip の証拠**（site に対する 2 回目・3 回目）:
+
+```
+inference_skipped: true
+reason: "no new commits since the last ingestion; model not invoked"
+ingestion.changed: false / requires_inference: false / total_indexed: 110
+repo: changed=false, head_sha=c4dd3e40..., previous_sha=c4dd3e40..., skipped_reason="index_rehydrated"
+```
+
+`previous_sha` が head と一致していることが要点で、**D-970 で混同を警告した
+「indexed 0 由来の inference_skipped」ではない**。隔離の内訳は high_entropy 系と
+email_role 系の検知（ラベルは接頭辞を書くと自リポジトリの文書自身が隔離される
+ので、ここでは書かない）。
+
+**判定は動いていない。**`product_metrics.py --compare` は **NO MOVEMENT / exit 1**。
+理由は単純で、**この数字を載せている計器が無い**（同スクリプトは設計として
+オフライン数秒で走るので、トークンと通信の要る実取り込みは測れない）。
+実世界では 0→482 だが、**判定器の上では 0 のまま**なので `[記録]` にした。
+→ 「実 GitHub 取り込みの indexed を判定器に載せる」を BACKLOG に起票した。
+
+**再現手順**（このコンテナで実行する場合）: `SIDRA_CA_BUNDLE` に
+`/root/.ccr/ca-bundle.crt` を渡す。製品 transport は `trust_env=False` で
+環境プロキシを無視する設計なので、TLS を終端する網では CA を明示しないと
+届かない（**検証を切るのではなく CA を名指しする**のが設計者の意図で、
+`HttpxTransport` の docstring がそう書いている）。
