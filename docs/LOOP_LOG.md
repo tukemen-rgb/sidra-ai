@@ -2960,3 +2960,4 @@
 2026-08-24 01:06 UTC ループA started
   **no-op キューが空**（4 周連続）。Board=12・site HEAD `2bbbb6afb14a` ともに不変。
   コードも無変更なので pytest は回していない。
+2026-08-24 02:05 UTC ループA started
