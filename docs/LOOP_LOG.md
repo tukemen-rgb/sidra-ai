@@ -3028,3 +3028,4 @@
   文面どおりだと実取り込みは永遠に NO MOVEMENT になる）。
   検証: `python -m pytest` **1162 passed** / exit 0、`verify_gate_recall.py` PASSED。
   `src/` は無変更なので gate 回帰・answerable 回帰は対象外。
+2026-08-24 17:07 UTC ループA started
