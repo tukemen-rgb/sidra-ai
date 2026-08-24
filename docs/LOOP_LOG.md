@@ -2983,3 +2983,10 @@
 2026-08-24 13:12 UTC ループA started
   **no-op キューが空**（14 周連続）。Board=12・site HEAD `2bbbb6afb14a`・コード、いずれも不変。
 2026-08-24 14:07 UTC ループA started
+  **no-op キューが空**（15 周連続）。Board=12 で増分ゼロ、コードも不変。
+  **site が動いた**: HEAD `2bbbb6afb14a` → **`11028c6df954`**（「X を 1 日 4 投稿体制にする」）。
+  ただし差分は `docs/x-plan.md` / `docs/outreach/x-posted.json` / `scripts/x-posts.mjs` の 3 件で、
+  **`docs/DESIGN.md` は 1 バイトも動いていない**（依頼した §9 の日本語アンカーは未着）。
+  よって C-986（BM25 構成の design_source_cited 0→1）は blocked のまま。
+  ローカル checkout は新 HEAD へ更新した（次に測るときの分母は `11028c6df954`。
+  コーパスが動いたので、次の測定では `corpus moved` 警告が出る想定）。
