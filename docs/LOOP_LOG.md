@@ -3130,3 +3130,4 @@
   supabase/agent-skills 2 を追加（全 MIT・全スクリプト外部通信スキャン済み）。
   除外: deploy 系（実通信 + 本番 deploy 禁止方針）、EAS サービス系、作者私物、
   組み込み /code-review と衝突する code-review。詳細 docs/SKILLS.md。
+2026-08-25 23:08 UTC ループA started
