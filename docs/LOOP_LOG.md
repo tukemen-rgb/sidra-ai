@@ -3102,3 +3102,10 @@
   E 節 3 件を裁定（判定器の一般化は (b)+「判定器新設 run は bank 不可」条件、
   誤検知分母は (c) 2 本立て・混合 13% 不変、常駐 4 本の件は事象消滅で解消）。
   C-987（ファイルのみ flag rate 計器）と C-988（実コーパスで game_production）を起票。
+
+2026-08-25 22:0x UTC 対話セッション — 社長指示で Claude Skills 15 個を導入
+  anthropics/skills（公式公開リポジトリ）から docx/pptx/xlsx/pdf/frontend-design/
+  web-artifacts-builder/theme-factory/algorithmic-art/slack-gif-creator/webapp-testing/
+  mcp-builder/skill-creator/doc-coauthoring/internal-comms/discernment-nudge を
+  .claude/skills/ へ改変なしコピー（各 LICENSE.txt 同梱）。スクリプト全走査で
+  実行時の外部通信ゼロを確認。詳細と見送り理由は docs/SKILLS.md。
