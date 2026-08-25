@@ -9,7 +9,13 @@ moved. When the permission was added and the five repositories indexed 482
 documents, ``--compare`` still printed NO MOVEMENT - the instrument had
 nothing to say about the biggest change the product had seen in a week.
 
-This script holds that number, on the same terms as the answerable judge:
+It also asks the creator questions *of the index it just built*. The offline
+set is scored over five checkouts; this one is scored over what ingestion
+actually fetched, Issue and PR bodies included. Those are two different
+corpora, so "can SIDRA answer a creator" has two different answers and only
+one of them describes the running product.
+
+This script holds those numbers, on the same terms as the answerable judge:
 
 * ``--save`` writes a snapshot, ``--compare`` reports movement against one;
 * exit 0 moved, 1 nothing moved, 2 regressed (do not merge), and
@@ -28,6 +34,11 @@ increase - otherwise "someone else pushed a file" becomes our progress.
 repository silently degrades to a partial fetch; the count of repositories
 that fetched completely is a guard, and losing one is a regression even if
 the document total happens to rise.
+
+**A question with no evidence in the index is not a retrieval failure.** The
+creator rate is counted over the questions whose answer was actually fetched;
+the ones that were not are named separately. Blending them would report an
+ingestion gap as a search problem and send the work to the wrong place.
 
 Usage::
 
@@ -50,6 +61,7 @@ from typing import Callable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from sidra_ai.config.settings import Settings  # noqa: E402
+from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS  # noqa: E402
 
 EXIT_MOVED = 0
 EXIT_NO_MOVEMENT = 1
@@ -64,32 +76,117 @@ EXIT_CANNOT_JUDGE = 3
 MIN_DOCUMENTS_INDEXED = 400
 MIN_REPOSITORIES_INDEXED = 5
 
-_OUTCOME_KEYS = ("github_documents_indexed", "github_repositories_indexed")
-_GUARD_KEYS = ("github_complete_fetches",)
+#: Retrieval depth, identical to ``measure_outcomes.py``. The two numbers are
+#: meant to be read side by side - one over five checkouts, one over the real
+#: index - and a different k would make the comparison meaningless.
+TOP_K = 5
+
+#: The creator questions: "will my Unity build run", "how big can the zip be",
+#: "can I edit what I posted". They are asked here as well as offline because
+#: the two corpora are not the same corpus. The offline one holds the files in
+#: five checkouts; this one also holds Issue and PR bodies, which is where a
+#: creator's actual phrasing tends to live - somebody already asked, in their
+#: own words, and somebody already answered.
+_GAME_PRODUCTION = tuple(
+    question
+    for question in OUTCOME_QUESTIONS
+    if question.game_production and not question.self_grounded
+)
+
+_OUTCOME_KEYS = (
+    "github_documents_indexed",
+    "github_repositories_indexed",
+    "real_corpus_gp_answered",
+)
+_GUARD_KEYS = ("github_complete_fetches", "real_corpus_gp_grounded")
 
 
-def _ingest_through_the_product(repositories: list[str]) -> dict:
-    """Run the real ingestion path - the endpoint an operator would call.
+def _run_through_the_product(repositories: list[str]) -> tuple[dict, dict]:
+    """Ingest and then ask, in one process, through the program that ships.
 
     Measuring through ``POST /v1/github/analyze`` rather than calling the
-    ingestion internals keeps this judging the program that ships: repository
-    validation, the security gate and the store all sit in the path.
+    ingestion internals keeps this judging the real path: repository
+    validation, the security gate and the store all sit in it. The questions
+    are then put to *that* service's retriever - the same object the endpoint
+    just filled - because rebuilding an index to score it is how a measurement
+    quietly starts describing a program nobody runs.
     """
 
     from fastapi.testclient import TestClient
 
     from sidra_ai.api.app import create_app
+    from sidra_ai.api.service import get_service
 
     with TestClient(create_app()) as client:
         response = client.post(
             "/v1/github/analyze", json={"repositories": repositories}
         )
-    if response.status_code != 200:
-        raise CannotJudge(
-            f"the analyze endpoint answered {response.status_code}, so no "
-            "ingestion happened"
+        if response.status_code != 200:
+            raise CannotJudge(
+                f"the analyze endpoint answered {response.status_code}, so no "
+                "ingestion happened"
+            )
+        ingestion = response.json()["ingestion"]
+        measured = _ask_the_real_index(get_service())
+    return ingestion, measured
+
+
+def _marker_in_the_real_index(service, marker: str, repository: str) -> bool:
+    """Is the evidence in the index at all, before retrieval is involved?
+
+    The offline judge checks this against the checkout. Here it has to be
+    checked against what was actually fetched: a question can miss because
+    retrieval ranked it below five, or because the document holding its answer
+    was never indexed - a filtered path, a gate quarantine, a fetch that
+    stopped early. Those call for opposite work and must not share a number.
+    """
+
+    for document in service.store.documents():
+        if document.provenance.repository != repository:
+            continue
+        if marker in document.content:
+            return True
+    return False
+
+
+def _ask_the_real_index(service) -> dict:
+    """Score the creator questions over whatever the ingestion just indexed.
+
+    Same rule as ``measure_outcomes.py``, deliberately: top-5, and the chunk
+    carrying the marker has to come from the repository the question is about,
+    so a copy of the text somewhere else cannot answer it.
+    """
+
+    answered, grounded = 0, 0
+    missed: list[str] = []
+    ungrounded: list[str] = []
+    for question in _GAME_PRODUCTION:
+        if not _marker_in_the_real_index(
+            service, question.answer_marker, question.repository
+        ):
+            ungrounded.append(question.name)
+            continue
+        grounded += 1
+        results = service.retriever.search(question.question, top_k=TOP_K)
+        hit = any(
+            result.chunk.provenance.repository == question.repository
+            and question.answer_marker in result.chunk.content
+            for result in results
         )
-    return response.json()["ingestion"]
+        if hit:
+            answered += 1
+        else:
+            missed.append(question.name)
+    return {
+        "real_corpus_gp_answered": answered,
+        "real_corpus_gp_grounded": grounded,
+        "real_corpus_gp_asked": len(_GAME_PRODUCTION),
+        # Names only. The corpus is other people's DATA and a report that
+        # quoted it would be republishing text this program only ever holds
+        # in order to search it.
+        "real_corpus_gp_missed": sorted(missed),
+        "real_corpus_gp_ungrounded": sorted(ungrounded),
+    }
 
 
 class CannotJudge(Exception):
@@ -175,11 +272,27 @@ def _compare(before: dict, now: dict) -> int:
             "heads if the change under test is supposed to move this number."
         )
 
-    bankable = same_scope and not drifted
+    asked_before = before.get("real_corpus_gp_asked")
+    asked_now = now.get("real_corpus_gp_asked")
+    question_set_changed = asked_before not in (None, asked_now)
+    if question_set_changed:
+        print(
+            f"question set changed between --save and --compare "
+            f"({asked_before} -> {asked_now} creator questions): a count over a "
+            "different denominator is not the same number, so increases are "
+            "NOT banked this run."
+        )
+
+    bankable = same_scope and not drifted and not question_set_changed
 
     moved: list[str] = []
     broken: list[str] = []
     for key in _OUTCOME_KEYS:
+        if key not in now:
+            # A run that could not measure this number says nothing about it.
+            # Reporting it as a fall to zero is the failure mode this whole
+            # script exists to avoid, one level up.
+            continue
         old, new_value = before.get(key), now[key]
         if old is None:
             moved.append(f"{key} (newly measured) -> {new_value}")
@@ -192,6 +305,8 @@ def _compare(before: dict, now: dict) -> int:
             # where to look. Silence here is how a lost permission would ship.
             broken.append(f"{key} {old} -> {new_value}")
     for key in _GUARD_KEYS:
+        if key not in now:
+            continue
         old, new_value = before.get(key), now[key]
         if old is None:
             continue
@@ -223,10 +338,38 @@ def _report(snapshot: dict) -> None:
         head = snapshot["corpus_heads"].get(repository, "")
         print(f"  {repository:<28} {count:>5}  {head}")
 
+    if "real_corpus_gp_answered" not in snapshot:
+        return
+    asked = snapshot["real_corpus_gp_asked"]
+    grounded = snapshot["real_corpus_gp_grounded"]
+    answered = snapshot["real_corpus_gp_answered"]
+    print()
+    print("creator questions, asked of the index that was just built:")
+    print(f"  asked            : {asked}")
+    print(
+        f"  evidence indexed : {grounded}/{asked}"
+        + (
+            "  (not indexed: " + ", ".join(snapshot["real_corpus_gp_ungrounded"]) + ")"
+            if snapshot.get("real_corpus_gp_ungrounded")
+            else ""
+        )
+    )
+    rate = f" = {answered / grounded:.1%}" if grounded else ""
+    print(f"  answered         : {answered}/{grounded}{rate}")
+    if snapshot.get("real_corpus_gp_missed"):
+        print("  missed           : " + ", ".join(snapshot["real_corpus_gp_missed"]))
+    print(
+        "  Denominator is the questions whose evidence is *in this index*, not "
+        "the questions asked: a question whose document was never fetched is "
+        "not a retrieval failure and must not be scored as one. Names only "
+        "here - the corpus is other people's DATA."
+    )
+
 
 def main(
     argv: list[str] | None = None,
     ingest: Callable[[list[str]], dict] | None = None,
+    measure: Callable[[], dict] | None = None,
 ) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
 
@@ -263,9 +406,17 @@ def main(
         return EXIT_CANNOT_JUDGE
 
     repositories = list(settings.allowed_repositories)
-    ingest = ingest or _ingest_through_the_product
     try:
-        ingestion = ingest(repositories)
+        if ingest is None:
+            # The default path ingests and asks in one process, so the
+            # questions are put to the index that was just filled.
+            ingestion, measured = _run_through_the_product(repositories)
+        else:
+            # Staged ingestion. The questions are staged too or not asked at
+            # all: scoring a real index against a fabricated fetch would
+            # report a number belonging to neither.
+            ingestion = ingest(repositories)
+            measured = measure() if measure is not None else {}
     except CannotJudge as exc:
         print(f"CANNOT JUDGE: {exc}", file=sys.stderr)
         return EXIT_CANNOT_JUDGE
@@ -279,6 +430,7 @@ def main(
         return EXIT_CANNOT_JUDGE
 
     snapshot = _snapshot(ingestion)
+    snapshot.update(measured)
     _report(snapshot)
 
     errors = [

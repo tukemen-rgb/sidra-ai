@@ -293,3 +293,219 @@ def test_the_floor_failure_is_reported_before_any_comparison(
     assert verdict == judge.EXIT_REGRESSED
     assert "BELOW FLOOR" in capsys.readouterr().err
     assert not path.exists(), "a below-floor run was written as a baseline"
+
+
+# ------------------------------------------- creator questions, real corpus
+
+
+class _Chunk:
+    def __init__(self, content, repository):
+        self.content = content
+        self.provenance = type("P", (), {"repository": repository})()
+
+
+class _Result:
+    def __init__(self, chunk):
+        self.chunk = chunk
+
+
+class _Doc:
+    def __init__(self, content, repository):
+        self.content = content
+        self.provenance = type("P", (), {"repository": repository})()
+
+
+class _Service:
+    """A store and a retriever, staged - the two things the scorer touches."""
+
+    def __init__(self, documents, ranked):
+        self.store = type("S", (), {"documents": lambda _self: documents})()
+        self.retriever = type(
+            "R",
+            (),
+            {"search": lambda _self, query, top_k=5: ranked[:top_k]},
+        )()
+
+
+def _first_question(judge):
+    return judge._GAME_PRODUCTION[0]
+
+
+def test_the_creator_questions_are_the_ones_tallied_offline(judge):
+    """Same set, so the two corpora produce comparable numbers.
+
+    If this drifts, "the real corpus answers more" could mean nothing but
+    "the real corpus was asked fewer questions".
+    """
+
+    from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS
+
+    expected = {q.name for q in OUTCOME_QUESTIONS if q.game_production}
+    assert {q.name for q in judge._GAME_PRODUCTION} == expected
+    assert judge.TOP_K == 5
+
+
+def test_a_marker_only_counts_from_its_own_repository(judge):
+    """A copy of the answer elsewhere is not an answer.
+
+    Without this the corpus grading itself would score rank 1 on every
+    question whose text it also contains - the failure the offline judge
+    already had once.
+    """
+
+    question = _first_question(judge)
+    documents = [_Doc(question.answer_marker, question.repository)]
+    elsewhere = "tukemen-rgb/marketing"
+    assert elsewhere != question.repository
+    service = _Service(
+        documents, [_Result(_Chunk(question.answer_marker, elsewhere))]
+    )
+
+    measured = judge._ask_the_real_index(service)
+
+    assert measured["real_corpus_gp_answered"] == 0
+    assert question.name in measured["real_corpus_gp_missed"]
+
+
+def test_a_hit_in_the_right_repository_counts(judge):
+    question = _first_question(judge)
+    documents = [_Doc(question.answer_marker, question.repository)]
+    service = _Service(
+        documents,
+        [_Result(_Chunk(question.answer_marker, question.repository))],
+    )
+
+    measured = judge._ask_the_real_index(service)
+
+    assert measured["real_corpus_gp_answered"] == 1
+    assert question.name not in measured["real_corpus_gp_missed"]
+
+
+def test_evidence_that_was_never_indexed_is_not_scored_as_a_miss(judge):
+    """The distinction the denominator exists for.
+
+    A document that was never fetched and a document that ranked eleventh are
+    different failures - one is an ingestion gap, the other is retrieval - and
+    a single "answered/asked" rate hides which one you have.
+    """
+
+    service = _Service([], [])
+
+    measured = judge._ask_the_real_index(service)
+
+    assert measured["real_corpus_gp_grounded"] == 0
+    assert measured["real_corpus_gp_missed"] == []
+    assert len(measured["real_corpus_gp_ungrounded"]) == measured[
+        "real_corpus_gp_asked"
+    ]
+
+
+def test_the_report_never_prints_the_corpus(judge, capsys):
+    """Names and counts. The markers are other people's text."""
+
+    question = _first_question(judge)
+    snapshot = judge._snapshot(_ingestion(FIVE))
+    snapshot.update(
+        judge._ask_the_real_index(
+            _Service([_Doc(question.answer_marker, question.repository)], [])
+        )
+    )
+
+    judge._report(snapshot)
+
+    out = capsys.readouterr().out
+    assert question.name in out
+    assert question.answer_marker not in out
+    assert question.question not in out
+
+
+def test_a_changed_question_set_does_not_bank(judge, capsys):
+    """Same rule as a moved head: a new denominator is a new number."""
+
+    before = judge._snapshot(_ingestion(FIVE))
+    before.update(
+        {
+            "real_corpus_gp_answered": 3,
+            "real_corpus_gp_grounded": 8,
+            "real_corpus_gp_asked": 8,
+        }
+    )
+    now = judge._snapshot(_ingestion(FIVE))
+    now.update(
+        {
+            "real_corpus_gp_answered": 5,
+            "real_corpus_gp_grounded": 12,
+            "real_corpus_gp_asked": 12,
+        }
+    )
+
+    verdict = judge._compare(before, now)
+
+    assert verdict == judge.EXIT_NO_MOVEMENT
+    assert "question set changed" in capsys.readouterr().out
+
+
+def test_a_fall_in_answers_on_the_same_questions_regresses(judge):
+    before = judge._snapshot(_ingestion(FIVE))
+    before.update({"real_corpus_gp_answered": 3, "real_corpus_gp_asked": 8})
+    now = judge._snapshot(_ingestion(FIVE))
+    now.update({"real_corpus_gp_answered": 2, "real_corpus_gp_asked": 8})
+
+    assert judge._compare(before, now) == judge.EXIT_REGRESSED
+
+
+def test_losing_indexed_evidence_regresses_even_if_answers_hold(judge):
+    """The guard. Documents can leave the index without the rate noticing."""
+
+    before = judge._snapshot(_ingestion(FIVE))
+    before.update({"real_corpus_gp_answered": 3, "real_corpus_gp_grounded": 8})
+    now = judge._snapshot(_ingestion(FIVE))
+    now.update({"real_corpus_gp_answered": 3, "real_corpus_gp_grounded": 6})
+
+    assert judge._compare(before, now) == judge.EXIT_REGRESSED
+
+
+def test_a_run_that_could_not_ask_says_nothing_about_the_answers(judge):
+    """A staged ingestion with no staged questions must not report a fall.
+
+    ``now`` has no creator numbers at all. Reading that as 3 -> 0 would be the
+    same lie this script was written to stop one level up.
+    """
+
+    before = judge._snapshot(_ingestion(FIVE))
+    before.update({"real_corpus_gp_answered": 3, "real_corpus_gp_grounded": 8})
+
+    assert judge._compare(before, judge._snapshot(_ingestion(FIVE))) == (
+        judge.EXIT_NO_MOVEMENT
+    )
+
+
+def test_staged_ingestion_asks_no_questions_by_default(judge, monkeypatch, capsys):
+    monkeypatch.setenv("SIDRA_GITHUB_TOKEN", "ghp_" + "0" * 36)
+    names = list(judge.Settings.from_env().allowed_repositories)
+    staged = _ingestion([_repo(n, 100, "0123456789ab") for n in names])
+
+    assert judge.main([], ingest=lambda _r: staged) == judge.EXIT_NO_MOVEMENT
+    assert "creator questions" not in capsys.readouterr().out
+
+
+def test_a_staged_measurement_reaches_the_snapshot(judge, monkeypatch, tmp_path):
+    monkeypatch.setenv("SIDRA_GITHUB_TOKEN", "ghp_" + "0" * 36)
+    names = list(judge.Settings.from_env().allowed_repositories)
+    staged = _ingestion([_repo(n, 100, "0123456789ab") for n in names])
+    path = tmp_path / "ing.json"
+
+    verdict = judge.main(
+        ["--save", str(path)],
+        ingest=lambda _r: staged,
+        measure=lambda: {
+            "real_corpus_gp_answered": 3,
+            "real_corpus_gp_grounded": 8,
+            "real_corpus_gp_asked": 8,
+            "real_corpus_gp_missed": [],
+            "real_corpus_gp_ungrounded": [],
+        },
+    )
+
+    assert verdict == judge.EXIT_MOVED
+    assert json.loads(path.read_text(encoding="utf-8"))["real_corpus_gp_answered"] == 3

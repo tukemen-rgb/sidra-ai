@@ -3131,3 +3131,10 @@
   除外: deploy 系（実通信 + 本番 deploy 禁止方針）、EAS サービス系、作者私物、
   組み込み /code-review と衝突する code-review。詳細 docs/SKILLS.md。
 2026-08-25 23:08 UTC ループA started
+2026-08-25 23:3x UTC ループA — C-988 完了（実コーパスの creator 質問）
+  実取り込み判定器が取り込み直後の索引に creator 8 問を投げる。483 文書 /
+  5 リポジトリ完全取得 / answered 3/8 = 37.5%（unmeasurable→基準値、exit 0）。
+  Issues/PR を入れても**オフラインと 1 問も違わない**（OK 3 問・MISS 5 問が同一）。
+  evidence indexed 8/8 なので取り込みの穴ではなく検索の問題。MISS 5 問中 4 問は
+  paraphrase 段で、C-985/C-986 の結論と同じ場所。
+  pytest 全通過 / verify_gate_recall MISS 0 / オフライン判定器 NO MOVEMENT。

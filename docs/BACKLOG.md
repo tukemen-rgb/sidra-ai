@@ -356,7 +356,27 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: gate_flag_rate_files unmeasurable→13.8%(51/370) 基準値
       （guard: 混合上限 13% 不変・blended 8.9%・verify_gate_recall MISS 0）
 
-- [~] 作業中 2026-08-25 23:10 UTC ループA **C-988: 実コーパス（Issues/PR 込み 482 文書）で game_production を測る。**
+- [x] 完了 2026-08-25 ループA (`real_corpus_gp_answered` unmeasurable→**3/8 = 37.5%**、第二判定器 exit 0) **C-988: 実コーパスでも creator の質問は 3/8 だった。Issues/PR は 1 問も増やさなかった。**
+      実取り込みの判定器が、**取り込んだ直後の索引そのもの**に creator 8 問を
+      投げるようになった（同一プロセス・同一 service、top_k=5・出典リポジトリ
+      一致まで `measure_outcomes.py` と同じ規則）。実測 483 文書 / 5 リポジトリ
+      完全取得: **answered 3/8 = 37.5%**。
+      **C-985 の仮説（答えは Issue/PR 側の言い回しに在るかもしれない）は
+      支持されなかった。** オフライン（5 checkout のみ）と実コーパス
+      （Issues/PR 込み）で、正解した 3 問も外した 5 問も**完全に同一**:
+      OK = gp-unity-webgl-compression / gp-godot-threads / gp-rpgmaker-works、
+      MISS = gp-upload-size-limit / gp-virus-scan / gp-report-takedown /
+      gp-cy-story-edit / gp-cy-reader-ads。
+      しかも **evidence indexed 8/8**——根拠文書は 8 問とも実索引の中にある。
+      つまり取り込みの穴ではなく、**5 位以内に上げられない検索の問題**で、
+      コーパスを増やしても動かない。MISS 5 問のうち 4 問は paraphrase 段。
+      分母は「根拠が実索引に在る問」に取った（取得されなかった文書は検索の
+      失敗ではない）。question set が動いた回・head が動いた回は bank しない。
+      → 動かす数字: real corpus の game_production answered unmeasurable→3/8 = 37.5%
+      （guard: 既存フロア全維持・documents 483 / complete fetches 5・
+      オフライン判定器 NO MOVEMENT・取得内容は DATA 扱い不変で報告は名前と数のみ）
+
+      以下は起票時の記述:
       オフライン判定器のコーパスは 5 checkout の文書のみで、**実運用の索引に
       入った Issues/PR の本文が含まれない**。C-985 で「文書側に語彙が無い」と
       診断された取りこぼしの答えが、Issue/PR 側の言い回しには存在する可能性が
