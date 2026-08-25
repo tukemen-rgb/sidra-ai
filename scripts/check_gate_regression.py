@@ -47,6 +47,32 @@ REPOSITORY = "tukemen-rgb/sidra-ai"
 #: points at once, not by fractions.
 MAX_FLAG_RATE = 0.13
 
+#: The same rate over files alone, without the commit messages.
+#:
+#: The blend above is what the real index holds, so it stays the headline and
+#: its ceiling is untouched. But the blend answers a different question than
+#: most readers think it does: commit messages are uniformly clean (0 of 200,
+#: measured twice), so they halve the rate purely by being numerous. Someone
+#: asking "what share of this repository's *documents* can SIDRA not index"
+#: was being handed the diluted number.
+#:
+#: Observations, both over this repository: **18.0% (44/244) on 2026-08-23**
+#: and **13.8% (51/370) on 2026-08-25**. The rate fell without the gate
+#: changing - fifteen vendored skill documents joined the denominator. That is
+#: the hazard here: the file population moves on its own, in both directions,
+#: so a ceiling pinned just above today's reading would fail the build the
+#: next time clean documents are removed rather than added.
+#:
+#: 20% therefore sits above the higher observation with a little room. It is
+#: looser than the blend's ceiling on purpose; what it catches is the same
+#: thing - a gate that suddenly refuses several points more than it did.
+MAX_FILE_FLAG_RATE = 0.20
+
+#: Labels for the two populations the rate is measured over. The gate treats
+#: them identically; only the report separates them.
+FILE = "file"
+COMMIT = "commit"
+
 TEXT_SUFFIXES = {".md", ".txt", ".rst", ".py", ".toml", ".yml", ".yaml"}
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", ".pytest_cache", ".sidra"}
 
@@ -115,6 +141,24 @@ def _commit_messages(root: Path, limit: int = COMMIT_WINDOW):
             yield f"commit/{sha.strip()[:12]}", message
 
 
+def _ceiling_failures(rate: float, file_rate: float) -> list[str]:
+    """Which ceilings this run broke, in words, or an empty list.
+
+    Both are checked. The blend can stay healthy while the files alone get
+    noisier - the commit messages dilute it - so a single check would let
+    exactly the regression this split was added for pass unnoticed.
+    """
+
+    failures = []
+    if rate > MAX_FLAG_RATE:
+        failures.append(f"blended {rate:.1%} above the {MAX_FLAG_RATE:.1%} ceiling")
+    if file_rate > MAX_FILE_FLAG_RATE:
+        failures.append(
+            f"files {file_rate:.1%} above the {MAX_FILE_FLAG_RATE:.1%} ceiling"
+        )
+    return failures
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
 
@@ -138,14 +182,22 @@ def main() -> int:
     decisions: Counter[str] = Counter()
     detectors: Counter[str] = Counter()
     flagged: list[tuple[str, str]] = []
+    # Counted apart so the two populations can be reported apart. They are
+    # measured in one pass over one gate: the split is in the reporting, never
+    # in the policy.
+    refused_by_kind: Counter[str] = Counter()
+    total_by_kind: Counter[str] = Counter()
 
-    sources = list(_documents(root)) + list(_commit_messages(root))
-    for ref, content in sources:
+    sources = [(FILE, ref, text) for ref, text in _documents(root)]
+    sources += [(COMMIT, ref, text) for ref, text in _commit_messages(root)]
+    for kind, ref, content in sources:
         result = gate.inspect(content, source="github", repository=REPOSITORY)
         decisions[result.decision.value] += 1
+        total_by_kind[kind] += 1
         for finding in result.findings:
             detectors[finding.detector] += 1
         if result.decision is not Decision.ALLOW:
+            refused_by_kind[kind] += 1
             worst = max(
                 result.findings,
                 key=lambda f: {"critical": 3, "high": 2, "medium": 1, "low": 0}[
@@ -162,25 +214,52 @@ def main() -> int:
 
     refused = decisions["quarantine"] + decisions["block"]
     rate = refused / total
+    files_total = total_by_kind[FILE]
+    files_refused = refused_by_kind[FILE]
+    file_rate = files_refused / files_total if files_total else 0.0
+    commits_total = total_by_kind[COMMIT]
+    commits_refused = refused_by_kind[COMMIT]
 
     print(f"documents      : {total}")
     print(f"allowed        : {decisions['allow']}")
     print(f"quarantined    : {decisions['quarantine']}")
     print(f"blocked        : {decisions['block']}")
     print(f"flag rate      : {rate:.1%}  (ceiling {MAX_FLAG_RATE:.1%})")
+    print()
+    # The numerator and denominator of each rate, written out, because the
+    # blend is the one number people quote and it is not the one most of them
+    # mean. Percentages alone hide that the populations differ in size and in
+    # kind.
+    print("the same refusals, split by what they are counted over:")
+    print(
+        f"  files          : {files_refused}/{files_total} = {file_rate:.1%}"
+        f"  (ceiling {MAX_FILE_FLAG_RATE:.1%})"
+    )
+    print(
+        f"  commit messages: {commits_refused}/{commits_total} = "
+        f"{(commits_refused / commits_total if commits_total else 0.0):.1%}"
+        f"  (no ceiling of its own)"
+    )
+    print(
+        f"  blended        : {refused}/{total} = {rate:.1%}"
+        f"  (ceiling {MAX_FLAG_RATE:.1%})"
+    )
+    print(
+        "  The blend is what the real index holds and stays the headline. It "
+        "reads lower than the files alone because the commit messages are "
+        "clean and numerous, not because fewer documents are refused: the "
+        "numerator is the same refusals in all three lines."
+    )
     print("\ntop detectors:")
     for name, count in detectors.most_common(8):
         print(f"  {name:28s} {count}")
 
-    if rate > MAX_FLAG_RATE:
-        print(
-            f"\nFAILED: the gate now refuses {rate:.1%} of this repository, above "
-            f"the {MAX_FLAG_RATE:.1%} ceiling.",
-            file=sys.stderr,
-        )
+    exceeded = _ceiling_failures(rate, file_rate)
+    if exceeded:
+        print("\nFAILED: " + "; ".join(exceeded) + ".", file=sys.stderr)
         print(
             "A gate that cries wolf gets ignored, and an ignored gate is not a "
-            "gate. Either fix the false positives, or raise MAX_FLAG_RATE in "
+            "gate. Either fix the false positives, or raise the ceiling in "
             "this file with a reason in the commit message.",
             file=sys.stderr,
         )
@@ -189,7 +268,10 @@ def main() -> int:
             print(f"  {detector:26s} {ref}", file=sys.stderr)
         return 1
 
-    print(f"\nOK: {rate:.1%} is within the {MAX_FLAG_RATE:.1%} ceiling.")
+    print(
+        f"\nOK: blended {rate:.1%} within {MAX_FLAG_RATE:.1%}, "
+        f"files {file_rate:.1%} within {MAX_FILE_FLAG_RATE:.1%}."
+    )
     return 0
 
 

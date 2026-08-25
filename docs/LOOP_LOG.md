@@ -3110,3 +3110,12 @@
   .claude/skills/ へ改変なしコピー（各 LICENSE.txt 同梱）。スクリプト全走査で
   実行時の外部通信ゼロを確認。詳細と見送り理由は docs/SKILLS.md。
 2026-08-25 22:09 UTC ループA started
+2026-08-25 22:21 UTC ループA — C-987 記録（誤検知率のファイルのみ計器）
+  check_gate_regression.py が同じ 51 件の拒否を 3 分母で並記: files 51/370 =
+  13.8%（新上限 20%）/ commit messages 0/200 = 0.0% / blended 51/570 = 8.9%
+  （上限 13% 不変）。上限は今日の実測ではなく高いほうの観測 18.0% の上に置いた
+  ——ファイル母集団は清潔な文書の増減で両方向に動くため。
+  pytest 全通過 / verify_gate_recall MISS 0 / check_gate_regression exit 0 /
+  product_metrics --compare exit 1 NO MOVEMENT → [記録]。
+  計器が 1 つ増えただけで製品は良くなっていない。混合しか見ていない間、
+  ファイル側は 2 倍近い悪化まで 13% の内側に隠れられた。

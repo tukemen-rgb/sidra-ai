@@ -338,13 +338,23 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 λ-fusion / k1-b グリッド / 見出しブースト / ひらがな bigram 抑制 /
 名前ルーティング / 候補窓 10-80 / ruri-v3-30m / e5-base）を再提案しない。**
 
-- [~] 作業中 2026-08-25 22:09 UTC ループA **C-987: 誤検知率のファイルのみ計器を足す（E 節 2026-08-25 採用 (c) の実装）。**
-      `check_gate_regression.py` に「ファイルのみ」の flag rate を並記する
-      （混合の 13% 上限は 1 桁も変えない）。実測（2026-08-23 時点 18.0%）を
-      取り直し、上限は実測の少し上（gate 系の従来ピン方針どおり）に置く。
-      分母・分子の定義と「混合と何が違うか」を計器の出力自身が説明すること。
-      → 動かす数字: gate_flag_rate_files unmeasurable→基準値
-      （guard: 混合上限 13% 不変・verify_gate_recall MISS 0）
+- [記録] 実測 2026-08-25 ループA **C-987: 誤検知率の「ファイルのみ」に基準値ができた。**
+      `check_gate_regression.py` が同じ拒否件数を 3 つの分母で並記するように
+      なった。**files 51/370 = 13.8%（上限 20%）/ commit messages 0/200 = 0.0%
+      / blended 51/570 = 8.9%（上限 13%・不変）**。混合の上限は 1 桁も動かして
+      いない（`test_the_blended_ceiling_is_untouched`）。
+      2026-08-23 の 44/244 = 18.0% から下がったのは gate が変わったからでは
+      なく、清潔な文書 15 件が分母に入ったため。**ファイル母集団は勝手に両方向へ
+      動く**ので、上限は今日の実測の少し上ではなく、高いほうの観測（18.0%）の
+      上に 20% で置いた。
+      判定: `product_metrics.py --compare` は **exit 1 / NO MOVEMENT**。この
+      数字はオフライン判定器には載っていない（gate 系の数字は
+      `check_gate_regression.py` が持つ、答案系を `check_answerable_regression.py`
+      が持つのと同じ扱い）。**計器が 1 つ増えただけで、製品は何も良くなって
+      いない。** 混合しか見ていなかった間、ファイル側の悪化は最大 2 倍まで
+      13% の内側に隠れていた——これはその穴を塞いだだけの記録。
+      → 動かす数字: gate_flag_rate_files unmeasurable→13.8%(51/370) 基準値
+      （guard: 混合上限 13% 不変・blended 8.9%・verify_gate_recall MISS 0）
 
 - [ ] **C-988: 実コーパス（Issues/PR 込み 482 文書）で game_production を測る。**
       オフライン判定器のコーパスは 5 checkout の文書のみで、**実運用の索引に
