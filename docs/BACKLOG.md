@@ -356,7 +356,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: gate_flag_rate_files unmeasurable→13.8%(51/370) 基準値
       （guard: 混合上限 13% 不変・blended 8.9%・verify_gate_recall MISS 0）
 
-- [ ] **C-988: 実コーパス（Issues/PR 込み 482 文書）で game_production を測る。**
+- [~] 作業中 2026-08-25 23:10 UTC ループA **C-988: 実コーパス（Issues/PR 込み 482 文書）で game_production を測る。**
       オフライン判定器のコーパスは 5 checkout の文書のみで、**実運用の索引に
       入った Issues/PR の本文が含まれない**。C-985 で「文書側に語彙が無い」と
       診断された取りこぼしの答えが、Issue/PR 側の言い回しには存在する可能性が
