@@ -35,6 +35,28 @@
 | `internal-comms` | 社内向け文書・アナウンスの書き方 |
 | `discernment-nudge` | 回答の検証を促す確認質問を付ける（本プロジェクトの実測文化と相性が良い） |
 
+## 追加分（2026-08-25 第2弾、社長指示「もっとコピーして」）
+
+**obra/superpowers**（github.com/obra/superpowers、**MIT ライセンス** =
+完全なオープンソース。各ディレクトリに LICENSE を同梱）から開発プロセス系
+14 skills。ループ自身の作業品質にも効く:
+
+| skill | 中身 |
+|---|---|
+| `systematic-debugging` | 症状いじりでなく根本原因を先に特定する手順 |
+| `test-driven-development` | RED→GREEN→REFACTOR の徹底 |
+| `verification-before-completion` | 「完了」を名乗る前の検証手順 |
+| `writing-plans` / `executing-plans` | 実装計画の書き方と実行 |
+| `brainstorming` | 設計前の発散→収束 |
+| `requesting-code-review` / `receiving-code-review` | レビュー依頼と受け方 |
+| `subagent-driven-development` / `dispatching-parallel-agents` | サブエージェント分業 |
+| `using-git-worktrees` / `finishing-a-development-branch` | ブランチ運用 |
+| `writing-skills` / `using-superpowers` | skill 自作と使い分け |
+
+**anthropics/skills** から前回見送った `canvas-design`（ポスター・バナー等の
+ビジュアルカンバス制作。同梱フォント 5.5MB 込み）も追加した。clone が
+その分重くなるコストは社長指示（もっと）を優先して受け入れた。
+
 ## 導入時の安全レビュー（2026-08-25 実施）
 
 - 全 skill のスクリプト（`*.py` / `*.sh`）を走査し、**実行時に外部へ通信する

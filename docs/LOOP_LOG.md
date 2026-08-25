@@ -3119,3 +3119,8 @@
   product_metrics --compare exit 1 NO MOVEMENT → [記録]。
   計器が 1 つ増えただけで製品は良くなっていない。混合しか見ていない間、
   ファイル側は 2 倍近い悪化まで 13% の内側に隠れられた。
+
+2026-08-25 22:2x UTC 対話セッション — 社長指示「もっとコピーして」で Skills 追加（計 30 個）
+  obra/superpowers（MIT）から開発プロセス系 14 個（systematic-debugging / TDD /
+  verification-before-completion / writing-plans ほか。各 LICENSE 同梱・外部通信ゼロ確認）。
+  anthropics/skills から canvas-design（フォント 5.5MB 込み）を追加。docs/SKILLS.md 更新。
