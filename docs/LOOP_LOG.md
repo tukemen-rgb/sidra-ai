@@ -3124,3 +3124,9 @@
   obra/superpowers（MIT）から開発プロセス系 14 個（systematic-debugging / TDD /
   verification-before-completion / writing-plans ほか。各 LICENSE 同梱・外部通信ゼロ確認）。
   anthropics/skills から canvas-design（フォント 5.5MB 込み）を追加。docs/SKILLS.md 更新。
+
+2026-08-25 22:4x UTC 対話セッション — 社長指示「百個ぐらい」で Skills 第3弾（計 98 個）
+  vercel-labs/agent-skills 7・mattpocock/skills 32・expo/skills 18・prisma/skills 9・
+  supabase/agent-skills 2 を追加（全 MIT・全スクリプト外部通信スキャン済み）。
+  除外: deploy 系（実通信 + 本番 deploy 禁止方針）、EAS サービス系、作者私物、
+  組み込み /code-review と衝突する code-review。詳細 docs/SKILLS.md。

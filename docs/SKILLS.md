@@ -57,6 +57,27 @@
 ビジュアルカンバス制作。同梱フォント 5.5MB 込み）も追加した。clone が
 その分重くなるコストは社長指示（もっと）を優先して受け入れた。
 
+## 追加分（2026-08-25 第3弾、社長指示「百個ぐらいをコピーしたい」）— 計 98 個
+
+skills.sh レジストリ上位から、**組織として実在し・ライセンスが明確（全て MIT）**な
+コレクションのみ選定。全スクリプトを外部通信スキャンした上で導入:
+
+| ソース | 数 | 中身 |
+|---|---|---|
+| vercel-labs/agent-skills (MIT, README 宣言) | 7 | react-best-practices / web-design-guidelines / composition-patterns / react-view-transitions / react-native-skills / writing-guidelines / vercel-optimize — **GAMEYARD(Next.js) の UI 実装にそのまま効く** |
+| mattpocock/skills (MIT) | 32 | tdd / diagnosing-bugs / domain-modeling / codebase-design / to-spec / to-tickets / triage / handoff / teach ほか（in-progress 印の 8 個含む） |
+| expo/skills (MIT) | 18 | Expo/React Native 全般 — 将来のモバイル展開用 |
+| prisma/skills (MIT) | 9 | Prisma ORM / Postgres セットアップ |
+| supabase/agent-skills (MIT) | 2 | supabase / postgres ベストプラクティス |
+
+**除外したもの（理由つき）**: vercel の `deploy-to-vercel` と
+`vercel-cli-with-tokens`（スクリプトが外部へアップロードする実通信あり、かつ
+本プロジェクトの「本番 deploy をしない」方針に抵触）、expo の `eas-*` 6 個と
+`expo-skill-eval` / `expo-skill-feedback`（EAS サービス通信・作者内部用）、
+mattpocock の `ask-matt` / `setup-matt-pocock-skills` / `migrate-to-shoehorn` /
+`scaffold-exercises`（作者個人・私物ライブラリ用）、同 `code-review`
+（Claude Code 組み込みの /code-review と名前衝突）。
+
 ## 導入時の安全レビュー（2026-08-25 実施）
 
 - 全 skill のスクリプト（`*.py` / `*.sh`）を走査し、**実行時に外部へ通信する
