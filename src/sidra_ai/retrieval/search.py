@@ -11,11 +11,6 @@ character bigrams for CJK runs, which is a well-worn approximation for
 mixed-language corpora. Compatibility-equivalent Unicode is normalized before
 tokenization so full-width ASCII and half-width katakana do not silently miss
 the same repository content written in their common forms.
-
-Bigrams cannot tell a content word from a particle, and question grammar is
-rarer than content in a corpus of prose, so IDF rewards it. A chunk that
-matched the grammar of a question and none of its content words therefore
-keeps only a fraction of that score - see ``_GRAMMAR_ONLY_WEIGHT``.
 """
 
 from __future__ import annotations
@@ -44,6 +39,39 @@ _STOPWORDS = frozenset(
     }
 )
 
+#: Hiragana-only bigrams are grammar, not subject - and BM25 cannot tell the
+#: difference by itself. IDF rewards rarity, but an unusual particle
+#: collocation is *lexically* rare while carrying no topic at all, so the
+#: formula hands it a high weight for the wrong reason. Measured on the real
+#: 484-document corpus: ``はど`` scored IDF **4.30** against **3.69** for
+#: ``競合`` - the shape of the question outweighed what it was about.
+#:
+#: The failure that came from it: one interview questionnaire took first place
+#: for a quarter of a 20-question set - competitors, monetisation, moderation,
+#: privacy, the 90-day plan - matching on ``どこ``/``こで``/``すか`` while the
+#: content word appeared **zero times** in the winning chunk.
+#:
+#: Dropping them costs the rare hiragana-only content word (ひとり, たくさん).
+#: That trade was measured rather than assumed, against the alternative of
+#: keeping such terms and holding down only the chunks that matched nothing
+#: else - see docs/OUTCOMES.md for the four-way comparison. Removal scored
+#: higher on every number of the 38-question judge, and the judge is what
+#: holds this decision honest rather than this comment.
+_KANA_ONLY = re.compile(r"^[぀-ゟ]+$")
+
+#: Interrogatives carry the question's form, never its subject. They are
+#: kanji, so the hiragana rule above does not reach them, and they are rare
+#: enough to score high on their own: ``何で`` measured IDF **6.37**, the
+#: largest of any term in the queries that failed.
+_INTERROGATIVE = frozenset("何誰")
+
+
+def _is_grammar_only(token: str) -> bool:
+    """Whether a CJK token says how a sentence is built, not what it is about."""
+
+    return bool(_KANA_ONLY.match(token)) or any(c in _INTERROGATIVE for c in token)
+
+
 #: Adjacent chunks from one long document often repeat the same evidence due
 #: to chunk overlap. Prefer breadth before allowing one document to consume
 #: the whole context window, while still permitting two chunks when a section
@@ -55,42 +83,6 @@ _MAX_CHUNKS_PER_DOCUMENT = 2
 #: per-chunk BM25 work even though only a small evidence set is returned.
 #: Keep the most discriminative corpus-present terms and bound the inner loop.
 _MAX_SCORING_QUERY_TERMS = 128
-
-_HIRAGANA = re.compile(r"^[぀-ゟ]+$")
-
-#: How much of its grammar score a chunk keeps when it matched no content word.
-#:
-#: Character bigrams cannot tell a content word from a particle, and question
-#: grammar is *rarer* than content in a corpus of prose - so IDF rewards it.
-#: Measured 2026-08-26: the chunk that won "競合はどこですか" contains 競合 zero
-#: times and won on はど/どこ/こで/すか alone, which is how one interview
-#: questionnaire took first place for a quarter of a twenty-question set.
-#:
-#: The rule is therefore about the chunk, not about the term: grammar keeps its
-#: full weight wherever it supports a content match, so ranking among chunks
-#: that genuinely match is untouched. Only a chunk that matched nothing but
-#: grammar is held down.
-#:
-#: This is deliberately not either fix the same measurement already tested and
-#: rejected. Raising ``min_score`` fails because right and wrong answers score
-#: 23.0-38.1 against 17.0-37.9 - overlapping ranges. Refusing to answer when no
-#: content word matches drops 4 of 12 correct results to remove 3 of 7 wrong
-#: ones. A fraction rather than zero is what keeps this from collapsing into
-#: that second one: at zero these chunks would score exactly zero and be
-#: dropped by the ``min_score`` comparison, so they stay ranked, just not first.
-_GRAMMAR_ONLY_WEIGHT = 0.25
-
-
-def is_grammar_term(term: str) -> bool:
-    """Whether ``term`` is made only of hiragana.
-
-    A rough proxy for "particle or inflection", and rough on purpose: Japanese
-    content words can be written in hiragana (ひとり, たくさん). Being wrong
-    about one costs that term a quarter of its weight in chunks that match
-    nothing else, which is why the proxy is allowed to be this crude.
-    """
-
-    return _HIRAGANA.match(term) is not None
 
 
 def tokenize(text: str) -> list[str]:
@@ -105,7 +97,9 @@ def tokenize(text: str) -> list[str]:
             continue
         tokens.extend(run[i : i + 2] for i in range(len(run) - 1))
 
-    return [t for t in tokens if t not in _STOPWORDS]
+    return [
+        t for t in tokens if t not in _STOPWORDS and not _is_grammar_only(t)
+    ]
 
 
 def _bounded_query_terms(
@@ -127,16 +121,9 @@ def _bounded_query_terms(
     if len(present) <= _MAX_SCORING_QUERY_TERMS:
         return tuple(present)
 
-    # Rarer first, but content before grammar: question grammar is rare in a
-    # corpus of prose, so ranking on document frequency alone would spend the
-    # budget on exactly the terms that carry the least meaning.
     ranked_positions = sorted(
         range(len(present)),
-        key=lambda position: (
-            is_grammar_term(present[position]),
-            document_frequency[present[position]],
-            position,
-        ),
+        key=lambda position: (document_frequency[present[position]], position),
     )[:_MAX_SCORING_QUERY_TERMS]
     selected_positions = set(ranked_positions)
     return tuple(
@@ -361,15 +348,12 @@ class BM25Retriever:
         if not query_terms:
             return []
 
-        grammar_terms = {term: is_grammar_term(term) for term in query_terms}
-
         scored: list[SearchResult] = []
         for position in eligible_positions:
             chunk = self._chunks[position]
             counts = self._term_frequencies[position]
             length = self._lengths[position] or 1
-            content_score = 0.0
-            grammar_score = 0.0
+            score = 0.0
             for term in query_terms:
                 frequency = counts.get(term, 0)
                 if not frequency:
@@ -382,17 +366,7 @@ class BM25Retriever:
                 idf = self._idf_for_counts(
                     filtered_total, filtered_document_frequency.get(term, 0)
                 )
-                contribution = idf * (frequency * (self.k1 + 1)) / denominator
-                if grammar_terms[term]:
-                    grammar_score += contribution
-                else:
-                    content_score += contribution
-
-            # Grammar in support of content is signal; grammar on its own is
-            # the shape of the sentence, and matching that is not an answer.
-            score = content_score + grammar_score * (
-                1.0 if content_score > 0.0 else _GRAMMAR_ONLY_WEIGHT
-            )
+                score += idf * (frequency * (self.k1 + 1)) / denominator
 
             if score > min_score:
                 scored.append(SearchResult(chunk=chunk, score=score))

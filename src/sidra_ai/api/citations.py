@@ -63,7 +63,18 @@ def select_excerpt_window(content: str, query: str) -> str:
     for start in _candidate_starts(content):
         window = content[start : start + MAX_CITATION_EXCERPT_CHARS]
         score = len(terms & set(tokenize(window)))
-        if score > best_score:
+        # A tie is won by the *latest* window carrying the same evidence.
+        # Several windows scoring alike is the normal case - the matched
+        # sentence sits inside all of them - and the earliest of those is the
+        # one that clips it at the far edge, handing the operator the first
+        # half of the line that answered them. The latest instead opens on
+        # that line and shows what follows it.
+        #
+        # Only when something actually matched. With a score of zero every
+        # window ties, and "latest" would mean answering a query that appears
+        # nowhere with the *end* of the chunk. Nothing to prefer means the
+        # opening, which is the documented fallback above.
+        if score > best_score or (score == best_score and score > 0):
             best_start, best_score = start, score
     return content[best_start : best_start + MAX_CITATION_EXCERPT_CHARS]
 
