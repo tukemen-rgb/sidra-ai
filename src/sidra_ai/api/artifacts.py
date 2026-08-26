@@ -79,6 +79,38 @@ def list_artifacts(data_dir: str | Path) -> list[Artifact]:
     return found[:MAX_LISTED]
 
 
+#: Media types a download may declare. Only formats that cannot execute in
+#: this origin get a real type; markup and vector formats (.html, .svg) are
+#: deliberately absent and fall back to ``application/octet-stream``, because
+#: with a correct type one misplaced ``Content-Disposition`` away they would
+#: render beside the field the operator's token is typed into. Every download
+#: still leaves as an attachment with sniffing disabled either way.
+MEDIA_TYPES: dict[str, str] = {
+    ".gif": "image/gif",
+    ".png": "image/png",
+    ".md": "text/markdown; charset=utf-8",
+    ".obj": "text/plain; charset=utf-8",
+    ".mtl": "text/plain; charset=utf-8",
+    ".csv": "text/csv; charset=utf-8",
+    ".json": "application/json",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+def media_type_for(name: str) -> str:
+    """The Content-Type a file downloads with, decided by its extension.
+
+    The default is the unknown-bytes type, not a guess: a wrong specific
+    type misleads the program that opens the file, while octet-stream only
+    costs the double-click association.
+    """
+
+    suffix = Path(name.lower()).suffix
+    return MEDIA_TYPES.get(suffix, "application/octet-stream")
+
+
 def projects_dir(data_dir: str | Path) -> Path:
     return artifacts_dir(data_dir) / "projects"
 
@@ -206,11 +238,13 @@ __all__ = [
     "Artifact",
     "ArtifactNotFound",
     "MAX_LISTED",
+    "MEDIA_TYPES",
     "ProjectListing",
     "SAFE_NAME",
     "artifacts_dir",
     "list_artifacts",
     "list_projects",
+    "media_type_for",
     "projects_dir",
     "read_artifact",
     "read_project_file",

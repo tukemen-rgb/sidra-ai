@@ -807,6 +807,25 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- how many kinds of thing can actually be asked for --------------
+    #
+    # Counted off a built router, not off the enum: a kind in the detector
+    # with no registered generator answers "生成器がまだ登録されていません",
+    # which is honest but is not a capability. This number is what the C-0
+    # sprint grew - it was 3 (deck, game, project) when the sprint started.
+    import tempfile as _tempfile
+
+    from sidra_ai.creation.router import build_default_router
+
+    kinds = build_default_router(data_dir=_tempfile.mkdtemp()).registered_kinds()
+    c.add(
+        "creation_kinds_routable",
+        "作ってと頼める種類",
+        float(len(kinds)),
+        detail=", ".join(kinds),
+        kind=OUTCOME,
+    )
+
     # --- and the deck, where the danger is different ------------------
     #
     # A deck that renders is not the bar. A deck is dangerous when it looks

@@ -3488,3 +3488,8 @@
   seed 付き canvas アート 2 パターン（flow/orbits、GAMEYARD パレット、
   Math.random 禁止を検証器で強制、reduced-motion は静止画）。intent/ルーター
   に ART 種別を配線。テスト 12 件 / 判定器 exit 0。
+2026-08-26 20:3x UTC 対話セッション — C-1005 完了（creation_kinds_routable unmeasurable→7）
+  検出できる全種別に生成器（DOCUMENT の接地レポート生成器を新規追加、
+  enum と登録の一致をテストで強制）。ダウンロード Content-Type を拡張子別に
+  （.html/.svg は方針どおり octet-stream 維持、attachment+nosniff 継続）。
+  テスト 10 件 / 判定器 exit 0。

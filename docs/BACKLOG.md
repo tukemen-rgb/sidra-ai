@@ -566,10 +566,18 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_3d_model_valid unmeasurable→1（OBJ が
       パースでき頂点・面が両方 >0、プレビュー HTML に外部参照が無いことを計器で）
 
-- [~] 作業中 2026-08-26 20:20 UTC 対話セッション **C-1005: ルーターと画面の配線。**「GIF 作って」「3D モデル作って」
+- [x] 完了 2026-08-26 20:3x UTC 対話セッション (`creation_kinds_routable` unmeasurable→**7**、起票時 3 の +4、判定器 exit 0) **C-1005: ルーターと画面の配線。**「GIF 作って」「3D モデル作って」
       「Word で企画書」等の新種別を制作ルーターに追加し、ブラウザの生成物
       一覧・ダウンロードに対応（拡張子ごとの Content-Type を正しく）。
       → 動かす数字: creation_kinds_routable unmeasurable→現行+4 以上
+      実装メモ: 検出できる全種別に生成器が付いた（deck/game/project/model3d/
+      gif/art/document の 7 種、enum との一致をテストで強制）。DOCUMENT は
+      新規の接地 Markdown レポート生成器（デッキと同じ捏造検査: 根拠に無い
+      数字は不合格、無根拠は〔社長が埋める欄〕）。ダウンロードの Content-Type
+      は拡張子別（gif/png/md/obj/mtl/csv/json/docx/xlsx/pptx）。**.html と
+      .svg は意図的に octet-stream のまま**（実行可能マークアップを token の
+      いる origin で開かない既存方針を優先。attachment+nosniff は全種継続）。
+      GIF/3D/ART の配線は各項目で同梱済み、この項目はその総仕上げ。
 
 ### C-0. 制作スプリント（社長指示 2026-08-26 23:19 JST・締切 2026-08-27 09:00 JST = 00:00 UTC）
 

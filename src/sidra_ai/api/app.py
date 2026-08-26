@@ -43,6 +43,7 @@ from sidra_ai.api.artifacts import (
     ArtifactNotFound,
     list_artifacts,
     list_projects,
+    media_type_for,
     read_artifact,
     read_project_file,
 )
@@ -407,7 +408,8 @@ def create_app(
         )
         return Response(
             content=payload,
-            media_type="application/octet-stream",
+            # Per-extension where the format cannot execute here; see MEDIA_TYPES.
+            media_type=media_type_for(filename),
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "X-Content-Type-Options": "nosniff",
@@ -458,7 +460,8 @@ def create_app(
         )
         return Response(
             content=payload,
-            media_type="application/octet-stream",
+            # Per-extension where the format cannot execute here; see MEDIA_TYPES.
+            media_type=media_type_for(filename),
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "X-Content-Type-Options": "nosniff",

@@ -140,6 +140,34 @@ def test_an_artifact_leaves_as_a_download_not_a_page(client) -> None:
     assert "text/html" not in got.headers["content-type"]
 
 
+def test_downloads_declare_the_type_only_where_it_cannot_execute() -> None:
+    """image/gif for a .gif, text/markdown for a .md - but never a type that
+
+    would render markup in this origin: .html and .svg stay octet-stream on
+    purpose, one misplaced Content-Disposition away from being pages."""
+
+    from sidra_ai.api.artifacts import media_type_for
+
+    assert media_type_for("gif-fish-20260826T000000Z.gif") == "image/gif"
+    assert media_type_for("doc-report-20260826T000000Z.md").startswith("text/markdown")
+    assert media_type_for("deck-sales.pptx").endswith("presentationml.presentation")
+    assert media_type_for("game-fishing.html") == "application/octet-stream"
+    assert media_type_for("assets-player.svg") == "application/octet-stream"
+    assert media_type_for("mystery.xyz") == "application/octet-stream"
+
+
+def test_a_gif_downloads_as_an_image_but_still_as_an_attachment(client) -> None:
+    client.post("/v1/chat", json={"message": "魚のGIFを作って"})
+    names = [a["name"] for a in client.get("/v1/artifacts").json()["artifacts"]]
+    gif_name = next(name for name in names if name.endswith(".gif"))
+
+    got = client.get(f"/v1/artifacts/{gif_name}")
+
+    assert got.headers["content-type"] == "image/gif"
+    assert "attachment" in got.headers["content-disposition"]
+    assert got.content[:6] == b"GIF89a"
+
+
 def test_a_missing_artifact_and_a_refused_name_look_identical(client) -> None:
     """Otherwise the difference maps the directory."""
 
