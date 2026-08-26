@@ -30,6 +30,7 @@ from pathlib import Path
 
 #: Shared with the game generator so a deck and a game made by the same tool
 #: look like they came from the same place.
+from sidra_ai.creation.evidence import NUMBER, Fact
 from sidra_ai.creation.games import GAMEYARD_TOKENS
 
 #: What an unfilled slot says. Kept as one constant because both the renderer
@@ -37,26 +38,10 @@ from sidra_ai.creation.games import GAMEYARD_TOKENS
 #: to report how much of the deck is still the owner's to write.
 BLANK = "〔社長が埋める欄〕"
 
-#: Anything that looks like a quantity. Deliberately broad - a false positive
-#: costs one extra evidence check, a false negative puts an unsourced number
-#: on a slide, which is the failure this module exists to prevent.
-_NUMBER = re.compile(r"\d[\d,.\s]*\s*(?:%|％|円|万|億|人|件|倍|pt|x)?", re.IGNORECASE)
-
-
-@dataclass(frozen=True)
-class Fact:
-    """One retrieved claim and where it came from.
-
-    ``source`` is a repository-and-path label, never document text beyond
-    ``text`` itself, which the caller has already taken from an allowed
-    chunk.
-    """
-
-    text: str
-    source: str
-
-    def mentions_number(self) -> bool:
-        return bool(_NUMBER.search(self.text))
+#: The evidence type and the number pattern live in ``creation.evidence`` now
+#: that the router carries facts to any generator. Re-exported here because a
+#: deck is still the main thing built from them.
+_NUMBER = NUMBER
 
 
 @dataclass(frozen=True)
@@ -147,16 +132,46 @@ def _title_from(request: str, fallback: str) -> str:
     return stripped[:60] or fallback
 
 
+#: What a passage has to contain to belong under a section. Literal cues, no
+#: model: a matcher clever enough to place any passage under any heading is a
+#: matcher that fills every slide, and a slide filled with a sentence that
+#: does not answer it reads as an answer.
+#:
+#: Measured, not guessed: matching on the heading word alone ("課題" inside the
+#: passage) retrieved five passages from this repository and placed none of
+#: them, because retrieved prose almost never repeats the heading it belongs
+#: under. Cues are the smallest fix that keeps the conservative direction -
+#: a passage with no cue is still left out.
+SECTION_CUES: dict[str, tuple[str, ...]] = {
+    "課題": ("課題", "問題", "できない", "困", "ギャップ", "未対応", "gap", "problem"),
+    "解決": ("解決", "対応", "実装", "できる", "提供", "returns", "provides", "solution"),
+    "根拠となる数字": (),  # decided by the presence of a number, see below
+    "次の一歩": ("次", "予定", "残り", "todo", "roadmap", "backlog", "next"),
+    "いま出来ること": ("できる", "対応", "提供", "supports", "provides"),
+    "測った数字": (),  # same rule as 根拠となる数字
+    "残っていること": ("残", "未", "todo", "backlog", "gap"),
+    "判断が要る点": ("判断", "要判断", "決め", "decision", "trade-off"),
+}
+
+#: Sections whose whole point is a figure. A passage belongs here when it
+#: carries one - which also means every number on the slide came from the
+#: evidence by construction, the property ``validate_deck`` re-checks.
+_NUMERIC_SECTIONS = ("根拠となる数字", "測った数字")
+
+
+def _matches(section: str, fact: Fact) -> bool:
+    if section in _NUMERIC_SECTIONS:
+        return fact.mentions_number()
+    if section in fact.text:
+        return True
+    text = fact.text.casefold()
+    return any(cue.casefold() in text for cue in SECTION_CUES.get(section, ()))
+
+
 def _bullets_for(section: str, facts: list[Fact]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Fill one section from the facts that mention it, or leave it blank.
+    """Fill one section from the facts that belong under it, or leave it blank."""
 
-    Matching is by the section word appearing in the fact. Crude on purpose:
-    a cleverer matcher would find something for every section, and "found
-    something" is exactly the failure mode - a slide filled with a sentence
-    that does not answer it reads as an answer.
-    """
-
-    hits = [fact for fact in facts if section in fact.text]
+    hits = [fact for fact in facts if _matches(section, fact)]
     if not hits:
         return (f"{BLANK}",), ()
     bullets = tuple(" ".join(fact.text.split())[:120] for fact in hits[:3])

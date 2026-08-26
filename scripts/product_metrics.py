@@ -248,7 +248,7 @@ def _measure_creation_routing() -> tuple[int, str]:
     from sidra_ai.creation.router import CreationOutcome, build_default_router
     from sidra_ai.models.echo import EchoModelAdapter
 
-    def _fake_game(message: str, intent) -> CreationOutcome:
+    def _fake_game(message: str, intent, facts=None) -> CreationOutcome:
         return CreationOutcome(
             kind=CreationKind.GAME, handled=True, summary="probe generator"
         )
@@ -701,6 +701,78 @@ def measure_creation(c: Collector) -> None:
         1.0 if written else 0.0,
         detail=why,
         kind=CONTEXT,
+    )
+
+    # --- and does a real request actually reach the index? ------------
+    grounded, detail = _measure_deck_grounding()
+    c.add(
+        "creation_deck_grounded",
+        "デッキが索引の根拠で埋まる",
+        grounded,
+        detail=detail,
+        kind=OUTCOME,
+    )
+
+
+def _measure_deck_grounding() -> tuple[float, str]:
+    """Whether a deck asked for over HTTP comes back filled from the corpus.
+
+    Two things have to hold, and the second is why this is separate from
+    ``creation_deck_generated``: a deck that is honest but entirely blank
+    passes that number and is useless. So this one requires evidence to have
+    reached the slides *and* the generator's own fabrication check to have
+    passed - filling slides by loosening the check would score worse, not
+    better, because the check refusing is a failure here too.
+    """
+
+    import importlib.util
+
+    from sidra_ai.api.service import SidraService
+    from sidra_ai.config.settings import Settings
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    spec = importlib.util.spec_from_file_location(
+        "_measure_outcomes_for_decks",
+        Path(__file__).resolve().parent / "measure_outcomes.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    repo = "tukemen-rgb/sidra-ai"
+    try:
+        with _quiet():
+            gate = module.SecurityGate(module.GatePolicy(), allowed_repositories=[repo])
+            store = module.DocumentStore(gate)
+            module.ingest([(repo, Path(__file__).resolve().parents[1])], store, gate)
+            import tempfile
+
+            service = SidraService(
+                Settings(allowed_repositories=(repo,), data_dir=tempfile.mkdtemp()),
+                model=EchoModelAdapter(),
+                store=store,
+                gate=gate,
+            )
+            answer = service.chat("SIDRA の課題と解決のデッキを作って")
+    except Exception as exc:  # noqa: BLE001 - an unmeasurable probe reports 0
+        return 0.0, f"probe failed: {type(exc).__name__}: {exc}"
+
+    creation = answer.get("creation") or {}
+    outcome = creation.get("outcome") or {}
+    details = outcome.get("details") or {}
+    if not outcome.get("handled"):
+        return 0.0, f"the deck was not produced: {outcome.get('summary', '')[:80]}"
+    if not details.get("numbers_sourced"):
+        return 0.0, "the deck did not pass its own evidence check"
+
+    slides = int(details.get("slides") or 0)
+    unfilled = len(details.get("unfilled") or [])
+    if not creation.get("facts"):
+        return 0.0, "no evidence was retrieved for the request"
+    if unfilled >= slides:
+        return 0.0, f"{creation['facts']} facts retrieved, every one of {slides} slides still blank"
+    return 1.0, (
+        f"{creation['facts']} facts retrieved; {slides - unfilled}/{slides} slides filled "
+        f"from the index, {unfilled} left for the owner"
     )
 
 

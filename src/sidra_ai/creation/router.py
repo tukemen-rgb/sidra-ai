@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
+from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent, CreationKind
 
 
@@ -44,9 +45,21 @@ class CreationOutcome:
 
 
 class CreationGenerator(Protocol):
-    """Builds one kind of artifact from the operator's request."""
+    """Builds one kind of artifact from the operator's request.
 
-    def __call__(self, message: str, intent: CreationIntent) -> CreationOutcome: ...
+    ``facts`` is the evidence the caller retrieved. It is passed to every
+    generator rather than fetched by one, so a generator's output is bounded
+    by exactly what it was handed - the property that makes "did this figure
+    come from the corpus?" a question with an answer. An empty list is a
+    supported input, not a degraded one.
+    """
+
+    def __call__(
+        self,
+        message: str,
+        intent: CreationIntent,
+        facts: list[Fact] | None = None,
+    ) -> CreationOutcome: ...
 
 
 #: What an operator sees when the route works but nothing can build the
@@ -81,7 +94,12 @@ class CreationRouter:
     def registered_kinds(self) -> tuple[str, ...]:
         return tuple(sorted(kind.value for kind in self._generators))
 
-    def route(self, message: str, intent: CreationIntent) -> CreationOutcome:
+    def route(
+        self,
+        message: str,
+        intent: CreationIntent,
+        facts: list[Fact] | None = None,
+    ) -> CreationOutcome:
         """Run the generator for ``intent``, or report that there is none.
 
         The caller decides whether to route at all; by the time a message
@@ -98,7 +116,7 @@ class CreationRouter:
                 summary=_NO_GENERATOR.format(kind=intent.kind.value),
                 details={"registered_kinds": list(self.registered_kinds())},
             )
-        return generator(message, intent)
+        return generator(message, intent, list(facts or []))
 
 
 def build_default_router(

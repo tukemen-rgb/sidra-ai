@@ -3291,3 +3291,14 @@
   別の主張。C-994 の実装（ループB）がこの行を実測に置き換える。
   pytest 全通過 / verify_gate_recall MISS 0。
 2026-08-26 15:26 UTC ループA2 started
+2026-08-26 15:3x UTC ループB 完了 **C-994 生成物の検索接地: `creation_deck_grounded` unmeasurable -> 1**（`--compare` exit 0）。
+  C-992 で分割した残り（手順4）。実測: 「SIDRA の課題と解決のデッキを作って」→ **5 件引いて 4 枚中 2 枚が埋まる**。
+  `chat()` が制作経路でも retriever を引き `Fact` にして渡す。**生成器自身は検索しない**
+  （渡された物だけで作るから「この数字はコーパス由来か」が後から答えられる）。
+  抜粋は `citation_excerpt` 経由、**OutputGuard が伏せた passage は落とす**（成果物は後でファイルとして開かれる）。
+  **途中の実測**: 見出しの literal 一致では 5 件引いても **0 枚**しか埋まらなかった（引用文は見出し語を含まない）。
+  合図語表で直したが保守側は維持。数字の節は「数値を含む fact」で当てる——載る前から evidence に在るので捏造検査と両立。
+  無関係 passage では全欄が空のままであることをテストで固定（evidence が来た＝全部埋めてよい、ではない）。
+  **生成器は書く前に自分を検査**し、落ちたら handled=False で**ファイルを書かない**。
+  判定器を `creation_deck_generated` と分けた: **正直だが全欄空白のデッキは前者を通る**ため。
+  検証: `python -m pytest` **1255 passed / exit 0**、`verify_gate_recall.py` PASSED。新規テスト 4 件。

@@ -20,7 +20,9 @@ from sidra_ai.ingestion.state import StateStore
 
 
 def _generator(summary: str = "built it"):
-    def generate(message: str, intent: CreationIntent) -> CreationOutcome:
+    def generate(
+        message: str, intent: CreationIntent, facts: list | None = None
+    ) -> CreationOutcome:
         return CreationOutcome(
             kind=intent.kind,
             handled=True,

@@ -12,6 +12,7 @@ from typing import Any, Sequence
 from sidra_ai.api.citations import citation_excerpt
 from sidra_ai.api.model_admission import build_runtime_model
 from sidra_ai.config.settings import Settings, get_settings
+from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import detect_creation_intent
 from sidra_ai.creation.router import CreationRouter, build_default_router
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
@@ -210,6 +211,37 @@ class SidraService:
             return {"available": False}
         return {"available": True, **stats}
 
+    def _facts_for(
+        self,
+        query: str,
+        *,
+        top_k: int,
+        repositories: Sequence[str] | None,
+    ) -> list[Fact]:
+        """Retrieve evidence a generator may build content from.
+
+        Every passage crosses ``OutputGuard`` first, and a passage the guard
+        withholds is dropped rather than blanked: an artifact is written to a
+        file and opened later, so there is no later moment at which a
+        withheld-but-present string could be reviewed. Length is bounded by
+        the same citation cap, because this is a content-export surface for
+        the same reason citations are.
+        """
+
+        results = self.retriever.search(query, top_k=top_k, repositories=repositories)
+        facts: list[Fact] = []
+        for result in results:
+            content = getattr(result.chunk, "content", "")
+            if not content:
+                continue
+            excerpt, withheld = citation_excerpt(content, self.output_guard, query)
+            if withheld or not excerpt:
+                continue
+            repository = getattr(result.chunk, "repository", "")
+            path = getattr(result.chunk, "path", "")
+            facts.append(Fact(text=excerpt, source=f"{repository} {path}".strip()))
+        return facts
+
     def _attach_excerpts(
         self, citations: list[dict], chunks: Sequence[Any], query: str = ""
     ) -> None:
@@ -359,7 +391,13 @@ class SidraService:
         intent = detect_creation_intent(query)
         creation_metadata: dict[str, Any] = {"intent": intent.to_dict()}
         if intent.routes:
-            outcome = self.creation_router.route(query, intent)
+            # Ground the artifact in the index, exactly as an answer is
+            # grounded. A generator that retrieved for itself could widen
+            # what it sees; handing it a fixed list is what makes "did this
+            # figure come from the corpus?" answerable afterwards.
+            facts = self._facts_for(query, top_k=top_k, repositories=repositories)
+            creation_metadata["facts"] = len(facts)
+            outcome = self.creation_router.route(query, intent, facts)
             creation_metadata["outcome"] = outcome.to_dict()
             if outcome.handled:
                 # A generator's summary is text this process produced from a

@@ -160,3 +160,74 @@ def test_the_generator_reports_what_it_left_blank(tmp_path: Path) -> None:
     assert "空欄" in outcome.summary
     assert Path(outcome.artifact_path).exists()
     assert outcome.details["unfilled"]
+
+
+def test_evidence_reaches_the_slides_through_the_router(tmp_path: Path) -> None:
+    """The wiring C-994 added: per-request facts, not just standing ones.
+
+    Without this the deck renders honestly and entirely in blanks, which
+    passes every other test in this file and is not what was asked for.
+    """
+
+    from sidra_ai.creation.router import build_default_router
+
+    router = build_default_router(data_dir=str(tmp_path))
+    intent = detect_creation_intent("デッキを作って")
+    retrieved = [Fact("課題: 索引した文書を読み切れない", "owner/repo docs/BACKLOG.md")]
+
+    without = router.route("デッキを作って", intent)
+    with_evidence = router.route("デッキを作って", intent, retrieved)
+
+    assert len(with_evidence.details["unfilled"]) < len(without.details["unfilled"])
+    assert with_evidence.details["facts_available"] == 1
+
+
+def test_a_section_with_no_matching_evidence_still_blanks(tmp_path: Path) -> None:
+    """Evidence arriving is not permission to fill every slide.
+
+    The cue tables exist to keep an unrelated passage out of a section, and
+    this is the test that fails if a later edit makes matching greedy.
+    """
+
+    from sidra_ai.creation.router import build_default_router
+
+    router = build_default_router(data_dir=str(tmp_path))
+    unrelated = [Fact("天気の話をしています", "owner/repo docs/misc.md")]
+
+    outcome = router.route("デッキを作って", detect_creation_intent("デッキを作って"), unrelated)
+
+    assert len(outcome.details["unfilled"]) == outcome.details["slides"]
+
+
+def test_a_numeric_section_takes_facts_that_carry_numbers() -> None:
+    """"根拠となる数字" is filled by the presence of a figure, by construction.
+
+    Which is also why the fabrication check keeps passing: the figure was in
+    the evidence before it was on the slide.
+    """
+
+    facts = [Fact("索引した文書は 1326 件", "owner/repo docs/OUTCOMES.md")]
+    deck = generate_deck("デッキを作って", facts=facts)
+
+    assert "根拠となる数字" not in deck.unfilled
+    assert validate_deck(deck, facts)["usable"]
+
+
+def test_a_deck_that_fails_its_own_check_is_not_written(tmp_path: Path, monkeypatch) -> None:
+    """A failed fabrication check must not produce a file.
+
+    Writing it and reporting success would be the worst outcome available:
+    an artifact on disk that a later reader has no reason to distrust.
+    """
+
+    from sidra_ai.creation import deck_job
+
+    monkeypatch.setattr(
+        deck_job, "validate_deck", lambda deck, facts: {"usable": False, "failures": ["probe"]}
+    )
+    generate = deck_job.build_deck_generator(tmp_path)
+
+    outcome = generate("デッキを作って", detect_creation_intent("デッキを作って"))
+
+    assert not outcome.handled
+    assert not (tmp_path / "artifacts").exists()
