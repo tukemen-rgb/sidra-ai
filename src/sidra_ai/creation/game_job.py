@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sidra_ai.creation.decks import Fact
 from sidra_ai.creation.games import generate_game, save_game, validate_game_html
+from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
 
@@ -31,7 +31,10 @@ def build_game_generator(data_dir: str | Path):
         # the corpus into a playable page would put DATA somewhere no guard
         # looks. What it earns is an honest footer - "this is where the
         # colours came from" - instead of the hardcoded default.
-        evidence = [f"{fact.repository} {fact.path}" for fact in (retrieved or [])]
+        # ``Fact.source`` is already the "repository path" label; the fields
+        # this line first reached for do not exist on it, and a footer that
+        # raised would have taken the whole game down for a citation line.
+        evidence = [fact.source for fact in (retrieved or []) if fact.source]
         game = generate_game(message, evidence=evidence or None)
         verdict = validate_game_html(game.html)
         path = save_game(game, data_dir)

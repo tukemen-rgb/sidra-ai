@@ -3318,3 +3318,12 @@
   併せて、前サイクルに置いた `creation_deck_grounded` の unmeasurable 登録を
   削除（ループB が実測を入れたので二重登録になっていた）。
   pytest 全通過 / verify_gate_recall MISS 0。
+2026-08-26 15:4x UTC ループB 修正 **自分の変更が同時進行のループA の生成器を壊していたので直した。**
+  C-994 で `CreationGenerator` に facts を足した結果、`build_game_generator` が
+  `takes 2 positional arguments but 3 were given` で落ち、`measure_creation` が途中で死んで
+  **`creation_deck_grounded` まで巻き添えで測れなくなっていた**（rebase 後に初めて同居した組合せ）。
+  game 側に `facts` を受け取らせて解消（テンプレートは自己完結なので中身は使わないが、
+  router は全員に渡すので**受け取れない生成器は誰にも呼ばれない**）。
+  再検証: `python -m pytest` **1274 passed / exit 0**、`verify_gate_recall.py` PASSED。
+  **教訓**: 並行ループ中に共有 Protocol を変えたら、rebase 後にもう一度 full suite を回すこと。
+  自分の作業ツリーだけが緑でも、main は緑とは限らない。
