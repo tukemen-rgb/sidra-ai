@@ -55,6 +55,7 @@ class CreationKind(str, Enum):
     DOCUMENT = "document"
     MODEL3D = "model3d"
     GIF = "gif"
+    ART = "art"
     UNKNOWN = "unknown"
 
 
@@ -188,6 +189,17 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "アニメ画像",
         "動く画像",
         "動くアイコン",
+    ),
+    # 「ゲームのアート」 reads as an asset request and the latest-match rule
+    # already gives PROJECT's 素材 words their chance; what lands here is
+    # wording that asks for artwork as the thing itself.
+    CreationKind.ART: (
+        "ジェネラティブアート",
+        "生成アート",
+        "アート",
+        "壁紙",
+        "generative art",
+        "artwork",
     ),
 }
 

@@ -538,9 +538,14 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_gif_generated unmeasurable→1（GIF ヘッダ+
       フレーム数>1 を計器で検証）
 
-- [~] 作業中 2026-08-26 20:45 UTC 対話セッション **C-1002: ジェネラティブアート。**seed 付きの canvas 生成アート HTML
+- [x] 完了 2026-08-26 20:5x UTC 対話セッション (`creation_art_patterns` unmeasurable→**2**、判定器 exit 0) **C-1002: ジェネラティブアート。**seed 付きの canvas 生成アート HTML
       （フローフィールド等 2 パターン以上、GAMEYARD パレット）。
       → 動かす数字: creation_art_patterns unmeasurable→2
+      実装メモ: flow（フローフィールド: cos 波の合成場を粒子が流れる）と
+      orbits（入れ子の軌道）。ページ内 PRNG は mulberry32 に依頼由来の seed を
+      注入し、Math.random は検証器が**禁止**（seed 表記が嘘になるため。
+      検証が実際に落ちることもテスト済み）。reduced-motion では静止画として
+      完成描画。intent に ART 種別＋ルーター配線同梱。テスト 12 件。
 
 - [~] 作業中 2026-08-26 20:17 UTC ループB **C-1003: テーマ適用。**生成物（デッキ HTML・ゲーム・アート）に
       適用できるテーマを 3 種以上定義し、「〜のテーマで」で切替。既定は

@@ -778,6 +778,35 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- generative art: count the patterns that actually hold up ------
+    #
+    # The number is how many patterns generate a page that passes the full
+    # validator (canvas, parseable script, nothing external, reduced-motion
+    # honoured, seeded - never Math.random). Counting patterns rather than
+    # reporting a single 0/1 keeps a half-regression visible: one broken
+    # pattern reads as 2 -> 1, not as "still fine".
+    from sidra_ai.creation.art import PATTERNS, generate_art, validate_art
+
+    art_failures: list[str] = []
+    art_valid = 0
+    for pattern in PATTERNS:
+        verdict = validate_art(generate_art("アートを作って", pattern=pattern))
+        if verdict["valid"]:
+            art_valid += 1
+        else:
+            art_failures += [f"{pattern}: {f}" for f in verdict["failures"]]
+    c.add(
+        "creation_art_patterns",
+        "生成アートの型が揃う",
+        float(art_valid),
+        detail=(
+            f"{art_valid} of {len(PATTERNS)} patterns pass the page validator"
+            if not art_failures
+            else "; ".join(art_failures)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- and the deck, where the danger is different ------------------
     #
     # A deck that renders is not the bar. A deck is dangerous when it looks

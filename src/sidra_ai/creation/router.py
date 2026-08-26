@@ -153,6 +153,10 @@ def build_default_router(
 
         router.register(CreationKind.GIF, build_gif_generator(data_dir))
 
+        from sidra_ai.creation.art_job import build_art_generator
+
+        router.register(CreationKind.ART, build_art_generator(data_dir))
+
         from sidra_ai.creation.project_job import build_project_generator
 
         router.register(CreationKind.PROJECT, build_project_generator(data_dir))
