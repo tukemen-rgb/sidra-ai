@@ -3302,3 +3302,9 @@
   **生成器は書く前に自分を検査**し、落ちたら handled=False で**ファイルを書かない**。
   判定器を `creation_deck_generated` と分けた: **正直だが全欄空白のデッキは前者を通る**ため。
   検証: `python -m pytest` **1255 passed / exit 0**、`verify_gate_recall.py` PASSED。新規テスト 4 件。
+2026-08-26 15:26 UTC ループA2 started Board=13
+2026-08-26 15:2x UTC ループA2 — no-op 取れる項目が無い
+  制作スプリント C-990〜C-993 は全て `[x]`。C-994 も本サイクル中にループB が
+  完了させた（rebase で判明。確保時点では 15:21 の `[~]` だった）。
+  他は E 節 1 件・F 節 2 件のみ。
+  Board=13 で増分ゼロ。コードは無変更。
