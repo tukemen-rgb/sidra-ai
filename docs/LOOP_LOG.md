@@ -3356,3 +3356,4 @@
   ループA3 が 8efae03 で「game の evidence 経路」のテストを足していた——**私が 15:4x に
   `fact.repository`/`fact.path` を `fact.source` へ直した箇所**で、あそこは属性が無く実行時に
   落ちる状態だった。回帰テストが付いたので、同じ取り違えは次は commit 前に止まる。
+2026-08-26 16:13 UTC ループA started
