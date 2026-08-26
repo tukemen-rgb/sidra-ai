@@ -3493,3 +3493,4 @@
   enum と登録の一致をテストで強制）。ダウンロード Content-Type を拡張子別に
   （.html/.svg は方針どおり octet-stream 維持、attachment+nosniff 継続）。
   テスト 10 件 / 判定器 exit 0。
+2026-08-26 21:0x UTC ループA2 started
