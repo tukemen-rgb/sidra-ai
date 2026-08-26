@@ -3268,3 +3268,16 @@
   検証: `python -m pytest` **1251 passed / exit 0**、`verify_gate_recall.py` PASSED。新規テスト 11 件。
 2026-08-26 15:11 UTC ループA started
 2026-08-26 15:20 UTC ループB started
+2026-08-26 15:2x UTC ループA — C-993 完了（ブラウザから制作）
+  creation_ui_available unmeasurable→1（判定器 exit 0）。計器は実アプリを通す:
+  GET / → /v1/chat 制作依頼 → /v1/artifacts 一覧 → ダウンロード。
+  **画面が嘘をつく寸前だった**: C-991 のゲーム生成器が router 未登録で、
+  「作って」と案内しつつゲームは QA に落ちていた。繋いだ（game_job.py）。
+  新経路 2 つは guarded のまま。一覧は名前・サイズ・日時のみ（デッキは索引に
+  接地しているので抜粋は索引 DATA の漏洩）。経路探索は名前パターン＋解決後
+  パス確認の 2 重、404 は両ケース同一。生成物は attachment + nosniff で返し、
+  画面も blob 経由（同一 origin で生成 markup を走らせない）。
+  test_no_write_routes_exist の許可リストに 2 経路追加——弱化ではない
+  （GitHub 呼び出しゼロ・読み取りのみ・他 assert 不変、理由は docstring）。
+  pytest 全通過 / verify_gate_recall MISS 0 / 既存フロア全維持。
+  規模: 変更 +185 行、新規 335 行 = 520 行（目安 400 超過を申告）。

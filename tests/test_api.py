@@ -327,7 +327,14 @@ def test_analyze_rejects_a_non_allowlisted_repository(api: TestClient) -> None:
 
 
 def test_no_write_routes_exist(api: TestClient) -> None:
-    """The API surface itself offers no GitHub mutation."""
+    """The API surface itself offers no GitHub mutation.
+
+    The list is exhaustive on purpose: a new route has to be argued for here
+    before it exists, which is what stops the surface from growing one
+    convenience at a time. ``/v1/artifacts`` is on it because reading a file
+    this process wrote to local disk is not a mutation of anything outside
+    the machine - it makes no GitHub call at all.
+    """
 
     paths = api.get("/openapi.json").json()["paths"]
     assert set(paths) == {
@@ -336,6 +343,8 @@ def test_no_write_routes_exist(api: TestClient) -> None:
         "/v1/retrieve",
         "/v1/chat",
         "/v1/github/analyze",
+        "/v1/artifacts",
+        "/v1/artifacts/{name}",
     }
     for path, methods in paths.items():
         for method in methods:

@@ -37,8 +37,9 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
+from sidra_ai.api.artifacts import ArtifactNotFound, list_artifacts, read_artifact
 from sidra_ai.api.audit import ApiAuditLog
 from sidra_ai.api.refresher import BackgroundRefresher
 from sidra_ai.api.schemas import (
@@ -353,6 +354,59 @@ def create_app(
             response=result,
         )
         return result
+
+    @app.get("/v1/artifacts", dependencies=guarded)
+    def artifacts() -> Any:
+        """Name, size and time for each generated file. Never a preview.
+
+        A generated deck is grounded in retrieved documents, so its body is
+        the same DATA the index holds. A listing that carried an excerpt
+        would put indexed content somewhere that reads as metadata, which is
+        how it ends up in a log or a screenshot nobody screened.
+        """
+
+        current = resolve_service()
+        found = [artifact.to_dict() for artifact in list_artifacts(current.settings.data_dir)]
+        record_audit(
+            operation="artifacts",
+            input_chars=0,
+            repositories=None,
+            response={"count": len(found)},
+        )
+        return {"artifacts": found}
+
+    @app.get("/v1/artifacts/{name}", dependencies=guarded)
+    def artifact(name: str) -> Any:
+        """Hand back one artifact as a download, never as a page here.
+
+        The file holds generated markup. Rendering it at this origin would
+        run it beside the field the operator types their token into, so it
+        leaves as an attachment with sniffing disabled.
+        """
+
+        current = resolve_service()
+        try:
+            payload, filename = read_artifact(current.settings.data_dir, name)
+        except ArtifactNotFound:
+            # One status for "no such file" and for "not a name we allow", so
+            # probing cannot map the directory by reading the difference.
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="artifact not found"
+            ) from None
+        record_audit(
+            operation="artifact",
+            input_chars=0,
+            repositories=None,
+            response={"bytes": len(payload)},
+        )
+        return Response(
+            content=payload,
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @app.post("/v1/github/analyze", response_model=AnalyzeResponse, dependencies=guarded)
     def analyze(payload: AnalyzeRequest) -> Any:

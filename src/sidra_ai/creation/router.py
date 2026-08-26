@@ -124,8 +124,10 @@ def build_default_router(
         # probe, and a module that only inspects the router should not pay
         # for them.
         from sidra_ai.creation.deck_job import build_deck_generator
+        from sidra_ai.creation.game_job import build_game_generator
 
         router.register(CreationKind.DECK, build_deck_generator(data_dir))
+        router.register(CreationKind.GAME, build_game_generator(data_dir))
     for kind, generator in (extra or {}).items():
         router.register(kind, generator)
     return router

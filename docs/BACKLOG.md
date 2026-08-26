@@ -444,7 +444,35 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       **残り**: 索引からの facts 供給はまだ配線していない（`build_deck_generator`
       は facts を受け取れる形。C-993 か後続で `/v1/chat` の検索結果を渡す）。
 
-- [~] 作業中 2026-08-26 15:13 UTC ループA **C-993: ブラウザ画面から制作を使えるようにする。**
+- [x] 完了 2026-08-26 ループA (`creation_ui_available` unmeasurable→**1**、判定器 exit 0) **C-993: ブラウザから作って、受け取れるようになった。**
+      画面に制作の入口（同じ欄に「〜を作って」と書けばよい旨）と**生成物一覧**
+      （名前・バイト数・日時＋ダウンロード）を足した。
+      **C-991 の生成器を router に繋いだ。** これが無いと画面が嘘になる——
+      「作って」と打てと書いてある一方でゲームは黙って QA に落ちていた
+      （`build_default_router` に DECK しか登録されていなかった）。
+      `game_job.py` の要約は**検証器の判定を報告する**。「作りました」と
+      script が構文エラーのページを渡すのは、この repo が他所で拒み続けて
+      いる主張そのもの。壊れた生成物も保存はする（開いて読める失敗のほうが、
+      調べられない削除より有用）。
+      新経路 `GET /v1/artifacts` と `GET /v1/artifacts/{name}`、どちらも
+      **guarded のまま**（認証面は 1 ミリも広げていない）。
+      **一覧は名前・サイズ・日時のみ。**デッキは索引文書に接地しているので、
+      一覧に抜粋を載せることは索引 DATA を「メタデータに見える場所」へ
+      置くのと同じ。
+      **経路探索の封じ方は 2 重。**名前を厳格パターンで検査してから join し、
+      解決後の実パスが artifacts 配下にあることも要求する（後者は
+      「名前は普通だが symlink」を捕まえる）。存在しないファイルと
+      許されない名前は**同じ 404**（差分でディレクトリを地図化させない）。
+      **生成物は添付として返す**（`Content-Disposition: attachment` +
+      `nosniff`）。この origin で描画すれば、運用者が token を打ち込む欄の
+      隣で生成 markup が走る。画面側も blob 経由で、iframe も同一 origin の
+      タブも使わない。
+      `test_no_write_routes_exist` の許可リストに 2 経路を追加した（**弱化では
+      ない**: GitHub 呼び出しゼロ・ローカル読み取りのみ・他の assert は不変。
+      理由を docstring に明記）。
+      → 動かす数字: `creation_ui_available` unmeasurable→1
+      （guard: `creation_routed` 1・`creation_game_playable` 1・既存フロア全維持・
+      verify_gate_recall MISS 0・認証面不変・外部通信ゼロ）
       質問欄だけの現画面に、制作の入口（そのまま「作って」と打てば良い旨の
       表示＋生成物の一覧・ダウンロードリンク）を足す。認証は現行どおり
       guarded。生成物一覧も索引データを漏らさない（ファイル名と日時のみ）。

@@ -16,6 +16,10 @@ What it deliberately does not do:
 * No content rendered as markup. Answers and citation text are inserted as
   text nodes, because a retrieved document is DATA and must never become
   markup in the operator's browser.
+* No artifact opened in this origin. A generated file is downloaded through
+  ``fetch`` and handed to the browser as a blob; it is never put in an
+  ``iframe`` or a same-origin tab, where its markup would run next to the
+  field the operator types their token into.
 """
 
 from __future__ import annotations
@@ -62,6 +66,8 @@ ASK_PAGE = """<!doctype html>
 <h1>SIDRA AI</h1>
 <p class="sub">Ask a question about the indexed repositories. Answers are
 grounded in retrieved documents and cite where each claim came from.</p>
+<p class="sub">作るときも同じ欄です。「釣りゲームを作って」「デッキを作って」の
+ように書けば、質問ではなく制作として扱われ、できたファイルが下に並びます。</p>
 
 <form id="ask">
   <div class="row">
@@ -78,6 +84,14 @@ grounded in retrieved documents and cite where each claim came from.</p>
 <p id="status"></p>
 <p id="answer"></p>
 <div id="sources"></div>
+
+<section id="artifacts">
+  <p class="note">Generated files
+    <button type="button" id="refresh">Refresh</button>
+  </p>
+  <ol id="artifact-list"></ol>
+  <p class="note" id="artifact-status"></p>
+</section>
 
 <script>
 (function () {
@@ -126,6 +140,65 @@ grounded in retrieved documents and cite where each claim came from.</p>
     sources.appendChild(list);
   }
 
+  var artifactList = document.getElementById("artifact-list");
+  var artifactStatus = document.getElementById("artifact-status");
+
+  function authHeaders() {
+    var token = document.getElementById("token").value;
+    return token ? { "Authorization": "Bearer " + token } : {};
+  }
+
+  function download(name) {
+    // Fetched rather than linked: a plain <a href> cannot carry the bearer
+    // token, and a blob is handed to the browser instead of being opened in
+    // this origin.
+    fetch("/v1/artifacts/" + encodeURIComponent(name), { headers: authHeaders() })
+      .then(function (response) {
+        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        return response.blob();
+      }).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = name;
+        link.click();
+        URL.revokeObjectURL(url);
+      }).catch(function (error) {
+        artifactStatus.textContent = "Download failed: " + error.message;
+      });
+  }
+
+  function loadArtifacts() {
+    fetch("/v1/artifacts", { headers: authHeaders() })
+      .then(function (response) {
+        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        return response.json();
+      }).then(function (result) {
+        clear(artifactList);
+        var items = result.artifacts || [];
+        artifactStatus.textContent = items.length ? "" : "まだありません。";
+        items.forEach(function (a) {
+          // Name, size and time. The server sends nothing else, and the page
+          // asks for nothing else.
+          var item = document.createElement("li");
+          var open = document.createElement("button");
+          open.type = "button";
+          open.textContent = a.name;
+          open.addEventListener("click", function () { download(a.name); });
+          item.appendChild(open);
+          var meta = document.createElement("span");
+          meta.className = "note";
+          meta.textContent = " " + a.bytes + " bytes / " + a.modified;
+          item.appendChild(meta);
+          artifactList.appendChild(item);
+        });
+      }).catch(function (error) {
+        artifactStatus.textContent = "Listing failed: " + error.message;
+      });
+  }
+
+  document.getElementById("refresh").addEventListener("click", loadArtifacts);
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var question = document.getElementById("q").value.trim();
@@ -154,12 +227,17 @@ grounded in retrieved documents and cite where each claim came from.</p>
     }).then(function (result) {
       statusLine.textContent = "";
       render(result);
+      // A creation turn just wrote a file; the list is stale the moment the
+      // answer arrives.
+      loadArtifacts();
     }).catch(function (error) {
       statusLine.textContent = "Failed: " + error.message;
     }).then(function () {
       send.disabled = false;
     });
   });
+
+  loadArtifacts();
 })();
 </script>
 </body>

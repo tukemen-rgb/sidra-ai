@@ -1,0 +1,55 @@
+"""The game generator as the router sees it.
+
+Kept apart from :mod:`sidra_ai.creation.games` for the same reason the deck
+job is: the builder stays a library with no opinion about HTTP or artifact
+directories, and this file holds the one callable the router needs.
+
+The summary reports the validator's verdict rather than the fact that a file
+was written. "作りました" about a page whose script never parsed is exactly
+the claim this project keeps refusing to make elsewhere, and a generator is
+the last place it should start.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from sidra_ai.creation.games import generate_game, save_game, validate_game_html
+from sidra_ai.creation.intent import CreationIntent
+from sidra_ai.creation.router import CreationOutcome
+
+
+def build_game_generator(data_dir: str | Path):
+    def generate(message: str, intent: CreationIntent) -> CreationOutcome:
+        game = generate_game(message)
+        verdict = validate_game_html(game.html)
+        path = save_game(game, data_dir)
+        if verdict["playable"]:
+            summary = (
+                f"「{game.title}」を作りました（難易度 {game.difficulty}）。"
+                "ブラウザで開けばそのまま遊べます。"
+            )
+        else:
+            # Still saved: a broken artifact an operator can open and read is
+            # more useful than a deletion they cannot inspect.
+            summary = (
+                f"「{game.title}」を作りましたが、遊べる状態ではありません: "
+                + "、".join(str(f) for f in verdict["failures"])
+            )
+        return CreationOutcome(
+            kind=intent.kind,
+            handled=True,
+            summary=summary,
+            artifact_path=str(path),
+            details={
+                "template": game.template,
+                "difficulty": game.difficulty,
+                "playable": verdict["playable"],
+                "js_checker": verdict["js_checker"],
+            },
+        )
+
+    return generate
+
+
+__all__ = ["build_game_generator"]

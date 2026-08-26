@@ -583,6 +583,46 @@ def measure_creation(c: Collector) -> None:
         ),
         kind=OUTCOME,
     )
+    # The page is only an entry point if a creation request reaching it comes
+    # back as a made thing and the file is listable. Checked through the real
+    # app, because "the HTML contains the word 作って" would pass on a page
+    # whose button posts to an endpoint that does not exist.
+    from fastapi.testclient import TestClient
+
+    from sidra_ai.api.app import create_app
+
+    reasons = []
+    with _quiet(), TestClient(create_app()) as client:
+        page = client.get("/")
+        if page.status_code != 200:
+            reasons.append(f"GET / -> {page.status_code}")
+        elif "/v1/artifacts" not in page.text or "作って" not in page.text:
+            reasons.append("the page does not offer creation or a file list")
+        made = client.post("/v1/chat", json={"message": "釣りゲームを作って"})
+        routed = made.status_code == 200 and (
+            made.json().get("creation", {}).get("outcome", {}).get("handled")
+        )
+        if not routed:
+            reasons.append("a creation request came back as an answer")
+        listing = client.get("/v1/artifacts")
+        if listing.status_code != 200 or not listing.json().get("artifacts"):
+            reasons.append(f"listing -> {listing.status_code}")
+        else:
+            name = listing.json()["artifacts"][0]["name"]
+            got = client.get(f"/v1/artifacts/{name}")
+            if got.status_code != 200:
+                reasons.append(f"download -> {got.status_code}")
+            elif "attachment" not in got.headers.get("content-disposition", ""):
+                # Served inline, it would run in the origin holding the token.
+                reasons.append("artifact served inline rather than as a download")
+    c.add(
+        "creation_ui_available",
+        "ブラウザから制作して受け取れる",
+        1.0 if not reasons else 0.0,
+        detail="GET / -> /v1/chat -> /v1/artifacts -> download" if not reasons else "; ".join(reasons),
+        kind=OUTCOME,
+    )
+
     # A template that stops being reachable from ordinary wording is a
     # regression the playability number cannot see: both templates would still
     # generate, and nobody would get the second one.
