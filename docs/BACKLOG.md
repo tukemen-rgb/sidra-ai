@@ -2178,7 +2178,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       しかも字面は安心させる内容。空振りより害が大きい。
       → 動かす数字: 上と同じ 20 問の誤答 7→5 以下
 
-- [ ] **C-1010: 索引が再起動で消える（永続化が配線されていない）。**
+- [~] 作業中 2026-08-26 22:2x UTC 対話セッション **C-1010: 索引が再起動で消える（永続化が配線されていない）。**
       `DocumentStore` は `_append` と `load()`（再読込時に現行検出器で
       再審査する仕組みまで）を実装済みなのに、`api/service.py:73` の
       `DocumentStore(self.gate)` が **`path=` を渡していない**。コード全体で
