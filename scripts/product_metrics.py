@@ -623,6 +623,30 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # Scaffolded documents that say 〔未記入〕 under every heading read as
+    # finished, which is why this counts *specific* stages rather than
+    # written ones: a stage scores only when it carries a number or an input
+    # key that this production actually ships with.
+    import tempfile
+
+    from sidra_ai.creation import story
+    from sidra_ai.creation.projects import count_substantive_stages, scaffold_project
+
+    request = "企画から難しい釣りゲームを一通り作って"
+    with tempfile.TemporaryDirectory() as scratch:
+        project = scaffold_project(request, scratch)
+        substantive = count_substantive_stages(project, story.plan_for(request))
+    c.add(
+        "creation_story_stages",
+        "中身のある制作文書",
+        float(substantive),
+        detail=(
+            "scenario / structure / features, each carrying this production's "
+            "own controls or difficulty numbers (read off disk)"
+        ),
+        kind=OUTCOME,
+    )
+
     # A template that stops being reachable from ordinary wording is a
     # regression the playability number cannot see: both templates would still
     # generate, and nobody would get the second one.

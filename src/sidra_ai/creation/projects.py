@@ -33,6 +33,7 @@ from enum import Enum
 from pathlib import Path
 
 from sidra_ai.creation.evidence import Fact
+from sidra_ai.creation import story
 from sidra_ai.creation.games import generate_game, save_game
 
 
@@ -258,10 +259,15 @@ def _log_skeleton(title: str, stages: tuple[Stage, ...], evidence: tuple[str, ..
 """
 
 
+#: The three written stages. Each takes ``(title, evidence, plan)`` and fills
+#: in the production's real controls and difficulty numbers - see
+#: :mod:`sidra_ai.creation.story` for why they are derived rather than
+#: invented. The ``_*_skeleton`` functions above are kept as the shape these
+#: replaced; nothing calls them any more.
 SKELETONS = {
-    Stage.SCENARIO: _scenario_skeleton,
-    Stage.STRUCTURE: _structure_skeleton,
-    Stage.FEATURES: _features_skeleton,
+    Stage.SCENARIO: story.scenario,
+    Stage.STRUCTURE: story.structure,
+    Stage.FEATURES: story.features,
 }
 
 
@@ -286,13 +292,18 @@ def scaffold_project(
     stages = requested_stages(request)
     evidence = tuple(dict.fromkeys(fact.source for fact in (facts or []) if fact.source))
 
+    # Read once, before any stage is written: every document has to describe
+    # the same production, and re-deriving per stage is how two files end up
+    # disagreeing about the same game.
+    plan = story.plan_for(request)
+
     root = Path(data_dir) / "artifacts" / "projects" / slug
     root.mkdir(parents=True, exist_ok=True)
 
     for stage in stages:
         if stage in SKELETONS:
             (root / STAGE_FILES[stage]).write_text(
-                SKELETONS[stage](title, evidence), encoding="utf-8"
+                SKELETONS[stage](title, evidence, plan), encoding="utf-8"
             )
         elif stage is Stage.ASSETS:
             # A directory, not a file: C-997 fills it with generated SVG. It
@@ -322,6 +333,37 @@ def scaffold_project(
     )
 
 
+#: A stage counts as written when it says something specific about *this*
+#: production. Length alone would pass a page of generic prose, and a heading
+#: check would pass the placeholder version this replaced, so the test is a
+#: fact only the real parameters could supply.
+def _stage_is_substantive(text: str, plan: "story.ProductionPlan") -> bool:
+    facts = [str(plan.speed), str(plan.band)]
+    facts += [key for key, _ in plan.controls]
+    facts += [label for label, _ in plan.parameters]
+    return any(fact and fact in text for fact in facts)
+
+
+def count_substantive_stages(project: ScaffoldedProject, plan: "story.ProductionPlan") -> int:
+    """How many written stages carry the production's own numbers.
+
+    Reads the disk rather than the return value: a scaffolder that reported
+    three stages and wrote one is exactly the failure the project validator
+    exists for, and this number would inherit the same blind spot.
+    """
+
+    written = 0
+    for stage in (Stage.SCENARIO, Stage.STRUCTURE, Stage.FEATURES):
+        if stage not in project.stages:
+            continue
+        target = project.root / STAGE_FILES[stage]
+        if not target.is_file():
+            continue
+        if _stage_is_substantive(target.read_text(encoding="utf-8"), plan):
+            written += 1
+    return written
+
+
 def validate_project(project: ScaffoldedProject) -> dict:
     """Report every stage the run claimed but did not actually write.
 
@@ -349,6 +391,7 @@ def validate_project(project: ScaffoldedProject) -> dict:
 
 
 __all__ = [
+    "count_substantive_stages",
     "STAGE_FILES",
     "STAGE_ORDER",
     "STAGE_WORDS",
