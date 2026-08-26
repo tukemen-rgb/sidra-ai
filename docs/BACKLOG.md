@@ -396,7 +396,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_story_stages unmeasurable→3（3 ステージが
       実質内容を持つことを計器で検証: 見出しだけなら 0 と数える）
 
-- [ ] **C-997: モデル（ビジュアル素材）作成。**プロシージャル SVG で
+- [~] 作業中 2026-08-26 20:1x UTC ループA3 **C-997: モデル（ビジュアル素材）作成。**プロシージャル SVG で
       キャラクター/オブジェクトのスプライトを生成して `assets/` に置き、
       game.html から参照する。パレットは DESIGN.md のトークンのみ
       （#05070f 系 / #2ee6ff / #ff5cc8 控えめ）。乱数は seed 付きで再現可能に。
