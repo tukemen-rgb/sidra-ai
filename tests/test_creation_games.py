@@ -230,3 +230,46 @@ def test_the_artifact_is_written_locally(tmp_path) -> None:
 
     assert path.parent == tmp_path / "artifacts"
     assert path.read_text(encoding="utf-8") == game.html
+
+
+# ----------------------------------------------- the router's evidence
+
+
+def test_the_generator_survives_the_evidence_the_router_hands_it(tmp_path) -> None:
+    """The crash this file did not catch the first time.
+
+    The generator reached for fields ``Fact`` does not have, so any creation
+    request that retrieved something raised ``AttributeError`` and returned
+    500 - while every test here passed, because none of them handed it a
+    fact. A citation line is the least important part of the page and it was
+    taking the whole game down with it.
+    """
+
+    from sidra_ai.creation.evidence import Fact
+    from sidra_ai.creation.game_job import build_game_generator
+    from sidra_ai.creation.intent import detect_creation_intent
+
+    generate = build_game_generator(tmp_path)
+    facts = [Fact(text="ダークは #05070f", source="tukemen-rgb/site docs/DESIGN.md")]
+
+    outcome = generate(
+        "釣りゲームを作って", detect_creation_intent("釣りゲームを作って"), facts
+    )
+
+    assert outcome.handled
+    assert outcome.details["playable"]
+    assert "docs/DESIGN.md" in Path(outcome.artifact_path).read_text(encoding="utf-8")
+
+
+def test_no_evidence_still_cites_the_design_source(tmp_path) -> None:
+    """The empty list is the ordinary case, not a degraded one."""
+
+    from sidra_ai.creation.game_job import build_game_generator
+    from sidra_ai.creation.intent import detect_creation_intent
+
+    outcome = build_game_generator(tmp_path)(
+        "釣りゲームを作って", detect_creation_intent("釣りゲームを作って"), []
+    )
+
+    assert outcome.handled
+    assert "DESIGN.md" in Path(outcome.artifact_path).read_text(encoding="utf-8")
