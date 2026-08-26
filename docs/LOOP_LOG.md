@@ -3327,3 +3327,4 @@
   再検証: `python -m pytest` **1274 passed / exit 0**、`verify_gate_recall.py` PASSED。
   **教訓**: 並行ループ中に共有 Protocol を変えたら、rebase 後にもう一度 full suite を回すこと。
   自分の作業ツリーだけが緑でも、main は緑とは限らない。
+2026-08-26 15:38 UTC ループB started
