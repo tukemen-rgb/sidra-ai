@@ -3138,3 +3138,4 @@
   evidence indexed 8/8 なので取り込みの穴ではなく検索の問題。MISS 5 問中 4 問は
   paraphrase 段で、C-985/C-986 の結論と同じ場所。
   pytest 全通過 / verify_gate_recall MISS 0 / オフライン判定器 NO MOVEMENT。
+2026-08-26 00:06 UTC ループA started
