@@ -3560,3 +3560,8 @@
   （38 問判定器の 4 数字すべてで上回る）。ループA の減点機構は採用版の下で不発に
   なるため削除、比較表と理由を OUTCOMES に記録。MRR 0.243→0.304、抜粋的中
   84.6%→93.3%、全下限維持・exit 0。社長 18 問 1 位 8→9 / top5 12→16。
+2026-08-27 00:0x UTC 対話セッション — C-1010 完了（index_survives_restart unmeasurable→1）
+  DocumentStore に永続化パスを配線し、起動時に再審査つきで load。実測 111 文書が
+  再起動後も復元、再取り込みなしで引用付き回答。0600、壊れた索引でも起動は継続。
+  計器 index_survives_restart を追加。テスト 4 件 / pytest exit 0 / recall PASSED /
+  判定器 exit 0。積み残し: index.jsonl のコンパクション未実装（正しさには影響なし）。

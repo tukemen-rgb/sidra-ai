@@ -26,7 +26,7 @@ from sidra_ai.models.base import (
 from sidra_ai.models.usage import MeteredAdapter, UsageLedger
 from sidra_ai.retrieval.embedding import build_retriever
 from sidra_ai.retrieval.search import SearchResult
-from sidra_ai.retrieval.store import DocumentStore
+from sidra_ai.retrieval.store import DocumentStore, LoadReport
 from sidra_ai.security.data_envelope import build_data_context, build_history_context
 from sidra_ai.security.decisions import Decision, GateResult
 from sidra_ai.security.gate import QuarantineStore, SecurityGate
@@ -70,7 +70,39 @@ class SidraService:
             quarantine_store=QuarantineStore(data_dir / "quarantine.jsonl")
         )
         self.output_guard = output_guard or OutputGuard()
-        self.store = store or DocumentStore(self.gate)
+        # The index lives on disk, not only in this process. Without a path
+        # the store keeps everything in memory and a restart drops the whole
+        # corpus: measured 2026-08-26 on a data directory holding 484
+        # documents, a fresh process started with **0** while state.json still
+        # reported the five repositories as ingested. Nothing was corrupt -
+        # re-running the analyze endpoint rebuilt it correctly - but every
+        # restart meant re-fetching five repositories from GitHub before a
+        # single question could be answered.
+        #
+        # The store already had the whole mechanism (append on add, and a
+        # load() that puts every record back through the current security gate
+        # rather than trusting yesterday's decision). It was simply never
+        # given a path: no caller in the project passed one.
+        self.store = store or DocumentStore(
+            self.gate, path=data_dir / "index.jsonl"
+        )
+
+        #: What the last reload found, or why it found nothing. Kept as state
+        #: rather than only logged: "the index is empty" and "the index failed
+        #: to load" look identical from outside and call for different work.
+        self.index_load: LoadReport | None = None
+        if store is None:
+            try:
+                self.index_load = self.store.load()
+            except Exception as exc:  # noqa: BLE001
+                # A damaged index must not stop the API from starting - the
+                # operator can always re-ingest, which is exactly the state
+                # this whole change is removing. Recorded, never silent.
+                self.index_load_error = f"{type(exc).__name__}: {exc}"
+            else:
+                self.index_load_error = ""
+        else:
+            self.index_load_error = ""
         self.retriever = build_retriever(self.settings, self.store)
         if model is None:
             self.model, self.model_admission = build_runtime_model(

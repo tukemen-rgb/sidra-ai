@@ -165,6 +165,17 @@ def measure_usability(c: Collector) -> None:
           detail=", ".join(index_routes) or f"GET routes: {', '.join(read_routes)}",
           kind=OUTCOME)
 
+    # 2b. Is the index still there after a restart?
+    #
+    # Exercised by building a service, writing one document, and building a
+    # second service over the same directory - which is what a restart is.
+    # Measured as a count rather than a flag so a partial reload (the security
+    # gate rejecting records under today's detectors) is visible as a smaller
+    # number instead of a silent pass.
+    survived, detail = _measure_restart_survival()
+    c.add("index_survives_restart", "再起動後に索引が残っている文書数", survived,
+          detail=detail, kind=OUTCOME)
+
     # 3. Ask a follow-up that remembers the last answer.
     from sidra_ai.api.schemas import ChatRequest
 
@@ -1054,6 +1065,56 @@ def _measure_themes() -> tuple[float, str]:
 
     note = f"{len(working)} themes reach both artifacts: {', '.join(working)}"
     return float(len(working)), note + ("; " + "; ".join(broken) if broken else "")
+
+
+def _measure_restart_survival() -> tuple[float, str]:
+    """How many documents a second process finds after the first indexed them.
+
+    Zero was the measured value before the store was given a path: the whole
+    corpus lived in one process and a restart dropped it, so the operator had
+    to re-fetch five repositories from GitHub before asking anything.
+    """
+
+    import tempfile
+    from datetime import datetime, timezone
+
+    from sidra_ai.api.service import SidraService
+    from sidra_ai.config.settings import Settings
+    from sidra_ai.documents import Document, Provenance, SourceType, TrustLevel
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    document = Document(
+        content="投稿できるファイルは 200MB までです。",
+        provenance=Provenance(
+            source="github",
+            repository="tukemen-rgb/site",
+            path="docs/upload.md",
+            commit_sha="a" * 40,
+            timestamp=datetime(2026, 8, 26, tzinfo=timezone.utc),
+            source_type=SourceType.DOCS,
+            trust_level=TrustLevel.INTERNAL_REPO,
+            license="MIT",
+        ),
+    )
+    try:
+        with _quiet(), tempfile.TemporaryDirectory() as scratch:
+            settings = Settings(data_dir=scratch)
+            first = SidraService(settings=settings, model=EchoModelAdapter())
+            first.store.add(document)
+            written = len(list(first.store.documents()))
+
+            second = SidraService(settings=settings, model=EchoModelAdapter())
+            found = len(list(second.store.documents()))
+            error = second.index_load_error
+    except Exception as exc:  # noqa: BLE001 - an unmeasurable probe reports 0
+        return 0.0, f"probe failed: {type(exc).__name__}: {exc}"
+
+    if error:
+        return 0.0, f"the reload reported: {error}"
+    return float(found), (
+        f"{found} of {written} document(s) found by a second service over the "
+        "same data directory"
+    )
 
 
 def _measure_project_scaffold() -> tuple[float, str]:
