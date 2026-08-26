@@ -3517,3 +3517,4 @@
   （069bbd3 で他セッションが除去。手間をかけさせた）。LOOP_LOG しか見ていなかった。
   以後の手順に追加: push 前に `grep -rn '^<<<<<<<' docs/ src/ tests/ scripts/` を必ず通す。
   マーカーは pytest では落ちない——Markdown は誰も parse しないので、検証が緑でも壊れたまま main に入る。
+2026-08-26 20:36 UTC ループB started
