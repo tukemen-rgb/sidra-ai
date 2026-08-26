@@ -538,7 +538,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_gif_generated unmeasurable→1（GIF ヘッダ+
       フレーム数>1 を計器で検証）
 
-- [ ] **C-1002: ジェネラティブアート。**seed 付きの canvas 生成アート HTML
+- [~] 作業中 2026-08-26 20:45 UTC 対話セッション **C-1002: ジェネラティブアート。**seed 付きの canvas 生成アート HTML
       （フローフィールド等 2 パターン以上、GAMEYARD パレット）。
       → 動かす数字: creation_art_patterns unmeasurable→2
 
