@@ -3266,3 +3266,4 @@
   無い機械では HTML のみ。`pptx_reason` を details に必ず載せ、作っていない機械で名乗らない。
   end-to-end 実測: 「営業用のデッキを作って」→ 4 枚生成・HTML と pptx を保存・空欄 4 枚を回答に明示。
   検証: `python -m pytest` **1251 passed / exit 0**、`verify_gate_recall.py` PASSED。新規テスト 11 件。
+2026-08-26 15:11 UTC ループA started
