@@ -407,7 +407,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       構文エラーなし）を product_metrics に載せる。
       → 動かす数字: creation_game_playable unmeasurable→1
 
-- [ ] **C-992: デッキ／文書の生成。**「デッキを作って」で pptx（依存が
+- [~] 作業中 2026-08-26 15:13 UTC ループB **C-992: デッキ／文書の生成。**「デッキを作って」で pptx（依存が
       入らないなら まず単一 HTML スライド）を生成。内容は sales-facts 等の
       索引文書に接地し、無い数字は〔社長が埋める欄〕にする（数字の捏造禁止）。
       `.claude/skills/pptx` のスクリプト知見は参照してよい（実行依存は
