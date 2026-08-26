@@ -351,7 +351,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_routed unmeasurable→1
       （guard: 既存 QA の数字・フロア全維持）
 
-- [ ] **C-991: ブラウザで遊べる単一ファイル HTML ミニゲーム生成。**
+- [~] 作業中 2026-08-26 14:47 UTC ループA3 **C-991: ブラウザで遊べる単一ファイル HTML ミニゲーム生成。**
       テンプレートを 2 種以上（例: 釣りゲーム＝タイミング/リズム型、
       もう 1 種は自由）。GAMEYARD DESIGN.md の実トークン
       （#05070f 系ダーク・シアン #2ee6ff・マゼンタ控えめ・絵文字アイコン
