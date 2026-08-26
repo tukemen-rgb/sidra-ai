@@ -403,7 +403,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_assets_generated unmeasurable→1
       （計器: SVG がパースでき、game.html から参照されている）
 
-- [ ] **C-998: アニメーション作成。**game.html のテンプレを、スプライト
+- [~] 作業中 2026-08-26 19:58 UTC ループB **C-998: アニメーション作成。**game.html のテンプレを、スプライト
       アニメーション（フレーム切替 or transform）＋イージング付きの動きに
       強化する。`prefers-reduced-motion` で非必須アニメーションが止まること
       （DESIGN.md の要件）も計器に含める。
