@@ -3543,3 +3543,11 @@
   最大の発見: 内容語 0 一致でも文法バイグラム（はど/どこ/こで/すか）だけで 1 位が
   決まる。min_score 案と内容語フィルタ案は実測で否定済み（BACKLOG に明記）。
 2026-08-26 23:12 UTC ループA started Board=13
+2026-08-26 23:26 UTC ループA — C-1008 完了（判定器 exit 0）
+  文法バイグラムだけで 1 位を取るチャンクを止めた。**内容語に 1 つも当たらなかった
+  チャンクに限り**文法分の得点を 0.25 倍（`_GRAMMAR_ONLY_WEIGHT`）。
+  answerable_total 13→14、answerable_direct 11→12、discrimination +23.7→+28.9 pt、
+  MRR 0.243→0.252。pytest exit 0 / verify_gate_recall PASSED。
+  **一律の項別重み付けは exit 2 で不採用**（answerable 15 まで上がるが discrimination が
+  +15.8 pt = 下限直上まで落ちた）。安全側を削って製品の数字を上げる形だったので採らない。
+  **`boss_q_answered` は測れていない**（20 問が未 commit）。C-1011 に起票。
