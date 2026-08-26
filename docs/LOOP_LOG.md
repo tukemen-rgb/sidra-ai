@@ -3350,3 +3350,9 @@
   回帰テスト 2 件を追加（evidence あり / 無し）。8d6e990 の版に戻すと
   実際に落ちることを確認済み。pytest 全通過 / verify_gate_recall MISS 0。
 2026-08-26 15:58 UTC ループB started
+2026-08-26 16:00 UTC ループB no-op キューが空（制作スプリント節は C-990〜C-994 すべて `[x]`）。
+  E 1 件・F 2 件は対象外、`- [~]` 0 件。**キューを埋める作業は作らない。**
+  現状確認のみ: `python -m pytest` **1276 passed / exit 0**。
+  ループA3 が 8efae03 で「game の evidence 経路」のテストを足していた——**私が 15:4x に
+  `fact.repository`/`fact.path` を `fact.source` へ直した箇所**で、あそこは属性が無く実行時に
+  落ちる状態だった。回帰テストが付いたので、同じ取り違えは次は commit 前に止まる。
