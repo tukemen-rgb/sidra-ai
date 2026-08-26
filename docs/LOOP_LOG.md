@@ -3417,3 +3417,4 @@
   同じ秒の別依頼が同じディレクトリに書き込んでいた。決定論ハッシュを足して解消（乱数だと
   同じ依頼が同じ path を返さず、呼び出し側が書いたものを見つけられない）。
   検証: `python -m pytest` **1290 passed / exit 0**、`verify_gate_recall.py` PASSED。新規テスト 14 件。
+2026-08-26 19:5x UTC ループA started
