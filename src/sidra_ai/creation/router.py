@@ -103,15 +103,29 @@ class CreationRouter:
 
 def build_default_router(
     extra: dict[CreationKind, CreationGenerator] | None = None,
+    *,
+    data_dir: str | None = None,
 ) -> CreationRouter:
     """The router the API uses.
 
-    Empty today. C-991 and C-992 register the game and deck generators here,
-    and ``extra`` lets a test install a generator without reaching into the
-    module's state.
+    ``data_dir`` is where generated artifacts are written. Without one the
+    deck generator is left unregistered rather than defaulting to some path
+    of its own choosing: a generator that writes files needs the caller to
+    have decided where, and a router that silently picks a directory is how
+    artifacts end up somewhere nobody looks.
+
+    ``extra`` is applied last, so a test can install its own generator over
+    the default for a kind.
     """
 
     router = CreationRouter()
+    if data_dir:
+        # Imported here: the builders pull in HTML templates and the pptx
+        # probe, and a module that only inspects the router should not pay
+        # for them.
+        from sidra_ai.creation.deck_job import build_deck_generator
+
+        router.register(CreationKind.DECK, build_deck_generator(data_dir))
     for kind, generator in (extra or {}).items():
         router.register(kind, generator)
     return router

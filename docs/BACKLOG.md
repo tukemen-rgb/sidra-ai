@@ -407,12 +407,42 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       構文エラーなし）を product_metrics に載せる。
       → 動かす数字: creation_game_playable unmeasurable→1
 
-- [~] 作業中 2026-08-26 15:13 UTC ループB **C-992: デッキ／文書の生成。**「デッキを作って」で pptx（依存が
+- [x] 完了 2026-08-26 15:1x UTC ループB **C-992: デッキ／文書の生成。**「デッキを作って」で pptx（依存が
       入らないなら まず単一 HTML スライド）を生成。内容は sales-facts 等の
       索引文書に接地し、無い数字は〔社長が埋める欄〕にする（数字の捏造禁止）。
       `.claude/skills/pptx` のスクリプト知見は参照してよい（実行依存は
       使うときにインストール。pyproject には足さない）。
       → 動かす数字: creation_deck_generated unmeasurable→1
+
+      **実施 2026-08-26 ループB。`creation_deck_generated` unmeasurable→1（`--compare` exit 0）。**
+      `creation/decks.py`（生成器）+ `creation/deck_job.py`（router 用の口）。
+      **この項目の危険はレンダリングではなく「それらしい数字」。**デッキは体裁が
+      整っているからこそ権威に見える。よって不変条件を 1 本立てた:
+      **数字は索引から引いたものだけ。根拠が無い欄は `〔社長が埋める欄〕` のまま。**
+      `validate_deck()` は「描画できるか」に加えて**スライド上の全ての数値が
+      evidence に実在するか**を検査し、無ければ usable=False にする。
+      **変異テストで有効性を確認済み**（「売上は 500 万円です」を差し込むと
+      `numbers not present in the evidence` で落ちる）。逆方向のテストも置いた
+      （引用済みの 1326 は通る）。**片側だけだと「全部拒否する検査」も満点になる。**
+      モデルは **題名しか触れない**（`with_copy` は title のみ）。bullet は数字の
+      在り処なので、言い換えの余地を渡さない。
+      空欄は**隠さず数える**: `unfilled` を要約に出し、guard
+      `creation_deck_blanks_kept` で「根拠ゼロなら 4 枚とも空欄」を固定した
+      （もっともらしい filler で埋める“改善”を防ぐ）。
+      **pptx は任意**。`python-pptx` があれば .pptx も書く（本コンテナには
+      `pip install python-pptx` 済み・**pyproject には足していない**）。
+      無い機械では HTML だけが出る。`creation_deck_pptx` を context として
+      別掲し、`pptx_reason` を outcome の details に必ず載せる
+      （「pptx を作った」を、作っていない機械で名乗らないため）。
+      router へ既定登録した: `build_default_router(data_dir=...)`。**data_dir が
+      無ければ登録しない**（ファイルを書く生成器が置き場所を自分で決めるのは、
+      誰も見ない場所に成果物が溜まる道）。
+      実測（end-to-end）: `/v1/chat`「営業用のデッキを作って」→ 4 枚生成、
+      HTML と pptx を `.sidra/artifacts/` へ保存、回答は空欄 4 枚を明示。
+      検証: `python -m pytest` **1251 passed / exit 0**、`verify_gate_recall.py` PASSED。
+      新規テスト 11 件。既存 QA の数字は不変。
+      **残り**: 索引からの facts 供給はまだ配線していない（`build_deck_generator`
+      は facts を受け取れる形。C-993 か後続で `/v1/chat` の検索結果を渡す）。
 
 - [ ] **C-993: ブラウザ画面から制作を使えるようにする。**
       質問欄だけの現画面に、制作の入口（そのまま「作って」と打てば良い旨の

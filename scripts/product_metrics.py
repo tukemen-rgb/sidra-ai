@@ -599,6 +599,58 @@ def measure_creation(c: Collector) -> None:
         kind=GUARD,
     )
 
+    # --- and the deck, where the danger is different ------------------
+    #
+    # A deck that renders is not the bar. A deck is dangerous when it looks
+    # authoritative and carries a figure nobody retrieved, so the number here
+    # is "usable *and* every figure on it traces to evidence". The probe feeds
+    # real facts and then checks the deck against exactly those facts, which
+    # is the same check that would fail if a generator ever started writing
+    # numbers of its own.
+    from sidra_ai.creation.decks import Fact, generate_deck, save_pptx, validate_deck
+
+    facts = [
+        Fact("課題: 索引した文書を人手で読み切れない", "tukemen-rgb/sidra-ai docs/BACKLOG.md"),
+        Fact("解決: 引用付きで答え、根拠の抜粋も返す", "tukemen-rgb/sidra-ai docs/ARCHITECTURE.md"),
+    ]
+    deck = generate_deck("営業用のデッキを作って", facts=facts)
+    verdict = validate_deck(deck, facts)
+    c.add(
+        "creation_deck_generated",
+        "生成したデッキが使える（数字は全部出典つき）",
+        1.0 if verdict["usable"] else 0.0,
+        detail=(
+            f"{verdict['slides']} slides, {len(verdict['unfilled'])} left blank"
+            " for the owner to fill"
+            if verdict["usable"]
+            else "; ".join(verdict["failures"])
+        ),
+        kind=OUTCOME,
+    )
+
+    # An empty-evidence deck must still be honest rather than absent. This is
+    # the case a generator is tempted to "improve" by writing plausible
+    # filler, and the guard says how many sections it left for a human.
+    bare = generate_deck("デッキを作って")
+    c.add(
+        "creation_deck_blanks_kept",
+        "根拠が無い欄を空のまま残す",
+        float(len(bare.unfilled)),
+        detail="sections left blank when nothing was retrieved (filler would read as fact)",
+        kind=GUARD,
+    )
+
+    # pptx is optional on purpose: the HTML artifact is what always exists.
+    # Reported so "we made a pptx" is never claimed on a machine without it.
+    written, why = save_pptx(deck, Path("/tmp/sidra-metrics-probe.pptx"))
+    c.add(
+        "creation_deck_pptx",
+        "pptx も書けたか（任意）",
+        1.0 if written else 0.0,
+        detail=why,
+        kind=CONTEXT,
+    )
+
 
 def measure_cost(c: Collector) -> None:
     from sidra_ai.models.usage import UsageLedger

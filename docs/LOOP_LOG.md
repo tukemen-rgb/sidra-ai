@@ -3252,3 +3252,17 @@
   pytest 全通過 / verify_gate_recall MISS 0 / 既存フロア全維持。
   規模超過を申告: 666 行（目安 400）。テンプレート 2 種が要件のため事後分割不可。
 2026-08-26 15:12 UTC ループB started
+2026-08-26 15:1x UTC ループB 完了 **C-992 デッキ生成: `creation_deck_generated` unmeasurable -> 1**（`--compare` exit 0）。
+  `creation/decks.py` + `creation/deck_job.py`。router へ既定登録（`build_default_router(data_dir=...)`、
+  **data_dir が無ければ登録しない**＝置き場所を生成器に決めさせない）。
+  **この項目の危険は描画ではなく「それらしい数字」。**デッキは体裁が整っているから権威に見える。
+  不変条件: **数字は索引から引いたものだけ、根拠が無い欄は `〔社長が埋める欄〕` のまま。**
+  `validate_deck()` はスライド上の全数値が evidence に実在するかを検査。**変異テストで確認済み**
+  （「売上は 500 万円です」を差し込むと落ちる）。**逆方向のテストも置いた**（引用済みの 1326 は通る）
+  ——片側だけだと「全部拒否する検査」も満点になるため。
+  モデルは題名しか触れない（bullet は数字の在り処）。空欄は隠さず数え、guard で
+  「根拠ゼロなら 4 枚とも空欄」を固定（filler で埋める“改善”の防止）。
+  pptx は任意（`python-pptx` をコンテナに入れたが **pyproject には足していない**）。
+  無い機械では HTML のみ。`pptx_reason` を details に必ず載せ、作っていない機械で名乗らない。
+  end-to-end 実測: 「営業用のデッキを作って」→ 4 枚生成・HTML と pptx を保存・空欄 4 枚を回答に明示。
+  検証: `python -m pytest` **1251 passed / exit 0**、`verify_gate_recall.py` PASSED。新規テスト 11 件。

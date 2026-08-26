@@ -94,7 +94,9 @@ class SidraService:
         # chat path would answer it as one. The router is empty until a
         # generator registers, which is why chat still answers after routing
         # rather than replacing the answer with a promise.
-        self.creation_router = creation_router or build_default_router()
+        self.creation_router = creation_router or build_default_router(
+            data_dir=str(data_dir)
+        )
 
     # ------------------------------------------------------------------
     @property
