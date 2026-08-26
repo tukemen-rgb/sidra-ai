@@ -3450,3 +3450,4 @@
   単体ページは sprites 未指定で従来どおり単一ファイル（assets/ 不在をテスト固定）。
   pytest 全通過 / verify_gate_recall MISS 0 / 既存の制作系数字は不変。
   規模: 438 行（目安 400 の微超過を申告）。
+2026-08-26 20:4x UTC ループA started
