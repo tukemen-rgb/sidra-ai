@@ -497,7 +497,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       extra）。中身は既存の接地パイプラインを流用、無い数字は〔社長が埋める欄〕。
       → 動かす数字: creation_office_formats unmeasurable→3
 
-- [ ] **C-1001: GIF / アニメ画像生成。**Pillow で GIF を生成（フレーム合成・
+- [~] 作業中 2026-08-26 20:10 UTC 対話セッション **C-1001: GIF / アニメ画像生成。**Pillow で GIF を生成（フレーム合成・
       パレット・ループ設定）。テンプレは SIDRA のスプライト（C-997 の SVG →
       ラスタ化 or 図形直描画）を流用。
       → 動かす数字: creation_gif_generated unmeasurable→1（GIF ヘッダ+
