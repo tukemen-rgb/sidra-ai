@@ -542,7 +542,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       （フローフィールド等 2 パターン以上、GAMEYARD パレット）。
       → 動かす数字: creation_art_patterns unmeasurable→2
 
-- [ ] **C-1003: テーマ適用。**生成物（デッキ HTML・ゲーム・アート）に
+- [~] 作業中 2026-08-26 20:17 UTC ループB **C-1003: テーマ適用。**生成物（デッキ HTML・ゲーム・アート）に
       適用できるテーマを 3 種以上定義し、「〜のテーマで」で切替。既定は
       GAMEYARD トークン。テーマ定義は自前（theme-factory はアイデア参考のみ）。
       → 動かす数字: creation_themes_available unmeasurable→3
