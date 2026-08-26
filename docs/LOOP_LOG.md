@@ -3483,3 +3483,4 @@
   ループ再生）。検証 3 重: 自前パーサー計器＋独立 LZW デコーダ＋Pillow 照合
   （全フレーム一致）。intent/ルーターに GIF 種別を配線。テスト 11 件 /
   recall PASSED / 判定器 exit 0。
+2026-08-26 20:16 UTC ループB started
