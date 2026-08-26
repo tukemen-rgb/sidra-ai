@@ -452,7 +452,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
   は pyproject の **optional extra `[creation]`** として宣言してよい（コア依存には
   足さない。無ければその生成種別だけ「未インストール」と正直に断る fail-closed）。
 
-- [ ] **C-1000: Office 実ファイル出力。**「Word で」「Excel で」「pptx で」の
+- [~] 作業中 2026-08-26 20:4x UTC ループA **C-1000: Office 実ファイル出力。**「Word で」「Excel で」「pptx で」の
       指定を検出し、docx / xlsx / 実 pptx を SIDRA 単体で生成（`[creation]`
       extra）。中身は既存の接地パイプラインを流用、無い数字は〔社長が埋める欄〕。
       → 動かす数字: creation_office_formats unmeasurable→3
