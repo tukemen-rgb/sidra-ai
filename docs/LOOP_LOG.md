@@ -3349,3 +3349,4 @@
   経路が無検査で残っていた。
   回帰テスト 2 件を追加（evidence あり / 無し）。8d6e990 の版に戻すと
   実際に落ちることを確認済み。pytest 全通過 / verify_gate_recall MISS 0。
+2026-08-26 15:58 UTC ループB started
