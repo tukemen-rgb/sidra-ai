@@ -691,6 +691,22 @@ def measure_creation(c: Collector) -> None:
         kind=CONTEXT,
     )
 
+    # --- the whole production, not just the playable page --------------
+    #
+    # Two halves again, and the second is the one that keeps this honest: a
+    # scaffolder that always wrote six files would score full marks on the
+    # first while destroying "脚本だけ作って", which has to produce exactly
+    # one file. So the probe asks for a whole project and for one stage, and
+    # requires both to match what was asked.
+    scaffolded, detail = _measure_project_scaffold()
+    c.add(
+        "creation_project_scaffolded",
+        "企画から作った制作一式が揃う",
+        scaffolded,
+        detail=detail,
+        kind=OUTCOME,
+    )
+
     # --- and does a real request actually reach the index? ------------
     grounded, detail = _measure_deck_grounding()
     c.add(
@@ -699,6 +715,53 @@ def measure_creation(c: Collector) -> None:
         grounded,
         detail=detail,
         kind=OUTCOME,
+    )
+
+
+
+def _measure_project_scaffold() -> tuple[float, str]:
+    """Whether "企画から作って" produces the whole production on disk.
+
+    Checked against the directory, not against the summary: the summary is
+    what a scaffolder would get right by accident, and the file that was
+    never written is what an operator finds later.
+    """
+
+    import tempfile
+
+    from sidra_ai.creation.intent import CreationKind, detect_creation_intent
+    from sidra_ai.creation.project_job import build_project_generator
+    from sidra_ai.creation.projects import STAGE_ORDER
+
+    try:
+        with _quiet():
+            data_dir = tempfile.mkdtemp()
+            generate = build_project_generator(data_dir)
+
+            whole_request = "釣りゲームを企画から作って"
+            whole_intent = detect_creation_intent(whole_request)
+            whole = generate(whole_request, whole_intent)
+
+            one_request = "宇宙ゲームの脚本だけ作って"
+            one = generate(one_request, detect_creation_intent(one_request))
+    except Exception as exc:  # noqa: BLE001 - an unmeasurable probe reports 0
+        return 0.0, f"probe failed: {type(exc).__name__}: {exc}"
+
+    if whole_intent.kind is not CreationKind.PROJECT:
+        return 0.0, f"a whole-production request routed to {whole_intent.kind.value}"
+    if whole.details.get("missing"):
+        return 0.0, "stages claimed but not written: " + ", ".join(whole.details["missing"])
+    if len(whole.details.get("stages") or ()) != len(STAGE_ORDER):
+        return 0.0, f"{len(whole.details.get('stages') or ())} of {len(STAGE_ORDER)} stages"
+    if list(one.details.get("stages") or ()) != ["scenario"]:
+        return 0.0, (
+            "a single-stage request produced "
+            f"{one.details.get('stages')} instead of just the scenario"
+        )
+
+    return 1.0, (
+        f"{len(STAGE_ORDER)} stages written to one directory; "
+        "a single-stage request still produces one file"
     )
 
 

@@ -146,6 +146,10 @@ def build_default_router(
 
         router.register(CreationKind.DECK, build_deck_generator(data_dir))
         router.register(CreationKind.GAME, build_game_generator(data_dir))
+
+        from sidra_ai.creation.project_job import build_project_generator
+
+        router.register(CreationKind.PROJECT, build_project_generator(data_dir))
     for kind, generator in (extra or {}).items():
         router.register(kind, generator)
     return router

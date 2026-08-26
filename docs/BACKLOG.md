@@ -334,13 +334,41 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 不変、生成物は `.sidra/artifacts/` ローカル保存のみ。素材は**プロシージャル生成
 （SVG/canvas）のみ**——外部素材・外部フォント・外部 API を取りに行かない。
 
-- [~] 作業中 2026-08-26 19:38 UTC ループB **C-995: ゲーム制作「プロジェクト」骨格。**「〜なゲームを企画から作って」
+- [x] 完了 2026-08-26 19:5x UTC ループB **C-995: ゲーム制作「プロジェクト」骨格。**「〜なゲームを企画から作って」
       で `.sidra/artifacts/projects/<slug>/` を作り、脚本 scenario.md /
       構成 structure.md / 機能設定 features.md / assets/ / game.html /
       production-log.md を**一連で**生成して配置する（この項目では各ファイルは
       骨格＝見出しとテンプレ既定値まででよい。中身の質は C-996〜999）。
       個別依頼（「脚本だけ作って」等）は該当ステージ単体を生成。
       → 動かす数字: creation_project_scaffolded unmeasurable→1
+
+      **実施 2026-08-26 ループB。`creation_project_scaffolded` unmeasurable→1（`--compare` exit 0）。**
+      `creation/projects.py`（骨格生成）+ `creation/project_job.py`（router 用の口）。
+      **`CreationKind.PROJECT` を新設した。**「企画から作って」を GAME に流すと
+      遊べるページだけ返して脚本・構成・機能設定・素材・記録を黙って落とす——
+      **正解に見える誤答**なので種別を分けた。両方の語が入る文
+      （「ゲームを企画から作って」）は PROJECT が勝つことをテストで固定。
+      **部分依頼は部分だけ作る。**「脚本だけ作って」は `scenario.md` 1 枚。
+      6 枚作るのは頼まれた 1 枚を埋もれさせる失敗なので、単独ステージ語
+      （脚本/構成/機能設定/スプライト等）も PROJECT へ回して
+      `requested_stages()` で絞る（「脚本生成器」を別に作ると同じファイルが
+      言い回し次第で 2 箇所に出る）。
+      判定器は**要約ではなくディスクを見る**。要約は壊れた scaffolder でも
+      正しく書けてしまう部分で、書かれなかったファイルは後から運用者が見つける。
+      さらに**一式と単独ステージの両方**を通す（全部書く scaffolder は前者だけ
+      見れば満点になる）。`validate_project` の有効性は features.md を消す
+      テストで確認済み。
+      **実装中に自分のバグを実測で発見して直した**: 日本語タイトルは ASCII を
+      持たないので slug が `project-<秒>` に潰れ、**同じ秒の別依頼が同じ
+      ディレクトリに書き込んでいた**（初回 smoke で「脚本だけ」が 6 ファイルの
+      ディレクトリに着地）。タイトルの決定論的ハッシュを足して解消。乱数では
+      なく決定論なのは、同じ依頼が同じ path を返さないと呼び出し側が
+      書いたものを見つけられないため。
+      game.html は既存の生成器で**実際に遊べるページ**を入れた（空の placeholder は
+      ディスク上で本物と区別が付かない）。assets/ は空ディレクトリのまま（C-997 が埋める）。
+      記録には**引用元 path だけ**を書き、索引文書の中身は書かない（テストで固定）。
+      検証: `python -m pytest` **1290 passed / exit 0**、`verify_gate_recall.py` PASSED。
+      新規テスト 14 件。
 
 - [ ] **C-996: 脚本・構成・機能設定の中身生成。**各ステージのテンプレに、
       依頼文の解析結果と索引からの根拠（DESIGN.md の禁止事項・トークン、

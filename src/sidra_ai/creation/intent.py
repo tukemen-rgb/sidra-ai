@@ -45,6 +45,12 @@ class CreationKind(str, Enum):
     """
 
     GAME = "game"
+    #: A whole production - scenario, structure, features, art, the page and
+    #: a record - rather than only the playable page. Separate from ``GAME``
+    #: because the two are different requests: routing "企画から作って" to the
+    #: game generator would answer with a page and silently drop the four
+    #: things the operator actually asked for.
+    PROJECT = "project"
     DECK = "deck"
     DOCUMENT = "document"
     UNKNOWN = "unknown"
@@ -104,6 +110,32 @@ _QUESTION_MARKERS: tuple[str, ...] = (
 #: whose match appears later in the message, because Japanese noun phrases
 #: put the head noun last ("ゲームのデッキ" is a deck).
 _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
+    # Checked before GAME by the latest-match rule below only when its own
+    # words appear; a request naming both ("ゲームを企画から作って") resolves
+    # to PROJECT because `_find_artifact` breaks ties by position and the
+    # project words come later in that sentence. The explicit test in
+    # tests/test_creation_projects.py pins that, since the two kinds
+    # overlapping is exactly where a silent regression would live.
+    CreationKind.PROJECT: (
+        "企画から",
+        "一連",
+        "一通り",
+        "プロジェクト",
+        "ゲーム制作",
+        "制作一式",
+        # Single-stage requests route here too, and `projects.requested_stages`
+        # narrows to the one stage. Routing them to a "scenario generator"
+        # instead would put the same file in two places depending on how the
+        # operator phrased it.
+        "脚本",
+        "シナリオ",
+        "構成",
+        "画面遷移",
+        "機能設定",
+        "スプライト",
+        "アセット",
+        "制作記録",
+    ),
     CreationKind.GAME: (
         "ゲーム",
         "げーむ",
