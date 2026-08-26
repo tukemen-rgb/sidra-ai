@@ -431,7 +431,6 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       （DESIGN.md の要件）も計器に含める。
       → 動かす数字: creation_animation_present unmeasurable→1
 
-<<<<<<< HEAD
       **実施 2026-08-26 ループB。`creation_animation_present` unmeasurable→1（`--compare` exit 0）。**
       `creation/animation.py` に前置き（`REDUCED` / `ease()` / `FRAME()`）を置き、
       全テンプレの script の先頭に注入。両テンプレに装飾アニメを入れた
@@ -459,10 +458,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       1344 = 自分の手元 1326 + A3 の 18。`--compare` は親 commit（8fe0d11、
       スプライト取り込み後）を基線に取り直して exit 0。
 
-- [~] 作業中 2026-08-26 20:05 UTC 対話セッション **C-999: 記録作成。**production-log.md に「いつ・何を・どの根拠
-=======
 - [x] 完了 2026-08-26 20:2x UTC 対話セッション (`creation_record_written` unmeasurable→**1**、判定器 exit 0) **C-999: 記録作成。**production-log.md に「いつ・何を・どの根拠
->>>>>>> 89ccf6d (creation: every generation leaves a record you can find again)
       （引用元 path）・どのパラメータで」生成したかを自動追記し、ブラウザの
       生成物一覧からプロジェクト単位で辿れるようにする。索引データの中身は
       漏らさない（path と日時とパラメータのみ）。
