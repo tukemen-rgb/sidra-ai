@@ -799,6 +799,22 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the record: is a generation traceable afterwards? -------------
+    #
+    # Three claims, each checked against the disk rather than the code that
+    # makes them: the log carries a parseable record of when/what/evidence/
+    # parameters, the record never quotes retrieved content, and the project
+    # is reachable through the same listing the browser uses - slug, files,
+    # and the log itself downloadable by the name the listing printed.
+    recorded, detail = _measure_record_written()
+    c.add(
+        "creation_record_written",
+        "生成の記録が残り、辿れる",
+        recorded,
+        detail=detail,
+        kind=OUTCOME,
+    )
+
     # --- and does a real request actually reach the index? ------------
     grounded, detail = _measure_deck_grounding()
     c.add(
@@ -915,6 +931,69 @@ def _measure_project_scaffold() -> tuple[float, str]:
     return 1.0, (
         f"{len(STAGE_ORDER)} stages written to one directory; "
         "a single-stage request still produces one file"
+    )
+
+
+def _measure_record_written() -> tuple[float, str]:
+    """Whether a generation leaves a record that can be found again.
+
+    The probe scaffolds a whole production with one retrieved fact, then
+    checks the C-999 chain end to end: ``production-log.md`` holds a record
+    line that parses back (time, files, evidence path, parameters), the
+    record carries the fact's *path* but never its *text*, and the project
+    listing the browser uses names the slug, lists the log among its files,
+    and hands the log back by that name.
+    """
+
+    import tempfile
+
+    from sidra_ai.api.artifacts import list_projects, read_project_file
+    from sidra_ai.creation.evidence import Fact
+    from sidra_ai.creation.projects import scaffold_project
+    from sidra_ai.creation.records import LOG_NAME, read_records
+
+    secret = "索引の中身 9481 を写してはいけない"
+    fact = Fact(secret, "owner/repo docs/OUTCOMES.md")
+    try:
+        with _quiet():
+            data_dir = tempfile.mkdtemp()
+            project = scaffold_project(
+                "釣りゲームを企画から作って", data_dir, facts=[fact]
+            )
+            records = read_records(project.root)
+    except Exception as exc:  # noqa: BLE001 - an unmeasurable probe reports 0
+        return 0.0, f"probe failed: {type(exc).__name__}: {exc}"
+
+    if not records:
+        return 0.0, "no record line in production-log.md"
+    record = records[-1]
+    if "T" not in record.when or not record.when.endswith("Z"):
+        return 0.0, f"record time is not a UTC stamp: {record.when!r}"
+    if LOG_NAME not in record.made or "game.html" not in record.made:
+        return 0.0, f"record does not name what was made: {record.made}"
+    if fact.source not in record.evidence:
+        return 0.0, "record does not carry the evidence path"
+    if "template" not in record.parameters or "speed" not in record.parameters:
+        return 0.0, f"record does not carry parameters: {record.parameters}"
+    log_text = (project.root / LOG_NAME).read_text(encoding="utf-8")
+    if "9481" in log_text:
+        # The one failure this metric must never trade away: retrieved text
+        # in a file that reads as metadata.
+        return 0.0, "record leaked retrieved content into the log"
+
+    listed = {p.slug: p for p in list_projects(data_dir)}
+    if project.slug not in listed:
+        return 0.0, "project is not in the listing the browser uses"
+    names = {artifact.name for artifact in listed[project.slug].files}
+    if LOG_NAME not in names:
+        return 0.0, f"listing does not include {LOG_NAME}"
+    payload, _ = read_project_file(data_dir, project.slug, LOG_NAME)
+    if not payload:
+        return 0.0, "the log came back empty through the download route"
+
+    return 1.0, (
+        "one parseable record (time / files / evidence path / parameters), "
+        "no retrieved text, and the log is listed and downloadable per project"
     )
 
 

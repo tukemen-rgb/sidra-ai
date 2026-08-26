@@ -93,6 +93,12 @@ grounded in retrieved documents and cite where each claim came from.</p>
   <p class="note" id="artifact-status"></p>
 </section>
 
+<section id="projects">
+  <p class="note">Productions（プロジェクト単位）</p>
+  <ol id="project-list"></ol>
+  <p class="note" id="project-status"></p>
+</section>
+
 <script>
 (function () {
   var form = document.getElementById("ask");
@@ -197,7 +203,79 @@ grounded in retrieved documents and cite where each claim came from.</p>
       });
   }
 
-  document.getElementById("refresh").addEventListener("click", loadArtifacts);
+  var projectList = document.getElementById("project-list");
+  var projectStatus = document.getElementById("project-status");
+
+  function downloadProjectFile(slug, name) {
+    // Same blob route as single artifacts: the token travels in a header,
+    // and the generated markup never opens in this origin.
+    fetch("/v1/projects/" + encodeURIComponent(slug) + "/" + name.split("/").map(encodeURIComponent).join("/"),
+      { headers: authHeaders() })
+      .then(function (response) {
+        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        return response.blob();
+      }).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = name.split("/").pop();
+        link.click();
+        URL.revokeObjectURL(url);
+      }).catch(function (error) {
+        projectStatus.textContent = "Download failed: " + error.message;
+      });
+  }
+
+  function loadProjects() {
+    fetch("/v1/projects", { headers: authHeaders() })
+      .then(function (response) {
+        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        return response.json();
+      }).then(function (result) {
+        clear(projectList);
+        var items = result.projects || [];
+        projectStatus.textContent = items.length ? "" : "まだありません。";
+        items.forEach(function (p) {
+          // One entry per production. The slug and the file names are the
+          // server's own metadata; production-log.md inside answers "when,
+          // from what, with which parameters".
+          var item = document.createElement("li");
+          var name = document.createElement("span");
+          name.className = "path";
+          name.textContent = p.slug;
+          item.appendChild(name);
+          var meta = document.createElement("span");
+          meta.className = "note";
+          meta.textContent = " " + p.modified;
+          item.appendChild(meta);
+          var files = document.createElement("ol");
+          (p.files || []).forEach(function (f) {
+            var row = document.createElement("li");
+            var open = document.createElement("button");
+            open.type = "button";
+            open.textContent = f.name;
+            open.addEventListener("click", function () {
+              downloadProjectFile(p.slug, f.name);
+            });
+            row.appendChild(open);
+            var size = document.createElement("span");
+            size.className = "note";
+            size.textContent = " " + f.bytes + " bytes";
+            row.appendChild(size);
+            files.appendChild(row);
+          });
+          item.appendChild(files);
+          projectList.appendChild(item);
+        });
+      }).catch(function (error) {
+        projectStatus.textContent = "Listing failed: " + error.message;
+      });
+  }
+
+  document.getElementById("refresh").addEventListener("click", function () {
+    loadArtifacts();
+    loadProjects();
+  });
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
@@ -227,9 +305,10 @@ grounded in retrieved documents and cite where each claim came from.</p>
     }).then(function (result) {
       statusLine.textContent = "";
       render(result);
-      // A creation turn just wrote a file; the list is stale the moment the
-      // answer arrives.
+      // A creation turn just wrote a file; the lists are stale the moment
+      // the answer arrives.
       loadArtifacts();
+      loadProjects();
     }).catch(function (error) {
       statusLine.textContent = "Failed: " + error.message;
     }).then(function () {
@@ -238,6 +317,7 @@ grounded in retrieved documents and cite where each claim came from.</p>
   });
 
   loadArtifacts();
+  loadProjects();
 })();
 </script>
 </body>

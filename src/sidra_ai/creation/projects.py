@@ -36,6 +36,7 @@ from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation import sprites as sprite_lib
 from sidra_ai.creation import story
 from sidra_ai.creation.games import generate_game, save_game
+from sidra_ai.creation.records import append_record
 
 
 class Stage(str, Enum):
@@ -340,6 +341,26 @@ def scaffold_project(
             (root / STAGE_FILES[stage]).write_text(
                 _log_skeleton(title, stages, evidence), encoding="utf-8"
             )
+
+    if Stage.LOG in stages:
+        # The record of this run, appended by machinery rather than left as a
+        # rule for someone to follow. Only when the LOG stage exists: a
+        # partial project stays partial, and the record rule (C-999) never
+        # overrides the partial-request rule the tests pin. Paths, time and
+        # parameters only - the evidence entries are source labels, never the
+        # text they pointed at.
+        append_record(
+            root,
+            made=[STAGE_FILES[stage] for stage in stages],
+            evidence=list(evidence),
+            parameters={
+                "template": plan.template,
+                "difficulty": plan.difficulty,
+                "speed": plan.speed,
+                "band": plan.band,
+            },
+            now=now,
+        )
 
     return ScaffoldedProject(
         slug=slug,

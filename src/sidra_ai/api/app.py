@@ -39,7 +39,13 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-from sidra_ai.api.artifacts import ArtifactNotFound, list_artifacts, read_artifact
+from sidra_ai.api.artifacts import (
+    ArtifactNotFound,
+    list_artifacts,
+    list_projects,
+    read_artifact,
+    read_project_file,
+)
 from sidra_ai.api.audit import ApiAuditLog
 from sidra_ai.api.refresher import BackgroundRefresher
 from sidra_ai.api.schemas import (
@@ -395,6 +401,57 @@ def create_app(
             ) from None
         record_audit(
             operation="artifact",
+            input_chars=0,
+            repositories=None,
+            response={"bytes": len(payload)},
+        )
+        return Response(
+            content=payload,
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @app.get("/v1/projects", dependencies=guarded)
+    def projects() -> Any:
+        """Every production directory with its file names, sizes and times.
+
+        This is the per-project view C-999 promises: a generation is traceable
+        from the browser down to the ``production-log.md`` that says when and
+        from which evidence paths it was made. Same rule as the flat listing -
+        metadata only, never a preview.
+        """
+
+        current = resolve_service()
+        found = [project.to_dict() for project in list_projects(current.settings.data_dir)]
+        record_audit(
+            operation="projects",
+            input_chars=0,
+            repositories=None,
+            response={"count": len(found)},
+        )
+        return {"projects": found}
+
+    @app.get("/v1/projects/{slug}/{name:path}", dependencies=guarded)
+    def project_file(slug: str, name: str) -> Any:
+        """One file of one production, as a download, never as a page here.
+
+        Same posture as ``/v1/artifacts/{name}`` and for the same reason: the
+        file holds generated markup, and this origin is where the operator's
+        token lives.
+        """
+
+        current = resolve_service()
+        try:
+            payload, filename = read_project_file(current.settings.data_dir, slug, name)
+        except ArtifactNotFound:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="artifact not found"
+            ) from None
+        record_audit(
+            operation="project_file",
             input_chars=0,
             repositories=None,
             response={"bytes": len(payload)},

@@ -345,6 +345,11 @@ def test_no_write_routes_exist(api: TestClient) -> None:
         "/v1/github/analyze",
         "/v1/artifacts",
         "/v1/artifacts/{name}",
+        # Same argument as /v1/artifacts: a project is a directory this
+        # process wrote under its own data dir, and listing or handing back
+        # one of its files makes no GitHub call and mutates nothing.
+        "/v1/projects",
+        "/v1/projects/{slug}/{name}",
     }
     for path, methods in paths.items():
         for method in methods:

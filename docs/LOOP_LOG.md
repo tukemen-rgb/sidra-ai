@@ -3460,3 +3460,8 @@
   イージングは中間だけ変わり両端は不動であることも固定。
   検証: `python -m pytest` **1344 passed / exit 0**、`verify_gate_recall.py` PASSED。新規テスト 7 件。
   **rebase 後に再検証**（C-997 スプライトとの組み合わせは未実行だったため）。基線も親 commit で取り直して exit 0。
+2026-08-26 20:2x UTC 対話セッション — C-999 完了（creation_record_written unmeasurable→1）
+  scaffold ごとに production-log.md へ機械追記（UTC 時刻・作った物・根拠 path・
+  パラメータ、索引の中身は書かない）。GET /v1/projects + /v1/projects/{slug}/{name}
+  とブラウザのプロジェクト一覧で生成物をプロジェクト単位で辿れる。
+  テスト 13 件 / recall PASSED / 判定器 exit 0。

@@ -79,6 +79,112 @@ def list_artifacts(data_dir: str | Path) -> list[Artifact]:
     return found[:MAX_LISTED]
 
 
+def projects_dir(data_dir: str | Path) -> Path:
+    return artifacts_dir(data_dir) / "projects"
+
+
+@dataclass(frozen=True)
+class ProjectListing:
+    """One production directory and the files inside it.
+
+    Same contract as the flat listing: names, sizes and times, never content.
+    ``files`` uses paths relative to the project (``scenario.md``,
+    ``assets/player.svg``) so an operator can see the whole production at a
+    glance and ask for any piece of it by exactly the name shown.
+    """
+
+    slug: str
+    modified: str
+    files: tuple[Artifact, ...]
+
+    def to_dict(self) -> dict:
+        return {
+            "slug": self.slug,
+            "modified": self.modified,
+            "files": [artifact.to_dict() for artifact in self.files],
+        }
+
+
+def _stamp(path: Path) -> str:
+    return (
+        datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _project_files(root: Path) -> list[Artifact]:
+    """Files of one project: the top level plus one ``assets`` level.
+
+    Exactly the layout the scaffolder writes, and nothing deeper: a listing
+    that walked arbitrarily would follow whatever a future generator happens
+    to create, and its safety would depend on code it has never seen.
+    Symlinks and unsafe names are skipped for the same reason as in the flat
+    listing - a planted link is the one way out of the directory.
+    """
+
+    found: list[Artifact] = []
+    candidates = list(root.iterdir())
+    assets = root / "assets"
+    if assets.is_dir() and not assets.is_symlink():
+        candidates += list(assets.iterdir())
+    for path in candidates:
+        if not path.is_file() or path.is_symlink():
+            continue
+        if not SAFE_NAME.match(path.name):
+            continue
+        relative = str(path.relative_to(root))
+        found.append(Artifact(relative.replace("\\", "/"), path.stat().st_size, _stamp(path)))
+    found.sort(key=lambda a: a.name)
+    return found[:MAX_LISTED]
+
+
+def list_projects(data_dir: str | Path) -> list[ProjectListing]:
+    """Every production, newest first, each with its own file list.
+
+    This is what makes a generation traceable from the browser: the flat
+    artifacts listing shows single files, and a project is a directory those
+    rules deliberately skip. A missing directory is an empty list.
+    """
+
+    directory = projects_dir(data_dir)
+    if not directory.is_dir():
+        return []
+    found: list[ProjectListing] = []
+    for path in directory.iterdir():
+        if not path.is_dir() or path.is_symlink():
+            continue
+        if not SAFE_NAME.match(path.name):
+            continue
+        found.append(ProjectListing(path.name, _stamp(path), tuple(_project_files(path))))
+    found.sort(key=lambda p: (p.modified, p.slug), reverse=True)
+    return found[:MAX_LISTED]
+
+
+def read_project_file(data_dir: str | Path, slug: str, name: str) -> tuple[bytes, str]:
+    """One file out of one project, or ``ArtifactNotFound``.
+
+    ``name`` is a project-relative path as the listing printed it. Every
+    segment is validated against ``SAFE_NAME`` *before* joining - which
+    rejects ``..``, absolute paths and empty segments outright - and the
+    resolved result must still sit inside the project, catching the symlink
+    whose own name is ordinary.
+    """
+
+    if not SAFE_NAME.match(slug or ""):
+        raise ArtifactNotFound(slug)
+    segments = (name or "").split("/")
+    if not segments or not all(SAFE_NAME.match(segment) for segment in segments):
+        raise ArtifactNotFound(name)
+    root = (projects_dir(data_dir) / slug).resolve()
+    if not root.is_dir() or projects_dir(data_dir).resolve() not in root.parents:
+        raise ArtifactNotFound(slug)
+    path = root.joinpath(*segments).resolve()
+    if not path.is_file() or root not in path.parents:
+        raise ArtifactNotFound(name)
+    return path.read_bytes(), path.name
+
+
 def read_artifact(data_dir: str | Path, name: str) -> tuple[bytes, str]:
     """Return one artifact's bytes and its name, or raise ``ArtifactNotFound``.
 
@@ -100,8 +206,12 @@ __all__ = [
     "Artifact",
     "ArtifactNotFound",
     "MAX_LISTED",
+    "ProjectListing",
     "SAFE_NAME",
     "artifacts_dir",
     "list_artifacts",
+    "list_projects",
+    "projects_dir",
     "read_artifact",
+    "read_project_file",
 ]

@@ -431,6 +431,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       （DESIGN.md の要件）も計器に含める。
       → 動かす数字: creation_animation_present unmeasurable→1
 
+<<<<<<< HEAD
       **実施 2026-08-26 ループB。`creation_animation_present` unmeasurable→1（`--compare` exit 0）。**
       `creation/animation.py` に前置き（`REDUCED` / `ease()` / `FRAME()`）を置き、
       全テンプレの script の先頭に注入。両テンプレに装飾アニメを入れた
@@ -459,10 +460,22 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       スプライト取り込み後）を基線に取り直して exit 0。
 
 - [~] 作業中 2026-08-26 20:05 UTC 対話セッション **C-999: 記録作成。**production-log.md に「いつ・何を・どの根拠
+=======
+- [x] 完了 2026-08-26 20:2x UTC 対話セッション (`creation_record_written` unmeasurable→**1**、判定器 exit 0) **C-999: 記録作成。**production-log.md に「いつ・何を・どの根拠
+>>>>>>> 89ccf6d (creation: every generation leaves a record you can find again)
       （引用元 path）・どのパラメータで」生成したかを自動追記し、ブラウザの
       生成物一覧からプロジェクト単位で辿れるようにする。索引データの中身は
       漏らさない（path と日時とパラメータのみ）。
       → 動かす数字: creation_record_written unmeasurable→1
+      実装メモ: creation/records.py が scaffold ごとに機械追記する 1 行
+      レコード（UTC 時刻・作った物・根拠 path・template/difficulty/speed/band）。
+      追記は LOG ステージがある時だけ（「脚本だけ作って＝1 ファイル」の
+      性質を上書きしない）。値は改行と `|` を除去して 1 行化（欄の偽造不可）、
+      read_records で読み戻せる（計器もこれを通る）。辿る側は
+      GET /v1/projects（slug・ファイル名・サイズ・時刻のみ、内容なし）と
+      GET /v1/projects/{slug}/{name}（attachment+nosniff、セグメント毎
+      SAFE_NAME 検証＋resolve 封じ込め、symlink 除外）、ブラウザ画面に
+      プロジェクト一覧を追加。テスト 13 件。
 
 ### C-0c. 制作スプリント第3弾: SIDRA 単体で skills 相当＋3D（社長指示 2026-08-27 05:2x JST）
 
