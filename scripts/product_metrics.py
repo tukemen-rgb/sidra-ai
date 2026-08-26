@@ -663,6 +663,33 @@ def measure_creation(c: Collector) -> None:
         kind=GUARD,
     )
 
+    # --- the 3D model, generated fresh so the number describes this
+    # checkout rather than the day the generator was written ----------
+    from sidra_ai.creation.models3d import generate_model3d, validate_model3d
+
+    model_results = {}
+    for shape in ("fish", "boat", "terrain"):
+        model = generate_model3d("3Dモデルを作って", shape=shape)
+        model_results[shape] = validate_model3d(model)
+    model_valid = all(r["valid"] for r in model_results.values())
+    model_failures = [
+        f"{shape}: {f}" for shape, r in model_results.items() for f in r["failures"]
+    ]
+    c.add(
+        "creation_3d_model_valid",
+        "生成した 3D モデルが開ける",
+        1.0 if model_valid else 0.0,
+        detail=(
+            "; ".join(
+                f"{shape} v{r['vertices']}/f{r['faces']}"
+                for shape, r in model_results.items()
+            )
+            if model_valid
+            else "; ".join(model_failures)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- and the deck, where the danger is different ------------------
     #
     # A deck that renders is not the bar. A deck is dangerous when it looks

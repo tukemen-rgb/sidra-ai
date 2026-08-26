@@ -450,7 +450,14 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       GAMEYARD トークン。テーマ定義は自前（theme-factory はアイデア参考のみ）。
       → 動かす数字: creation_themes_available unmeasurable→3
 
-- [~] 作業中 2026-08-26 21:0x UTC 対話セッション **C-1004: 3D モデル作成。**プロシージャルな **.obj/.mtl 生成**（テキスト
+- [x] 完了 2026-08-26 21:3x UTC 対話セッション (`creation_3d_model_valid` unmeasurable→**1**、判定器 exit 0) **C-1004: 3D モデル作成。**
+      実装メモ: 魚・舟・地形の 3 形状（seed 付き・依頼文から形状選択）、
+      .obj/.mtl はテキスト直書きで依存ゼロ、パレットは DESIGN.md 3 色のみ。
+      プレビューは WebGL ではなく **canvas ソフトウェアラスタライザ**に変更
+      （自己完結・CDN 無し・reduced-motion 対応という目的は同じで、GL 文脈
+      拒否環境でも確実に動くため。起票時の文言より安全側）。検証計器は
+      OBJ 面インデックス範囲・mtl Kd・JS parse・外部参照ゼロを見る。
+      テスト 11 件。起票時の記述:プロシージャルな **.obj/.mtl 生成**（テキスト
       形式・依存ゼロ・Windows の 3D ビューアーでそのまま開ける）。パラメトリック
       プリミティブ合成（例: 魚・舟・地形の low-poly）+ seed。あわせて
       **ライブラリ不使用の自己完結 WebGL プレビュー HTML** を同梱（CDN 参照禁止）。

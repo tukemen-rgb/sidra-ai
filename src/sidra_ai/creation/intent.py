@@ -53,6 +53,7 @@ class CreationKind(str, Enum):
     PROJECT = "project"
     DECK = "deck"
     DOCUMENT = "document"
+    MODEL3D = "model3d"
     UNKNOWN = "unknown"
 
 
@@ -164,6 +165,17 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "document",
         "report",
         "article",
+    ),
+    # "モデル" is the head noun of 「ゲームのモデル」 and wins the latest-match
+    # tie-break there, which is the desired reading: an asset for the game.
+    CreationKind.MODEL3D: (
+        "3dモデル",
+        "3d model",
+        "3d",
+        "モデル",
+        "立体",
+        "フィギュア",
+        "obj",
     ),
 }
 

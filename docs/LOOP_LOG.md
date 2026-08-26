@@ -3430,3 +3430,8 @@
   版が 0 になることをテストで固定**。単独ステージ依頼は 1、欠損は減る。
   pytest 全通過 / verify_gate_recall MISS 0 / 既存の制作系 4 数字は不変。
   規模: 527 行（目安 400 超過を申告）。
+
+2026-08-26 21:3x UTC 対話セッション — C-1004 完了（creation_3d_model_valid unmeasurable→1）
+  3 形状のプロシージャル .obj/.mtl + 自己完結 canvas プレビュー。1160+ 手元 green /
+  recall PASSED / 判定器 exit 0。C-1005 のルーター配線は MODEL3D 分を同梱
+  （残り種別はループへ）。
