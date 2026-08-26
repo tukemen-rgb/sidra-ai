@@ -432,7 +432,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       GAMEYARD トークン。テーマ定義は自前（theme-factory はアイデア参考のみ）。
       → 動かす数字: creation_themes_available unmeasurable→3
 
-- [ ] **C-1004: 3D モデル作成。**プロシージャルな **.obj/.mtl 生成**（テキスト
+- [~] 作業中 2026-08-26 21:0x UTC 対話セッション **C-1004: 3D モデル作成。**プロシージャルな **.obj/.mtl 生成**（テキスト
       形式・依存ゼロ・Windows の 3D ビューアーでそのまま開ける）。パラメトリック
       プリミティブ合成（例: 魚・舟・地形の low-poly）+ seed。あわせて
       **ライブラリ不使用の自己完結 WebGL プレビュー HTML** を同梱（CDN 参照禁止）。
