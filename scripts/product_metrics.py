@@ -223,6 +223,65 @@ def measure_usability(c: Collector) -> None:
     c.add("citation_shows_evidence", "citations an operator can verify", shown,
           detail=detail, kind=OUTCOME)
 
+    # 6. Ask for something to be *made* and have it go somewhere else.
+    routed, detail = _measure_creation_routing()
+    c.add("creation_routed", "creation requests routed away from Q&A", routed,
+          detail=detail, kind=OUTCOME)
+
+
+def _measure_creation_routing() -> tuple[int, str]:
+    """Whether a request to make something takes a different path.
+
+    Both halves have to hold, and the second is the one that matters: a
+    detector that routed everything would score 1 on creation requests alone
+    while quietly destroying the question path. So this sends a real question
+    through the same service and requires it to stay a question.
+
+    Exercised through ``SidraService.chat`` rather than by calling the
+    detector, because the number is about what an operator gets back, not
+    about whether a function returns the right enum.
+    """
+
+    from sidra_ai.api.service import SidraService
+    from sidra_ai.config.settings import Settings
+    from sidra_ai.creation.intent import CreationKind
+    from sidra_ai.creation.router import CreationOutcome, build_default_router
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    def _fake_game(message: str, intent) -> CreationOutcome:
+        return CreationOutcome(
+            kind=CreationKind.GAME, handled=True, summary="probe generator"
+        )
+
+    repo = "tukemen-rgb/sidra-ai"
+    try:
+        with _quiet():
+            # The echo backend on purpose: this number is about which path a
+            # message takes, and it must be the same number on a machine with
+            # no model as on one with weights. Building the runtime model here
+            # would also make the probe depend on a backend being reachable.
+            service = SidraService(
+                Settings(allowed_repositories=(repo,)),
+                model=EchoModelAdapter(),
+                creation_router=build_default_router({CreationKind.GAME: _fake_game}),
+            )
+            made = service.chat("釣りゲームを作って")
+            asked = service.chat("SIDRA は取得した文書をどう扱いますか")
+    except Exception as exc:  # noqa: BLE001 - an unmeasurable probe reports 0
+        return 0, f"probe failed: {type(exc).__name__}: {exc}"
+
+    made_outcome = (made.get("creation") or {}).get("outcome") or {}
+    asked_intent = (asked.get("creation") or {}).get("intent") or {}
+
+    if not made_outcome.get("handled"):
+        return 0, "a creation request was not routed to its generator"
+    if asked_intent.get("is_creation"):
+        return 0, "a question was misrouted as a creation request"
+    return 1, (
+        f"creation -> {made_outcome.get('kind')} generator; "
+        "a question still answers as a question"
+    )
+
 
 def _measure_citation_evidence() -> tuple[int, str]:
     """Whether a real /v1/chat citation carries readable evidence.

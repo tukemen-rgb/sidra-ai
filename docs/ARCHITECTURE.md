@@ -210,7 +210,15 @@ tests/embedding callers and is not used by the `sidra-api` entry point.
   per-repository and per-source-type counts, the ingestion cursor, and
   quarantine totals. Counts only; no document text, path, URL or author.
 - `POST /v1/retrieve` — authenticated/rate-limited retrieval without invoking the model.
-- `POST /v1/chat` — authenticated/rate-limited grounded local-model chat.
+- `POST /v1/chat` — authenticated/rate-limited grounded local-model chat. A message that
+  asks for something to be *made* ("釣りゲームを作って") is classified before retrieval and
+  routed to a registered generator instead of being answered as a question; the decision
+  is deterministic, so it behaves the same on the `echo` backend. The `creation` field
+  reports the classification on every answered turn, carrying matched keywords from a
+  fixed table rather than operator text. Detection is conservative: anything short of a
+  clear request — a question about how to make something, or a request naming no artifact
+  — stays on the question path, and an unregistered kind still answers as a question.
+  A generator's summary crosses `OutputGuard` exactly as model output does.
 - `POST /v1/github/analyze` — authenticated/rate-limited read-only GitHub ingestion + analysis.
 
 No Web-fetch, write, deploy, billing, external-send, or mutation route exists.

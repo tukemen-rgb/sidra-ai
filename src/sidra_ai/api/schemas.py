@@ -145,6 +145,12 @@ class ChatResponse(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     security: dict[str, Any] = Field(default_factory=dict)
     model: dict[str, Any] = Field(default_factory=dict)
+    #: How the message was classified, and what happened if it was routed to
+    #: a generator. Present on every answered turn so a caller can tell a
+    #: question that was answered from a creation request that fell back to
+    #: being answered - the two look identical without it. Carries matched
+    #: keywords from a fixed table, never the operator's own text.
+    creation: dict[str, Any] = Field(default_factory=dict)
 
 
 class AnalyzeRequest(BaseModel):

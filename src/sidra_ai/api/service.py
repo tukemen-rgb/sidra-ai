@@ -12,6 +12,8 @@ from typing import Any, Sequence
 from sidra_ai.api.citations import citation_excerpt
 from sidra_ai.api.model_admission import build_runtime_model
 from sidra_ai.config.settings import Settings, get_settings
+from sidra_ai.creation.intent import detect_creation_intent
+from sidra_ai.creation.router import CreationRouter, build_default_router
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline, IngestionReport
 from sidra_ai.ingestion.state import StateStore
@@ -58,6 +60,7 @@ class SidraService:
         client: GitHubReadOnlyClient | None = None,
         state_store: StateStore | None = None,
         usage_ledger: UsageLedger | None = None,
+        creation_router: CreationRouter | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         data_dir = Path(self.settings.data_dir)
@@ -86,6 +89,12 @@ class SidraService:
 
         self.state_store = state_store or StateStore(data_dir / "state.json")
         self._client = client
+
+        # A request to *make* something is not a question, and the ordinary
+        # chat path would answer it as one. The router is empty until a
+        # generator registers, which is why chat still answers after routing
+        # rather than replacing the answer with a promise.
+        self.creation_router = creation_router or build_default_router()
 
     # ------------------------------------------------------------------
     @property
@@ -340,6 +349,34 @@ class SidraService:
             screened_history.append((turn[0], turn[1]))
 
         query = gate_result.content
+
+        # "釣りゲームを作って" is not a question. Detect that before spending a
+        # retrieval and a generation on answering it as one. Detection runs on
+        # the screened text, so a message the gate rewrote is classified on
+        # what would actually have been used, not on the raw input.
+        intent = detect_creation_intent(query)
+        creation_metadata: dict[str, Any] = {"intent": intent.to_dict()}
+        if intent.routes:
+            outcome = self.creation_router.route(query, intent)
+            creation_metadata["outcome"] = outcome.to_dict()
+            if outcome.handled:
+                # A generator's summary is text this process produced from a
+                # request and from retrieved DATA, so it crosses the same
+                # boundary as model output and is scanned the same way.
+                guarded_summary = self.output_guard.scan(outcome.summary)
+                return {
+                    "answer": guarded_summary.content,
+                    "refused": guarded_summary.blocked,
+                    "reason": guarded_summary.reason
+                    or ("creation output withheld by security guard" if guarded_summary.blocked else ""),
+                    "citations": [],
+                    "security": gate_result.to_dict(),
+                    "creation": creation_metadata,
+                }
+            # Nothing can build it yet. Falling through to the question path
+            # keeps the operator with an answer rather than an apology, and
+            # `creation` reports what was recognised either way.
+
         results: list[SearchResult] = self.retriever.search(
             query, top_k=top_k, repositories=repositories
         )
@@ -399,6 +436,7 @@ class SidraService:
                 "citations": citations,
                 "security": gate_result.to_dict(),
                 "model": model_metadata,
+                "creation": creation_metadata,
             }
 
         return {
@@ -408,6 +446,7 @@ class SidraService:
             "citations": citations,
             "security": gate_result.to_dict(),
             "model": model_metadata,
+            "creation": creation_metadata,
         }
 
     # ------------------------------------------------------------------
