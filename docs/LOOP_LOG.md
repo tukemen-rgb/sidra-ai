@@ -3356,4 +3356,8 @@
   ループA3 が 8efae03 で「game の evidence 経路」のテストを足していた——**私が 15:4x に
   `fact.repository`/`fact.path` を `fact.source` へ直した箇所**で、あそこは属性が無く実行時に
   落ちる状態だった。回帰テストが付いたので、同じ取り違えは次は commit 前に止まる。
-2026-08-26 16:13 UTC ループA started
+2026-08-26 16:13 UTC ループA started Board=13
+2026-08-26 16:1x UTC ループA — no-op キューが空
+  **no-op キューが空**（E 節 1 件・F 節 2 件のみ、いずれも取らない節）。
+  制作スプリント C-990〜C-994 は全て `[x]`。Board=13 で増分ゼロ。
+  origin は ab63bea（ループB の no-op）から無変更。コードも無変更。
