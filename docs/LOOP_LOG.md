@@ -3336,3 +3336,4 @@
   （routed 1 / game playable 1 / deck generated 1 / deck grounded 1 / UI 1）。
   `creation_deck_grounded` は **4/4 枚が索引の根拠で埋まった**（前回の実測は 2/4。
   ループA の C-993 で索引が増えたぶん当たりが増えた形。捏造検査は通ったまま）。
+2026-08-26 15:45 UTC ループA3 started
