@@ -409,7 +409,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       （DESIGN.md の要件）も計器に含める。
       → 動かす数字: creation_animation_present unmeasurable→1
 
-- [ ] **C-999: 記録作成。**production-log.md に「いつ・何を・どの根拠
+- [~] 作業中 2026-08-26 20:05 UTC 対話セッション **C-999: 記録作成。**production-log.md に「いつ・何を・どの根拠
       （引用元 path）・どのパラメータで」生成したかを自動追記し、ブラウザの
       生成物一覧からプロジェクト単位で辿れるようにする。索引データの中身は
       漏らさない（path と日時とパラメータのみ）。
