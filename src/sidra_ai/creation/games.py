@@ -34,17 +34,12 @@ from pathlib import Path
 
 from sidra_ai.creation.animation import with_animation
 
-#: Straight from site ``docs/DESIGN.md`` §2. Duplicated as data rather than
-#: prose so a template cannot drift from the identity without this changing.
-GAMEYARD_TOKENS = {
-    "bg": "#05070f",
-    "surface": "#0a0f1c",
-    "raised": "#0c1322",
-    "cyan": "#2ee6ff",
-    "magenta": "#ff5cc8",
-    "radius": "12px",
-    "radius_tight": "8px",
-}
+#: Re-exported from :mod:`sidra_ai.creation.themes`, which is where the site's
+#: DESIGN.md §2 palette now lives: the default theme has to *be* these tokens
+#: rather than a second copy of them, and a module that owns both cannot be
+#: imported by the one that owns neither. Every existing
+#: ``from ...games import GAMEYARD_TOKENS`` keeps working.
+from sidra_ai.creation.themes import GAMEYARD_TOKENS, Theme, select_theme
 
 _SOURCE = "tukemen-rgb/site docs/DESIGN.md §2 (tokens) / §3 (prohibited defaults)"
 
@@ -234,29 +229,31 @@ def _no_external_assets(html: str) -> bool:
     return "@import" not in html
 
 
-def _page(title: str, tagline: str, how: str, script: str, evidence: list[str]) -> str:
-    t = GAMEYARD_TOKENS
+def _page(
+    title: str, tagline: str, how: str, script: str, evidence: list[str], theme: Theme
+) -> str:
+    t = theme.tokens
     sources = "".join(f"<li>{escape(line)}</li>" for line in evidence)
     return f"""<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)}</title>
 <style>
-:root{{color-scheme:dark}}
-body{{margin:0;background:{t["bg"]};color:#dfe7f5;
+:root{{color-scheme:{t["scheme"]}}}
+body{{margin:0;background:{t["bg"]};color:{t["text"]};
  font-family:system-ui,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}}
 main{{max-width:760px;margin:0 auto;padding:32px 20px 48px}}
 h1{{font-size:22px;margin:0 0 6px;letter-spacing:.01em}}
-p.tag{{margin:0 0 20px;color:#9fb0c8}}
+p.tag{{margin:0 0 20px;color:{t["subtle"]}}}
 canvas{{display:block;width:100%;height:320px;background:{t["surface"]};
- border:1px solid #16243a;border-radius:{t["radius"]}}}
+ border:1px solid {t["border"]};border-radius:{t["radius"]}}}
 .how{{margin:18px 0 0;padding:14px 16px;background:{t["raised"]};
  border-radius:{t["radius_tight"]};font-family:ui-monospace,SFMono-Regular,monospace;
- font-size:13px;color:#c3d2e6}}
-footer{{margin-top:28px;border-top:1px solid #16243a;padding-top:14px;
- font-size:12px;color:#7d8ea6}}
+ font-size:13px;color:{t["code"]}}}
+footer{{margin-top:28px;border-top:1px solid {t["border"]};padding-top:14px;
+ font-size:12px;color:{t["muted"]}}}
 footer ul{{margin:6px 0 0;padding-left:18px}}
-a{{color:{t["cyan"]}}}
+a{{color:{t["accent"]}}}
 </style></head>
 <body><main>
 <h1>{escape(title)}</h1>
@@ -291,6 +288,10 @@ def generate_game(
     if key not in TEMPLATES:
         raise KeyError(f"unknown game template: {key!r}")
     spec = TEMPLATES[key]
+    # The palette comes from the same sentence the template and difficulty
+    # did. A request that names no theme gets the default, which is the
+    # site's own palette - see sidra_ai.creation.themes.
+    theme = select_theme(request)
     difficulty = choose_difficulty(request)
     speed, band = _DIFFICULTY[key][difficulty]
     script = with_animation(
@@ -298,14 +299,14 @@ def generate_game(
         .replace("SPRITE_MAP_TOKEN", json.dumps(sprites or {}))
         .replace("SPEED_TOKEN", str(speed))
         .replace("BAND_TOKEN", str(band))
-        .replace("SURFACE_TOKEN", GAMEYARD_TOKENS["surface"])
-        .replace("RAISED_TOKEN", GAMEYARD_TOKENS["raised"])
-        .replace("CYAN_TOKEN", GAMEYARD_TOKENS["cyan"])
-        .replace("MAGENTA_TOKEN", GAMEYARD_TOKENS["magenta"])
+        .replace("SURFACE_TOKEN", theme.tokens["surface"])
+        .replace("RAISED_TOKEN", theme.tokens["raised"])
+        .replace("CYAN_TOKEN", theme.tokens["accent"])
+        .replace("MAGENTA_TOKEN", theme.tokens["alert"])
     )
     title = _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"
-    html = _page(title, tagline, spec.how_to_play, script, list(evidence or [_SOURCE]))
+    html = _page(title, tagline, spec.how_to_play, script, list(evidence or [_SOURCE]), theme)
     return GeneratedGame(key, title, tagline, difficulty, html)
 
 

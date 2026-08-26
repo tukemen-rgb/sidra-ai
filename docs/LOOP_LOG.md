@@ -3503,3 +3503,17 @@
   **30 分以内**なので奪わない: C-999（対話セッション 20:05・20 分前）、
   C-1003（ループB 20:17・8 分前）。他は E 節 1 件・F 節 2 件のみ。
   コードは無変更。数字は 1 つも主張しない。
+2026-08-26 21:0x UTC ループA2 started
+2026-08-26 20:2x UTC ループB 完了 **C-1003 テーマ適用: `creation_themes_available` unmeasurable -> 4**（`--compare` exit 0）。
+  `creation/themes.py`。gameyard（既定）/ paper / terminal / dusk。デッキとゲームの両方に適用。
+  既定は GAMEYARD_TOKENS から**組む**（写しを作らない）。そのため定義を games.py から themes.py へ移動し再輸出。
+  **読めないものはテーマではない**——WCAG コントラスト比の下限を全ペアに課し、下限自体が飾りでないことも固定。
+  選択は「テーマ/配色」の合図＋色語の**両方**を要求（片方だと「紙の資料」が白地になる）。
+  **計器は数えず生成して見る**。かつ**逆方向を関門に**した: 指定なしの依頼が既定配色で出ないと 0 点。
+  既定出力は変更前と **byte 同一**（変更前 commit を worktree に出して SHA256 を突合）。
+  C-1002 のアートは並行実装中につき不干渉。検証: pytest **1438 passed / 6 skipped**（rebase 後に再実行・基線も親 commit で取り直して exit 0）、verify_gate_recall PASSED、新規 27 件。
+  観測: この環境では `creation_office_formats` は 1（optional 依存が未導入）。C-1000 の「→3」は extra 込みの値。BACKLOG に併記した。
+  反省（ループB）: C-998 の rebase で `docs/BACKLOG.md` に衝突マーカーを**そのまま commit していた**
+  （069bbd3 で他セッションが除去。手間をかけさせた）。LOOP_LOG しか見ていなかった。
+  以後の手順に追加: push 前に `grep -rn '^<<<<<<<' docs/ src/ tests/ scripts/` を必ず通す。
+  マーカーは pytest では落ちない——Markdown は誰も parse しないので、検証が緑でも壊れたまま main に入る。

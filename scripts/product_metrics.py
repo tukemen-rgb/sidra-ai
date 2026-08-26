@@ -930,6 +930,23 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the palette a request asked for, and the one it did not ---------
+    #
+    # Counted by generating with each theme and looking at the page, not by
+    # len(THEMES): a catalogue entry that no generator reads is a theme in
+    # name only. The gate before the count is the other direction - a request
+    # naming no theme still renders in the site's own palette. Without it a
+    # "themed" generator that had quietly redecorated the default would score
+    # full marks here while having changed the product's identity.
+    themed, detail = _measure_themes()
+    c.add(
+        "creation_themes_available",
+        "テーマを指定すると配色が変わり、指定しなければ変わらない",
+        themed,
+        detail=detail,
+        kind=OUTCOME,
+    )
+
 
 
 
@@ -991,6 +1008,52 @@ def _measure_animation() -> tuple[float, str]:
         f"{still['distinctFrames']} under reduced motion; "
         f"{len(TEMPLATES)} templates still playable"
     )
+
+
+def _measure_themes() -> tuple[float, str]:
+    """How many themes a request can actually reach, default held fixed.
+
+    Two directions, and the order matters. The default is checked first and
+    fails the whole metric, because "three themes work" is worthless if the
+    fourth thing that changed was the palette every unthemed artifact gets.
+
+    Each theme is then counted only if naming it changes both artifacts a
+    theme applies to. Checking the deck alone would let a generator that
+    themed slides and ignored games report the same number.
+    """
+
+    from sidra_ai.creation.decks import generate_deck
+    from sidra_ai.creation.games import generate_game
+    from sidra_ai.creation.themes import DEFAULT_THEME, THEMES, select_theme, validate_theme
+
+    plain_game = generate_game("ゲームを作って").html
+    plain_deck = generate_deck("デッキを作って").html
+    if select_theme("釣りゲームを作って") is not DEFAULT_THEME:
+        return 0.0, "テーマを指定していない依頼が既定以外の配色になった"
+    for name, html in (("game", plain_game), ("deck", plain_deck)):
+        if DEFAULT_THEME.tokens["bg"] not in html:
+            return 0.0, f"既定の{name}が DESIGN.md の背景色で描かれていない"
+
+    working, broken = [], []
+    for key, theme in THEMES.items():
+        verdict = validate_theme(theme)
+        if not verdict["readable"]:
+            broken.append(f"{key}: {verdict['failures'][0]}")
+            continue
+        request = f"{theme.words[0]}のテーマで"
+        game = generate_game(f"{request}ゲームを作って").html
+        deck = generate_deck(f"{request}デッキを作って").html
+        if select_theme(request) is not theme:
+            broken.append(f"{key}: 依頼文から選ばれない")
+        elif theme.tokens["bg"] not in game or theme.tokens["bg"] not in deck:
+            broken.append(f"{key}: 生成物に配色が届いていない")
+        elif key != DEFAULT_THEME.key and (game == plain_game or deck == plain_deck):
+            broken.append(f"{key}: 指定しても既定と同じものが出る")
+        else:
+            working.append(key)
+
+    note = f"{len(working)} themes reach both artifacts: {', '.join(working)}"
+    return float(len(working)), note + ("; " + "; ".join(broken) if broken else "")
 
 
 def _measure_project_scaffold() -> tuple[float, str]:

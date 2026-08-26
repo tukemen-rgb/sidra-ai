@@ -31,7 +31,7 @@ from pathlib import Path
 #: Shared with the game generator so a deck and a game made by the same tool
 #: look like they came from the same place.
 from sidra_ai.creation.evidence import NUMBER, Fact
-from sidra_ai.creation.games import GAMEYARD_TOKENS
+from sidra_ai.creation.themes import Theme, select_theme
 
 #: What an unfilled slot says. Kept as one constant because both the renderer
 #: and the validator have to agree on it exactly: the validator counts these
@@ -196,8 +196,8 @@ def _no_external_assets(html: str) -> bool:
     return "@import" not in html
 
 
-def _render(title: str, slides: tuple[Slide, ...]) -> str:
-    t = GAMEYARD_TOKENS
+def _render(title: str, slides: tuple[Slide, ...], theme: Theme) -> str:
+    t = theme.tokens
     blocks = []
     for index, slide in enumerate(slides, start=1):
         bullets = "".join(f"<li>{escape(b)}</li>" for b in slide.bullets)
@@ -215,20 +215,20 @@ def _render(title: str, slides: tuple[Slide, ...]) -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)}</title>
 <style>
-:root{{color-scheme:dark}}
-body{{margin:0;background:{t["bg"]};color:#dfe7f5;
+:root{{color-scheme:{t["scheme"]}}}
+body{{margin:0;background:{t["bg"]};color:{t["text"]};
  font-family:system-ui,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}}
 main{{max-width:900px;margin:0 auto;padding:32px 20px 56px}}
 h1{{font-size:24px;margin:0 0 24px;letter-spacing:.01em}}
-.slide{{background:{t["surface"]};border:1px solid #16243a;
+.slide{{background:{t["surface"]};border:1px solid {t["border"]};
  border-radius:{t["radius"]};padding:22px 24px;margin:0 0 18px}}
-.slide .no{{margin:0 0 6px;font-size:12px;color:#7d8ea6}}
-.slide h2{{margin:0 0 12px;font-size:19px;color:{t["cyan"]}}}
+.slide .no{{margin:0 0 6px;font-size:12px;color:{t["muted"]}}}
+.slide h2{{margin:0 0 12px;font-size:19px;color:{t["accent"]}}}
 .slide ul{{margin:0;padding-left:20px;line-height:1.75}}
-.slide .src{{margin:14px 0 0;font-size:12px;color:#7d8ea6}}
-.slide .blank{{color:{t["magenta"]}}}
-footer{{margin-top:24px;border-top:1px solid #16243a;padding-top:14px;
- font-size:12px;color:#7d8ea6}}
+.slide .src{{margin:14px 0 0;font-size:12px;color:{t["muted"]}}}
+.slide .blank{{color:{t["alert"]}}}
+footer{{margin-top:24px;border-top:1px solid {t["border"]};padding-top:14px;
+ font-size:12px;color:{t["muted"]}}}
 </style></head>
 <body><main>
 <h1>{escape(title)}</h1>
@@ -257,7 +257,7 @@ def generate_deck(
     spec = OUTLINES[key]
     slides = build_slides(spec, list(facts or []))
     title = _title_from(request, spec.default_title)
-    html = _render(title, slides)
+    html = _render(title, slides, select_theme(request))
     unfilled = tuple(slide.title for slide in slides if slide.blanks)
     return GeneratedDeck(key, title, slides, html, unfilled)
 
