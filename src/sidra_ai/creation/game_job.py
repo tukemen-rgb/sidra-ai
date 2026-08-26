@@ -14,14 +14,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.creation.decks import Fact
 from sidra_ai.creation.games import generate_game, save_game, validate_game_html
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
 
 
 def build_game_generator(data_dir: str | Path):
-    def generate(message: str, intent: CreationIntent) -> CreationOutcome:
-        game = generate_game(message)
+    def generate(
+        message: str,
+        intent: CreationIntent,
+        retrieved: list[Fact] | None = None,
+    ) -> CreationOutcome:
+        # Retrieved evidence becomes the page's citation line, not its
+        # contents: a game's rules are the template's, and pulling text from
+        # the corpus into a playable page would put DATA somewhere no guard
+        # looks. What it earns is an honest footer - "this is where the
+        # colours came from" - instead of the hardcoded default.
+        evidence = [f"{fact.repository} {fact.path}" for fact in (retrieved or [])]
+        game = generate_game(message, evidence=evidence or None)
         verdict = validate_game_html(game.html)
         path = save_game(game, data_dir)
         if verdict["playable"]:

@@ -3308,3 +3308,13 @@
   完了させた（rebase で判明。確保時点では 15:21 の `[~]` だった）。
   他は E 節 1 件・F 節 2 件のみ。
   Board=13 で増分ゼロ。コードは無変更。
+2026-08-26 15:4x UTC ループA2 — main を緑に戻した（C-994 が生成器の呼び出し規約を変えた）
+  f5dbb7a（ループB の C-994）が `CreationRouter.route` に第 3 引数
+  `facts` を足し、生成器を 3 引数で呼ぶようにした。**ゲーム生成器は 2 引数の
+  ままだったので `/v1/chat` の制作依頼が TypeError で 500**（artifacts の
+  結合テスト 2 件が赤）。`game_job.generate` を新しい規約に合わせ、渡された
+  evidence は**ページの出典行にだけ**使う——ゲームの内容はテンプレートのもので、
+  コーパスの本文を遊べるページへ流し込めば誰も見ない場所に DATA が置かれる。
+  併せて、前サイクルに置いた `creation_deck_grounded` の unmeasurable 登録を
+  削除（ループB が実測を入れたので二重登録になっていた）。
+  pytest 全通過 / verify_gate_recall MISS 0。
