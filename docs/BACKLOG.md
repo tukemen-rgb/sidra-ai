@@ -492,7 +492,31 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
   は pyproject の **optional extra `[creation]`** として宣言してよい（コア依存には
   足さない。無ければその生成種別だけ「未インストール」と正直に断る fail-closed）。
 
-- [~] 作業中 2026-08-26 20:4x UTC ループA **C-1000: Office 実ファイル出力。**「Word で」「Excel で」「pptx で」の
+- [x] 完了 2026-08-26 ループA (`creation_office_formats` unmeasurable→**3**、判定器 exit 0) **C-1000: docx / xlsx / pptx を実ファイルで出す。**
+      `src/sidra_ai/creation/office.py`。「Word で」「エクセルで」「パワポで」を
+      検出（文字どおりの一致。緩い matcher は全ての文から形式指定を見つける）。
+      **名前が挙がっていない形式は推測しない**（沈黙は 3 ファイルの依頼ではない）。
+      依存は `[creation]` extra で**任意のまま**。3 つとも寛容ライセンスの
+      オフライン OSS で、どこにも通信しない（厳守事項 2 は有料 API と外部 LLM の
+      禁止であり、これらは該当しない）。**必ず「書けたか・なぜ書けなかったか」を
+      返す**——例外も、書いていないファイルの成功報告もしない。
+      **形式ごとに別々に報告する。**「Office 出力が動いた」の boolean 1 つでは、
+      実際に最も起きやすい構成（2 つ入っていて 1 つ無い）が隠れる。
+      **空欄は変換で埋めない。**〔社長が埋める欄〕は根拠が索引に無いから空欄
+      なのであって、形式変換は「整える」機会ではない。docx / xlsx の両方で
+      空欄が生き残ることをテストで固定。
+      検査は zip を開いて**必須パートの存在と全 XML のパース**を見る。0 バイトの
+      .docx と本物はディレクトリ一覧では同じ 1 行なので。**「Word で開ける」と
+      は主張しない**——このコンテナでは確かめられないので、数字の名前も
+      docstring もそう書いていない。
+      **実装中に自分のバグを実測で発見**: xlsx だけデッキ名を落としていた
+      （docx/pptx は持っている）。テストが `deck.title in text` で落ちて判明。
+      題名行を先頭に足した。1 つのデッキの各形式が名前で食い違うのは、
+      この module が 1 回の平坦化で防ごうとしているドリフトそのもの。
+      規模: 新規 397 行 + 変更 28 行 = 425 行（目安 400 内）。
+      → 動かす数字: `creation_office_formats` unmeasurable→3
+      （guard: 既存の制作系数字・フロア全維持・verify_gate_recall MISS 0・
+      pyproject の必須依存は不変＝3 つとも extra 側にあることをテストで固定）「Word で」「Excel で」「pptx で」の
       指定を検出し、docx / xlsx / 実 pptx を SIDRA 単体で生成（`[creation]`
       extra）。中身は既存の接地パイプラインを流用、無い数字は〔社長が埋める欄〕。
       → 動かす数字: creation_office_formats unmeasurable→3

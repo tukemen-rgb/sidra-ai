@@ -678,6 +678,29 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # Counted per format, and only when the file both exists and opens as
+    # the package its extension claims. "The export worked" as one boolean
+    # would hide the likeliest case by far: two writers installed, one not.
+    from sidra_ai.creation.decks import generate_deck
+    from sidra_ai.creation.office import write_office
+
+    with tempfile.TemporaryDirectory() as scratch:
+        results = write_office(generate_deck("デッキを作って", facts=[]), scratch, "deck")
+    ok = [fmt for fmt, r in results.items() if r["valid"]]
+    missing = [f"{fmt}: {r['reason']}" for fmt, r in results.items() if not r["valid"]]
+    c.add(
+        "creation_office_formats",
+        "実ファイルで出せる Office 形式",
+        float(len(ok)),
+        detail=(
+            f"{', '.join(sorted(ok))} written and structurally valid "
+            "(OOXML package, required parts, XML parses; not a claim about Word itself)"
+            if not missing
+            else "; ".join(missing)
+        ),
+        kind=OUTCOME,
+    )
+
     # A template that stops being reachable from ordinary wording is a
     # regression the playability number cannot see: both templates would still
     # generate, and nobody would get the second one.

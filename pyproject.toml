@@ -23,6 +23,11 @@ dependencies = [
 dev = ["pytest>=8.0"]
 # Local inference stacks are opt-in; none is required to run or test.
 transformers = ["transformers>=4.40", "torch>=2.2"]
+# Office output. Optional for the same reason: the HTML deck is the artifact
+# that always exists, and every writer reports whether it ran rather than
+# assuming the package is there. All three are permissively licensed and
+# offline - no service is called at any point.
+creation = ["python-docx>=1.1", "openpyxl>=3.1", "python-pptx>=0.6"]
 
 [project.scripts]
 sidra-api = "sidra_ai.api.server:main"

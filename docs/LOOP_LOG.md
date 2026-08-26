@@ -3465,3 +3465,16 @@
   パラメータ、索引の中身は書かない）。GET /v1/projects + /v1/projects/{slug}/{name}
   とブラウザのプロジェクト一覧で生成物をプロジェクト単位で辿れる。
   テスト 13 件 / recall PASSED / 判定器 exit 0。
+2026-08-26 20:5x UTC ループA — C-1000 完了（Office 実ファイル出力）
+  creation_office_formats unmeasurable→3（判定器 exit 0）。office.py。
+  docx/xlsx/pptx を実ファイルで生成。依存は [creation] extra で任意のまま
+  （必須依存に入っていないことをテストで固定）。3 つとも寛容ライセンスの
+  オフライン OSS で通信ゼロ。
+  形式ごとに別報告——「Office 出力が動いた」の boolean 1 つでは
+  「2 つ入って 1 つ無い」という最頻の構成が隠れる。
+  空欄は変換で埋めない（docx/xlsx 両方でテスト固定）。検査は zip を開いて
+  必須パート＋全 XML パース。**「Word で開ける」とは主張しない**（この
+  コンテナで確かめられないため、数字名にも docstring にもそう書いた）。
+  実装中に自分のバグを実測発見: xlsx だけデッキ名を落としていた。題名行を追加。
+  pytest 全通過 / verify_gate_recall MISS 0 / 既存の制作系数字は不変。
+  規模: 425 行（目安 400 内）。
