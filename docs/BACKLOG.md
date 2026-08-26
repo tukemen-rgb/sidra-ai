@@ -425,11 +425,38 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_assets_generated unmeasurable→1
       （計器: SVG がパースでき、game.html から参照されている）
 
-- [~] 作業中 2026-08-26 19:58 UTC ループB **C-998: アニメーション作成。**game.html のテンプレを、スプライト
+- [x] 完了 2026-08-26 20:1x UTC ループB **C-998: アニメーション作成。**game.html のテンプレを、スプライト
       アニメーション（フレーム切替 or transform）＋イージング付きの動きに
       強化する。`prefers-reduced-motion` で非必須アニメーションが止まること
       （DESIGN.md の要件）も計器に含める。
       → 動かす数字: creation_animation_present unmeasurable→1
+
+      **実施 2026-08-26 ループB。`creation_animation_present` unmeasurable→1（`--compare` exit 0）。**
+      `creation/animation.py` に前置き（`REDUCED` / `ease()` / `FRAME()`）を置き、
+      全テンプレの script の先頭に注入。両テンプレに装飾アニメを入れた
+      （釣り: 4 フレームの浮き / キャッチ: かごの脈動 + イージング追従）。
+      **`prefers-reduced-motion` は要件であって飾りではない。**設定した人は
+      動きで気分が悪くなるから設定している。判断は読み込み時に 1 回だけ行い、
+      各アニメはその決定を読む（個々が独自解釈しない）。
+      **「止まる」の意味を取り違えない**: 止めるのは**装飾**であって
+      ゲームループではない。`prefers-reduced-motion` でループごと止めた
+      ページは設定を守った上で壊れている。だから `FRAME()` が定数に潰れ、
+      それを呼ぶループは回り続ける。テストで固定
+      （`requestAnimationFrame` が残ること / ループが `REDUCED` で return しないこと）。
+      **判定は grep ではなく node で実行して観測する。**source に
+      "transition" と書いてあっても何も動かないページは作れるし、設定を
+      無視して動くページも作れる。両方向を要求した:
+      通常時は**4 フレームが区別でき**、reduced では**1 フレームに潰れる**。
+      片方だけだと「何も動かないページ」が満点を取る。
+      イージングは中間だけ変わり、**両端は動かない**ことも固定
+      （端が変わる緩和関数は「違う動き」ではなく「違う場所へ動く」）。
+      検証: `python -m pytest` **1344 passed / exit 0**、`verify_gate_recall.py` PASSED。
+      新規テスト 7 件。2 テンプレとも playable 維持。
+      **rebase 後にもう一度 full suite を回した。**C-997（スプライト）と本項の
+      アニメーションは別ループで並行して書かれ、**組み合わせでは一度も動いて
+      いなかった**。自分の作業ツリーが緑でも main が緑とは限らない。
+      1344 = 自分の手元 1326 + A3 の 18。`--compare` は親 commit（8fe0d11、
+      スプライト取り込み後）を基線に取り直して exit 0。
 
 - [~] 作業中 2026-08-26 20:05 UTC 対話セッション **C-999: 記録作成。**production-log.md に「いつ・何を・どの根拠
       （引用元 path）・どのパラメータで」生成したかを自動追記し、ブラウザの

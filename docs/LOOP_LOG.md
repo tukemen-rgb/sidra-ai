@@ -3451,3 +3451,12 @@
   pytest 全通過 / verify_gate_recall MISS 0 / 既存の制作系数字は不変。
   規模: 438 行（目安 400 の微超過を申告）。
 2026-08-26 20:4x UTC ループA started
+2026-08-26 20:1x UTC ループB 完了 **C-998 アニメーション: `creation_animation_present` unmeasurable -> 1**（`--compare` exit 0）。
+  `creation/animation.py`（`REDUCED`/`ease()`/`FRAME()`）を全テンプレの script 先頭に注入。
+  **`prefers-reduced-motion` は要件。**止めるのは**装飾**であってゲームループではない
+  （ループごと止めたページは設定を守った上で壊れている）。`FRAME()` が定数に潰れ、呼ぶループは回り続ける。
+  **判定は grep ではなく node で実行して観測**。通常時は 4 フレームが区別でき、reduced では 1 に潰れる——
+  **両方向を要求**（片方だけだと「何も動かないページ」が満点を取る）。
+  イージングは中間だけ変わり両端は不動であることも固定。
+  検証: `python -m pytest` **1344 passed / exit 0**、`verify_gate_recall.py` PASSED。新規テスト 7 件。
+  **rebase 後に再検証**（C-997 スプライトとの組み合わせは未実行だったため）。基線も親 commit で取り直して exit 0。

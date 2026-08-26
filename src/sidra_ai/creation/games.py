@@ -32,6 +32,8 @@ from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 
+from sidra_ai.creation.animation import with_animation
+
 #: Straight from site ``docs/DESIGN.md`` §2. Duplicated as data rather than
 #: prose so a template cannot drift from the identity without this changing.
 GAMEYARD_TOKENS = {
@@ -87,21 +89,27 @@ class GeneratedGame:
 _FISHING = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const SPEED=SPEED_TOKEN,BAND=BAND_TOKEN;
-let pos=0,dir=1,score=0,casts=0,msg='SPACE / クリックで合わせる';
+let pos=0,dir=1,score=0,casts=0,flash=0,msg='SPACE / クリックで合わせる';
 const zone=()=>[0.5-BAND/2,0.5+BAND/2];
 function step(){pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}draw();
   requestAnimationFrame(step)}
-function draw(){const w=cv.width,h=cv.height;cx.fillStyle='SURFACE_TOKEN';
+function draw(){const w=cv.width,h=cv.height,now=performance.now();cx.fillStyle='SURFACE_TOKEN';
   cx.fillRect(0,0,w,h);const [a,b]=zone();
   cx.fillStyle='RAISED_TOKEN';cx.fillRect(40,h/2-26,w-80,52);
   cx.fillStyle='CYAN_TOKEN';cx.globalAlpha=0.28;
   cx.fillRect(40+(w-80)*a,h/2-26,(w-80)*(b-a),52);cx.globalAlpha=1;
+  /* decorative: a four-frame bob on the target sprite. FRAME pins it to 0
+     under reduced motion, so it sits still while the game keeps running. */
+  const bob=[0,-3,0,3][FRAME(4,6,now)];
+  /* the catch flash eases out; ease() is the identity when reduced */
+  if(flash>0){cx.globalAlpha=0.35*ease(flash);cx.fillStyle='CYAN_TOKEN';
+    cx.fillRect(0,0,w,h);cx.globalAlpha=1;flash-=0.04}
   sprite('marker',40+(w-80)*pos-8,h/2-34,16,68,'MAGENTA_TOKEN');
-  sprite('target',40+(w-80)*0.5-16,h/2-16,32,32,'');
+  sprite('target',40+(w-80)*0.5-16,h/2-16+bob,32,32,'');
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
 function cast(){casts++;const [a,b]=zone();
-  if(pos>=a&&pos<=b){score++;msg='かかった。'}else{msg='逃げられた。'}}
+  if(pos>=a&&pos<=b){score++;flash=1;msg='かかった。'}else{msg='逃げられた。'}}
 addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});
 cv.addEventListener('pointerdown',cast);
 step();
@@ -110,7 +118,7 @@ step();
 _CATCH = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const FALL=SPEED_TOKEN,WIDE=BAND_TOKEN;
-let px=0.5,items=[],score=0,missed=0,t=0;
+let px=0.5,shown=0.5,items=[],score=0,missed=0,t=0;
 addEventListener('keydown',e=>{if(e.code==='ArrowLeft'){px=Math.max(0,px-0.06)}
   if(e.code==='ArrowRight'){px=Math.min(1,px+0.06)}});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();
@@ -119,10 +127,14 @@ function step(){t++;if(t%FALL===0){items.push({x:Math.random(),y:0})}
   const w=cv.width,h=cv.height;
   items.forEach(i=>{i.y+=0.012});
   items=items.filter(i=>{if(i.y<0.92)return true;
-    if(Math.abs(i.x-px)<WIDE/2){score++}else{missed++}return false});
+    if(Math.abs(i.x-shown)<WIDE/2){score++}else{missed++}return false});
   cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,w,h);
+  /* the basket eases toward the pointer instead of snapping to it */
+  shown+=(px-shown)*(REDUCED?1:0.25);
+  /* decorative: a four-frame pulse, frozen when reduced */
+  const pulse=[0,1,2,1][FRAME(4,8,performance.now())];
   items.forEach(i=>{sprite('target',i.x*w-10,i.y*h,20,20,'CYAN_TOKEN')});
-  sprite('marker',(px-WIDE/2)*w,h-30,WIDE*w,20,'MAGENTA_TOKEN');
+  sprite('marker',(shown-WIDE/2)*w,h-30-pulse,WIDE*w,20+pulse,'MAGENTA_TOKEN');
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
   cx.fillText('受け '+score+' / こぼし '+missed,40,34);
   cx.fillText('← → またはマウスで動かす',40,h-28);
@@ -281,7 +293,7 @@ def generate_game(
     spec = TEMPLATES[key]
     difficulty = choose_difficulty(request)
     speed, band = _DIFFICULTY[key][difficulty]
-    script = (
+    script = with_animation(
         (_SPRITE_LOADER + spec.script)
         .replace("SPRITE_MAP_TOKEN", json.dumps(sprites or {}))
         .replace("SPEED_TOKEN", str(speed))

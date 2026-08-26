@@ -773,6 +773,16 @@ def measure_creation(c: Collector) -> None:
         kind=CONTEXT,
     )
 
+    # --- does the page move, and does it stop when asked? --------------
+    animated, detail = _measure_animation()
+    c.add(
+        "creation_animation_present",
+        "生成ページが動き、reduced-motion で止まる",
+        animated,
+        detail=detail,
+        kind=OUTCOME,
+    )
+
     # --- the whole production, not just the playable page --------------
     #
     # Two halves again, and the second is the one that keeps this honest: a
@@ -799,6 +809,67 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+
+
+
+def _measure_animation() -> tuple[float, str]:
+    """Whether the generated page animates and honours reduced motion.
+
+    Run, not grepped. The helpers are executed in node under both settings,
+    so this reports what a viewer would get rather than whether the source
+    contains the word "transition" - a page could match every keyword and
+    still animate nothing, or animate through the setting.
+
+    Both directions have to hold. A page that never animates would satisfy
+    "stops when asked" trivially, so the unreduced run must produce distinct
+    frames; and the reduced run must produce exactly one, while the game loop
+    itself keeps running (which is why FRAME collapses rather than the loop).
+    """
+
+    import subprocess
+
+    from sidra_ai.creation.animation import probe_source
+    from sidra_ai.creation.games import TEMPLATES, generate_game, validate_game_html
+
+    results = {}
+    try:
+        for reduced in (False, True):
+            finished = subprocess.run(
+                ["node", "-"],
+                input=probe_source(reduced=reduced),
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            if finished.returncode != 0:
+                return 0.0, f"probe did not run: {finished.stderr.strip()[:80]}"
+            results[reduced] = json.loads(finished.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        # No node means this cannot be measured here. Reported as 0 with the
+        # reason rather than as a pass, because "we could not check" and "it
+        # works" are different facts.
+        return 0.0, f"probe unavailable: {type(exc).__name__}"
+
+    moving, still = results[False], results[True]
+    if moving["distinctFrames"] < 2:
+        return 0.0, "the page does not animate at all"
+    if still["distinctFrames"] != 1:
+        return 0.0, "decorative frames still advance under prefers-reduced-motion"
+    if moving["easeMid"] == still["easeMid"]:
+        return 0.0, "easing is unchanged under prefers-reduced-motion"
+
+    # And the pages that ship with it still parse: an animated page that no
+    # longer runs is a worse artifact than a static one.
+    for key in TEMPLATES:
+        verdict = validate_game_html(generate_game("ゲームを作って", template=key).html)
+        if not verdict["playable"]:
+            return 0.0, f"{key} stopped being playable: {verdict['failures']}"
+
+    return 1.0, (
+        f"{moving['distinctFrames']} decorative frames normally, "
+        f"{still['distinctFrames']} under reduced motion; "
+        f"{len(TEMPLATES)} templates still playable"
+    )
 
 
 def _measure_project_scaffold() -> tuple[float, str]:
