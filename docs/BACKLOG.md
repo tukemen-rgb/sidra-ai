@@ -521,9 +521,20 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       extra）。中身は既存の接地パイプラインを流用、無い数字は〔社長が埋める欄〕。
       → 動かす数字: creation_office_formats unmeasurable→3
 
-- [~] 作業中 2026-08-26 20:10 UTC 対話セッション **C-1001: GIF / アニメ画像生成。**Pillow で GIF を生成（フレーム合成・
+- [x] 完了 2026-08-26 20:3x UTC 対話セッション (`creation_gif_generated` unmeasurable→**1**、判定器 exit 0) **C-1001: GIF / アニメ画像生成。**Pillow で GIF を生成（フレーム合成・
       パレット・ループ設定）。テンプレは SIDRA のスプライト（C-997 の SVG →
       ラスタ化 or 図形直描画）を流用。
+      実装メモ: Pillow ではなく **依存ゼロの GIF89a エンコーダ自前実装**に変更
+      （起票時の文言より安全側: 社長 PC にも dev コンテナにも Pillow が無く、
+      「pip install してから」と断る生成器は生成していないため。図形直描画・
+      2 モチーフ fish/pulse・seed 付き・GAMEYARD 5 色・NETSCAPE ループ・
+      literal-only LZW）。検証は 3 重: 自前ブロックウォーカー（計器）、
+      **仕様から書いた独立 LZW デコーダ**（辞書成長・コード幅伸長を実装、
+      テスト内）、Pillow がある環境では Pillow デコードでも照合（無い環境では
+      skip）。この環境で Pillow 12.3 により全フレーム・全色一致を確認済み。
+      intent に GIF 種別（gif/ジフ/アニメ画像/動く画像、「アニメーション」
+      単体は C-998 のゲーム内アニメと衝突するため入れない）、ルーター配線
+      同梱。テスト 11 件。
       → 動かす数字: creation_gif_generated unmeasurable→1（GIF ヘッダ+
       フレーム数>1 を計器で検証）
 

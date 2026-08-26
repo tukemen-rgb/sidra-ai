@@ -149,6 +149,10 @@ def build_default_router(
         router.register(CreationKind.GAME, build_game_generator(data_dir))
         router.register(CreationKind.MODEL3D, build_model3d_generator(data_dir))
 
+        from sidra_ai.creation.gif_job import build_gif_generator
+
+        router.register(CreationKind.GIF, build_gif_generator(data_dir))
+
         from sidra_ai.creation.project_job import build_project_generator
 
         router.register(CreationKind.PROJECT, build_project_generator(data_dir))

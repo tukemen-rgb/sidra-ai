@@ -744,6 +744,40 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the animated GIF, judged by parsing its actual bytes ----------
+    #
+    # The instrument is a real block-walker over the generated file, so a
+    # writer that truncated a frame, dropped the loop extension, or left
+    # unread bytes after the trailer scores 0 the same way a foreign decoder
+    # would fail to open it. Both motifs run, because a motif that stops
+    # generating is a capability lost even while the other still passes.
+    from sidra_ai.creation.gifs import generate_gif, validate_gif
+
+    gif_results = {}
+    for probe in ("魚のGIFを作って", "GIFを作って"):
+        gif = generate_gif(probe)
+        gif_results[gif.motif] = validate_gif(gif)
+    gif_valid = all(r["valid"] for r in gif_results.values()) and len(gif_results) >= 2
+    gif_failures = [
+        f"{motif}: {f}" for motif, r in gif_results.items() for f in r["failures"]
+    ]
+    if len(gif_results) < 2:
+        gif_failures.append("both probes chose the same motif")
+    c.add(
+        "creation_gif_generated",
+        "生成した GIF が動く",
+        1.0 if gif_valid else 0.0,
+        detail=(
+            "; ".join(
+                f"{motif} {r['frames']}f/{r['bytes']}B loop"
+                for motif, r in gif_results.items()
+            )
+            if gif_valid
+            else "; ".join(gif_failures)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- and the deck, where the danger is different ------------------
     #
     # A deck that renders is not the bar. A deck is dangerous when it looks

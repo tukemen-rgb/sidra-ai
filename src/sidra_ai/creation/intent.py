@@ -54,6 +54,7 @@ class CreationKind(str, Enum):
     DECK = "deck"
     DOCUMENT = "document"
     MODEL3D = "model3d"
+    GIF = "gif"
     UNKNOWN = "unknown"
 
 
@@ -176,6 +177,17 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "立体",
         "フィギュア",
         "obj",
+    ),
+    # Deliberately narrow: 「アニメーション」 alone stays with the project
+    # pipeline (C-998 animates the game page); only wording that names a
+    # *file format* or an image lands here. NFKC folds ＧＩＦ to gif, so the
+    # ASCII entry covers the full-width spelling an IME produces.
+    CreationKind.GIF: (
+        "gif",
+        "ジフ",
+        "アニメ画像",
+        "動く画像",
+        "動くアイコン",
     ),
 }
 
