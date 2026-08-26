@@ -3281,3 +3281,12 @@
   （GitHub 呼び出しゼロ・読み取りのみ・他 assert 不変、理由は docstring）。
   pytest 全通過 / verify_gate_recall MISS 0 / 既存フロア全維持。
   規模: 変更 +185 行、新規 335 行 = 520 行（目安 400 超過を申告）。
+2026-08-26 15:3x UTC ループA — main を緑に戻した（C-994 の名前が計器に無かった）
+  b921685（ループB の C-994 起票）が `creation_deck_grounded` を
+  `→ 動かす数字:` に書いたが計器に無く、`test_every_metric_the_backlog_names_exists`
+  が落ちていた（「誰も測っていない数字は約束できない」という不変条件）。
+  最小の修理: `unmeasurable()` で登録し、理由（C-994 待ち・/v1/chat が facts
+  なしで生成器を呼ぶので全欄が空欄）を書いた。**0 では登録しない**——0 は
+  「接地を測ったら無かった」と読めるが、実際は「まだ何も繋がっていない」で
+  別の主張。C-994 の実装（ループB）がこの行を実測に置き換える。
+  pytest 全通過 / verify_gate_recall MISS 0。

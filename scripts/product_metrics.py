@@ -623,6 +623,18 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # Named by C-994 and not yet wired: the deck generator can take facts,
+    # but /v1/chat calls it with none, so every field comes out as a blank.
+    # Registered as unmeasurable rather than as a 0 - a zero here would read
+    # as "grounding was measured and found absent", which is a different
+    # claim from "nothing has been connected to measure yet".
+    c.unmeasurable(
+        "creation_deck_grounded",
+        "生成したデッキが索引に接地している",
+        "C-994 待ち: /v1/chat は生成器を facts なしで呼ぶので全欄が空欄になる",
+        kind=OUTCOME,
+    )
+
     # A template that stops being reachable from ordinary wording is a
     # regression the playability number cannot see: both templates would still
     # generate, and nobody would get the second one.
