@@ -334,7 +334,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 不変、生成物は `.sidra/artifacts/` ローカル保存のみ。素材は**プロシージャル生成
 （SVG/canvas）のみ**——外部素材・外部フォント・外部 API を取りに行かない。
 
-- [ ] **C-995: ゲーム制作「プロジェクト」骨格。**「〜なゲームを企画から作って」
+- [~] 作業中 2026-08-26 19:38 UTC ループB **C-995: ゲーム制作「プロジェクト」骨格。**「〜なゲームを企画から作って」
       で `.sidra/artifacts/projects/<slug>/` を作り、脚本 scenario.md /
       構成 structure.md / 機能設定 features.md / assets/ / game.html /
       production-log.md を**一連で**生成して配置する（この項目では各ファイルは
