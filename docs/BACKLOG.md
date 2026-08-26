@@ -369,6 +369,53 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       漏らさない（path と日時とパラメータのみ）。
       → 動かす数字: creation_record_written unmeasurable→1
 
+### C-0c. 制作スプリント第3弾: SIDRA 単体で skills 相当＋3D（社長指示 2026-08-27 05:2x JST）
+
+**社長指示原文**: 「Claude 側の skills もクロードに経由せずにシドラＡＩが独立して
+対応するようにして 3Ｄモデル作成とかも」。
+**優先順位: C-0b（一連対応）が全部 [x] になってからこの節を取る。**
+原則は同じ（テンプレート主導・echo 成立・接地・捏造なし・外部素材/API/フォント
+取得なし・生成物ローカルのみ・不変条件不変）。追加の決まり:
+- **ライセンス**: MIT 由来（superpowers / vercel / matt / expo / prisma /
+  supabase）の知見・コードは出典明記で移植可。**anthropics/skills 由来は
+  「何を作るか」の参考のみにし、コードは自前実装**（ライセンスが Anthropic
+  サービス利用に紐づくため、製品へのコード移植はしない）。
+- **依存**: 生成に要る pip（python-pptx / python-docx / openpyxl / Pillow 等）
+  は pyproject の **optional extra `[creation]`** として宣言してよい（コア依存には
+  足さない。無ければその生成種別だけ「未インストール」と正直に断る fail-closed）。
+
+- [ ] **C-1000: Office 実ファイル出力。**「Word で」「Excel で」「pptx で」の
+      指定を検出し、docx / xlsx / 実 pptx を SIDRA 単体で生成（`[creation]`
+      extra）。中身は既存の接地パイプラインを流用、無い数字は〔社長が埋める欄〕。
+      → 動かす数字: creation_office_formats unmeasurable→3
+
+- [ ] **C-1001: GIF / アニメ画像生成。**Pillow で GIF を生成（フレーム合成・
+      パレット・ループ設定）。テンプレは SIDRA のスプライト（C-997 の SVG →
+      ラスタ化 or 図形直描画）を流用。
+      → 動かす数字: creation_gif_generated unmeasurable→1（GIF ヘッダ+
+      フレーム数>1 を計器で検証）
+
+- [ ] **C-1002: ジェネラティブアート。**seed 付きの canvas 生成アート HTML
+      （フローフィールド等 2 パターン以上、GAMEYARD パレット）。
+      → 動かす数字: creation_art_patterns unmeasurable→2
+
+- [ ] **C-1003: テーマ適用。**生成物（デッキ HTML・ゲーム・アート）に
+      適用できるテーマを 3 種以上定義し、「〜のテーマで」で切替。既定は
+      GAMEYARD トークン。テーマ定義は自前（theme-factory はアイデア参考のみ）。
+      → 動かす数字: creation_themes_available unmeasurable→3
+
+- [ ] **C-1004: 3D モデル作成。**プロシージャルな **.obj/.mtl 生成**（テキスト
+      形式・依存ゼロ・Windows の 3D ビューアーでそのまま開ける）。パラメトリック
+      プリミティブ合成（例: 魚・舟・地形の low-poly）+ seed。あわせて
+      **ライブラリ不使用の自己完結 WebGL プレビュー HTML** を同梱（CDN 参照禁止）。
+      → 動かす数字: creation_3d_model_valid unmeasurable→1（OBJ が
+      パースでき頂点・面が両方 >0、プレビュー HTML に外部参照が無いことを計器で）
+
+- [ ] **C-1005: ルーターと画面の配線。**「GIF 作って」「3D モデル作って」
+      「Word で企画書」等の新種別を制作ルーターに追加し、ブラウザの生成物
+      一覧・ダウンロードに対応（拡張子ごとの Content-Type を正しく）。
+      → 動かす数字: creation_kinds_routable unmeasurable→現行+4 以上
+
 ### C-0. 制作スプリント（社長指示 2026-08-26 23:19 JST・締切 2026-08-27 09:00 JST = 00:00 UTC）
 
 **社長指示原文**: 「『釣りゲームを作って』『デッキを作って』など制作も sidraai で
