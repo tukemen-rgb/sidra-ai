@@ -3478,13 +3478,13 @@
   実装中に自分のバグを実測発見: xlsx だけデッキ名を落としていた。題名行を追加。
   pytest 全通過 / verify_gate_recall MISS 0 / 既存の制作系数字は不変。
   規模: 425 行（目安 400 内）。
-2026-08-26 20:3x UTC 対話セッション — C-1001 完了（creation_gif_generated unmeasurable→1）
+2026-08-26 20:1x UTC 対話セッション — C-1001 完了（creation_gif_generated unmeasurable→1）
   依存ゼロ GIF89a エンコーダ自前実装（fish/pulse、seed 付き、GAMEYARD 5 色、
   ループ再生）。検証 3 重: 自前パーサー計器＋独立 LZW デコーダ＋Pillow 照合
   （全フレーム一致）。intent/ルーターに GIF 種別を配線。テスト 11 件 /
   recall PASSED / 判定器 exit 0。
 2026-08-26 20:16 UTC ループB started
-2026-08-26 20:5x UTC 対話セッション — C-1002 完了（creation_art_patterns unmeasurable→2）
+2026-08-26 20:1x UTC 対話セッション — C-1002 完了（creation_art_patterns unmeasurable→2）
   seed 付き canvas アート 2 パターン（flow/orbits、GAMEYARD パレット、
   Math.random 禁止を検証器で強制、reduced-motion は静止画）。intent/ルーター
   に ART 種別を配線。テスト 12 件 / 判定器 exit 0。

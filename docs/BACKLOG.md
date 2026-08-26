@@ -521,7 +521,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       extra）。中身は既存の接地パイプラインを流用、無い数字は〔社長が埋める欄〕。
       → 動かす数字: creation_office_formats unmeasurable→3
 
-- [x] 完了 2026-08-26 20:3x UTC 対話セッション (`creation_gif_generated` unmeasurable→**1**、判定器 exit 0) **C-1001: GIF / アニメ画像生成。**Pillow で GIF を生成（フレーム合成・
+- [x] 完了 2026-08-26 20:1x UTC 対話セッション (`creation_gif_generated` unmeasurable→**1**、判定器 exit 0) **C-1001: GIF / アニメ画像生成。**Pillow で GIF を生成（フレーム合成・
       パレット・ループ設定）。テンプレは SIDRA のスプライト（C-997 の SVG →
       ラスタ化 or 図形直描画）を流用。
       実装メモ: Pillow ではなく **依存ゼロの GIF89a エンコーダ自前実装**に変更
@@ -538,7 +538,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_gif_generated unmeasurable→1（GIF ヘッダ+
       フレーム数>1 を計器で検証）
 
-- [x] 完了 2026-08-26 20:5x UTC 対話セッション (`creation_art_patterns` unmeasurable→**2**、判定器 exit 0) **C-1002: ジェネラティブアート。**seed 付きの canvas 生成アート HTML
+- [x] 完了 2026-08-26 20:1x UTC 対話セッション (`creation_art_patterns` unmeasurable→**2**、判定器 exit 0) **C-1002: ジェネラティブアート。**seed 付きの canvas 生成アート HTML
       （フローフィールド等 2 パターン以上、GAMEYARD パレット）。
       → 動かす数字: creation_art_patterns unmeasurable→2
       実装メモ: flow（フローフィールド: cos 波の合成場を粒子が流れる）と
@@ -566,7 +566,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_3d_model_valid unmeasurable→1（OBJ が
       パースでき頂点・面が両方 >0、プレビュー HTML に外部参照が無いことを計器で）
 
-- [ ] **C-1005: ルーターと画面の配線。**「GIF 作って」「3D モデル作って」
+- [~] 作業中 2026-08-26 20:20 UTC 対話セッション **C-1005: ルーターと画面の配線。**「GIF 作って」「3D モデル作って」
       「Word で企画書」等の新種別を制作ルーターに追加し、ブラウザの生成物
       一覧・ダウンロードに対応（拡張子ごとの Content-Type を正しく）。
       → 動かす数字: creation_kinds_routable unmeasurable→現行+4 以上
