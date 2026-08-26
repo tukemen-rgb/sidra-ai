@@ -9,8 +9,20 @@ The decision is deterministic and conservative on purpose: an unrecognised
 message stays a question, because the cost of misreading a question as a
 creation request (a confused answer) is worse than the cost of missing a
 creation request (an ordinary answer).
+
+``games`` holds the first generator on the other side of that route: a
+template-first builder that produces a playable single-file page with no model
+and no network.
 """
 
+from sidra_ai.creation.games import (
+    GAMEYARD_TOKENS,
+    GameTemplate,
+    GeneratedGame,
+    TEMPLATES,
+    generate_game,
+    validate_game_html,
+)
 from sidra_ai.creation.intent import (
     CreationIntent,
     CreationKind,
@@ -23,5 +35,11 @@ __all__ = [
     "CreationKind",
     "CreationOutcome",
     "CreationRouter",
+    "GAMEYARD_TOKENS",
+    "GameTemplate",
+    "GeneratedGame",
+    "TEMPLATES",
     "detect_creation_intent",
+    "generate_game",
+    "validate_game_html",
 ]

@@ -1,0 +1,366 @@
+"""Make a playable single-file game, with no model and no network.
+
+"釣りゲームを作って" has to produce something that actually runs, on this
+container, in the echo configuration, with no weights present. So the game is
+a **template** first: the HTML, the loop and the rules are written here and are
+correct before any model is consulted. A local model, when there is one, only
+fills copy - title and one line of flavour - and only through
+``GeneratedGame.with_copy``. That ordering is the whole design: a missing model
+costs the page its wording, never its playability.
+
+Three constraints the output has to satisfy, all checkable:
+
+* **single file, no network.** No CDN font, no external script, no image URL.
+  The operator's machine is loopback-bound; a page that fetches to work is a
+  page that does nothing where it matters. ``_no_external_assets`` proves it.
+* **GAMEYARD's identity, not a second design system.** The tokens below are
+  copied from ``tukemen-rgb/site`` ``docs/DESIGN.md`` §2, and §3's prohibited
+  defaults are respected: no purple-to-blue gradient, no glow or glassmorphism,
+  no 3D buttons, no emoji as interface icons, no font CDN.
+* **grounded.** Whatever the caller retrieved is printed in the page's own
+  footer as the source of those tokens, so the artifact says where its
+  appearance came from instead of implying taste.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+from html import escape
+from pathlib import Path
+
+#: Straight from site ``docs/DESIGN.md`` §2. Duplicated as data rather than
+#: prose so a template cannot drift from the identity without this changing.
+GAMEYARD_TOKENS = {
+    "bg": "#05070f",
+    "surface": "#0a0f1c",
+    "raised": "#0c1322",
+    "cyan": "#2ee6ff",
+    "magenta": "#ff5cc8",
+    "radius": "12px",
+    "radius_tight": "8px",
+}
+
+_SOURCE = "tukemen-rgb/site docs/DESIGN.md §2 (tokens) / §3 (prohibited defaults)"
+
+
+@dataclass(frozen=True)
+class GameTemplate:
+    """One playable rule set. ``body`` is the whole game; nothing is fetched."""
+
+    key: str
+    default_title: str
+    how_to_play: str
+    #: Called with the resolved difficulty; returns the game's JavaScript.
+    script: str
+
+
+@dataclass(frozen=True)
+class GeneratedGame:
+    template: str
+    title: str
+    tagline: str
+    difficulty: str
+    html: str
+
+    def with_copy(self, *, title: str = "", tagline: str = "") -> "GeneratedGame":
+        """Overlay model-written wording on a page that already works.
+
+        Empty strings are ignored, so a model that returns nothing leaves the
+        deterministic copy standing rather than blanking the page.
+        """
+
+        new_title = title.strip() or self.title
+        new_tagline = tagline.strip() or self.tagline
+        if (new_title, new_tagline) == (self.title, self.tagline):
+            return self
+        html = self.html.replace(escape(self.title), escape(new_title))
+        html = html.replace(escape(self.tagline), escape(new_tagline))
+        return replace(self, title=new_title, tagline=new_tagline, html=html)
+
+
+# --------------------------------------------------------------- templates
+
+_FISHING = """
+const cv=document.getElementById('stage'),cx=cv.getContext('2d');
+const SPEED=SPEED_TOKEN,BAND=BAND_TOKEN;
+let pos=0,dir=1,score=0,casts=0,msg='SPACE / クリックで合わせる';
+const zone=()=>[0.5-BAND/2,0.5+BAND/2];
+function step(){pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}draw();
+  requestAnimationFrame(step)}
+function draw(){const w=cv.width,h=cv.height;cx.fillStyle='SURFACE_TOKEN';
+  cx.fillRect(0,0,w,h);const [a,b]=zone();
+  cx.fillStyle='RAISED_TOKEN';cx.fillRect(40,h/2-26,w-80,52);
+  cx.fillStyle='CYAN_TOKEN';cx.globalAlpha=0.28;
+  cx.fillRect(40+(w-80)*a,h/2-26,(w-80)*(b-a),52);cx.globalAlpha=1;
+  cx.fillStyle='MAGENTA_TOKEN';cx.fillRect(40+(w-80)*pos-2,h/2-34,4,68);
+  cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
+  cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
+function cast(){casts++;const [a,b]=zone();
+  if(pos>=a&&pos<=b){score++;msg='かかった。'}else{msg='逃げられた。'}}
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});
+cv.addEventListener('pointerdown',cast);
+step();
+"""
+
+_CATCH = """
+const cv=document.getElementById('stage'),cx=cv.getContext('2d');
+const FALL=SPEED_TOKEN,WIDE=BAND_TOKEN;
+let px=0.5,items=[],score=0,missed=0,t=0;
+addEventListener('keydown',e=>{if(e.code==='ArrowLeft'){px=Math.max(0,px-0.06)}
+  if(e.code==='ArrowRight'){px=Math.min(1,px+0.06)}});
+cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();
+  px=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))});
+function step(){t++;if(t%FALL===0){items.push({x:Math.random(),y:0})}
+  const w=cv.width,h=cv.height;
+  items.forEach(i=>{i.y+=0.012});
+  items=items.filter(i=>{if(i.y<0.92)return true;
+    if(Math.abs(i.x-px)<WIDE/2){score++}else{missed++}return false});
+  cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,w,h);
+  cx.fillStyle='CYAN_TOKEN';items.forEach(i=>{cx.fillRect(i.x*w-5,i.y*h,10,10)});
+  cx.fillStyle='MAGENTA_TOKEN';cx.fillRect((px-WIDE/2)*w,h-26,WIDE*w,10);
+  cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
+  cx.fillText('受け '+score+' / こぼし '+missed,40,34);
+  cx.fillText('← → またはマウスで動かす',40,h-28);
+  requestAnimationFrame(step)}
+step();
+"""
+
+TEMPLATES: dict[str, GameTemplate] = {
+    "fishing": GameTemplate(
+        "fishing",
+        "タイミング釣り",
+        "動くマーカーが帯の中にある間に SPACE かクリック。",
+        _FISHING,
+    ),
+    "catch": GameTemplate(
+        "catch",
+        "落ちものキャッチ",
+        "落ちてくるものを受け皿で拾う。← → かマウスで動かす。",
+        _CATCH,
+    ),
+}
+
+#: Difficulty is two numbers per template, not a label. Keeping the mapping
+#: here means "難しくして" changes the game rather than the wording.
+_DIFFICULTY = {
+    "fishing": {"easy": (0.008, 0.34), "normal": (0.014, 0.22), "hard": (0.024, 0.12)},
+    "catch": {"easy": (34, 0.30), "normal": (22, 0.20), "hard": (13, 0.12)},
+}
+
+# Stems, not whole words: 難しい / 難しく / 難しめ all have to land on the
+# same setting, and a request that says "難しい" and gets "normal" is the
+# quiet kind of wrong - the page still works, so nothing complains.
+_HARD = ("難し", "むずかし", "ハード", "hard", "難易度高")
+_EASY = ("簡単", "やさし", "かんたん", "easy", "初心者")
+_FISHING_WORDS = ("釣り", "つり", "fishing", "魚")
+_CATCH_WORDS = ("キャッチ", "catch", "受け", "落ちもの", "避け")
+
+_STRIP = re.compile(
+    r"(を|の)?\s*(ゲーム|game)?\s*(を)?\s*(作って|作成して|生成して|つくって|作れ|ください|下さい)\s*[。.!！]?\s*$"
+)
+
+
+def choose_template(request: str) -> str:
+    """Pick by what the request names, defaulting to the fishing template."""
+
+    lowered = request.lower()
+    if any(word in lowered for word in _CATCH_WORDS):
+        return "catch"
+    if any(word in lowered for word in _FISHING_WORDS):
+        return "fishing"
+    return "fishing"
+
+
+def choose_difficulty(request: str) -> str:
+    lowered = request.lower()
+    if any(word in lowered for word in _HARD):
+        return "hard"
+    if any(word in lowered for word in _EASY):
+        return "easy"
+    return "normal"
+
+
+def _title_from(request: str, fallback: str) -> str:
+    """Use the operator's own words when they named the thing.
+
+    Their phrasing is better than ours and it is not a claim about anything,
+    so there is nothing to verify - unlike the numbers a deck would carry.
+    """
+
+    stripped = _STRIP.sub("", request.strip()).strip("「」\"' 　")
+    if 1 <= len(stripped) <= 24:
+        return stripped
+    return fallback
+
+
+def _no_external_assets(html: str) -> bool:
+    for match in re.finditer(r"""(?:src|href)\s*=\s*["']([^"']+)["']""", html):
+        if match.group(1).strip().lower().startswith(("http://", "https://", "//")):
+            return False
+    return "@import" not in html
+
+
+def _page(title: str, tagline: str, how: str, script: str, evidence: list[str]) -> str:
+    t = GAMEYARD_TOKENS
+    sources = "".join(f"<li>{escape(line)}</li>" for line in evidence)
+    return f"""<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{escape(title)}</title>
+<style>
+:root{{color-scheme:dark}}
+body{{margin:0;background:{t["bg"]};color:#dfe7f5;
+ font-family:system-ui,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}}
+main{{max-width:760px;margin:0 auto;padding:32px 20px 48px}}
+h1{{font-size:22px;margin:0 0 6px;letter-spacing:.01em}}
+p.tag{{margin:0 0 20px;color:#9fb0c8}}
+canvas{{display:block;width:100%;height:320px;background:{t["surface"]};
+ border:1px solid #16243a;border-radius:{t["radius"]}}}
+.how{{margin:18px 0 0;padding:14px 16px;background:{t["raised"]};
+ border-radius:{t["radius_tight"]};font-family:ui-monospace,SFMono-Regular,monospace;
+ font-size:13px;color:#c3d2e6}}
+footer{{margin-top:28px;border-top:1px solid #16243a;padding-top:14px;
+ font-size:12px;color:#7d8ea6}}
+footer ul{{margin:6px 0 0;padding-left:18px}}
+a{{color:{t["cyan"]}}}
+</style></head>
+<body><main>
+<h1>{escape(title)}</h1>
+<p class="tag">{escape(tagline)}</p>
+<canvas id="stage" width="720" height="320"></canvas>
+<p class="how">{escape(how)}</p>
+<footer>SIDRA AI が生成。配色と禁止事項の出典:
+<ul>{sources}</ul></footer>
+</main>
+<script>
+{script}
+</script></body></html>
+"""
+
+
+def generate_game(
+    request: str,
+    *,
+    template: str = "",
+    evidence: list[str] | None = None,
+) -> GeneratedGame:
+    """Build a playable page from the request alone. Never raises on wording."""
+
+    key = template or choose_template(request)
+    if key not in TEMPLATES:
+        raise KeyError(f"unknown game template: {key!r}")
+    spec = TEMPLATES[key]
+    difficulty = choose_difficulty(request)
+    speed, band = _DIFFICULTY[key][difficulty]
+    script = (
+        spec.script.replace("SPEED_TOKEN", str(speed))
+        .replace("BAND_TOKEN", str(band))
+        .replace("SURFACE_TOKEN", GAMEYARD_TOKENS["surface"])
+        .replace("RAISED_TOKEN", GAMEYARD_TOKENS["raised"])
+        .replace("CYAN_TOKEN", GAMEYARD_TOKENS["cyan"])
+        .replace("MAGENTA_TOKEN", GAMEYARD_TOKENS["magenta"])
+    )
+    title = _title_from(request, spec.default_title)
+    tagline = f"難易度 {difficulty} / テンプレート {key}"
+    html = _page(title, tagline, spec.how_to_play, script, list(evidence or [_SOURCE]))
+    return GeneratedGame(key, title, tagline, difficulty, html)
+
+
+def save_game(game: GeneratedGame, data_dir: str | Path, *, now: datetime | None = None) -> Path:
+    """Write the artifact locally. Nothing leaves the machine."""
+
+    stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
+    directory = Path(data_dir) / "artifacts"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"game-{game.template}-{stamp}.html"
+    path.write_text(game.html, encoding="utf-8")
+    return path
+
+
+# -------------------------------------------------------------- validation
+
+
+def _script_of(html: str) -> str:
+    match = re.search(r"<script>(.*?)</script>", html, re.S)
+    return match.group(1) if match else ""
+
+
+def _javascript_parses(script: str) -> tuple[bool, str]:
+    """Parse the script with node when there is one; say which check ran.
+
+    A checker that silently degrades is worse than no checker: "playable"
+    would keep reporting 1 on a page whose script never parsed. The reason
+    string names the tool so the metric's detail cannot hide the difference.
+    """
+
+    try:
+        result = subprocess.run(
+            ["node", "--check", "-"],
+            input=script,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        balanced = _brackets_balanced(script)
+        return balanced, "no node: brackets only" if balanced else "no node: unbalanced"
+    if result.returncode == 0:
+        return True, "node --check"
+    return False, f"node --check: {result.stderr.strip().splitlines()[:1]}"
+
+
+def _brackets_balanced(script: str) -> bool:
+    pairs = {")": "(", "]": "[", "}": "{"}
+    stack: list[str] = []
+    for char in script:
+        if char in "([{":
+            stack.append(char)
+        elif char in pairs:
+            if not stack or stack.pop() != pairs[char]:
+                return False
+    return not stack
+
+
+def validate_game_html(html: str) -> dict:
+    """Report every reason the page would not be playable, not just the first."""
+
+    from html.parser import HTMLParser
+
+    failures: list[str] = []
+
+    class _Parse(HTMLParser):
+        def error(self, message):  # pragma: no cover - stdlib never calls this
+            failures.append(f"html: {message}")
+
+    parser = _Parse(convert_charrefs=True)
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception as exc:  # noqa: BLE001 - a parse failure is a finding
+        failures.append(f"html: {type(exc).__name__}: {exc}")
+
+    if "<canvas" not in html:
+        failures.append("no <canvas>")
+    script = _script_of(html)
+    if not script.strip():
+        failures.append("no <script>")
+    checker = "not run"
+    if script.strip():
+        parses, checker = _javascript_parses(script)
+        if not parses:
+            failures.append(f"javascript did not parse ({checker})")
+    if not _no_external_assets(html):
+        failures.append("references an external asset")
+
+    return {"playable": not failures, "failures": failures, "js_checker": checker}
+
+
+def report(game: GeneratedGame) -> str:
+    return json.dumps(
+        {"template": game.template, "title": game.title, "difficulty": game.difficulty},
+        ensure_ascii=False,
+    )

@@ -552,6 +552,54 @@ def measure_answer_quality(c: Collector) -> None:
 # --- what it costs and what it refuses --------------------------------
 
 
+# --- can it make the thing that was asked for -------------------------
+
+
+def measure_creation(c: Collector) -> None:
+    """Does "釣りゲームを作って" produce a page that actually runs?
+
+    Generated on every run rather than checked in, because a committed
+    artifact proves the generator worked once. The number an operator cares
+    about is whether it works now, on this checkout.
+    """
+
+    from sidra_ai.creation import generate_game, validate_game_html
+
+    results = {}
+    for key in ("fishing", "catch"):
+        game = generate_game("ゲームを作って", template=key)
+        results[key] = validate_game_html(game.html)
+    playable = all(r["playable"] for r in results.values())
+    failures = [f"{k}: {f}" for k, r in results.items() for f in r["failures"]]
+    checkers = sorted({r["js_checker"] for r in results.values()})
+    c.add(
+        "creation_game_playable",
+        "生成したゲームが遊べる",
+        1.0 if playable else 0.0,
+        detail=(
+            f"{len(results)} templates, js checked by {', '.join(checkers)}"
+            if playable
+            else "; ".join(failures)
+        ),
+        kind=OUTCOME,
+    )
+    # A template that stops being reachable from ordinary wording is a
+    # regression the playability number cannot see: both templates would still
+    # generate, and nobody would get the second one.
+    from sidra_ai.creation.games import choose_template
+
+    reachable = len(
+        {choose_template(text) for text in ("釣りゲームを作って", "キャッチゲームを作って")}
+    )
+    c.add(
+        "creation_game_templates",
+        "依頼文から届くゲームの型",
+        float(reachable),
+        detail="distinct templates chosen by two ordinary requests",
+        kind=GUARD,
+    )
+
+
 def measure_cost(c: Collector) -> None:
     from sidra_ai.models.usage import UsageLedger
 
@@ -618,6 +666,7 @@ COLLECTORS = (
     ("usable", measure_usability),
     ("fresh", measure_freshness),
     ("answers", measure_answer_quality),
+    ("creation", measure_creation),
     ("cost", measure_cost),
     ("gate", measure_gate),
     ("observable", measure_observability),

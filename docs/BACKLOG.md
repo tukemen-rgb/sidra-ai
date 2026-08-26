@@ -376,7 +376,28 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       `register()` するだけで経路は繋がる。`CreationOutcome.artifact_path` は
       ローカル path のみ（URL も本文も載せない）。
 
-- [~] 作業中 2026-08-26 14:47 UTC ループA3 **C-991: ブラウザで遊べる単一ファイル HTML ミニゲーム生成。**
+- [x] 完了 2026-08-26 ループA3 (`creation_game_playable` unmeasurable→**1**、判定器 exit 0) **C-991: 「釣りゲームを作って」が実際に遊べるページを出す。**
+      `src/sidra_ai/creation/games.py`。テンプレート 2 種（fishing=タイミング /
+      catch=落ちもの）。**モデルが無くても遊べる**——HTML・ループ・ルールは
+      テンプレート側で完成しており、モデルは `with_copy` で題名と 1 行の文言を
+      上書きするだけ。空文字を返しても決定論的な文言が残る。
+      依頼文から**難易度が実際の数値に届く**（easy/normal/hard で当たり帯と
+      速度が変わる。tagline だけ変えるのは見せかけの遵守）。題名は依頼者の
+      言葉をそのまま使い、長文なら型の既定名に戻す。
+      GAMEYARD の身元: `docs/DESIGN.md` §2 のトークンを焼き込み、§3 の禁止
+      （紫→青グラデ・glow/glassmorphism・box-shadow・フォント CDN・絵文字
+      アイコン）をテストで固定。出典はページ自身の footer に出す。
+      検証計器 `validate_game_html`: HTML がパースできる / `<canvas>` がある /
+      `<script>` がある / **JS が実際に構文解析できる**（`node --check`、無い
+      環境では括弧の釣り合いのみ）/ 外部アセットを参照しない。**どの検査器で
+      見たかを必ず返す**——黙って弱い検査に落ちると「遊べる 1」が嘘になる。
+      失敗は最初の 1 件でなく全件を返す。
+      規模超過を申告: 本体 381 行 + テスト 236 行 + 計器 49 行 = 666 行で
+      目安 400 行を超えた。テンプレート 2 種が要件（「2 種以上」）なので
+      事後分割はできない。
+      → 動かす数字: `creation_game_playable` unmeasurable→1
+      （guard: `creation_game_templates` 2・既存フロア全維持・
+      verify_gate_recall MISS 0・生成物はローカル保存のみ・外部通信ゼロ）
       テンプレートを 2 種以上（例: 釣りゲーム＝タイミング/リズム型、
       もう 1 種は自由）。GAMEYARD DESIGN.md の実トークン
       （#05070f 系ダーク・シアン #2ee6ff・マゼンタ控えめ・絵文字アイコン

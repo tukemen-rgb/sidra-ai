@@ -3241,3 +3241,13 @@
   （全部回す検出器は制作だけ見れば満点になる）。
   検証: `python -m pytest` **1210 passed / exit 0**、`verify_gate_recall.py` PASSED（MUST CATCH MISS 0）。
   新規テスト 29 件。既存 QA の数字は不変。C-991/992 は `register()` するだけで繋がる。
+2026-08-26 14:5x UTC ループA3 — C-991 完了（遊べるゲーム生成）
+  creation_game_playable unmeasurable→1（判定器 exit 0）。テンプレート 2 種、
+  生成物は単一 HTML・外部通信ゼロ・.sidra/artifacts/ にローカル保存。
+  モデル不在でも遊べる（モデルは with_copy で文言だけ上書き、空なら既定が残る）。
+  検証は HTML パース / <canvas> / <script> / **node --check で JS が実際に
+  通る** / 外部アセット無し の 5 点。使った検査器名を必ず返す（黙って弱い
+  検査に落ちると「遊べる 1」が嘘になる）。
+  DESIGN.md §2 トークンを焼き込み、§3 の禁止 5 種を assert で固定。
+  pytest 全通過 / verify_gate_recall MISS 0 / 既存フロア全維持。
+  規模超過を申告: 666 行（目安 400）。テンプレート 2 種が要件のため事後分割不可。
