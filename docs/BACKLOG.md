@@ -396,7 +396,29 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       → 動かす数字: creation_story_stages unmeasurable→3（3 ステージが
       実質内容を持つことを計器で検証: 見出しだけなら 0 と数える）
 
-- [~] 作業中 2026-08-26 20:1x UTC ループA3 **C-997: モデル（ビジュアル素材）作成。**プロシージャル SVG で
+- [x] 完了 2026-08-26 ループA3 (`creation_assets_generated` unmeasurable→**1**、判定器 exit 0) **C-997: 素材を生成し、ページが実際にそれを読む。**
+      `src/sidra_ai/creation/sprites.py`。テンプレごとに `target` / `marker` の
+      2 枚をプロシージャル SVG で生成し、`assets/` に置いて game.html が
+      **相対パスで参照**する。
+      **パレットは閉じている。**塗りは DESIGN.md §2 のトークンのみで、
+      テストは SVG を**パースして renderer が塗る色を列挙**する（正規表現なら
+      子ノードの色を見落とす）。生成器が色を発明すると、§2 が防ごうとしている
+      「2 つ目のデザインシステム」を 1 ファイルずつ再建することになる——
+      個別には正常に見えるので、集合で見るまで誰も気づかない。
+      **乱数は依頼文からの seed。**`hash()` はプロセスごとに salt されるので
+      digest を使った。同じ依頼が同じバイト列を返さないと、**自分の文書が
+      説明している絵と違う絵**が出てくる（C-996 の文書は art を説明する）。
+      **参照の欠落を計器の半分にした。**ディスクに SVG があってもページが
+      読まなければ飾りで、ページが参照しても書かれていなければ壊れた画像。
+      どちらも片側だけの検査は通るので、両方を 1 つの数字で見る。
+      **落ちても遊べる。**画像が decode 済みでなければ元の矩形に落ちる。
+      assets/ を空にしても失うのは見た目だけで、プレイは失わない。
+      単体ページ（非プロジェクト）は **sprites 未指定で従来どおり単一ファイル**
+      （`assets/` を一切含まないことをテストで固定）。
+      規模: 新規 351 行 + 変更 87 行 = 438 行（目安 400 の微超過を申告）。
+      → 動かす数字: `creation_assets_generated` unmeasurable→1
+      （guard: `creation_game_playable` 1・`creation_story_stages` 3・
+      既存フロア全維持・verify_gate_recall MISS 0・外部通信ゼロ）プロシージャル SVG で
       キャラクター/オブジェクトのスプライトを生成して `assets/` に置き、
       game.html から参照する。パレットは DESIGN.md のトークンのみ
       （#05070f 系 / #2ee6ff / #ff5cc8 控えめ）。乱数は seed 付きで再現可能に。

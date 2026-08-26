@@ -3437,3 +3437,16 @@
   （残り種別はループへ）。
 2026-08-26 20:1x UTC ループA3 started
 2026-08-26 19:57 UTC ループB started
+2026-08-26 20:2x UTC ループA3 — C-997 完了（素材生成と参照）
+  creation_assets_generated unmeasurable→1（判定器 exit 0）。sprites.py。
+  テンプレごとに target/marker の SVG 2 枚、assets/ に置いて game.html が相対
+  パスで参照。パレットは DESIGN.md §2 のトークンのみで、**SVG をパースして
+  renderer が塗る色を列挙**して検査（正規表現は子ノードを見落とす）。
+  seed は依頼文の digest（hash() はプロセス salt されるので使えない）——
+  同じ依頼が同じバイト列を返さないと C-996 の文書が説明する絵と食い違う。
+  計器は 2 つ折り: 「書かれた」と「参照された」の両方。片側だけなら
+  飾りか壊れた画像で、どちらも片側の検査は通る。
+  画像未 decode 時は元の矩形に落ちるので assets/ を空にしても遊べる。
+  単体ページは sprites 未指定で従来どおり単一ファイル（assets/ 不在をテスト固定）。
+  pytest 全通過 / verify_gate_recall MISS 0 / 既存の制作系数字は不変。
+  規模: 438 行（目安 400 の微超過を申告）。

@@ -33,6 +33,7 @@ from enum import Enum
 from pathlib import Path
 
 from sidra_ai.creation.evidence import Fact
+from sidra_ai.creation import sprites as sprite_lib
 from sidra_ai.creation import story
 from sidra_ai.creation.games import generate_game, save_game
 
@@ -296,6 +297,10 @@ def scaffold_project(
     # the same production, and re-deriving per stage is how two files end up
     # disagreeing about the same game.
     plan = story.plan_for(request)
+    # Filled by the assets stage and read by the game stage. Empty when the
+    # request asked for a game without assets, which is a supported shape:
+    # the page then draws what it always drew.
+    asset_paths: dict[str, str] = {}
 
     root = Path(data_dir) / "artifacts" / "projects" / slug
     root.mkdir(parents=True, exist_ok=True)
@@ -306,17 +311,30 @@ def scaffold_project(
                 SKELETONS[stage](title, evidence, plan), encoding="utf-8"
             )
         elif stage is Stage.ASSETS:
-            # A directory, not a file: C-997 fills it with generated SVG. It
-            # is created empty rather than with a placeholder image, because
-            # a placeholder is indistinguishable from a real asset once it is
-            # on disk.
-            (root / "assets").mkdir(exist_ok=True)
+            # Seeded from the request, so regenerating a project gives the
+            # same art its own documents already describe.
+            written = sprite_lib.save_sprites(
+                sprite_lib.generate_sprites(
+                    plan.template, seed=sprite_lib.seed_for(request)
+                ),
+                root / "assets",
+            )
+            asset_paths = {
+                name.removesuffix(".svg"): f"assets/{name}" for name in written
+            }
         elif stage is Stage.GAME:
             # The playable page already exists as a generator, so the project
             # gets a real one rather than an empty file. Saved under the
             # project rather than beside it: the point of a project is that
             # one directory holds the whole production.
-            game = generate_game(request, evidence=list(evidence) or None)
+            # The page references the sprites written above by relative path.
+            # Relative, not embedded: a project is a directory, and an
+            # operator who repaints target.svg should see the change without
+            # regenerating the game. It falls back to the plain shapes when a
+            # file is missing, so an emptied assets/ costs the look, not play.
+            game = generate_game(
+                request, evidence=list(evidence) or None, sprites=asset_paths
+            )
             (root / "game.html").write_text(game.html, encoding="utf-8")
         elif stage is Stage.LOG:
             (root / STAGE_FILES[stage]).write_text(

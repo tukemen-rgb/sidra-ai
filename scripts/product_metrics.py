@@ -647,6 +647,37 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # Two halves, because either alone passes while the feature is broken:
+    # sprites on disk that no page loads are decoration, and a page
+    # referencing files that were never written is a broken image.
+    from sidra_ai.creation import sprites as sprite_lib
+
+    reasons_a: list[str] = []
+    with tempfile.TemporaryDirectory() as scratch:
+        project = scaffold_project("企画から釣りゲームを一通り作って", scratch)
+        written = sorted((project.root / "assets").glob("*.svg"))
+        if not written:
+            reasons_a.append("no sprite was written")
+        page = (project.root / "game.html").read_text(encoding="utf-8")
+        for path in written:
+            if sprite_lib.off_palette(path.read_text(encoding="utf-8")):
+                # A generator inventing colours rebuilds the second design
+                # system DESIGN.md §2 exists to prevent, one file at a time.
+                reasons_a.append(f"{path.name}: colour outside the palette")
+            if f"assets/{path.name}" not in page:
+                reasons_a.append(f"{path.name}: written but never referenced")
+    c.add(
+        "creation_assets_generated",
+        "生成した素材がページから参照されている",
+        1.0 if written and not reasons_a else 0.0,
+        detail=(
+            f"{len(written)} SVG in assets/, palette-clean, referenced by game.html"
+            if not reasons_a
+            else "; ".join(reasons_a)
+        ),
+        kind=OUTCOME,
+    )
+
     # A template that stops being reachable from ordinary wording is a
     # regression the playability number cannot see: both templates would still
     # generate, and nobody would get the second one.

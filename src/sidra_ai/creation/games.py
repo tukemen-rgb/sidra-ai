@@ -96,7 +96,8 @@ function draw(){const w=cv.width,h=cv.height;cx.fillStyle='SURFACE_TOKEN';
   cx.fillStyle='RAISED_TOKEN';cx.fillRect(40,h/2-26,w-80,52);
   cx.fillStyle='CYAN_TOKEN';cx.globalAlpha=0.28;
   cx.fillRect(40+(w-80)*a,h/2-26,(w-80)*(b-a),52);cx.globalAlpha=1;
-  cx.fillStyle='MAGENTA_TOKEN';cx.fillRect(40+(w-80)*pos-2,h/2-34,4,68);
+  sprite('marker',40+(w-80)*pos-8,h/2-34,16,68,'MAGENTA_TOKEN');
+  sprite('target',40+(w-80)*0.5-16,h/2-16,32,32,'');
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
 function cast(){casts++;const [a,b]=zone();
@@ -120,13 +121,30 @@ function step(){t++;if(t%FALL===0){items.push({x:Math.random(),y:0})}
   items=items.filter(i=>{if(i.y<0.92)return true;
     if(Math.abs(i.x-px)<WIDE/2){score++}else{missed++}return false});
   cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,w,h);
-  cx.fillStyle='CYAN_TOKEN';items.forEach(i=>{cx.fillRect(i.x*w-5,i.y*h,10,10)});
-  cx.fillStyle='MAGENTA_TOKEN';cx.fillRect((px-WIDE/2)*w,h-26,WIDE*w,10);
+  items.forEach(i=>{sprite('target',i.x*w-10,i.y*h,20,20,'CYAN_TOKEN')});
+  sprite('marker',(px-WIDE/2)*w,h-30,WIDE*w,20,'MAGENTA_TOKEN');
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
   cx.fillText('受け '+score+' / こぼし '+missed,40,34);
   cx.fillText('← → またはマウスで動かす',40,h-28);
   requestAnimationFrame(step)}
 step();
+"""
+
+
+#: Sprite support, prepended to every template. With no sprites the object is
+#: empty and ``sprite`` falls straight through to the rectangle the template
+#: always drew, so the single-file page is byte-for-byte the game it was
+#: before this existed. With sprites it still falls through until the image
+#: has decoded, and permanently if the file is missing - a production whose
+#: assets directory was emptied stays playable rather than blank.
+_SPRITE_LOADER = """
+const SPRITES=SPRITE_MAP_TOKEN,IMAGES={};
+Object.keys(SPRITES).forEach(function(name){
+  const img=new Image();img.src=SPRITES[name];IMAGES[name]=img});
+function sprite(name,x,y,w,h,fallback){
+  const img=IMAGES[name];
+  if(img&&img.complete&&img.naturalWidth){cx.drawImage(img,x,y,w,h);return}
+  if(fallback){cx.fillStyle=fallback;cx.fillRect(x,y,w,h)}}
 """
 
 TEMPLATES: dict[str, GameTemplate] = {
@@ -247,8 +265,15 @@ def generate_game(
     *,
     template: str = "",
     evidence: list[str] | None = None,
+    sprites: dict[str, str] | None = None,
 ) -> GeneratedGame:
-    """Build a playable page from the request alone. Never raises on wording."""
+    """Build a playable page from the request alone. Never raises on wording.
+
+    ``sprites`` maps a name the templates draw (``target``, ``marker``) to a
+    path the page loads it from. Only a project passes it: a standalone page
+    must stay one file, so the default is no sprites and the identical
+    rectangles this shipped with.
+    """
 
     key = template or choose_template(request)
     if key not in TEMPLATES:
@@ -257,7 +282,9 @@ def generate_game(
     difficulty = choose_difficulty(request)
     speed, band = _DIFFICULTY[key][difficulty]
     script = (
-        spec.script.replace("SPEED_TOKEN", str(speed))
+        (_SPRITE_LOADER + spec.script)
+        .replace("SPRITE_MAP_TOKEN", json.dumps(sprites or {}))
+        .replace("SPEED_TOKEN", str(speed))
         .replace("BAND_TOKEN", str(band))
         .replace("SURFACE_TOKEN", GAMEYARD_TOKENS["surface"])
         .replace("RAISED_TOKEN", GAMEYARD_TOKENS["raised"])
