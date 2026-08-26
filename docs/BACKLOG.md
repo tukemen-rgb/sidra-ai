@@ -370,7 +370,7 @@ python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
       検証: `python -m pytest` **1290 passed / exit 0**、`verify_gate_recall.py` PASSED。
       新規テスト 14 件。
 
-- [ ] **C-996: 脚本・構成・機能設定の中身生成。**各ステージのテンプレに、
+- [~] 作業中 2026-08-26 19:5x UTC ループA **C-996: 脚本・構成・機能設定の中身生成。**各ステージのテンプレに、
       依頼文の解析結果と索引からの根拠（DESIGN.md の禁止事項・トークン、
       site SPEC の提出条件等）を差し込み、モデルがあれば文言を上乗せ。
       構成には画面フロー（タイトル→プレイ→リザルト等）、機能設定には
