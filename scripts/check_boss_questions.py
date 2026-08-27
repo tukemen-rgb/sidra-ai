@@ -34,8 +34,10 @@ The exit code is the verdict, same contract as the other judges:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -48,7 +50,7 @@ from sidra_ai.evals.boss_questions import (  # noqa: E402
     grounded,
     headline,
 )
-from sidra_ai.retrieval.search import BM25Retriever  # noqa: E402
+from sidra_ai.retrieval.embedding import build_retriever  # noqa: E402
 from sidra_ai.retrieval.store import DocumentStore  # noqa: E402
 from sidra_ai.security.gate import GatePolicy, SecurityGate  # noqa: E402
 
@@ -128,6 +130,15 @@ def measure(retriever, *, top_k: int = TOP_K) -> dict:
 def _compare(before: dict, now: dict) -> tuple[int, list[str]]:
     lines = []
     verdict = EXIT_NO_MOVEMENT
+
+    # Two retrievers are two products. Comparing a semantic run against a
+    # lexical baseline would read as a change to the code under test.
+    if before.get("retriever", now.get("retriever")) != now.get("retriever"):
+        lines.append(
+            "retriever changed ({} -> {}): these are two configurations, not "
+            "two versions.".format(before.get("retriever"), now["retriever"])
+        )
+        return EXIT_CANNOT_JUDGE, lines
 
     if before.get("denominator") != now["denominator"]:
         lines.append(
@@ -215,7 +226,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     store = DocumentStore(gate)
     ingest(targets, store, gate)
-    result = measure(BM25Retriever(store))
+
+    # The same construction the product uses. Pinning BM25 here would make
+    # this judge quietly measure a configuration nobody runs the moment a
+    # local embedding model is configured - and the saved baseline would not
+    # say which one it came from.
+    retriever = build_retriever(
+        SimpleNamespace(
+            embedding_model_path=os.environ.get(
+                "SIDRA_EMBEDDING_MODEL_PATH", ""
+            ).strip(),
+            embedding_query_prefix=os.environ.get("SIDRA_EMBEDDING_QUERY_PREFIX", ""),
+            embedding_passage_prefix=os.environ.get(
+                "SIDRA_EMBEDDING_PASSAGE_PREFIX", ""
+            ),
+        ),
+        store,
+    )
+    semantic = bool(getattr(retriever, "semantic_enabled", lambda: False)())
+    backend = (
+        "bm25 + " + getattr(retriever, "backend_name", "?") if semantic else "bm25"
+    )
+    print(f"retriever      : {backend}")
+    result = measure(retriever)
+    result["retriever"] = backend
 
     if result["missing_evidence"]:
         print(
@@ -234,6 +268,7 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = {key: result[key] for key in DIRECTION}
     payload["denominator"] = result["denominator"]
+    payload["retriever"] = result["retriever"]
 
     if save_path:
         save_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

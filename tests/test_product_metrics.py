@@ -37,15 +37,21 @@ def _measured_keys(metrics) -> set[str]:
     """Every name an outcome number is measured under, across both instruments.
 
     `product_metrics.py` is not the whole registry. It runs offline in seconds,
-    so the answerable numbers - which need the four external checkouts - are
-    measured and floor-enforced by `check_answerable_regression.py` instead.
-    Reading only the first one would call a promise about `answerable_*`
-    unmeasured when it is in fact the better-guarded half of the two.
+    so the numbers that need the four external checkouts are measured
+    elsewhere: `check_answerable_regression.py` (which also enforces floors)
+    and `check_boss_questions.py` (which has no floors yet - its series starts
+    at its first run). Reading only the first one would call a promise about
+    `answerable_*` unmeasured when it is in fact the better-guarded half.
     """
 
     import check_answerable_regression
+    import check_boss_questions
 
-    return set(metrics) | set(check_answerable_regression.METRIC_KEYS)
+    return (
+        set(metrics)
+        | set(check_answerable_regression.METRIC_KEYS)
+        | set(check_boss_questions.DIRECTION)
+    )
 
 
 def test_every_metric_the_backlog_names_exists(metrics) -> None:

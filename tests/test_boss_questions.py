@@ -137,6 +137,26 @@ def test_a_changed_question_set_cannot_be_compared(judge) -> None:
     assert any("question set changed" in line for line in lines)
 
 
+def test_a_semantic_run_cannot_be_compared_with_a_lexical_baseline(judge) -> None:
+    """Two retrievers are two products, and the difference dwarfs a code change.
+
+    Measured 2026-08-27: the same twenty questions score 1/18 answered under
+    bm25 and 2/18 under bm25 + a local embedding model. Read as a comparison
+    it would look like a change to the code under test doubling the rate.
+    """
+
+    verdict, lines = judge._compare(
+        {"boss_q_answered": 1, "boss_q_wrong_repository": 1,
+         "boss_q_scoreable": 18, "denominator": 18, "retriever": "bm25"},
+        {"boss_q_answered": 2, "boss_q_wrong_repository": 2,
+         "boss_q_scoreable": 18, "denominator": 18,
+         "retriever": "bm25 + sentence-transformers"},
+    )
+
+    assert verdict == judge.EXIT_CANNOT_JUDGE
+    assert any("retriever changed" in line for line in lines)
+
+
 def test_standing_still_is_not_progress(judge) -> None:
     same = {"boss_q_answered": 5, "boss_q_wrong_repository": 2,
             "boss_q_scoreable": 18, "denominator": 18}

@@ -3578,3 +3578,19 @@
   answerable 判定器は回していない（他ループが同区画を変更中で帰属が濁るため）。
   C-1009 は `boss_q_wrong_repository` に読み替え済み。
 2026-08-27 01:08 UTC ループA started Board=13
+2026-08-27 01:19 UTC ループA — C-1009 は [記録]（差し戻し・製品の数字は動かず）
+  3 案を実測して全部落とした: (a) 内容語 0 一致の警告は **0/58 で発火しない**、
+  (b) 主体名→リポジトリの対応表は **13 問中 3 問で誤発火**（SIDRA STUDIO は会社で
+  Fg、SIDRA AI は道具で sidra-ai）、(c) e5-small は **boss_q_wrong_repository 1→2 で
+  悪化**。残る真因は「話題として隣」の文書で、切るには検索の不変条件に触れるため
+  厳守事項 7 により実装しない。BACKLOG に「再試行しないこと」として記録。
+  計器の欠陥を 1 つ修正: check_boss_questions.py が BM25 を直に組んでいて
+  **SIDRA_EMBEDDING_MODEL_PATH を黙って無視していた**（(c) の初回測定が実際に
+  それで無言の BM25 だった）。build_retriever を使い、構成を保存 JSON に記録し、
+  構成が違う --compare は exit 3 にした。
+  pytest exit 0 / verify_gate_recall PASSED。
+
+  反省: 前サイクル（C-1011）で **pytest を回したあとに docs を編集して push した**。
+  その docs 編集が `test_every_metric_the_backlog_names_exists` を落としており、
+  **main を赤いまま 1 時間置いた**。BACKLOG に数字の名前を書くこと自体がテスト対象
+  なので、**docs だけの変更でも push 前に pytest を回す**。今回それで検出・修正した。
