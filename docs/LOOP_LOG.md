@@ -3565,4 +3565,4 @@
   再起動後も復元、再取り込みなしで引用付き回答。0600、壊れた索引でも起動は継続。
   計器 index_survives_restart を追加。テスト 4 件 / pytest exit 0 / recall PASSED /
   判定器 exit 0。積み残し: index.jsonl のコンパクション未実装（正しさには影響なし）。
-2026-08-27 00:07 UTC ループA started
+2026-08-27 00:07 UTC ループA started Board=13
