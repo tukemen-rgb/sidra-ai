@@ -3566,3 +3566,14 @@
   計器 index_survives_restart を追加。テスト 4 件 / pytest exit 0 / recall PASSED /
   判定器 exit 0。積み残し: index.jsonl のコンパクション未実装（正しさには影響なし）。
 2026-08-27 00:07 UTC ループA started Board=13
+2026-08-27 00:18 UTC ループA — C-1011 完了（product_metrics exit 0）
+  社長役 20 問を `src/sidra_ai/evals/boss_questions.py` に commit し、
+  `scripts/check_boss_questions.py` で再計算できるようにした。
+  `boss_questions_runnable` **unmeasurable→20**。
+  初回実測 `boss_q_answered` 1/18、`boss_q_wrong_repository` 1/18。
+  **当時の 20 問は復元していない**（新しい系列として始め直した）。
+  **1/18 は 7/19 が落ちた数字ではない**——人が読む採点と、答えの一文が返るかの
+  採点は別物。再現できるのは後者だけ。
+  pytest exit 0 / verify_gate_recall PASSED。retrieval は触っていないので
+  answerable 判定器は回していない（他ループが同区画を変更中で帰属が濁るため）。
+  C-1009 は `boss_q_wrong_repository` に読み替え済み。

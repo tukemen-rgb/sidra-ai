@@ -566,6 +566,73 @@ def measure_answer_quality(c: Collector) -> None:
 # --- can it make the thing that was asked for -------------------------
 
 
+def measure_boss_questions(c: Collector) -> None:
+    """Can the owner's twenty questions be re-scored by someone else?
+
+    On 2026-08-26 they were measured once and the questions were not written
+    down, so the figure in ``docs/OUTCOMES.md`` could never be reproduced and
+    two backlog items were denominated in a number nobody could compute again.
+
+    This counts the questions that are now in the repository and structurally
+    runnable - not how many are answered. The answering rate needs the five
+    repositories on disk and lives in ``scripts/check_boss_questions.py``;
+    what is checked here is the part that made that measurement worthless,
+    which is that the questions existed nowhere but in one session's memory.
+
+    The validation is what keeps the count from being padding: a question with
+    no text, a duplicate, a marker too short to identify a passage, or a
+    repository outside the allowlist is not counted.
+    """
+
+    from sidra_ai.evals.boss_questions import BOSS_QUESTIONS, REPOSITORIES
+
+    seen_names: set[str] = set()
+    seen_questions: set[str] = set()
+    runnable = 0
+    rejected = []
+    for question in BOSS_QUESTIONS:
+        problems = []
+        if len(question.question.strip()) < 8:
+            problems.append("question too short to be a question")
+        if question.name in seen_names or question.question in seen_questions:
+            problems.append("duplicate")
+        if question.answer_marker is not None:
+            if len(question.answer_marker.strip()) < 4:
+                problems.append("marker too short to identify a passage")
+            if question.repository not in REPOSITORIES:
+                problems.append("repository outside the allowlist")
+        elif question.repository is not None:
+            problems.append("no marker but a repository")
+        seen_names.add(question.name)
+        seen_questions.add(question.question)
+        if problems:
+            rejected.append(f"{question.name}: {', '.join(problems)}")
+        else:
+            runnable += 1
+
+    c.add(
+        "boss_questions_runnable",
+        "再計算できる社長役の質問",
+        float(runnable),
+        detail=(
+            f"of {len(BOSS_QUESTIONS)} committed"
+            + ("; rejected " + "; ".join(rejected) if rejected else "")
+        ),
+        kind=OUTCOME,
+    )
+    # The evidence that the set was not chosen to score well. A set written
+    # after reading the corpus, picking questions it could already answer,
+    # would have none of these.
+    unanswerable = [q.name for q in BOSS_QUESTIONS if q.answer_marker is None]
+    c.add(
+        "boss_questions_unanswerable",
+        "コーパスに答えが無い質問（残してある）",
+        float(len(unanswerable)),
+        detail=", ".join(unanswerable) or "none - check the set was not tuned",
+        kind=CONTEXT,
+    )
+
+
 def measure_creation(c: Collector) -> None:
     """Does "釣りゲームを作って" produce a page that actually runs?
 
@@ -1354,6 +1421,7 @@ COLLECTORS = (
     ("usable", measure_usability),
     ("fresh", measure_freshness),
     ("answers", measure_answer_quality),
+    ("boss", measure_boss_questions),
     ("creation", measure_creation),
     ("cost", measure_cost),
     ("gate", measure_gate),
