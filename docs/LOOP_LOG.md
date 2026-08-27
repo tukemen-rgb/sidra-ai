@@ -3594,3 +3594,4 @@
   その docs 編集が `test_every_metric_the_backlog_names_exists` を落としており、
   **main を赤いまま 1 時間置いた**。BACKLOG に数字の名前を書くこと自体がテスト対象
   なので、**docs だけの変更でも push 前に pytest を回す**。今回それで検出・修正した。
+2026-08-27 02:05 UTC ループA started Board=13
