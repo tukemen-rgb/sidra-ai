@@ -3577,3 +3577,4 @@
   pytest exit 0 / verify_gate_recall PASSED。retrieval は触っていないので
   answerable 判定器は回していない（他ループが同区画を変更中で帰属が濁るため）。
   C-1009 は `boss_q_wrong_repository` に読み替え済み。
+2026-08-27 01:08 UTC ループA started Board=13
