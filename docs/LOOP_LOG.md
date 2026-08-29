@@ -4030,3 +4030,4 @@ pytest の判定ではない。これを判定として読んだ結果、C-1020 
 今後は `python -m pytest > /tmp/full.txt 2>&1; echo $?` のように
 **コマンド自身の終了コードを取る**。`| tail` は出力を読むためだけに使う。
 このサイクルは PYTEST_EXIT / GATE_EXIT / JUDGE_EXIT を個別に確認している。
+2026-08-29 10:06 UTC ループA started Board=13
