@@ -43,6 +43,7 @@ from sidra_ai.creation.adventure import (
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.audio import SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
+from sidra_ai.creation.startscreen import GATE_PREAMBLE
 from sidra_ai.creation.puzzle import (
     PUZZLE_DIFFICULTY,
     PUZZLE_HOW,
@@ -482,7 +483,14 @@ def generate_game(
         # have to be in place before the template's loop takes its first
         # frame. Juice wraps first so the pad ends up drawn on top of the
         # particles rather than under them.
-        (SFX_PREAMBLE + JUICE_PREAMBLE + PAD_PREAMBLE + _SPRITE_LOADER + spec.script)
+        (
+            GATE_PREAMBLE
+            + SFX_PREAMBLE
+            + JUICE_PREAMBLE
+            + PAD_PREAMBLE
+            + _SPRITE_LOADER
+            + spec.script
+        )
         .replace("SPRITE_MAP_TOKEN", json.dumps(sprites or {}))
         .replace("SPEED_TOKEN", str(speed))
         .replace("BAND_TOKEN", str(band))
@@ -496,6 +504,11 @@ def generate_game(
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
         .replace("SEED_TOKEN", str(zlib.crc32(request.encode("utf-8"))))
+        # The title screen prints the same words the page prints, so a
+        # template whose instructions change cannot leave a stale copy
+        # of them on the screen nobody can get past without reading.
+        .replace("TITLE_TOKEN", json.dumps(spec.default_title, ensure_ascii=False))
+        .replace("HOWTO_TOKEN", json.dumps(spec.how_to_play, ensure_ascii=False))
     )
     title = _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"

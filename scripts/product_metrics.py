@@ -1051,6 +1051,64 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- nobody is playing before they have read anything --------------
+    #
+    # Every template used to start on load, which put the instructions below
+    # the fold on a phone and made the first sound arrive with no user
+    # gesture behind it. Counted per template by *driving the page in node*:
+    # ten frames with the gate shut have to reach the game zero times, and
+    # ten after one press have to reach it every time. A gate that merely
+    # drew a title over a running game would pass a source check and fail
+    # this one.
+    import re as _gate_re
+    import subprocess as _gate_sp
+
+    from sidra_ai.creation.games import TEMPLATES as _GATE_TEMPLATES
+    from sidra_ai.creation.startscreen import probe_source as _gate_probe
+
+    gated, gate_gaps = [], []
+    for key in sorted(_GATE_TEMPLATES):
+        page = generate_game("ゲームを作って", template=key).html
+        script = _gate_re.search(r"<script>(.*?)</script>", page, _gate_re.S)
+        if script is None:
+            gate_gaps.append(f"{key}: no script")
+            continue
+        try:
+            probe = _gate_sp.run(
+                ["node", "-"],
+                input=_gate_probe(script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=40,
+            )
+            if probe.returncode != 0:
+                gate_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                continue
+            seen = json.loads(probe.stdout)
+        except (OSError, _gate_sp.SubprocessError, ValueError) as exc:
+            gate_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            continue
+        if seen["framesBeforePress"] != 0:
+            gate_gaps.append(f"{key}: ran {seen['framesBeforePress']} frames unasked")
+        elif seen["stateAfter"] != "playing" or seen["framesAfterPress"] == 0:
+            gate_gaps.append(f"{key}: one press does not start it")
+        elif not validate_game_html(page)["playable"]:
+            gate_gaps.append(f"{key}: page no longer parses")
+        else:
+            gated.append(key)
+    c.add(
+        "creation_start_screen",
+        "読んでから始められるゲームの型",
+        float(len(gated)),
+        detail=(
+            f"{', '.join(gated)}: zero frames before the press, "
+            "every frame after it"
+            if not gate_gaps
+            else "; ".join(gate_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- gems that buy something, and a door nobody has to open --------
     #
     # Two knowledge-base rules, and they fail in the same silent way. §5: a
