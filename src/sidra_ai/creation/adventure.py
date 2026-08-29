@@ -91,7 +91,10 @@ function build(){
   for(let i=0;i<Math.max(1,ECOUNT-1);i++){enemies[2].push(spawn(2))}
 }
 function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
-  y=2+Math.floor(rand()*(GH-4))}while(rooms[r][y][x]!==0||(r===2&&x>7&&x<13));
+  y=2+Math.floor(rand()*(GH-4))}while(rooms[r][y][x]!==0||(r===2&&x>7&&x<13)
+  /* never beside the entrance: the chase radius is 4 tiles, so a spawn
+     next to the door bites the hero before the room is even visible */
+  ||Math.abs(x-1)+Math.abs(y-4)<5);
   return {x:OX+x*TILE+8,y:OY+y*TILE+8,dx:0,dy:0,t:0,alive:true}}
 function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
@@ -109,7 +112,7 @@ addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
 cv.addEventListener('pointerdown',()=>{if(state==='play'){swing()}else{reset()}});
 function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword');
-  const fx=hero.x+[0,16,0,-16][hero.dir]*1.6,fy=hero.y+[-16,0,16,0][hero.dir]*1.6;
+  const fx=hero.x+[0,16,0,-16][hero.dir]*1.25,fy=hero.y+[-16,0,16,0][hero.dir]*1.25;
   const tx=Math.floor((fx-OX)/TILE),ty=Math.floor((fy-OY)/TILE);
   if(ty>=0&&ty<GH&&tx>=0&&tx<GW){
     const t=rooms[room][ty][tx];
@@ -131,7 +134,7 @@ function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword
         say('わき道が開いた。');sfx('key')}
       else{say('宝石 2 個で開きそうだ（いま '+hero.gems+' 個）。');sfx('clash')}}}
   enemies[room].forEach(en=>{if(!en.alive)return;
-    if(Math.hypot(en.x-fx,en.y-fy)<26){en.alive=false;sfx('hurt');
+    if(Math.hypot(en.x-fx,en.y-fy)<22){en.alive=false;sfx('hurt');
       shake(6);hitstop(3);burst(en.x,en.y,16,'ALERT_JUICE');
       if(room===1&&enemies[1].every(e=>!e.alive)){keyDrop={x:en.x,y:en.y}}}})}
 function moveHero(){
@@ -144,8 +147,10 @@ function moveHero(){
   if(!solid(nx-r,hero.y-r)&&!solid(nx+r,hero.y-r)&&!solid(nx-r,hero.y+r)&&!solid(nx+r,hero.y+r)){hero.x=nx}
   if(!solid(hero.x-r,ny-r)&&!solid(hero.x+r,ny-r)&&!solid(hero.x-r,ny+r)&&!solid(hero.x+r,ny+r)){hero.y=ny}
   const t=tileAt(hero.x,hero.y);
-  if(t===5&&room<2){room++;hero.x=OX+TILE+6;say(NAMES[room]);sfx('step')}
-  else if(t===6&&room>0){room--;hero.x=OX+(GW-2)*TILE+26;say(NAMES[room]);sfx('step')}
+  if(t===5&&room<2){room++;hero.x=OX+TILE+6;say(NAMES[room]);sfx('step');
+    hero.inv=Math.max(hero.inv,45)}
+  else if(t===6&&room>0){room--;hero.x=OX+(GW-2)*TILE+26;say(NAMES[room]);sfx('step');
+    hero.inv=Math.max(hero.inv,45)}
   if(t===11){rooms[room][Math.floor((hero.y-OY)/TILE)][Math.floor((hero.x-OX)/TILE)]=0;
     hero.charm=true;hero.hp=hero.maxhp;say('わき道の護符を見つけた。');sfx('key');
     burst(hero.x,hero.y,20,'ALERT_JUICE')}
@@ -218,7 +223,7 @@ function draw(now){
   if(hero.swing>0){const p=ease(hero.swing/10);cx.strokeStyle='#dfe7f5';
     cx.lineWidth=3;cx.beginPath();
     const ang=[[-2.2,-0.9],[-0.7,0.7],[0.9,2.2],[2.4,3.9]][hero.dir];
-    cx.arc(hero.x,hero.y,20,ang[0]+p,ang[1]+p);cx.stroke();cx.lineWidth=1}
+    cx.arc(hero.x,hero.y,22,ang[0]+p,ang[1]+p);cx.stroke();cx.lineWidth=1}
   if(room===1){cx.fillStyle='#02030a';cx.globalAlpha=REDUCED?0.35:0.35+0.04*FRAME(2,11,now);
     cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1;
     [[6,0],[13,0]].forEach(p=>{glow(OX+p[0]*TILE+16,OY+16,86,now)});

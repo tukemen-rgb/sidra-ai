@@ -119,3 +119,22 @@ def test_the_map_reads_by_form_not_colour_alone() -> None:
     assert "closePath" in html  # the door chevron path
     assert "#ffffff2e" in html  # wall top highlight (form, not hue)
     assert "BORDER_TOKEN" not in html  # the wall colour token was substituted
+
+
+def test_entering_a_room_cannot_hurt_you_before_you_can_see_it() -> None:
+    """C-1022 (3): enemies spawned beside the door with a 4-tile chase radius
+    bit the hero on entry. Both halves of the fix are pinned: spawns keep
+    distance from the entrance, and the transition grants mercy frames."""
+
+    html = generate_game("冒険ゲームを作って").html
+
+    assert "Math.abs(x-1)+Math.abs(y-4)<5" in html
+    assert "Math.max(hero.inv,45)" in html
+
+
+def test_the_sword_hits_where_it_is_drawn() -> None:
+    """C-1022 (4): the drawn arc and the hitbox share their radius."""
+
+    html = generate_game("冒険ゲームを作って").html
+    assert "cx.arc(hero.x,hero.y,22," in html
+    assert "<22){en.alive=false" in html

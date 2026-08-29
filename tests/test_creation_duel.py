@@ -83,3 +83,28 @@ def test_the_page_keeps_every_house_rule() -> None:
 
     assert "http://" not in game.html and "https://" not in game.html
     assert "prefers-reduced-motion" in game.html
+
+
+def test_the_hit_is_decided_at_the_trigger_not_after() -> None:
+    """C-1022 (1): beam hang time is 20-47 frames against 12-15 of human
+    reaction, so expiry-time lane checks made every attack dodgeable on
+    reaction. The lock at fire moves the dodge into the read - during the
+    visibly growing charge aura - which is where the genre's mind game lives.
+    """
+
+    html = generate_game("ビームの撃ち合いゲームを作って").html
+
+    assert "hitLock" in html
+    # The old always-dodgeable resolution must be gone.
+    assert "if(e.lane===p.beamLane){hit(e)}" not in html
+    assert "if(p.lane===e.beamLane){hit(p)}" not in html
+    # And the CPU commits to an aim at fire, so reads work both ways.
+    assert "e.hitLock=(p.lane===e.beamLane)" in html
+
+
+def test_a_landed_beam_stops_at_the_target() -> None:
+    """C-1022 (2): the picture tells the result - no more shooting through."""
+
+    html = generate_game("ビームの撃ち合いゲームを作って").html
+    assert "foeX" in html
+    assert "f.hitLock?foeX" in html

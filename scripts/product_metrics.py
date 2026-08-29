@@ -934,7 +934,7 @@ def measure_creation(c: Collector) -> None:
         reasons.append("the trademark reached the title")
     if "オリジナル版" not in game.tagline:
         reasons.append("the rename is silent")
-    for marker in ("rooms", "hero", "swing", "鍵"):
+    for marker in ("rooms", "hero", "swing", "鍵", "Math.max(hero.inv,45)"):
         if marker not in game.html:
             reasons.append(f"script lost its {marker}")
     if not reasons:
@@ -967,7 +967,7 @@ def measure_creation(c: Collector) -> None:
         duel_reasons.append("the franchise name reached the artifact")
     if "オリジナル版" not in duel_game.tagline:
         duel_reasons.append("the rename is silent")
-    for marker in ("charge", "spark", "押し合い"):
+    for marker in ("charge", "spark", "押し合い", "hitLock"):
         if marker not in duel_game.html:
             duel_reasons.append(f"script lost its {marker}")
     if not duel_reasons:

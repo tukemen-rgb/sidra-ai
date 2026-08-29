@@ -59,7 +59,7 @@ const CSPEED=SPEED_TOKEN,CTHINK=BAND_TOKEN,SEED=SEED_TOKEN;
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const LANES=[80,160,240],PX=110,EX=610;
 let p,e,state,winner,flash,spark,mash;
-function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,think:0}}
+function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,think:0,hitLock:false}}
 function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spark=0;mash=0;
   rs=(SEED>>>0)||1}
 addEventListener('keydown',ev=>{
@@ -77,7 +77,12 @@ function fire(f){if(state!=='play'||!f.hold)return;f.hold=false;
   if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;flash=1;sfx('fire');
     /* the kick scales with the charge: a tap fires a thread, a long hold
        fires something that shoves the camera */
-    shake(2+f.charge*0.08);burst(f.x,LANES[f.lane],10,'ACCENT_JUICE')}
+    shake(2+f.charge*0.08);burst(f.x,LANES[f.lane],10,'ACCENT_JUICE');
+    /* the duel's one honest rule: the hit is decided the moment the trigger
+       is pulled. Dodging happens by reading the charge - the visibly growing
+       aura - not by outrunning a beam that hangs for 20-47 frames while
+       human reaction needs 12-15. Measured before fixed (C-1022). */
+    const foe=(f===p)?e:p;f.hitLock=(foe.lane===f.beamLane)}
   f.charge=0}
 function cpu(){e.think--;
   if(e.think<=0){e.think=CTHINK+rand()*CTHINK;
@@ -86,8 +91,11 @@ function cpu(){e.think--;
     else if(move<0.7){e.lane=Math.floor(rand()*3)}
     if(e.beam<=0){e.hold=true}}
   if(e.hold){e.charge+=0.9*CSPEED;
-    if(e.charge>40+rand()*55){e.hold=false;e.beam=e.charge;e.beamLane=e.lane;
-      e.charge=0;flash=1}}}
+    if(e.charge>40+rand()*55){e.hold=false;
+      if(rand()<0.6){e.lane=p.lane}
+      e.beam=e.charge;e.beamLane=e.lane;
+      e.hitLock=(p.lane===e.beamLane);
+      e.charge=0;flash=1;sfx('fire')}}}
 function hit(who){who.hp--;flash=1;sfx('hurt');
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
@@ -104,8 +112,8 @@ function step(){const now=performance.now();
       if(spark>60){hit(e);p.beam=0;e.beam=0;spark=0}
       if(spark<-60){hit(p);p.beam=0;e.beam=0;spark=0}}
     else{
-      if(pB){p.beam-=2;if(p.beam<=0){if(e.lane===p.beamLane){hit(e)}p.beam=0}}
-      if(eB){e.beam-=2;if(e.beam<=0){if(p.lane===e.beamLane){hit(p)}e.beam=0}}}}
+      if(pB){p.beam-=2;if(p.beam<=0){if(p.hitLock){hit(e)}p.beam=0;p.hitLock=false}}
+      if(eB){e.beam-=2;if(e.beam<=0){if(e.hitLock){hit(p)}e.beam=0;e.hitLock=false}}}}
   draw(now);requestAnimationFrame(step)}
 function aura(x,y,r,c,now){const s=REDUCED?0:FRAME(4,6,now);
   cx.globalAlpha=0.25;cx.fillStyle=c;
@@ -118,7 +126,10 @@ function body(x,y,c,mir){
 function beamDraw(f,from,dir,c,now){
   if(f.beam<=0)return;const y=LANES[f.beamLane];
   const clash=p.beam>0&&e.beam>0&&p.beamLane===e.beamLane;
-  const mid=clash?(cv.width/2+spark*3):(dir>0?cv.width:0);
+  /* the picture tells the result: a landed beam stops at the target, a
+     missed one sails past them off screen */
+  const foeX=(dir>0)?EX-16:PX+16;
+  const mid=clash?(cv.width/2+spark*3):(f.hitLock?foeX:(dir>0?cv.width:0));
   const w=6+f.beam*0.18;
   cx.fillStyle=c;cx.globalAlpha=0.9;
   const x0=dir>0?from:mid,x1=dir>0?mid:from;
