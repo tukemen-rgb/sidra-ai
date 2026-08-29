@@ -73,10 +73,60 @@ def probe_source(*, reduced: bool) -> str:
     )
 
 
+#: Drives a generated page's own loop in node with the browser stubbed out,
+#: and reports how many frames it managed. The property this exists for -
+#: "reduced motion slows the decoration, never the game" - used to be checked
+#: by forbidding the string ``if(REDUCED)return`` anywhere on the page. That
+#: proxy stopped meaning what it said the moment a *decorative* effect
+#: legitimately opted out of reduced motion (C-1020's shake and particles do
+#: exactly that, correctly). Counting frames asks the real question instead,
+#: and catches a loop gated on ``REDUCED`` that no string check would.
+LOOP_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = () => {};
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null, scheduled = 0;
+globalThis.requestAnimationFrame = (fn) => { scheduled++; queued = fn; return scheduled };
+SCRIPT_PLACEHOLDER
+/* The page has scheduled its first frame by now. Run the queue by hand: a
+   loop that keeps asking for another frame keeps handing one back. */
+let ran = 0;
+for (let i = 0; i < FRAMES_INPUT && queued; i++) {
+  const fn = queued; queued = null; fn(i * 16); ran++;
+}
+console.log(JSON.stringify({ reduced: REDUCED, scheduled: scheduled, ran: ran }));
+"""
+
+
+def loop_probe(script: str, *, reduced: bool, frames: int = 40) -> str:
+    """The page's script wrapped so its loop can be counted in node."""
+
+    return (
+        LOOP_PROBE.replace("REDUCED_INPUT", "true" if reduced else "false")
+        .replace("FRAMES_INPUT", str(frames))
+        .replace("SCRIPT_PLACEHOLDER", script)
+    )
+
+
 def with_animation(script: str) -> str:
     """Put the preamble in front of a template's script."""
 
     return f"{PREAMBLE}\n{script}"
 
 
-__all__ = ["PREAMBLE", "PREAMBLE_NAMES", "probe_source", "with_animation"]
+__all__ = [
+    "LOOP_PROBE",
+    "PREAMBLE",
+    "PREAMBLE_NAMES",
+    "loop_probe",
+    "probe_source",
+    "with_animation",
+]

@@ -75,8 +75,15 @@ function pond(m){const px=4+Math.floor(rand()*(GW-10)),py=2+Math.floor(rand()*(G
   for(let y=py;y<py+2;y++){for(let x=px;x<px+3;x++){if(m[y][x]===0){m[y][x]=3}}}}
 function build(){
   const forest=empty();carve(forest,2,14);pond(forest);forest[3][3]=8;forest[4][GW-1]=5;
+  /* the sink: somewhere to spend gems, on the way out of the first room */
+  forest[6][6]=9;
   const cave=empty();carve(cave,1,10);cave[0][6]=4;cave[0][13]=4;
   cave[4][0]=6;cave[4][GW-1]=5;
+  /* the branch (knowledge base §3): a door nobody has to open, and a
+     reward that is only worth it if you spent gems on grass first. The
+     alcove is walled by hand so carve() cannot open a way around it. */
+  cave[2][16]=10;cave[2][17]=11;
+  cave[1][16]=1;cave[1][17]=1;cave[3][16]=1;cave[3][17]=1;cave[2][18]=1;
   const altar=empty();carve(altar,1,6);altar[4][0]=6;altar[4][10]=7;
   rooms=[forest,cave,altar];
   enemies=[[],[],[]];
@@ -87,12 +94,14 @@ function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
   y=2+Math.floor(rand()*(GH-4))}while(rooms[r][y][x]!==0||(r===2&&x>7&&x<13));
   return {x:OX+x*TILE+8,y:OY+y*TILE+8,dx:0,dy:0,t:0,alive:true}}
 function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';
-  hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,gems:0,key:false,swing:0,inv:0};
+  hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
+    charm:false,swing:0,inv:0};
   say('ぼうしの勇者、めざめる。')}
 function say(t){msg=t;msgT=140}
 function tileAt(px,py){const x=Math.floor((px-OX)/TILE),y=Math.floor((py-OY)/TILE);
   if(x<0||y<0||x>=GW||y>=GH)return 1;return rooms[room][y][x]}
-function solid(px,py){const t=tileAt(px,py);return t===1||t===2||t===3||t===4||t===7||t===8}
+function solid(px,py){const t=tileAt(px,py);
+  return t===1||t===2||t===3||t===4||t===7||t===8||t===9||t===10}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
   if(e.code==='Space'){e.preventDefault();swing()}
@@ -109,7 +118,18 @@ function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword
       if(rand()<0.34){hero.gems++;say('草のかげに宝石があった。');sfx('gem');
         burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,14,'ALERT_JUICE')}}
     if(t===7){if(hero.key){state='win';sfx('win')}else{say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}}
-    if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」');sfx('step')}}
+    if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」');sfx('step')}
+    /* The sink (§5): gems were a tap with no outlet, so cutting grass paid
+       in a number. Three of them buy a heart, which is what makes the
+       grass worth cutting. */
+    if(t===9){if(hero.gems>=3){hero.gems-=3;hero.maxhp=Math.min(5,hero.maxhp+1);
+        hero.hp=hero.maxhp;say('祠が宝石を受け取った。ハートが増えた。');sfx('key');
+        burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,18,'ALERT_JUICE')}
+      else{say('祠は宝石を 3 個ほしがっている（いま '+hero.gems+' 個）。');sfx('clash')}}
+    /* The optional door (§3): the run is winnable without ever opening it. */
+    if(t===10){if(hero.gems>=2){hero.gems-=2;rooms[room][ty][tx]=0;
+        say('わき道が開いた。');sfx('key')}
+      else{say('宝石 2 個で開きそうだ（いま '+hero.gems+' 個）。');sfx('clash')}}}
   enemies[room].forEach(en=>{if(!en.alive)return;
     if(Math.hypot(en.x-fx,en.y-fy)<26){en.alive=false;sfx('hurt');
       shake(6);hitstop(3);burst(en.x,en.y,16,'ALERT_JUICE');
@@ -126,6 +146,9 @@ function moveHero(){
   const t=tileAt(hero.x,hero.y);
   if(t===5&&room<2){room++;hero.x=OX+TILE+6;say(NAMES[room]);sfx('step')}
   else if(t===6&&room>0){room--;hero.x=OX+(GW-2)*TILE+26;say(NAMES[room]);sfx('step')}
+  if(t===11){rooms[room][Math.floor((hero.y-OY)/TILE)][Math.floor((hero.x-OX)/TILE)]=0;
+    hero.charm=true;hero.hp=hero.maxhp;say('わき道の護符を見つけた。');sfx('key');
+    burst(hero.x,hero.y,20,'ALERT_JUICE')}
   if(keyDrop&&room===1&&Math.hypot(hero.x-keyDrop.x,hero.y-keyDrop.y)<20){
     hero.key=true;keyDrop=null;say('鍵を手に入れた。');sfx('key')}}
 function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
@@ -168,7 +191,18 @@ function drawTile(t,x,y,now){
   if(t===7){cx.fillStyle='#7a5a2e';cx.fillRect(x+4,y+8,TILE-8,TILE-12);
     cx.fillStyle='CYAN_TOKEN';cx.fillRect(x+13,y+14,6,6)}
   if(t===8){sprite('npc',x+6,y+4,TILE-12,TILE-8,'#c8b28a');
-    cx.fillStyle='MAGENTA_TOKEN';cx.fillRect(x+8,y+2,TILE-16,6)}}
+    cx.fillStyle='MAGENTA_TOKEN';cx.fillRect(x+8,y+2,TILE-16,6)}
+  /* Shapes, not tints (C-1018's lesson): the shrine is a gate, the optional
+     door wears the diamond it costs, the charm is that diamond loose. */
+  if(t===9){cx.fillStyle='RAISED_TOKEN';cx.fillRect(x+4,y+6,TILE-8,TILE-10);
+    cx.fillStyle='BORDER_TOKEN';cx.fillRect(x+2,y+4,TILE-4,4);
+    cx.fillRect(x+7,y+10,4,TILE-14);cx.fillRect(x+TILE-11,y+10,4,TILE-14)}
+  if(t===10){cx.fillStyle='#5a4a2e';cx.fillRect(x+3,y+4,TILE-6,TILE-8);
+    cx.strokeStyle='ALERT_JUICE';cx.lineWidth=2;diamond(x+TILE/2,y+TILE/2,6);
+    cx.stroke();cx.lineWidth=1}
+  if(t===11){cx.fillStyle='ALERT_JUICE';diamond(x+TILE/2,y+TILE/2,8);cx.fill()}}
+function diamond(cxp,cyp,r){cx.beginPath();cx.moveTo(cxp,cyp-r);
+  cx.lineTo(cxp+r,cyp);cx.lineTo(cxp,cyp+r);cx.lineTo(cxp-r,cyp);cx.closePath()}
 function draw(now){
   cx.fillStyle='#05070f';cx.fillRect(0,0,cv.width,cv.height);
   for(let y=0;y<GH;y++){for(let x=0;x<GW;x++){
@@ -190,14 +224,18 @@ function draw(now){
     [[6,0],[13,0]].forEach(p=>{glow(OX+p[0]*TILE+16,OY+16,86,now)});
     glow(hero.x,hero.y,64,now)}
   cx.fillStyle='MAGENTA_TOKEN';
+  for(let i=0;i<hero.maxhp;i++){cx.strokeStyle='MAGENTA_TOKEN';
+    cx.strokeRect(OX+i*18+0.5,2.5,13,9)}
   for(let i=0;i<hero.hp;i++){cx.fillRect(OX+i*18,2,14,10)}
   cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
-  cx.fillText('宝石 '+hero.gems+(hero.key?'  鍵あり':''),OX+70,11);
+  cx.fillText('宝石 '+hero.gems+(hero.key?'  鍵あり':'')+(hero.charm?'  護符':''),
+    OX+70,11);
   cx.fillText(NAMES[room],cv.width-OX-150,11);
   if(msgT>0){msgT--;cx.fillStyle='#0a0f1cd9';
     cx.fillRect(OX,cv.height-34,GW*TILE,26);cx.fillStyle='#dfe7f5';
     cx.fillText(msg,OX+10,cv.height-16)}
-  if(state==='win'){shade('宝箱をあけた。冒険の勝利。','宝石 '+hero.gems+' 個 / R か タップでもう一度')}
+  if(state==='win'){shade('宝箱をあけた。冒険の勝利。',
+    '宝石 '+hero.gems+' 個 / 護符 '+(hero.charm?'あり':'なし')+' / R か タップでもう一度')}
   if(state==='over'){shade('ちからつきた。','R か タップでやり直す')}}
 function glow(x,y,r,now){const g=cx.createRadialGradient(x,y,4,x,y,r);
   g.addColorStop(0,'#f5d89a55');g.addColorStop(1,'#00000000');
@@ -214,10 +252,57 @@ function step(){const now=performance.now();
 reset();step();
 """
 
+#: Enough of a browser to let the real page's script run to its first frame
+#: in node. Every drawing call becomes a no-op through one proxy, so the
+#: world it builds can be read back instead of inferred from source text -
+#: "the tile is defined" and "the tile is on the map" were different facts
+#: once already (C-1018, the pond that shipped as dead code).
+WORLD_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.requestAnimationFrame = () => 0;
+globalThis.addEventListener = () => {};
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+SCRIPT_PLACEHOLDER
+const tally = {};
+rooms.forEach(m => m.forEach(r => r.forEach(t => { tally[t] = (tally[t]||0) + 1 })));
+/* What sits around the reward decides whether the door is a door or a
+   decoration: a second way in makes the "optional branch" a straight line
+   with an ornament on it. */
+let around = [];
+rooms.forEach(m => m.forEach((r, y) => r.forEach((t, x) => { if (t === 11) {
+  around = [[0,-1],[0,1],[-1,0],[1,0]].map(d => (m[y+d[1]]||[])[x+d[0]]) } })));
+console.log(JSON.stringify({
+  tiles: tally,
+  charmNeighbours: around,
+  hearts: hero.maxhp,
+  charm: hero.charm,
+  gems: hero.gems,
+}));
+"""
+
+
+def world_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, stubbed enough to run once, then reported."""
+
+    return WORLD_PROBE.replace("REDUCED_INPUT", "true" if reduced else "false").replace(
+        "SCRIPT_PLACEHOLDER", script
+    )
+
+
 __all__ = [
     "ADVENTURE_DIFFICULTY",
     "ADVENTURE_HOW",
     "ADVENTURE_SCRIPT",
     "ADVENTURE_TITLE",
     "ADVENTURE_WORDS",
+    "WORLD_PROBE",
+    "world_probe",
 ]

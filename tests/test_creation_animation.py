@@ -14,12 +14,19 @@ would honour the setting and break the artifact.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 
 import pytest
 
-from sidra_ai.creation.animation import PREAMBLE, PREAMBLE_NAMES, probe_source, with_animation
+from sidra_ai.creation.animation import (
+    PREAMBLE,
+    PREAMBLE_NAMES,
+    loop_probe,
+    probe_source,
+    with_animation,
+)
 from sidra_ai.creation.games import TEMPLATES, generate_game, validate_game_html
 
 pytestmark = pytest.mark.skipif(
@@ -79,12 +86,37 @@ def test_the_game_loop_is_not_what_gets_frozen() -> None:
     collapses to a constant. A template that gated its loop on ``REDUCED``
     would pass every other test here and hand a still image to the viewer
     who most needed the game to work.
+
+    This used to be checked by forbidding ``if(REDUCED)return`` anywhere on
+    the page. That reading stopped being true of the code rather than of the
+    property: a *decorative* effect opting out of reduced motion is the
+    setting working (C-1020's shake and particles do exactly that), and the
+    string cannot tell that apart from a loop opting out. So the page is run
+    instead, and the frames it manages are counted - which also catches a
+    loop stalled for reasons no string would have named.
     """
 
+    if shutil.which("node") is None:  # pragma: no cover - node is present here
+        pytest.skip("node is needed to drive the loop")
     for key in TEMPLATES:
-        script = generate_game("ゲームを作って", template=key).html
-        assert "requestAnimationFrame" in script
-        assert "if(REDUCED)return" not in script.replace(" ", "")
+        page = generate_game("ゲームを作って", template=key).html
+        assert "requestAnimationFrame" in page
+        script = re.search(r"<script>(.*?)</script>", page, re.S)
+        assert script is not None
+        for reduced in (False, True):
+            finished = subprocess.run(
+                ["node", "-"],
+                input=loop_probe(script.group(1), reduced=reduced, frames=40),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            assert finished.returncode == 0, (key, finished.stderr[:400])
+            result = json.loads(finished.stdout)
+            assert result["reduced"] is reduced
+            # Every frame handed back was asked for again: the loop is alive
+            # for all forty, not just the first.
+            assert result["ran"] == 40, (key, reduced, result)
 
 
 def test_the_preamble_introduces_only_the_names_it_documents() -> None:

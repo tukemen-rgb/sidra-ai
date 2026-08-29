@@ -1049,6 +1049,73 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- gems that buy something, and a door nobody has to open --------
+    #
+    # Two knowledge-base rules, and they fail in the same silent way. §5: a
+    # collectible with no sink is a number going up, and the grass was being
+    # cut for one. §3: a dungeon whose mission graph is a single line has no
+    # decisions in it. Both were true here and neither showed in any number,
+    # because the game was playable and winnable throughout.
+    #
+    # The world is built by running the real page in node rather than by
+    # reading its source. "The tile is defined" and "the tile is on the map"
+    # have already been different facts once (C-1018's pond), and a check
+    # that greps cannot tell them apart.
+    import re as _re
+    import subprocess as _sp
+
+    from sidra_ai.creation.adventure import world_probe
+
+    sink_page = generate_game("冒険ゲームを作って").html
+    sink_script = _re.search(r"<script>(.*?)</script>", sink_page, _re.S)
+    sink_reasons = []
+    world = {}
+    if sink_script is None:
+        sink_reasons.append("no script on the page")
+    else:
+        try:
+            probe = _sp.run(
+                ["node", "-"],
+                input=world_probe(sink_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if probe.returncode != 0:
+                sink_reasons.append(f"world did not build: {probe.stderr.strip()[:80]}")
+            else:
+                world = json.loads(probe.stdout)
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            sink_reasons.append(f"probe unavailable: {type(exc).__name__}")
+    if world:
+        tiles = world.get("tiles", {})
+        for code, what in (("9", "shrine"), ("10", "optional door"), ("11", "reward")):
+            if not tiles.get(code):
+                sink_reasons.append(f"no {what} on the map")
+        neighbours = world.get("charmNeighbours") or []
+        if neighbours.count(10) != 1:
+            sink_reasons.append("the reward is not reached through the door")
+        elif any(n != 1 for n in neighbours if n != 10):
+            sink_reasons.append("the reward has a second way in; the door is decoration")
+    # A sink is only a sink if gems leave. Two outlets: the shrine and the
+    # door - one that converts them, one that spends them on the branch.
+    if sink_page.count("hero.gems-=") < 2:
+        sink_reasons.append("gems are never spent")
+    if not validate_game_html(sink_page)["playable"]:
+        sink_reasons.append("page no longer parses")
+    c.add(
+        "creation_gem_sink",
+        "宝石に使い道がある",
+        0.0 if sink_reasons else 1.0,
+        detail=(
+            "shrine trades 3 gems for a heart; an optional door costs 2 and is "
+            "the only way to the charm behind it"
+            if not sink_reasons
+            else "; ".join(sink_reasons)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the 3D model, generated fresh so the number describes this
     # checkout rather than the day the generator was written ----------
     from sidra_ai.creation.models3d import generate_model3d, validate_model3d

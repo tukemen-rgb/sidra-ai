@@ -3963,3 +3963,43 @@ reduced-motion では揺れと粒子を 0 にし、**ヒットストップは残
 検証: `python -m pytest` exit 0、`verify_gate_recall.py` PASSED。
 **実機の体感は未確認。**
 2026-08-29 08:06 UTC ループA started Board=13
+
+## 2026-08-29 08:3x UTC ループA 結果: C-1021 完了
+
+`creation_gem_sink` unmeasurable → **1**（判定器 exit 0）。
+
+計器は**ページのスクリプトを node で実際に走らせて `rooms` を読み返す**。
+C-1018 の「定義済みだが未配置の水タイル」と同じ間違いを繰り返さないため。
+護符の隣接 4 マスが扉 1・壁 3 であることまで見るので、
+入口が 2 つある「飾りの分岐」は 0 になる。
+
+検証: `python -m pytest` exit 0、`verify_gate_recall.py` PASSED。
+**遊んで面白いかは未確認。**
+
+## 2026-08-29 09:0x UTC ループA 事故と修正: `pytest | tail` の終了コードを読んでいた
+
+**main を赤くした。**C-1020（017afaa）の push で
+`tests/test_creation_animation.py::test_the_game_loop_is_not_what_gets_frozen`
+が落ちていたのに、こちらは「pytest exit 0」と報告していた。
+
+原因は検証手順そのもの。`python -m pytest -q 2>&1 | tail -12` の終了コードは
+**`tail` のもの**で、常に 0 になる。パイプの向こうの pytest が何を返しても
+見えない。C-1019 の確認も同じ形だった（あちらは実際には通っていたが、
+根拠としては無効）。
+
+**次に取る者へ: `pytest` をパイプに通したまま終了コードを見ない。**
+`python -m pytest -q > /tmp/full.txt 2>&1; echo $?` のように
+**pytest 自身の終了コードを取る**こと。`| tail` は出力を読むためだけに使い、
+判定には使わない。
+
+**壊れた中身**: あの検査は「ページに `if(REDUCED)return` が無いこと」で
+「ゲームループが reduced-motion で止まらない」を代理していた。C-1020 で
+**装飾効果（揺れ・粒子）が正しく reduced-motion を降りた**ので、文字列は
+一致するが性質は壊れていない、という状態になった。代理が事実を指さなく
+なった。
+
+**直し方**: 代理をやめて実測にした（`animation.loop_probe`）。ページの
+スクリプトを node で走らせ、rAF を手で 40 フレーム回し、
+**毎回次のフレームを要求し続けるか**を数える。4 テンプレ × reduced 両方で
+`ran == 40`。文字列では捕まえられない「別の理由で止まったループ」も
+これなら落ちる。検査の意図は変えず、緩めてもいない。
