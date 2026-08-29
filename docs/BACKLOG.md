@@ -2265,7 +2265,7 @@ Team Concode 氏の『ふしぎのぼうし』に感動して作られたオリ�
       ゲームが成立すること**（既存 FRAME/ease/REDUCED を使う）。
       → 動かす数字: creation_game_juice unmeasurable→1
 
-- [ ] **C-1021: 宝石の使い道と任意報酬。**知識ベース §3・§5。宝石 n 個で
+- [~] 作業中 2026-08-29 08:08 UTC ループA **C-1021: 宝石の使い道と任意報酬。**知識ベース §3・§5。宝石 n 個で
       ハート回復（シンク）、開けなくてもよい扉 1 つ＋任意報酬（mission graph に
       分岐を 1 本）。→ 動かす数字: creation_gem_sink unmeasurable→1
 
