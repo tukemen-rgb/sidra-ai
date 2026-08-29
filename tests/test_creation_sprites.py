@@ -101,6 +101,9 @@ def test_each_template_gets_the_two_names_its_page_draws() -> None:
         # The duel draws its fighters procedurally; sprite() falls back to
         # the shapes the template always drew, which is the supported state.
         "duel": set(),
+        # The shooter draws its ship and shots as paths; the foe is the
+        # one thing a wave of which the eye reads as a shape.
+        "shooter": {"foe"},
     }
     for template in TEMPLATES:
         names = {name for name, _ in SPRITE_SETS.get(template, ())}

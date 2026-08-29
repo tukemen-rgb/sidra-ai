@@ -178,6 +178,26 @@ def _villager(rng: random.Random) -> str:
 #: Which sprites each template needs, and what the page calls them. A template
 #: with no entry gets no sprites rather than generic ones - the game still
 #: plays, because the page falls back to the shapes it always drew.
+def _interceptor(rng: random.Random) -> str:
+    """A foe seen from above: a wing span with a lit core.
+
+    Wider than it is tall, and the core sits off-centre by a seeded pixel or
+    two, so a formation of them does not read as one stamped shape.
+    """
+
+    span = rng.randint(38, 46)
+    height = span // 2
+    left = (VIEWBOX - span) // 2
+    top = (VIEWBOX - height) // 2
+    core = left + span // 2 + rng.randint(-2, 2)
+    return _svg(
+        f'<path d="M{left} {top} L{left + span} {top} '
+        f'L{core} {top + height} Z" fill="{GAMEYARD_TOKENS["magenta"]}"/>'
+        f'<rect x="{core - 3}" y="{top + 2}" width="6" height="{height // 2}" '
+        f'fill="{GAMEYARD_TOKENS["cyan"]}"/>'
+    )
+
+
 SPRITE_SETS: dict[str, tuple[tuple[str, object], ...]] = {
     "fishing": (("target", _fish), ("marker", _marker)),
     "catch": (("target", _drop), ("marker", _basket)),
@@ -188,6 +208,9 @@ SPRITE_SETS: dict[str, tuple[tuple[str, object], ...]] = {
         ("bush", _bush),
         ("npc", _villager),
     ),
+    # The shooter draws its own ship and shots as paths; only the foe is
+    # worth a sprite, because a wave of them is what the eye reads first.
+    "shooter": (("foe", _interceptor),),
 }
 
 

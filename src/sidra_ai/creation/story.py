@@ -50,6 +50,11 @@ CONTROLS: dict[str, tuple[tuple[str, str], ...]] = {
         ("↑ ↓", "レーンを移動してかわす"),
         ("SPACE 連打", "押し合いで押し返す"),
     ),
+    "shooter": (
+        ("← →", "自機を左右に動かす"),
+        ("SPACE / 長押し / タップ", "連射する"),
+        ("R", "撃墜された後にやり直す"),
+    ),
 }
 
 #: What the two difficulty numbers mean, per template. Without this the table
@@ -70,6 +75,10 @@ PARAMETERS: dict[str, tuple[tuple[str, str], ...]] = {
     "duel": (
         ("相手のチャージ速度", "倍率。大きいほど太いビームが早く来る"),
         ("相手の思考間隔", "何フレームごとに動きを決めるか。小さいほど賢い"),
+    ),
+    "shooter": (
+        ("降下速度", "1 フレームあたりの落下量。大きいほど早く迫る"),
+        ("波の間隔", "何フレームごとに 1 波来るか。小さいほど密"),
     ),
 }
 

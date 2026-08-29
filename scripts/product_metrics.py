@@ -792,6 +792,7 @@ def measure_creation(c: Collector) -> None:
                 "キャッチゲームを作って",
                 "冒険ゲームを作って",
                 "ビームの撃ち合いゲームを作って",
+                "シューティングゲームを作って",
             )
         }
     )
@@ -799,7 +800,7 @@ def measure_creation(c: Collector) -> None:
         "creation_game_templates",
         "依頼文から届くゲームの型",
         float(reachable),
-        detail="distinct templates chosen by two ordinary requests",
+        detail="distinct templates chosen by one ordinary request each",
         kind=GUARD,
     )
 

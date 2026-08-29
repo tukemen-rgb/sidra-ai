@@ -4004,3 +4004,29 @@ C-1018 の「定義済みだが未配置の水タイル」と同じ間違いを�
 `ran == 40`。文字列では捕まえられない「別の理由で止まったループ」も
 これなら落ちる。検査の意図は変えず、緩めてもいない。
 2026-08-29 09:06 UTC ループA started Board=13
+
+## 2026-08-29 09:4x UTC ループA 結果: C-1013 前半（シューティング）完了
+
+`creation_game_templates` 4→**5**、`creation_touch_playable` 4→**5**、
+`creation_game_audio` 4→**5**（判定器 exit 0）。パズルは C-1022 に分割。
+
+**起票時の「2→4」は起票後に他ループが 4 まで上げていた。**私が動かしたのは
+4→5。数字の由来を取り違えないよう OUTCOMES にも書いた。
+
+C-1012 の断り文は 1 行も触らずに消えた（対応可否は `TEMPLATES` を実行時に
+見るため）。共通プリアンブルのおかげで音・手触り・パッドは配線ゼロで付いた。
+
+**ただし配線ゼロではない場所が 2 つあり、テストが両方捕まえた**:
+`sprites.SPRITE_SETS`（shooter が `sprite('foe')` を呼ぶのに登録なし）と
+`story.CONTROLS` / `story.PARAMETERS`（制作文書が汎用表を出してしまう）。
+どちらも「新テンプレを半分だけ足す」ことを防ぐガードで、意図どおり働いた。
+テンプレを足すときに埋める表は現状この 4 つ（TEMPLATES / _DIFFICULTY /
+SPRITE_SETS / CONTROLS+PARAMETERS）。
+
+### 前サイクルの事故の再発防止（重要）
+
+`python -m pytest | tail` の**パイプライン終了コードは `tail` のもの**で、
+pytest の判定ではない。これを判定として読んだ結果、C-1020 を赤いまま push した。
+今後は `python -m pytest > /tmp/full.txt 2>&1; echo $?` のように
+**コマンド自身の終了コードを取る**。`| tail` は出力を読むためだけに使う。
+このサイクルは PYTEST_EXIT / GATE_EXIT / JUDGE_EXIT を個別に確認している。

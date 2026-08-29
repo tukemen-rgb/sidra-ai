@@ -43,6 +43,13 @@ from sidra_ai.creation.adventure import (
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.audio import SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
+from sidra_ai.creation.shooter import (
+    SHOOTER_DIFFICULTY,
+    SHOOTER_HOW,
+    SHOOTER_SCRIPT,
+    SHOOTER_TITLE,
+    SHOOTER_WORDS,
+)
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.duel import (
     DUEL_DIFFICULTY,
@@ -201,6 +208,12 @@ TEMPLATES: dict[str, GameTemplate] = {
         DUEL_HOW,
         DUEL_SCRIPT,
     ),
+    "shooter": GameTemplate(
+        "shooter",
+        SHOOTER_TITLE,
+        SHOOTER_HOW,
+        SHOOTER_SCRIPT,
+    ),
 }
 
 #: Difficulty is two numbers per template, not a label. Keeping the mapping
@@ -210,6 +223,7 @@ _DIFFICULTY = {
     "catch": {"easy": (34, 0.30), "normal": (22, 0.20), "hard": (13, 0.12)},
     "adventure": ADVENTURE_DIFFICULTY,
     "duel": DUEL_DIFFICULTY,
+    "shooter": SHOOTER_DIFFICULTY,
 }
 
 # Stems, not whole words: 難しい / 難しく / 難しめ all have to land on the
@@ -221,6 +235,7 @@ _FISHING_WORDS = ("釣り", "つり", "fishing", "魚")
 _CATCH_WORDS = ("キャッチ", "catch", "受け", "落ちもの", "避け")
 _ADVENTURE_WORDS = ADVENTURE_WORDS
 _DUEL_WORDS = DUEL_WORDS
+_SHOOTER_WORDS = SHOOTER_WORDS
 
 #: Names this generator will not put on an artifact. A request that says
 #: 「ゼルダの伝説作って」 routes to the adventure template - the *genre* is
@@ -261,6 +276,11 @@ def choose_template(request: str) -> str:
     """Pick by what the request names, defaulting to the fishing template."""
 
     lowered = request.lower()
+    # Before the duel: "対戦シューティング" is a shooter, and _GENRES already
+    # says so. Routing has to agree with the honesty table or the summary
+    # would name a genre the page is not.
+    if any(word.lower() in lowered for word in _SHOOTER_WORDS):
+        return "shooter"
     if any(word.lower() in lowered for word in _ADVENTURE_WORDS):
         return "adventure"
     if any(word.lower() in lowered for word in _DUEL_WORDS):
