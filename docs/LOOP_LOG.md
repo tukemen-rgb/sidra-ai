@@ -4181,3 +4181,11 @@ origin は ea804a6 まで進んだが中身は 21:05 の起動行と no-op 記�
 取れる `- [ ]` は **0 件**（E 節 2 件・F 節 2 件のみ）。`- [~]` は無し。
 origin は 7f59af7 まで進んだが中身は 22:05 の起動行と no-op 記録のみ。Board=13 で増分ゼロ。
 コードは無変更。**キューを埋めるための作業は作らない。**社長か GDP の入力待ち。
+2026-08-29 14:0x UTC 対話セッション — C-1026/C-1028 完了（LLM プロレビューの即応分）
+  かな折りたたみを intent/ジャンル表/テンプレ選択の比較両側に適用
+  （creation_intent_paraphrase unmeasurable→12、「ぜるだみたいなげーむつくって」が
+  adventure に届く）。SYSTEM_PROMPT に出力言語規則を追加（8/27 の英語返答事故の
+  再発防止、テストで pin）。実機モデル評価ハーネス scripts/check_model_answers.py
+  を新設（日本語率・引用率・誠実さ、echo では言語判定 skip）。かな→漢字は fold の
+  守備範囲外と明記。C-1027（with_copy 実配線）はキュー済み。テスト 13 件 /
+  pytest exit 0 / recall PASSED / 判定器 exit 0。

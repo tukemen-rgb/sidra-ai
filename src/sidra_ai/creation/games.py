@@ -41,6 +41,7 @@ from sidra_ai.creation.adventure import (
     ADVENTURE_WORDS,
 )
 from sidra_ai.creation.animation import with_animation
+from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.startscreen import GATE_PREAMBLE
@@ -291,21 +292,21 @@ _STRIP = re.compile(
 def choose_template(request: str) -> str:
     """Pick by what the request names, defaulting to the fishing template."""
 
-    lowered = request.lower()
+    lowered = fold_kana(request.lower())
     # Before the duel: "対戦シューティング" is a shooter, and _GENRES already
     # says so. Routing has to agree with the honesty table or the summary
     # would name a genre the page is not.
-    if any(word.lower() in lowered for word in _PUZZLE_WORDS):
+    if any(fold_kana(word.lower()) in lowered for word in _PUZZLE_WORDS):
         return "puzzle"
-    if any(word.lower() in lowered for word in _SHOOTER_WORDS):
+    if any(fold_kana(word.lower()) in lowered for word in _SHOOTER_WORDS):
         return "shooter"
-    if any(word.lower() in lowered for word in _ADVENTURE_WORDS):
+    if any(fold_kana(word.lower()) in lowered for word in _ADVENTURE_WORDS):
         return "adventure"
-    if any(word.lower() in lowered for word in _DUEL_WORDS):
+    if any(fold_kana(word.lower()) in lowered for word in _DUEL_WORDS):
         return "duel"
-    if any(word in lowered for word in _CATCH_WORDS):
+    if any(fold_kana(word) in lowered for word in _CATCH_WORDS):
         return "catch"
-    if any(word in lowered for word in _FISHING_WORDS):
+    if any(fold_kana(word) in lowered for word in _FISHING_WORDS):
         return "fishing"
     return "fishing"
 
@@ -375,9 +376,9 @@ def detect_genre(request: str) -> GenreRequest | None:
     loud can be answered with the wrong one.
     """
 
-    lowered = request.lower()
+    lowered = fold_kana(request.lower())
     for genre, key, words in _GENRES:
-        if any(word.lower() in lowered for word in words):
+        if any(fold_kana(word.lower()) in lowered for word in words):
             return GenreRequest(genre=genre, template=key)
     return None
 

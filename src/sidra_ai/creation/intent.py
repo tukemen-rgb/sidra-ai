@@ -159,6 +159,8 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "ドラゴンボール",
         "対戦",
         "バトル",
+        "シューティング",
+        "パズル",
     ),
     CreationKind.DECK: (
         "デッキ",
@@ -256,14 +258,30 @@ class CreationIntent:
         }
 
 
+def fold_kana(text: str) -> str:
+    """Map hiragana onto katakana so 「ぜるだ」 and 「ゼルダ」 compare equal.
+
+    The vocabulary tables are written in katakana and kanji; an operator's
+    IME writes whichever script came out. Without this fold the detector is
+    a different program per script - measured: 「ぜるだみたいなげーむ
+    つくって」 fell through to the fishing default while the katakana
+    spelling routed correctly. Applied to *both* sides of every comparison,
+    never to stored text.
+    """
+
+    return "".join(
+        chr(ord(ch) + 0x60) if "぀" <= ch <= "ゖ" else ch for ch in text
+    )
+
+
 def _normalise(message: str) -> str:
-    """Fold width and case so 「ゲーム」 and 「ｹﾞｰﾑ」 read the same.
+    """Fold width, case and kana script so all spellings read the same.
 
     NFKC also maps full-width Latin to ASCII, which is what makes the English
     word-boundary pattern usable on text an operator typed in a Japanese IME.
     """
 
-    return unicodedata.normalize("NFKC", message).casefold()
+    return fold_kana(unicodedata.normalize("NFKC", message).casefold())
 
 
 def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
@@ -276,7 +294,7 @@ def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
     best: tuple[int, CreationKind, str] | None = None
     for kind, words in _ARTIFACTS.items():
         for word in words:
-            index = text.rfind(word.casefold())
+            index = text.rfind(fold_kana(word.casefold()))
             if index < 0:
                 continue
             if best is None or index > best[0]:
@@ -299,8 +317,10 @@ def detect_creation_intent(message: str) -> CreationIntent:
     if not text.strip():
         return CreationIntent(is_creation=False)
 
-    question_hits = [marker for marker in _QUESTION_MARKERS if marker.casefold() in text]
-    verb_hits = [verb for verb in _MAKE_VERBS if verb.casefold() in text]
+    question_hits = [
+        marker for marker in _QUESTION_MARKERS if fold_kana(marker.casefold()) in text
+    ]
+    verb_hits = [verb for verb in _MAKE_VERBS if fold_kana(verb.casefold()) in text]
     verb_hits.extend(match.group(1).casefold() for match in _EN_VERB_PATTERN.finditer(text))
 
     if not verb_hits:

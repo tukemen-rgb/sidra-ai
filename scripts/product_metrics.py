@@ -1252,6 +1252,54 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- spelling robustness: the AI must be the same program per script --
+    #
+    # Measured before fixed: 「ぜるだみたいなげーむつくって」 fell through to
+    # the fishing default because the vocabulary is katakana and the request
+    # was hiragana. Twelve fixed paraphrases, each scored on both decisions
+    # (kind, and template where the kind is game).
+    from sidra_ai.creation.intent import detect_creation_intent as _detect_kana
+
+    _PARAPHRASES = (
+        ("ぜるだみたいなげーむつくって", "game", "adventure"),
+        ("どらごんぼーるのばとるつくって", "game", "duel"),
+        ("しゅーてぃんぐげーむ作って", "game", "shooter"),
+        ("ぱずるつくって", "game", "puzzle"),
+        ("つりげーむつくって", "game", "fishing"),
+        ("きゃっちげーむつくって", "game", "catch"),
+        ("ダンジョンたんけんゲームを作って", "game", "adventure"),
+        ("ビームでたいせんするゲーム作って", "game", "duel"),
+        ("れぽーとつくって", "document", None),
+        ("じふつくって", "gif", None),
+        ("あーとつくって", "art", None),
+        ("でっきつくって", "deck", None),
+    )
+    kana_ok = 0
+    kana_misses = []
+    for text, kind, template_key in _PARAPHRASES:
+        intent = _detect_kana(text)
+        good = intent.kind.value == kind and (
+            template_key is None or choose_template(text) == template_key
+        )
+        if good:
+            kana_ok += 1
+        else:
+            kana_misses.append(
+                f"{text} -> {intent.kind.value}"
+                + (f"/{choose_template(text)}" if kind == "game" else "")
+            )
+    c.add(
+        "creation_intent_paraphrase",
+        "表記ゆれでも正しく届く依頼",
+        float(kana_ok),
+        detail=(
+            f"{kana_ok} of {len(_PARAPHRASES)} spellings routed correctly"
+            if not kana_misses
+            else "; ".join(kana_misses[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the 3D model, generated fresh so the number describes this
     # checkout rather than the day the generator was written ----------
     from sidra_ai.creation.models3d import generate_model3d, validate_model3d
