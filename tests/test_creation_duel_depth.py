@@ -1,0 +1,101 @@
+"""Holding the charge costs something, and the opponent has a temperament.
+
+Before this, the optimal play was to hold the button forever: the charge bar
+stopped silently at full and nothing happened. The opponent also fired on the
+same schedule whatever the request said, so learning one fight taught you
+nothing about the next. Both are played out in node rather than read, because
+"the constant exists" and "the rule bites" are different facts.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+
+import pytest
+
+from sidra_ai.creation.duel import probe_source
+from sidra_ai.creation.games import generate_game, validate_game_html
+
+_REQUESTS = (
+    "ビームの撃ち合いゲームを作って",
+    "エネルギー波バトル作って",
+    "必殺技の対戦ゲーム作って",
+    "気弾の撃ち合いを作って",
+)
+
+
+def _play(request: str) -> dict:
+    if shutil.which("node") is None:  # pragma: no cover - node is present here
+        pytest.skip("node is needed to play the duel")
+    script = re.search(r"<script>(.*?)</script>", generate_game(request).html, re.S)
+    assert script is not None
+    finished = subprocess.run(
+        ["node", "-"],
+        input=probe_source(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert finished.returncode == 0, (request, finished.stderr[:400])
+    return json.loads(finished.stdout)
+
+
+def test_never_letting_go_is_punished():
+    for request in _REQUESTS:
+        seen = _play(request)
+        assert seen["peakCharge"] >= 100, request
+        assert seen["stunFrames"] > 0, (request, seen)
+
+
+def test_never_letting_go_actually_loses_the_fight():
+    # A stun that cost no ground would be a light show. The fighter who never
+    # releases should end up worse off than they started.
+    seen = _play(_REQUESTS[0])
+
+    assert seen["hp"] < 3, seen
+
+
+def test_both_temperaments_are_reachable():
+    styles = {_play(request)["style"] for request in _REQUESTS}
+
+    assert styles == {"quick", "charger"}
+
+
+def test_the_temperament_is_behaviour_and_not_a_label():
+    thresholds = {}
+    for request in _REQUESTS:
+        seen = _play(request)
+        thresholds[seen["style"]] = tuple(seen["fire"])
+
+    assert len(set(thresholds.values())) == 2, thresholds
+    # A quick draw fires earlier than a charger; if that ever inverts the
+    # names on screen would be telling the player the wrong thing.
+    assert thresholds["quick"][0] < thresholds["charger"][0]
+
+
+def test_the_same_request_is_the_same_opponent():
+    assert _play(_REQUESTS[0])["style"] == _play(_REQUESTS[0])["style"]
+
+
+def test_the_opponent_takes_the_same_risk():
+    # An enemy immune to the overload would make the rule a penalty on the
+    # player rather than a rule of the game.
+    page = generate_game(_REQUESTS[0]).html
+
+    assert "overload(e)" in page
+    assert "overload(p)" in page
+
+
+def test_the_push_is_visible_as_a_gauge():
+    page = generate_game(_REQUESTS[0]).html
+
+    assert "spark/60" in page
+
+
+def test_the_page_still_runs():
+    for request in _REQUESTS:
+        verdict = validate_game_html(generate_game(request).html)
+        assert verdict["playable"], (request, verdict["failures"])

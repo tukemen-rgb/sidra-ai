@@ -1051,6 +1051,82 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the duel has a decision in it now ------------------------------
+    #
+    # Holding the charge at maximum used to be free, which made "let go" a
+    # formality rather than a choice, and the opponent behaved the same way
+    # whatever the request said. Both are checked by playing in node: hold
+    # and never release, and see whether it costs anything; then compare
+    # seeds and see whether the temperament changes behaviour or only a
+    # label. The clash gauge is checked structurally, not behaviourally - a
+    # clash needs both fighters firing into one lane on the same frame, and
+    # forcing that would be testing the harness rather than the game.
+    import re as _duel_re
+    import subprocess as _duel_sp
+
+    from sidra_ai.creation.duel import probe_source as _duel_probe
+
+    duel_reasons = []
+    duel_seen = {}
+    for request in (
+        "ビームの撃ち合いゲームを作って",
+        "エネルギー波バトル作って",
+        "必殺技の対戦ゲーム作って",
+        "気弾の撃ち合いを作って",
+    ):
+        page = generate_game(request).html
+        script = _duel_re.search(r"<script>(.*?)</script>", page, _duel_re.S)
+        if script is None:
+            duel_reasons.append(f"{request}: no script")
+            continue
+        try:
+            probe = _duel_sp.run(
+                ["node", "-"],
+                input=_duel_probe(script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if probe.returncode != 0:
+                duel_reasons.append(f"{request}: {probe.stderr.strip()[:60]}")
+                continue
+            duel_seen[request] = json.loads(probe.stdout)
+        except (OSError, _duel_sp.SubprocessError, ValueError) as exc:
+            duel_reasons.append(f"probe unavailable ({type(exc).__name__})")
+            break
+    if duel_seen:
+        never_punished = [
+            r for r, seen in duel_seen.items() if seen["stunFrames"] == 0
+        ]
+        if never_punished:
+            duel_reasons.append(
+                f"holding at maximum costs nothing ({len(never_punished)} seeds)"
+            )
+        styles = {seen["style"] for seen in duel_seen.values()}
+        if len(styles) < 2:
+            duel_reasons.append(f"every seed gives the same opponent ({styles})")
+        else:
+            thresholds = {seen["style"]: tuple(seen["fire"]) for seen in duel_seen.values()}
+            if len(set(thresholds.values())) < 2:
+                duel_reasons.append("the temperaments are a label, not a behaviour")
+        duel_page = generate_game("ビームの撃ち合いゲームを作って").html
+        if "spark/60" not in duel_page:
+            duel_reasons.append("the clash has no gauge")
+        if not validate_game_html(duel_page)["playable"]:
+            duel_reasons.append("page no longer parses")
+    c.add(
+        "creation_duel_depth",
+        "対戦に読み合いがある",
+        0.0 if duel_reasons or not duel_seen else 1.0,
+        detail=(
+            "holding at maximum overloads; seeds reach both a quick draw and a "
+            "charger with different fire thresholds; the clash push is on a gauge"
+            if duel_seen and not duel_reasons
+            else "; ".join(duel_reasons) or "no seed could be played"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- nobody is playing before they have read anything --------------
     #
     # Every template used to start on load, which put the instructions below

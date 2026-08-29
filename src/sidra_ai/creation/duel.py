@@ -58,22 +58,40 @@ const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const CSPEED=SPEED_TOKEN,CTHINK=BAND_TOKEN,SEED=SEED_TOKEN;
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const LANES=[80,160,240],PX=110,EX=610;
+/* The opponent's temperament, fixed by the request: the same words are the
+   same fight, so a player can learn one and come back to it. A quick draw
+   throws thin beams constantly; a charger waits and swings a wide one. The
+   counter-play is opposite in each case, which is the point. */
+const CPU_STYLE=((SEED>>>3)&1)?'quick':'charger';
+const CPU_FIRE=CPU_STYLE==='quick'?[22,26]:[62,50];
+const CPU_THINK=CPU_STYLE==='quick'?0.6:1.3;
+/* Holding at maximum is no longer free. Past this many frames at full the
+   charge goes off in your own hands - which is what makes "let go" a
+   decision rather than a formality. */
+const OVER_LIMIT=48,STUN_FRAMES=90;
 let p,e,state,winner,flash,spark,mash;
-function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,think:0,hitLock:false}}
+function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,
+  think:0,hitLock:false,over:0,stun:0}}
+function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
+  playerStun:p?p.stun:0,playerOver:p?p.over:0,enemyStun:e?e.stun:0}}
+function overload(f){f.stun=STUN_FRAMES;f.hold=false;f.charge=0;f.over=0;
+  sfx('hurt');shake(9);hitstop(4);burst(f.x,LANES[f.lane],16,'ALERT_JUICE')}
 function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spark=0;mash=0;
   rs=(SEED>>>0)||1}
 addEventListener('keydown',ev=>{
   if(ev.code==='Space'){ev.preventDefault();
     if(state!=='play'){reset();return}
+    if(p.stun>0)return;
     if(p.beam>0&&e.beam>0){mash+=3;sfx('clash')}else{if(!p.hold){sfx('charge')}p.hold=true}}
-  if(ev.key==='ArrowUp'&&p.lane>0){p.lane--}
-  if(ev.key==='ArrowDown'&&p.lane<2){p.lane++}
+  if(p.stun<=0&&ev.key==='ArrowUp'&&p.lane>0){p.lane--}
+  if(p.stun<=0&&ev.key==='ArrowDown'&&p.lane<2){p.lane++}
   if(ev.key==='r'||ev.key==='R'){reset()}});
 addEventListener('keyup',ev=>{if(ev.code==='Space'){fire(p)}});
 cv.addEventListener('pointerdown',()=>{if(state!=='play'){reset();return}
+  if(p.stun>0)return;
   if(p.beam>0&&e.beam>0){mash+=3;sfx('clash')}else{if(!p.hold){sfx('charge')}p.hold=true}});
 cv.addEventListener('pointerup',()=>{fire(p)});
-function fire(f){if(state!=='play'||!f.hold)return;f.hold=false;
+function fire(f){if(state!=='play'||!f.hold||f.stun>0)return;f.hold=false;f.over=0;
   if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;flash=1;sfx('fire');
     /* the kick scales with the charge: a tap fires a thread, a long hold
        fires something that shoves the camera */
@@ -84,14 +102,18 @@ function fire(f){if(state!=='play'||!f.hold)return;f.hold=false;
        human reaction needs 12-15. Measured before fixed (C-1022). */
     const foe=(f===p)?e:p;f.hitLock=(foe.lane===f.beamLane)}
   f.charge=0}
-function cpu(){e.think--;
-  if(e.think<=0){e.think=CTHINK+rand()*CTHINK;
+function cpu(){if(e.stun>0){e.stun--;return}
+  e.think--;
+  if(e.think<=0){e.think=(CTHINK+rand()*CTHINK)*CPU_THINK;
     const move=rand();
     if(move<0.45){e.lane=p.lane}
     else if(move<0.7){e.lane=Math.floor(rand()*3)}
     if(e.beam<=0){e.hold=true}}
   if(e.hold){e.charge+=0.9*CSPEED;
-    if(e.charge>40+rand()*55){e.hold=false;
+    /* Same rule, same fighter: an opponent immune to the overload would be
+       a penalty on the player rather than a rule of the game. */
+    if(e.charge>=100){e.over++;if(e.over>OVER_LIMIT){overload(e);return}}
+    if(e.charge>CPU_FIRE[0]+rand()*CPU_FIRE[1]){e.hold=false;e.over=0;
       if(rand()<0.6){e.lane=p.lane}
       e.beam=e.charge;e.beamLane=e.lane;
       e.hitLock=(p.lane===e.beamLane);
@@ -103,7 +125,9 @@ function hit(who){who.hp--;flash=1;sfx('hurt');
     else{winner='敗北。もう一度。';sfx('lose')}}}
 function step(){const now=performance.now();
   if(state==='play'){
-    if(p.hold){p.charge=Math.min(100,p.charge+1.4)}
+    if(p.stun>0){p.stun--}
+    if(p.hold&&p.stun<=0){p.charge=Math.min(100,p.charge+1.4);
+      if(p.charge>=100){p.over++;if(p.over>OVER_LIMIT){overload(p)}}}
     cpu();
     const pB=p.beam>0,eB=e.beam>0,same=p.beamLane===e.beamLane;
     if(pB&&eB&&same){
@@ -153,11 +177,37 @@ function draw(now){
   for(let i=0;i<p.hp;i++){cx.fillRect(16+i*18,10,14,10)}
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<e.hp;i++){cx.fillRect(cv.width-30-i*18,10,14,10)}
-  if(p.charge>0){cx.fillStyle='RAISED_TOKEN';cx.fillRect(16,26,104,8);
-    cx.fillStyle='CYAN_TOKEN';cx.fillRect(18,28,p.charge,4)}
+  if(p.charge>0||p.stun>0){cx.fillStyle='RAISED_TOKEN';cx.fillRect(16,26,104,8);
+    /* The last stretch is drawn as danger, because that is what it is: the
+       bar used to stop silently at full and holding there cost nothing. */
+    cx.fillStyle='#00000055';cx.fillRect(18+88,28,14,4);
+    cx.fillStyle=p.charge>=100?'ALERT_JUICE':'CYAN_TOKEN';
+    cx.fillRect(18,28,p.charge,4);
+    if(p.charge>=100){const left=Math.max(0,OVER_LIMIT-p.over);
+      cx.fillStyle='ALERT_JUICE';cx.fillRect(18,36,left*100/OVER_LIMIT,2)}}
+  if(p.stun>0){cx.fillStyle='ALERT_JUICE';cx.font='13px ui-monospace,monospace';
+    cx.fillText('暴発。'+Math.ceil(p.stun/60)+' 秒動けない',16,50)}
+  if(e.stun>0){cx.fillStyle='ALERT_JUICE';cx.font='13px ui-monospace,monospace';
+    cx.fillText('相手が暴発した',cv.width-140,50)}
+  /* Who you are fighting, said out loud: the counter-play to a quick draw
+     is the opposite of the counter-play to a charger, and a player who
+     cannot tell which one they got is guessing rather than deciding. */
+  cx.fillStyle='#9fb0c8';cx.font='12px ui-monospace,monospace';
+  cx.fillText('相手: '+(CPU_STYLE==='quick'?'早撃ち型':'溜め型'),cv.width/2-40,20)
   cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
   if(p.beam>0&&e.beam>0&&p.beamLane===e.beamLane){
-    cx.fillText('押し合い。SPACE 連打で押し返す。',cv.width/2-110,44)}
+    cx.fillStyle='#dfe7f5';
+    cx.fillText('押し合い。SPACE 連打で押し返す。',cv.width/2-110,44)
+    /* The push was only legible as the meeting point drifting, which is the
+       thing you are already too busy to watch. A bar says how close the
+       next hit is, and which way. */
+    const gw=200,gx=cv.width/2-gw/2,gy=52;
+    cx.fillStyle='RAISED_TOKEN';cx.fillRect(gx,gy,gw,8);
+    cx.fillStyle='#00000055';cx.fillRect(gx+gw/2-1,gy,2,8);
+    const at=Math.max(-1,Math.min(1,spark/60));
+    cx.fillStyle=at>=0?'CYAN_TOKEN':'MAGENTA_TOKEN';
+    if(at>=0){cx.fillRect(gx+gw/2,gy,at*gw/2,8)}
+    else{cx.fillRect(gx+gw/2+at*gw/2,gy,-at*gw/2,8)}}
   if(state==='end'){cx.fillStyle='#05070fd0';cx.fillRect(0,0,cv.width,cv.height);
     cx.fillStyle='#dfe7f5';cx.font='20px ui-monospace,monospace';
     cx.fillText(winner,cv.width/2-winner.length*10,cv.height/2-6);
@@ -166,10 +216,55 @@ function draw(now){
 reset();step();
 """
 
+#: Drives the duel in node so the new rules can be observed rather than
+#: read: hold forever and see whether it costs anything, and compare two
+#: seeds to see whether the opponent's temperament is behaviour or decoration.
+PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const keyHandlers = [];
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') keyHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
+/* Past the start screen first: the gate holds every frame until pressed. */
+const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+keyHandlers.forEach(fn => fn(press));
+run(2);
+/* Now hold the button down and never let go - the strategy that used to be
+   free. p.hold is set directly because the gate swallowed the first press. */
+p.hold = true;
+let stunSeen = 0, peakCharge = 0;
+for (let i = 0; i < 400; i++) { run(1); peakCharge = Math.max(peakCharge, p.charge);
+  if (p.stun > 0) { stunSeen++ } if (p.hold === false && p.stun <= 0) { p.hold = true } }
+console.log(JSON.stringify({
+  style: duelFacts().style, fire: duelFacts().fire, overLimit: duelFacts().overLimit,
+  stunFrames: stunSeen, peakCharge: peakCharge, hp: p.hp,
+}));
+"""
+
+
+def probe_source(script: str) -> str:
+    """The page's own script, wrapped so the duel can be played in node."""
+
+    return PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "DUEL_DIFFICULTY",
     "DUEL_HOW",
     "DUEL_SCRIPT",
     "DUEL_TITLE",
     "DUEL_WORDS",
+    "PROBE",
+    "probe_source",
 ]
