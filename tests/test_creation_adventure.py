@@ -106,3 +106,16 @@ def test_the_world_has_the_promised_shape() -> None:
 def test_a_zelda_question_is_still_a_question() -> None:
     assert not detect_creation_intent("ゼルダの伝説とは").is_creation
     assert not detect_creation_intent("ゼルダの伝説の作り方を教えて").is_creation
+
+
+def test_the_map_reads_by_form_not_colour_alone() -> None:
+    """Knowledge base §4: walls get edge highlights, doors get a chevron,
+    and the pond is carved for real - the water tile shipped as dead code
+    once, and 'defined' is not 'placed'."""
+
+    html = generate_game("冒険ゲームを作って").html
+
+    assert "pond(forest)" in html
+    assert "closePath" in html  # the door chevron path
+    assert "#ffffff2e" in html  # wall top highlight (form, not hue)
+    assert "BORDER_TOKEN" not in html  # the wall colour token was substituted

@@ -974,6 +974,40 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- map readability: walls, doors and water must read by form -------
+    #
+    # The knowledge base's accessibility rule is "never convey essential
+    # information by fixed colour alone". The instrument checks the page for
+    # the form-carrying code: wall edge highlights, the door chevron path,
+    # and the pond actually carved into the map (the water tile shipped as
+    # dead code once; 'defined' and 'placed' are different facts).
+    from sidra_ai.creation.themes import THEMES as _READ_THEMES
+
+    _read_tokens = _READ_THEMES["gameyard"].tokens
+    readable_page = generate_game("冒険ゲームを作って").html
+    readable_reasons = []
+    if "pond(forest)" not in readable_page:
+        readable_reasons.append("no pond is carved into the map")
+    if "closePath" not in readable_page:
+        readable_reasons.append("no door chevron")
+    if "#ffffff2e" not in readable_page:
+        readable_reasons.append("walls have no edge highlight (colour-only)")
+    if _read_tokens["border"] == _read_tokens["surface"]:
+        readable_reasons.append("wall and floor share a colour token")
+    if not validate_game_html(readable_page)["playable"]:
+        readable_reasons.append("page no longer parses")
+    c.add(
+        "creation_map_readable",
+        "地形が読める（壁・扉・水）",
+        0.0 if readable_reasons else 1.0,
+        detail=(
+            "walls carry form, doors carry a chevron, the pond is real"
+            if not readable_reasons
+            else "; ".join(readable_reasons)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the 3D model, generated fresh so the number describes this
     # checkout rather than the day the generator was written ----------
     from sidra_ai.creation.models3d import generate_model3d, validate_model3d

@@ -445,6 +445,7 @@ def generate_game(
         .replace("RAISED_TOKEN", theme.tokens["raised"])
         .replace("CYAN_TOKEN", theme.tokens["accent"])
         .replace("MAGENTA_TOKEN", theme.tokens["alert"])
+        .replace("BORDER_TOKEN", theme.tokens["border"])
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
         .replace("SEED_TOKEN", str(zlib.crc32(request.encode("utf-8"))))

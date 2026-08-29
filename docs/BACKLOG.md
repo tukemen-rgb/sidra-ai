@@ -2248,7 +2248,7 @@ Team Concode 氏の『ふしぎのぼうし』に感動して作られたオリ�
       イベントに配線。→ 動かす数字: creation_game_audio unmeasurable→4
       （計器: 4 テンプレ全ページに AudioContext と sfx 呼び出しがあり外部音源ゼロ）
 
-- [~] 作業中 2026-08-29 06:2x UTC 対話セッション **C-1018: 視認性の修理（adventure）。**知識ベース §4。壁と床を「色だけ」で
+- [x] 完了 2026-08-29 06:3x UTC 対話セッション (`creation_map_readable` unmeasurable→**1**、判定器 exit 0) **C-1018: 視認性の修理（adventure）。**知識ベース §4。壁と床を「色だけ」で
       区別しない（壁に輪郭と明度差・床に微パターン）、ドアに形のある標識、
       定義だけで未配置の水タイルを実際に配置（「湖」の依頼で池が出る）。
       → 動かす数字: creation_map_readable unmeasurable→1（計器: 壁/床/ドアの

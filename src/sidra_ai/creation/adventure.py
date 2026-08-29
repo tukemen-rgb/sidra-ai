@@ -71,8 +71,10 @@ function empty(){const m=[];for(let y=0;y<GH;y++){const r=[];
   for(let x=0;x<GW;x++){r.push(x===0||y===0||x===GW-1||y===GH-1?1:0)}m.push(r)}return m}
 function carve(m,code,n){let put=0;while(put<n){const x=2+Math.floor(rand()*(GW-4)),
   y=2+Math.floor(rand()*(GH-4));if(m[y][x]===0){m[y][x]=code;put++}}}
+function pond(m){const px=4+Math.floor(rand()*(GW-10)),py=2+Math.floor(rand()*(GH-6));
+  for(let y=py;y<py+2;y++){for(let x=px;x<px+3;x++){if(m[y][x]===0){m[y][x]=3}}}}
 function build(){
-  const forest=empty();carve(forest,2,14);forest[3][3]=8;forest[4][GW-1]=5;
+  const forest=empty();carve(forest,2,14);pond(forest);forest[3][3]=8;forest[4][GW-1]=5;
   const cave=empty();carve(cave,1,10);cave[0][6]=4;cave[0][13]=4;
   cave[4][0]=6;cave[4][GW-1]=5;
   const altar=empty();carve(altar,1,6);altar[4][0]=6;altar[4][10]=7;
@@ -133,13 +135,29 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   if(hero.inv<=0&&d<16){hero.hp--;hero.inv=60;sfx('hurt');
     hero.x-=en.dx*14;hero.y-=en.dy*14;
     if(hero.hp<=0){state='over';sfx('lose')}else{say('いたい。')}}})}
-const GROUND={0:'SURFACE_TOKEN',5:'RAISED_TOKEN',6:'RAISED_TOKEN'};
+const GROUND={0:'SURFACE_TOKEN',5:'SURFACE_TOKEN',6:'SURFACE_TOKEN'};
+/* Readability rules from the knowledge base (game-design-notes.md §4):
+   walls differ from floor by VALUE and FORM (edge highlights), never by hue
+   alone; doors carry a shaped marker; water reads by motion and shade. */
 function drawTile(t,x,y,now){
   cx.fillStyle=GROUND[t]||'SURFACE_TOKEN';cx.fillRect(x,y,TILE,TILE);
-  if(t===1){sprite('rock',x+2,y+2,TILE-4,TILE-4,'RAISED_TOKEN');
-    cx.strokeStyle='#00000033';cx.strokeRect(x+2,y+2,TILE-4,TILE-4)}
-  if(t===2){sprite('bush',x+4,y+4,TILE-8,TILE-8,'#2c5a3f')}
-  if(t===3){cx.fillStyle='#12405a';cx.fillRect(x,y,TILE,TILE)}
+  if(t===0||t===5||t===6){cx.fillStyle='#ffffff10';cx.fillRect(x+1,y+1,2,2)}
+  if(t===1){cx.fillStyle='BORDER_TOKEN';cx.fillRect(x,y,TILE,TILE);
+    cx.fillStyle='#ffffff2e';cx.fillRect(x,y,TILE,3);
+    cx.fillStyle='#00000055';cx.fillRect(x,y+TILE-4,TILE,4);
+    sprite('rock',x+2,y+2,TILE-4,TILE-4,'')}
+  if(t===2){cx.fillStyle='#20402f';cx.fillRect(x+3,y+3,TILE-6,TILE-6);
+    sprite('bush',x+4,y+4,TILE-8,TILE-8,'#2c5a3f');
+    cx.fillStyle='CYAN_TOKEN';cx.fillRect(x+13,y+13,4,4)}
+  if(t===3){cx.fillStyle='#123f5a';cx.fillRect(x,y,TILE,TILE);
+    const wv=FRAME(4,10,now)*2;
+    cx.fillStyle='#2a6a8f';cx.fillRect(x+4,y+8+wv,TILE-8,2);
+    cx.fillRect(x+8,y+20-wv,TILE-16,2)}
+  if(t===5||t===6){const d=t===5?1:-1;
+    cx.fillStyle='CYAN_TOKEN';cx.beginPath();
+    cx.moveTo(x+16-6*d,y+8);cx.lineTo(x+16+8*d,y+16);cx.lineTo(x+16-6*d,y+24);
+    cx.closePath();cx.fill();
+    cx.fillStyle='#ffffff22';cx.fillRect(x+(d>0?TILE-3:0),y,3,TILE)}
   if(t===4){cx.fillStyle='RAISED_TOKEN';cx.fillRect(x+2,y+2,TILE-4,TILE-4);
     const fl=[3,5,4,6][FRAME(4,7,now)];
     cx.fillStyle='#e8a33d';cx.fillRect(x+12,y+8,8,8+fl)}
