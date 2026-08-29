@@ -3962,3 +3962,4 @@ reduced-motion では揺れと粒子を 0 にし、**ヒットストップは残
 
 検証: `python -m pytest` exit 0、`verify_gate_recall.py` PASSED。
 **実機の体感は未確認。**
+2026-08-29 08:06 UTC ループA started Board=13
