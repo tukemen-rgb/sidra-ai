@@ -1220,6 +1220,16 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- does a hit feel like one? -------------------------------------
+    juiced, juice_detail = _measure_juice()
+    c.add(
+        "creation_game_juice",
+        "当たった感じがする",
+        juiced,
+        detail=juice_detail,
+        kind=OUTCOME,
+    )
+
     # --- the whole production, not just the playable page --------------
     #
     # Two halves again, and the second is the one that keeps this honest: a
@@ -1339,6 +1349,74 @@ def _measure_animation() -> tuple[float, str]:
         f"{moving['distinctFrames']} decorative frames normally, "
         f"{still['distinctFrames']} under reduced motion; "
         f"{len(TEMPLATES)} templates still playable"
+    )
+
+
+def _measure_juice() -> tuple[float, str]:
+    """Whether hits land: shake, hitstop and particles, and the switch.
+
+    Run in node like the animation probe, and for the same reason - a page
+    can contain the word ``shake`` and never move. Two directions again:
+    normally the effects have to do something, and under
+    ``prefers-reduced-motion`` the decorative two have to do nothing.
+
+    ``hitstop`` is deliberately excluded from the reduced case and checked to
+    survive it. It withholds motion rather than adding any, and a person who
+    asked for less movement did not ask for hits to feel weightless. Written
+    down as an assertion here so the choice is visible rather than an
+    oversight someone later "fixes".
+
+    Being wired matters as much as existing: every template has to call all
+    three, or the feel belongs to whichever game somebody got round to.
+    """
+
+    import subprocess
+
+    from sidra_ai.creation.games import TEMPLATES, generate_game, validate_game_html
+    from sidra_ai.creation.juice import probe_source
+
+    results = {}
+    try:
+        for reduced in (False, True):
+            finished = subprocess.run(
+                ["node", "-"],
+                input=probe_source(reduced=reduced),
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            if finished.returncode != 0:
+                return 0.0, f"probe did not run: {finished.stderr.strip()[:80]}"
+            results[reduced] = json.loads(finished.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        return 0.0, f"probe unavailable: {type(exc).__name__}"
+
+    moving, still = results[False], results[True]
+    if moving["shake"] <= 0 or moving["particles"] <= 0:
+        return 0.0, "the effects do nothing even with motion allowed"
+    if still["shake"] != 0 or still["particles"] != 0:
+        return 0.0, "shake or particles survive prefers-reduced-motion"
+    if still["hitstop"] <= 0:
+        return 0.0, "hitstop was disabled by reduced motion; it moves nothing"
+
+    unwired = [
+        f"{key}: no {name}()"
+        for key, spec in sorted(TEMPLATES.items())
+        for name in ("shake", "hitstop", "burst")
+        if f"{name}(" not in spec.script
+    ]
+    if unwired:
+        return 0.0, "; ".join(unwired)
+
+    for key in TEMPLATES:
+        verdict = validate_game_html(generate_game("ゲームを作って", template=key).html)
+        if not verdict["playable"]:
+            return 0.0, f"{key} stopped being playable: {verdict['failures']}"
+
+    return 1.0, (
+        f"shake {moving['shake']} -> 0 and {moving['particles']} particles -> 0 "
+        f"under reduced motion, hitstop kept; all {len(TEMPLATES)} templates "
+        "call shake, hitstop and burst"
     )
 
 

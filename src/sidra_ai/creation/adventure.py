@@ -105,11 +105,14 @@ function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword
   if(ty>=0&&ty<GH&&tx>=0&&tx<GW){
     const t=rooms[room][ty][tx];
     if(t===2){rooms[room][ty][tx]=0;sfx('cut');
-      if(rand()<0.34){hero.gems++;say('草のかげに宝石があった。');sfx('gem')}}
+      burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,10,'ACCENT_JUICE');
+      if(rand()<0.34){hero.gems++;say('草のかげに宝石があった。');sfx('gem');
+        burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,14,'ALERT_JUICE')}}
     if(t===7){if(hero.key){state='win';sfx('win')}else{say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}}
     if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」');sfx('step')}}
   enemies[room].forEach(en=>{if(!en.alive)return;
     if(Math.hypot(en.x-fx,en.y-fy)<26){en.alive=false;sfx('hurt');
+      shake(6);hitstop(3);burst(en.x,en.y,16,'ALERT_JUICE');
       if(room===1&&enemies[1].every(e=>!e.alive)){keyDrop={x:en.x,y:en.y}}}})}
 function moveHero(){
   let vx=0,vy=0;const sp=2.2;
@@ -133,6 +136,7 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   const nx=en.x+en.dx,ny=en.y+en.dy;
   if(!solid(nx,en.y)){en.x=nx}if(!solid(en.x,ny)){en.y=ny}
   if(hero.inv<=0&&d<16){hero.hp--;hero.inv=60;sfx('hurt');
+    shake(9);hitstop(4);burst(hero.x,hero.y,12,'ALERT_JUICE');
     hero.x-=en.dx*14;hero.y-=en.dy*14;
     if(hero.hp<=0){state='over';sfx('lose')}else{say('いたい。')}}})}
 const GROUND={0:'SURFACE_TOKEN',5:'SURFACE_TOKEN',6:'SURFACE_TOKEN'};

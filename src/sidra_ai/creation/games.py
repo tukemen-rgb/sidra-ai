@@ -42,6 +42,7 @@ from sidra_ai.creation.adventure import (
 )
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.audio import SFX_PREAMBLE
+from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.duel import (
     DUEL_DIFFICULTY,
@@ -121,8 +122,9 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();cx.fillStyle=
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
 function cast(){casts++;const [a,b]=zone();
-  if(pos>=a&&pos<=b){score++;flash=1;msg='かかった。';sfx('catch')}
-  else{msg='逃げられた。';sfx('clash')}}
+  if(pos>=a&&pos<=b){score++;flash=1;msg='かかった。';sfx('catch');
+    shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}
+  else{msg='逃げられた。';sfx('clash');shake(1.5)}}
 addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});
 cv.addEventListener('pointerdown',cast);
 step();
@@ -140,8 +142,9 @@ function step(){t++;if(t%FALL===0){items.push({x:Math.random(),y:0})}
   const w=cv.width,h=cv.height;
   items.forEach(i=>{i.y+=0.012});
   items=items.filter(i=>{if(i.y<0.92)return true;
-    if(Math.abs(i.x-shown)<WIDE/2){score++;sfx('catch')}
-    else{missed++;sfx('clash')}return false});
+    if(Math.abs(i.x-shown)<WIDE/2){score++;sfx('catch');
+      shake(2);burst(i.x*cv.width,cv.height-30,10,'ACCENT_JUICE')}
+    else{missed++;sfx('clash');shake(5);hitstop(2)}return false});
   cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,w,h);
   /* the basket eases toward the pointer instead of snapping to it */
   shown+=(px-shown)*(REDUCED?1:0.25);
@@ -437,10 +440,12 @@ def generate_game(
     speed, band = _DIFFICULTY[key][difficulty]
     script = with_animation(
         # Sound before sprites before the game: sfx() has to exist by the
-        # time any input handler in the template body can fire. The pad goes
-        # with them - it wraps requestAnimationFrame, so it has to be in
-        # place before the template's loop takes its first frame.
-        (SFX_PREAMBLE + PAD_PREAMBLE + _SPRITE_LOADER + spec.script)
+        # time any input handler in the template body can fire. The pad and
+        # the juice go with them - both wrap requestAnimationFrame, so they
+        # have to be in place before the template's loop takes its first
+        # frame. Juice wraps first so the pad ends up drawn on top of the
+        # particles rather than under them.
+        (SFX_PREAMBLE + JUICE_PREAMBLE + PAD_PREAMBLE + _SPRITE_LOADER + spec.script)
         .replace("SPRITE_MAP_TOKEN", json.dumps(sprites or {}))
         .replace("SPEED_TOKEN", str(speed))
         .replace("BAND_TOKEN", str(band))
@@ -448,6 +453,8 @@ def generate_game(
         .replace("RAISED_TOKEN", theme.tokens["raised"])
         .replace("CYAN_TOKEN", theme.tokens["accent"])
         .replace("MAGENTA_TOKEN", theme.tokens["alert"])
+        .replace("ACCENT_JUICE", theme.tokens["accent"])
+        .replace("ALERT_JUICE", theme.tokens["alert"])
         .replace("BORDER_TOKEN", theme.tokens["border"])
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.

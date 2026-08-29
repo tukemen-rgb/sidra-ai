@@ -3946,3 +3946,19 @@ C-1013 の数字（`creation_game_templates`）は既に 0 ではないので飛
 **言えないこと**: 実機のタッチ端末での確認はしていない。
 検証: `python -m pytest` exit 0、`verify_gate_recall.py` PASSED。
 2026-08-29 07:07 UTC ループA started Board=13
+
+## 2026-08-29 07:3x UTC ループA 結果: C-1020 完了
+
+`creation_game_juice` unmeasurable → **1**（判定器 exit 0）。
+
+ヒットストップは `requestAnimationFrame` のラッパで**再スケジュールしつつ
+コールバックを呼ばない**方式にした。テンプレ側にフラグを配らないので
+半端な適用が起きない。ラッパが再スケジュールを忘れるとループが死ぬので、
+そこはテストで固定した。
+
+reduced-motion では揺れと粒子を 0 にし、**ヒットストップは残す**。
+判断の理由を OUTCOMES と計器の両方に書いたので、後から黙って
+「揃える」変更が入れば数字が落ちる。
+
+検証: `python -m pytest` exit 0、`verify_gate_recall.py` PASSED。
+**実機の体感は未確認。**

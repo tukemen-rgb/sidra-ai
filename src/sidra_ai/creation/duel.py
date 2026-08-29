@@ -74,7 +74,10 @@ cv.addEventListener('pointerdown',()=>{if(state!=='play'){reset();return}
   if(p.beam>0&&e.beam>0){mash+=3;sfx('clash')}else{if(!p.hold){sfx('charge')}p.hold=true}});
 cv.addEventListener('pointerup',()=>{fire(p)});
 function fire(f){if(state!=='play'||!f.hold)return;f.hold=false;
-  if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;flash=1;sfx('fire')}
+  if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;flash=1;sfx('fire');
+    /* the kick scales with the charge: a tap fires a thread, a long hold
+       fires something that shoves the camera */
+    shake(2+f.charge*0.08);burst(f.x,LANES[f.lane],10,'ACCENT_JUICE')}
   f.charge=0}
 function cpu(){e.think--;
   if(e.think<=0){e.think=CTHINK+rand()*CTHINK;
@@ -86,6 +89,7 @@ function cpu(){e.think--;
     if(e.charge>40+rand()*55){e.hold=false;e.beam=e.charge;e.beamLane=e.lane;
       e.charge=0;flash=1}}}
 function hit(who){who.hp--;flash=1;sfx('hurt');
+  shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
     if(who===e){winner='勝利。ひかりが押し切った。';sfx('win')}
     else{winner='敗北。もう一度。';sfx('lose')}}}
