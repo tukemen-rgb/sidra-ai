@@ -27,11 +27,19 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import zlib
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 
+from sidra_ai.creation.adventure import (
+    ADVENTURE_DIFFICULTY,
+    ADVENTURE_HOW,
+    ADVENTURE_SCRIPT,
+    ADVENTURE_TITLE,
+    ADVENTURE_WORDS,
+)
 from sidra_ai.creation.animation import with_animation
 
 #: Re-exported from :mod:`sidra_ai.creation.themes`, which is where the site's
@@ -167,6 +175,12 @@ TEMPLATES: dict[str, GameTemplate] = {
         "落ちてくるものを受け皿で拾う。← → かマウスで動かす。",
         _CATCH,
     ),
+    "adventure": GameTemplate(
+        "adventure",
+        ADVENTURE_TITLE,
+        ADVENTURE_HOW,
+        ADVENTURE_SCRIPT,
+    ),
 }
 
 #: Difficulty is two numbers per template, not a label. Keeping the mapping
@@ -174,6 +188,7 @@ TEMPLATES: dict[str, GameTemplate] = {
 _DIFFICULTY = {
     "fishing": {"easy": (0.008, 0.34), "normal": (0.014, 0.22), "hard": (0.024, 0.12)},
     "catch": {"easy": (34, 0.30), "normal": (22, 0.20), "hard": (13, 0.12)},
+    "adventure": ADVENTURE_DIFFICULTY,
 }
 
 # Stems, not whole words: 難しい / 難しく / 難しめ all have to land on the
@@ -183,6 +198,37 @@ _HARD = ("難し", "むずかし", "ハード", "hard", "難易度高")
 _EASY = ("簡単", "やさし", "かんたん", "easy", "初心者")
 _FISHING_WORDS = ("釣り", "つり", "fishing", "魚")
 _CATCH_WORDS = ("キャッチ", "catch", "受け", "落ちもの", "避け")
+_ADVENTURE_WORDS = ADVENTURE_WORDS
+
+#: Names this generator will not put on an artifact. A request that says
+#: 「ゼルダの伝説作って」 routes to the adventure template - the *genre* is
+#: buildable - but the name belongs to someone, and a generated page carrying
+#: it would read as a claim to be that work. The video that motivated the
+#: template made the same choice: an original game by people who loved the
+#: original. Matched casefolded, and deliberately short: this is a courtesy
+#: guard for the names operators actually type, not a trademark database.
+_TRADEMARKS = (
+    "ゼルダ",
+    "マリオ",
+    "ポケモン",
+    "ポケットモンスター",
+    "ドラクエ",
+    "ドラゴンクエスト",
+    "ファイナルファンタジー",
+    "カービィ",
+    "ドラゴンボール",
+    "スプラトゥーン",
+    "どうぶつの森",
+    "モンハン",
+    "モンスターハンター",
+    "zelda",
+    "mario",
+    "pokemon",
+    "kirby",
+    "dragon ball",
+    "nintendo",
+    "任天堂",
+)
 
 _STRIP = re.compile(
     r"(を|の)?\s*(ゲーム|game)?\s*(を)?\s*(作って|作成して|生成して|つくって|作れ|ください|下さい)\s*[。.!！]?\s*$"
@@ -193,6 +239,8 @@ def choose_template(request: str) -> str:
     """Pick by what the request names, defaulting to the fishing template."""
 
     lowered = request.lower()
+    if any(word.lower() in lowered for word in _ADVENTURE_WORDS):
+        return "adventure"
     if any(word in lowered for word in _CATCH_WORDS):
         return "catch"
     if any(word in lowered for word in _FISHING_WORDS):
@@ -371,9 +419,21 @@ def generate_game(
         .replace("RAISED_TOKEN", theme.tokens["raised"])
         .replace("CYAN_TOKEN", theme.tokens["accent"])
         .replace("MAGENTA_TOKEN", theme.tokens["alert"])
+        # The layout seed: same request, same world. Templates without the
+        # token are byte-for-byte unaffected by the replace.
+        .replace("SEED_TOKEN", str(zlib.crc32(request.encode("utf-8"))))
     )
     title = _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"
+    named = next((mark for mark in _TRADEMARKS if mark.lower() in title.lower()), "")
+    if named:
+        # The genre is buildable; the name is someone's. Swap the title for
+        # the template's own and say so where the operator will read it -
+        # silently renaming would look like a bug, not a decision.
+        title = spec.default_title
+        # The notice itself names no mark: the artifact is distributed, and
+        # a disclaimer that prints the trademark still prints the trademark.
+        tagline = "依頼にあった作品名は使えないためオリジナル版 / " + tagline
     html = _page(title, tagline, spec.how_to_play, script, list(evidence or [_SOURCE]), theme)
     return GeneratedGame(key, title, tagline, difficulty, html)
 

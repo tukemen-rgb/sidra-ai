@@ -3906,3 +3906,9 @@ C-1011 は対話セッションが `[~]` 済みだったので次点の C-1012 �
 
 検証: `python -m pytest` exit 0、`verify_gate_recall.py` PASSED。
 security / retrieval 系は未変更のため追加判定器は対象外。
+2026-08-29 05:2x UTC 対話セッション — C-1011 完了（creation_adventure_playable unmeasurable→1）
+  見下ろし型アドベンチャー（3部屋・剣・鍵・宝箱・NPC・松明、seed で世界が変わる）を
+  3 番目のテンプレとして実装。商標ガード追加（ゼルダ等はオリジナル版に差し替えて
+  明言）。intent 語彙・story 表・スプライト 5 種も配線、企画から一式でも確認。
+  テスト 12 件 / pytest exit 0 / recall PASSED / 判定器 exit 0。C-1015（ビーム対戦）
+  起票済み、C-1012〜1014 はループへ。

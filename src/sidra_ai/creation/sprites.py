@@ -118,9 +118,76 @@ def _basket(rng: random.Random) -> str:
 #: Which sprites each template needs, and what the page calls them. A template
 #: with no entry gets no sprites rather than generic ones - the game still
 #: plays, because the page falls back to the shapes it always drew.
+def _hero(rng: random.Random) -> str:
+    """The hat is the character. Body cyan, hat dark - a silhouette, not art."""
+
+    brim = rng.randint(20, 26)
+    return _svg(
+        f'<rect x="{(VIEWBOX - 24) // 2}" y="26" width="24" height="28" rx="4" '
+        f'fill="{GAMEYARD_TOKENS["cyan"]}"/>'
+        f'<rect x="{(VIEWBOX - brim) // 2}" y="18" width="{brim}" height="8" rx="3" '
+        f'fill="{GAMEYARD_TOKENS["raised"]}"/>'
+        f'<rect x="{(VIEWBOX - 12) // 2}" y="8" width="12" height="12" rx="3" '
+        f'fill="{GAMEYARD_TOKENS["raised"]}"/>'
+    )
+
+
+def _blob(rng: random.Random) -> str:
+    """An enemy: a magenta lump with two dark eyes. Menace by contrast alone."""
+
+    body = rng.randint(34, 44)
+    offset = (VIEWBOX - body) // 2
+    eye_y = offset + body // 3
+    return _svg(
+        f'<rect x="{offset}" y="{offset}" width="{body}" height="{body}" '
+        f'rx="{body // 3}" fill="{GAMEYARD_TOKENS["magenta"]}"/>'
+        f'<circle cx="{offset + body // 3}" cy="{eye_y}" r="3" '
+        f'fill="{GAMEYARD_TOKENS["bg"]}"/>'
+        f'<circle cx="{offset + 2 * body // 3}" cy="{eye_y}" r="3" '
+        f'fill="{GAMEYARD_TOKENS["bg"]}"/>'
+    )
+
+
+def _rock(rng: random.Random) -> str:
+    jut = rng.randint(6, 12)
+    return _svg(
+        f'<path d="M8 52 L{8 + jut} 20 L32 12 L{56 - jut} 22 L56 52 Z" '
+        f'fill="{GAMEYARD_TOKENS["raised"]}"/>'
+    )
+
+
+def _bush(rng: random.Random) -> str:
+    r = rng.randint(12, 16)
+    return _svg(
+        f'<circle cx="22" cy="38" r="{r}" fill="{GAMEYARD_TOKENS["surface"]}"/>'
+        f'<circle cx="42" cy="36" r="{r - 2}" fill="{GAMEYARD_TOKENS["surface"]}"/>'
+        f'<circle cx="32" cy="26" r="{r - 3}" fill="{GAMEYARD_TOKENS["surface"]}"/>'
+        f'<circle cx="32" cy="34" r="4" fill="{GAMEYARD_TOKENS["cyan"]}"/>'
+    )
+
+
+def _villager(rng: random.Random) -> str:
+    hood = rng.randint(18, 24)
+    return _svg(
+        f'<rect x="{(VIEWBOX - 22) // 2}" y="28" width="22" height="26" rx="4" '
+        f'fill="{GAMEYARD_TOKENS["surface"]}"/>'
+        f'<circle cx="32" cy="22" r="{hood // 2}" fill="{GAMEYARD_TOKENS["magenta"]}"/>'
+    )
+
+
+#: Which sprites each template needs, and what the page calls them. A template
+#: with no entry gets no sprites rather than generic ones - the game still
+#: plays, because the page falls back to the shapes it always drew.
 SPRITE_SETS: dict[str, tuple[tuple[str, object], ...]] = {
     "fishing": (("target", _fish), ("marker", _marker)),
     "catch": (("target", _drop), ("marker", _basket)),
+    "adventure": (
+        ("hero", _hero),
+        ("enemy", _blob),
+        ("rock", _rock),
+        ("bush", _bush),
+        ("npc", _villager),
+    ),
 }
 
 

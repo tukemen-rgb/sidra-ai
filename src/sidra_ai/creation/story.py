@@ -40,6 +40,11 @@ CONTROLS: dict[str, tuple[tuple[str, str], ...]] = {
         ("← →", "受け皿を動かす"),
         ("マウス移動 / ドラッグ", "同上（ポインタでも同じ操作）"),
     ),
+    "adventure": (
+        ("矢印 / WASD", "勇者を動かす"),
+        ("SPACE / タップ", "剣を振る（草を刈る・敵を倒す・調べる）"),
+        ("R", "やられた後にやり直す"),
+    ),
 }
 
 #: What the two difficulty numbers mean, per template. Without this the table
@@ -52,6 +57,10 @@ PARAMETERS: dict[str, tuple[tuple[str, str], ...]] = {
     "catch": (
         ("落下間隔", "何フレームごとに 1 個落ちるか。小さいほど密"),
         ("受け皿の幅", "画面幅に対する割合。小さいほど狭い"),
+    ),
+    "adventure": (
+        ("敵の速さ", "1 フレームあたりの移動量。大きいほど速い"),
+        ("敵の数", "洞窟に出る敵の数。祭壇はこれより 1 少ない"),
     ),
 }
 

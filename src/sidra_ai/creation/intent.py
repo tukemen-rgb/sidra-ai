@@ -146,6 +146,16 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "釣りゲーム",
         "game",
         "minigame",
+        # Titles people ask for by name land on the game side even without
+        # the word ゲーム - 「ゼルダの伝説 不思議なぼうし作って」 names no
+        # artifact class at all. What happens to the trademark itself is the
+        # generator's title guard, not the detector's business.
+        "ゼルダ",
+        "冒険",
+        "アドベンチャー",
+        "ダンジョン",
+        "adventure",
+        "zelda",
     ),
     CreationKind.DECK: (
         "デッキ",

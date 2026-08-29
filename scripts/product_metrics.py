@@ -785,7 +785,14 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.games import choose_template
 
     reachable = len(
-        {choose_template(text) for text in ("釣りゲームを作って", "キャッチゲームを作って")}
+        {
+            choose_template(text)
+            for text in (
+                "釣りゲームを作って",
+                "キャッチゲームを作って",
+                "冒険ゲームを作って",
+            )
+        }
     )
     c.add(
         "creation_game_templates",
@@ -861,6 +868,41 @@ def measure_creation(c: Collector) -> None:
             "; ".join(honesty_failures)
             if honesty_failures
             else f"{unsupported} names the gap and the substitute; {supported} does not"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the adventure, judged like every game: generated fresh, script
+    # parsed, and the request that motivated it routed to the right template
+    # with the trademark swapped out rather than shipped ------------------
+    from sidra_ai.creation.games import generate_game, validate_game_html
+
+    adventure_ok = 0.0
+    directive = "ゼルダの伝説 不思議なぼうしを作って"
+    game = generate_game(directive)
+    verdict = validate_game_html(game.html)
+    reasons = []
+    if game.template != "adventure":
+        reasons.append(f"routed to {game.template}")
+    if not verdict.get("playable", verdict.get("valid")):
+        reasons.append("; ".join(str(f) for f in verdict.get("failures", ())) or "invalid page")
+    if "ゼルダ" in game.title:
+        reasons.append("the trademark reached the title")
+    if "オリジナル版" not in game.tagline:
+        reasons.append("the rename is silent")
+    for marker in ("rooms", "hero", "swing", "鍵"):
+        if marker not in game.html:
+            reasons.append(f"script lost its {marker}")
+    if not reasons:
+        adventure_ok = 1.0
+    c.add(
+        "creation_adventure_playable",
+        "見下ろし型の冒険が作れる",
+        adventure_ok,
+        detail=(
+            "3 rooms / sword / key / chest, trademark renamed honestly"
+            if adventure_ok
+            else "; ".join(reasons)
         ),
         kind=OUTCOME,
     )

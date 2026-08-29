@@ -92,9 +92,16 @@ def test_every_sprite_is_wellformed_svg(template) -> None:
 
 
 def test_each_template_gets_the_two_names_its_page_draws() -> None:
+    expected = {
+        "fishing": {"target", "marker"},
+        "catch": {"target", "marker"},
+        # The adventure page draws a world, not a target and a marker; its
+        # set is the five things its own script asks sprite() for.
+        "adventure": {"hero", "enemy", "rock", "bush", "npc"},
+    }
     for template in TEMPLATES:
         names = {name for name, _ in SPRITE_SETS.get(template, ())}
-        assert names == {"target", "marker"}, template
+        assert names == expected[template], template
 
 
 # ------------------------------------------------------- the reference
