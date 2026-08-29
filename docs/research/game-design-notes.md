@@ -1,0 +1,91 @@
+# ゲームデザイン知識ベース（外部サイトからの学習記録）
+
+社長指示（2026-08-29「いろんなゲーム情報をいろんなサイトからインプットして学習して」）
+により作成。**目的は記録ではなく反映**: 各項目に「SIDRA での反映先」を必ず書き、
+反映されたら BACKLOG の項目番号を記す。書式は marketing/site の case-studies.md と
+同じ（出典 URL・確認日・事実・学び）。**出典の中身の丸写しはしない**（事実の要約と
+学びのみ。著作権と索引の健全性のため）。
+
+この文書は docs/ 配下なので次回の取り込みで SIDRA 自身の索引に入る。
+つまりここに書いたことは「SIDRA が質問に答えられる知識」になり、制作文書の
+根拠（evidence）としても引ける。
+
+## 1. Juice（手触り）— 動きと音が無いゲームは死んでいる
+
+- 出典: https://abagames.github.io/joys-of-small-game-development-en/make_game_juicy.html（2026-08-29 確認）
+- 事実: 小規模ゲーム向けの juice 技法として、色数の工夫・トゥイーン/イージング・
+  イベントに応じた拡縮バウンス・効果音と音楽・多数パーティクル（煙/破壊/軌跡）・
+  画面揺れ・キャラの目や表情・**被弾時のヒットストップとノックバック**を列挙。
+  開発時間が限られるときはパーティクルと音だけでも効果的、と明記。
+- 事実: 元ネタは Jonasson & Purho の講演「Juice it or lose it」（Nordic Game Jam
+  2012）。凡庸なブロック崩しに演出を足すだけで生き返る実演。Vlambeer の
+  「The Art of Screenshake」は揺れの原則として「爆発や重い一撃でカメラを数 px
+  蹴り、素早く減衰。イベントの重さに揺れを比例させる」。
+  （出典: https://www.gamedeveloper.com/design/squeezing-more-juice-out-of-your-game-design- 2026-08-29 確認）
+- 学び: SIDRA の 4 テンプレには音が 1 つも無く、揺れ・ヒットストップも無い。
+  **最小の投資で最大の体感差が出るのは音 → 揺れ/ヒットストップ → パーティクル の順。**
+- SIDRA での反映先: C-1017（効果音）/ C-1020（揺れ・ヒットストップ・粒子）
+
+## 2. 効果音はブラウザ内で合成できる（外部ファイル不要）
+
+- 出典: https://sfxr.me/ ・ https://github.com/chr15m/jsfxr（2026-08-29 確認）
+- 事実: sfxr（DrPetter 作）系のレトロ効果音は、波形種別＋ADSR エンベロープ
+  （attack/sustain/punch/decay）＋周波数（基準/傾き）＋ビブラート＋デューティ比＋
+  ローパス/ハイパスの少数パラメータで合成される。定番プリセット名は
+  pickupCoin / laserShoot / explosion / powerUp / hitHurt / jump / blipSelect。
+  jsfxr はこれを Web Audio API で再生する JS ライブラリ。
+- 学び: プリセットの正体は「オシレータ＋短いエンベロープ」なので、**ライブラリを
+  入れなくても Web Audio の OscillatorNode + GainNode で同等の 8bit 風 SFX を
+  数十行で自作できる**（SIDRA の自己完結・外部取得なしの原則と両立）。
+  ブラウザの自動再生制限があるため、AudioContext は最初のユーザー操作で resume する。
+- SIDRA での反映先: C-1017（creation/audio.py として自作合成。jsfxr のコードは
+  移植しない＝パラメータ設計の考え方のみ参考）
+
+## 3. ロック＆キー構造（ゼルダ型の骨格）
+
+- 出典: https://www.boristhebrave.com/2021/02/27/lock-and-key-dungeons/（2026-08-29 確認）
+- 事実: ロックは進行を止めるもの、キーはそれを解くもの。種類は物理アイテムに
+  限らず、道具（爆弾/矢）・能力アップグレード・知識（パスワード）・イベントフラグ。
+  hard（正規手段でしか開かない）と soft（上手い人は迂回できる）の区別がある。
+  依存関係は mission graph（A を開けないと B に行けない）で表せる。
+  一本道でなく**複数の経路と任意の探索報酬**があるときに面白くなる。
+- 事実: 現代ゼルダの単純化形は「並列の 4〜5 部屋を解く→ボス鍵→ボス」。
+  Mark Brown（GMTK）の Boss Keys 図法は小鍵/扉/ボス鍵を記号化して物理配置と
+  論理進行を同時に描く。（出典: https://www.patreon.com/posts/how-my-boss-key-13801754 ほか 2026-08-29 確認）
+- 学び: SIDRA の adventure は「鍵 1 個の完全一本道」= mission graph が線 1 本。
+  **面白さの最低条件は「分岐 1 つ＋任意報酬 1 つ」から。**部屋テンプレを増やす
+  よりも、同じ 3 部屋の中に「開けなくてもよい扉」を足す方が効く。
+- SIDRA での反映先: C-1021（分岐と任意報酬）/ 将来の部屋数拡張
+
+## 4. 視認性・アクセシビリティ（読める画面の最低条件）
+
+- 出典: https://gameaccessibilityguidelines.com/basic/（2026-08-29 確認）
+- 事実: 基本ガイドラインとして「テキスト/UI と背景に高いコントラスト」
+  「**固定の色だけで本質情報を伝えない**（形・パターン・文字を併用）」
+  「タッチ画面では操作要素を大きく・間隔を空けて」「操作の再割り当てを許す」
+  「明滅と反復パターンを避ける」。
+- 事実: モバイルのタッチ目標は最低 48x48dp・間隔 8dp が業界標準。
+  （出典: https://www.gamedeveloper.com/game-platforms/accessibility-heuristics-and-evaluation-criteria-for-mobile-games 2026-08-29 確認）
+- 学び: adventure の壁と床は同系色で「色だけ」の区別＝ガイドライン違反そのもの。
+  壁には輪郭と明度差、ドアには形のある標識が要る。スマホの移動手段が無いのは
+  タッチ操作ガイドライン以前の欠落。
+- SIDRA での反映先: C-1018（コントラスト・ドア標識・水配置）/ C-1019（仮想パッド、
+  48dp 以上・reduced-motion と両立）
+
+## 5. 収集要素には使い道（シンク）が必須
+
+- 出典: https://www.gamedeveloper.com/design/opinion-collectible-intent ・
+  https://game-wisdom.com/critical/collectible-design-videogames ・
+  https://300mind.studio/blog/what-is-game-economy-design/（いずれも 2026-08-29 確認）
+- 事実: 収集物に意味のあるゲーム内目的が無ければ、プレイヤーは収集物どころか
+  ゲーム自体への興味を失う。経済設計では tap（資源の入口）と sink（出口）の
+  釣り合いが基本。収集を始めさせるには資源やボーナス体力など外的動機が要る。
+- 学び: SIDRA の宝石は tap だけあって sink が無い（数字が増えるだけ）。
+  **最小の sink は「宝石 n 個でハート回復/最大+1」**。これだけで草刈りに理由が生まれる。
+- SIDRA での反映先: C-1021（宝石の使い道）
+
+## 運用の決まり
+
+- 追記するときは必ず URL を実際に開いて確かめ、確認日を書く（推測で書かない）。
+- 「学び」には SIDRA の現状とのギャップを書く。ギャップが無い知識は書かない。
+- 反映されたら該当 BACKLOG 番号をこの文書側にも追記して閉じる。
