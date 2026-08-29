@@ -42,6 +42,7 @@ from sidra_ai.creation.adventure import (
 )
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.audio import SFX_PREAMBLE
+from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.duel import (
     DUEL_DIFFICULTY,
     DUEL_HOW,
@@ -436,8 +437,10 @@ def generate_game(
     speed, band = _DIFFICULTY[key][difficulty]
     script = with_animation(
         # Sound before sprites before the game: sfx() has to exist by the
-        # time any input handler in the template body can fire.
-        (SFX_PREAMBLE + _SPRITE_LOADER + spec.script)
+        # time any input handler in the template body can fire. The pad goes
+        # with them - it wraps requestAnimationFrame, so it has to be in
+        # place before the template's loop takes its first frame.
+        (SFX_PREAMBLE + PAD_PREAMBLE + _SPRITE_LOADER + spec.script)
         .replace("SPRITE_MAP_TOKEN", json.dumps(sprites or {}))
         .replace("SPEED_TOKEN", str(speed))
         .replace("BAND_TOKEN", str(band))

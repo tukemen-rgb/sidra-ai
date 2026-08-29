@@ -861,6 +861,47 @@ def measure_creation(c: Collector) -> None:
                 honesty_failures.append(f"{supported}: reported as a substitution")
             if "まだ作れない" in kept.summary:
                 honesty_failures.append(f"{supported}: apologised for a genre it built")
+    # A page that opens on a phone and cannot be played there is the same
+    # shape of quiet wrong as a fishing game called a shooter: nothing fails,
+    # the artifact just is not what was claimed. Counted per template, and a
+    # template only counts when the pad is on the page *and* every key its
+    # own handlers read is one a pad button can send - a pad missing the
+    # action button would otherwise score full marks for being present.
+    from sidra_ai.creation.games import TEMPLATES as _TOUCH_TEMPLATES
+    from sidra_ai.creation.touchpad import (
+        BUTTON_CSS_PX,
+        GAP_CSS_PX,
+        unreachable_keys,
+    )
+
+    touch_ok, touch_gaps = [], []
+    for key, spec in sorted(_TOUCH_TEMPLATES.items()):
+        page = generate_game("ゲームを作って", template=key).html
+        missing = sorted(unreachable_keys(spec.script))
+        if "drawPad" not in page or "pointerdown" not in page:
+            touch_gaps.append(f"{key}: no pad on the page")
+        elif missing:
+            touch_gaps.append(f"{key}: no pad button for {', '.join(missing)}")
+        else:
+            touch_ok.append(key)
+    if BUTTON_CSS_PX < 48 or GAP_CSS_PX < 8:
+        # §4's floor. Buttons drawn below it are on the page and still cannot
+        # be hit, so the count would be describing something untrue.
+        touch_gaps.append(f"targets {BUTTON_CSS_PX}px/gap {GAP_CSS_PX}px below 48/8")
+        touch_ok = []
+    c.add(
+        "creation_touch_playable",
+        "スマホで遊べるゲームの型",
+        float(len(touch_ok)),
+        detail=(
+            f"{', '.join(touch_ok)}: {BUTTON_CSS_PX}px targets, {GAP_CSS_PX}px apart, "
+            "every key each template reads has a button"
+            if not touch_gaps
+            else "; ".join(touch_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_genre_honest",
         "作れない型を名乗らない",

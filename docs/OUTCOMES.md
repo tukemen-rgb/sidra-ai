@@ -1292,3 +1292,41 @@ SIDRA AI は道具**で、名前が同じでも指す先が違う。
 検証: `python -m pytest`（exit 0）、`verify_gate_recall.py` PASSED
 （MUST CATCH の MISS なし）。retrieval / chunker / tokenizer / security gate は
 未変更のため `check_answerable_regression.py` は対象外。
+
+---
+
+## C-1019: スマホで遊べる（2026-08-29 06:4x UTC ループA）
+
+`creation_touch_playable` unmeasurable → **4**（4 テンプレ全部。判定器 exit 0）。
+
+**測っていた欠陥**: 4 つのテンプレはすべてキーボードしか読んでいなかった。
+スマホでページを開くと**表示され、動き、遊べない**。`creation_game_playable`
+は 1 のまま、`validate_game_html` も通る。**「遊べる」が机の上でしか
+成り立っていない**ことは、既存のどの数字からも見えなかった。
+
+**設計（1 テンプレ 1 実装にしない）**: `creation/touchpad.py` の
+`PAD_PREAMBLE` を音（`SFX_PREAMBLE`）と同じ流儀で全テンプレの先頭に置く。
+
+- **合成 KeyboardEvent を投げる。**テンプレ側の `keydown`/`keyup` はそのまま。
+  だから**新しいテンプレは書いた日から指で遊べる**（誰かが配線を思い出した日ではなく）。
+- **canvas の中に描く。**`requestAnimationFrame` を 1 回だけ包んで、ゲームが
+  描いた後にパッドを描く。自前ループだと後から描いた方に塗り潰される。
+- **粗いポインタのときだけ出す**（`pointer:coarse`）。マウスでは邪魔なだけで、
+  パッドが出てもキーボードは止まらない。
+- 知識ベース §4 の下限どおり **56px のボタンを 12px 間隔**（48/8 が床）。
+- パッド上のタップは `stopImmediatePropagation`。fishing は canvas タップが
+  「投げる」、catch は `pointermove` が皿の位置なので、**十字キーを押しただけで
+  投げてしまう/皿が飛ぶ**のを止める必要がある。
+
+**計器が「載っている」で満点を出さない理由**: パッドがあるだけのページは
+絵でしかない。テンプレ自身のハンドラが読むキーを `touchpad.keys_read` で
+抽出し、**1 つでもパッドが送れないキーがあればその型は数えない**。
+`w/a/s/d` は矢印の別名として `ALIASES` に置く（同じ行動に 2 個のボタンを
+出すのは完全さではない）。テンプレに `z` で爆弾を足してボタンを付け忘れれば
+数字が落ちる — テストで固定してある。
+
+検証: `python -m pytest`（exit 0）、`verify_gate_recall.py` PASSED。
+retrieval / chunker / tokenizer / security gate は未変更のため追加判定器は対象外。
+**実機での操作は未確認**（この環境にタッチ端末が無い）。数字が言えるのは
+「送るキーが揃っていて、床を満たすボタンが canvas に描かれる」までで、
+指の当たり心地は社長の実機が正本。

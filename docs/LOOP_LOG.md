@@ -3929,3 +3929,19 @@ security / retrieval 系は未変更のため追加判定器は対象外。
   スクリーンショットで改善を目視確認。計器修正 1 件（テーマの正本からトークン参照）。
   pytest exit 0 / recall PASSED / 判定器 exit 0。
 2026-08-29 06:08 UTC ループA started Board=13
+
+## 2026-08-29 06:4x UTC ループA 結果: C-1019 完了
+
+`creation_touch_playable` unmeasurable → **4**（判定器 exit 0）。
+C-1013 の数字（`creation_game_templates`）は既に 0 ではないので飛ばし、
+「まだ 0」の最上位である C-1019 を取った。
+
+パッドは**合成 KeyboardEvent** を投げるだけにして、テンプレ側の入力処理を
+一切触らない。`requestAnimationFrame` を 1 回包んで canvas 内に描く。
+新テンプレが増えても配線作業が発生しない形。
+
+計器は「パッドが載っているか」ではなく**テンプレが読むキーを全部送れるか**を
+見る。ボタンの付け忘れが数字に出る。
+
+**言えないこと**: 実機のタッチ端末での確認はしていない。
+検証: `python -m pytest` exit 0、`verify_gate_recall.py` PASSED。
