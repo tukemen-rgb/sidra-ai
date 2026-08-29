@@ -200,6 +200,74 @@ def choose_template(request: str) -> str:
     return "fishing"
 
 
+#: Genre words an operator actually types, mapped to the template key that
+#: would satisfy them. A genre is "supported" when its key is present in
+#: :data:`TEMPLATES` - the table names the *promise*, not the inventory, so a
+#: template landing later flips the answer without anyone editing this list.
+#: Order is the tie-break: "対戦シューティング" is a shooter, not a versus game.
+_GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    (
+        "アドベンチャー",
+        "adventure",
+        ("アドベンチャー", "adventure", "ゼルダ", "冒険", "ダンジョン", "探索"),
+    ),
+    (
+        "シューティング",
+        "shooter",
+        ("シューティング", "shooting", "shooter", "stg", "弾幕", "シューター"),
+    ),
+    ("パズル", "puzzle", ("パズル", "puzzle")),
+    ("レース", "racing", ("レース", "レーシング", "racing", "race")),
+    ("RPG", "rpg", ("rpg", "ロールプレイング", "ロープレ")),
+    (
+        "対戦格闘",
+        "versus",
+        ("格闘", "対戦", "versus", "fighting", "ドラゴンボール", "ビーム"),
+    ),
+    ("プラットフォーマー", "platformer", ("プラットフォーマー", "platformer", "横スクロール")),
+    (
+        "シミュレーション",
+        "simulation",
+        ("シミュレーション", "simulation", "経営ゲーム"),
+    ),
+    ("ノベル", "novel", ("ノベルゲーム", "ノベル", "visual novel", "サウンドノベル")),
+    ("リズム", "rhythm", ("リズムゲーム", "音ゲー", "rhythm")),
+    ("キャッチ", "catch", _CATCH_WORDS),
+    ("釣り", "fishing", _FISHING_WORDS),
+)
+
+
+@dataclass(frozen=True)
+class GenreRequest:
+    """What genre the request named, and whether we can honour it.
+
+    ``supported`` is derived from :data:`TEMPLATES` at call time rather than
+    stored, so the honest-refusal wording cannot outlive the gap it describes.
+    """
+
+    genre: str
+    template: str
+
+    @property
+    def supported(self) -> bool:
+        return self.template in TEMPLATES
+
+
+def detect_genre(request: str) -> GenreRequest | None:
+    """Name the genre the request asked for, or ``None`` if it named none.
+
+    "ゲームを作って" names no genre: there is nothing to be dishonest about,
+    so the caller must not add a caveat. Only a request that says a genre out
+    loud can be answered with the wrong one.
+    """
+
+    lowered = request.lower()
+    for genre, key, words in _GENRES:
+        if any(word.lower() in lowered for word in words):
+            return GenreRequest(genre=genre, template=key)
+    return None
+
+
 def choose_difficulty(request: str) -> str:
     lowered = request.lower()
     if any(word in lowered for word in _HARD):

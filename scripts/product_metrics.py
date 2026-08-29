@@ -795,6 +795,76 @@ def measure_creation(c: Collector) -> None:
         kind=GUARD,
     )
 
+    # Asking for a genre we cannot build gets a playable page either way, so
+    # playability cannot tell "we made a shooter" from "we made a fishing game
+    # and called it a shooter". This number asks the generator both questions:
+    # does it own up when it substituted, and does it stay quiet when it did
+    # not? Half a pass is a fail - a build that caveats every request is as
+    # useless a narrator as one that never does.
+    from sidra_ai.creation.game_job import build_game_generator
+    from sidra_ai.creation.games import TEMPLATES as _GAME_TEMPLATES
+    from sidra_ai.creation.games import detect_genre
+    from sidra_ai.creation.intent import detect_creation_intent
+
+    honesty_failures = []
+    unsupported = next(
+        (
+            text
+            for text in ("シューティングゲームを作って", "パズルゲームを作って", "レースゲームを作って")
+            if (g := detect_genre(text)) is not None and not g.supported
+        ),
+        "",
+    )
+    supported = next(
+        (
+            text
+            for text in ("釣りゲームを作って", "キャッチゲームを作って")
+            if (g := detect_genre(text)) is not None and g.supported
+        ),
+        "",
+    )
+    if not unsupported:
+        # Every genre in the table has a template: the caveat has nothing left
+        # to describe, which is a good state but not one this number can prove.
+        honesty_failures.append("no unsupported genre left to test the wording on")
+    if not supported:
+        honesty_failures.append("no supported genre left to test the silence on")
+    if unsupported and supported:
+        with tempfile.TemporaryDirectory() as tmp:
+            generate = build_game_generator(tmp)
+            missed = generate(unsupported, detect_creation_intent(unsupported))
+            named = detect_genre(unsupported)
+            if not missed.details.get("genre_substituted"):
+                honesty_failures.append(f"{unsupported}: substitution not recorded")
+            if named is not None and named.genre not in missed.summary:
+                honesty_failures.append(
+                    f"{unsupported}: the summary does not name the genre asked for"
+                )
+            built = str(missed.details.get("built_template", ""))
+            if built not in _GAME_TEMPLATES:
+                honesty_failures.append(f"{unsupported}: built_template={built!r}")
+            elif _GAME_TEMPLATES[built].default_title not in missed.summary:
+                honesty_failures.append(
+                    f"{unsupported}: the summary does not name what was built instead"
+                )
+
+            kept = generate(supported, detect_creation_intent(supported))
+            if kept.details.get("genre_substituted"):
+                honesty_failures.append(f"{supported}: reported as a substitution")
+            if "まだ作れない" in kept.summary:
+                honesty_failures.append(f"{supported}: apologised for a genre it built")
+    c.add(
+        "creation_genre_honest",
+        "作れない型を名乗らない",
+        0.0 if honesty_failures else 1.0,
+        detail=(
+            "; ".join(honesty_failures)
+            if honesty_failures
+            else f"{unsupported} names the gap and the substitute; {supported} does not"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the 3D model, generated fresh so the number describes this
     # checkout rather than the day the generator was written ----------
     from sidra_ai.creation.models3d import generate_model3d, validate_model3d

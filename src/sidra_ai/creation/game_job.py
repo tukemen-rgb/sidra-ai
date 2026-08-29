@@ -14,7 +14,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sidra_ai.creation.games import generate_game, save_game, validate_game_html
+from sidra_ai.creation.games import (
+    TEMPLATES,
+    detect_genre,
+    generate_game,
+    save_game,
+    validate_game_html,
+)
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
@@ -38,7 +44,22 @@ def build_game_generator(data_dir: str | Path):
         game = generate_game(message, evidence=evidence or None)
         verdict = validate_game_html(game.html)
         path = save_game(game, data_dir)
-        if verdict["playable"]:
+        # A request that names a genre we have no template for still gets a
+        # playable page - but calling that page a シューティング because the
+        # operator asked for one is the cheapest lie this generator could
+        # tell, and the one hardest to notice: the artifact opens and runs.
+        # So the mismatch is said out loud, and it is said *only* when there
+        # is one. A caveat on a request we did satisfy is its own dishonesty.
+        requested = detect_genre(message)
+        substituted = requested is not None and not requested.supported
+        if verdict["playable"] and substituted and requested is not None:
+            summary = (
+                f"{requested.genre}型はまだ作れないため、いちばん近い"
+                f"「{TEMPLATES[game.template].default_title}」型で作りました"
+                f"（難易度 {game.difficulty}）。"
+                "ブラウザで開けばそのまま遊べます。"
+            )
+        elif verdict["playable"]:
             summary = (
                 f"「{game.title}」を作りました（難易度 {game.difficulty}）。"
                 "ブラウザで開けばそのまま遊べます。"
@@ -60,6 +81,12 @@ def build_game_generator(data_dir: str | Path):
                 "difficulty": game.difficulty,
                 "playable": verdict["playable"],
                 "js_checker": verdict["js_checker"],
+                # Present on every game, not only the substituted ones: a
+                # field that appears exactly when something went wrong is a
+                # field no caller writes a check against.
+                "requested_genre": requested.genre if requested else "",
+                "built_template": game.template,
+                "genre_substituted": substituted,
             },
         )
 

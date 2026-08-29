@@ -3893,3 +3893,16 @@ origin は d586d4e から無変更（他ループの push なし）。Board=13 �
 origin は 17b36cd から無変更（他ループの push なし）。Board=13 で増分ゼロ。
 コードは無変更。**キューを埋めるための作業は作らない。**社長の判断 2 件待ち。
 2026-08-29 05:06 UTC ループA started Board=13
+
+## 2026-08-29 05:2x UTC ループA 結果: C-1012 完了
+
+`creation_genre_honest` unmeasurable → **1**（`product_metrics.py --compare` exit 0）。
+50 サイクルの no-op のあと、社長指示でキューが埋まった最初のサイクル。
+C-1011 は対話セッションが `[~]` 済みだったので次点の C-1012 を取った。
+
+ジャンル語 → テンプレ key の表を追加し、**対応済みかは `TEMPLATES` を見て
+実行時に決める**。C-1011 / C-1013 / C-1015 が着地した日に断り文が自動で消える。
+断り文の二重管理をしないための設計で、並行ループとの衝突も減る。
+
+検証: `python -m pytest` exit 0、`verify_gate_recall.py` PASSED。
+security / retrieval 系は未変更のため追加判定器は対象外。

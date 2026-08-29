@@ -2182,7 +2182,7 @@ Team Concode 氏の『ふしぎのぼうし』に感動して作られたオリ�
       語彙: ゼルダ/冒険/アドベンチャー/探索/ダンジョン等 → adventure。
       → 動かす数字: creation_adventure_playable unmeasurable→1
 
-- [~] 作業中 2026-08-29 05:08 UTC ループA **C-1012: ジャンルの正直化。**依頼がジャンル語（シューティング・パズル・
+- [x] 完了 2026-08-29 05:2x UTC ループA (`creation_genre_honest` unmeasurable→**1**、判定器 exit 0) **C-1012: ジャンルの正直化。**依頼がジャンル語（シューティング・パズル・
       レース・RPG…）を含むのに該当テンプレが無いとき、その名前で作ったと
       言わない。「その型はまだ作れないため、いちばん近い◯◯型で作った」と要約に
       明記し、details に requested_genre / built_template を残す。

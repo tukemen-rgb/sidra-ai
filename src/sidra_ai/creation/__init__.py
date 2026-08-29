@@ -19,7 +19,9 @@ from sidra_ai.creation.games import (
     GAMEYARD_TOKENS,
     GameTemplate,
     GeneratedGame,
+    GenreRequest,
     TEMPLATES,
+    detect_genre,
     generate_game,
     validate_game_html,
 )
@@ -38,8 +40,10 @@ __all__ = [
     "GAMEYARD_TOKENS",
     "GameTemplate",
     "GeneratedGame",
+    "GenreRequest",
     "TEMPLATES",
     "detect_creation_intent",
+    "detect_genre",
     "generate_game",
     "validate_game_html",
 ]
