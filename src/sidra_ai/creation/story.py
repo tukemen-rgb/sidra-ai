@@ -55,6 +55,11 @@ CONTROLS: dict[str, tuple[tuple[str, str], ...]] = {
         ("SPACE / 長押し / タップ", "連射する"),
         ("R", "撃墜された後にやり直す"),
     ),
+    "puzzle": (
+        ("← ↑ → ↓", "カーソルを動かす"),
+        ("SPACE / タップ", "同じ色のかたまりを消す（2 個以上）"),
+        ("R", "盤面をやり直す"),
+    ),
 }
 
 #: What the two difficulty numbers mean, per template. Without this the table
@@ -79,6 +84,10 @@ PARAMETERS: dict[str, tuple[tuple[str, str], ...]] = {
     "shooter": (
         ("降下速度", "1 フレームあたりの落下量。大きいほど早く迫る"),
         ("波の間隔", "何フレームごとに 1 波来るか。小さいほど密"),
+    ),
+    "puzzle": (
+        ("色の数", "盤面に出る色数。多いほどかたまりが小さくなる"),
+        ("盤面の幅", "横のマス数。広いほど手が長く続く"),
     ),
 }
 

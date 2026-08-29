@@ -104,6 +104,9 @@ def test_each_template_gets_the_two_names_its_page_draws() -> None:
         # The shooter draws its ship and shots as paths; the foe is the
         # one thing a wave of which the eye reads as a shape.
         "shooter": {"foe"},
+        # The puzzle's pieces are the board: flat cells whose meaning is
+        # their colour and pip count, both of which a sprite would hide.
+        "puzzle": set(),
     }
     for template in TEMPLATES:
         names = {name for name, _ in SPRITE_SETS.get(template, ())}

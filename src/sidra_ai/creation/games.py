@@ -43,6 +43,13 @@ from sidra_ai.creation.adventure import (
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.audio import SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
+from sidra_ai.creation.puzzle import (
+    PUZZLE_DIFFICULTY,
+    PUZZLE_HOW,
+    PUZZLE_SCRIPT,
+    PUZZLE_TITLE,
+    PUZZLE_WORDS,
+)
 from sidra_ai.creation.shooter import (
     SHOOTER_DIFFICULTY,
     SHOOTER_HOW,
@@ -214,6 +221,12 @@ TEMPLATES: dict[str, GameTemplate] = {
         SHOOTER_HOW,
         SHOOTER_SCRIPT,
     ),
+    "puzzle": GameTemplate(
+        "puzzle",
+        PUZZLE_TITLE,
+        PUZZLE_HOW,
+        PUZZLE_SCRIPT,
+    ),
 }
 
 #: Difficulty is two numbers per template, not a label. Keeping the mapping
@@ -224,6 +237,7 @@ _DIFFICULTY = {
     "adventure": ADVENTURE_DIFFICULTY,
     "duel": DUEL_DIFFICULTY,
     "shooter": SHOOTER_DIFFICULTY,
+    "puzzle": PUZZLE_DIFFICULTY,
 }
 
 # Stems, not whole words: 難しい / 難しく / 難しめ all have to land on the
@@ -236,6 +250,7 @@ _CATCH_WORDS = ("キャッチ", "catch", "受け", "落ちもの", "避け")
 _ADVENTURE_WORDS = ADVENTURE_WORDS
 _DUEL_WORDS = DUEL_WORDS
 _SHOOTER_WORDS = SHOOTER_WORDS
+_PUZZLE_WORDS = PUZZLE_WORDS
 
 #: Names this generator will not put on an artifact. A request that says
 #: 「ゼルダの伝説作って」 routes to the adventure template - the *genre* is
@@ -279,6 +294,8 @@ def choose_template(request: str) -> str:
     # Before the duel: "対戦シューティング" is a shooter, and _GENRES already
     # says so. Routing has to agree with the honesty table or the summary
     # would name a genre the page is not.
+    if any(word.lower() in lowered for word in _PUZZLE_WORDS):
+        return "puzzle"
     if any(word.lower() in lowered for word in _SHOOTER_WORDS):
         return "shooter"
     if any(word.lower() in lowered for word in _ADVENTURE_WORDS):

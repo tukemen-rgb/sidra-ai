@@ -4021,7 +4021,9 @@ C-1012 の断り文は 1 行も触らずに消えた（対応可否は `TEMPLATE
 `story.CONTROLS` / `story.PARAMETERS`（制作文書が汎用表を出してしまう）。
 どちらも「新テンプレを半分だけ足す」ことを防ぐガードで、意図どおり働いた。
 テンプレを足すときに埋める表は現状この 4 つ（TEMPLATES / _DIFFICULTY /
-SPRITE_SETS / CONTROLS+PARAMETERS）。
+SPRITE_SETS / CONTROLS+PARAMETERS）。**訂正（C-1022 で判明）: 5 つ目がある。**
+`tests/test_creation_sprites.py` の期待値表にも項目が要る（スプライトを
+使わないテンプレでも `set()` を明示する）。
 
 ### 前サイクルの事故の再発防止（重要）
 
@@ -4031,3 +4033,16 @@ pytest の判定ではない。これを判定として読んだ結果、C-1020 
 **コマンド自身の終了コードを取る**。`| tail` は出力を読むためだけに使う。
 このサイクルは PYTEST_EXIT / GATE_EXIT / JUDGE_EXIT を個別に確認している。
 2026-08-29 10:06 UTC ループA started Board=13
+
+## 2026-08-29 10:4x UTC ループA 結果: C-1022 完了
+
+`creation_game_templates` 5→**6**、`creation_touch_playable` 5→**6**、
+`creation_game_audio` 5→**6**（判定器 exit 0）。C-1013 の残り半分。
+
+テストが node で盤面を最後まで打ち切り、`cleared` が実際の残りセル数と
+一致するかを見る。「終わらない盤面」「詰んだ人を祝う画面」はページとしては
+開いて動くので、生成物の検証だけでは捕まらない。
+
+断り文の未対応例はシューティング→パズル→レースと自動で繰り上がった（3 回目）。
+
+検証は PYTEST_EXIT / GATE_EXIT / JUDGE_EXIT を個別に確認（パイプ経由で読まない）。
