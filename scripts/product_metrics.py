@@ -941,6 +941,39 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- sound: the cheapest half of game feel, per the knowledge base ---
+    #
+    # Counted per template off the generated page: AudioContext present, at
+    # least two sfx() calls beyond the definition, and no external audio
+    # reference - a template that went silent again drops the count by one
+    # instead of hiding behind the three that still ring.
+    from sidra_ai.creation.games import TEMPLATES as _ALL_TEMPLATES
+
+    audible = 0
+    audio_reasons = []
+    for template_key in _ALL_TEMPLATES:
+        page = generate_game(f"{template_key} を作って", template=template_key).html
+        calls = page.count("sfx(") - 1  # minus the definition itself
+        if "AudioContext" not in page:
+            audio_reasons.append(f"{template_key}: no AudioContext")
+        elif calls < 2:
+            audio_reasons.append(f"{template_key}: only {calls} sfx call(s)")
+        elif ".mp3" in page or ".wav" in page or ".ogg" in page:
+            audio_reasons.append(f"{template_key}: references an audio file")
+        else:
+            audible += 1
+    c.add(
+        "creation_game_audio",
+        "音が鳴るゲームの型",
+        float(audible),
+        detail=(
+            f"{audible} of {len(_ALL_TEMPLATES)} templates synthesise their own SFX"
+            if not audio_reasons
+            else "; ".join(audio_reasons)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the 3D model, generated fresh so the number describes this
     # checkout rather than the day the generator was written ----------
     from sidra_ai.creation.models3d import generate_model3d, validate_model3d

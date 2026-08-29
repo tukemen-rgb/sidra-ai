@@ -2241,7 +2241,7 @@ Team Concode 氏の『ふしぎのぼうし』に感動して作られたオリ�
       ロック＆キーの mission graph / 視認性の基本 / 収集要素のシンク必須、
       の 5 節を一次情報の URL つきで記録（commit ce1ef59）。
 
-- [~] 作業中 2026-08-29 06:0x UTC 対話セッション **C-1017: 効果音（全テンプレ）。**知識ベース §1-2 に基づき、
+- [x] 完了 2026-08-29 06:1x UTC 対話セッション (`creation_game_audio` unmeasurable→**4**、判定器 exit 0) **C-1017: 効果音（全テンプレ）。**知識ベース §1-2 に基づき、
       Web Audio の OscillatorNode+GainNode で 8bit 風 SFX を**自作合成**
       （外部ファイル・ライブラリなし、AudioContext は初回操作で resume、
       M でミュート）。剣/草刈り/宝石/鍵/被弾/発射/押し合い/勝敗など各テンプレの

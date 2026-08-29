@@ -50,7 +50,7 @@ DUEL_DIFFICULTY: dict[str, tuple[float, float]] = {
 DUEL_TITLE = "ひかりの押し合い"
 DUEL_HOW = (
     "SPACE か長押しでチャージ、離してビーム発射。↑↓ でレーン移動。"
-    "ビーム同士がぶつかったら SPACE 連打で押し返す。先に 3 発当てた方の勝ち。"
+    "ビーム同士がぶつかったら SPACE 連打で押し返す。先に 3 発当てた方の勝ち。M で消音。"
 )
 
 DUEL_SCRIPT = """
@@ -65,16 +65,16 @@ function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spar
 addEventListener('keydown',ev=>{
   if(ev.code==='Space'){ev.preventDefault();
     if(state!=='play'){reset();return}
-    if(p.beam>0&&e.beam>0){mash+=3}else{p.hold=true}}
+    if(p.beam>0&&e.beam>0){mash+=3;sfx('clash')}else{if(!p.hold){sfx('charge')}p.hold=true}}
   if(ev.key==='ArrowUp'&&p.lane>0){p.lane--}
   if(ev.key==='ArrowDown'&&p.lane<2){p.lane++}
   if(ev.key==='r'||ev.key==='R'){reset()}});
 addEventListener('keyup',ev=>{if(ev.code==='Space'){fire(p)}});
 cv.addEventListener('pointerdown',()=>{if(state!=='play'){reset();return}
-  if(p.beam>0&&e.beam>0){mash+=3}else{p.hold=true}});
+  if(p.beam>0&&e.beam>0){mash+=3;sfx('clash')}else{if(!p.hold){sfx('charge')}p.hold=true}});
 cv.addEventListener('pointerup',()=>{fire(p)});
 function fire(f){if(state!=='play'||!f.hold)return;f.hold=false;
-  if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;flash=1}
+  if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;flash=1;sfx('fire')}
   f.charge=0}
 function cpu(){e.think--;
   if(e.think<=0){e.think=CTHINK+rand()*CTHINK;
@@ -85,8 +85,10 @@ function cpu(){e.think--;
   if(e.hold){e.charge+=0.9*CSPEED;
     if(e.charge>40+rand()*55){e.hold=false;e.beam=e.charge;e.beamLane=e.lane;
       e.charge=0;flash=1}}}
-function hit(who){who.hp--;flash=1;
-  if(who.hp<=0){state='end';winner=(who===e)?'勝利。ひかりが押し切った。':'敗北。もう一度。'}}
+function hit(who){who.hp--;flash=1;sfx('hurt');
+  if(who.hp<=0){state='end';
+    if(who===e){winner='勝利。ひかりが押し切った。';sfx('win')}
+    else{winner='敗北。もう一度。';sfx('lose')}}}
 function step(){const now=performance.now();
   if(state==='play'){
     if(p.hold){p.charge=Math.min(100,p.charge+1.4)}

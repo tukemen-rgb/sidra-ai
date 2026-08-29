@@ -51,7 +51,7 @@ ADVENTURE_DIFFICULTY: dict[str, tuple[float, float]] = {
 ADVENTURE_TITLE = "小さな帽子の冒険"
 ADVENTURE_HOW = (
     "矢印キー / WASD で移動、SPACE かタップで剣。草を刈り、洞窟の敵から鍵を取り、"
-    "祭壇の宝箱を開ける。やられたら R でやり直し。"
+    "祭壇の宝箱を開ける。やられたら R でやり直し。M で消音。"
 )
 
 #: The whole game. Rendered into the shared page shell; ``sprite()`` and the
@@ -97,17 +97,17 @@ addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
   if(e.key==='r'||e.key==='R'){if(state!=='play')reset()}});
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
 cv.addEventListener('pointerdown',()=>{if(state==='play'){swing()}else{reset()}});
-function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;
+function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword');
   const fx=hero.x+[0,16,0,-16][hero.dir]*1.6,fy=hero.y+[-16,0,16,0][hero.dir]*1.6;
   const tx=Math.floor((fx-OX)/TILE),ty=Math.floor((fy-OY)/TILE);
   if(ty>=0&&ty<GH&&tx>=0&&tx<GW){
     const t=rooms[room][ty][tx];
-    if(t===2){rooms[room][ty][tx]=0;
-      if(rand()<0.34){hero.gems++;say('草のかげに宝石があった。')}}
-    if(t===7){if(hero.key){state='win'}else{say('鍵がかかっている。洞窟の敵が持っているらしい。')}}
-    if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」')}}
+    if(t===2){rooms[room][ty][tx]=0;sfx('cut');
+      if(rand()<0.34){hero.gems++;say('草のかげに宝石があった。');sfx('gem')}}
+    if(t===7){if(hero.key){state='win';sfx('win')}else{say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}}
+    if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」');sfx('step')}}
   enemies[room].forEach(en=>{if(!en.alive)return;
-    if(Math.hypot(en.x-fx,en.y-fy)<26){en.alive=false;
+    if(Math.hypot(en.x-fx,en.y-fy)<26){en.alive=false;sfx('hurt');
       if(room===1&&enemies[1].every(e=>!e.alive)){keyDrop={x:en.x,y:en.y}}}})}
 function moveHero(){
   let vx=0,vy=0;const sp=2.2;
@@ -119,10 +119,10 @@ function moveHero(){
   if(!solid(nx-r,hero.y-r)&&!solid(nx+r,hero.y-r)&&!solid(nx-r,hero.y+r)&&!solid(nx+r,hero.y+r)){hero.x=nx}
   if(!solid(hero.x-r,ny-r)&&!solid(hero.x+r,ny-r)&&!solid(hero.x-r,ny+r)&&!solid(hero.x+r,ny+r)){hero.y=ny}
   const t=tileAt(hero.x,hero.y);
-  if(t===5&&room<2){room++;hero.x=OX+TILE+6;say(NAMES[room])}
-  else if(t===6&&room>0){room--;hero.x=OX+(GW-2)*TILE+26;say(NAMES[room])}
+  if(t===5&&room<2){room++;hero.x=OX+TILE+6;say(NAMES[room]);sfx('step')}
+  else if(t===6&&room>0){room--;hero.x=OX+(GW-2)*TILE+26;say(NAMES[room]);sfx('step')}
   if(keyDrop&&room===1&&Math.hypot(hero.x-keyDrop.x,hero.y-keyDrop.y)<20){
-    hero.key=true;keyDrop=null;say('鍵を手に入れた。')}}
+    hero.key=true;keyDrop=null;say('鍵を手に入れた。');sfx('key')}}
 function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   const d=Math.hypot(hero.x-en.x,hero.y-en.y);
   if(d<TILE*4){en.dx=(hero.x-en.x)/d*ESPEED;en.dy=(hero.y-en.y)/d*ESPEED}
@@ -130,9 +130,9 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
     en.dx=Math.cos(a)*ESPEED*0.6;en.dy=Math.sin(a)*ESPEED*0.6;en.t=50+rand()*60}
   const nx=en.x+en.dx,ny=en.y+en.dy;
   if(!solid(nx,en.y)){en.x=nx}if(!solid(en.x,ny)){en.y=ny}
-  if(hero.inv<=0&&d<16){hero.hp--;hero.inv=60;
+  if(hero.inv<=0&&d<16){hero.hp--;hero.inv=60;sfx('hurt');
     hero.x-=en.dx*14;hero.y-=en.dy*14;
-    if(hero.hp<=0){state='over'}else{say('いたい。')}}})}
+    if(hero.hp<=0){state='over';sfx('lose')}else{say('いたい。')}}})}
 const GROUND={0:'SURFACE_TOKEN',5:'RAISED_TOKEN',6:'RAISED_TOKEN'};
 function drawTile(t,x,y,now){
   cx.fillStyle=GROUND[t]||'SURFACE_TOKEN';cx.fillRect(x,y,TILE,TILE);

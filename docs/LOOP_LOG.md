@@ -3917,3 +3917,9 @@ security / retrieval 系は未変更のため追加判定器は対象外。
   reduced-motion 対応）。商標ガード共通化、_GENRES に ビーム対戦→duel を登録
   （格闘は未対応と正直に言う側に残す）。テスト 10 件 / pytest exit 0 /
   recall PASSED / 判定器 exit 0。ゲームの型は 4 種（fishing/catch/adventure/duel）。
+2026-08-29 06:1x UTC 対話セッション — C-1016/C-1017 完了（creation_game_audio unmeasurable→4）
+  知識ベース docs/research/game-design-notes.md（5 節・一次情報 URL つき）を作成し、
+  §1-2 を即反映: Web Audio 自作合成の 12 種 SFX（外部ファイル/ライブラリなし、
+  初回操作で resume、M で消音、失敗しても落ちない）を 4 テンプレ全部の
+  イベントに配線。語彙の相互検査つきテスト 11 件 / pytest exit 0 / recall PASSED /
+  判定器 exit 0。C-1018〜C-1021（視認性・パッド・手触り・宝石シンク）はキュー済み。
