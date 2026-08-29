@@ -3912,3 +3912,8 @@ security / retrieval 系は未変更のため追加判定器は対象外。
   明言）。intent 語彙・story 表・スプライト 5 種も配線、企画から一式でも確認。
   テスト 12 件 / pytest exit 0 / recall PASSED / 判定器 exit 0。C-1015（ビーム対戦）
   起票済み、C-1012〜1014 はループへ。
+2026-08-29 05:4x UTC 対話セッション — C-1015 完了（creation_versus_playable unmeasurable→1）
+  ビーム対戦テンプレ（チャージ→発射→レーン回避→押し合い連打、seed 付き CPU、
+  reduced-motion 対応）。商標ガード共通化、_GENRES に ビーム対戦→duel を登録
+  （格闘は未対応と正直に言う側に残す）。テスト 10 件 / pytest exit 0 /
+  recall PASSED / 判定器 exit 0。ゲームの型は 4 種（fishing/catch/adventure/duel）。

@@ -791,6 +791,7 @@ def measure_creation(c: Collector) -> None:
                 "釣りゲームを作って",
                 "キャッチゲームを作って",
                 "冒険ゲームを作って",
+                "ビームの撃ち合いゲームを作って",
             )
         }
     )
@@ -903,6 +904,39 @@ def measure_creation(c: Collector) -> None:
             "3 rooms / sword / key / chest, trademark renamed honestly"
             if adventure_ok
             else "; ".join(reasons)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the duel, same bar as the adventure: the directive's own request
+    # routes, plays, and ships without the franchise name -----------------
+    duel_ok = 0.0
+    duel_game = generate_game("ドラゴンボールのゲームを作って")
+    duel_verdict = validate_game_html(duel_game.html)
+    duel_reasons = []
+    if duel_game.template != "duel":
+        duel_reasons.append(f"routed to {duel_game.template}")
+    if not duel_verdict.get("playable"):
+        duel_reasons.append(
+            "; ".join(str(f) for f in duel_verdict.get("failures", ())) or "invalid page"
+        )
+    if "ドラゴンボール" in duel_game.title or "ドラゴンボール" in duel_game.html:
+        duel_reasons.append("the franchise name reached the artifact")
+    if "オリジナル版" not in duel_game.tagline:
+        duel_reasons.append("the rename is silent")
+    for marker in ("charge", "spark", "押し合い"):
+        if marker not in duel_game.html:
+            duel_reasons.append(f"script lost its {marker}")
+    if not duel_reasons:
+        duel_ok = 1.0
+    c.add(
+        "creation_versus_playable",
+        "ビームの撃ち合いが作れる",
+        duel_ok,
+        detail=(
+            "charge / fire / lane dodge / beam clash, franchise renamed honestly"
+            if duel_ok
+            else "; ".join(duel_reasons)
         ),
         kind=OUTCOME,
     )

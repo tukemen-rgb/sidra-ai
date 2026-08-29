@@ -41,6 +41,13 @@ from sidra_ai.creation.adventure import (
     ADVENTURE_WORDS,
 )
 from sidra_ai.creation.animation import with_animation
+from sidra_ai.creation.duel import (
+    DUEL_DIFFICULTY,
+    DUEL_HOW,
+    DUEL_SCRIPT,
+    DUEL_TITLE,
+    DUEL_WORDS,
+)
 
 #: Re-exported from :mod:`sidra_ai.creation.themes`, which is where the site's
 #: DESIGN.md §2 palette now lives: the default theme has to *be* these tokens
@@ -181,6 +188,12 @@ TEMPLATES: dict[str, GameTemplate] = {
         ADVENTURE_HOW,
         ADVENTURE_SCRIPT,
     ),
+    "duel": GameTemplate(
+        "duel",
+        DUEL_TITLE,
+        DUEL_HOW,
+        DUEL_SCRIPT,
+    ),
 }
 
 #: Difficulty is two numbers per template, not a label. Keeping the mapping
@@ -189,6 +202,7 @@ _DIFFICULTY = {
     "fishing": {"easy": (0.008, 0.34), "normal": (0.014, 0.22), "hard": (0.024, 0.12)},
     "catch": {"easy": (34, 0.30), "normal": (22, 0.20), "hard": (13, 0.12)},
     "adventure": ADVENTURE_DIFFICULTY,
+    "duel": DUEL_DIFFICULTY,
 }
 
 # Stems, not whole words: 難しい / 難しく / 難しめ all have to land on the
@@ -199,6 +213,7 @@ _EASY = ("簡単", "やさし", "かんたん", "easy", "初心者")
 _FISHING_WORDS = ("釣り", "つり", "fishing", "魚")
 _CATCH_WORDS = ("キャッチ", "catch", "受け", "落ちもの", "避け")
 _ADVENTURE_WORDS = ADVENTURE_WORDS
+_DUEL_WORDS = DUEL_WORDS
 
 #: Names this generator will not put on an artifact. A request that says
 #: 「ゼルダの伝説作って」 routes to the adventure template - the *genre* is
@@ -241,6 +256,8 @@ def choose_template(request: str) -> str:
     lowered = request.lower()
     if any(word.lower() in lowered for word in _ADVENTURE_WORDS):
         return "adventure"
+    if any(word.lower() in lowered for word in _DUEL_WORDS):
+        return "duel"
     if any(word in lowered for word in _CATCH_WORDS):
         return "catch"
     if any(word in lowered for word in _FISHING_WORDS):
@@ -267,10 +284,14 @@ _GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("パズル", "puzzle", ("パズル", "puzzle")),
     ("レース", "racing", ("レース", "レーシング", "racing", "race")),
     ("RPG", "rpg", ("rpg", "ロールプレイング", "ロープレ")),
+    # Before 対戦格闘: a franchise-beam request is a duel we *can* build, and
+    # first-match order is what keeps it from falling into the fighting-game
+    # apology below.
+    ("ビーム対戦", "duel", DUEL_WORDS),
     (
         "対戦格闘",
-        "versus",
-        ("格闘", "対戦", "versus", "fighting", "ドラゴンボール", "ビーム"),
+        "fighter",
+        ("格闘", "fighting", "格ゲー"),
     ),
     ("プラットフォーマー", "platformer", ("プラットフォーマー", "platformer", "横スクロール")),
     (

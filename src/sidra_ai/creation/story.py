@@ -45,6 +45,11 @@ CONTROLS: dict[str, tuple[tuple[str, str], ...]] = {
         ("SPACE / タップ", "剣を振る（草を刈る・敵を倒す・調べる）"),
         ("R", "やられた後にやり直す"),
     ),
+    "duel": (
+        ("SPACE / 長押し", "チャージして、離すとビーム発射"),
+        ("↑ ↓", "レーンを移動してかわす"),
+        ("SPACE 連打", "押し合いで押し返す"),
+    ),
 }
 
 #: What the two difficulty numbers mean, per template. Without this the table
@@ -61,6 +66,10 @@ PARAMETERS: dict[str, tuple[tuple[str, str], ...]] = {
     "adventure": (
         ("敵の速さ", "1 フレームあたりの移動量。大きいほど速い"),
         ("敵の数", "洞窟に出る敵の数。祭壇はこれより 1 少ない"),
+    ),
+    "duel": (
+        ("相手のチャージ速度", "倍率。大きいほど太いビームが早く来る"),
+        ("相手の思考間隔", "何フレームごとに動きを決めるか。小さいほど賢い"),
     ),
 }
 

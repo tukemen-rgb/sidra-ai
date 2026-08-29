@@ -98,6 +98,9 @@ def test_each_template_gets_the_two_names_its_page_draws() -> None:
         # The adventure page draws a world, not a target and a marker; its
         # set is the five things its own script asks sprite() for.
         "adventure": {"hero", "enemy", "rock", "bush", "npc"},
+        # The duel draws its fighters procedurally; sprite() falls back to
+        # the shapes the template always drew, which is the supported state.
+        "duel": set(),
     }
     for template in TEMPLATES:
         names = {name for name, _ in SPRITE_SETS.get(template, ())}

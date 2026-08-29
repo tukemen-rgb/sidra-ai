@@ -156,6 +156,9 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "ダンジョン",
         "adventure",
         "zelda",
+        "ドラゴンボール",
+        "対戦",
+        "バトル",
     ),
     CreationKind.DECK: (
         "デッキ",
