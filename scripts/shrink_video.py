@@ -66,22 +66,30 @@ def main() -> int:
 
     ff = imageio_ffmpeg.get_ffmpeg_exe()
 
-    folder = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
+    target = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
         os.path.join("~", "Videos", "Rip DVD App")
     )
-    if not os.path.isdir(folder):
-        print("フォルダが見つかりません:", folder)
-        print("使い方: py scripts\\shrink_video.py \"フォルダのパス\"")
-        return 1
-
-    source = find_largest_video(folder)
-    if source is None:
-        print("このフォルダに動画ファイルが見つかりません:", folder)
+    if os.path.isfile(target):
+        # A file argument picks that exact video - the folder scan takes the
+        # *largest* file, and a folder of DVD titles can hold several.
+        source = target
+    elif os.path.isdir(target):
+        source = find_largest_video(target)
+        if source is None:
+            print("このフォルダに動画ファイルが見つかりません:", target)
+            return 1
+    else:
+        print("見つかりません:", target)
+        print('使い方: py scripts\\shrink_video.py "フォルダまたは動画ファイルのパス"')
         return 1
     print(f"対象: {source} ({os.path.getsize(source) // 1048576} MB)")
 
-    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    small = os.path.join(desktop, "sidra-small.mp4")
+    # Next to the source, never the Desktop: on OneDrive-managed Windows
+    # ``~\Desktop`` does not exist and ffmpeg dies on the output path -
+    # measured on the owner's machine before this was changed.
+    out_dir = os.path.join(os.path.dirname(source), "sidra-out")
+    os.makedirs(out_dir, exist_ok=True)
+    small = os.path.join(out_dir, "sidra-small.mp4")
     print("全編を 480p に再圧縮しています。下に time= が進んでいれば動いています…")
     subprocess.run(
         [
@@ -104,7 +112,7 @@ def main() -> int:
 
     total = duration_of(ff, small)
     segment = max(30, int(total * PART_MB / size_mb))
-    pattern = os.path.join(desktop, "sidra-part%02d.mp4")
+    pattern = os.path.join(out_dir, "sidra-part%02d.mp4")
     subprocess.run(
         [
             ff, "-hide_banner", "-loglevel", "error",
@@ -115,7 +123,7 @@ def main() -> int:
         ],
         check=True,
     )
-    parts = sorted(glob.glob(os.path.join(desktop, "sidra-part*.mp4")))
+    parts = sorted(glob.glob(os.path.join(out_dir, "sidra-part*.mp4")))
     print(f"{len(parts)} 本に分割しました。番号順に全部チャットへ添付してください:")
     for part in parts:
         print(f"  {part}  ({os.path.getsize(part) / 1048576:.0f} MB)")
