@@ -4372,3 +4372,4 @@ security / retrieval / chunker / tokenizer は無変更。
 配線を外して 7→0、定型文にして 7→0 を確認済み。
 
 残りの C-0j は C-1034（戦闘の音圧差）のみ。
+2026-08-30 18:06 UTC ループA started Board=13
