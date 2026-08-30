@@ -176,6 +176,11 @@ def measure_usability(c: Collector) -> None:
     c.add("index_survives_restart", "再起動後に索引が残っている文書数", survived,
           detail=detail, kind=OUTCOME)
 
+    # 2c. Does the index file also stop growing without bound?
+    compacted, detail = _measure_index_compaction()
+    c.add("index_compacts", "再取り込みの死骸が掃除される", compacted,
+          detail=detail, kind=OUTCOME)
+
     # 3. Ask a follow-up that remembers the last answer.
     from sidra_ai.api.schemas import ChatRequest
 
@@ -1877,6 +1882,61 @@ def _measure_themes() -> tuple[float, str]:
 
     note = f"{len(working)} themes reach both artifacts: {', '.join(working)}"
     return float(len(working)), note + ("; " + "; ".join(broken) if broken else "")
+
+
+def _measure_index_compaction() -> tuple[float, str]:
+    """Whether restarting over a bloated index file shrinks it to the truth.
+
+    Seventy versions of one logical document leave seventy records in an
+    append-only file; the next service start must rewrite it down to the one
+    that is live, atomically, keeping 0600. Measured through the real service
+    constructor because that is where the compaction hook lives.
+    """
+
+    import tempfile
+    from datetime import datetime, timezone
+    from pathlib import Path as _Path
+
+    from sidra_ai.api.service import SidraService
+    from sidra_ai.config.settings import Settings
+    from sidra_ai.documents import Document, Provenance, SourceType, TrustLevel
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    try:
+        with _quiet(), tempfile.TemporaryDirectory() as scratch:
+            settings = Settings(data_dir=scratch)
+            first = SidraService(settings=settings, model=EchoModelAdapter())
+            for i in range(70):
+                first.store.add(
+                    Document(
+                        content=f"版 {i} の内容。",
+                        provenance=Provenance(
+                            source="github",
+                            repository="tukemen-rgb/site",
+                            path="docs/x.md",
+                            commit_sha="a" * 40,
+                            timestamp=datetime(2026, 8, 30, tzinfo=timezone.utc),
+                            source_type=SourceType.DOCS,
+                            trust_level=TrustLevel.INTERNAL_REPO,
+                            license="MIT",
+                        ),
+                    )
+                )
+            second = SidraService(settings=settings, model=EchoModelAdapter())
+            index = _Path(scratch) / "index.jsonl"
+            records = sum(
+                1 for line in index.read_text(encoding="utf-8").splitlines() if line.strip()
+            )
+            live = len(list(second.store.documents()))
+            mode_ok = index.stat().st_mode & 0o077 == 0
+    except Exception as exc:  # noqa: BLE001 - an unmeasurable probe reports 0
+        return 0.0, f"probe failed: {type(exc).__name__}: {exc}"
+
+    if records != live:
+        return 0.0, f"{records} record(s) on disk for {live} live document(s)"
+    if not mode_ok:
+        return 0.0, "compacted file is group/world readable"
+    return 1.0, f"70 records compacted to {records}, permissions kept"
 
 
 def _measure_restart_survival() -> tuple[float, str]:

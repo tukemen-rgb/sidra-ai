@@ -30,10 +30,15 @@ def build_project_generator(data_dir: str | Path):
         verdict = validate_project(project)
 
         listing = "、".join(project.files)
+        notice = (
+            "依頼にあった作品名は使えないためオリジナル版として名付けました。"
+            if project.renamed
+            else ""
+        )
         if verdict["complete"]:
             summary = (
                 f"「{project.title}」の制作一式を {project.slug} に作りました: {listing}。"
-                "各ファイルは骨格（見出しと既定値）で、中身はこれから埋めます。"
+                + notice
             )
         else:
             # Reported, not hidden: an operator told "six files" who finds
@@ -54,6 +59,7 @@ def build_project_generator(data_dir: str | Path):
                 "files": verdict["files"],
                 "missing": verdict["missing"],
                 "whole_project": project.whole_project,
+                "renamed": project.renamed,
                 "evidence": list(project.evidence),
             },
         )

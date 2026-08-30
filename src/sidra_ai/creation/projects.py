@@ -35,7 +35,7 @@ from pathlib import Path
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation import sprites as sprite_lib
 from sidra_ai.creation import story
-from sidra_ai.creation.games import generate_game, save_game
+from sidra_ai.creation.games import TEMPLATES, generate_game, save_game, trademark_in
 from sidra_ai.creation.records import append_record
 
 
@@ -116,6 +116,8 @@ class ScaffoldedProject:
     #: Repository-and-path labels the request retrieved, recorded in the log
     #: so a reader can see what the production was grounded in.
     evidence: tuple[str, ...] = field(default_factory=tuple)
+    #: True when the requested title carried a trademark and was replaced.
+    renamed: bool = False
 
     @property
     def files(self) -> tuple[str, ...]:
@@ -290,6 +292,13 @@ def scaffold_project(
 
     stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
     title = _title_from(request)
+    renamed = bool(trademark_in(title))
+    if renamed:
+        # Same deal as the standalone page (C-1011): the genre is buildable,
+        # the name is someone's. The production takes its game's own default
+        # title, and the fact is recorded on the project so the summary can
+        # say it instead of renaming silently.
+        title = TEMPLATES[story.plan_for(request).template].default_title
     slug = slugify(title, stamp=stamp)
     stages = requested_stages(request)
     evidence = tuple(dict.fromkeys(fact.source for fact in (facts or []) if fact.source))
@@ -369,6 +378,7 @@ def scaffold_project(
         stages=stages,
         whole_project=wants_whole_project(request),
         evidence=evidence,
+        renamed=renamed,
     )
 
 

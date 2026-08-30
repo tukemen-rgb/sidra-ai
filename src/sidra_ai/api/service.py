@@ -110,6 +110,14 @@ class SidraService:
                 self.index_load_error = f"{type(exc).__name__}: {exc}"
             else:
                 self.index_load_error = ""
+                try:
+                    # The C-1010 leftover: append-only means every
+                    # re-ingestion leaves a dead record behind. Compacted
+                    # right after the reload because that is the one moment
+                    # the file and the index are known to agree.
+                    self.store.compact()
+                except Exception:  # noqa: BLE001 - housekeeping never blocks startup
+                    pass
         else:
             self.index_load_error = ""
         self.retriever = build_retriever(self.settings, self.store)

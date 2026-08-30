@@ -4316,3 +4316,9 @@ origin は c8869f8 から無変更（他ループの push なし）。Board=13 �
 取れる `- [ ]` は **0 件**（E 節 2 件・F 節 2 件のみ）。`- [~]` は無し。
 origin は c2fbca9 から無変更（他ループの push なし）。Board=13 で増分ゼロ。
 コードは無変更。**キューを埋めるための作業は作らない。**社長か GDP の入力待ち。
+2026-08-30 15:0x UTC 対話セッション — C-1030/C-1031 完了（レビュー残課題ゼロに）
+  C-1030: 商標ガードを trademark_in に共有化し企画一式へ適用（scenario.md の
+  見出し・slug からも商標が消え、summary が断りを言う）。C-1031: 起動時 load 後に
+  死骸 64 件以上で index.jsonl を原子的に書き直し（temp+fsync+replace、0600 維持、
+  実測 70→1）。index_compacts unmeasurable→1。テスト 9 件 / pytest exit 0 /
+  recall PASSED / 判定器 exit 0。これでレビュー 3 本の指摘は全て消化。

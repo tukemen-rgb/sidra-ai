@@ -392,6 +392,19 @@ def choose_difficulty(request: str) -> str:
     return "normal"
 
 
+def trademark_in(title: str) -> str:
+    """The first trademark a title carries, or an empty string.
+
+    One helper shared by every place that names an artifact - the standalone
+    game page and the whole-production scaffold - because the C-1011 leftover
+    was exactly this check existing in one of them: the game renamed itself
+    while 「ゼルダみたいな冒険ゲームを企画から作って」 kept the mark in every
+    document heading and in the directory name.
+    """
+
+    return next((mark for mark in _TRADEMARKS if mark.lower() in title.lower()), "")
+
+
 def _title_from(request: str, fallback: str) -> str:
     """Use the operator's own words when they named the thing.
 
@@ -513,7 +526,7 @@ def generate_game(
     )
     title = _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"
-    named = next((mark for mark in _TRADEMARKS if mark.lower() in title.lower()), "")
+    named = trademark_in(title)
     if named:
         # The genre is buildable; the name is someone's. Swap the title for
         # the template's own and say so where the operator will read it -

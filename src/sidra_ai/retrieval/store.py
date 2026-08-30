@@ -635,6 +635,71 @@ class DocumentStore:
             raise
 
     # ------------------------------------------------------------------
+    def compact(self, *, min_dead: int = 64) -> int:
+        """Rewrite the JSONL with only the documents that are actually live.
+
+        The file is append-only, so every re-ingestion adds a fresh record
+        and leaves the superseded one behind; ``load()`` retires the old
+        versions on the way in, which keeps the *index* correct while the
+        *file* grows without bound - the C-1010 leftover. This drops the dead
+        weight once it crosses ``min_dead`` records.
+
+        Two facts define the contract:
+
+        * **The file is a cache, not the source of truth.** GitHub is.
+          A record the current security gate rejected at load time is not in
+          memory and therefore not rewritten - compaction makes that drop
+          permanent in the file, and re-ingesting from GitHub is always the
+          way back. A cache that preserved rejected content "in case the
+          detectors loosen" would be a quarantine bypass waiting in a file.
+        * **The rewrite is atomic or it does not happen.** A new file is
+          written beside the target (0600, fsynced) and swapped in with
+          ``os.replace``; a crash at any point leaves either the old complete
+          file or the new complete file, never a torn one.
+
+        Returns the number of records removed (0 when below the threshold or
+        when this store has no persistence path).
+        """
+
+        if self._path is None:
+            return 0
+
+        with self._lock:
+            live = list(self._documents.values())
+            try:
+                with self._path.open("r", encoding="utf-8") as handle:
+                    on_disk = sum(1 for line in handle if line.strip())
+            except FileNotFoundError:
+                return 0
+            dead = on_disk - len(live)
+            if dead < min_dead:
+                return 0
+
+            self._reject_parent_traversal(self._path)
+            self._assert_no_symlink_ancestors(self._path.parent)
+            temp = self._path.with_name(self._path.name + ".compact")
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            fd = os.open(temp, flags, 0o600)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as handle:
+                    for document in live:
+                        handle.write(
+                            json.dumps(document.to_dict(), ensure_ascii=False) + "\n"
+                        )
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except BaseException:
+                try:
+                    os.unlink(temp)
+                except OSError:
+                    pass
+                raise
+            os.replace(temp, self._path)
+            return dead
+
+    # ------------------------------------------------------------------
     def __len__(self) -> int:
         return len(self._documents)
 
