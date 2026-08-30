@@ -4392,3 +4392,4 @@ security / retrieval / chunker / tokenizer は無変更。
 adventure は「敵が近いときだけ」という良い設計のまま残し、**計測できないことを
 理由に設計を落とさなかった**。ギャップは C-1035 として起票し、埋まるまで
 adventure は合格に数えない。これで C-0j（映像視聴・第 2 弾）の 3 件は全部閉じた。
+2026-08-30 19:06 UTC ループA started Board=13
