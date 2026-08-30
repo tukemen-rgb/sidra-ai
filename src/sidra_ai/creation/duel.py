@@ -124,6 +124,7 @@ function hit(who){who.hp--;flash=1;sfx('hurt');
     if(who===e){winner='勝利。ひかりが押し切った。';sfx('win')}
     else{winner='敗北。もう一度。';sfx('lose')}}}
 function step(){const now=performance.now();
+  combat(state==='play'&&gateState()==='playing');
   if(state==='play'){
     if(p.stun>0){p.stun--}
     if(p.hold&&p.stun<=0){p.charge=Math.min(100,p.charge+1.4);

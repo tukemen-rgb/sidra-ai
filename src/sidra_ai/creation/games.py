@@ -42,7 +42,7 @@ from sidra_ai.creation.adventure import (
 )
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.intent import fold_kana
-from sidra_ai.creation.audio import SFX_PREAMBLE
+from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.startscreen import BRIEFINGS, GATE_PREAMBLE
 from sidra_ai.creation.puzzle import (
@@ -538,6 +538,11 @@ def generate_game(
             + _SPRITE_LOADER
             + spec.script
         )
+        # The combat loudness step (§6 観察 4). Substituted rather than
+        # written into the preamble so the two numbers live in Python, where
+        # the tests can read them.
+        .replace("COMBAT_GAIN_TOKEN", str(COMBAT_GAIN))
+        .replace("MAX_GAIN_TOKEN", str(MAX_GAIN))
         .replace("SPRITE_MAP_TOKEN", json.dumps(sprites or {}))
         .replace("SPEED_TOKEN", str(speed))
         .replace("BAND_TOKEN", str(band))

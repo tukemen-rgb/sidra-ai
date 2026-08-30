@@ -251,6 +251,10 @@ function shade(a,b){cx.fillStyle='#05070fd0';cx.fillRect(0,0,cv.width,cv.height)
   cx.font='13px ui-monospace,monospace';
   cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}
 function step(){const now=performance.now();
+  /* Only fighting when something is actually near: the quiet stretches of a
+     dungeon are what make the loud ones read as loud (§6 観察 4). */
+  combat(state==='play'&&gateState()==='playing'&&
+    (enemies[room]||[]).some(e=>Math.hypot(e.x-hero.x,e.y-hero.y)<120));
   if(state==='play'){if(hero.swing>0)hero.swing--;if(hero.inv>0)hero.inv--;
     moveHero();moveEnemies()}
   draw(now);requestAnimationFrame(step)}

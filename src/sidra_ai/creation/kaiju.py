@@ -92,6 +92,7 @@ function hitHead(){cycles++;boss.hurt=12;shake(7);burst(legX(),boss.head,16,'ACC
 function openCrack(){const x=60+rand()*(W-120);
   cracks.push({x:x,w:0,warn:34,open:0});sfx('charge')}
 function step(){t++;
+  combat(state==='fight'&&gateState()==='playing');
   if(state==='fight'){
     if(me.cool>0)me.cool--;
     if(K('ArrowLeft'))me.x=Math.max(30,me.x-2.1);

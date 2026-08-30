@@ -77,6 +77,7 @@ cv.addEventListener('pointerup',()=>{fire=false});
 function shoot(){if(ship.cool>0)return;ship.cool=9;
   shots.push({x:ship.x,y:ship.y-16});sfx('fire')}
 function step(){const now=performance.now();
+  combat(state==='play'&&gateState()==='playing');
   if(state==='play'){t++;
     if(ship.cool>0)ship.cool--;
     if(keys['arrowleft']||keys['a']){ship.x=Math.max(SHIP,ship.x-4)}

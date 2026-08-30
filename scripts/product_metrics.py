@@ -1496,6 +1496,89 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the fight is louder than the walking around ---------------------
+    #
+    # §6 観察 4: the episode's combat windows sit at -13.8..-16.5 LUFS and
+    # are audibly louder than its dialogue - the film does not only play
+    # different sounds when the fighting starts, it plays them louder.
+    #
+    # Three ways this goes wrong, all checked on the running page with a
+    # recording AudioContext rather than by reading the source: the step is
+    # declared and never reaches the gain, it quietly overrides the
+    # operator's mute, or it lets a fight clip. A fourth is the one a source
+    # check cannot see at all - `combat(true)` sitting behind a condition
+    # that is never true - so the templates with a fight have to turn it on
+    # by themselves while being played, and the templates without one have
+    # to leave it off rather than claim a fight they do not have.
+    import re as _loud_re
+    import subprocess as _loud_sp
+
+    from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN
+    from sidra_ai.creation.audio import probe_source as _loud_probe
+
+    #: Templates whose play state *is* a fight. The adventure is deliberately
+    #: absent: it raises the step only while an enemy is near, which is the
+    #: better design and which this stub cannot drive far enough to observe -
+    #: recorded as a gap rather than counted as a pass.
+    fights = {"duel", "kaiju", "shooter"}
+    quiet = {"fishing", "catch", "puzzle"}
+    loud_reasons = []
+    for key in sorted(_GATE_TEMPLATES):
+        page = generate_game("ゲームを作って", template=key).html
+        script = _loud_re.search(r"<script>(.*?)</script>", page, _loud_re.S)
+        if script is None:
+            loud_reasons.append(f"{key}: no script")
+            continue
+        try:
+            probe = _loud_sp.run(
+                ["node", "-"],
+                input=_loud_probe(script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if probe.returncode != 0:
+                loud_reasons.append(f"{key}: {probe.stderr.strip()[:60]}")
+                continue
+            seen = json.loads(probe.stdout)
+        except (OSError, _loud_sp.SubprocessError, ValueError) as exc:
+            loud_reasons.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            continue
+        if not seen["hasCombat"]:
+            loud_reasons.append(f"{key}: no combat step on the page")
+            continue
+        if not seen["calm"] or not seen["loud"]:
+            loud_reasons.append(f"{key}: nothing was played")
+        elif seen["loud"] <= seen["calm"]:
+            loud_reasons.append(f"{key}: combat is not louder ({seen['loud']})")
+        elif abs(seen["loud"] - min(MAX_GAIN, seen["calm"] * COMBAT_GAIN)) > 1e-6:
+            loud_reasons.append(f"{key}: the step is not the declared one")
+        # Mute is the operator's, not the game's.
+        if seen["mutedPlayed"]:
+            loud_reasons.append(f"{key}: muted, and the fight played anyway")
+        if seen["backToCalm"] != seen["calm"]:
+            loud_reasons.append(f"{key}: the step does not come back down")
+        if seen["peak"] > MAX_GAIN + 1e-6:
+            loud_reasons.append(f"{key}: a fight can reach {seen['peak']}")
+        if key in fights and not seen["combatDuringPlay"]:
+            loud_reasons.append(f"{key}: has a fight and never raises the step")
+        if key in quiet and seen["combatDuringPlay"]:
+            loud_reasons.append(f"{key}: claims a fight it does not have")
+    c.add(
+        "creation_combat_loudness",
+        "戦闘だけ音が大きい",
+        0.0 if loud_reasons else 1.0,
+        detail=(
+            f"every page raises the gain x{COMBAT_GAIN:g} in combat and comes back "
+            f"down, never past {MAX_GAIN:g}, never past M; "
+            f"{', '.join(sorted(fights))} turn it on while played and "
+            f"{', '.join(sorted(quiet))} leave it off"
+            if not loud_reasons
+            else "; ".join(loud_reasons)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- gems that buy something, and a door nobody has to open --------
     #
     # Two knowledge-base rules, and they fail in the same silent way. §5: a

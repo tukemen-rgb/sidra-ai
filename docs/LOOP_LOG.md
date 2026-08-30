@@ -4373,3 +4373,22 @@ security / retrieval / chunker / tokenizer は無変更。
 
 残りの C-0j は C-1034（戦闘の音圧差）のみ。
 2026-08-30 18:06 UTC ループA started Board=13
+
+## 2026-08-30 18:4x UTC ループA 結果: C-1034 完了
+
+`creation_combat_loudness` unmeasurable → **1**（`product_metrics.py --compare` exit 0）。
+`python -m pytest` exit 0（新規 28 件込みで全件通過）。`verify_gate_recall.py` PASSED。
+security / retrieval / chunker / tokenizer は無変更。
+
+`audio.py` に `combat(on)` ＋ `COMBAT_GAIN=2.0` / `MAX_GAIN=0.9`。定数は Python 側に
+置きトークン置換でページへ（ページと定数が食い違えない）。M 消音は戦闘中も勝つ。
+計器は録音する AudioContext を差した node で calm→loud→消音→戻り→上限を実測し、
+さらに「戦闘を持つ型は自分で段を上げる／持たない型は上げない」まで見る。
+消音上書き・偽の戦闘宣言の両方で 1→0 を確認済み。
+
+係数 ×2 は「明確に大きい」の控えめな代用値であることを明記した（知識ベースに
+会話窓の LUFS が無く、正確な dB 差は導出できないため）。
+
+adventure は「敵が近いときだけ」という良い設計のまま残し、**計測できないことを
+理由に設計を落とさなかった**。ギャップは C-1035 として起票し、埋まるまで
+adventure は合格に数えない。これで C-0j（映像視聴・第 2 弾）の 3 件は全部閉じた。
