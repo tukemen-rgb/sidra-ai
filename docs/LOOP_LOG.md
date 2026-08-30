@@ -4190,3 +4190,22 @@ origin は 7f59af7 まで進んだが中身は 22:05 の起動行と no-op 記�
   守備範囲外と明記。C-1027（with_copy 実配線）はキュー済み。テスト 13 件 /
   pytest exit 0 / recall PASSED / 判定器 exit 0。
 2026-08-30 00:07 UTC ループA started Board=13
+
+## 2026-08-30 00:4x UTC ループA 結果: C-1027 完了
+
+`creation_model_copy` unmeasurable → **1**（`product_metrics.py --compare` exit 0）。
+`python -m pytest` exit 0（新規 18 件を含む全件通過）。`verify_gate_recall.py` PASSED
+（MISS 0 / 誤検知 0）。`src/sidra_ai/security/` と retrieval / chunker / tokenizer は
+無変更のため追加判定器は不要。
+
+設計された唯一の LLM 接続点 `GeneratedGame.with_copy` が一度も呼ばれていなかった
+のを配線した。新設 `creation/copy_writer.py` が provider を返し、
+router → game_job に任意で渡る。echo と有料バックエンドは**呼ぶ前に**断る。
+失敗（散文・作品名・長すぎ・マークアップ・例外）はすべて `None` でモデル無しと
+同一の結果になる。禁止語は `games._TRADEMARKS` から**導出**（コピーしていたら
+テストが 3 語の食い違いを検出したので直した）。改名の「オリジナル版」注記は
+モデルの一言で消させない。
+
+計器は fake backend を注入して両方向を見る。**配線を外して 1 → 0 に落ちることを
+確認済み**。deck への横展開は C-1029 として起票（ゲームの数字を資料の証拠に
+しない）。

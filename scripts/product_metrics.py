@@ -1127,6 +1127,103 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the model finally touches something it makes -------------------
+    #
+    # `with_copy` was the designed and only hole for a local model, and for
+    # its whole life nothing called it: the model's contribution to every
+    # artifact was zero bits (C-1027). Wiring it is easy to fake - a metric
+    # that only checked "a title changed" would pass on a generator that
+    # ignored the model and renamed pages by itself. So this drives the real
+    # generator with injected backends and asks for **both directions**: a
+    # model that answers gets its wording onto the saved page, and a model
+    # that fails, names a franchise, or is the echo default gets nothing,
+    # with the deterministic page still playable underneath.
+    import tempfile as _copy_tmp
+    from pathlib import Path as _CopyPath
+
+    from sidra_ai.creation.copy_writer import build_copy_writer as _build_copy
+    from sidra_ai.creation.game_job import build_game_generator as _build_game_gen
+    from sidra_ai.creation.intent import detect_creation_intent as _copy_intent
+    from sidra_ai.models.base import GenerationResult as _CopyResult
+    from sidra_ai.models.base import LocalModelAdapter as _CopyAdapter
+    from sidra_ai.models.echo import EchoModelAdapter as _CopyEcho
+
+    class _CopyFake(_CopyAdapter):
+        """A backend that is not echo and says exactly what it is told to."""
+
+        backend = "fake-local"
+
+        def __init__(self, text: str, *, fail: bool = False) -> None:
+            super().__init__("fake-local-1")
+            self.text = text
+            self.fail = fail
+            self.calls = 0
+
+        def generate(self, request):  # noqa: ANN001 - metric-local stub
+            self.calls += 1
+            if self.fail:
+                raise RuntimeError("backend down")
+            return _CopyResult(text=self.text, backend=self.backend, model=self.model)
+
+    copy_reasons = []
+    with _copy_tmp.TemporaryDirectory() as _copy_dir:
+        _copy_ask = "釣りゲームを作って"
+        _copy_it = _copy_intent(_copy_ask)
+
+        def _run(writer):
+            return _build_game_gen(_copy_dir, writer)(_copy_ask, _copy_it)
+
+        plain = _run(None)
+        answered = _CopyFake('{"title": "朝凪の一本", "tagline": "潮が動く前に。"}')
+        spoken = _run(_build_copy(answered))
+        if not spoken.details.get("model_copy"):
+            copy_reasons.append("a model that answered was not consulted")
+        elif spoken.details.get("model_title") != "朝凪の一本":
+            copy_reasons.append("the model's title did not reach the outcome")
+        elif "朝凪の一本" not in _CopyPath(spoken.artifact_path).read_text(encoding="utf-8"):
+            copy_reasons.append("the model's title did not reach the saved page")
+        if not spoken.details.get("playable"):
+            copy_reasons.append("the page stopped being playable once copy was applied")
+
+        # Every way of failing has to look like the no-model page, which is
+        # the property that makes a missing model cost wording and nothing
+        # else. Compared against `plain` rather than against a constant.
+        for label, backend in (
+            ("prose instead of JSON", _CopyFake("Sure! How about Fishing Time?")),
+            ("a franchise name", _CopyFake('{"title": "ゼルダの釣り", "tagline": "剣を置け"}')),
+            ("a title of 400 characters", _CopyFake('{"title": "' + "あ" * 400 + '"}')),
+            ("markup in the title", _CopyFake('{"title": "<script>x</script>"}')),
+            ("an unreachable backend", _CopyFake("", fail=True)),
+            ("the echo default", _CopyEcho()),
+        ):
+            got = _run(_build_copy(backend))
+            if got.details.get("model_copy"):
+                copy_reasons.append(f"{label} was accepted as copy")
+            elif got.summary != plain.summary:
+                copy_reasons.append(f"{label} changed the page anyway")
+            elif not got.details.get("playable"):
+                copy_reasons.append(f"{label} cost the page its playability")
+        # The echo default must be refused *before* the call: asking it and
+        # discarding the answer would spend a generation on every request on
+        # every clean checkout.
+        counted = _CopyFake('{"title": "朝凪の一本"}')
+        _run(_build_copy(counted))
+        if counted.calls != 1:
+            copy_reasons.append(f"the writer called the backend {counted.calls} times")
+    c.add(
+        "creation_model_copy",
+        "モデルが作ったものに触れる",
+        0.0 if copy_reasons else 1.0,
+        detail=(
+            "an injected model names the saved page; prose, a franchise name, an "
+            "oversized title, markup, an unreachable backend and the echo default "
+            "all leave the deterministic page exactly as it was"
+            if not copy_reasons
+            else "; ".join(copy_reasons)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- nobody is playing before they have read anything --------------
     #
     # Every template used to start on load, which put the instructions below

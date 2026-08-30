@@ -14,6 +14,7 @@ from sidra_ai.api.model_admission import build_runtime_model
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import detect_creation_intent
+from sidra_ai.creation.copy_writer import build_copy_writer
 from sidra_ai.creation.router import CreationRouter, build_default_router
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline, IngestionReport
@@ -135,8 +136,13 @@ class SidraService:
         # chat path would answer it as one. The router is empty until a
         # generator registers, which is why chat still answers after routing
         # rather than replacing the answer with a promise.
+        # The generators get the model as a *copy provider*, not as a
+        # builder: it may rename what was made and nothing else. On the echo
+        # default the writer declines before calling anything, so a clean
+        # checkout keeps the wording it has always produced.
         self.creation_router = creation_router or build_default_router(
-            data_dir=str(data_dir)
+            data_dir=str(data_dir),
+            copy_writer=build_copy_writer(self.model),
         )
 
     # ------------------------------------------------------------------

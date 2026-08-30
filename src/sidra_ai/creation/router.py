@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
+from sidra_ai.creation.copy_writer import CopyWriter
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent, CreationKind
 
@@ -123,6 +124,7 @@ def build_default_router(
     extra: dict[CreationKind, CreationGenerator] | None = None,
     *,
     data_dir: str | None = None,
+    copy_writer: "CopyWriter | None" = None,
 ) -> CreationRouter:
     """The router the API uses.
 
@@ -131,6 +133,12 @@ def build_default_router(
     of its own choosing: a generator that writes files needs the caller to
     have decided where, and a router that silently picks a directory is how
     artifacts end up somewhere nobody looks.
+
+    ``copy_writer`` is the optional model-backed naming provider. It is
+    passed in rather than built here for the reason every other dependency
+    is: a router that reached for the process's model would make "did a
+    model touch this artifact?" unanswerable from the call site. Without
+    one the generators are exactly what they were.
 
     ``extra`` is applied last, so a test can install its own generator over
     the default for a kind.
@@ -146,7 +154,7 @@ def build_default_router(
         from sidra_ai.creation.model3d_job import build_model3d_generator
 
         router.register(CreationKind.DECK, build_deck_generator(data_dir))
-        router.register(CreationKind.GAME, build_game_generator(data_dir))
+        router.register(CreationKind.GAME, build_game_generator(data_dir, copy_writer))
         router.register(CreationKind.MODEL3D, build_model3d_generator(data_dir))
 
         from sidra_ai.creation.gif_job import build_gif_generator

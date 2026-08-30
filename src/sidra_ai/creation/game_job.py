@@ -21,12 +21,13 @@ from sidra_ai.creation.games import (
     save_game,
     validate_game_html,
 )
+from sidra_ai.creation.copy_writer import CopyWriter, copy_metadata
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
 
 
-def build_game_generator(data_dir: str | Path):
+def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = None):
     def generate(
         message: str,
         intent: CreationIntent,
@@ -42,6 +43,24 @@ def build_game_generator(data_dir: str | Path):
         # raised would have taken the whole game down for a citation line.
         evidence = [fact.source for fact in (retrieved or []) if fact.source]
         game = generate_game(message, evidence=evidence or None)
+        # The model is asked *after* the page is built and only about its
+        # wording. `with_copy` ignores empty strings and returns `self` when
+        # nothing changed, so a writer that declines costs one dict lookup
+        # and leaves the artifact identical - which is the whole echo path.
+        copy = copy_writer(message, kind="game", default_title=game.title) if copy_writer else None
+        if copy is not None:
+            # When the title guard renamed a franchise request, the reason is
+            # printed in the tagline. A model-written line must not quietly
+            # delete that notice, so a renamed page takes the model's title
+            # and keeps its own explanation.
+            renamed = "オリジナル版" in game.tagline
+            game = game.with_copy(
+                title=copy.title,
+                tagline="" if renamed else copy.tagline,
+            )
+        # Validated and saved after the overlay, never before: the file on
+        # disk and the verdict the operator is told have to describe the
+        # same page.
         verdict = validate_game_html(game.html)
         path = save_game(game, data_dir)
         # A request that names a genre we have no template for still gets a
@@ -87,6 +106,7 @@ def build_game_generator(data_dir: str | Path):
                 "requested_genre": requested.genre if requested else "",
                 "built_template": game.template,
                 "genre_substituted": substituted,
+                **copy_metadata(copy),
             },
         )
 
