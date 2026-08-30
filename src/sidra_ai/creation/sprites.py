@@ -211,6 +211,10 @@ SPRITE_SETS: dict[str, tuple[tuple[str, object], ...]] = {
     # The shooter draws its own ship and shots as paths; only the foe is
     # worth a sprite, because a wave of them is what the eye reads first.
     "shooter": (("foe", _interceptor),),
+    # The kaiju fight draws everything as paths on purpose: the whole point
+    # of the template is that the monster is a silhouette crossing the frame
+    # rather than a picture of a monster, and a sprite would be a picture.
+    "kaiju": (),
 }
 
 

@@ -4336,3 +4336,24 @@ C-0i 節（C-1030 / C-1031）は**対話セッションが 15:0x に両方とも
   flash 減衰と一致＝実測で根拠づけ）・戦闘の動き 2.9 倍。知識ベース §6 に定量欄を
   追記、C-1032 に実測パラメータを注入。素材の複製なし（数値と観察のみ）。
 2026-08-30 16:06 UTC ループA started Board=13
+
+## 2026-08-30 16:4x UTC ループA 結果: C-1032 完了
+
+`creation_kaiju_playable` unmeasurable → **1**、`creation_game_templates` 6 → **7**、
+`creation_touch_playable` / `creation_game_audio` / `creation_start_screen` 6 → **7**
+（`product_metrics.py --compare` exit 0）。`python -m pytest` exit 0（新規 13 件込みで
+全件通過）。`verify_gate_recall.py` PASSED（MISS 0 / 誤検知 0）。security / retrieval /
+chunker / tokenizer は無変更のため追加判定器は不要。
+
+社長指示（映像視聴からの学習・第 2 弾）で新設された C-0j 節の最上位を確保。
+`creation/kaiju.py` を新設し、5 つの登録表（TEMPLATES / _DIFFICULTY / SPRITE_SETS /
+story.CONTROLS+PARAMETERS / テストの期待表）を埋めた。
+
+規則は全部 node でページを動かして確認する。(1) 全身は倒した時だけ描く
+（**配線を壊すと 1 → 0** を確認済み）、(2) 外した弾は何も減らさない・3 周期、
+(3) 攻撃間隔は §6 実測の 126 フレーム（2.1 秒）。
+
+途中 `test_creation_audio` が独自の音名を正しく弾いた（テンプレ専用の音テーブルを
+作らせないガード）。共有プリアンブルの名前に寄せて解決。`_TRADEMARKS` に
+ゴジラ/ガメラ/ウルトラマンを追加——ジャンルが作れる＝謝罪せず routing されるので、
+名前ガードだけが作品名と生成物の間に残るため。

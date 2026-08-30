@@ -59,6 +59,13 @@ from sidra_ai.creation.shooter import (
     SHOOTER_TITLE,
     SHOOTER_WORDS,
 )
+from sidra_ai.creation.kaiju import (
+    KAIJU_DIFFICULTY,
+    KAIJU_HOW,
+    KAIJU_SCRIPT,
+    KAIJU_TITLE,
+    KAIJU_WORDS,
+)
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.duel import (
     DUEL_DIFFICULTY,
@@ -229,6 +236,12 @@ TEMPLATES: dict[str, GameTemplate] = {
         PUZZLE_HOW,
         PUZZLE_SCRIPT,
     ),
+    "kaiju": GameTemplate(
+        "kaiju",
+        KAIJU_TITLE,
+        KAIJU_HOW,
+        KAIJU_SCRIPT,
+    ),
 }
 
 #: Difficulty is two numbers per template, not a label. Keeping the mapping
@@ -240,6 +253,7 @@ _DIFFICULTY = {
     "duel": DUEL_DIFFICULTY,
     "shooter": SHOOTER_DIFFICULTY,
     "puzzle": PUZZLE_DIFFICULTY,
+    "kaiju": KAIJU_DIFFICULTY,
 }
 
 # Stems, not whole words: 難しい / 難しく / 難しめ all have to land on the
@@ -253,6 +267,7 @@ _ADVENTURE_WORDS = ADVENTURE_WORDS
 _DUEL_WORDS = DUEL_WORDS
 _SHOOTER_WORDS = SHOOTER_WORDS
 _PUZZLE_WORDS = PUZZLE_WORDS
+_KAIJU_WORDS = KAIJU_WORDS
 
 #: Names this generator will not put on an artifact. A request that says
 #: 「ゼルダの伝説作って」 routes to the adventure template - the *genre* is
@@ -275,11 +290,21 @@ _TRADEMARKS = (
     "どうぶつの森",
     "モンハン",
     "モンスターハンター",
+    # Added with the kaiju template: the *genre* is now buildable, so the
+    # request routes instead of apologising - which makes the name guard the
+    # only thing standing between a franchise request and a page carrying the
+    # franchise's name.
+    "ゴジラ",
+    "ガメラ",
+    "ウルトラマン",
     "zelda",
     "mario",
     "pokemon",
     "kirby",
     "dragon ball",
+    "godzilla",
+    "gamera",
+    "ultraman",
     "nintendo",
     "任天堂",
 )
@@ -296,6 +321,11 @@ def choose_template(request: str) -> str:
     # Before the duel: "対戦シューティング" is a shooter, and _GENRES already
     # says so. Routing has to agree with the honesty table or the summary
     # would name a genre the page is not.
+    # Before the shooter and the adventure: 「巨大な怪獣を撃つ」 names a boss
+    # fight, and a request whose subject is the monster should not land on a
+    # template where every enemy is the player's size.
+    if any(fold_kana(word.lower()) in lowered for word in _KAIJU_WORDS):
+        return "kaiju"
     if any(fold_kana(word.lower()) in lowered for word in _PUZZLE_WORDS):
         return "puzzle"
     if any(fold_kana(word.lower()) in lowered for word in _SHOOTER_WORDS):
@@ -317,6 +347,9 @@ def choose_template(request: str) -> str:
 #: template landing later flips the answer without anyone editing this list.
 #: Order is the tie-break: "対戦シューティング" is a shooter, not a versus game.
 _GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    # First: a giant-boss request names the monster, and every other genre
+    # word in the sentence ("撃つ", "冒険") is describing what you do to it.
+    ("巨大ボス", "kaiju", KAIJU_WORDS),
     (
         "アドベンチャー",
         "adventure",

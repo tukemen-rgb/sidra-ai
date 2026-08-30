@@ -60,6 +60,11 @@ CONTROLS: dict[str, tuple[tuple[str, str], ...]] = {
         ("SPACE / タップ", "同じ色のかたまりを消す（2 個以上）"),
         ("R", "盤面をやり直す"),
     ),
+    "kaiju": (
+        ("← →", "多脚戦車を歩かせる（地割れから離れる）"),
+        ("SPACE / タップ", "撃つ。脚を撃ち抜くと頭が下りてくる"),
+        ("R", "退いた後にやり直す"),
+    ),
 }
 
 #: What the two difficulty numbers mean, per template. Without this the table
@@ -88,6 +93,10 @@ PARAMETERS: dict[str, tuple[tuple[str, str], ...]] = {
     "puzzle": (
         ("色の数", "盤面に出る色数。多いほどかたまりが小さくなる"),
         ("盤面の幅", "横のマス数。広いほど手が長く続く"),
+    ),
+    "kaiju": (
+        ("地割れの開く速さ", "1 フレームあたりの拡がり。大きいほど逃げる猶予が短い"),
+        ("脚の耐久", "1 周期で脚に必要な命中数。多いほど頭が下りるまで長い"),
     ),
 }
 

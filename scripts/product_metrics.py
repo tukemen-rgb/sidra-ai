@@ -799,6 +799,7 @@ def measure_creation(c: Collector) -> None:
                 "ビームの撃ち合いゲームを作って",
                 "シューティングゲームを作って",
                 "パズルゲームを作って",
+                "巨大な怪獣と戦うゲームを作って",
             )
         }
     )
@@ -1128,6 +1129,96 @@ def measure_creation(c: Collector) -> None:
             "charger with different fire thresholds; the clash push is on a gauge"
             if duel_seen and not duel_reasons
             else "; ".join(duel_reasons) or "no seed could be played"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- a fight against something bigger than the player ---------------
+    #
+    # Every enemy this generator could build was the player's own size and
+    # arrived in quantity; the owner's viewing notes (§6) say scale is a set
+    # of rules, not a sprite size. All three load-bearing ones are checked by
+    # *playing the page in node*, because each has a cheap fake that a source
+    # check would pass: a huge sprite (rather than a withheld body), a boss
+    # that dies to any shot (rather than to the leg-then-head cycle), and an
+    # attack clock invented instead of taken from the measurement.
+    import re as _kaiju_re
+    import subprocess as _kaiju_sp
+
+    from sidra_ai.creation.kaiju import probe_source as _kaiju_probe
+
+    kaiju_reasons = []
+    kaiju_seen = None
+    kaiju_game = generate_game("巨大な怪獣と戦うゲームを作って")
+    if kaiju_game.template != "kaiju":
+        kaiju_reasons.append(f"routed to {kaiju_game.template}")
+    if not validate_game_html(kaiju_game.html)["playable"]:
+        kaiju_reasons.append("page does not parse")
+    # The genre is buildable now, so a franchise request routes instead of
+    # apologising - which makes the name guard the only thing between it and
+    # an artifact carrying the name.
+    named = generate_game("ゴジラのゲームを作って")
+    if named.template != "kaiju":
+        kaiju_reasons.append(f"the franchise request routed to {named.template}")
+    if "ゴジラ" in named.html:
+        kaiju_reasons.append("the franchise name reached the artifact")
+    if "オリジナル版" not in named.tagline:
+        kaiju_reasons.append("the rename is silent")
+    script = _kaiju_re.search(r"<script>(.*?)</script>", kaiju_game.html, _kaiju_re.S)
+    if script is None:
+        kaiju_reasons.append("no script")
+    else:
+        try:
+            probe = _kaiju_sp.run(
+                ["node", "-"],
+                input=_kaiju_probe(script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=90,
+            )
+            if probe.returncode != 0:
+                kaiju_reasons.append(f"probe failed: {probe.stderr.strip()[:60]}")
+            else:
+                kaiju_seen = json.loads(probe.stdout)
+        except (OSError, _kaiju_sp.SubprocessError, ValueError) as exc:
+            kaiju_reasons.append(f"probe unavailable ({type(exc).__name__})")
+    if kaiju_seen is not None:
+        # 観察 1: the body is what you do not draw. Never while it lives;
+        # once, when it is down. A metric that only checked the second half
+        # would pass a page that drew the whole monster the entire time.
+        if kaiju_seen["bodyWhileAlive"]:
+            kaiju_reasons.append("the whole body was drawn while the boss was alive")
+        if not kaiju_seen["shown"]:
+            kaiju_reasons.append("the body is never shown, even beaten")
+        # The leg phase is a decision only if missing it costs the shot.
+        if kaiju_seen["cyclesAfterMisses"] or (
+            kaiju_seen["legHpAfterMisses"] != kaiju_seen["legHpStart"]
+        ):
+            kaiju_reasons.append("shots that hit nothing still hurt the boss")
+        if not kaiju_seen["sawOpen"]:
+            kaiju_reasons.append("the weak point never opens")
+        # 3 cycles, not 1: the fight has a shape or it is a health bar.
+        if kaiju_seen["cycles"] != 3 or kaiju_seen["kills"] != 3:
+            kaiju_reasons.append(
+                f"took {kaiju_seen['cycles']} cycle(s), not 3"
+            )
+        if kaiju_seen["state"] != "won":
+            kaiju_reasons.append(f"the fight ended {kaiju_seen['state']}")
+        # The measured cut length, ported as a number rather than a mood.
+        if kaiju_seen["beat"] != 126:
+            kaiju_reasons.append(
+                f"attack interval {kaiju_seen['beat']} frames, not the measured 126"
+            )
+    c.add(
+        "creation_kaiju_playable",
+        "自分より大きいものと戦える",
+        0.0 if kaiju_reasons or kaiju_seen is None else 1.0,
+        detail=(
+            "the body is withheld while it lives and shown once beaten; wasted "
+            "shots cost nothing; leg then weak point, three cycles; attacks on "
+            "the measured 126-frame (2.1s) beat; the franchise name is renamed"
+            if kaiju_seen is not None and not kaiju_reasons
+            else "; ".join(kaiju_reasons) or "the fight could not be played"
         ),
         kind=OUTCOME,
     )

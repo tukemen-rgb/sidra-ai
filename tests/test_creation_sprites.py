@@ -107,6 +107,10 @@ def test_each_template_gets_the_two_names_its_page_draws() -> None:
         # The puzzle's pieces are the board: flat cells whose meaning is
         # their colour and pip count, both of which a sprite would hide.
         "puzzle": set(),
+        # The kaiju is a silhouette crossing the frame, never a picture of a
+        # monster: a sprite would be exactly the whole-body view the template
+        # exists to withhold.
+        "kaiju": set(),
     }
     for template in TEMPLATES:
         names = {name for name, _ in SPRITE_SETS.get(template, ())}
