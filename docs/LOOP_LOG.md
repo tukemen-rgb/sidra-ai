@@ -4322,3 +4322,4 @@ origin は c2fbca9 から無変更（他ループの push なし）。Board=13 �
   死骸 64 件以上で index.jsonl を原子的に書き直し（temp+fsync+replace、0600 維持、
   実測 70→1）。index_compacts unmeasurable→1。テスト 9 件 / pytest exit 0 /
   recall PASSED / 判定器 exit 0。これでレビュー 3 本の指摘は全て消化。
+2026-08-30 15:06 UTC ループA started Board=13
