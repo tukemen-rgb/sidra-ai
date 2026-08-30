@@ -44,7 +44,7 @@ from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
-from sidra_ai.creation.startscreen import GATE_PREAMBLE
+from sidra_ai.creation.startscreen import BRIEFINGS, GATE_PREAMBLE
 from sidra_ai.creation.puzzle import (
     PUZZLE_DIFFICULTY,
     PUZZLE_HOW,
@@ -556,6 +556,14 @@ def generate_game(
         # of them on the screen nobody can get past without reading.
         .replace("TITLE_TOKEN", json.dumps(spec.default_title, ensure_ascii=False))
         .replace("HOWTO_TOKEN", json.dumps(spec.how_to_play, ensure_ascii=False))
+        # The briefing the title screen prints: objective, controls, threat.
+        # A template with no entry gets an empty list and the screen falls
+        # back to the instruction line, so a missing briefing costs the
+        # framing rather than the start screen.
+        .replace(
+            "BRIEF_TOKEN",
+            json.dumps(list(BRIEFINGS.get(key, ())), ensure_ascii=False),
+        )
     )
     title = _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"

@@ -4358,3 +4358,17 @@ story.CONTROLS+PARAMETERS / テストの期待表）を埋めた。
 ゴジラ/ガメラ/ウルトラマンを追加——ジャンルが作れる＝謝罪せず routing されるので、
 名前ガードだけが作品名と生成物の間に残るため。
 2026-08-30 17:06 UTC ループA started Board=13
+
+## 2026-08-30 17:3x UTC ループA 結果: C-1033 完了
+
+`creation_briefing_screens` unmeasurable → **7**（`product_metrics.py --compare` exit 0）。
+`python -m pytest` exit 0（新規 31 件込みで全件通過）。`verify_gate_recall.py` PASSED。
+security / retrieval / chunker / tokenizer は無変更。
+
+開始画面に 目標 / 操作 / 敵 の 3 行（`startscreen.BRIEFINGS`）。未登録は従来の
+操作説明行に落ちる。計器は既存 gate プローブに `gateBrief()` を足して**動いている
+ページから**読み、空洞化の 3 通り（空行・持たないキーを名乗る操作行・全テンプレ
+共通の定型文）を全部弾く。操作行の検査は `story.CONTROLS` をコピーせず問い合わせる。
+配線を外して 7→0、定型文にして 7→0 を確認済み。
+
+残りの C-0j は C-1034（戦闘の音圧差）のみ。

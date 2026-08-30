@@ -1400,7 +1400,7 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.games import TEMPLATES as _GATE_TEMPLATES
     from sidra_ai.creation.startscreen import probe_source as _gate_probe
 
-    gated, gate_gaps = [], []
+    gated, gate_gaps, briefings = [], [], {}
     for key in sorted(_GATE_TEMPLATES):
         page = generate_game("ゲームを作って", template=key).html
         script = _gate_re.search(r"<script>(.*?)</script>", page, _gate_re.S)
@@ -1430,6 +1430,7 @@ def measure_creation(c: Collector) -> None:
             gate_gaps.append(f"{key}: page no longer parses")
         else:
             gated.append(key)
+        briefings[key] = seen.get("brief")
     c.add(
         "creation_start_screen",
         "読んでから始められるゲームの型",
@@ -1439,6 +1440,58 @@ def measure_creation(c: Collector) -> None:
             "every frame after it"
             if not gate_gaps
             else "; ".join(gate_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- and the screen says what you are for, not only which keys ------
+    #
+    # §6 観察 3: the escalation the owner's episode uses opens on a briefing
+    # table, and that scene is why the shooting afterwards reads as something
+    # going wrong rather than as noise. A title plus a control list says which
+    # buttons exist; it does not say what the player is *for*.
+    #
+    # Counted off the same running page as the gate above, so a briefing
+    # constant that never reached the screen cannot pass. Three further
+    # things are checked, because each is how a briefing goes hollow: a line
+    # that is blank, a control line naming keys the template does not have,
+    # and one boilerplate objective pasted across every template.
+    from sidra_ai.creation.story import CONTROLS as _BRIEF_CONTROLS
+
+    briefed, brief_gaps = [], []
+    objectives = []
+    for key in sorted(_GATE_TEMPLATES):
+        lines = briefings.get(key)
+        if key not in gated:
+            brief_gaps.append(f"{key}: the screen it would print on is not gated")
+            continue
+        if not isinstance(lines, list) or len(lines) != 3:
+            brief_gaps.append(f"{key}: no briefing reached the screen")
+            continue
+        if any(not str(line).strip() for line in lines):
+            brief_gaps.append(f"{key}: a briefing line is blank")
+            continue
+        # The control line has to name a key this template actually reads.
+        # Two tables of the same fact drift; this asks rather than copies.
+        keys = [k for k, _ in _BRIEF_CONTROLS.get(key, ())]
+        tokens = [t for k in keys for t in k.replace("/", " ").split() if t]
+        if tokens and not any(token in lines[1] for token in tokens):
+            brief_gaps.append(f"{key}: the control line names none of {keys}")
+            continue
+        objectives.append(lines[0])
+        briefed.append(key)
+    if len(set(objectives)) != len(objectives):
+        brief_gaps.append("the objective line is boilerplate shared by templates")
+        briefed = []
+    c.add(
+        "creation_briefing_screens",
+        "何をする番かを先に言う開始画面",
+        float(len(briefed)),
+        detail=(
+            f"{', '.join(briefed)}: 目標 / 操作 / 敵 on the title screen, each "
+            "template's own, control line agreeing with its key table"
+            if not brief_gaps
+            else "; ".join(brief_gaps)
         ),
         kind=OUTCOME,
     )

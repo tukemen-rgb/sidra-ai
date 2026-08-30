@@ -25,15 +25,68 @@ re-scheduling itself, exactly as the hitstop does.
 from __future__ import annotations
 
 #: What the preamble introduces.
-PREAMBLE_NAMES: tuple[str, ...] = ("gateState", "gateFrames")
+PREAMBLE_NAMES: tuple[str, ...] = ("gateState", "gateFrames", "gateBrief")
+
+#: The three lines the title screen prints before anyone presses anything:
+#: what you are trying to do, what you press, and what is in your way.
+#:
+#: The owner's viewing notes (§6 観察 3) start their escalation with a
+#: briefing table - the scene exists so the audience knows the objective
+#: before the shooting starts, and it is the reason the shooting reads as
+#: something going wrong rather than as noise. A title plus a control list
+#: says which buttons exist; it does not say what you are *for*.
+#:
+#: Kept per template because a shared sentence would be the tell that nobody
+#: wrote one: "敵を倒す" over a fishing game is worse than no line at all.
+#: The control line is checked against ``story.CONTROLS`` by the tests rather
+#: than copied from it - two tables of the same fact drift, and the one that
+#: drifts is the one nobody reads.
+BRIEFINGS: dict[str, tuple[str, str, str]] = {
+    "fishing": (
+        "帯の中でタイミングを合わせ、釣果を伸ばす",
+        "SPACE / タップで合わせる",
+        "帯は狭く、マーカーは休まない",
+    ),
+    "catch": (
+        "落ちてくるものを受け皿で拾い切る",
+        "← → / マウスで受け皿を動かす",
+        "落下は止まらず、取りこぼしは戻らない",
+    ),
+    "adventure": (
+        "鍵を見つけ、宝箱まで辿り着く",
+        "矢印 / WASD で歩き、SPACE で斬る",
+        "うろつく敵と、道を塞ぐ岩と茂み",
+    ),
+    "duel": (
+        "溜めて撃ち、相手の体力を先に削り切る",
+        "SPACE 長押しで溜め、離して発射、↑ ↓ で回避",
+        "早撃ち型か溜め型の相手（画面に出る）",
+    ),
+    "shooter": (
+        "降りてくる波を落とし切る",
+        "← → で移動、SPACE で連射",
+        "波は速くなる。3 回ぶつかると終わり",
+    ),
+    "puzzle": (
+        "同じ色のかたまりを消し、盤面を片づける",
+        "← ↑ → ↓ でカーソル、SPACE で消す",
+        "2 個未満は消せない。手が尽きたら終わり",
+    ),
+    "kaiju": (
+        "脚を撃ち抜き、下りてきた頭を叩く。3 周期で仕留める",
+        "← → で歩き、SPACE で撃つ",
+        "巨獣の一撃と、走る地割れ（線が予兆）",
+    ),
+}
 
 GATE_PREAMBLE = """
 /* --- start screen and pause (installed first: its overlay draws last) --- */
 const GCV=document.getElementById('stage');
-const GTITLE=TITLE_TOKEN,GHOW=HOWTO_TOKEN;
+const GTITLE=TITLE_TOKEN,GHOW=HOWTO_TOKEN,GBRIEF=BRIEF_TOKEN;
 let GATE='title',GATE_RAN=0;
 function gateState(){return GATE}
 function gateFrames(){return GATE_RAN}
+function gateBrief(){return GBRIEF}
 function gateStart(){if(GATE==='playing')return;
   /* The press that starts the game is the user gesture the AudioContext has
      been waiting for; a game whose first sound is silent taught the player
@@ -63,7 +116,22 @@ function drawGate(){if(!GCV||GATE==='playing')return;
   c.fillText(GATE==='title'?GTITLE:'一時停止',W/2,H/2-54);
   c.font='13px ui-monospace,monospace';
   if(GATE==='title'){
-    gateWrap(GHOW,34).forEach((line,i)=>{c.fillText(line,W/2,H/2-18+i*20)})}
+    /* The briefing table: objective, controls, threat - the three things a
+       player needs before the first frame, in that order. Falls back to the
+       instruction line for a template with no briefing, so a missing entry
+       costs the framing rather than the screen. */
+    let y=H/2-30;
+    if(GBRIEF&&GBRIEF.length===3){
+      const LABEL=['目標','操作','敵'];
+      GBRIEF.forEach((line,i)=>{
+        c.textAlign='left';
+        c.fillStyle='CYAN_TOKEN';c.font='12px ui-monospace,monospace';
+        c.fillText(LABEL[i],W/2-190,y);
+        c.fillStyle='#dfe7f5';c.font='13px ui-monospace,monospace';
+        gateWrap(line,30).forEach((part,j)=>{c.fillText(part,W/2-140,y+j*18)});
+        y+=gateWrap(line,30).length*18+10});
+      c.textAlign='center'}
+    else{gateWrap(GHOW,34).forEach((line,i)=>{c.fillText(line,W/2,H/2-18+i*20)})}}
   c.font='15px ui-monospace,monospace';
   c.fillText(GATE==='title'?'タップ / SPACE ではじめる':'タップ / SPACE でつづける',
     W/2,H-46);
@@ -109,6 +177,9 @@ console.log(JSON.stringify({
   stateBefore: stateBefore, framesBeforePress: before,
   stateAfter: gateState(), framesAfterPress: gateFrames(),
   handlers: keyHandlers.length,
+  /* Read off the running page, not the source: a briefing constant that
+     never reaches the gate would still be in the file. */
+  brief: typeof gateBrief === 'function' ? gateBrief() : null,
 }));
 """
 
@@ -119,4 +190,4 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-__all__ = ["GATE_PREAMBLE", "PREAMBLE_NAMES", "PROBE", "probe_source"]
+__all__ = ["BRIEFINGS", "GATE_PREAMBLE", "PREAMBLE_NAMES", "PROBE", "probe_source"]
