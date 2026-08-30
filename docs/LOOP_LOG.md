@@ -4393,3 +4393,19 @@ adventure は「敵が近いときだけ」という良い設計のまま残し�
 理由に設計を落とさなかった**。ギャップは C-1035 として起票し、埋まるまで
 adventure は合格に数えない。これで C-0j（映像視聴・第 2 弾）の 3 件は全部閉じた。
 2026-08-30 19:06 UTC ループA started Board=13
+
+## 2026-08-30 19:4x UTC ループA 結果: C-1035 完了（製品バグを 1 件修正）
+
+`creation_combat_verified` unmeasurable → **7**（`product_metrics.py --compare` exit 0）。
+`python -m pytest` exit 0（全件通過）。`verify_gate_recall.py` PASSED。
+security / retrieval / chunker / tokenizer は無変更。
+
+計器の穴だと思っていたものは**製品のバグ**だった。`moveEnemies` が敵とプレイヤーの
+距離 `d` で割るため、**真上に重なると d===0 で速度が NaN** になり、`solid(NaN,..)` が
+`rooms[room][NaN]` を読んで例外を投げ、**ループが止まってページが無言で死ぬ**。
+接触ダメージのノックバックが hero を敵の進行方向へ押すので実プレイで到達しうる。
+`const towards=d||1` で修正し、回帰テストを追加した。
+
+修正後は adventure を運転でき、「敵が近いときだけ段が上がる」ことを実測できた。
+7 型すべてで音量規則が実測済み。旧「6」は計器内の集合で記録された数字ではないため、
+差分を偽装せず新規 7 として出した。

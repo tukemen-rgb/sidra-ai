@@ -158,7 +158,15 @@ function moveHero(){
     hero.key=true;keyDrop=null;say('鍵を手に入れた。');sfx('key')}}
 function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   const d=Math.hypot(hero.x-en.x,hero.y-en.y);
-  if(d<TILE*4){en.dx=(hero.x-en.x)/d*ESPEED;en.dy=(hero.y-en.y)/d*ESPEED}
+  /* Exactly on top of the hero is d===0, and dividing by it makes this
+     enemy's velocity NaN for the rest of the page: `solid(NaN,..)` then
+     reads rooms[room][NaN] and throws, which stops the loop and ends the
+     game with no message. Reachable in play - the knock-back below pushes
+     the hero *along* the enemy's heading - so the guard is a fix, not a
+     probe convenience. At zero distance there is no direction to chase
+     anyway; the contact damage a few lines down is what should happen. */
+  if(d<TILE*4){const towards=d||1;
+    en.dx=(hero.x-en.x)/towards*ESPEED;en.dy=(hero.y-en.y)/towards*ESPEED}
   else if(en.t<=0){const a=rand()*6.28318;
     en.dx=Math.cos(a)*ESPEED*0.6;en.dy=Math.sin(a)*ESPEED*0.6;en.t=50+rand()*60}
   const nx=en.x+en.dx,ny=en.y+en.dy;

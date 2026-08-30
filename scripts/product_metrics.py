@@ -1516,13 +1516,18 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN
     from sidra_ai.creation.audio import probe_source as _loud_probe
 
-    #: Templates whose play state *is* a fight. The adventure is deliberately
-    #: absent: it raises the step only while an enemy is near, which is the
-    #: better design and which this stub cannot drive far enough to observe -
-    #: recorded as a gap rather than counted as a pass.
+    #: Templates whose play state *is* a fight, so the step has to be on
+    #: while they are simply being played.
     fights = {"duel", "kaiju", "shooter"}
+    #: The adventure raises the step only while an enemy is near - the better
+    #: design, because the quiet stretches are what make the loud ones read as
+    #: loud. It therefore reports "off" when merely played, which is
+    #: indistinguishable from a clause that can never fire, so the probe puts
+    #: an enemy on the hero and asks again (C-1035).
+    conditional = {"adventure"}
     quiet = {"fishing", "catch", "puzzle"}
     loud_reasons = []
+    loud_verified = []
     for key in sorted(_GATE_TEMPLATES):
         page = generate_game("ゲームを作って", template=key).html
         script = _loud_re.search(r"<script>(.*?)</script>", page, _loud_re.S)
@@ -1564,6 +1569,12 @@ def measure_creation(c: Collector) -> None:
             loud_reasons.append(f"{key}: has a fight and never raises the step")
         if key in quiet and seen["combatDuringPlay"]:
             loud_reasons.append(f"{key}: claims a fight it does not have")
+        if key in conditional and seen.get("nearEnemy") is not True:
+            loud_reasons.append(
+                f"{key}: the near-enemy clause never fired ({seen.get('nearEnemy')})"
+            )
+        if not any(key in reason for reason in loud_reasons):
+            loud_verified.append(key)
     c.add(
         "creation_combat_loudness",
         "戦闘だけ音が大きい",
@@ -1571,10 +1582,21 @@ def measure_creation(c: Collector) -> None:
         detail=(
             f"every page raises the gain x{COMBAT_GAIN:g} in combat and comes back "
             f"down, never past {MAX_GAIN:g}, never past M; "
-            f"{', '.join(sorted(fights))} turn it on while played and "
+            f"{', '.join(sorted(fights))} turn it on while played, "
+            f"{', '.join(sorted(conditional))} when an enemy is on the hero, and "
             f"{', '.join(sorted(quiet))} leave it off"
             if not loud_reasons
             else "; ".join(loud_reasons)
+        ),
+        kind=OUTCOME,
+    )
+    c.add(
+        "creation_combat_verified",
+        "戦闘の音量規則を実測できた型",
+        float(len(loud_verified)),
+        detail=(
+            f"{', '.join(loud_verified)}: gain step, mute, ceiling and the "
+            "template's own use of it, all read off the running page"
         ),
         kind=OUTCOME,
     )

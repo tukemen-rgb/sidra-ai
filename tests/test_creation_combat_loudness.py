@@ -96,3 +96,44 @@ def test_the_step_is_a_number_the_tests_can_read() -> None:
     assert f"COMBAT_GAIN={COMBAT_GAIN}" in page
     assert f"MAX_GAIN={MAX_GAIN}" in page
     assert "COMBAT_GAIN_TOKEN" not in page, "the token was substituted"
+
+
+# --- the crash the probe found on the way ---------------------------------
+
+
+def test_an_enemy_standing_on_the_hero_does_not_kill_the_page() -> None:
+    """Zero distance used to make a velocity NaN, and the loop then threw.
+
+    `en.dx = (hero.x - en.x) / d` with the two in the same place divides by
+    zero. The NaN reaches `solid(NaN, ..)`, which reads `rooms[room][NaN]` on
+    an undefined row and throws - so the game stops with no message, and the
+    only way back is a reload. Reachable in play: the contact knock-back
+    pushes the hero *along* the enemy's heading.
+    """
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to play the page")
+    page = generate_game("ゲームを作って", template="adventure").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+
+    probe = subprocess.run(
+        ["node", "-"],
+        input=probe_source(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert probe.returncode == 0, probe.stderr[:400]
+    seen = json.loads(probe.stdout)
+    assert seen["nearEnemy"] is True, seen["nearEnemy"]
+
+
+def test_the_adventure_only_gets_loud_when_something_is_near() -> None:
+    """The quiet stretches are what make the loud ones read as loud."""
+
+    seen = _sound("adventure")
+
+    assert seen["combatDuringPlay"] is False, "an empty first room stays quiet"
+    assert seen["nearEnemy"] is True, "and the clause does fire when met"

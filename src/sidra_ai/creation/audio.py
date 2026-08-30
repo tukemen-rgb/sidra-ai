@@ -148,6 +148,19 @@ run(2);
 keyHandlers.forEach(fn => fn({ key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} }));
 run(120);
 const combatDuringPlay = combatOn();
+/* A template that only fights when something is near reports false above,
+   and its opening room being quiet is the design. That is indistinguishable
+   from a clause that can never fire unless the condition is met, so meet it:
+   put an enemy on the hero and see whether the step comes on. */
+let nearEnemy = null;
+if (typeof enemies !== 'undefined' && typeof hero !== 'undefined' && !combatDuringPlay) {
+  try {
+    (enemies[room] || (enemies[room] = [])).push(
+      { x: hero.x, y: hero.y, dx: 0, dy: 0, t: 0, alive: true });
+    run(2);
+    nearEnemy = combatOn();
+  } catch (err) { nearEnemy = 'error: ' + err.message }
+}
 combat(false);
 const calm = measure(() => sfx('hurt'));
 combat(true);
@@ -165,7 +178,7 @@ console.log(JSON.stringify({
   calm: calm[0] ?? null, loud: loud[0] ?? null,
   mutedPlayed: muted.length, backToCalm: backToCalm[0] ?? null,
   peak: Math.max.apply(null, peaks), hasCombat: typeof combat === 'function',
-  combatDuringPlay: combatDuringPlay,
+  combatDuringPlay: combatDuringPlay, nearEnemy: nearEnemy,
 }));
 """
 
