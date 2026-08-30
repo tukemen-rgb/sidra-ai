@@ -153,7 +153,7 @@ def build_default_router(
         from sidra_ai.creation.game_job import build_game_generator
         from sidra_ai.creation.model3d_job import build_model3d_generator
 
-        router.register(CreationKind.DECK, build_deck_generator(data_dir))
+        router.register(CreationKind.DECK, build_deck_generator(data_dir, None, copy_writer))
         router.register(CreationKind.GAME, build_game_generator(data_dir, copy_writer))
         router.register(CreationKind.MODEL3D, build_model3d_generator(data_dir))
 

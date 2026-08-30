@@ -1224,6 +1224,71 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and the deck, on the deck's own terms ---------------------------
+    #
+    # `GeneratedDeck.with_copy` takes a title and no bullets, because a
+    # bullet is where a number gets reworded into existence. So the deck's
+    # instrument asks for one thing the game's does not: that the model's
+    # title carries no figure, and that nothing below the title moved. A
+    # metric that only checked "the title changed" would pass a deck whose
+    # heading now claims 3億円 nobody retrieved.
+    from sidra_ai.creation.deck_job import build_deck_generator as _build_deck_gen
+    from sidra_ai.creation.decks import Fact as _CopyFact
+
+    deck_copy_reasons = []
+    with _copy_tmp.TemporaryDirectory() as _deck_dir:
+        _deck_ask = "この製品の提案資料を作って"
+        _deck_it = _copy_intent(_deck_ask)
+        _deck_facts = [
+            _CopyFact(
+                text="SIDRA AI は 5 リポジトリを索引し、外部 API を使わない。",
+                source="docs/OUTCOMES.md",
+            )
+        ]
+
+        def _deck_run(writer):
+            return _build_deck_gen(_deck_dir, None, writer)(_deck_ask, _deck_it, _deck_facts)
+
+        deck_plain = _deck_run(None)
+        deck_named = _deck_run(_build_copy(_CopyFake('{"title": "自前で答える索引"}')))
+        if not deck_named.details.get("model_copy"):
+            deck_copy_reasons.append("a model that answered was not consulted")
+        elif "自前で答える索引" not in _CopyPath(deck_named.artifact_path).read_text(
+            encoding="utf-8"
+        ):
+            deck_copy_reasons.append("the model's title did not reach the saved deck")
+        # Renaming a deck may not change what is on it, or how much of it is
+        # still blank: those are the numbers an operator presents from.
+        for field in ("outline", "slides", "unfilled", "numbers_sourced"):
+            if deck_named.details.get(field) != deck_plain.details.get(field):
+                deck_copy_reasons.append(f"renaming the deck changed {field}")
+
+        for label, backend in (
+            ("a figure in the title", _CopyFake('{"title": "3億円の計画"}')),
+            ("a franchise name", _CopyFake('{"title": "マリオの提案"}')),
+            ("prose instead of JSON", _CopyFake("How about The Big Pitch?")),
+            ("an unreachable backend", _CopyFake("", fail=True)),
+            ("the echo default", _CopyEcho()),
+        ):
+            got = _deck_run(_build_copy(backend))
+            if got.details.get("model_copy"):
+                deck_copy_reasons.append(f"{label} was accepted as a deck title")
+            elif got.summary != deck_plain.summary:
+                deck_copy_reasons.append(f"{label} changed the deck anyway")
+    c.add(
+        "creation_deck_model_copy",
+        "モデルが資料の題も書ける",
+        0.0 if deck_copy_reasons else 1.0,
+        detail=(
+            "an injected model names the saved deck while its slides, blanks and "
+            "sourcing are untouched; a figure in the title, a franchise name, prose, "
+            "an unreachable backend and the echo default are all refused"
+            if not deck_copy_reasons
+            else "; ".join(deck_copy_reasons)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- nobody is playing before they have read anything --------------
     #
     # Every template used to start on load, which put the instructions below

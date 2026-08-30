@@ -4210,3 +4210,18 @@ router → game_job に任意で渡る。echo と有料バックエンドは**�
 確認済み**。deck への横展開は C-1029 として起票（ゲームの数字を資料の証拠に
 しない）。
 2026-08-30 01:06 UTC ループA started Board=13
+
+## 2026-08-30 01:3x UTC ループA 結果: C-1029 完了
+
+`creation_deck_model_copy` unmeasurable → **1**（`product_metrics.py --compare` exit 0）。
+`python -m pytest` exit 0（新規 6 件を含む全件通過）。`verify_gate_recall.py` PASSED
+（MISS 0 / 誤検知 0）。security / retrieval / chunker / tokenizer は無変更。
+
+C-1027 の provider を deck にも配線した。ゲインは「渡すだけ」では済まない点で、
+`validate_deck` は bullet の数字しか見ないため、モデルが**題に**書いた数字は
+検査をすり抜ける。`kind="deck"` では数字を含む題を拒否するようにした
+（ゲームは kind が違うので従来どおり許す）。改名は「改名後も同じ検査に通る
+とき」だけ採用する。計器は題が届くことに加えて outline / slides / unfilled /
+numbers_sourced が動かないことまで見る。配線を外すと 0 に落ちることを確認済み。
+
+これで C-0h の 3 件（C-1026 / C-1027 / C-1028）＋派生の C-1029 は全部閉じた。

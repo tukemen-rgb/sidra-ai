@@ -163,3 +163,55 @@ def test_the_metadata_is_present_on_every_artifact_not_only_the_touched_ones():
         "model_tagline": "",
     }
     assert copy_metadata(ArtifactCopy("題", "一言"))["model_copy"] is True
+
+
+# --- the deck, which has one rule the game does not -----------------------
+
+
+def _deck_run(tmp_path: Path, model: LocalModelAdapter | None, ask: str = "提案資料を作って"):
+    from sidra_ai.creation.deck_job import build_deck_generator
+    from sidra_ai.creation.decks import Fact
+
+    facts = [Fact(text="SIDRA AI は 5 リポジトリを索引する。", source="docs/OUTCOMES.md")]
+    writer = build_copy_writer(model) if model is not None else None
+    return build_deck_generator(tmp_path, None, writer)(ask, detect_creation_intent(ask), facts)
+
+
+def test_a_model_names_the_deck_without_touching_what_is_on_it(tmp_path):
+    plain = _deck_run(tmp_path, None)
+    named = _deck_run(tmp_path, FakeLocalModel('{"title": "自前で答える索引"}'))
+
+    assert named.details["model_copy"] is True
+    assert "自前で答える索引" in Path(named.artifact_path).read_text(encoding="utf-8")
+    for field in ("outline", "slides", "unfilled", "numbers_sourced"):
+        assert named.details[field] == plain.details[field], field
+
+
+def test_a_figure_in_a_deck_title_is_refused_where_the_same_title_suits_a_game(tmp_path):
+    # `validate_deck` reads bullets only, so a number the model put in the
+    # title would cross the deck's one guarantee without meeting the check
+    # that guards it. A game title may carry a number; a deck title may not.
+    assert parse_copy('{"title": "3億円の計画"}', kind="deck") is None
+    assert parse_copy('{"title": "3億円の計画"}', kind="game") is not None
+
+    got = _deck_run(tmp_path, FakeLocalModel('{"title": "3億円の計画"}'))
+    assert got.details["model_copy"] is False
+    assert "3億円" not in Path(got.artifact_path).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        pytest.param(FakeLocalModel("How about The Big Pitch?"), id="prose"),
+        pytest.param(FakeLocalModel('{"title": "マリオの提案"}'), id="franchise"),
+        pytest.param(FakeLocalModel("", fail=True), id="backend-down"),
+        pytest.param(EchoModelAdapter(), id="echo-default"),
+    ],
+)
+def test_a_deck_that_cannot_be_named_is_the_deck_it_always_was(tmp_path, model):
+    plain = _deck_run(tmp_path, None)
+    got = _deck_run(tmp_path, model)
+
+    assert got.details["model_copy"] is False
+    assert got.summary == plain.summary
+    assert got.details["unfilled"] == plain.details["unfilled"]

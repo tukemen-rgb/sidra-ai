@@ -15,12 +15,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.creation.copy_writer import CopyWriter, copy_metadata
 from sidra_ai.creation.decks import Fact, generate_deck, save_deck, save_pptx, validate_deck
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
 
 
-def build_deck_generator(data_dir: str | Path, facts: list[Fact] | None = None):
+def build_deck_generator(
+    data_dir: str | Path,
+    facts: list[Fact] | None = None,
+    copy_writer: CopyWriter | None = None,
+):
     """Return a generator bound to where artifacts are written.
 
     ``facts`` here are *standing* evidence, fixed when the generator is built.
@@ -42,6 +47,19 @@ def build_deck_generator(data_dir: str | Path, facts: list[Fact] | None = None):
         available = list(retrieved or []) + list(facts or [])
         deck = generate_deck(message, facts=available)
 
+        # The model may rename the deck and nothing else - `with_copy` takes
+        # a title and no bullets, because a bullet is where a number gets
+        # reworded into existence. The rename is kept only if the renamed
+        # deck passes the very check the original has to pass, so a model can
+        # cost this deck its wording but never cost the operator the deck.
+        copy = copy_writer(message, kind="deck", default_title=deck.title) if copy_writer else None
+        if copy is not None:
+            named = deck.with_copy(title=copy.title)
+            if validate_deck(named, available)["usable"]:
+                deck = named
+            else:
+                copy = None
+
         # The generator checks its own output against the evidence it was
         # handed, before writing anything. A deck that failed this would be a
         # deck carrying a figure from somewhere other than the corpus, and
@@ -56,7 +74,11 @@ def build_deck_generator(data_dir: str | Path, facts: list[Fact] | None = None):
                     "デッキを作りましたが、根拠と照合できない内容が含まれていたため"
                     "破棄しました: " + "; ".join(verdict["failures"])
                 ),
-                details={"failures": verdict["failures"], "facts_available": len(available)},
+                details={
+                    "failures": verdict["failures"],
+                    "facts_available": len(available),
+                    **copy_metadata(copy),
+                },
             )
 
         path = save_deck(deck, data_dir)
@@ -94,6 +116,7 @@ def build_deck_generator(data_dir: str | Path, facts: list[Fact] | None = None):
                 # is the difference between a fact and a claim.
                 "pptx_path": str(pptx_path) if wrote_pptx else "",
                 "pptx_reason": why,
+                **copy_metadata(copy),
             },
         )
 

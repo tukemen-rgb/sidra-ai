@@ -93,6 +93,14 @@ Rules:
 
 _MAX_TITLE = 20
 _MAX_TAGLINE = 30
+#: Kinds whose wording may not carry a figure. A deck's whole guarantee is
+#: that every number on it came from retrieved evidence, and ``validate_deck``
+#: reads the bullets only - a figure the model put in the *title* would cross
+#: that line without passing the check that guards it. So for those kinds a
+#: digit is a rejection, not a repair: "3億円の計画" is precisely the number
+#: reworded into existence that the deck generator refuses to produce.
+_NO_DIGIT_KINDS = frozenset({"deck", "document"})
+_DIGITS = re.compile(r"[0-9０-９]")
 #: Anything that would be markup, a link, or a second line once escaped into
 #: the page. ``with_copy`` escapes what it inserts, so this is belt and
 #: braces - and it keeps a rejected value out of the artifact entirely rather
@@ -113,17 +121,19 @@ class ArtifactCopy:
 CopyWriter = Callable[..., "ArtifactCopy | None"]
 
 
-def _acceptable(value: str, limit: int) -> bool:
+def _acceptable(value: str, limit: int, kind: str = "game") -> bool:
     text = value.strip()
     if not text or len(text) > limit:
         return False
     if _UNSAFE.search(text):
         return False
+    if kind in _NO_DIGIT_KINDS and _DIGITS.search(text):
+        return False
     lowered = text.lower()
     return not any(name in lowered for name in _forbidden_names())
 
 
-def parse_copy(text: str) -> ArtifactCopy | None:
+def parse_copy(text: str, *, kind: str = "game") -> ArtifactCopy | None:
     """Read the model's reply, or decide it did not answer the question.
 
     Kept separate from the call so the guards can be tested without a model
@@ -145,11 +155,11 @@ def parse_copy(text: str) -> ArtifactCopy | None:
     tagline = payload.get("tagline", "")
     if not isinstance(title, str) or not isinstance(tagline, str):
         return None
-    if not _acceptable(title, _MAX_TITLE):
+    if not _acceptable(title, _MAX_TITLE, kind):
         return None
     # A rejected tagline does not sink an accepted title: the page has a
     # deterministic tagline to fall back on, field by field.
-    clean_tagline = tagline.strip() if _acceptable(tagline, _MAX_TAGLINE) else ""
+    clean_tagline = tagline.strip() if _acceptable(tagline, _MAX_TAGLINE, kind) else ""
     return ArtifactCopy(title.strip(), clean_tagline)
 
 
@@ -192,7 +202,7 @@ def build_copy_writer(model: LocalModelAdapter | None) -> CopyWriter:
             )
         except Exception:  # noqa: BLE001 - naming a page may never break making one
             return None
-        return parse_copy(getattr(result, "text", "") or "")
+        return parse_copy(getattr(result, "text", "") or "", kind=kind)
 
     return write
 
