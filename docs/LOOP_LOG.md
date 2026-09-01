@@ -4561,3 +4561,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   明度差が 1.04 まで落ちる（無加工 1.23）ため (輝度+0.05) の一律乗算に。
   安全側の数字は 1 も削っていない。計器は 3 通りの破壊で 0 になることを確認。
   pytest exit 0 / verify_gate_recall exit 0（MISS なし）。
+2026-09-01 06:13 UTC ループA started Board=13
