@@ -76,6 +76,7 @@ function reset(){
   me={x:W*0.22,hp:3,step:0,cool:0};
   shots=[];cracks=[];dust=[];t=0;cycles=0;state='fight';
   boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
+setPal(KAIJU_PAL_TOKEN);
 function legX(){return W*0.72+Math.sin(t/90)*26}
 function fire(){if(me.cool>0||state!=='fight')return;me.cool=11;
   shots.push({x:me.x,y:GROUND-26,vy:-7});sfx('fire')}
@@ -130,8 +131,12 @@ addEventListener('keyup',e=>{keys[e.key]=false});
 function bossFacts(){return{phase:boss.phase,cycles:cycles,shown:boss.shown,
   legHp:boss.legHp,beat:BEAT,state:state,hp:me.hp}}
 function draw(){const now=performance.now();
-  cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,W,H);
-  cx.fillStyle='RAISED_TOKEN';cx.fillRect(0,GROUND,W,H-GROUND);
+  /* 埃 -> 閃光 -> 最大明度: the phase picks the air the fight happens in, and
+     the brightest frame of the whole page is the one where it goes down
+     (§7 観察 5-6). Mood only - the leg and the head still read by shape. */
+  setScene(boss.phase==='leg'?0:boss.phase==='open'?1:2);
+  cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,W,H);
+  cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(0,GROUND,W,H-GROUND);
   cracks.forEach(c=>{
     if(c.warn>0){cx.strokeStyle='MAGENTA_TOKEN';cx.lineWidth=2;
       cx.beginPath();cx.moveTo(c.x-16,GROUND+4);cx.lineTo(c.x+16,GROUND+4);cx.stroke()}
@@ -220,7 +225,9 @@ for (let i = 0; i < 3000 && bossFacts().state === 'fight'; i++) {
   if (bossFacts().cycles !== f.cycles) cyclesAt.push(i);
 }
 const end = bossFacts();
+const palette = sceneFacts();
 console.log(JSON.stringify({
+  scenes: palette.scenes,
   beat: end.beat, phaseStart: before.phase, legHpStart: before.legHp,
   cyclesAfterMisses: afterMisses.cycles, legHpAfterMisses: afterMisses.legHp,
   sawOpen: sawOpen, bodyWhileAlive: bodyWhileAlive,

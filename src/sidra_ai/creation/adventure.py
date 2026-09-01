@@ -60,6 +60,7 @@ ADVENTURE_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const ESPEED=SPEED_TOKEN,ECOUNT=BAND_TOKEN,SEED=SEED_TOKEN;
 const TILE=32,GW=20,GH=9,OX=40,OY=16;
+setPal(ADV_PAL_TOKEN);
 /* seeded LCG: the layout is a promise (same request, same world), and the
    enemies keep drawing from it so a run is reproducible too */
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
@@ -180,9 +181,9 @@ const GROUND={0:'SURFACE_TOKEN',5:'SURFACE_TOKEN',6:'SURFACE_TOKEN'};
    walls differ from floor by VALUE and FORM (edge highlights), never by hue
    alone; doors carry a shaped marker; water reads by motion and shade. */
 function drawTile(t,x,y,now){
-  cx.fillStyle=GROUND[t]||'SURFACE_TOKEN';cx.fillRect(x,y,TILE,TILE);
+  cx.fillStyle=scenePaint(GROUND[t]||'SURFACE_TOKEN');cx.fillRect(x,y,TILE,TILE);
   if(t===0||t===5||t===6){cx.fillStyle='#ffffff10';cx.fillRect(x+1,y+1,2,2)}
-  if(t===1){cx.fillStyle='BORDER_TOKEN';cx.fillRect(x,y,TILE,TILE);
+  if(t===1){cx.fillStyle=scenePaint('BORDER_TOKEN');cx.fillRect(x,y,TILE,TILE);
     cx.fillStyle='#ffffff2e';cx.fillRect(x,y,TILE,3);
     cx.fillStyle='#00000055';cx.fillRect(x,y+TILE-4,TILE,4);
     sprite('rock',x+2,y+2,TILE-4,TILE-4,'')}
@@ -217,7 +218,10 @@ function drawTile(t,x,y,now){
 function diamond(cxp,cyp,r){cx.beginPath();cx.moveTo(cxp,cyp-r);
   cx.lineTo(cxp+r,cyp);cx.lineTo(cxp,cyp+r);cx.lineTo(cxp-r,cyp);cx.closePath()}
 function draw(now){
-  cx.fillStyle='#05070f';cx.fillRect(0,0,cv.width,cv.height);
+  /* 森 -> 洞窟 -> 祭壇: the room, not the theme, picks the accent hue, and
+     the altar keeps the brightest值 in the game for last (§7 観察 5-6). */
+  setScene(room);
+  cx.fillStyle=scenePaint('BG_TOKEN');cx.fillRect(0,0,cv.width,cv.height);
   for(let y=0;y<GH;y++){for(let x=0;x<GW;x++){
     drawTile(rooms[room][y][x],OX+x*TILE,OY+y*TILE,now)}}
   if(keyDrop&&room===1){cx.fillStyle='CYAN_TOKEN';
@@ -296,8 +300,10 @@ rooms.forEach(m => m.forEach(r => r.forEach(t => { tally[t] = (tally[t]||0) + 1 
 let around = [];
 rooms.forEach(m => m.forEach((r, y) => r.forEach((t, x) => { if (t === 11) {
   around = [[0,-1],[0,1],[-1,0],[1,0]].map(d => (m[y+d[1]]||[])[x+d[0]]) } })));
+const palette = sceneFacts();
 console.log(JSON.stringify({
   tiles: tally,
+  scenes: palette.scenes,
   charmNeighbours: around,
   hearts: hero.maxhp,
   charm: hero.charm,

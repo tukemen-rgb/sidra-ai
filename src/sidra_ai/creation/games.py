@@ -44,6 +44,11 @@ from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
+from sidra_ai.creation.scene import (
+    ADVENTURE_PALETTE,
+    KAIJU_PALETTE,
+    SCENE_PREAMBLE,
+)
 from sidra_ai.creation.startscreen import BRIEFINGS, GATE_PREAMBLE
 from sidra_ai.creation.puzzle import (
     PUZZLE_DIFFICULTY,
@@ -534,6 +539,7 @@ def generate_game(
             GATE_PREAMBLE
             + SFX_PREAMBLE
             + JUICE_PREAMBLE
+            + SCENE_PREAMBLE
             + PAD_PREAMBLE
             + _SPRITE_LOADER
             + spec.script
@@ -553,6 +559,9 @@ def generate_game(
         .replace("ACCENT_JUICE", theme.tokens["accent"])
         .replace("ALERT_JUICE", theme.tokens["alert"])
         .replace("BORDER_TOKEN", theme.tokens["border"])
+        .replace("BG_TOKEN", theme.tokens["bg"])
+        .replace("ADV_PAL_TOKEN", json.dumps([list(p) for p in ADVENTURE_PALETTE]))
+        .replace("KAIJU_PAL_TOKEN", json.dumps([list(p) for p in KAIJU_PALETTE]))
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
         .replace("SEED_TOKEN", str(zlib.crc32(request.encode("utf-8"))))

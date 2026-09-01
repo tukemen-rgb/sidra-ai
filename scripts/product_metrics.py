@@ -1601,6 +1601,121 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a room you can tell from the last room --------------------------
+    #
+    # §7 観察 5-6, from the machine-extracted colour script of the episode:
+    # scenes are told apart by one accent hue over a shared neutral base, and
+    # the brightest frame of the whole episode is spent on the climax. SIDRA
+    # had neither - three adventure rooms on one palette, one kaiju backdrop
+    # for every phase.
+    #
+    # Both halves are read off the running page. "The palette table exists"
+    # and "the page paints with it" are different facts, and the second is
+    # the one worth a number, so the probe asks the page for the colour it
+    # would actually fill with in each scene and for that colour's
+    # luminance. The peak has to be the LAST scene, not merely present.
+    #
+    # Themed pages are measured too. A scene palette that replaced the theme
+    # instead of shifting it would still show three colours here while
+    # having quietly undone 「テーマを指定すると配色が変わる」, and a step
+    # taken in HSL lightness rather than luminance did let a green room
+    # outshine the climax on the light theme - both were caught by running
+    # all four themes rather than the default one.
+    import re as _scene_re
+    import subprocess as _scene_sp
+
+    from sidra_ai.creation.adventure import world_probe as _adv_probe
+    from sidra_ai.creation.kaiju import probe_source as _kaiju_scene_probe
+    from sidra_ai.creation.themes import select_theme as _scene_theme
+
+    #: request phrase -> (template key, probe builder). Both templates the
+    #: knowledge-base item names, and only those: a template with one scene
+    #: has nothing to tell apart and would inflate the count.
+    _scene_targets = (
+        ("迷宮を冒険するゲームを作って", "adventure", _adv_probe),
+        ("巨大怪獣と戦うゲームを作って", "kaiju", _kaiju_scene_probe),
+    )
+    #: One request per theme, so the default is measured alongside the three
+    #: named ones. The default is the empty suffix.
+    _scene_themes = ("", "紙のテーマで", "ターミナルのテーマで", "dusk のテーマで")
+
+    def _srgb_lum(hexcolour: str) -> float:
+        raw = hexcolour.lstrip("#")
+        parts = [int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+        lin = [v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4 for v in parts]
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+    def _wcag(a: float, b: float) -> float:
+        hi, lo = max(a, b), min(a, b)
+        return (hi + 0.05) / (lo + 0.05)
+
+    scene_gaps: list[str] = []
+    scene_ok: list[str] = []
+    for request, key, builder in _scene_targets:
+        for suffix in _scene_themes:
+            label = f"{key}/{suffix or 'default'}"
+            page = generate_game(f"{request} {suffix}".strip()).html
+            script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+            if script is None:
+                scene_gaps.append(f"{label}: no script")
+                continue
+            try:
+                probe = _scene_sp.run(
+                    ["node", "-"],
+                    input=builder(script.group(1)),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if probe.returncode != 0:
+                    scene_gaps.append(f"{label}: {probe.stderr.strip()[:60]}")
+                    continue
+                seen = json.loads(probe.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                scene_gaps.append(f"{label}: probe unavailable ({type(exc).__name__})")
+                continue
+            scenes = seen.get("scenes") or []
+            if len(scenes) < 3:
+                scene_gaps.append(f"{label}: {len(scenes)} scene(s) reported")
+                continue
+            if len({s["floor"] for s in scenes}) != len(scenes):
+                scene_gaps.append(f"{label}: two scenes paint the same floor")
+                continue
+            peak = max(range(len(scenes)), key=lambda i: scenes[i]["lum"])
+            if peak != len(scenes) - 1:
+                scene_gaps.append(f"{label}: the brightest scene is #{peak}, not last")
+                continue
+            # The palette carries mood; the terrain is still shape and value.
+            # A tint that flattened the wall against the floor would be a
+            # safety number traded for a decorative one.
+            tokens = _scene_theme(f"{request} {suffix}".strip()).tokens
+            floors = _wcag(
+                _srgb_lum(tokens["surface"]), _srgb_lum(tokens["border"])
+            )
+            worst = min(_wcag(s["lum"], s["wallLum"]) for s in scenes)
+            if worst < floors - 0.02:
+                scene_gaps.append(
+                    f"{label}: wall/floor value gap falls to {worst:.2f} "
+                    f"(untinted {floors:.2f})"
+                )
+                continue
+            scene_ok.append(label)
+    c.add(
+        "creation_scene_palettes",
+        "場面ごとに色が変わる型",
+        float(len({label.split("/")[0] for label in scene_ok}))
+        if not scene_gaps
+        else 0.0,
+        detail=(
+            "adventure の部屋間・kaiju の phase 間で実際の描画色が変わり、"
+            "最も明るい場面が最終部にある。4 テーマすべてで確認、"
+            "壁と床の明度差はテーマ既定値のまま"
+            if not scene_gaps
+            else "; ".join(scene_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- gems that buy something, and a door nobody has to open --------
     #
     # Two knowledge-base rules, and they fail in the same silent way. §5: a
