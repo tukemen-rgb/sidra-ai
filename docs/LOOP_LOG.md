@@ -4724,3 +4724,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   reduced-motion では揺れ 0 のままビートは残ることも実測。
   計器の較正で自分のミス 2 件（循環した閾値／1 フレーム遅れの見落とし）を発見・修正。
   4 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。
+2026-09-02 23:08 UTC ループA started Board=13
