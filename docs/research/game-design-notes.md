@@ -214,6 +214,40 @@ URL はすべて 2026-09-02 に実際に開いて確認済み。孫引きベン�
   一致。**丸ごと欠けているのは「もう一度・明日も・誰かに見せたい」の 3 導線**
   （連鎖・日替わり・共有）で、いずれも性能に触らない安全な追加で作れる。
 
+## 9. AI ゲーム生成の他社比較（競合調査 2026-09-02・C-1103 の (b)）
+
+対象: Rosebud AI / Bitmagic / Roblox（Assistant・Cube 3D）/ Unity AI（旧
+Muse）/ GDevelop AI / websim / Upit / Google Genie 3。出典 URL は BACKLOG
+C-1103 の記録と同じ調査で全て 2026-09-02 に確認（丸写しなし・要約のみ）。
+
+- 事実 1: **「プロンプト→完成ゲーム丸ごと」を安定して出せる他社は無い。**
+  最有力の Rosebud もブラウザ内 2D/3D 一式生成だが「意図を理解しない・
+  修正が別箇所を壊す・失敗生成でもクレジット消費」の不満が定番
+  （出典: rosebud 系レビュー横断・summerengine.com/blog/rosebud-ai-pricing）。
+  Google Genie 3 級の世界モデルですら限定プレビューで一般利用不可
+  （出典: deepmind.google/discover/blog/genie-3-a-new-frontier-for-world-models/）。
+- 事実 2: **市場の共通不満トップ 3** = (1) 失敗生成への従量課金
+  （GDevelop フォーラム「yes と答えるだけで課金される」
+  forum.gdevelop.io/t/anyone-else-feeling-ripped-off-…/76247、websim
+  Trustpilot 2.8/5）、(2) 意図理解の低さと修正の副作用、(3) エクスポート
+  不可・ロックイン（Rosebud は Steam/デスクトップ書き出し不可、websim も
+  持ち出し不可、Unity は著作権責任をユーザーに転嫁
+  digitalproduction.com 2025-08-22 記事）。
+- 事実 3: **ローカル実行できる実用サービスは皆無。**唯一 Roblox Cube 3D
+  （テキスト→3D メッシュ、1.8B）がモデルを OSS 公開しており自前実行可
+  （出典: about.roblox.com/newsroom/2025/03/introducing-roblox-cube）。
+- 事実 4: Bitmagic は「LLM が**既成アセットライブラリから組み立てる**」
+  方式で安定性を確保（出典: store.steampowered.com/app/2178290）。
+  SIDRA のテンプレ方式と同じ正攻法で、見た目の飽きが共通の弱点。
+- 学び（SIDRA の立ち位置）: 市場の 3 大不満は SIDRA では**構造的に発生
+  しない**（ローカル推論=失敗しても課金なし / 生成物は HTML そのまま
+  自社資産 / 外部送信ゼロ）。勝てていないのは (1) 生成後の対話的修正、
+  (2) 見た目のアセット生成、(3) テンプレを超える自由度、(4) 非エンジニア
+  向けの編集手段、(5) 3D。うち (1) と (4) はローカルで今すぐ作れる。
+- SIDRA での反映先: C-1112（対話的修正）/ C-1113（パラメータ編集）/
+  C-1114（メカニクス部品化）/ C-1115（3D 最小テンプレ）/ C-1116（画像
+  アセット生成の受け皿設計）
+
 ## 運用の決まり
 
 - 追記するときは必ず URL を実際に開いて確かめ、確認日を書く（推測で書かない）。
