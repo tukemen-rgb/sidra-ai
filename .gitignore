@@ -9,6 +9,9 @@
 *.pem
 *.key
 
+# Temporary agent worktrees (parallel sessions' working copies - never content).
+.claude/worktrees/
+
 # Python
 __pycache__/
 *.py[cod]
