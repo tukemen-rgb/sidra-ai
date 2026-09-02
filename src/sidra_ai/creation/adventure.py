@@ -175,7 +175,7 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   if(hero.inv<=0&&d<16){hero.hp--;hero.inv=60;sfx('hurt');
     shake(9);hitstop(4);burst(hero.x,hero.y,12,'ALERT_JUICE');
     hero.x-=en.dx*14;hero.y-=en.dy*14;
-    if(hero.hp<=0){state='over';sfx('lose')}else{say('いたい。')}}})}
+    if(hero.hp<=0){state='over';failBeat(hero.x,hero.y)}else{say('いたい。')}}})}
 const GROUND={0:'SURFACE_TOKEN',5:'SURFACE_TOKEN',6:'SURFACE_TOKEN'};
 /* Readability rules from the knowledge base (game-design-notes.md §4):
    walls differ from floor by VALUE and FORM (edge highlights), never by hue

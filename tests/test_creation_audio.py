@@ -40,12 +40,17 @@ def test_templates_only_ask_for_sounds_the_preamble_knows(key: str) -> None:
     assert not unknown, f"{key} asks for sounds that do not exist: {unknown}"
 
 
-def test_every_defined_sound_is_used_by_some_template() -> None:
-    """A sound nobody plays is vocabulary drift waiting to happen."""
+def test_every_defined_sound_is_played_by_the_generated_page() -> None:
+    """A sound nobody plays is vocabulary drift waiting to happen.
+
+    Read off a built page rather than the template bodies alone: since
+    C-1105 the losing sound belongs to the shared failure beat, so a
+    template that plays it by hand would be the drift, not the proof.
+    """
 
     used = set()
-    for spec in TEMPLATES.values():
-        used |= set(_CALL.findall(spec.script))
+    for key in TEMPLATES:
+        used |= set(_CALL.findall(generate_game("ゲームを作って", template=key).html))
     unused = set(PREAMBLE_NAMES) - used
     assert not unused, f"defined but never played: {unused}"
 

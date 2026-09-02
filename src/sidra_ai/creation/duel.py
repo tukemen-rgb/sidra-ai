@@ -122,7 +122,7 @@ function hit(who){who.hp--;flash=1;sfx('hurt');
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
     if(who===e){winner='勝利。ひかりが押し切った。';sfx('win')}
-    else{winner='敗北。もう一度。';sfx('lose')}}}
+    else{winner='敗北。もう一度。';failBeat(PX,LANES[p.lane])}}}
 function step(){const now=performance.now();
   combat(state==='play'&&gateState()==='playing');
   if(state==='play'){

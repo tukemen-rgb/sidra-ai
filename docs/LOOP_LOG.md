@@ -4718,3 +4718,9 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   実装中に自分のバグ（バナーが 1 フレームで消える）を実プレイで発見・修正。
   4 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。
 2026-09-02 22:08 UTC ループA started Board=13
+- C-1105 完了。creation_fail_beat unmeasurable→9（product_metrics --compare exit 0）。
+  juice.py に共通 failBeat()。テンプレの負け筋 5 箇所と C-1104 のクロック時間切れから呼ぶ。
+  判定はパネルで最も易しいペースを保存して実際に負けるまで駆動。勝利時は鳴らない、
+  reduced-motion では揺れ 0 のままビートは残ることも実測。
+  計器の較正で自分のミス 2 件（循環した閾値／1 フレーム遅れの見落とし）を発見・修正。
+  4 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。

@@ -38,7 +38,17 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "burst",
     "shakeAmount",
     "particleCount",
+    "failBeat",
+    "failBeats",
 )
+
+#: The failure beat's three numbers, in the units the effects above take.
+#: Deliberately heavier than any hit: §8 事実 2 is that losing a round felt
+#: the same as being hit, so the moment a go ends had no shape. The
+#: heaviest hit in the templates is the shooter's 11, so the beat is 14.
+FAIL_SHAKE = 14
+FAIL_HITSTOP = 7
+FAIL_PARTICLES = 20
 
 JUICE_PREAMBLE = """
 /* --- juice: shake, hitstop, particles (knowledge base §1) ------------- */
@@ -54,6 +64,17 @@ function burst(x,y,n,colour){if(REDUCED)return;
       life:1,c:colour||'CYAN_TOKEN'})}}
 function shakeAmount(){return SHAKE}
 function particleCount(){return PARTS.length}
+/* The moment a round is lost, as one call (§8 事実 2). Built out of the
+   three effects above rather than beside them, so reduced motion needs no
+   second opinion: the shake and the particles are already no-ops, and the
+   hitstop - which withholds motion instead of adding it - is what carries
+   the beat for a viewer who asked for less. */
+let FAIL_BEATS=0;
+function failBeat(x,y){FAIL_BEATS++;
+  shake(%(shake)d);hitstop(%(hitstop)d);
+  burst(x===undefined?0:x,y===undefined?0:y,%(parts)d,'ALERT_JUICE');
+  try{sfx('lose')}catch(e){}}
+function failBeats(){return FAIL_BEATS}
 function stepShake(){if(!JCV)return;
   if(SHAKE>0.05){SHAKE*=0.78;
     const dx=(Math.random()*2-1)*SHAKE,dy=(Math.random()*2-1)*SHAKE;
@@ -76,7 +97,7 @@ requestAnimationFrame=function(fn){
        template's loop instead of pausing it. */
     if(HITSTOP>0){HITSTOP--;JUICE_RAF(tick);return}
     fn(t);stepParticles();stepShake()})};
-"""
+""" % {"shake": FAIL_SHAKE, "hitstop": FAIL_HITSTOP, "parts": FAIL_PARTICLES}
 
 #: Runs the three effects with the viewer's setting pinned, and prints what
 #: they did. The metric executes this in node, so "reduced motion turns the
@@ -111,4 +132,12 @@ def probe_source(*, reduced: bool) -> str:
     )
 
 
-__all__ = ["JUICE_PREAMBLE", "PREAMBLE_NAMES", "PROBE", "probe_source"]
+__all__ = [
+    "FAIL_HITSTOP",
+    "FAIL_PARTICLES",
+    "FAIL_SHAKE",
+    "JUICE_PREAMBLE",
+    "PREAMBLE_NAMES",
+    "PROBE",
+    "probe_source",
+]

@@ -120,7 +120,11 @@ function roundTick(t){
      frame. Found by driving the page rather than by reading it. */
   if(ROUND_DONE){return}
   if(ROUND_MS>=ROUND_LIMIT_MS){ROUND_DONE=true;ROUND_REASON='time';
-    try{sfx('lose')}catch(e){}}}
+    /* Running out of time without finishing is a failed round, and it is
+       the only failure the four templates with no losing state have. The
+       beat is the shared one (C-1105), not a second thing that looks like
+       it. */
+    try{failBeat(RCV?RCV.width/2:0,RCV?RCV.height/2:0)}catch(e){}}}
 function drawRoundEnd(){if(!RCV)return;
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
   c.save();c.fillStyle='#05070fcc';c.fillRect(0,H/2-52,W,104);
@@ -162,19 +166,28 @@ const roundNothing = new Proxy(function(){}, {
   apply: () => roundNothing, set: () => true });
 const roundKeys = [];
 let roundReloads = 0;
-globalThis.matchMedia = () => ({ matches: false });
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
 let roundClock = 0;
 globalThis.performance = { now: () => roundClock };
 globalThis.addEventListener = (type, fn) => { if (type === 'keydown') roundKeys.push(fn) };
 globalThis.Image = function(){ return roundNothing };
-globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+const roundStore = STORED_INPUT;
+globalThis.localStorage = {
+  getItem: (k) => (k in roundStore ? roundStore[k] : null),
+  setItem(){}, removeItem(){} };
+/* A recording context, not the swallowing Proxy: "an immediate retry
+   prompt" is a claim about words on the screen, and only a recorder can
+   see them. */
+const roundText = [];
 globalThis.location = { reload: () => { roundReloads++ } };
 globalThis.document = { readyState: 'complete',
   createElement: () => roundNothing, querySelector: () => null,
   getElementById: () => ({
     width: 720, height: 320, style: {}, addEventListener: () => {},
     getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-    getContext: () => roundNothing }) };
+    getContext: () => new Proxy({ fillText: (t) => { roundText.push(String(t)) } }, {
+      get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : roundNothing)),
+      set: () => true }) }) };
 let roundQueued = null;
 globalThis.requestAnimationFrame = (fn) => { roundQueued = fn; return 1 };
 SCRIPT_PLACEHOLDER
@@ -202,7 +215,9 @@ for (let f = 0; f < FRAMES_INPUT; f++) {
      at the top of the *next* tick, and a template that stops scheduling
      when it ends never gets one. */
   if (firstBreak === null && (now.done || now.ended)) {
-    firstBreak = { ms: now.ms, by: now.done ? 'time' : 'template', state: now.state };
+    firstBreak = { ms: now.ms, by: now.done ? 'time' : 'template', state: now.state,
+      beats: failBeats(), shake: shakeAmount(), frame: f };
+    roundText.length = 0;
   }
 }
 /* Coming back: R once the banner is up. A template with its own end state
@@ -214,6 +229,12 @@ if (end.done) {
 }
 console.log(JSON.stringify({
   gatedMs: beforePress,
+  beatsAtBreak: firstBreak ? firstBreak.beats : null,
+  shakeAtBreak: firstBreak ? firstBreak.shake : null,
+  beatsTotal: failBeats(),
+  /* Only what was drawn after the break: the retry line has to be up
+     within a second or two of losing, not somewhere in the whole run. */
+  saidAfter: roundText.slice(0, 400),
   breakAt: firstBreak ? firstBreak.ms : null,
   reason: firstBreak ? firstBreak.by : null,
   endState: firstBreak ? firstBreak.state : null,
@@ -224,16 +245,26 @@ console.log(JSON.stringify({
 """
 
 
-def probe_source(script: str, *, frames: int = 4200, warmup: int = 4) -> str:
+def probe_source(
+    script: str,
+    *,
+    frames: int = 4200,
+    warmup: int = 4,
+    reduced: bool = False,
+    stored: dict[str, dict] | None = None,
+) -> str:
     """The page's own script, started once and then left alone.
 
     ``warmup`` is how many frames sit on the title screen before the
     single press. Those frames have to cost the round nothing.
     """
 
+    payload = {key: json.dumps(value, ensure_ascii=False) for key, value in (stored or {}).items()}
     return (
         PROBE.replace("FRAMES_INPUT", str(int(frames)))
         .replace("WARMUP_INPUT", str(int(warmup)))
+        .replace("REDUCED_INPUT", "true" if reduced else "false")
+        .replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("SCRIPT_PLACEHOLDER", script)
     )
 

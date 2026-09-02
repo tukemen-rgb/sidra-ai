@@ -96,7 +96,9 @@ function pop(){if(state!=='play')return;
   collapse();
   if(!movesLeft()){state='over';
     cleared=grid.every(r=>r.every(v=>v<0));
-    sfx(cleared?'win':'lose')}}
+    /* Clearing the board is a win; running out of moves is the loss the
+       beat is for. */
+    if(cleared){sfx('win')}else{failBeat(cv.width/2,cv.height/2)}}}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
   if(e.code==='Space'){e.preventDefault();

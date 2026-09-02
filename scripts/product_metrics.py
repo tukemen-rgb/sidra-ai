@@ -2199,6 +2199,125 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- losing a round has a shape ------------------------------------
+    #
+    # C-1105, §8 事実 2. Being hit had juice from C-1017; losing the *go*
+    # felt the same as being hit, so the one moment the player is asked to
+    # decide whether to try again had no punctuation. One shared beat -
+    # heavier shake, a longer hold, a burst, the losing sound - called from
+    # each template's own losing path and from the clock's timeout, which
+    # is the only failure the templates with no losing state have.
+    #
+    # Driven to a real failure rather than grepped, three ways at once:
+    # the beat has to fire on a loss, it has to stay silent on a win, and
+    # under prefers-reduced-motion it has to keep firing with the shake at
+    # exactly zero - the hitstop is what carries it for someone who asked
+    # for less movement.
+    from sidra_ai.creation.juice import FAIL_SHAKE as _fail_shake
+    from sidra_ai.creation.round import probe_source as _fail_probe
+
+    # The beat has to be heavier than any *hit*, or it is not a beat, it is
+    # another hit - which is exactly the state §8 事実 2 recorded. Measured
+    # against the templates' own literal weights rather than against
+    # FAIL_SHAKE, because a threshold derived from the number it is
+    # checking moves whenever that number does.
+    _hit_weights = [
+        float(weight)
+        for spec in _tune_templates.values()
+        for weight in _scene_re.findall(r"\bshake\(\s*([0-9.]+)\s*\)", spec.script)
+    ]
+    _heaviest_hit = max(_hit_weights) if _hit_weights else 0.0
+
+    def _fail_run(key, *, reduced=False, slow=True):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            return None, f"{key}: no script"
+        # The slowest pace the author shipped, through the panel: it makes
+        # every template's round outlast the clock, so a *failure* is what
+        # is being watched rather than whichever ending came first.
+        gentle = min(pair[0] for pair in _tune_ladder[key].values())
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_fail_probe(
+                    script.group(1),
+                    reduced=reduced,
+                    stored={f"sidra.tune.{key}": {"speed": gentle}} if slow else None,
+                ),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if probe.returncode != 0:
+                return None, f"{key}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: probe unavailable ({type(exc).__name__})"
+
+    fail_gaps: list[str] = []
+    fail_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        lost, problem = _fail_run(key)
+        if problem:
+            fail_gaps.append(problem)
+            continue
+        if lost["breakAt"] is None:
+            fail_gaps.append(f"{key}: never reached a break")
+            continue
+        if not lost["beatsAtBreak"]:
+            fail_gaps.append(f"{key}: a lost round produced no beat")
+            continue
+        if not lost["shakeAtBreak"]:
+            fail_gaps.append(f"{key}: the beat did not move the screen at all")
+            continue
+        said = [line for line in lost["saidAfter"] if "もう一度" in line or "やり直" in line]
+        if not said:
+            fail_gaps.append(f"{key}: nothing offered a retry after the failure")
+            continue
+        quiet, problem = _fail_run(key, reduced=True)
+        if problem:
+            fail_gaps.append(problem)
+            continue
+        if not quiet["beatsAtBreak"]:
+            fail_gaps.append(f"{key}: reduced motion silenced the beat entirely")
+            continue
+        if quiet["shakeAtBreak"] != 0:
+            fail_gaps.append(f"{key}: shake {quiet['shakeAtBreak']} survived reduced motion")
+            continue
+        fail_ok.append(key)
+    # The other direction, once: a template that reaches its goal must not
+    # get a failure beat. Racing is the one that finishes on its own with
+    # no input, which is what makes it the case that can prove it.
+    if _fail_shake <= _heaviest_hit:
+        fail_gaps.append(
+            f"the beat shakes {_fail_shake}, no more than the heaviest hit ({_heaviest_hit:g})"
+        )
+    won, problem = _fail_run("racing", slow=False)
+    if problem:
+        fail_gaps.append(problem)
+    elif won["reason"] != "template" or won["endState"] != "goal":
+        fail_gaps.append("racing no longer reaches its goal, so a win cannot be checked")
+    # Counted over the whole run, not at the break: the beat would fire on
+    # the tick *after* the one where the ending first shows, so reading it
+    # at the break alone would miss a beat that went off on a win.
+    elif won["beatsTotal"]:
+        fail_gaps.append(f"a won round fired the failure beat {won['beatsTotal']} time(s)")
+    c.add(
+        "creation_fail_beat",
+        "負けの瞬間に形がある型",
+        float(len(fail_ok)) if not fail_gaps else 0.0,
+        detail=(
+            f"実際に負けるまで動かして確認。揺れ {_fail_shake}・ヒットストップ・"
+            "粒子・音が 1 回だけ鳴り、直後にリトライ表示が出る。"
+            "reduced-motion では揺れ 0 のままビートは残る（止めるのではなく"
+            "動きを差し引く hitstop が担う）。ゴールに着いた回では鳴らない"
+            if not fail_gaps
+            else "; ".join(fail_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

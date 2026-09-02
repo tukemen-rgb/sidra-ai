@@ -118,7 +118,7 @@ function step(){t++;
     cracks=cracks.filter(c=>{
       if(c.warn===0&&c.open>10&&Math.abs(c.x-me.x)<c.open*0.5+10){
         me.hp--;shake(6);sfx('hurt');hitstop(3);
-        if(me.hp<=0)state='lost';return false}
+        if(me.hp<=0){state='lost';failBeat(me.x,GROUND-20)}return false}
       return c.open<56});
     dust.forEach(d=>{d.r+=0.6;d.a-=0.03});dust=dust.filter(d=>d.a>0);}
   draw();requestAnimationFrame(step)}

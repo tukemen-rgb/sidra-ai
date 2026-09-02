@@ -96,7 +96,7 @@ function step(){const now=performance.now();
     foes.forEach(f=>{if(f.hp>0&&Math.hypot(f.x-ship.x,f.y-ship.y)<f.r+SHIP*0.6){
       f.hp=0;ship.hp--;sfx('clash');shake(11);hitstop(5);
       burst(ship.x,ship.y,18,'ALERT_JUICE');
-      if(ship.hp<=0){state='over';sfx('lose')}}});
+      if(ship.hp<=0){state='over';failBeat(ship.x,ship.y)}}});
     foes=foes.filter(f=>f.hp>0&&f.y<H+30);
     shots=shots.filter(s=>s.y>-10);
     stars.forEach(s=>{s.y+=REDUCED?0:s.s;if(s.y>H){s.y=0;s.x=rand()*W}})}
