@@ -69,6 +69,11 @@ CONTROLS: dict[str, tuple[tuple[str, str], ...]] = {
         ("← →", "ハンドルを切る（車を左右へ）"),
         ("R", "ゴール後や事故のあとに走り直す"),
     ),
+    "platformer": (
+        ("← →", "走る"),
+        ("↑ / SPACE / タップ", "ジャンプ。押す長さで高さが変わる"),
+        ("R", "コースをはじめからやり直す"),
+    ),
 }
 
 #: What the two difficulty numbers mean, per template. Without this the table
@@ -105,6 +110,10 @@ PARAMETERS: dict[str, tuple[tuple[str, str], ...]] = {
     "racing": (
         ("走行速度", "1 フレームあたりの前進量。大きいほど 1 周が速く、操作も忙しい"),
         ("障害物の間隔", "コース距離いくつごとに置くか。小さいほど密"),
+    ),
+    "platformer": (
+        ("隙間の倍率", "足場の間の距離に掛かる係数。大きいほど跳びが際どい"),
+        ("足場の数", "コースの長さ。多いほどゴールが遠い"),
     ),
 }
 

@@ -801,6 +801,7 @@ def measure_creation(c: Collector) -> None:
                 "パズルゲームを作って",
                 "巨大な怪獣と戦うゲームを作って",
                 "レースゲームを作って",
+                "横スクロールのゲームを作って",
             )
         }
     )
@@ -1303,6 +1304,97 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the platformer, same bar: the jump is judged by playing it ------
+    #
+    # The genre's craft is two deliberate non-physics rules - coyote frames
+    # after a ledge and a jump cut on early release - and each has a cheap
+    # fake a source check would pass: a window that never closes is a double
+    # jump, a cut that never fires makes the press length a label, and a
+    # "respawn" could be a reload. So the course is driven in node: a late
+    # edge jump, a mid-fall jump, two falls, the gem-lit lantern (§5's sink)
+    # and the flag, with the scene walk (§7) read off the same run. The one
+    # negative claim is checked at the source, because it is about absence:
+    # this template has no fight, so it must never call combat().
+    import re as _plat_re
+    import subprocess as _plat_sp
+
+    from sidra_ai.creation.games import TEMPLATES as _PLAT_TEMPLATES
+    from sidra_ai.creation.platformer import probe_source as _plat_probe
+
+    plat_reasons = []
+    plat_seen = None
+    plat_game = generate_game("横スクロールのゲームを作って")
+    if plat_game.template != "platformer":
+        plat_reasons.append(f"routed to {plat_game.template}")
+    if not validate_game_html(plat_game.html)["playable"]:
+        plat_reasons.append("page does not parse")
+    if "combat(" in _PLAT_TEMPLATES["platformer"].script:
+        plat_reasons.append("a template with no fight claims the combat step")
+    script = _plat_re.search(r"<script>(.*?)</script>", plat_game.html, _plat_re.S)
+    if script is None:
+        plat_reasons.append("no script")
+    else:
+        try:
+            probe = _plat_sp.run(
+                ["node", "-"],
+                input=_plat_probe(script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=90,
+            )
+            if probe.returncode != 0:
+                plat_reasons.append(f"probe failed: {probe.stderr.strip()[:60]}")
+            else:
+                plat_seen = json.loads(probe.stdout)
+        except (OSError, _plat_sp.SubprocessError, ValueError) as exc:
+            plat_reasons.append(f"probe unavailable ({type(exc).__name__})")
+    if plat_seen is not None:
+        # The window has to be a real handful of frames, open just after the
+        # ledge and closed a few frames later.
+        if not 5 <= plat_seen["window"] <= 7:
+            plat_reasons.append(f"coyote window is {plat_seen['window']} frames")
+        if not plat_seen["coyoteJump"]:
+            plat_reasons.append("a jump just after the ledge is eaten")
+        if not plat_seen["lateJumpRefused"]:
+            plat_reasons.append("a jump ten frames into the fall still works")
+        # Early release lowers the arc, or the press length decides nothing.
+        if not plat_seen["tapMin"] - plat_seen["heldMin"] > 10:
+            plat_reasons.append("holding and tapping jump reach the same height")
+        # Falling is a walk back, never the run.
+        if plat_seen["firstRespawnState"] != "play":
+            plat_reasons.append("a fall ends the game instead of respawning")
+        # §5: the gems leave when the lantern lights, and the respawn moves.
+        if plat_seen["gemsAfterOrb"] != plat_seen["gemsBefore"] + 1:
+            plat_reasons.append("a gem does not count")
+        if not plat_seen["lampLit"] or plat_seen["gemsAfterLamp"] != 0:
+            plat_reasons.append("the lantern is not a sink")
+        if plat_seen["thirdRespawnX"] != plat_seen["lampX"]:
+            plat_reasons.append("the lit lantern does not move the respawn")
+        if plat_seen["state"] != "goal":
+            plat_reasons.append(f"the flag left the run {plat_seen['state']}")
+        # §7: three stretches, told apart by hue, brightest kept for last.
+        scenes = plat_seen.get("scenes") or []
+        if len({s["floor"] for s in scenes}) != 3:
+            plat_reasons.append(f"{len(scenes)} scene(s), or shared floors")
+        elif max(range(3), key=lambda i: scenes[i]["lum"]) != 2:
+            plat_reasons.append("the goal stretch is not the brightest")
+        if plat_seen["combatOn"]:
+            plat_reasons.append("the combat step came on with no fight to raise it")
+    c.add(
+        "creation_platformer_playable",
+        "横スクロールで跳んで渡れる",
+        0.0 if plat_reasons or plat_seen is None else 1.0,
+        detail=(
+            "coyote frames land a late edge jump and expire mid-fall; an early "
+            "release lowers the arc; falls respawn at the start or the gem-lit "
+            "lantern; the flag completes; three palettes with the goal brightest; "
+            "no combat step claimed"
+            if plat_seen is not None and not plat_reasons
+            else "; ".join(plat_reasons) or "the course could not be played"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the model finally touches something it makes -------------------
     #
     # `with_copy` was the designed and only hole for a local model, and for
@@ -1605,7 +1697,7 @@ def measure_creation(c: Collector) -> None:
     #: indistinguishable from a clause that can never fire, so the probe puts
     #: an enemy on the hero and asks again (C-1035).
     conditional = {"adventure"}
-    quiet = {"fishing", "catch", "puzzle"}
+    quiet = {"fishing", "catch", "puzzle", "platformer"}
     loud_reasons = []
     loud_verified = []
     for key in sorted(_GATE_TEMPLATES):

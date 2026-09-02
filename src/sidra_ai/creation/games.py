@@ -48,6 +48,7 @@ from sidra_ai.creation.scene import (
     ADVENTURE_PALETTE,
     KAIJU_PALETTE,
     RACING_PALETTE,
+    PLATFORMER_PALETTE,
     SCENE_PREAMBLE,
 )
 from sidra_ai.creation.startscreen import BRIEFINGS, GATE_PREAMBLE
@@ -78,6 +79,13 @@ from sidra_ai.creation.racing import (
     RACING_SCRIPT,
     RACING_TITLE,
     RACING_WORDS,
+)
+from sidra_ai.creation.platformer import (
+    PLATFORMER_DIFFICULTY,
+    PLATFORMER_HOW,
+    PLATFORMER_SCRIPT,
+    PLATFORMER_TITLE,
+    PLATFORMER_WORDS,
 )
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.duel import (
@@ -261,6 +269,12 @@ TEMPLATES: dict[str, GameTemplate] = {
         RACING_HOW,
         RACING_SCRIPT,
     ),
+    "platformer": GameTemplate(
+        "platformer",
+        PLATFORMER_TITLE,
+        PLATFORMER_HOW,
+        PLATFORMER_SCRIPT,
+    ),
 }
 
 #: Difficulty is two numbers per template, not a label. Keeping the mapping
@@ -274,6 +288,7 @@ _DIFFICULTY = {
     "puzzle": PUZZLE_DIFFICULTY,
     "kaiju": KAIJU_DIFFICULTY,
     "racing": RACING_DIFFICULTY,
+    "platformer": PLATFORMER_DIFFICULTY,
 }
 
 # Stems, not whole words: 難しい / 難しく / 難しめ all have to land on the
@@ -289,6 +304,7 @@ _SHOOTER_WORDS = SHOOTER_WORDS
 _PUZZLE_WORDS = PUZZLE_WORDS
 _KAIJU_WORDS = KAIJU_WORDS
 _RACING_WORDS = RACING_WORDS
+_PLATFORMER_WORDS = PLATFORMER_WORDS
 
 #: Names this generator will not put on an artifact. A request that says
 #: 「ゼルダの伝説作って」 routes to the adventure template - the *genre* is
@@ -361,6 +377,11 @@ def choose_template(request: str) -> str:
         return "racing"
     if any(fold_kana(word.lower()) in lowered for word in _DUEL_WORDS):
         return "duel"
+    # After the shooter, the adventure and the duel, agreeing with _GENRES:
+    # 「横スクロール」 is a modifier as often as a genre, and
+    # 「横スクロールシューティング」 names a shooter, not a platformer.
+    if any(fold_kana(word.lower()) in lowered for word in _PLATFORMER_WORDS):
+        return "platformer"
     if any(fold_kana(word) in lowered for word in _CATCH_WORDS):
         return "catch"
     if any(fold_kana(word) in lowered for word in _FISHING_WORDS):
@@ -401,7 +422,7 @@ _GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "fighter",
         ("格闘", "fighting", "格ゲー"),
     ),
-    ("プラットフォーマー", "platformer", ("プラットフォーマー", "platformer", "横スクロール")),
+    ("プラットフォーマー", "platformer", PLATFORMER_WORDS),
     (
         "シミュレーション",
         "simulation",
@@ -600,6 +621,7 @@ def generate_game(
         .replace("ADV_PAL_TOKEN", json.dumps([list(p) for p in ADVENTURE_PALETTE]))
         .replace("KAIJU_PAL_TOKEN", json.dumps([list(p) for p in KAIJU_PALETTE]))
         .replace("RACING_PAL_TOKEN", json.dumps([list(p) for p in RACING_PALETTE]))
+        .replace("PLAT_PAL_TOKEN", json.dumps([list(p) for p in PLATFORMER_PALETTE]))
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
         .replace("SEED_TOKEN", str(zlib.crc32(request.encode("utf-8"))))

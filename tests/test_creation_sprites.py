@@ -114,6 +114,9 @@ def test_each_template_gets_the_two_names_its_page_draws() -> None:
         # The race relights its frame once per lap; flat shapes take that
         # light, a sprite's baked colours would not.
         "racing": set(),
+        # The platformer reads by the edge of every walkable lip; a sprite
+        # pasted over a platform would hide the line the player lands by.
+        "platformer": set(),
     }
     for template in TEMPLATES:
         names = {name for name, _ in SPRITE_SETS.get(template, ())}

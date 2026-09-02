@@ -71,6 +71,18 @@ RACING_PALETTE: tuple[tuple[float, float, float], ...] = (
     (80.0, 1.05, 0.22),
 )
 
+#: Platformer, one entry per stretch of the course: opening, midway, the
+#: run-up to the goal.
+#:
+#: A cool opening, a warmer middle, and the goal stretch keeps the largest
+#: share of the brightness budget - the flag is the climax, so it is the
+#: brightest thing the course ever shows (§7 観察 6).
+PLATFORMER_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (-58.0, 1.12, 0.02),
+    (36.0, 1.20, 0.09),
+    (78.0, 1.05, 0.21),
+)
+
 #: Installed before every template. Defines the transform and leaves the
 #: palette itself to the template, which calls ``setPal`` once at boot.
 SCENE_PREAMBLE = """
@@ -150,4 +162,10 @@ function sceneFacts(){const keep=SCENE,out=[];
   SCENE=keep;return {scene:keep,scenes:out}}
 """
 
-__all__ = ["ADVENTURE_PALETTE", "KAIJU_PALETTE", "RACING_PALETTE", "SCENE_PREAMBLE"]
+__all__ = [
+    "ADVENTURE_PALETTE",
+    "KAIJU_PALETTE",
+    "PLATFORMER_PALETTE",
+    "RACING_PALETTE",
+    "SCENE_PREAMBLE",
+]

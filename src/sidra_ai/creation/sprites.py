@@ -220,6 +220,10 @@ SPRITE_SETS: dict[str, tuple[tuple[str, object], ...]] = {
     # light. A sprite's baked-in colours would sit unchanged in a frame
     # whose mood is the lap counter.
     "racing": (),
+    # The platformer's readability lives in edges: the walkable lip of every
+    # platform is a value step plus a highlight (§4), and a picture pasted
+    # over it would hide exactly the line the player lands by.
+    "platformer": (),
 }
 
 
