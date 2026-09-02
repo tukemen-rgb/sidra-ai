@@ -1716,6 +1716,66 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- "make it harder" edits the game instead of replacing it -------
+    #
+    # §9's chronic market failure, measured as a roundtrip through the real
+    # generator and reviser rather than the detector alone: the number is
+    # about what an operator gets back. Four things must hold at once - the
+    # revision changes exactly the named parameter, the original file
+    # survives untouched, a second revision builds on the first (not on the
+    # original), and the detector steals nothing from the creation path.
+    import tempfile as _tf
+
+    from sidra_ai.creation.game_job import build_game_generator as _gen_builder
+    from sidra_ai.creation.intent import detect_creation_intent as _detect_creation
+    from sidra_ai.creation.revise import (
+        build_game_reviser as _rev_builder,
+        detect_revision_intent as _detect_revision,
+    )
+
+    revision_reasons: list[str] = []
+    with _tf.TemporaryDirectory() as _rev_dir:
+        _made = _gen_builder(_rev_dir)(
+            "釣りゲームを作って", _detect_creation("釣りゲームを作って")
+        )
+        _original = Path(_made.artifact_path)
+        _original_bytes = _original.read_bytes() if _original.exists() else b""
+        _reviser = _rev_builder(_rev_dir)
+        _harder = _reviser(
+            "さっきのゲームをもっと難しくして",
+            _detect_revision("さっきのゲームをもっと難しくして"),
+        )
+        if _harder.details.get("difficulty") != "hard":
+            revision_reasons.append("difficulty did not step normal->hard")
+        if not _harder.details.get("playable"):
+            revision_reasons.append("revised page is not playable")
+        if not (_original.exists() and _original.read_bytes() == _original_bytes):
+            revision_reasons.append("the original file did not survive the revision")
+        if Path(_harder.artifact_path or "") == _original:
+            revision_reasons.append("revision overwrote the original path")
+        _easier = _reviser(
+            "さっきのゲームをやさしくして",
+            _detect_revision("さっきのゲームをやさしくして"),
+        )
+        if "hard→normal" not in _easier.summary:
+            revision_reasons.append("second revision did not build on the first")
+    if _detect_revision("難しいゲームを作って").is_revision:
+        revision_reasons.append("reviser steals creation requests")
+    if _detect_revision("ゲームを難しくできますか").is_revision:
+        revision_reasons.append("reviser steals questions")
+    c.add(
+        "creation_revision_roundtrip",
+        "生成済みゲームを言葉で修正できる",
+        0.0 if revision_reasons else 1.0,
+        detail=(
+            "「難しくして」で難易度だけが変わり、旧版は残り、"
+            "2 回目の修正は 1 回目の続きから、質問と新規作成は奪わない"
+            if not revision_reasons
+            else "; ".join(revision_reasons)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- gems that buy something, and a door nobody has to open --------
     #
     # Two knowledge-base rules, and they fail in the same silent way. §5: a

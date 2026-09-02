@@ -85,7 +85,7 @@ from sidra_ai.creation.duel import (
 #: rather than a second copy of them, and a module that owns both cannot be
 #: imported by the one that owns neither. Every existing
 #: ``from ...games import GAMEYARD_TOKENS`` keeps working.
-from sidra_ai.creation.themes import GAMEYARD_TOKENS, Theme, select_theme
+from sidra_ai.creation.themes import GAMEYARD_TOKENS, THEMES, Theme, select_theme
 
 _SOURCE = "tukemen-rgb/site docs/DESIGN.md §2 (tokens) / §3 (prohibited defaults)"
 
@@ -509,6 +509,9 @@ def generate_game(
     template: str = "",
     evidence: list[str] | None = None,
     sprites: dict[str, str] | None = None,
+    difficulty: str = "",
+    theme_name: str = "",
+    title_override: str = "",
 ) -> GeneratedGame:
     """Build a playable page from the request alone. Never raises on wording.
 
@@ -516,6 +519,15 @@ def generate_game(
     path the page loads it from. Only a project passes it: a standalone page
     must stay one file, so the default is no sprites and the identical
     rectangles this shipped with.
+
+    ``difficulty`` / ``theme_name`` / ``title_override`` exist for the
+    revision path (sidra_ai.creation.revise): a revision edits recorded
+    parameters and rebuilds from the *original* request, so everything the
+    operator did not mention stays as it was. They deliberately do not
+    bypass the guards below - an overridden title still goes through the
+    trademark check, and an unknown difficulty or theme falls back to the
+    derived one rather than raising, because a bad sidecar file must not
+    make an artifact unbuildable.
     """
 
     key = template or choose_template(request)
@@ -525,8 +537,9 @@ def generate_game(
     # The palette comes from the same sentence the template and difficulty
     # did. A request that names no theme gets the default, which is the
     # site's own palette - see sidra_ai.creation.themes.
-    theme = select_theme(request)
-    difficulty = choose_difficulty(request)
+    theme = THEMES.get(theme_name) or select_theme(request)
+    if difficulty not in _DIFFICULTY[key]:
+        difficulty = choose_difficulty(request)
     speed, band = _DIFFICULTY[key][difficulty]
     script = with_animation(
         # Sound before sprites before the game: sfx() has to exist by the
@@ -579,7 +592,7 @@ def generate_game(
             json.dumps(list(BRIEFINGS.get(key, ())), ensure_ascii=False),
         )
     )
-    title = _title_from(request, spec.default_title)
+    title = title_override or _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"
     named = trademark_in(title)
     if named:
@@ -601,6 +614,14 @@ def save_game(game: GeneratedGame, data_dir: str | Path, *, now: datetime | None
     directory = Path(data_dir) / "artifacts"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"game-{game.template}-{stamp}.html"
+    # Second-resolution stamps collide when a revision follows its original
+    # inside one second - and silently overwriting the original would make
+    # "the old version is still there" a lie. A serial suffix keeps every
+    # save a new file.
+    serial = 1
+    while path.exists():
+        serial += 1
+        path = directory / f"game-{game.template}-{stamp}-{serial}.html"
     path.write_text(game.html, encoding="utf-8")
     return path
 

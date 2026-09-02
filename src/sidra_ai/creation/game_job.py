@@ -24,7 +24,9 @@ from sidra_ai.creation.games import (
 from sidra_ai.creation.copy_writer import CopyWriter, copy_metadata
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
+from sidra_ai.creation.revise import save_meta
 from sidra_ai.creation.router import CreationOutcome
+from sidra_ai.creation.themes import select_theme
 
 
 def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = None):
@@ -63,6 +65,19 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
         # same page.
         verdict = validate_game_html(game.html)
         path = save_game(game, data_dir)
+        # The revision sidecar (see sidra_ai.creation.revise). Written for
+        # every game, not only ones someone later revises: a sidecar that
+        # exists exactly when it is needed is a sidecar that is never there.
+        # `message` here is already gate-screened by the caller, so what
+        # lands on disk is what the pipeline was allowed to use.
+        save_meta(
+            path,
+            request=message,
+            template=game.template,
+            difficulty=game.difficulty,
+            theme=select_theme(message).key,
+            title=game.title,
+        )
         # A request that names a genre we have no template for still gets a
         # playable page - but calling that page a シューティング because the
         # operator asked for one is the cheapest lie this generator could

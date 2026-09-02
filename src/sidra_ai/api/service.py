@@ -14,6 +14,7 @@ from sidra_ai.api.model_admission import build_runtime_model
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import detect_creation_intent
+from sidra_ai.creation.revise import build_game_reviser, detect_revision_intent
 from sidra_ai.creation.copy_writer import build_copy_writer
 from sidra_ai.creation.router import CreationRouter, build_default_router
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
@@ -152,6 +153,9 @@ class SidraService:
             data_dir=str(data_dir),
             copy_writer=build_copy_writer(self.model),
         )
+        # The revision path (C-1112) shares the artifacts directory with the
+        # game generator: what one writes, the other must be able to find.
+        self.game_reviser = build_game_reviser(str(data_dir))
 
     # ------------------------------------------------------------------
     @property
@@ -437,6 +441,29 @@ class SidraService:
             screened_history.append((turn[0], turn[1]))
 
         query = gate_result.content
+
+        # 「さっきのゲームを難しくして」 is neither a question nor a request
+        # for a new artifact. Checked before creation because its detector
+        # vetoes itself on any creation verb - so creation keeps priority on
+        # 「難しいゲームを作って」 by construction, not by ordering luck.
+        revision = detect_revision_intent(query)
+        if revision.is_revision:
+            outcome = self.game_reviser(query, revision)
+            # Same boundary as a generator's summary: text this process
+            # produced from a request, scanned before any caller sees it.
+            guarded_summary = self.output_guard.scan(outcome.summary)
+            return {
+                "answer": guarded_summary.content,
+                "refused": guarded_summary.blocked,
+                "reason": guarded_summary.reason
+                or ("creation output withheld by security guard" if guarded_summary.blocked else ""),
+                "citations": [],
+                "security": gate_result.to_dict(),
+                "creation": {
+                    "revision": dict(revision.adjustments),
+                    "outcome": outcome.to_dict(),
+                },
+            }
 
         # "釣りゲームを作って" is not a question. Detect that before spending a
         # retrieval and a generation on answering it as one. Detection runs on
