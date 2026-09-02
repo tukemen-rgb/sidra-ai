@@ -4703,3 +4703,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   スライダーの範囲は各テンプレの _DIFFICULTY 行そのもの。適用は localStorage + reload のみで通信なし。
   判定は node でページ自身のフォームを操作し、保存値がテンプレ本体の束縛に届くことを確認。
   4 通りの破壊で 0 に落ちることを確認済み。pytest exit 0 / verify_gate_recall exit 0（MISS 0）。
+2026-09-02 20:06 UTC ループA started Board=13
