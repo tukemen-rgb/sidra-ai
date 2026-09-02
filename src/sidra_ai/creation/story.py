@@ -65,6 +65,10 @@ CONTROLS: dict[str, tuple[tuple[str, str], ...]] = {
         ("SPACE / タップ", "撃つ。脚を撃ち抜くと頭が下りてくる"),
         ("R", "退いた後にやり直す"),
     ),
+    "racing": (
+        ("← →", "ハンドルを切る（車を左右へ）"),
+        ("R", "ゴール後や事故のあとに走り直す"),
+    ),
 }
 
 #: What the two difficulty numbers mean, per template. Without this the table
@@ -97,6 +101,10 @@ PARAMETERS: dict[str, tuple[tuple[str, str], ...]] = {
     "kaiju": (
         ("地割れの開く速さ", "1 フレームあたりの拡がり。大きいほど逃げる猶予が短い"),
         ("脚の耐久", "1 周期で脚に必要な命中数。多いほど頭が下りるまで長い"),
+    ),
+    "racing": (
+        ("走行速度", "1 フレームあたりの前進量。大きいほど 1 周が速く、操作も忙しい"),
+        ("障害物の間隔", "コース距離いくつごとに置くか。小さいほど密"),
     ),
 }
 

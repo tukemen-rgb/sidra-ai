@@ -23,7 +23,9 @@ def _outcome(tmp_path, message: str):
 
 
 def _an_unsupported_request() -> str:
-    for text in ("シューティングゲームを作って", "パズルゲームを作って", "レースゲームを作って"):
+    # レース left this list when its template landed; 格闘 keeps the pair of
+    # tests below exercising a real gap instead of skipping.
+    for text in ("シューティングゲームを作って", "パズルゲームを作って", "格闘ゲームを作って"):
         genre = detect_genre(text)
         if genre is not None and not genre.supported:
             return text

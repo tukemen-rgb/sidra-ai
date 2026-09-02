@@ -215,6 +215,11 @@ SPRITE_SETS: dict[str, tuple[tuple[str, object], ...]] = {
     # of the template is that the monster is a silhouette crossing the frame
     # rather than a picture of a monster, and a sprite would be a picture.
     "kaiju": (),
+    # The race recolours its whole frame once per lap through the scene
+    # palette; the car and the obstacles are flat shapes so they take that
+    # light. A sprite's baked-in colours would sit unchanged in a frame
+    # whose mood is the lap counter.
+    "racing": (),
 }
 
 

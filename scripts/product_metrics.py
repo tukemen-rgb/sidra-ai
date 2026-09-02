@@ -800,6 +800,7 @@ def measure_creation(c: Collector) -> None:
                 "シューティングゲームを作って",
                 "パズルゲームを作って",
                 "巨大な怪獣と戦うゲームを作って",
+                "レースゲームを作って",
             )
         }
     )
@@ -826,7 +827,10 @@ def measure_creation(c: Collector) -> None:
     unsupported = next(
         (
             text
-            for text in ("シューティングゲームを作って", "パズルゲームを作って", "レースゲームを作って")
+            # レース left this list when its template landed; 格闘 is still
+            # on the apology side of the table, so the wording keeps having
+            # a real gap to describe.
+            for text in ("シューティングゲームを作って", "パズルゲームを作って", "格闘ゲームを作って")
             if (g := detect_genre(text)) is not None and not g.supported
         ),
         "",
@@ -1219,6 +1223,82 @@ def measure_creation(c: Collector) -> None:
             "the measured 126-frame (2.1s) beat; the franchise name is renamed"
             if kaiju_seen is not None and not kaiju_reasons
             else "; ".join(kaiju_reasons) or "the fight could not be played"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- a race against the clock, judged by driving it ------------------
+    #
+    # レース sat on the apology side of the genre table. What separates a
+    # race from a scroller with a car drawn on it is checked by *driving the
+    # page in node*, because each rule has a cheap fake a source check would
+    # pass: steering that moves nothing, obstacles that are scenery (contact
+    # must cost speed, and only speed - 即死 would make the lap timer
+    # decoration), and a lap counter that is a label rather than a finish.
+    # The one source check kept is the honest-silence rule: a game with no
+    # combat must not raise the combat loudness step.
+    import re as _race_re
+    import subprocess as _race_sp
+
+    from sidra_ai.creation.games import TEMPLATES as _RACE_TEMPLATES
+    from sidra_ai.creation.racing import probe_source as _race_probe
+
+    race_reasons = []
+    race_seen = None
+    race_game = generate_game("レースゲームを作って")
+    if race_game.template != "racing":
+        race_reasons.append(f"routed to {race_game.template}")
+    if not validate_game_html(race_game.html)["playable"]:
+        race_reasons.append("page does not parse")
+    if "combat(" in _RACE_TEMPLATES["racing"].script:
+        race_reasons.append("a game with no combat claims the combat step")
+    race_script = _race_re.search(r"<script>(.*?)</script>", race_game.html, _race_re.S)
+    if race_script is None:
+        race_reasons.append("no script")
+    else:
+        try:
+            probe = _race_sp.run(
+                ["node", "-"],
+                input=_race_probe(race_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=90,
+            )
+            if probe.returncode != 0:
+                race_reasons.append(f"probe failed: {probe.stderr.strip()[:60]}")
+            else:
+                race_seen = json.loads(probe.stdout)
+        except (OSError, _race_sp.SubprocessError, ValueError) as exc:
+            race_reasons.append(f"probe unavailable ({type(exc).__name__})")
+    if race_seen is not None:
+        if not (race_seen["leftMoved"] < -30 and race_seen["rightMoved"] > 30):
+            race_reasons.append("steering does not move the car both ways")
+        # Contact is a time penalty: the pace is cut and the run continues.
+        if race_seen["spdAfterHit"] >= race_seen["base"] * 0.55:
+            race_reasons.append("an obstacle costs no speed")
+        if race_seen["graceAfterHit"] <= 0:
+            race_reasons.append("the hit never registered")
+        if race_seen["state"] != "goal" or race_seen["lapTimes"] != 3:
+            race_reasons.append(
+                f"finished {race_seen['state']} with "
+                f"{race_seen['lapTimes']} lap time(s), not 3"
+            )
+        # §7 観察 6 at lap scale: the final lap is the brightest frame.
+        scenes = race_seen["scenes"]
+        if len(scenes) != 3 or not (
+            scenes[2]["lum"] > scenes[0]["lum"] and scenes[2]["lum"] >= scenes[1]["lum"]
+        ):
+            race_reasons.append("the final lap is not the brightest scene")
+    c.add(
+        "creation_racing_playable",
+        "周回レースが作れる",
+        0.0 if race_reasons or race_seen is None else 1.0,
+        detail=(
+            "steering moves both ways; an obstacle costs speed and not the "
+            "run; three counted laps with a time each; the final lap is the "
+            "brightest; no combat step claimed"
+            if race_seen is not None and not race_reasons
+            else "; ".join(race_reasons) or "the race could not be driven"
         ),
         kind=OUTCOME,
     )

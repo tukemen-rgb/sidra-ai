@@ -47,6 +47,7 @@ from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.scene import (
     ADVENTURE_PALETTE,
     KAIJU_PALETTE,
+    RACING_PALETTE,
     SCENE_PREAMBLE,
 )
 from sidra_ai.creation.startscreen import BRIEFINGS, GATE_PREAMBLE
@@ -70,6 +71,13 @@ from sidra_ai.creation.kaiju import (
     KAIJU_SCRIPT,
     KAIJU_TITLE,
     KAIJU_WORDS,
+)
+from sidra_ai.creation.racing import (
+    RACING_DIFFICULTY,
+    RACING_HOW,
+    RACING_SCRIPT,
+    RACING_TITLE,
+    RACING_WORDS,
 )
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.duel import (
@@ -247,6 +255,12 @@ TEMPLATES: dict[str, GameTemplate] = {
         KAIJU_HOW,
         KAIJU_SCRIPT,
     ),
+    "racing": GameTemplate(
+        "racing",
+        RACING_TITLE,
+        RACING_HOW,
+        RACING_SCRIPT,
+    ),
 }
 
 #: Difficulty is two numbers per template, not a label. Keeping the mapping
@@ -259,6 +273,7 @@ _DIFFICULTY = {
     "shooter": SHOOTER_DIFFICULTY,
     "puzzle": PUZZLE_DIFFICULTY,
     "kaiju": KAIJU_DIFFICULTY,
+    "racing": RACING_DIFFICULTY,
 }
 
 # Stems, not whole words: 難しい / 難しく / 難しめ all have to land on the
@@ -273,6 +288,7 @@ _DUEL_WORDS = DUEL_WORDS
 _SHOOTER_WORDS = SHOOTER_WORDS
 _PUZZLE_WORDS = PUZZLE_WORDS
 _KAIJU_WORDS = KAIJU_WORDS
+_RACING_WORDS = RACING_WORDS
 
 #: Names this generator will not put on an artifact. A request that says
 #: 「ゼルダの伝説作って」 routes to the adventure template - the *genre* is
@@ -337,6 +353,12 @@ def choose_template(request: str) -> str:
         return "shooter"
     if any(fold_kana(word.lower()) in lowered for word in _ADVENTURE_WORDS):
         return "adventure"
+    # Before the duel and the catch, matching _GENRES: 「レースで対戦」 is a
+    # race (対戦 is a duel word), and an obstacle-race request that says
+    # 「避けながら走る」 must not fall into the catch template on 避け. The
+    # word that names the genre outranks the words describing its verbs.
+    if any(fold_kana(word.lower()) in lowered for word in _RACING_WORDS):
+        return "racing"
     if any(fold_kana(word.lower()) in lowered for word in _DUEL_WORDS):
         return "duel"
     if any(fold_kana(word) in lowered for word in _CATCH_WORDS):
@@ -366,7 +388,9 @@ _GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("シューティング", "shooting", "shooter", "stg", "弾幕", "シューター"),
     ),
     ("パズル", "puzzle", ("パズル", "puzzle")),
-    ("レース", "racing", ("レース", "レーシング", "racing", "race")),
+    # The template module owns the vocabulary, as with kaiju and the duel:
+    # one list routes and one list answers, so they cannot drift.
+    ("レース", "racing", RACING_WORDS),
     ("RPG", "rpg", ("rpg", "ロールプレイング", "ロープレ")),
     # Before 対戦格闘: a franchise-beam request is a duel we *can* build, and
     # first-match order is what keeps it from falling into the fighting-game
@@ -575,6 +599,7 @@ def generate_game(
         .replace("BG_TOKEN", theme.tokens["bg"])
         .replace("ADV_PAL_TOKEN", json.dumps([list(p) for p in ADVENTURE_PALETTE]))
         .replace("KAIJU_PAL_TOKEN", json.dumps([list(p) for p in KAIJU_PALETTE]))
+        .replace("RACING_PAL_TOKEN", json.dumps([list(p) for p in RACING_PALETTE]))
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
         .replace("SEED_TOKEN", str(zlib.crc32(request.encode("utf-8"))))

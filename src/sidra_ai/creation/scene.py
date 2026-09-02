@@ -59,6 +59,18 @@ KAIJU_PALETTE: tuple[tuple[float, float, float], ...] = (
     (80.0, 1.05, 0.22),
 )
 
+#: Racing, one entry per lap: opening lap, middle lap, final lap.
+#:
+#: The hue steps warm -> cool -> the brightest frame of the run, so a glance
+#: at the air says which lap this is before the HUD is read - and the final
+#: lap gets the brightness budget, the lap-scale version of reserving the
+#: peak for the climax (§7 観察 6).
+RACING_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (-28.0, 0.90, 0.03),
+    (36.0, 1.10, 0.10),
+    (80.0, 1.05, 0.22),
+)
+
 #: Installed before every template. Defines the transform and leaves the
 #: palette itself to the template, which calls ``setPal`` once at boot.
 SCENE_PREAMBLE = """
@@ -138,4 +150,4 @@ function sceneFacts(){const keep=SCENE,out=[];
   SCENE=keep;return {scene:keep,scenes:out}}
 """
 
-__all__ = ["ADVENTURE_PALETTE", "KAIJU_PALETTE", "SCENE_PREAMBLE"]
+__all__ = ["ADVENTURE_PALETTE", "KAIJU_PALETTE", "RACING_PALETTE", "SCENE_PREAMBLE"]

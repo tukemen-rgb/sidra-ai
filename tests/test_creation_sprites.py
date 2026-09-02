@@ -111,6 +111,9 @@ def test_each_template_gets_the_two_names_its_page_draws() -> None:
         # monster: a sprite would be exactly the whole-body view the template
         # exists to withhold.
         "kaiju": set(),
+        # The race relights its frame once per lap; flat shapes take that
+        # light, a sprite's baked colours would not.
+        "racing": set(),
     }
     for template in TEMPLATES:
         names = {name for name, _ in SPRITE_SETS.get(template, ())}

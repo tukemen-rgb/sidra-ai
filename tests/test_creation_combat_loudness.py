@@ -34,7 +34,7 @@ from sidra_ai.creation.games import TEMPLATES, generate_game  # noqa: E402
 #: while an enemy is near - the better design, and one this stub cannot drive
 #: far enough to observe, so it is not asserted here either.
 FIGHTS = {"duel", "kaiju", "shooter"}
-QUIET = {"fishing", "catch", "puzzle"}
+QUIET = {"fishing", "catch", "puzzle", "racing"}
 
 
 def _sound(template: str) -> dict:
