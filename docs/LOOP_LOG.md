@@ -4712,3 +4712,8 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   sprite('fighter') を呼びながら未充填だったことが照合で判明、理由つきで宣言。
   画像モデル導入は E 節に「要判断」として起票。pytest exit 0 / gate exit 0（MISS 0）。
 2026-09-02 21:08 UTC ループA started Board=13
+- C-1104 完了。creation_round_within_60s unmeasurable→9（product_metrics --compare exit 0）。
+  9 型共通の 1 本のラウンドクロック。遊んだ時間だけを数える（タイトル/一時停止は減らない）。
+  4 型はテンプレ自身の終了画面、5 型はクロックで区切られる。区切ってもループは保持。
+  実装中に自分のバグ（バナーが 1 フレームで消える）を実プレイで発見・修正。
+  4 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。

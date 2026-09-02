@@ -2113,6 +2113,92 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- every go reaches a break ---------------------------------------
+    #
+    # C-1104, §8 事実 1. A page that runs forever is not endless content;
+    # it is a page with no moment to stop at, and "how long is a go?" had
+    # no answer at all for two of the nine templates.
+    #
+    # Judged by leaving the real page alone in node: press start once - the
+    # gate exists to be pressed - and then touch nothing for longer than
+    # the bound. A break is either the template's own end screen or the
+    # shared clock; both count, and which one it was is reported, because a
+    # clock that fired over a template that had already finished would be a
+    # bound nobody needed.
+    from sidra_ai.creation.round import (
+        ROUND_SECONDS as _round_seconds,
+        live_gaps as _round_live_gaps,
+        probe_source as _round_probe,
+    )
+
+    round_gaps: list[str] = []
+    round_ok: list[str] = []
+    round_by: dict[str, float] = {}
+    for key in sorted(_tune_templates):
+        round_gaps += [f"{key}: {gap}" for gap in _round_live_gaps(key, _tune_templates[key].script)]
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            round_gaps.append(f"{key}: no script")
+            continue
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_round_probe(script.group(1), warmup=600),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if probe.returncode != 0:
+                round_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                continue
+            seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            round_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            continue
+        at = seen.get("breakAt")
+        if at is None:
+            round_gaps.append(f"{key}: no break in {_round_seconds}s of play")
+            continue
+        if at > seen["limit"] + 100:
+            round_gaps.append(f"{key}: the break came at {at / 1000:.1f}s")
+            continue
+        # Held, not stopped. A loop that was dropped could not be handed
+        # back, and the page would be a still image with a banner on it.
+        if not seen.get("running"):
+            round_gaps.append(f"{key}: the loop stopped rather than held")
+            continue
+        if seen.get("gatedMs"):
+            round_gaps.append(f"{key}: the title screen burned {seen['gatedMs']:.0f}ms of the round")
+            continue
+        # Coming back has to exist, and has to belong to whoever ended the
+        # round: the clock re-runs the page, a template's own end screen
+        # keeps its own restart and must not be reloaded over.
+        wanted = 1 if seen["reason"] == "time" else 0
+        if seen.get("reloads") != wanted:
+            round_gaps.append(
+                f"{key}: R after a {seen['reason']} break reloaded {seen.get('reloads')} time(s)"
+            )
+            continue
+        round_ok.append(key)
+        round_by[key] = at / 1000
+    by_clock = sorted(k for k in round_ok if round_by[k] >= _round_seconds - 1)
+    c.add(
+        "creation_round_within_60s",
+        "60 秒以内に区切りが来る型",
+        float(len(round_ok)) if not round_gaps else 0.0,
+        detail=(
+            f"起動して 1 入力だけ与え、あとは無操作で {_round_seconds}s 以上回した"
+            f"実測。{len(round_ok) - len(by_clock)} 型はテンプレ自身の終了画面で、"
+            f"{len(by_clock)} 型は共有クロックで区切られる（{', '.join(by_clock)}）。"
+            "区切ってもループは止めずに保持しているので再開できる"
+            if not round_gaps
+            else "; ".join(round_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

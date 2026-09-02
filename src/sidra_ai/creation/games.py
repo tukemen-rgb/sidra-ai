@@ -88,6 +88,7 @@ from sidra_ai.creation.platformer import (
     PLATFORMER_WORDS,
 )
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
+from sidra_ai.creation.round import preamble_for as round_preamble_for
 from sidra_ai.creation.tuning import TUNE_PREAMBLE, panel_schema
 from sidra_ai.creation.duel import (
     DUEL_DIFFICULTY,
@@ -606,6 +607,10 @@ def generate_game(
             + JUICE_PREAMBLE
             + SCENE_PREAMBLE
             + PAD_PREAMBLE
+            # Last of the loop wrappers, so the "ここまで" banner is drawn
+            # over everything else and holding the frame does not stop the
+            # pad or the particles.
+            + round_preamble_for(key)
             + _SPRITE_LOADER
             + spec.script
         )
