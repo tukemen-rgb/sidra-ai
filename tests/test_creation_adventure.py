@@ -82,8 +82,11 @@ def test_difficulty_changes_the_numbers_not_the_wording() -> None:
     hard = generate_game("難しい冒険ゲームを作って")
 
     assert normal.html != hard.html
-    assert "ESPEED=1.2" in hard.html
-    assert "ESPEED=0.8" in normal.html
+    # Spelled through the tuning panel since C-1113: the generator still
+    # picks the number, and it is still the number the page starts on -
+    # tuneNum returns its fallback unless this browser saved something.
+    assert "ESPEED=tuneNum('speed',1.2)" in hard.html
+    assert "ESPEED=tuneNum('speed',0.8)" in normal.html
 
 
 def test_the_page_keeps_every_house_rule() -> None:

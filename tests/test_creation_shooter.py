@@ -72,7 +72,9 @@ def test_difficulty_changes_the_game_and_not_the_wording():
 
 
 def _numbers(page: str) -> tuple[str, ...]:
-    script = re.search(r"const FALL=([\d.]+),WAVE=([\d.]+)", page)
+    script = re.search(
+        r"const FALL=tuneNum\('speed',([\d.]+)\),WAVE=tuneNum\('band',([\d.]+)\)", page
+    )
     assert script is not None
     return script.groups()
 

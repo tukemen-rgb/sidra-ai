@@ -75,7 +75,7 @@ def test_the_opponent_is_seeded_by_the_request() -> None:
 
 def test_difficulty_changes_the_opponent() -> None:
     hard = generate_game("難しいビームの撃ち合いゲームを作って")
-    assert "CSPEED=1.4" in hard.html
+    assert "CSPEED=tuneNum('speed',1.4)" in hard.html
 
 
 def test_the_page_keeps_every_house_rule() -> None:

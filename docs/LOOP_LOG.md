@@ -4698,3 +4698,8 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   C-0k の新設ループ発の C-12xx/C-13xx/C-14xx はまだ起票なし。
   Issue #372 のコメント総数 13（変化なし）。
 2026-09-02 19:07 UTC ループA started Board=13
+- C-1113 完了。creation_param_panel unmeasurable→9（product_metrics --compare exit 0）。
+  生成ページに「調整」フォームを同梱（難度プリセット・2 軸スライダー・差し色・既定に戻す）。
+  スライダーの範囲は各テンプレの _DIFFICULTY 行そのもの。適用は localStorage + reload のみで通信なし。
+  判定は node でページ自身のフォームを操作し、保存値がテンプレ本体の束縛に届くことを確認。
+  4 通りの破壊で 0 に落ちることを確認済み。pytest exit 0 / verify_gate_recall exit 0（MISS 0）。

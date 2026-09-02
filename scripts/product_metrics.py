@@ -1888,6 +1888,118 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the page carries its own form ---------------------------------
+    #
+    # §9 学び (4): every generator on the market loses the person at the
+    # same moment - the result is nearly right and there is no way to
+    # finish it by hand. C-1112 answered half of that by making a request
+    # edit the parameters. This is the half that needs nobody: the
+    # artifact ships a panel.
+    #
+    # Judged by driving the panel the page actually built, in node, for
+    # every template. Grepping for "<input" would say nothing about
+    # whether moving the slider changes the game - so the probe reads back
+    # the template's own binding for SPEED_TOKEN, and the number has to be
+    # the one storage held.
+    from sidra_ai.creation.games import (
+        TEMPLATES as _tune_templates,
+        _DIFFICULTY as _tune_ladder,
+        generate_game as _tune_generate,
+        validate_game_html as _tune_validate,
+    )
+    from sidra_ai.creation.tuning import (
+        SPEED_BINDING as _tune_binding,
+        TUNE_PREAMBLE as _tune_preamble,
+        panel_schema as _tune_schema,
+        probe_source as _tune_probe,
+    )
+
+    tune_gaps: list[str] = []
+    tune_ok: list[str] = []
+    # Checked once, not per template: a panel that phoned home would be a
+    # different product, and the artifact's whole claim is that it is one
+    # local file. The reload is the only thing it is allowed to trigger.
+    for banned in ("fetch(", "XMLHttpRequest", "://", "navigator.sendBeacon"):
+        if banned in _tune_preamble:
+            tune_gaps.append(f"the panel contains {banned!r}")
+    for key in sorted(_tune_templates):
+        if key not in _tune_binding:
+            tune_gaps.append(f"{key}: no SPEED binding recorded for the judge")
+            continue
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            tune_gaps.append(f"{key}: no script")
+            continue
+        speeds = [pair[0] for pair in _tune_ladder[key].values()]
+        stored, target = max(speeds), min(speeds)
+        want = [f["key"] for f in _tune_schema(
+            key, _tune_ladder[key], difficulty="normal", accent="#000000"
+        )["fields"]]
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_tune_probe(
+                    script.group(1),
+                    stored={f"sidra.tune.{key}": {"speed": stored}},
+                    target=target,
+                    speed_expr=_tune_binding[key],
+                ),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if probe.returncode != 0:
+                tune_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                continue
+            seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            tune_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            continue
+        if not seen.get("panel"):
+            tune_gaps.append(f"{key}: no panel in the page")
+            continue
+        if seen.get("controls") != want:
+            tune_gaps.append(f"{key}: controls {seen.get('controls')} != {want}")
+            continue
+        if not seen.get("buttons"):
+            tune_gaps.append(f"{key}: no way back to the defaults")
+            continue
+        # The direction that matters: a value the browser remembered has to
+        # reach the game body, not just the panel's own readout.
+        if seen.get("speedSeen") != stored:
+            tune_gaps.append(
+                f"{key}: stored {stored} but the game runs on {seen.get('speedSeen')}"
+            )
+            continue
+        if seen.get("moved") != target:
+            tune_gaps.append(f"{key}: moving the slider stored {seen.get('moved')!r}")
+            continue
+        if not seen.get("cleared"):
+            tune_gaps.append(f"{key}: 既定に戻す left the override in place")
+            continue
+        if not seen.get("reloads"):
+            tune_gaps.append(f"{key}: a change never asked the page to re-run")
+            continue
+        verdict = _tune_validate(page)
+        if not verdict["playable"]:
+            tune_gaps.append(f"{key} stopped being playable: {verdict['failures']}")
+            continue
+        tune_ok.append(key)
+    c.add(
+        "creation_param_panel",
+        "生成ページ内で自分で直せる型",
+        float(len(tune_ok)) if not tune_gaps else 0.0,
+        detail=(
+            "難度・2 軸のスライダー・差し色を artifact 内のフォームで変更でき、"
+            "保存値がゲーム本体に届き、既定に戻せる。"
+            "作者の easy..hard の範囲に丸められ、通信は無し"
+            if not tune_gaps
+            else "; ".join(tune_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

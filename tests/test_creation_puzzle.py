@@ -125,5 +125,7 @@ def test_difficulty_changes_the_board_rather_than_the_wording():
     easy = generate_game("簡単なパズルゲームを作って").html
     hard = generate_game("難しいパズルゲームを作って").html
 
-    grab = lambda page: re.search(r"COLOURS=(\d+),COLS=(\d+)", page).groups()  # noqa: E731
+    grab = lambda page: re.search(  # noqa: E731
+        r"COLOURS=tuneNum\('speed',(\d+)\),COLS=tuneNum\('band',(\d+)\)", page
+    ).groups()
     assert grab(easy) != grab(hard)

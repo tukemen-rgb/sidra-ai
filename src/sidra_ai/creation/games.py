@@ -88,6 +88,7 @@ from sidra_ai.creation.platformer import (
     PLATFORMER_WORDS,
 )
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
+from sidra_ai.creation.tuning import TUNE_PREAMBLE, panel_schema
 from sidra_ai.creation.duel import (
     DUEL_DIFFICULTY,
     DUEL_HOW,
@@ -586,6 +587,9 @@ def generate_game(
     if difficulty not in _DIFFICULTY[key]:
         difficulty = choose_difficulty(request)
     speed, band = _DIFFICULTY[key][difficulty]
+    schema = panel_schema(
+        key, _DIFFICULTY[key], difficulty=difficulty, accent=theme.tokens["accent"]
+    )
     script = with_animation(
         # Sound before sprites before the game: sfx() has to exist by the
         # time any input handler in the template body can fire. The pad and
@@ -594,7 +598,10 @@ def generate_game(
         # frame. Juice wraps first so the pad ends up drawn on top of the
         # particles rather than under them.
         (
-            GATE_PREAMBLE
+            # The panel first: every preamble after it, and every template,
+            # paints with TUNE_ACCENT and reads its numbers through tuneNum.
+            TUNE_PREAMBLE
+            + GATE_PREAMBLE
             + SFX_PREAMBLE
             + JUICE_PREAMBLE
             + SCENE_PREAMBLE
@@ -608,8 +615,18 @@ def generate_game(
         .replace("COMBAT_GAIN_TOKEN", str(COMBAT_GAIN))
         .replace("MAX_GAIN_TOKEN", str(MAX_GAIN))
         .replace("SPRITE_MAP_TOKEN", json.dumps(sprites or {}))
-        .replace("SPEED_TOKEN", str(speed))
-        .replace("BAND_TOKEN", str(band))
+        # The two shared axes come through the panel, so a slider in the
+        # artifact moves the same number the generator chose. The clamp
+        # lives in tuneNum: an absent or out-of-range stored value is the
+        # generator's own number, which is why this is a substitution and
+        # not a rewrite of nine templates.
+        .replace("TUNE_SPEC_TOKEN", json.dumps(schema, ensure_ascii=False))
+        .replace("SPEED_TOKEN", f"tuneNum('speed',{speed})")
+        .replace("BAND_TOKEN", f"tuneNum('band',{band})")
+        # Quoted first: the accent every template paints with becomes one
+        # identifier, so a stored colour repaints all of its uses. Any
+        # unquoted CYAN_TOKEN (there are none today) still gets the hex.
+        .replace("'CYAN_TOKEN'", "TUNE_ACCENT")
         .replace("SURFACE_TOKEN", theme.tokens["surface"])
         .replace("RAISED_TOKEN", theme.tokens["raised"])
         .replace("CYAN_TOKEN", theme.tokens["accent"])
