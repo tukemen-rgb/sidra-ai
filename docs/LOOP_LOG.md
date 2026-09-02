@@ -4711,3 +4711,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   コードに書かれており、埋めるのは設計判断と数字の交換になるため。duel は
   sprite('fighter') を呼びながら未充填だったことが照合で判明、理由つきで宣言。
   画像モデル導入は E 節に「要判断」として起票。pytest exit 0 / gate exit 0（MISS 0）。
+2026-09-02 21:08 UTC ループA started Board=13
