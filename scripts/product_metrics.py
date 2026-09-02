@@ -2000,6 +2000,119 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a picture can be swapped for a better one ---------------------
+    #
+    # C-1116. §9 学び (2): the generators people rate highest are the ones
+    # whose art can be replaced. Installing a local image model is the
+    # owner's own machine and their own decision (recorded in E); what a
+    # loop can build is the receptacle, so that the day a model exists the
+    # art is a file drop rather than a rewrite.
+    #
+    # Counted: templates with at least one *working* replaceable slot -
+    # declared with a role, filled by the procedural generator today,
+    # resolved from the directory, beaten by a file an operator drops in,
+    # and harmless when the file is gone. Templates that deliberately draw
+    # everything as paths are not counted: three of them have written
+    # reasons (the kaiju silhouette, the race's per-lap relight, the
+    # platform lip), and inflating this number by overriding them would be
+    # trading a design decision for a number.
+    import tempfile as _slot_tmp
+    from pathlib import Path as _SlotPath
+
+    from sidra_ai.creation.sprites import (
+        LOADER_PROBE as _slot_loader_probe_src,
+        contract_gaps as _slot_gaps,
+        generate_sprites as _slot_generate,
+        loader_probe as _slot_probe,
+        resolve_slots as _slot_resolve,
+        save_sprites as _slot_save,
+        seed_for as _slot_seed,
+        slots_for as _slot_slots,
+    )
+
+    slot_gaps: list[str] = []
+    slot_ok: list[str] = []
+    # The declaration and the page have to agree for *every* template,
+    # including the ones with no slots at all: a call nobody declared is a
+    # picture nobody can replace, which is the failure this whole item is
+    # about, and it is invisible in a screenshot.
+    for key in sorted(_tune_templates):
+        slot_gaps += [f"{key}: {gap}" for gap in _slot_gaps(key, _tune_templates[key].script)]
+    # The fallback claim, run in node in both directions.
+    for decoded in (False, True):
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_slot_probe(decoded=decoded),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if probe.returncode != 0:
+                slot_gaps.append(f"loader probe did not run: {probe.stderr.strip()[:60]}")
+                continue
+            seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            slot_gaps.append(f"loader probe unavailable ({type(exc).__name__})")
+            continue
+        if decoded and (seen["drawn"] != 1 or seen["painted"]):
+            slot_gaps.append("a decoded picture did not replace the flat shape")
+        if not decoded and seen["painted"] != ["#abcdef"]:
+            slot_gaps.append("a picture that never decoded lost the flat shape")
+
+    with _slot_tmp.TemporaryDirectory() as _slot_dir:
+        for key in sorted(_tune_templates):
+            filled = [slot for slot in _slot_slots(key) if slot.generated]
+            if not filled:
+                continue
+            root = _SlotPath(_slot_dir) / key
+            assets = root / "assets"
+            _slot_save(_slot_generate(key, seed=_slot_seed(key)), assets)
+            resolved = _slot_resolve(key, assets)
+            missing = [slot.name for slot in filled if slot.name not in resolved]
+            if missing:
+                slot_gaps.append(f"{key}: generated but unresolvable: {missing}")
+                continue
+            if any(not slot.role for slot in _slot_slots(key)):
+                slot_gaps.append(f"{key}: a slot with no role written down")
+                continue
+            # The receptacle itself: a file an operator drops in has to win
+            # over the procedural SVG without anything being regenerated.
+            first = filled[0].name
+            (assets / f"{first}.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+            again = _slot_resolve(key, assets)
+            if not again.get(first, "").endswith(f"{first}.png"):
+                slot_gaps.append(f"{key}: a dropped-in picture lost to the generated one")
+                continue
+            page = _tune_generate("ゲームを作って", template=key, sprites=again).html
+            if again[first] not in page:
+                slot_gaps.append(f"{key}: the page does not load {again[first]}")
+                continue
+            if "http://" in page or "https://" in page:
+                slot_gaps.append(f"{key}: the page reaches outside the machine")
+                continue
+            # And with the directory emptied, the game is still a game.
+            bare = _tune_validate(_tune_generate("ゲームを作って", template=key).html)
+            if not bare["playable"]:
+                slot_gaps.append(f"{key}: unplayable without its pictures: {bare['failures']}")
+                continue
+            slot_ok.append(key)
+    c.add(
+        "creation_sprite_slots",
+        "絵を差し替えられる型",
+        float(len(slot_ok)) if not slot_gaps else 0.0,
+        detail=(
+            "assets/<slot>.png を置くだけで手続き生成 SVG を上書きでき、"
+            "ファイルが無くても遊べる。9 型すべてで sprite() 呼び出しと"
+            "スロット宣言が一致（duel の fighter は未充填として理由つきで宣言）。"
+            "数えないのは 5 型: kaiju / racing / platformer / puzzle は"
+            "絵を持たない理由が書かれており、duel は宣言だけで未充填"
+            if not slot_gaps
+            else "; ".join(slot_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

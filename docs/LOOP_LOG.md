@@ -4704,3 +4704,10 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   判定は node でページ自身のフォームを操作し、保存値がテンプレ本体の束縛に届くことを確認。
   4 通りの破壊で 0 に落ちることを確認済み。pytest exit 0 / verify_gate_recall exit 0（MISS 0）。
 2026-09-02 20:06 UTC ループA started Board=13
+- C-1116 完了。creation_sprite_slots unmeasurable→4（product_metrics --compare exit 0）。
+  差し替え可能な画像スロットの規約＋解決器＋フォールバックを実装。assets/<slot>.png が
+  手続き生成 SVG に勝ち、無ければ平面図形のまま遊べる（node で両方向を実測）。
+  目標の 9 は取らなかった: kaiju/racing/platformer/puzzle は絵を持たない理由が
+  コードに書かれており、埋めるのは設計判断と数字の交換になるため。duel は
+  sprite('fighter') を呼びながら未充填だったことが照合で判明、理由つきで宣言。
+  画像モデル導入は E 節に「要判断」として起票。pytest exit 0 / gate exit 0（MISS 0）。

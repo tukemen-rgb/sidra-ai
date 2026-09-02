@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+import re
 from dataclasses import dataclass
 from xml.etree import ElementTree
 
@@ -198,6 +199,7 @@ def _interceptor(rng: random.Random) -> str:
     )
 
 
+
 SPRITE_SETS: dict[str, tuple[tuple[str, object], ...]] = {
     "fishing": (("target", _fish), ("marker", _marker)),
     "catch": (("target", _drop), ("marker", _basket)),
@@ -260,6 +262,183 @@ def off_palette(svg: str) -> set[str]:
     return colours_in(svg) - allowed
 
 
+# ---------------------------------------------------------- slot contract
+#
+# C-1116. The knowledge base (§9 学び (2)) puts image generation on the
+# other side of a decision the owner has to make on their own machine: a
+# local image model is weights, disk and a GPU, and none of that is a loop's
+# to install. What *is* a loop's job is the receptacle - so that the day a
+# model exists, the art is a file drop and not a rewrite.
+#
+# The convention, in three sentences:
+#
+# 1. Every picture a page draws goes through ``sprite(name, ...)``, and
+#    every such ``name`` is a **slot** declared here with a role.
+# 2. A slot is filled by ``assets/<name>.<ext>``. The procedural generator
+#    writes ``<name>.svg``; anything else with that stem - a PNG a model
+#    produced, a drawing someone made - wins over it.
+# 3. Nothing depends on a slot being filled. A missing or unreadable file
+#    leaves the page playable, drawing the flat shape it always drew.
+#
+# The third is why this is safe to ship before any model exists, and the
+# first is why a template cannot quietly grow a picture nobody can replace.
+
+#: What each slot is *for*, in the page's own terms. Written down because a
+#: slot's name is what the page calls it, not what an artist filling it
+#: needs to know: "foe" says nothing about a shape seen from above.
+#: Slots a page asks for that no generator fills today, and why. Declared
+#: rather than left implicit: the duel has called ``sprite('fighter')``
+#: since it was written, and an undeclared call is a picture nobody can
+#: replace and nobody can see is missing.
+UNFILLED_SLOTS: dict[str, dict[str, str]] = {
+    "duel": {
+        "fighter": (
+            "決闘者は手続き描画が本体で、スロットはその下に敷く任意の絵。"
+            "fallback は空文字＝何も描かない。手続きの体が上に載るので、"
+            "現行の生成スプライトを入れてもほぼ見えない。"
+            "画像モデル導入後に、体の描画順ごと見直す前提の受け皿。"
+        )
+    },
+}
+
+SLOT_ROLES: dict[str, str] = {
+    "target": "プレイヤーが狙う / 受ける対象",
+    "marker": "プレイヤーが動かすもの（マーカー・受け皿）",
+    "hero": "操作キャラクター",
+    "enemy": "敵",
+    "rock": "通れない地形",
+    "bush": "見た目だけの茂み",
+    "npc": "話しかける相手",
+    "foe": "上から見た迎撃機",
+    "fighter": "横から見た決闘者",
+}
+
+#: Image extensions an operator (or, later, a local model) may drop in. SVG
+#: last: it is what the generator writes, so it is the thing being replaced.
+#: No formats that execute anything, and nothing is fetched - the page loads
+#: a relative path inside the project directory.
+REPLACEABLE_SUFFIXES: tuple[str, ...] = (".png", ".webp", ".jpg", ".jpeg", ".svg")
+
+#: How the page asks for a picture. One spelling, so a call that no slot
+#: declares is findable rather than a thing someone notices in a screenshot.
+_SPRITE_CALL = re.compile(r"""sprite\(\s*['"]([^'"]+)['"]""")
+
+
+@dataclass(frozen=True)
+class SpriteSlot:
+    """One replaceable picture: what the page calls it, and what it is for."""
+
+    name: str
+    role: str
+    #: True when a procedural generator fills it today. False would mean the
+    #: page draws its fallback shape until somebody supplies a file.
+    generated: bool
+
+
+def slots_for(template: str) -> tuple[SpriteSlot, ...]:
+    """Every slot this template declares, filled today or not."""
+
+    filled = tuple(
+        SpriteSlot(name, SLOT_ROLES.get(name, ""), True)
+        for name, _ in SPRITE_SETS.get(template, ())
+    )
+    empty = tuple(
+        SpriteSlot(name, SLOT_ROLES.get(name, ""), False)
+        for name in sorted(UNFILLED_SLOTS.get(template, {}))
+    )
+    return filled + empty
+
+
+def slot_calls(script: str) -> set[str]:
+    """Every name the template's own drawing code asks for."""
+
+    return set(_SPRITE_CALL.findall(script))
+
+
+def contract_gaps(template: str, script: str) -> list[str]:
+    """Where the declaration and the page disagree.
+
+    Both directions are failures, and for different reasons: a call with no
+    slot is a picture nobody can replace (the duel drew a grey rectangle for
+    weeks this way), and a slot with no call is a file written into a
+    project that nothing ever loads.
+    """
+
+    declared = {slot.name for slot in slots_for(template)}
+    called = slot_calls(script)
+    gaps = [f"{name}: drawn but not declared" for name in sorted(called - declared)]
+    gaps += [f"{name}: declared but never drawn" for name in sorted(declared - called)]
+    gaps += [
+        f"{name}: left unfilled with no reason written down"
+        for name, why in sorted(UNFILLED_SLOTS.get(template, {}).items())
+        if not why.strip()
+    ]
+    gaps += [
+        f"{name}: no role written down"
+        for name in sorted(declared & called)
+        if not SLOT_ROLES.get(name)
+    ]
+    return gaps
+
+
+def resolve_slots(template: str, assets_dir) -> dict[str, str]:
+    """Slot name -> the relative path the page should load, if anything.
+
+    An operator's own file wins over the generated one, which is the whole
+    point: the receptacle is filled by putting a file in a directory. A slot
+    with no file at all is simply absent from the mapping, and the page
+    falls back to the shape it always drew.
+    """
+
+    from pathlib import Path
+
+    directory = Path(assets_dir)
+    found: dict[str, str] = {}
+    for slot in slots_for(template):
+        for suffix in REPLACEABLE_SUFFIXES:
+            candidate = directory / f"{slot.name}{suffix}"
+            # is_file() rather than exists(): a directory named target.png
+            # is not a picture, and following it would be a surprise.
+            if candidate.is_file():
+                found[slot.name] = f"{directory.name}/{candidate.name}"
+                break
+    return found
+
+
+#: The fallback claim, run rather than asserted: a slot whose file never
+#: decodes has to leave the flat shape the template always drew, and a slot
+#: whose file *does* decode has to replace it. Both directions, because a
+#: loader that always fell back would pass the first check alone - and that
+#: is precisely the state "we shipped the receptacle" would hide.
+LOADER_PROBE = """
+const painted = [];
+const drawn = [];
+const cx = { fillStyle: '', fillRect: (x,y,w,h) => painted.push(cx.fillStyle),
+  drawImage: () => drawn.push(1) };
+globalThis.Image = function(){ return { complete: DECODED_INPUT,
+  naturalWidth: DECODED_INPUT ? 64 : 0 } };
+LOADER_PLACEHOLDER
+sprite('target', 0, 0, 16, 16, '#abcdef');
+console.log(JSON.stringify({ painted: painted, drawn: drawn.length,
+  slots: Object.keys(SPRITES) }));
+"""
+
+
+def loader_probe(*, decoded: bool, slots: dict[str, str] | None = None) -> str:
+    """The page's own sprite loader, with the image decode pinned."""
+
+    import json as _json
+
+    from sidra_ai.creation.games import _SPRITE_LOADER
+
+    loader = _SPRITE_LOADER.replace(
+        "SPRITE_MAP_TOKEN", _json.dumps(slots or {"target": "assets/target.svg"})
+    )
+    return LOADER_PROBE.replace("DECODED_INPUT", "true" if decoded else "false").replace(
+        "LOADER_PLACEHOLDER", loader
+    )
+
+
 def save_sprites(sprites: tuple[Sprite, ...], directory) -> tuple[str, ...]:
     """Write into an existing assets directory; return the filenames written."""
 
@@ -274,8 +453,18 @@ def save_sprites(sprites: tuple[Sprite, ...], directory) -> tuple[str, ...]:
 
 __all__ = [
     "PALETTE",
+    "LOADER_PROBE",
+    "REPLACEABLE_SUFFIXES",
+    "UNFILLED_SLOTS",
+    "SLOT_ROLES",
     "SPRITE_SETS",
     "Sprite",
+    "SpriteSlot",
+    "contract_gaps",
+    "loader_probe",
+    "resolve_slots",
+    "slot_calls",
+    "slots_for",
     "VIEWBOX",
     "colours_in",
     "generate_sprites",

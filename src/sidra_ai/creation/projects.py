@@ -323,15 +323,18 @@ def scaffold_project(
         elif stage is Stage.ASSETS:
             # Seeded from the request, so regenerating a project gives the
             # same art its own documents already describe.
-            written = sprite_lib.save_sprites(
+            sprite_lib.save_sprites(
                 sprite_lib.generate_sprites(
                     plan.template, seed=sprite_lib.seed_for(request)
                 ),
                 root / "assets",
             )
-            asset_paths = {
-                name.removesuffix(".svg"): f"assets/{name}" for name in written
-            }
+            # Resolved from the directory rather than from what was just
+            # written, so a picture the operator already dropped in (or, once
+            # the owner installs a local image model, one it produced) wins
+            # over the procedural SVG. That is the whole receptacle: filling
+            # a slot is putting a file in assets/, not editing anything.
+            asset_paths = sprite_lib.resolve_slots(plan.template, root / "assets")
         elif stage is Stage.GAME:
             # The playable page already exists as a generator, so the project
             # gets a real one rather than an empty file. Saved under the
