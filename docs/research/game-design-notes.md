@@ -169,6 +169,51 @@
   C-1033 のブリーフィングで波の骨格は入ったので、残る欠落は色の側。
 - SIDRA での反映先: C-1036（場面ごとの環境パレット）**→ 反映済み 2026-09-01（C-1036 完了: `creation/scene.py`。場面パレットをテーマ色の変換として実装し、adventure は部屋ごと・kaiju は phase ごとに基調色がずれる。最大明度は最終場面に予約。4 テーマ全部で 実測。明度の刻みは HSL lightness ではなく相対輝度で取る——色相が明るさを 運ぶため、lightness だと紙テーマで森が山場より明るくなった。壁と床の明度差はテーマ既定値のまま保つ）**
 
+## 8. 継続したくなる仕組み（市場調査 2026-09-02・C-1103 の (a)）
+
+社長指示「行き詰まったら必ず他社の情報や市場調査、SNS情報を参考に」の実行。
+URL はすべて 2026-09-02 に実際に開いて確認済み。孫引きベンチマークは不採用。
+
+- 事実 1: **1 プレイは約 1 分が目安。**ハイパーカジュアルの平均セッションは
+  2 分 39 秒。Supersonic の実例では 1 レベルを 2 分→1 分に短縮しただけで
+  総プレイ時間 +33%・D1 リテンション 48%。「報酬に着く前に離脱させない」。
+  （出典: https://supersonic.com/learn/blog/runner-games-are-here-to-stay-how-can-you-capitalize-on-the-trend/）
+  → 反映先: C-1104（1 ラウンド 60 秒上限の設計パラメータ）
+- 事実 2: **失敗の瞬間こそ演出で増幅する**（GDC「Juice It or Lose It」の
+  ライブデモ。失敗時の派手なフィードバックがリトライ意欲に直結）。
+  （出典: https://www.gdcvault.com/play/1016487/juice-it-or-lose）
+  → 反映先: C-1105（失敗演出キットの共通化）
+- 事実 3: **初回セッション 9 分超で D1 約 31%、9 分未満で約 20%**
+  （deltaDNA・275 タイトル）。起動 2 分以内に 20% が離脱。1 プレイは短く、
+  セッションは連鎖で長く、が正解。
+  （出典: https://www.gamedeveloper.com/business/how-first-session-length-impacts-game-performance）
+  → 反映先: C-1106（リザルトからの連鎖導線）
+- 事実 4: **D7 はトップでも iOS 約 21% / Android 約 14%**（GameAnalytics
+  2020）。7 日後に戻る理由（日替わり・蓄積）が無ければ D7 は作れない。
+  （出典: https://www.gameanalytics.com/blog/2020-in-metrics-understanding-casual-and-hypercasual-gaming-markets）
+  → 反映先: C-1107（日替わりシード）
+- 事実 5: **「満員の動く乗り物で片手・初見で遊べるか」が Voodoo の判定基準。**
+  チュートリアル不要が前提、ビジュアルよりゲームプレイの核。
+  （出典: https://www.gameanalytics.com/blog/voodoo-guide-mobile-game-design-keep-things-simple）
+  → 反映先: C-1108（最初の 10 秒に必ず成功する 1 アクション）
+- 事実 6: **性能不変のコスメティック解放だけで再訪と収益は作れる**
+  （Crossy Road: 見た目だけのガチャ＋フリーギフトのみで 90 日 1,000 万ドル。
+  エナジー制なし・無限リトライ許容のまま）。
+  （出典: https://mobiledevmemo.com/crossy-road-a-case-study-in-mobile-ad-monetization/）
+  → 反映先: C-1109（性能不変スキン解放）
+- 事実 7: **共有は「ネタバレなしのスコア自慢」×「全員同じ日替わり課題」で
+  爆発した**（Wordle・GDC 2022 講演。絵文字グリッドはコミュニティ発を採用、
+  共有テキストに URL をあえて入れない）。
+  （出典: https://gamedeveloper.com/gdc2022/josh-wardle-reflects-on-the-the-unconventional-road-to-wordle-s-success）
+  → 反映先: C-1107（日替わりシードとの組）＋ C-1110（結果コピー）
+- 事実 8: **開いた瞬間に遊ばせる。**説明・登録・ワンクッションは離脱要因。
+  価値の理解は 2〜3 分以内、教えるのは説明でなく成功体験で。
+  （出典: https://www.gameanalytics.com/blog/tips-for-a-great-first-time-user-experience-ftue-in-f2p-games）
+  → 反映先: C-1111（ブリーフィングと即プレイの両立）
+- 学び（総括）: SIDRA は「即リトライ」「短い 1 プレイ」は既に市場の正解と
+  一致。**丸ごと欠けているのは「もう一度・明日も・誰かに見せたい」の 3 導線**
+  （連鎖・日替わり・共有）で、いずれも性能に触らない安全な追加で作れる。
+
 ## 運用の決まり
 
 - 追記するときは必ず URL を実際に開いて確かめ、確認日を書く（推測で書かない）。
