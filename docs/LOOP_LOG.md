@@ -4725,3 +4725,9 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   計器の較正で自分のミス 2 件（循環した閾値／1 フレーム遅れの見落とし）を発見・修正。
   4 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。
 2026-09-02 23:08 UTC ループA started Board=13
+- C-1106 完了。creation_result_rechallenge unmeasurable→9（product_metrics --compare exit 0）。
+  共通リザルト帯（数え方 N / 自己ベスト M（あと k）／R・タップでもう一度）。
+  数え方はテンプレごとに式を宣言、判定器が実ページ上で評価する。自己ベストは端末内のみ。
+  kaiju がタップ再開できなかったのを発見・修正。C-1104 判定器が probe 変更で古くなり
+  --compare が exit 2 を返したため、判定器を直してから再測（数字は削っていない）。
+  4 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。

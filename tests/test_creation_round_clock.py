@@ -112,7 +112,13 @@ def test_coming_back_belongs_to_whoever_ended_the_round(template: str) -> None:
 
     seen = _play(template)
 
-    assert seen["reloads"] == (1 if seen["reason"] == "time" else 0)
+    # The probe offers a tap and then R, so a clock break can reload more
+    # than once; what matters is which side did it. A template that ended
+    # on its own must not be reloaded over at all.
+    if seen["reason"] == "time":
+        assert seen["reloads"] >= 1
+    else:
+        assert seen["reloads"] == 0
 
 
 @pytest.mark.parametrize("template", KEYS)

@@ -53,6 +53,28 @@ ROUND_LIVE: dict[str, tuple[str, ...]] = {
     "shooter": ("play",),
 }
 
+#: What each template counts, as an expression its own page can evaluate,
+#: and what to call it on screen. Higher is always better: a mixed
+#: convention would make "あと n" mean two different things.
+#:
+#: Written down per template because there is no shared score variable and
+#: inventing one would mean rewriting nine games. The judge evaluates these
+#: on the running page, so an expression that stopped being true would be
+#: caught rather than silently reporting nothing.
+ROUND_SCORE: dict[str, tuple[str, str]] = {
+    "adventure": ("hero.gems", "宝石"),
+    "catch": ("score", "受け"),
+    # Damage dealt, not health kept: a duel lost 3-2 was closer than one
+    # lost 3-0, and only the first of those is worth chasing.
+    "duel": ("3-e.hp", "与ダメージ"),
+    "fishing": ("score", "釣果"),
+    "kaiju": ("cycles", "頭部への一撃"),
+    "platformer": ("me.gems", "宝石"),
+    "puzzle": ("score", "得点"),
+    "racing": ("times.length", "完了ラップ"),
+    "shooter": ("score", "撃墜"),
+}
+
 #: Names the preamble introduces, held to by a test like the other
 #: preambles': a template that happened to define ``roundFacts`` would
 #: break only in the generated page.
@@ -60,6 +82,8 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "roundLive",
     "roundEnded",
     "roundFacts",
+    "roundScore",
+    "roundBest",
     "ROUND_DONE",
     "ROUND_LIMIT_MS",
 )
@@ -149,10 +173,54 @@ const ROUND_RAF=requestAnimationFrame;
 requestAnimationFrame=function(fn){
   return ROUND_RAF(function tick(t){
     roundTick(t);
-    if(ROUND_DONE){drawRoundEnd();ROUND_RAF(tick);return}
-    fn(t)})};
+    if(ROUND_DONE){drawRoundEnd();drawResultStrip();ROUND_RAF(tick);return}
+    fn(t);
+    /* The template drew its own ending; the strip goes on top of it. */
+    if(roundEnded()){drawResultStrip()}})};
+/* --- the result that leads back in (§8 事実 3) ------------------------ */
+const ROUND_KEY='sidra.best.'+ROUND_NAME_TOKEN,ROUND_LABEL=ROUND_LABEL_TOKEN;
+let ROUND_FINAL=null,ROUND_BEST=null,ROUND_RECORD=false,ROUND_BANKED=false;
+/* The template's own counter, read where it lives. Guarded: a round that
+   ends before the template has built its state must not throw on the way
+   to the result screen. */
+function roundScore(){try{const v=ROUND_SCORE_TOKEN;
+  return (typeof v==='number'&&isFinite(v))?v:null}catch(e){return null}}
+function roundBestRead(){try{if(typeof localStorage==='undefined')return null;
+  const raw=localStorage.getItem(ROUND_KEY);if(raw===null)return null;
+  const v=Number(raw);return isFinite(v)?v:null}catch(e){return null}}
+function roundBestWrite(v){try{if(typeof localStorage!=='undefined'){
+  localStorage.setItem(ROUND_KEY,String(v))}}catch(e){}}
+function roundBest(){return ROUND_BEST}
+/* Banked once per round, on the first frame it is over: reading the score
+   every frame afterwards would keep overwriting the best with whatever the
+   frozen page still holds. Kept on this device only - no URL, nothing
+   sent, the same boundary the tuning panel and the index sit inside. */
+function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
+  ROUND_FINAL=roundScore();ROUND_BEST=roundBestRead();
+  if(ROUND_FINAL===null)return;
+  if(ROUND_BEST===null||ROUND_FINAL>ROUND_BEST){ROUND_RECORD=true;
+    roundBestWrite(ROUND_FINAL);ROUND_BEST=ROUND_FINAL}}
+/* One strip, drawn over whatever ended the round - the clock's banner or
+   the template's own screen - so "how far off am I, and how do I go
+   again" reads the same everywhere. */
+function drawResultStrip(){if(!RCV)return;roundBank();
+  const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
+  c.save();c.fillStyle='#05070fe6';c.fillRect(0,H-34,W,34);
+  c.fillStyle='#dfe7f5';c.textAlign='center';
+  c.font='13px ui-monospace,monospace';
+  let left='';
+  if(ROUND_FINAL!==null){
+    left=ROUND_LABEL+' '+ROUND_FINAL;
+    if(ROUND_RECORD){left+=' / 自己ベスト更新'}
+    else if(ROUND_BEST!==null){left+=' / 自己ベスト '+ROUND_BEST
+      +'（あと '+(ROUND_BEST-ROUND_FINAL+1)+'）'}}
+  const right='R / タップでもう一度';
+  c.fillText(left?(left+'   '+right):right,W/2,H-13);
+  c.textAlign='left';c.restore()}
 function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   ended:roundEnded(),limit:ROUND_LIMIT_MS,
+  score:ROUND_FINAL,best:ROUND_BEST,record:ROUND_RECORD,
+  live:roundScore(),
   state:(typeof state==='undefined')?null:state}}
 """
 
@@ -169,6 +237,7 @@ let roundReloads = 0;
 globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
 let roundClock = 0;
 globalThis.performance = { now: () => roundClock };
+const roundPointers = [];
 globalThis.addEventListener = (type, fn) => { if (type === 'keydown') roundKeys.push(fn) };
 globalThis.Image = function(){ return roundNothing };
 const roundStore = STORED_INPUT;
@@ -183,7 +252,9 @@ globalThis.location = { reload: () => { roundReloads++ } };
 globalThis.document = { readyState: 'complete',
   createElement: () => roundNothing, querySelector: () => null,
   getElementById: () => ({
-    width: 720, height: 320, style: {}, addEventListener: () => {},
+    width: 720, height: 320, style: {},
+    addEventListener: (type, fn) => {
+      if (type === 'pointerdown') roundPointers.push(fn) },
     getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
     getContext: () => new Proxy({ fillText: (t) => { roundText.push(String(t)) } }, {
       get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : roundNothing)),
@@ -220,13 +291,19 @@ for (let f = 0; f < FRAMES_INPUT; f++) {
     roundText.length = 0;
   }
 }
-/* Coming back: R once the banner is up. A template with its own end state
-   restarts itself and must not be reloaded over. */
+/* Coming back: one tap, then R. §8 事実 3 asks for a single tap from the
+   result, so the tap is tried first and the state is read after each. */
 const end = roundFacts();
-if (end.done) {
-  roundKeys.forEach(fn => fn({ key: 'r', code: 'KeyR',
-    preventDefault(){}, stopImmediatePropagation(){} }));
-}
+const roundStrip = roundText.slice(-6);
+roundPointers.forEach(fn => fn({ pointerType: 'touch', pointerId: 1,
+  clientX: 360, clientY: 160, preventDefault(){}, stopImmediatePropagation(){} }));
+roundRun(2);
+const afterTap = { live: roundLive(), ended: roundEnded(), reloads: tuneProbeReloadsShim() };
+roundKeys.forEach(fn => fn({ key: 'r', code: 'KeyR',
+  preventDefault(){}, stopImmediatePropagation(){} }));
+roundRun(2);
+const afterKey = { live: roundLive(), ended: roundEnded(), reloads: tuneProbeReloadsShim() };
+function tuneProbeReloadsShim(){ return roundReloads }
 console.log(JSON.stringify({
   gatedMs: beforePress,
   beatsAtBreak: firstBreak ? firstBreak.beats : null,
@@ -235,6 +312,9 @@ console.log(JSON.stringify({
   /* Only what was drawn after the break: the retry line has to be up
      within a second or two of losing, not somewhere in the whole run. */
   saidAfter: roundText.slice(0, 400),
+  strip: roundStrip,
+  score: end.score, best: end.best, record: end.record, liveScore: end.live,
+  afterTap: afterTap, afterKey: afterKey,
   breakAt: firstBreak ? firstBreak.ms : null,
   reason: firstBreak ? firstBreak.by : null,
   endState: firstBreak ? firstBreak.state : null,
@@ -270,17 +350,25 @@ def probe_source(
 
 
 def preamble_for(template: str) -> str:
-    """The clock, told which states this template calls "still playing"."""
+    """The clock and the result strip, told about one template."""
 
-    return ROUND_PREAMBLE.replace(
-        "ROUND_LIVE_TOKEN", json.dumps(list(ROUND_LIVE.get(template, ())))
-    ).replace("ROUND_LIMIT_TOKEN", str(ROUND_SECONDS * 1000))
+    expression, label = ROUND_SCORE.get(template, ("null", "得点"))
+    return (
+        ROUND_PREAMBLE.replace(
+            "ROUND_LIVE_TOKEN", json.dumps(list(ROUND_LIVE.get(template, ())))
+        )
+        .replace("ROUND_LIMIT_TOKEN", str(ROUND_SECONDS * 1000))
+        .replace("ROUND_NAME_TOKEN", json.dumps(template))
+        .replace("ROUND_LABEL_TOKEN", json.dumps(label, ensure_ascii=False))
+        .replace("ROUND_SCORE_TOKEN", expression)
+    )
 
 
 __all__ = [
     "PREAMBLE_NAMES",
     "PROBE",
     "ROUND_LIVE",
+    "ROUND_SCORE",
     "ROUND_PREAMBLE",
     "ROUND_SECONDS",
     "live_gaps",

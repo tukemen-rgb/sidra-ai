@@ -180,6 +180,10 @@ function draw(){const now=performance.now();
     cx.fillText(a,W/2-a.length*10,H/2-8);
     cx.font='13px ui-monospace,monospace';
     const b='R でもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}
+/* One tap from the result goes again (§8 事実 3). The keyboard restart
+   above is the only one this template had, which on a phone meant the
+   result screen was a dead end. */
+cv.addEventListener('pointerdown',()=>{if(state!=='fight')reset()});
 reset();step();
 """
 

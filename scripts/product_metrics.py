@@ -2174,11 +2174,14 @@ def measure_creation(c: Collector) -> None:
             continue
         # Coming back has to exist, and has to belong to whoever ended the
         # round: the clock re-runs the page, a template's own end screen
-        # keeps its own restart and must not be reloaded over.
-        wanted = 1 if seen["reason"] == "time" else 0
-        if seen.get("reloads") != wanted:
+        # keeps its own restart and must not be reloaded over. Counted as
+        # "any" rather than "exactly one" since C-1106, because the probe
+        # now offers a tap before the key and a clock break answers both.
+        reloaded = seen.get("reloads") or 0
+        if (reloaded < 1) if seen["reason"] == "time" else (reloaded != 0):
             round_gaps.append(
-                f"{key}: R after a {seen['reason']} break reloaded {seen.get('reloads')} time(s)"
+                f"{key}: coming back after a {seen['reason']} break reloaded "
+                f"{reloaded} time(s)"
             )
             continue
         round_ok.append(key)
@@ -2314,6 +2317,95 @@ def measure_creation(c: Collector) -> None:
             "動きを差し引く hitstop が担う）。ゴールに着いた回では鳴らない"
             if not fail_gaps
             else "; ".join(fail_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the result leads back in ---------------------------------------
+    #
+    # C-1106, §8 事実 3. A result screen that only says what happened is a
+    # place to stop; what turns one go into the next is knowing how far off
+    # you were and being one tap from trying again. Both halves are local:
+    # the best is this device's own localStorage, and there is no URL and
+    # nothing sent anywhere.
+    #
+    # Driven, not grepped, and the "あと n" branch is driven twice: once
+    # against an empty store (a first go is always a record) and once
+    # against a best nobody beat, because a strip that only ever printed
+    # 自己ベスト更新 would pass the first run alone.
+    fresh_gaps: list[str] = []
+    fresh_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        runs = {}
+        for label, best in (("first", None), ("chased", 10**6)):
+            page = _tune_generate("ゲームを作って", template=key).html
+            script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+            if script is None:
+                fresh_gaps.append(f"{key}: no script")
+                break
+            gentle = min(pair[0] for pair in _tune_ladder[key].values())
+            source = _fail_probe(
+                script.group(1), stored={f"sidra.tune.{key}": {"speed": gentle}}
+            )
+            if best is not None:
+                source = source.replace(
+                    "const roundStore = {",
+                    'const roundStore = {"sidra.best.%s": "%d",' % (key, best),
+                    1,
+                )
+            try:
+                probe = _scene_sp.run(
+                    ["node", "-"], input=source, capture_output=True, text=True, timeout=180
+                )
+                if probe.returncode != 0:
+                    fresh_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                    break
+                runs[label] = json.loads(probe.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                fresh_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+                break
+        if len(runs) != 2:
+            continue
+        first, chased = runs["first"], runs["chased"]
+        if first["score"] is None:
+            fresh_gaps.append(f"{key}: the round ended with no score to show")
+            continue
+        if not first["record"]:
+            fresh_gaps.append(f"{key}: a first go was not a personal best")
+            continue
+        strip = [line for line in chased["strip"] if "自己ベスト" in line and "あと" in line]
+        if not strip:
+            fresh_gaps.append(f"{key}: no 「あと n」 on the result: {chased['strip'][:3]}")
+            continue
+        if chased["record"]:
+            fresh_gaps.append(f"{key}: a beaten score still claimed a record")
+            continue
+        if not [line for line in chased["strip"] if "もう一度" in line]:
+            fresh_gaps.append(f"{key}: the result offers no way back in")
+            continue
+        # One tap, from the result, back into play - the thing §8 asks for
+        # and the thing a phone has. Reloading the page counts: the round
+        # after it is a round.
+        tap = chased["afterTap"]
+        if not (tap["live"] and not tap["ended"]) and not tap["reloads"]:
+            fresh_gaps.append(f"{key}: one tap on the result did not start another go")
+            continue
+        for line in chased["strip"]:
+            if "http" in line or "://" in line:
+                fresh_gaps.append(f"{key}: the result points somewhere outside")
+                break
+        else:
+            fresh_ok.append(key)
+    c.add(
+        "creation_result_rechallenge",
+        "結果から次の 1 回へ戻れる型",
+        float(len(fresh_ok)) if not fresh_gaps else 0.0,
+        detail=(
+            "終了画面に「<数え方> N / 自己ベスト M（あと k）」と"
+            "「R / タップでもう一度」が出る。自己ベストは端末内 localStorage のみで、"
+            "URL も外部遷移も無い。1 タップで実際に次の回が始まることまで実測"
+            if not fresh_gaps
+            else "; ".join(fresh_gaps)
         ),
         kind=OUTCOME,
     )
