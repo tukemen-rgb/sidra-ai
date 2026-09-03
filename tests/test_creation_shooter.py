@@ -84,7 +84,10 @@ def test_the_same_request_is_the_same_fight():
     again = generate_game("シューティングゲームを作って").html
     other = generate_game("弾幕シューティングを作って").html
 
-    seed = lambda page: re.search(r"SEED=(\d+)", page).group(1)  # noqa: E731
+    # Spelled through the daily switch since C-1107: the request-derived
+    # number is still what the page starts on, and seedNow returns it
+    # unless someone turns 今日の挑戦 on.
+    seed = lambda page: re.search(r"SEED=seedNow\((\d+)\)", page).group(1)  # noqa: E731
     assert seed(first) == seed(again)
     assert seed(first) != seed(other)
 

@@ -113,6 +113,10 @@ def panel_schema(template: str, ladder: dict[str, tuple[float, float]], *, diffi
             {"key": "speed", "label": names[0], "type": "number", "default": speed, **_axis(speeds)},
             {"key": "band", "label": names[1], "type": "number", "default": band, **_axis(bands)},
             {"key": "accent", "label": "差し色", "type": "colour", "default": accent},
+            # C-1107. Off by default: the request-derived seed is what makes
+            # a generated game *that person's* game, and a revision rebuilt
+            # from the same request expects the same world back.
+            {"key": "daily", "label": "今日の挑戦", "type": "flag", "default": False},
         ],
     }
 
@@ -123,6 +127,7 @@ def panel_schema(template: str, ladder: dict[str, tuple[float, float]], *, diffi
 PREAMBLE_NAMES: tuple[str, ...] = (
     "tuneNum",
     "tuneText",
+    "tuneFlag",
     "tuneValues",
     "tuneSet",
     "tuneReset",
@@ -159,9 +164,13 @@ function tuneText(key,fallback){const f=tuneField(key);if(!f)return fallback;
 function tuneChoice(key,fallback){const f=tuneField(key);if(!f)return fallback;
   const v=TUNE[key];
   return (f.choices.indexOf(v)>=0)?v:fallback}
+function tuneFlag(key,fallback){const f=tuneField(key);if(!f)return fallback;
+  const v=TUNE[key];
+  return (typeof v==='boolean')?v:fallback}
 function tuneValues(){const o={};TUNE_SPEC.fields.forEach(function(f){
   o[f.key]=f.type==='colour'?tuneText(f.key,f.default)
-    :(f.type==='choice'?tuneChoice(f.key,f.default):tuneNum(f.key,f.default))});
+    :(f.type==='choice'?tuneChoice(f.key,f.default)
+    :(f.type==='flag'?tuneFlag(f.key,f.default):tuneNum(f.key,f.default)))});
   return o}
 const TUNE_ACCENT=tuneValues().accent;
 function tuneWrite(next){const s=tuneStore();if(!s)return false;
@@ -175,6 +184,7 @@ function tuneSet(key,value){const next=tuneRead();
   const f=tuneField(key);if(!f)return false;
   if(f.type==='choice'){const preset=f.presets[value];if(!preset)return false;
     next[key]=value;next.speed=preset.speed;next.band=preset.band}
+  else if(f.type==='flag'){next[key]=!!value}
   else{next[key]=value}
   if(!tuneWrite(next))return false;
   TUNE=next;tuneReload();return true}
@@ -191,13 +201,14 @@ function tuneControl(f,value){const row=document.createElement('label');
     f.choices.forEach(function(c){const o=document.createElement('option');
       o.value=c;o.textContent=c;if(c===value){o.selected=true}input.appendChild(o)})}
   else{input=document.createElement('input');
-    if(f.type==='colour'){input.type='color'}
+    if(f.type==='colour'){input.type='color';input.value=String(value)}
+    else if(f.type==='flag'){input.type='checkbox';input.checked=!!value}
     else{input.type='range';input.min=String(f.min);input.max=String(f.max);
-      input.step=String(f.step)}
-    input.value=String(value)}
+      input.step=String(f.step);input.value=String(value)}}
   input.setAttribute('data-tune',f.key);
   input.addEventListener('change',function(){
-    tuneSet(f.key,f.type==='number'?Number(input.value):input.value)});
+    tuneSet(f.key,f.type==='number'?Number(input.value)
+      :(f.type==='flag'?!!input.checked:input.value))});
   row.appendChild(input);TUNE_CONTROLS.push(input);return row}
 function tunePanel(){
   if(typeof document==='undefined'||!document.createElement)return null;

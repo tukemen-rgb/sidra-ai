@@ -88,6 +88,7 @@ from sidra_ai.creation.platformer import (
     PLATFORMER_WORDS,
 )
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
+from sidra_ai.creation.daily import DAILY_PREAMBLE
 from sidra_ai.creation.round import preamble_for as round_preamble_for
 from sidra_ai.creation.tuning import TUNE_PREAMBLE, panel_schema
 from sidra_ai.creation.duel import (
@@ -602,6 +603,9 @@ def generate_game(
             # The panel first: every preamble after it, and every template,
             # paints with TUNE_ACCENT and reads its numbers through tuneNum.
             TUNE_PREAMBLE
+            # After the panel (it reads the switch) and before anything
+            # that uses SEED_TOKEN, which is every template body.
+            + DAILY_PREAMBLE
             + GATE_PREAMBLE
             + SFX_PREAMBLE
             + JUICE_PREAMBLE
@@ -646,7 +650,7 @@ def generate_game(
         .replace("PLAT_PAL_TOKEN", json.dumps([list(p) for p in PLATFORMER_PALETTE]))
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
-        .replace("SEED_TOKEN", str(zlib.crc32(request.encode("utf-8"))))
+        .replace("SEED_TOKEN", f"seedNow({zlib.crc32(request.encode('utf-8'))})")
         # The title screen prints the same words the page prints, so a
         # template whose instructions change cannot leave a stale copy
         # of them on the screen nobody can get past without reading.

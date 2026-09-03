@@ -214,13 +214,20 @@ function drawResultStrip(){if(!RCV)return;roundBank();
     if(ROUND_RECORD){left+=' / 自己ベスト更新'}
     else if(ROUND_BEST!==null){left+=' / 自己ベスト '+ROUND_BEST
       +'（あと '+(ROUND_BEST-ROUND_FINAL+1)+'）'}}
+  /* Whose board this was. Only when the switch is on: a line that always
+     said 今日の挑戦 would make the shared attempt meaningless. */
+  let mark='';
+  try{if(dailyOn()){mark='今日の挑戦 '+dailyStamp()+'   '}}catch(e){}
   const right='R / タップでもう一度';
-  c.fillText(left?(left+'   '+right):right,W/2,H-13);
+  c.fillText(mark+(left?(left+'   '+right):right),W/2,H-13);
   c.textAlign='left';c.restore()}
 function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   ended:roundEnded(),limit:ROUND_LIMIT_MS,
   score:ROUND_FINAL,best:ROUND_BEST,record:ROUND_RECORD,
   live:roundScore(),
+  seed:(typeof SEED==='undefined')?null:SEED,
+  daily:(function(){try{return dailyOn()}catch(e){return null}})(),
+  stamp:(function(){try{return dailyStamp()}catch(e){return null}})(),
   state:(typeof state==='undefined')?null:state}}
 """
 
@@ -235,6 +242,14 @@ const roundNothing = new Proxy(function(){}, {
 const roundKeys = [];
 let roundReloads = 0;
 globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+/* The date is pinned so "today's challenge" can be observed twice on the
+   same day and once on the next, which is the whole claim. */
+class RoundDate {
+  constructor(){ return RoundDate.parse() }
+  static parse(){ const [y, m, d] = 'STAMP_INPUT'.split('-').map(Number);
+    return { getFullYear: () => y, getMonth: () => m - 1, getDate: () => d } }
+}
+globalThis.Date = RoundDate;
 let roundClock = 0;
 globalThis.performance = { now: () => roundClock };
 const roundPointers = [];
@@ -314,6 +329,7 @@ console.log(JSON.stringify({
   saidAfter: roundText.slice(0, 400),
   strip: roundStrip,
   score: end.score, best: end.best, record: end.record, liveScore: end.live,
+  seed: end.seed, daily: end.daily, stamp: end.stamp,
   afterTap: afterTap, afterKey: afterKey,
   breakAt: firstBreak ? firstBreak.ms : null,
   reason: firstBreak ? firstBreak.by : null,
@@ -332,6 +348,7 @@ def probe_source(
     warmup: int = 4,
     reduced: bool = False,
     stored: dict[str, dict] | None = None,
+    stamp: str = "2026-09-03",
 ) -> str:
     """The page's own script, started once and then left alone.
 
@@ -344,6 +361,7 @@ def probe_source(
         PROBE.replace("FRAMES_INPUT", str(int(frames)))
         .replace("WARMUP_INPUT", str(int(warmup)))
         .replace("REDUCED_INPUT", "true" if reduced else "false")
+        .replace("STAMP_INPUT", stamp)
         .replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("SCRIPT_PLACEHOLDER", script)
     )

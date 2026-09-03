@@ -86,7 +86,16 @@ def test_every_template_ships_the_panel(template: str) -> None:
     seen = _drive(template)
 
     assert seen["panel"] is True
-    assert seen["controls"] == ["difficulty", "speed", "band", "accent"]
+    # Derived from the schema rather than spelled out, so a field added for
+    # a later item (C-1107's 今日の挑戦) does not need this list edited -
+    # what is being checked is that every declared field became a control.
+    want = [
+        field["key"]
+        for field in panel_schema(
+            template, _DIFFICULTY[template], difficulty="normal", accent="#000000"
+        )["fields"]
+    ]
+    assert seen["controls"] == want
     assert seen["buttons"] >= 1, "no way back to the defaults"
 
 

@@ -2216,6 +2216,7 @@ def measure_creation(c: Collector) -> None:
     # under prefers-reduced-motion it has to keep firing with the shake at
     # exactly zero - the hitstop is what carries it for someone who asked
     # for less movement.
+    from sidra_ai.creation.daily import DAILY_PREAMBLE as _daily_preamble
     from sidra_ai.creation.juice import FAIL_SHAKE as _fail_shake
     from sidra_ai.creation.round import probe_source as _fail_probe
 
@@ -2406,6 +2407,99 @@ def measure_creation(c: Collector) -> None:
             "URL も外部遷移も無い。1 タップで実際に次の回が始まることまで実測"
             if not fresh_gaps
             else "; ".join(fresh_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- everyone gets the same board today -----------------------------
+    #
+    # C-1107, §8 事実 4・7. What brings people back is a shared attempt,
+    # and the obvious way to build one - a server handing out a puzzle - is
+    # not available to a page that talks to nothing. A date is already
+    # shared, so a seed derived from it is a seed everyone derives the same
+    # way at no coordination cost.
+    #
+    # The claim is exactly three comparisons on the running page, so all
+    # three are made: two different requests on the same day get the same
+    # world, the next day is a different one, and with the switch off each
+    # request keeps its own world (or the daily seed would have quietly
+    # replaced the thing that makes a generated game that person's).
+    from sidra_ai.creation.daily import PREAMBLE_NAMES as _daily_names
+
+    def _daily_run(request, template, *, on, stamp):
+        page = _tune_generate(request, template=template).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            return None, f"{template}: no script"
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_fail_probe(
+                    script.group(1),
+                    stamp=stamp,
+                    stored={f"sidra.tune.{template}": {"daily": on}},
+                ),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    daily_gaps: list[str] = []
+    # A template whose world a seed decides. Adventure lays out three rooms
+    # from it, which is the most visible board of the nine.
+    _daily_template = "adventure"
+    _daily_pairs = ("迷宮を冒険するゲームを作って", "べつの冒険ゲームを作って")
+    runs = {}
+    for label, request, on, stamp in (
+        ("todayA", _daily_pairs[0], True, "2026-09-03"),
+        ("todayB", _daily_pairs[1], True, "2026-09-03"),
+        ("tomorrow", _daily_pairs[0], True, "2026-09-04"),
+        ("offA", _daily_pairs[0], False, "2026-09-03"),
+        ("offB", _daily_pairs[1], False, "2026-09-03"),
+    ):
+        seen, problem = _daily_run(request, _daily_template, on=on, stamp=stamp)
+        if problem:
+            daily_gaps.append(problem)
+            break
+        runs[label] = seen
+    if len(runs) == 5:
+        if runs["todayA"]["seed"] is None:
+            daily_gaps.append("the page has no seed to share")
+        elif runs["todayA"]["seed"] != runs["todayB"]["seed"]:
+            daily_gaps.append("two requests got different boards on the same day")
+        elif runs["todayA"]["seed"] == runs["tomorrow"]["seed"]:
+            daily_gaps.append("tomorrow is the same board as today")
+        elif runs["offA"]["seed"] == runs["offB"]["seed"]:
+            daily_gaps.append("with the switch off, every request got the same world")
+        elif runs["offA"]["seed"] == runs["todayA"]["seed"]:
+            daily_gaps.append("the daily seed applies with the switch off")
+        elif not [line for line in runs["todayA"]["strip"] if "今日の挑戦" in line]:
+            daily_gaps.append("the result does not say it was today's board")
+        elif [line for line in runs["offA"]["strip"] if "今日の挑戦" in line]:
+            daily_gaps.append("the result claims today's board with the switch off")
+    # The point of deriving it locally: a shared board that cost a request
+    # would be a different product and a broken promise.
+    for banned in ("fetch(", "XMLHttpRequest", "://", "sendBeacon"):
+        if banned in _daily_preamble:
+            daily_gaps.append(f"the daily seed reaches out: {banned!r}")
+    for name in _daily_names:
+        if any(f"function {name}(" in spec.script for spec in _tune_templates.values()):
+            daily_gaps.append(f"a template shadows {name}")
+    c.add(
+        "creation_daily_seed",
+        "日付だけで共有される盤面",
+        0.0 if daily_gaps else 1.0,
+        detail=(
+            "パネルの「今日の挑戦」を入れると、依頼文が違っても同じ日は同じ盤面。"
+            "翌日は別の盤面。切ると依頼ごとの世界に戻る。"
+            "日付→ハッシュをページ内で計算するだけで、通信は 0"
+            if not daily_gaps
+            else "; ".join(daily_gaps)
         ),
         kind=OUTCOME,
     )

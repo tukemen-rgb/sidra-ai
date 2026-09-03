@@ -4732,3 +4732,9 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   --compare が exit 2 を返したため、判定器を直してから再測（数字は削っていない）。
   4 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。
 2026-09-03 00:08 UTC ループA started Board=13
+- C-1107 完了。creation_daily_seed unmeasurable→1（product_metrics --compare exit 0）。
+  daily.py 新規。日付をページ内でハッシュするだけで通信 0。切替は C-1113 のパネルに
+  flag 型を追加（既定オフ）。日付は読み込み時 1 回だけ。リザルト帯に「今日の挑戦」表記。
+  判定は同日同盤面／翌日別盤面／オフなら依頼ごと、の 3 比較を実ページで。
+  4 通りの破壊で 0 に落ちることを確認。既存テスト 2 件を綴りに合わせて更新。
+  pytest exit 0 / gate exit 0（MISS 0）。
