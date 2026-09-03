@@ -2859,6 +2859,18 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
+- [~] 作業中 2026-09-03 21:47 辛口クリエイター **C-1317: 全 SFX が毎回まったく同じ周波数で鳴る（§2→§14 の反復変化）。**
+      （辛口クリエイターループ起票・観点=§2 効果音。前回=§1。基準不足の
+      ため外部調査で §14 を増築してから起票）
+      SFX_TABLE の 12 音は合成品質はあっても毎回完全に同一で、catch の
+      連続受け・shooter の連射・step の足音が機械の反復に聞こえる
+      （§14 事実 1: 頻出 SFX の微小ランダムピッチが反復感を消す）。
+      実装: sfx() で f0/f1 の両端に ±4%（半音 6% 未満、§14 事実 2 の
+      「ごく小さく」）の同一係数を乗算。スイープ形＝情報としてのピッチは
+      不変、BGM の音階と seeded rand には触れない（Math.random）。
+      probe は Recorder に周波数記録を足し、同じ音を 8 回鳴らして
+      「全一致ではない・中心 ±8% に収まる・M ミュートで止まる」を実測。
+      → 動かす数字: creation_sfx_variation unmeasurable→1
 - [x] 完了 2026-09-03 21:20 UTC 辛口クリエイター（`creation_win_beat` unmeasurable→**7**、判定器 exit 0。juice.py に winBeat(x,y)（WIN_SHAKE=16＞敗北 14・粒子 26・ヒットストップ 7・sfx('win')・粒子は ACCENT 色）を新設し、勝ち状態を持つ 7 型の勝利箇所を置換（marble は無音→ビート、kaiju は揺れ 10 win 音なし→ビート、platformer/racing の揺れ 6 手作業＋puzzle/duel/adventure の音だけ→ビート）。実走 3 本（marble 完走・kaiju 3 サイクル・platformer 旗）でビート丁度 1 回・完走で failBeat 0、kit 単体駆動で 16/26/7、reduced では揺れ・粒子 0 のままビートとヒットストップは残る。勝ち状態の無い fishing/catch/shooter は winBeat を呼ばないことも検査。破壊 2 通り〔marble の勝利を無音に→静的+実走の両方で 0 ／ WIN_SHAKE=6→重さ逆転を言い当てて 0〕。pytest exit 0（2933 passed / 1 skip）・gate MISS 0）**C-1316: 勝利の瞬間が敗北より貧しい（§1 juice・§6 の見せ場逆転）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§7）
       C-1105 で敗北は共通ビート（揺れ 14・ヒットストップ・粒子・音）を
