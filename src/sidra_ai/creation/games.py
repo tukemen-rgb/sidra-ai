@@ -45,6 +45,7 @@ from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.music import MUSIC_PREAMBLE
+from sidra_ai.creation.remap import preamble_for as remap_preamble_for
 from sidra_ai.creation.marble import (
     MARBLE_HOW,
     MARBLE_SCRIPT,
@@ -658,10 +659,15 @@ def generate_game(
         # frame. Juice wraps first so the pad ends up drawn on top of the
         # particles rather than under them.
         (
+            # First of everything: the key re-assignment (§4, C-1305) wraps
+            # addEventListener, so it must exist before any preamble or
+            # template registers a handler - otherwise a remapped key would
+            # reach some listeners in the old spelling.
+            remap_preamble_for(key, spec.script)
             # The skins before the panel: TUNE_ACCENT is resolved through
             # skinAccent, so the colour a template paints with is the one
             # the player earned unless they picked one by hand (C-1109).
-            skin_preamble_for(key)
+            + skin_preamble_for(key)
             # Then the panel: every preamble after it, and every template,
             # paints with TUNE_ACCENT and reads its numbers through tuneNum.
             + TUNE_PREAMBLE

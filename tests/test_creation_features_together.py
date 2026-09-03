@@ -231,7 +231,7 @@ def test_the_declared_keys_say_who_owns_each_one() -> None:
     """A sixth feature picking an existing prefix should fail the sweep, not
     silently overwrite whichever feature got there first."""
 
-    assert len(STORAGE_PREFIXES) == 5
+    assert len(STORAGE_PREFIXES) == 6
     for prefix, owner in STORAGE_PREFIXES.items():
         assert prefix.startswith("sidra.") and prefix.endswith(".")
         assert "C-1" in owner

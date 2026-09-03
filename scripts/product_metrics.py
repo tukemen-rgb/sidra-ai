@@ -2179,6 +2179,69 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the fifth §4 basic: controls can be re-assigned ---------------
+    #
+    # Contrast, shape-not-colour, touch targets and the flash budget all
+    # landed; "allow control re-assignment" had not, anywhere. Judged by
+    # driving the page: a key with no assignment does nothing, the same
+    # key moves the game once assigned to a control it reads, the
+    # canonical key survives, and the assignment lands in this-device
+    # storage. Counted per template only when the preamble is on all of
+    # them and the driven page obeys.
+    from sidra_ai.creation.remap import probe_source as _remap_probe
+
+    remap_gaps: list[str] = []
+    remap_unwired = [
+        key
+        for key in sorted(_TOUCH_TEMPLATES)
+        if "remapSet" not in generate_game("ゲームを作って", template=key).html
+    ]
+    if remap_unwired:
+        remap_gaps.append(f"no remap on: {', '.join(remap_unwired)}")
+    remap_page = generate_game("パズルゲームを作って").html
+    remap_script = _scene_re.search(r"<script>(.*?)</script>", remap_page, _scene_re.S)
+    if remap_script is None:
+        remap_gaps.append("no script on the page")
+    else:
+        try:
+            remap_run = _scene_sp.run(
+                ["node", "-"],
+                input=_remap_probe(remap_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if remap_run.returncode != 0:
+                raise ValueError(remap_run.stderr.strip()[:60])
+            held = json.loads(remap_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            held = None
+            remap_gaps.append(f"probe unavailable ({exc})")
+        if held is not None:
+            if held["afterRaw"] != held["start"]:
+                remap_gaps.append("an unassigned key already steers the game")
+            if not held["accepted"] or held["refused"]:
+                remap_gaps.append("the assignment API accepts the wrong things")
+            if held["afterMapped"] != held["afterRaw"] + 1:
+                remap_gaps.append("the assigned key does not steer the game")
+            if held["afterCanon"] != held["afterMapped"] + 1:
+                remap_gaps.append("the canonical key stopped working")
+            if not held["stored"]:
+                remap_gaps.append("the assignment is not kept on this device")
+    c.add(
+        "creation_key_remap",
+        "キーを割り当て直せる型",
+        0.0 if remap_gaps else float(len(_TOUCH_TEMPLATES)),
+        detail=(
+            "; ".join(remap_gaps)
+            if remap_gaps
+            else "全型で操作の再割り当て（§4）。実走行で「未設定キーは無反応・"
+            "割り当てたキーで実際に動く・元のキーも生きる・この端末にのみ保存」"
+            "を確認"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

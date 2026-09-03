@@ -42,6 +42,7 @@ STORAGE_PREFIXES: dict[str, str] = {
     "sidra.total.": "C-1109 the cumulative score",
     "sidra.skin.": "C-1109 the colour being worn",
     "sidra.seen.": "C-1111 whether the briefing has been read",
+    "sidra.keys.": "C-1305 this device's key re-assignments",
 }
 
 #: The canvas the templates are drawn on, and the font the strip uses. Used
