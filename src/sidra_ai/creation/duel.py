@@ -69,11 +69,21 @@ const CPU_THINK=CPU_STYLE==='quick'?0.6:1.3;
    charge goes off in your own hands - which is what makes "let go" a
    decision rather than a formality. */
 const OVER_LIMIT=48,STUN_FRAMES=90;
+/* How many frames before its shot the opponent's aim LOCKS (C-1309). The
+   telegraph used to say only *when*: the lane was re-rolled onto the
+   player at the trigger, which no human reaction (12-15 frames, the
+   number C-1022 itself measured) could answer. Eighteen frames of locked,
+   visible aim is what turns "read the aura" from a promise into a rule. */
+const AIM_LOCK=18;
 let p,e,state,winner,flash,spark,mash;
 function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,
-  think:0,hitLock:false,over:0,stun:0}}
+  think:0,hitLock:false,over:0,stun:0,aim:-1,fireAt:0}}
 function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
-  playerStun:p?p.stun:0,playerOver:p?p.over:0,enemyStun:e?e.stun:0}}
+  playerStun:p?p.stun:0,playerOver:p?p.over:0,enemyStun:e?e.stun:0,
+  aim:e?e.aim:-1,aimLock:AIM_LOCK,enemyHold:e?e.hold:false,
+  enemyCharge:e?e.charge:0,enemyFireAt:e?e.fireAt:0,
+  enemyBeam:e?e.beam:0,enemyBeamLane:e?e.beamLane:-1,
+  pLane:p?p.lane:-1,pHp:p?p.hp:0,eHp:e?e.hp:0}}
 function overload(f){f.stun=STUN_FRAMES;f.hold=false;f.charge=0;f.over=0;
   sfx('hurt');shake(9);hitstop(4);burst(f.x,LANES[f.lane],16,'ALERT_JUICE')}
 function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spark=0;mash=0;
@@ -106,17 +116,26 @@ function cpu(){if(e.stun>0){e.stun--;return}
   e.think--;
   if(e.think<=0){e.think=(CTHINK+rand()*CTHINK)*CPU_THINK;
     const move=rand();
-    if(move<0.45){e.lane=p.lane}
-    else if(move<0.7){e.lane=Math.floor(rand()*3)}
-    if(e.beam<=0){e.hold=true}}
+    /* A body that wandered off its own locked sightline would make the
+       telegraph a lie twice over, so thinking moves only while unaimed. */
+    if(e.aim<0){
+      if(move<0.45){e.lane=p.lane}
+      else if(move<0.7){e.lane=Math.floor(rand()*3)}}
+    if(e.beam<=0&&!e.hold){e.hold=true;
+      /* The whole volley is decided here: when it will fire, and - at
+         AIM_LOCK frames before that point - where. Nothing about it is
+         re-rolled at the trigger (C-1309). */
+      e.fireAt=CPU_FIRE[0]+rand()*CPU_FIRE[1];e.aim=-1}}
   if(e.hold){e.charge+=0.9*CSPEED;
     /* Same rule, same fighter: an opponent immune to the overload would be
        a penalty on the player rather than a rule of the game. */
-    if(e.charge>=100){e.over++;if(e.over>OVER_LIMIT){overload(e);return}}
-    if(e.charge>CPU_FIRE[0]+rand()*CPU_FIRE[1]){e.hold=false;e.over=0;
-      if(rand()<0.6){e.lane=p.lane}
-      e.beam=e.charge;e.beamLane=e.lane;
-      e.hitLock=(p.lane===e.beamLane);
+    if(e.charge>=100){e.over++;if(e.over>OVER_LIMIT){e.aim=-1;overload(e);return}}
+    if(e.aim<0&&e.charge>=e.fireAt-AIM_LOCK*0.9*CSPEED){
+      e.aim=p.lane;e.lane=e.aim}
+    if(e.charge>e.fireAt){e.hold=false;e.over=0;
+      e.beamLane=e.aim>=0?e.aim:e.lane;e.lane=e.beamLane;
+      e.hitLock=(p.lane===e.beamLane);e.aim=-1;
+      e.beam=e.charge;
       e.charge=0;flash=1;sfx('fire')}}}
 function hit(who){who.hp--;flash=1;sfx('hurt');
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
@@ -170,6 +189,16 @@ function draw(now){
     cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1;flash-=0.05}
   aura(PX,LANES[p.lane],26+p.charge*0.2,'CYAN_TOKEN',now);
   aura(EX,LANES[e.lane],26+e.charge*0.2,'MAGENTA_TOKEN',now);
+  /* The locked sightline (C-1309): once the opponent has chosen its lane,
+     the lane says so - a blinking dashed line, steady under reduced
+     motion, with AIM_LOCK frames left to leave it. Where was the missing
+     half of the telegraph; the aura still says when. */
+  if(e.hold&&e.aim>=0){const ly=LANES[e.aim];
+    if(REDUCED||FRAME(2,4,now)===0){
+      cx.strokeStyle='MAGENTA_TOKEN';cx.lineWidth=2;
+      if(cx.setLineDash)cx.setLineDash([7,7]);
+      cx.beginPath();cx.moveTo(PX+30,ly);cx.lineTo(EX-30,ly);cx.stroke();
+      if(cx.setLineDash)cx.setLineDash([]);cx.lineWidth=1}}
   body(PX,LANES[p.lane],'CYAN_TOKEN',true);
   body(EX,LANES[e.lane],'MAGENTA_TOKEN',false);
   beamDraw(p,PX+14,1,'CYAN_TOKEN',now);
@@ -260,12 +289,65 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The telegraph, held to its word (C-1309): once the aim locks, the shot
+#: goes where the line said, at least AIM_LOCK frames later; leaving the
+#: lane in that window is a dodge, and staying in it is a hit.
+AIM_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const keyHandlers = [];
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') keyHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
+const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+keyHandlers.forEach(fn => fn(press));
+run(2);
+/* One volley, dodged: wait for the lock, step off the line, count the
+   frames until the shot, and watch it sail past. */
+function volley(dodge){
+  let guard = 0;
+  while (e.aim < 0 && guard++ < 3000) run(1);
+  if (e.aim < 0) return null;
+  const aimed = e.aim;
+  if (dodge) { p.lane = (aimed + 1) % 3 } else { p.lane = aimed }
+  let lockToFire = 0;
+  while (e.beam <= 0 && e.aim >= 0 && guard++ < 3000) { run(1); lockToFire++ }
+  const beamLane = e.beamLane, hpBefore = p.hp;
+  while (e.beam > 0 && guard++ < 3000) run(1);
+  return { aimed: aimed, beamLane: beamLane, lockToFire: lockToFire,
+    hpBefore: hpBefore, hpAfter: p.hp };
+}
+const dodged = volley(true);
+const stayed = volley(false);
+console.log(JSON.stringify({ aimLock: duelFacts().aimLock,
+  dodged: dodged, stayed: stayed }));
+"""
+
+
+def aim_probe(script: str) -> str:
+    """The page's own script, wrapped so one aimed volley can be watched."""
+
+    return AIM_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "DUEL_DIFFICULTY",
     "DUEL_HOW",
     "DUEL_SCRIPT",
     "DUEL_TITLE",
     "DUEL_WORDS",
+    "AIM_PROBE",
     "PROBE",
+    "aim_probe",
     "probe_source",
 ]

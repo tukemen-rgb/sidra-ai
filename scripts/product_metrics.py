@@ -2515,6 +2515,65 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the telegraph tells you where, not only when ------------------
+    #
+    # The duel's own rule is "dodge by reading the aura" (C-1022), but the
+    # lane used to be re-rolled onto the player at the trigger - a coin
+    # flip no human reaction answers. Judged by playing one aimed volley
+    # each way (C-1309): the shot goes down the locked lane at least 15
+    # frames after the lock, leaving that lane in the window is a dodge,
+    # staying in it is a hit.
+    from sidra_ai.creation.duel import aim_probe as _duel_aim_probe
+
+    aim_gaps: list[str] = []
+    aim_page = generate_game("対戦ゲームを作って").html
+    aim_script = _scene_re.search(r"<script>(.*?)</script>", aim_page, _scene_re.S)
+    if aim_script is None:
+        aim_gaps.append("no script on the page")
+    else:
+        try:
+            aim_run = _scene_sp.run(
+                ["node", "-"],
+                input=_duel_aim_probe(aim_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if aim_run.returncode != 0:
+                raise ValueError(aim_run.stderr.strip()[:60])
+            volleys = json.loads(aim_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            volleys = None
+            aim_gaps.append(f"probe unavailable ({exc})")
+        if volleys is not None:
+            dodged, stayed = volleys.get("dodged"), volleys.get("stayed")
+            if not dodged or not stayed:
+                aim_gaps.append("the opponent never locked an aim")
+            else:
+                for label, v in (("dodged", dodged), ("stayed", stayed)):
+                    if v["beamLane"] != v["aimed"]:
+                        aim_gaps.append(f"{label}: the shot left the locked lane")
+                    if v["lockToFire"] < 15:
+                        aim_gaps.append(
+                            f"{label}: only {v['lockToFire']} frames to react"
+                        )
+                if dodged and dodged["hpAfter"] != dodged["hpBefore"]:
+                    aim_gaps.append("leaving the locked lane still hits")
+                if stayed and stayed["hpAfter"] != stayed["hpBefore"] - 1:
+                    aim_gaps.append("staying in the locked lane does not hit")
+    c.add(
+        "creation_duel_fair_telegraph",
+        "予兆が場所も教える",
+        0.0 if aim_gaps else 1.0,
+        detail=(
+            "; ".join(aim_gaps)
+            if aim_gaps
+            else "実際に 1 発ずつ受けて計測: 照準はロックしたレーンに固定、"
+            "ロック→発射は 15 フレーム以上、避ければ外れ、残れば当たる"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

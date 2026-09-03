@@ -2848,7 +2848,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       Recorder に buffer/biquad を足し、hurt が noise+lowpass 経路・gem が
       oscillator 経路で鳴ることを実走行で読む。
       → 動かす数字: creation_sfx_texture unmeasurable→1
-- [~] 作業中 2026-09-03 13:42 辛口クリエイター **C-1309: duel の予兆が「どこ」を教えない（§6 の照準ロック欠落）。**
+- [x] 完了 2026-09-03 14:12 UTC 辛口クリエイター（`creation_duel_fair_telegraph` unmeasurable→**1**、判定器 exit 0。fireAt を溜め開始時に確定し、その 18f 前（AIM_LOCK > 人間反応 15f）に照準ロック＋点滅破線の射線（REDUCED は定常）。発射時の 60% 再照準を削除、ロック中は CPU の思考移動も抑止。probe が実際に 1 発ずつ受けて「射線=実弾・ロック→発射=ちょうど 18f・避ければ無傷・残れば被弾」を 3 難易度で確認。破壊 2 通り〔再照準復活/窓 2f〕で計器 0。pytest 2861 全通過・gate MISS 0）**C-1309: duel の予兆が「どこ」を教えない（§6 の照準ロック欠落）。**
       （辛口クリエイターループ起票・観点=§6 予兆の文法。前回=§2）duel の
       設計原則は「オーラを読んで避ける」（C-1022）だが、CPU は発射の瞬間に
       60% の確率で自機レーンへ再照準する（`rand()<0.6→e.lane=p.lane` が

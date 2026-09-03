@@ -99,3 +99,52 @@ def test_the_page_still_runs():
     for request in _REQUESTS:
         verdict = validate_game_html(generate_game(request).html)
         assert verdict["playable"], (request, verdict["failures"])
+
+
+def _volleys() -> dict:
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.duel import aim_probe
+    from sidra_ai.creation.games import generate_game
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = generate_game("対戦ゲームを作って").html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=aim_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return _json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_shot_goes_where_the_lock_said_with_time_to_react():
+    """C-1309: the telegraph tells you where, not only when.
+
+    Played, not grepped: one volley dodged, one taken, both down the lane
+    the lock named, both at least 15 frames after it.
+    """
+
+    seen = _volleys()
+
+    for volley in (seen["dodged"], seen["stayed"]):
+        assert volley is not None, "the opponent locked an aim"
+        assert volley["beamLane"] == volley["aimed"]
+        assert volley["lockToFire"] >= 15
+
+
+def test_leaving_the_locked_lane_is_a_dodge_and_staying_is_a_hit():
+    seen = _volleys()
+
+    assert seen["dodged"]["hpAfter"] == seen["dodged"]["hpBefore"]
+    assert seen["stayed"]["hpAfter"] == seen["stayed"]["hpBefore"] - 1
