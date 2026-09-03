@@ -40,6 +40,7 @@ from sidra_ai.creation.adventure import (
     ADVENTURE_TITLE,
     ADVENTURE_WORDS,
 )
+from sidra_ai.creation.adapt import preamble_for as adapt_preamble_for
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
@@ -705,6 +706,9 @@ def generate_game(
             # The past self (C-1401): reads the panel switch, banked by the
             # round clock, drawn by whichever template has a course.
             + ghost_preamble_for(key)
+            # Three losses in a row buy one step (C-1402). After the panel,
+            # because a hand-set speed always wins.
+            + adapt_preamble_for(key, tuple(pair[0] for pair in _DIFFICULTY[key].values()))
             # The shared mechanics, such as they are (C-1114). Needs
             # nothing but addEventListener, and is read by two templates.
             + PARTS_PREAMBLE
@@ -725,7 +729,8 @@ def generate_game(
         .replace("TUNE_SPEC_TOKEN", json.dumps(schema, ensure_ascii=False))
         # Which template's briefing has been read, per template.
         .replace("GATE_NAME_TOKEN", json.dumps(key))
-        .replace("SPEED_TOKEN", f"tuneNum('speed',{speed})")
+        # Read once, at load: nothing may shift under a player mid-round.
+        .replace("SPEED_TOKEN", f"adaptSpeed(tuneNum('speed',{speed}))")
         # Read off the schema rather than the ladder, so the panel and the
         # game body cannot disagree about what this page's band is.
         .replace("BAND_TOKEN", f"tuneNum('band',{band})")

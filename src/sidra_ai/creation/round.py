@@ -212,7 +212,10 @@ function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
      Both stay on this device. */
   try{skinBank(ROUND_FINAL)}catch(e){}
   /* The trail that set this record, kept with the number (C-1401). */
-  try{ghostBank(ROUND_RECORD)}catch(e){}}
+  try{ghostBank(ROUND_RECORD)}catch(e){}
+  /* Won or lost, for the run after this one (C-1402). A round that
+     fired the shared failure beat is a round that was lost. */
+  try{adaptRecord(failBeats()>0)}catch(e){}}
 /* One strip, drawn over whatever ended the round - the clock's banner or
    the template's own screen - so "how far off am I, and how do I go
    again" reads the same everywhere. */

@@ -47,6 +47,14 @@ RACING_WORDS: tuple[str, ...] = (
 #: (base pace in course units per frame, minimum obstacle gap in course
 #: units). Hard is faster *and* denser: more road per second and less of it
 #: empty, so the same three laps ask for more steering.
+#:
+#: Easy is 2.4, and C-1402 measured what that means against C-1104's
+#: sixty-second clock: three laps take about 64 seconds, so the gentlest
+#: setting is the one nobody finishes - two laps and a buzzer. Raising it
+#: to 2.8 fixes that and takes away racing's only losing path (every rung
+#: then beats the clock, and nothing else here can be lost), which is a
+#: change to what this template *is*. Filed as C-1404 rather than decided
+#: inside an unrelated item; the measurement is in that entry.
 RACING_DIFFICULTY: dict[str, tuple[float, float]] = {
     "easy": (2.4, 260),
     "normal": (3.0, 190),

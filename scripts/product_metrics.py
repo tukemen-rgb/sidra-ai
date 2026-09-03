@@ -3976,6 +3976,144 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- three losses in a row buy one step toward the player -----------
+    #
+    # C-1402, §11 事実 2-3. A player who keeps failing leaves, and the
+    # difficulty dial does not help them because reaching for it means
+    # admitting to a setting. §11's warning comes with it: hidden dynamic
+    # difficulty makes players distrust their wins and lets others farm it,
+    # so this one says which step it is on and never argues with a value
+    # the person set by hand.
+    #
+    # Driven on two templates because one cannot show both halves: the
+    # shooter can be lost by a masher and the race can be won by one.
+    from sidra_ai.creation.adapt import (
+        ADAPT_AFTER as _adapt_after,
+        ADAPT_PREAMBLE as _adapt_preamble,
+        PREAMBLE_NAMES as _adapt_names,
+    )
+
+    def _adapt_run(template, request, stored):
+        page = _tune_generate(request, template=template).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            return None, f"{template}: no script"
+        source = _board_probe(
+            script.group(1),
+            speed_expr=_board_binding[template],
+            frames=3800,
+            stored=stored,
+        ).replace(
+            "  writes: [...new Set(allWrites)].sort(),",
+            "  writes: [...new Set(allWrites)].sort(), adapt: adaptFacts(),"
+            f" streakAfter: allStored['sidra.streak.{template}']||null,"
+            " said: (function(){const n=(function w(e){return [e].concat("
+            "(e.children||[]).flatMap(w))})(allBody).filter(x=>x.id==='adapt')[0];"
+            " return n?n.textContent:null})(),",
+        )
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=300
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    adapt_gaps: list[str] = []
+    _adapt_loser, _adapt_winner = "shooter", "racing"
+    _adapt_ladder = [pair[0] for pair in _tune_ladder[_adapt_loser].values()]
+    _adapt_base = {f"sidra.seen.{_adapt_loser}": "1"}
+    runs = {}
+    for label, streak in (("fresh", None), ("two", 2), ("three", 3)):
+        stored = dict(_adapt_base)
+        if streak is not None:
+            stored[f"sidra.streak.{_adapt_loser}"] = str(streak)
+        seen, problem = _adapt_run(_adapt_loser, "シューティングゲームを作って", stored)
+        if problem:
+            adapt_gaps.append(problem)
+            break
+        runs[label] = seen
+    if len(runs) == 3:
+        fresh, two, three = runs["fresh"], runs["two"], runs["three"]
+        if fresh["adapt"]["eased"] or two["adapt"]["eased"]:
+            adapt_gaps.append(f"eased before {_adapt_after} losses in a row")
+        elif fresh["atLoad"]["speed"] != two["atLoad"]["speed"]:
+            adapt_gaps.append("the speed drifted while nothing had happened")
+        elif not three["adapt"]["eased"]:
+            adapt_gaps.append(f"{_adapt_after} losses in a row bought nothing")
+        # One step, to a value the author shipped - not a percentage.
+        elif three["atLoad"]["speed"] not in _adapt_ladder:
+            adapt_gaps.append(f"eased to {three['atLoad']['speed']}, which is not on the ladder")
+        elif _adapt_ladder.index(three["atLoad"]["speed"]) != max(
+            0, _adapt_ladder.index(fresh["atLoad"]["speed"]) - 1
+        ):
+            adapt_gaps.append("eased by more or less than one step")
+        # §11 事実 3: it has to say so.
+        elif not three["said"] or "やさしく" not in three["said"]:
+            adapt_gaps.append(f"the page does not say it is helping: {three['said']!r}")
+        elif fresh["said"] and "やさしく" in fresh["said"]:
+            adapt_gaps.append("the page claims to be helping when it is not")
+        else:
+            # A hand-set value is a decision, and this never argues with one.
+            manual, problem = _adapt_run(
+                _adapt_loser,
+                "シューティングゲームを作って",
+                {
+                    **_adapt_base,
+                    f"sidra.streak.{_adapt_loser}": "3",
+                    f"sidra.tune.{_adapt_loser}": {"speed": max(_adapt_ladder)},
+                },
+            )
+            if problem:
+                adapt_gaps.append(problem)
+            elif manual["atLoad"]["speed"] != max(_adapt_ladder) or manual["adapt"]["eased"]:
+                adapt_gaps.append("a hand-set speed was overruled")
+            else:
+                # And the help lasts exactly as long as the trouble.
+                won, problem = _adapt_run(
+                    _adapt_winner,
+                    "レースゲームを作って",
+                    # The pace is pinned by hand so this measures the
+                    # streak and nothing else: left to ease, the race drops
+                    # to a rung that cannot finish inside C-1104's clock,
+                    # which is racing's defect (C-1404), not this rule's.
+                    {
+                        f"sidra.seen.{_adapt_winner}": "1",
+                        f"sidra.streak.{_adapt_winner}": "3",
+                        f"sidra.tune.{_adapt_winner}": {
+                            "speed": _tune_ladder[_adapt_winner]["normal"][0]
+                        },
+                    },
+                )
+                if problem:
+                    adapt_gaps.append(problem)
+                elif won["atBreak"]["beats"]:
+                    adapt_gaps.append("the round meant to be won was lost")
+                elif won["streakAfter"] != "0":
+                    adapt_gaps.append(f"a win left the streak at {won['streakAfter']}")
+    for banned in ("fetch(", "XMLHttpRequest", "://", "sendBeacon", "WebSocket"):
+        if banned in _adapt_preamble:
+            adapt_gaps.append(f"the adjustment reaches out: {banned!r}")
+    for name in _adapt_names:
+        if any(f"function {name}(" in spec.script for spec in _tune_templates.values()):
+            adapt_gaps.append(f"a template shadows {name}")
+    c.add(
+        "creation_adaptive_difficulty",
+        "連敗したら 1 段だけ寄り添う",
+        0.0 if adapt_gaps else 1.0,
+        detail=(
+            f"実走行で確認。{_adapt_after} 連敗までは何も変わらず、"
+            "そこで作者のラダーの 1 段だけやさしい値に移る（％ではなく、"
+            "作者が出荷した値）。勝てば連敗は 0 に戻る。手で設定した値には"
+            "触れない。そして隠さない——今どの段かをページが表示する"
+            if not adapt_gaps
+            else "; ".join(adapt_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

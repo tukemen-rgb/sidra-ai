@@ -164,6 +164,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "tuneNum",
     "tuneText",
     "tuneFlag",
+    "tuneStored",
     "tuneValues",
     "tuneSet",
     "tuneReset",
@@ -187,6 +188,10 @@ function tuneRead(){const s=tuneStore();if(!s)return {};
     const v=JSON.parse(raw);return (v&&typeof v==='object')?v:{}}catch(e){return {}}}
 let TUNE=tuneRead();
 function tuneField(key){return TUNE_SPEC.fields.filter(f=>f.key===key)[0]||null}
+/* Whether the person set this by hand, as opposed to the generator
+   choosing it. C-1402 needs the difference: a hand-set value is a
+   decision, and nothing may quietly argue with one. */
+function tuneStored(key){return TUNE&&typeof TUNE[key]!=='undefined'}
 /* Clamped to the author's own easy..hard span. A stored value from an older
    version of the page, or one somebody typed into devtools, cannot take the
    game outside the range its author shipped. */
