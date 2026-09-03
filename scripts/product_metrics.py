@@ -2344,6 +2344,68 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the boss behind the boss key ----------------------------------
+    #
+    # §3's modern-Zelda floor is rooms -> boss key -> boss; the adventure's
+    # climax was a keyhole. Judged by fighting the guardian on the running
+    # page (C-1306): the chest refuses the key while it stands, two blows
+    # a frame apart count as one, phase 2 measurably re-accelerates (§6
+    # 観察 3), both beats of its grammar (wind-up, charge) actually occur,
+    # and the win only follows the fall.
+    from sidra_ai.creation.adventure import guard_probe as _guard_probe
+
+    boss_gaps: list[str] = []
+    boss_page = generate_game("迷宮を冒険するゲームを作って").html
+    boss_script = _scene_re.search(r"<script>(.*?)</script>", boss_page, _scene_re.S)
+    if boss_script is None:
+        boss_gaps.append("no script on the page")
+    else:
+        try:
+            boss_run = _scene_sp.run(
+                ["node", "-"],
+                input=_guard_probe(boss_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if boss_run.returncode != 0:
+                raise ValueError(boss_run.stderr.strip()[:60])
+            fought = json.loads(boss_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            fought = None
+            boss_gaps.append(f"probe unavailable ({exc})")
+        if fought is not None:
+            if not fought["firstAlive"] or fought["firstHp"] < 4:
+                boss_gaps.append("no guardian standing in the altar")
+            if fought["lockedState"] != "play":
+                boss_gaps.append("the key opens the chest over the guardian's head")
+            if fought["hpA"] != fought["hpB"] or fought["hpA"] != fought["firstHp"] - 1:
+                boss_gaps.append("mashing lands more than one blow")
+            if not fought["sawWind"] or not fought["sawCharge"]:
+                boss_gaps.append("the grammar is missing a beat (wind-up or charge)")
+            if not fought["p2"]:
+                boss_gaps.append("no second phase was ever reached")
+            elif not (
+                fought["p2"]["speed"] > fought["p1"]["speed"]
+                and fought["p2"]["wind"] < fought["p1"]["wind"]
+            ):
+                boss_gaps.append("phase 2 does not re-accelerate")
+            if fought["fallenAlive"] or fought["finalState"] != "win":
+                boss_gaps.append("the fall does not open the chest")
+    c.add(
+        "creation_adventure_boss",
+        "祭壇に番人がいる",
+        0.0 if boss_gaps else 1.0,
+        detail=(
+            "; ".join(boss_gaps)
+            if boss_gaps
+            else "実際に戦って計測: 番人存命中は鍵でも開かず、連打は 1 発、"
+            "予兆→突進の文法があり、hp 半分で実測の歩幅と予兆が変わり、"
+            "撃破後にだけ勝てる"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

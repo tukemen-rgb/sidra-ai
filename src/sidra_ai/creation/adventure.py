@@ -65,7 +65,7 @@ setPal(ADV_PAL_TOKEN);
    enemies keep drawing from it so a run is reproducible too */
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const NAMES=['森のはずれ','ひかり苔の洞窟','風の祭壇'];
-let rooms=[],enemies=[],room=0,msg='',msgT=0;
+let rooms=[],enemies=[],room=0,msg='',msgT=0,guard=null;
 let hero={x:0,y:0,dir:2,hp:3,gems:0,key:false,swing:0,inv:0};
 let state='play';let keyDrop=null;let FIRSTCUT=true;
 function empty(){const m=[];for(let y=0;y<GH;y++){const r=[];
@@ -90,7 +90,17 @@ function build(){
   cave[2][16]=10;cave[2][17]=11;
   cave[1][16]=1;cave[1][17]=1;cave[3][16]=1;cave[3][17]=1;cave[2][18]=1;
   const altar=empty();carve(altar,1,6);altar[4][0]=6;altar[4][10]=7;
+  /* The guardian's floor: an arena carve() cannot wall shut, to the right
+     of the chest, so the fight has room to read (§6 観察 1 - scale needs
+     space around the small thing for contrast). */
+  for(let y=2;y<7;y++){for(let x=12;x<18;x++){altar[y][x]=0}}
   rooms=[forest,cave,altar];
+  /* The guardian (§3: the boss behind the boss key; §6: its grammar).
+     Wakes when the room is entered; strides slowly - weight is stride
+     (観察 2) - telegraphs with a held flash beat, then charges. Half
+     health is phase 2: the same fight, re-accelerated (観察 3). */
+  guard={x:OX+15*TILE,y:OY+4*TILE+16,hp:6,max:6,alive:true,
+    mode:'stride',wind:0,chg:0,dx:0,dy:0,inv:0,t:70,step:0};
   enemies=[[],[],[]];
   for(let i=0;i<ECOUNT;i++){enemies[1].push(spawn(1))}
   for(let i=0;i<Math.max(1,ECOUNT-1);i++){enemies[2].push(spawn(2))}
@@ -128,7 +138,11 @@ function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword
       if(FIRSTCUT||rand()<0.34){FIRSTCUT=false;
         hero.gems++;say('草のかげに宝石があった。');sfx('gem');
         burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,14,'ALERT_JUICE')}}
-    if(t===7){if(hero.key){state='win';sfx('win')}else{say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}}
+    /* The boss stands behind the boss key (§3): the key alone is only half
+       the lock while the guardian is on its feet. */
+    if(t===7){if(!hero.key){say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}
+      else if(guard&&guard.alive){say('番人が生きている限り、宝箱は開かない。');sfx('clash')}
+      else{state='win';sfx('win')}}
     if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」');sfx('step')}
     /* The sink (§5): gems were a tap with no outlet, so cutting grass paid
        in a number. Three of them buy a heart, which is what makes the
@@ -144,7 +158,18 @@ function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword
   enemies[room].forEach(en=>{if(!en.alive)return;
     if(Math.hypot(en.x-fx,en.y-fy)<22){en.alive=false;sfx('hurt');
       shake(6);hitstop(3);burst(en.x,en.y,16,'ALERT_JUICE');
-      if(room===1&&enemies[1].every(e=>!e.alive)){keyDrop={x:en.x,y:en.y}}}})}
+      if(room===1&&enemies[1].every(e=>!e.alive)){keyDrop={x:en.x,y:en.y}}}});
+  /* The guardian takes a blade with weight: thirty frames of armour after
+     each hit, so mashing lands one blow, not six. Half health turns the
+     page to phase 2 (§6 観察 3). */
+  if(room===2&&guard&&guard.alive&&guard.inv<=0&&Math.hypot(guard.x-fx,guard.y-fy)<30){
+    guard.hp--;guard.inv=30;sfx('hurt');shake(8);hitstop(4);
+    burst(guard.x,guard.y,16,'ALERT_JUICE');
+    guard.x+=[0,12,0,-12][hero.dir];guard.y+=[-12,0,12,0][hero.dir];
+    if(guard.hp<=0){guard.alive=false;sfx('win');shake(12);hitstop(6);
+      burst(guard.x,guard.y,32,'ALERT_JUICE');
+      say('番人は崩れ落ちた。祭壇が静まりかえる。')}
+    else if(guard.hp===3){say('番人の足が速くなった。');sfx('charge')}}}
 function moveHero(){
   let vx=0,vy=0;const sp=2.2;
   if(keys['arrowleft']||keys['a']){vx=-sp;hero.dir=3}
@@ -183,6 +208,43 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
     shake(9);hitstop(4);burst(hero.x,hero.y,12,'ALERT_JUICE');
     hero.x-=en.dx*14;hero.y-=en.dy*14;
     if(hero.hp<=0){state='over';failBeat(hero.x,hero.y)}else{say('いたい。')}}})}
+/* The guardian's turn (§6): a slow stride whose weight is the step, a held
+   wind-up - the flash beat - then a charge that ends in dust. Phase 2 is
+   the same grammar faster. speed/wind are read off guardFacts by the probe
+   so the escalation is a measured fact, not a table. */
+function guardSpeed(){return (guard.hp<=3?0.85:0.5)*Math.max(0.6,ESPEED)}
+function guardWind(){return guard.hp<=3?20:34}
+function moveGuard(){if(room!==2||!guard||!guard.alive)return;
+  if(guard.inv>0)guard.inv--;
+  const d=Math.hypot(hero.x-guard.x,hero.y-guard.y)||1;
+  if(guard.mode==='stride'){
+    const sp=guardSpeed();
+    guard.dx=(hero.x-guard.x)/d*sp;guard.dy=(hero.y-guard.y)/d*sp;
+    const nx=guard.x+guard.dx,ny=guard.y+guard.dy;
+    if(!solid(nx,guard.y))guard.x=nx;if(!solid(guard.x,ny))guard.y=ny;
+    /* Heavy feet: dust on the beat, slower than any small enemy moves. */
+    if(++guard.step%36===0){burst(guard.x,guard.y+16,5,'ACCENT_JUICE');sfx('step')}
+    if(d<TILE*5&&--guard.t<=0){guard.mode='wind';guard.wind=guardWind();
+      sfx('charge')}}
+  else if(guard.mode==='wind'){
+    if(--guard.wind<=0){guard.mode='charge';guard.chg=24;
+      guard.dx=(hero.x-guard.x)/d*3.2;guard.dy=(hero.y-guard.y)/d*3.2}}
+  else if(guard.mode==='charge'){
+    const nx=guard.x+guard.dx,ny=guard.y+guard.dy;
+    let hitWall=false;
+    if(!solid(nx,guard.y))guard.x=nx;else hitWall=true;
+    if(!solid(guard.x,ny))guard.y=ny;else hitWall=true;
+    if(hitWall||--guard.chg<=0){guard.mode='stride';guard.t=70;
+      shake(7);burst(guard.x,guard.y+14,12,'ACCENT_JUICE')}}
+  if(hero.inv<=0&&Math.hypot(hero.x-guard.x,hero.y-guard.y)<24){
+    hero.hp--;hero.inv=60;sfx('hurt');shake(10);hitstop(5);
+    burst(hero.x,hero.y,14,'ALERT_JUICE');
+    hero.x+=(hero.x-guard.x)/d*20;hero.y+=(hero.y-guard.y)/d*20;
+    if(hero.hp<=0){state='over';failBeat(hero.x,hero.y)}else{say('重い一撃。')}}}
+function guardFacts(){return guard?{alive:guard.alive,hp:guard.hp,max:guard.max,
+  mode:guard.mode,wind:guard.wind,x:guard.x,y:guard.y,inv:guard.inv,
+  speed:guardSpeed(),windFrames:guardWind(),
+  phase:guard.hp<=3?2:1}:null}
 const GROUND={0:'SURFACE_TOKEN',5:'SURFACE_TOKEN',6:'SURFACE_TOKEN'};
 /* Readability rules from the knowledge base (game-design-notes.md §4):
    walls differ from floor by VALUE and FORM (edge highlights), never by hue
@@ -236,6 +298,27 @@ function draw(now){
   enemies[room].forEach(en=>{if(!en.alive)return;
     const bob=[0,-2,0,2][FRAME(4,9,now)];
     sprite('enemy',en.x-10,en.y-10+bob,20,20,'MAGENTA_TOKEN')});
+  if(room===2&&guard&&guard.alive){
+    /* Twice the hero's size, on a slower beat than any small enemy - the
+       weight is the stride (§6 観察 2). The wind-up is the held flash
+       beat; under reduced motion the same warning is a steady outline. */
+    const gb=[0,-1,0,1][FRAME(4,13,now)];
+    const winding=guard.mode==='wind';
+    cx.fillStyle=(winding&&!REDUCED&&FRAME(2,4,now)===0)?'#dfe7f5':'MAGENTA_TOKEN';
+    cx.fillRect(guard.x-20,guard.y-18+gb,40,36);
+    cx.beginPath();cx.moveTo(guard.x-20,guard.y-18+gb);
+    cx.lineTo(guard.x-12,guard.y-30+gb);cx.lineTo(guard.x-6,guard.y-18+gb);
+    cx.moveTo(guard.x+20,guard.y-18+gb);
+    cx.lineTo(guard.x+12,guard.y-30+gb);cx.lineTo(guard.x+6,guard.y-18+gb);
+    cx.closePath();cx.fill();
+    cx.fillStyle='#05070f';
+    cx.fillRect(guard.x-13,guard.y-8+gb,8,7);cx.fillRect(guard.x+5,guard.y-8+gb,8,7);
+    if(winding&&REDUCED){cx.strokeStyle='#dfe7f5';cx.lineWidth=3;
+      cx.strokeRect(guard.x-23,guard.y-21,46,42);cx.lineWidth=1}
+    for(let i=0;i<guard.max;i++){cx.strokeStyle='#dfe7f5';
+      cx.strokeRect(guard.x-19.5+i*6.5,guard.y-37.5,5,5)}
+    cx.fillStyle='#dfe7f5';
+    for(let i=0;i<guard.hp;i++){cx.fillRect(guard.x-19+i*6.5,guard.y-37,4,4)}}
   if(!(hero.inv>0&&FRAME(2,3,now)===1)){
     sprite('hero',hero.x-10,hero.y-8,20,18,'CYAN_TOKEN');
     cx.fillStyle='#0a2a33';cx.fillRect(hero.x-11,hero.y-14,22,7)}
@@ -273,9 +356,10 @@ function step(){const now=performance.now();
   /* Only fighting when something is actually near: the quiet stretches of a
      dungeon are what make the loud ones read as loud (§6 観察 4). */
   combat(state==='play'&&gateState()==='playing'&&
-    (enemies[room]||[]).some(e=>Math.hypot(e.x-hero.x,e.y-hero.y)<120));
+    ((enemies[room]||[]).some(e=>e.alive&&Math.hypot(e.x-hero.x,e.y-hero.y)<120)
+     ||(room===2&&guard!==null&&guard.alive&&Math.hypot(guard.x-hero.x,guard.y-hero.y)<160)));
   if(state==='play'){if(hero.swing>0)hero.swing--;if(hero.inv>0)hero.inv--;
-    moveHero();moveEnemies()}
+    moveHero();moveEnemies();moveGuard()}
   draw(now);requestAnimationFrame(step)}
 reset();step();
 """
@@ -319,6 +403,84 @@ console.log(JSON.stringify({
 """
 
 
+#: The guardian fought in node: the same no-op browser, the fight driven by
+#: hand. The probe teleports and heals the hero (the racing probe's
+#: ``obs.push`` licence - state moved so a rule can be read), but every
+#: rule it reports comes off the running page: the chest that refuses a
+#: key while the guardian stands, the armour that turns mashing into one
+#: blow, the phase-2 re-acceleration, the win that only follows the fall.
+GUARD_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+/* Into the altar with the key, as if the dungeon were done. */
+room = 2; hero.key = true; hero.x = OX + 6 * TILE; hero.y = OY + 4 * TILE + 16;
+const first = guardFacts();
+/* The chest, while the guardian stands. */
+hero.x = OX + 9 * TILE + 16; hero.y = OY + 4 * TILE + 16; hero.dir = 1; hero.swing = 0;
+key(' '); run(1);
+const lockedState = state;
+/* Two blows one frame apart: the armour should count one. */
+hero.hp = 99; hero.swing = 0;
+hero.x = guard.x - 26; hero.y = guard.y; hero.dir = 1;
+key(' '); const hpA = guard.hp;
+run(1); hero.swing = 0;
+hero.x = guard.x - 26; hero.y = guard.y;
+key(' '); const hpB = guard.hp;
+const p1 = { speed: guardFacts().speed, wind: guardFacts().windFrames };
+/* Fight it down, noting the turn it takes and what phase 2 measures. */
+let sawWind = false, sawCharge = false, p2 = null, turns = 0;
+while (guardFacts() && guardFacts().alive && turns++ < 3000) {
+  hero.hp = 99;
+  const g = guardFacts();
+  if (g.mode === 'wind') sawWind = true;
+  if (g.mode === 'charge') sawCharge = true;
+  if (g.phase === 2 && p2 === null) p2 = { speed: g.speed, wind: g.windFrames };
+  if (g.inv <= 0 && hero.swing <= 0) {
+    hero.x = g.x - 26; hero.y = g.y; hero.dir = 1; key(' ');
+  }
+  run(2);
+}
+const fallen = guardFacts();
+/* The same chest, after the fall. */
+hero.x = OX + 9 * TILE + 16; hero.y = OY + 4 * TILE + 16; hero.dir = 1; hero.swing = 0;
+key(' '); run(1);
+console.log(JSON.stringify({
+  firstAlive: first.alive, firstHp: first.hp, firstMax: first.max,
+  lockedState: lockedState, hpA: hpA, hpB: hpB,
+  p1: p1, p2: p2, sawWind: sawWind, sawCharge: sawCharge,
+  fallenAlive: fallen.alive, finalState: state, turns: turns,
+}));
+"""
+
+
+def guard_probe(script: str) -> str:
+    """The page's own script, wrapped so the guardian can be fought."""
+
+    return GUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def world_probe(script: str, *, reduced: bool = False) -> str:
     """The page's own script, stubbed enough to run once, then reported."""
 
@@ -333,6 +495,8 @@ __all__ = [
     "ADVENTURE_SCRIPT",
     "ADVENTURE_TITLE",
     "ADVENTURE_WORDS",
+    "GUARD_PROBE",
     "WORLD_PROBE",
+    "guard_probe",
     "world_probe",
 ]

@@ -141,3 +141,63 @@ def test_the_sword_hits_where_it_is_drawn() -> None:
     html = generate_game("冒険ゲームを作って").html
     assert "cx.arc(hero.x,hero.y,22," in html
     assert "<22){en.alive=false" in html
+
+
+def _fought() -> dict:
+    import json as _json
+    import re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.adventure import guard_probe
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = generate_game("迷宮を冒険するゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=guard_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return _json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_key_alone_does_not_open_the_chest():
+    """§3: the boss stands behind the boss key. Fought, not grepped."""
+
+    fought = _fought()
+
+    assert fought["firstAlive"] is True
+    assert fought["firstHp"] == fought["firstMax"] >= 4
+    assert fought["lockedState"] == "play", "the chest refused a key over a live guardian"
+
+
+def test_mashing_lands_one_blow():
+    fought = _fought()
+
+    assert fought["hpA"] == fought["hpB"] == fought["firstHp"] - 1
+
+
+def test_the_guardian_speaks_the_boss_grammar_and_phase_two_reaccelerates():
+    """§6 観察 2-3: wind-up then charge, and half health is the same fight faster."""
+
+    fought = _fought()
+
+    assert fought["sawWind"] and fought["sawCharge"]
+    assert fought["p2"] is not None
+    assert fought["p2"]["speed"] > fought["p1"]["speed"]
+    assert fought["p2"]["wind"] < fought["p1"]["wind"]
+
+
+def test_the_win_only_follows_the_fall():
+    fought = _fought()
+
+    assert fought["fallenAlive"] is False
+    assert fought["finalState"] == "win"
