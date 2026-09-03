@@ -624,6 +624,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1217: the one filled slide of a requested revenue deck carried three
+    # bullets, all ending mid-word - _bullets_for re-cut already-trimmed
+    # facts at a hard 120 characters (the second cut site of C-1213's bug),
+    # and whole_sentences counted filename dots as sentence ends. The live
+    # regenerated deck was verified at fix time, recorded in the loop log.
+    from sidra_ai.evals.deck_bullet_sentences import evaluate_deck_bullet_sentences
+
+    bullet = evaluate_deck_bullet_sentences()
+    c.add(
+        "creation_deck_bullet_sentences",
+        "スライドの箇条書きが文末で終わる（120 字の崖で切らない）",
+        10.0 * bullet.checks_passed / bullet.checks_total,
+        detail=f"{bullet.checks_passed}/{bullet.checks_total} checks; "
+               "src/sidra_ai/evals/deck_bullet_sentences.py"
+               + ("" if bullet.passed else "; " + "; ".join(bullet.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1216: the top citation for a real revenue question was 26 characters
     # of raw Markdown cut mid-checkbox (「## D-CY4. … - [ ] **A.」). The lead
     # extractor now flattens markup (C-1212's plain_text) and label fragments

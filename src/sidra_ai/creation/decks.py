@@ -30,7 +30,7 @@ from pathlib import Path
 
 #: Shared with the game generator so a deck and a game made by the same tool
 #: look like they came from the same place.
-from sidra_ai.creation.evidence import NUMBER, Fact
+from sidra_ai.creation.evidence import NUMBER, Fact, whole_sentences
 from sidra_ai.creation.themes import Theme, select_theme
 
 #: What an unfilled slot says. Kept as one constant because both the renderer
@@ -174,7 +174,12 @@ def _bullets_for(section: str, facts: list[Fact]) -> tuple[tuple[str, ...], tupl
     hits = [fact for fact in facts if _matches(section, fact)]
     if not hits:
         return (f"{BLANK}",), ()
-    bullets = tuple(" ".join(fact.text.split())[:120] for fact in hits[:3])
+    # The 120-character budget is a display cap, not a place a sentence may
+    # end: a bullet cut there reads 「…（components/UploadForm.ts」 (C-1217).
+    # whole_sentences only trims - a terminator-free fragment passes whole.
+    bullets = tuple(
+        whole_sentences(" ".join(fact.text.split())[:120]) for fact in hits[:3]
+    )
     sources = tuple(dict.fromkeys(fact.source for fact in hits[:3]))
     return bullets, sources
 

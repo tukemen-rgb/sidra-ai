@@ -63,7 +63,10 @@ def plain_text(text: str) -> str:
 
 
 #: Sentence terminators for :func:`whole_sentences`, Japanese and Latin.
-_SENTENCE_END = re.compile(r"[。．.!?！？]")
+#: An ASCII dot counts only when a word character does not follow it: the
+#: dots inside 「revenue-model.md」 and 「3.5」 are spelling, and cutting at
+#: one ends a bullet mid-filename (C-1217).
+_SENTENCE_END = re.compile(r"[。．!?！？]|\.(?!\w)")
 
 #: Below this many characters, a trimmed excerpt says less than a dangling
 #: one: 「掲載は 21,907 件。」 alone can carry a claim, but trimming a
