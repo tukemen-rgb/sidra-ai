@@ -31,26 +31,35 @@ from __future__ import annotations
 
 import json
 
-#: One mashed-out round, in that template's own score. Measured (2026-09-03)
-#: by mashing each generated page for a full 60-second round and reading
-#: ``roundFacts().score``; a test replays that measurement so a template
-#: whose scoring changes shape cannot leave the thresholds behind.
+#: One mashed-out round, in that template's own score. Measured by mashing
+#: each generated page for a full 60-second round and reading
+#: ``roundFacts().score``. The prices below are multiples of it, so this
+#: table is the only thing that makes "three rounds" mean three rounds.
 #:
-#: ``catch`` was re-measured when C-1405 made its score points rather than
-#: catches, and moved only 23 -> 25: the masher breaks its own runs almost
-#: at once, so it collects the multiplier barely at all. That is the
-#: feature working - the combo pays for playing well, not for playing.
+#: **A stale entry here is silent** - the game still plays, the colours
+#: still open, and only the pacing is wrong. C-1407 found ``shooter``
+#: claiming 74 while a round scored 32, which put its first colour 6.9
+#: rounds away instead of three; the replay test only bounded the value
+#: within a 12x window, so a 2.3x drift lived here unnoticed. The unlock
+#: judge now compares every entry against a round it just played, which is
+#: what makes this a measurement rather than a memory of one.
+#:
+#: Re-measured 2026-09-03 (all ten, three runs each, deterministic):
+#: shooter 74 -> 32, fishing 132 -> 144, marble 1 -> 2. ``catch`` moved
+#: 23 -> 25 when C-1405 made its score points rather than catches - barely,
+#: because a masher breaks its own runs and so collects almost none of the
+#: multiplier, which is that feature working as intended.
 SKIN_UNIT: dict[str, int] = {
     "adventure": 2,
     "catch": 25,
     "duel": 3,
-    "fishing": 132,
+    "fishing": 144,
     "kaiju": 3,
-    "marble": 1,
+    "marble": 2,
     "platformer": 1,
     "puzzle": 58,
     "racing": 3,
-    "shooter": 74,
+    "shooter": 32,
 }
 
 #: How many played-out rounds each skin costs. Nothing is free (a skin the

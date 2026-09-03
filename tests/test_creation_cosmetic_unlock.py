@@ -156,6 +156,33 @@ def test_the_first_colour_is_neither_free_nor_theoretical(template: str) -> None
     assert first <= scored * 12, f"{first} is more than a dozen rounds of {scored}"
 
 
+@pytest.mark.parametrize("template", KEYS)
+def test_the_table_still_matches_the_round_it_claims_to_have_measured(
+    template: str,
+) -> None:
+    """C-1407: the bounds above allow a twelvefold window.
+
+    That is wide enough to hide a real defect. ``shooter`` claimed 74 for
+    a round that scores 32, so its first colour sat 6.9 rounds away rather
+    than the three the table exists to guarantee - and nothing noticed,
+    because the game played perfectly and only the pacing was wrong.
+
+    The tolerance is deliberate and it is not tight: ±25%, or one point,
+    whichever is larger. Three rounds meaning 2.4 or 4 rounds is slop a
+    cosmetic can carry; three rounds meaning seven is not. Drift smaller
+    than that is **not** detected here, by choice - templates are edited
+    by three loops at once, and a table pinned to the exact integer would
+    turn every scoring tweak into a red number.
+    """
+
+    scored = float(_play(template)["storedTotal"])
+    claimed = SKIN_UNIT[template]
+
+    assert abs(scored - claimed) <= max(1.0, claimed * 0.25), (
+        f"SKIN_UNIT says {claimed}, a mashed round scores {scored:.0f}"
+    )
+
+
 def test_pressing_an_earned_colour_applies_it() -> None:
     earned = skin_spec(PLAYED)["skins"][1]
 

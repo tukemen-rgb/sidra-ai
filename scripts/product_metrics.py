@@ -4140,6 +4140,7 @@ def measure_creation(c: Collector) -> None:
     # would move something, and the traces would stop matching.
     from sidra_ai.creation.skins import (
         PREAMBLE_NAMES as _skin_names,
+        SKIN_UNIT as _skin_unit,
         canonical_colour as _skin_colour,
         SKIN_PREAMBLE as _skin_preamble,
         probe_source as _skin_probe,
@@ -4206,6 +4207,15 @@ def measure_creation(c: Collector) -> None:
         elif banked >= earned["at"]:
             # A skin one round hands over is not a reason to play a second.
             skin_gaps.append(f"{key}: one round opened a skin ({banked} >= {earned['at']})")
+        elif abs(banked - _skin_unit[key]) > max(1.0, _skin_unit[key] * 0.25):
+            # ...and the table is still a measurement rather than a memory
+            # of one (C-1407). The bounds above allow a twelvefold window,
+            # which is how shooter came to claim 74 for a round that scores
+            # 32 - the game played fine and only the pacing was wrong, so
+            # nothing else could have noticed.
+            skin_gaps.append(
+                f"{key}: SKIN_UNIT says {_skin_unit[key]}, a round scores {banked:.0f}"
+            )
         elif plain["picked"] != earned["id"] or plain["reloads"] < 1:
             skin_gaps.append(f"{key}: pressing an earned colour did not apply it")
         elif worn["facts"]["current"] != earned["id"]:
