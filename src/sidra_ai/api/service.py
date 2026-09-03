@@ -12,7 +12,7 @@ from typing import Any, Sequence
 from sidra_ai.api.citations import citation_excerpt
 from sidra_ai.api.model_admission import build_runtime_model
 from sidra_ai.config.settings import Settings, get_settings
-from sidra_ai.creation.evidence import Fact
+from sidra_ai.creation.evidence import Fact, plain_text
 from sidra_ai.creation.intent import detect_creation_intent
 from sidra_ai.creation.revise import build_game_reviser, detect_revision_intent
 from sidra_ai.creation.copy_writer import build_copy_writer
@@ -304,7 +304,13 @@ class SidraService:
             provenance = result.chunk.provenance
             repository = getattr(provenance, "repository", "")
             path = getattr(provenance, "path", "")
-            facts.append(Fact(text=excerpt, source=f"{repository} {path}".strip()))
+            # The corpus is Markdown; an excerpt window lands mid-document
+            # and would put ## and ** into slide bullets verbatim (C-1212).
+            # Only generator-bound facts are flattened - the /v1/chat
+            # citation excerpts stay raw so they match the source on review.
+            facts.append(
+                Fact(text=plain_text(excerpt), source=f"{repository} {path}".strip())
+            )
         return facts
 
     def _attach_excerpts(

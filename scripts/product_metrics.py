@@ -484,6 +484,22 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1212: slide bullets carried the corpus's Markdown decoration as
+    # literal ## / ** / > characters. Facts are flattened at the seam that
+    # makes them; both directions measured - decoration gone, words intact.
+    from sidra_ai.evals.fact_text_plain import evaluate_fact_text_plain
+
+    plain = evaluate_fact_text_plain()
+    c.add(
+        "creation_fact_text_plain",
+        "decks and documents quote evidence as prose",
+        10.0 * plain.checks_passed / plain.checks_total,
+        detail=f"{plain.checks_passed}/{plain.checks_total} checks; "
+               "src/sidra_ai/evals/fact_text_plain.py"
+               + ("" if plain.passed else "; " + "; ".join(plain.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1203: every generated document labelled every fact 「出典不明」 while
     # its sources section said nothing was retrieved - the provenance was
     # read off the chunk instead of chunk.provenance. Measured through the

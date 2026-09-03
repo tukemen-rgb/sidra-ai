@@ -29,6 +29,34 @@ from sidra_ai.retrieval.search import subject_terms, tokenize
 NUMBER = re.compile(r"\d[\d,.\s]*\s*(?:%|％|円|万|億|人|件|倍|pt|x)?", re.IGNORECASE)
 
 
+#: Markdown decoration inside an excerpt window. The corpus is Markdown, so
+#: a 200-character window lands mid-document and drags ``##``, ``**`` and
+#: ``>`` into slide bullets as literal characters (C-1212). Only decoration
+#: is removed - the words are the evidence and must survive unchanged.
+_MD_HEADING = re.compile(r"(?:(?<=\s)|^)#{1,6}\s+")
+_MD_BOLD = re.compile(r"\*\*([^*]+)\*\*")
+_MD_EMPHASIS = re.compile(r"(?<![\w*])\*([^*\s][^*]*)\*(?![\w*])")
+_MD_CODE = re.compile(r"`([^`]+)`")
+_MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
+
+
+def plain_text(text: str) -> str:
+    """Strip Markdown decoration from an excerpt, keeping every word.
+
+    Heading hashes, bold/emphasis stars, inline backticks and blockquote
+    markers become plain prose; anything ambiguous (list numbers, stray
+    asterisks in code-like text) is left alone, because dropping a real
+    character from quoted evidence is worse than showing one marker.
+    """
+
+    text = _MD_HEADING.sub("", text)
+    text = _MD_BOLD.sub(r"\1", text)
+    text = _MD_EMPHASIS.sub(r"\1", text)
+    text = _MD_CODE.sub(r"\1", text)
+    text = _MD_QUOTE.sub("", text)
+    return " ".join(text.split())
+
+
 @dataclass(frozen=True)
 class Fact:
     """One retrieved claim and where it came from.
