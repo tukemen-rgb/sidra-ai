@@ -27,7 +27,7 @@ from sidra_ai.models.base import (
 )
 from sidra_ai.models.usage import MeteredAdapter, UsageLedger
 from sidra_ai.retrieval.embedding import build_retriever
-from sidra_ai.retrieval.search import SearchResult
+from sidra_ai.retrieval.search import SearchResult, evidence_mentions_subject
 from sidra_ai.retrieval.store import DocumentStore, LoadReport
 from sidra_ai.security.data_envelope import build_data_context, build_history_context
 from sidra_ai.security.decisions import Decision, GateResult
@@ -498,6 +498,7 @@ class SidraService:
             # keeps the operator with an answer rather than an apology, and
             # `creation` reports what was recognised either way.
 
+        searched_query = query
         results: list[SearchResult] = self.retriever.search(
             query, top_k=top_k, repositories=repositories
         )
@@ -507,11 +508,20 @@ class SidraService:
             # gets evidence instead of only the recollection of it. Queries
             # that already retrieved something are left exactly as they were,
             # so ordinary single-turn retrieval quality cannot shift.
+            searched_query = f"{screened_history[-1][0]} {query}"
             results = self.retriever.search(
-                f"{screened_history[-1][0]} {query}",
-                top_k=top_k,
-                repositories=repositories,
+                searched_query, top_k=top_k, repositories=repositories,
             )
+        if results and not evidence_mentions_subject(
+            searched_query, [r.chunk for r in results]
+        ):
+            # CJK bigram scoring fills top_k even when the corpus knows
+            # nothing about the subject: 「天気を教えて」 matched five chunks
+            # on 「を教」-shaped glue and came back as a cited answer about
+            # marketing copy. Ranking and min_score stay untouched; the floor
+            # only converts all-glue evidence into the honest no-evidence
+            # answer. One subject-term hit anywhere keeps today's behavior.
+            results = []
         data_context, citations = build_data_context([r.chunk for r in results])
         self._attach_excerpts(citations, [r.chunk for r in results], query)
 

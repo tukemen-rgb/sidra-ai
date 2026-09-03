@@ -458,6 +458,25 @@ def measure_answer_quality(c: Collector) -> None:
     c.add("retrieval_cases_synthetic", "retrieval cases, synthetic",
           len(RETRIEVAL_CASES))
 
+    # C-1201: when the corpus knows nothing about the subject, chat must end
+    # in the no-evidence answer instead of composing citations out of
+    # cross-word bigram glue (「天気を教えて」 came back as marketing copy).
+    # 10 needs both directions: every off-topic probe refused AND every
+    # on-topic probe still answered - a floor that silences answerable
+    # questions is a worse product than the one that bluffed.
+    from sidra_ai.evals.qa_honesty import PROBES, evaluate_qa_honesty
+
+    honesty = evaluate_qa_honesty()
+    c.add(
+        "qa_offtopic_honesty",
+        "off-topic questions honestly refused",
+        10.0 * (honesty.refused_offtopic + honesty.kept_ontopic) / len(PROBES),
+        detail=f"{honesty.refused_offtopic}/{honesty.offtopic_total} off-topic refused, "
+               f"{honesty.kept_ontopic}/{honesty.ontopic_total} on-topic kept; "
+               "src/sidra_ai/evals/qa_honesty.py (synthetic corpus)",
+        kind=OUTCOME,
+    )
+
     # The number that would actually tell us whether search works.
     # Read the question set that exists rather than a filename that never
     # did: this probe reported 0 while 18 real questions were already in

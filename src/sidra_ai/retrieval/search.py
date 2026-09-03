@@ -102,6 +102,49 @@ def tokenize(text: str) -> list[str]:
     ]
 
 
+#: Any hiragana character inside a token marks it as glue for the purposes of
+#: :func:`subject_terms`. The kana-only rule above already removes tokens that
+#: are *entirely* grammar; what it cannot remove is the bigram that straddles
+#: a particle boundary - ``の天``/``気は`` out of ``明日の天気は`` - because
+#: those mix kanji in. They stay in scoring (dropping them was not measured),
+#: but they must not count as proof that a chunk is about the question.
+_HIRAGANA_ANY = re.compile(r"[぀-ゟ]")
+
+
+def subject_terms(query: str) -> tuple[str, ...]:
+    """Query tokens that name the question's subject rather than its grammar.
+
+    Latin words, katakana and pure-kanji bigrams qualify; anything containing
+    hiragana is treated as sentence glue. ``天気を教えて`` keeps ``天気`` and
+    drops ``を教``/``教え`` - which is exactly the split BM25 cannot make,
+    because a rare particle collocation is lexically rare while carrying no
+    topic (see the ``_KANA_ONLY`` note above for the measured failure).
+    """
+
+    return tuple(
+        term
+        for term in dict.fromkeys(tokenize(query))
+        if not _HIRAGANA_ANY.search(term)
+    )
+
+
+def evidence_mentions_subject(query: str, chunks: Iterable[Chunk]) -> bool:
+    """Whether any chunk shares at least one subject term with the query.
+
+    This is the honesty floor for answer composition, not a ranking change:
+    when every retrieved chunk matched only cross-word glue bigrams, the
+    "evidence" is about the shape of the sentence, and composing a cited
+    answer from it presents unrelated material as fact. A query with no
+    subject terms at all cannot be judged and returns True, leaving the
+    existing behavior untouched.
+    """
+
+    wanted = set(subject_terms(query))
+    if not wanted:
+        return True
+    return any(wanted.intersection(tokenize(chunk.content)) for chunk in chunks)
+
+
 def _bounded_query_terms(
     query_terms: Sequence[str],
     document_frequency: Mapping[str, int],
