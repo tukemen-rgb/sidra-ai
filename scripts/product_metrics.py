@@ -2006,17 +2006,20 @@ def measure_creation(c: Collector) -> None:
 
     from sidra_ai.creation.adventure import world_probe as _adv_probe
     from sidra_ai.creation.kaiju import probe_source as _kaiju_scene_probe
+    from sidra_ai.creation.marble import probe_source as _marble_scene_probe
     from sidra_ai.creation.shooter import probe_source as _shooter_scene_probe
     from sidra_ai.creation.themes import select_theme as _scene_theme
 
     #: request phrase -> (template key, probe builder). The templates with
     #: more than one scene to tell apart, and only those: rooms for the
     #: adventure, phases for the kaiju, acts of the round for the shooter
-    #: (C-1301). A single-scene template would inflate the count.
+    #: (C-1301), thirds of the corridor for the marble (C-1307). A
+    #: single-scene template would inflate the count.
     _scene_targets = (
         ("迷宮を冒険するゲームを作って", "adventure", _adv_probe),
         ("巨大怪獣と戦うゲームを作って", "kaiju", _kaiju_scene_probe),
         ("シューティングゲームを作って", "shooter", _shooter_scene_probe),
+        ("玉転がしゲームを作って", "marble", _marble_scene_probe),
     )
     #: One request per theme, so the default is measured alongside the three
     #: named ones. The default is the empty suffix.
@@ -2090,9 +2093,9 @@ def measure_creation(c: Collector) -> None:
         if not scene_gaps
         else 0.0,
         detail=(
-            "adventure の部屋間・kaiju の phase 間・shooter の幕間で実際の"
-            "描画色が変わり、最も明るい場面が最終部にある。4 テーマすべてで"
-            "確認、壁と床の明度差はテーマ既定値のまま"
+            "adventure の部屋間・kaiju の phase 間・shooter の幕間・marble の"
+            "コース 3 分割で実際の描画色が変わり、最も明るい場面が最終部に"
+            "ある。4 テーマすべてで確認、壁と床の明度差はテーマ既定値のまま"
             if not scene_gaps
             else "; ".join(scene_gaps)
         ),

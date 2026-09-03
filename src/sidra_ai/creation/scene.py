@@ -97,6 +97,19 @@ SHOOTER_PALETTE: tuple[tuple[float, float, float], ...] = (
     (80.0, 1.05, 0.22),
 )
 
+#: Marble, one entry per stretch of the corridor: the roll-out, the deep
+#: middle, the run-in.
+#:
+#: The course is one straight line, so distance is the scene: a cool
+#: opening sky, a warmer middle, and the final stretch holds the
+#: brightness budget - the last gates are rolled at under the brightest
+#: sky of the run (§7 観察 5-6).
+MARBLE_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (-46.0, 0.9, 0.03),
+    (28.0, 1.12, 0.10),
+    (80.0, 1.05, 0.22),
+)
+
 #: Installed before every template. Defines the transform and leaves the
 #: palette itself to the template, which calls ``setPal`` once at boot.
 SCENE_PREAMBLE = """
@@ -179,6 +192,7 @@ function sceneFacts(){const keep=SCENE,out=[];
 __all__ = [
     "ADVENTURE_PALETTE",
     "KAIJU_PALETTE",
+    "MARBLE_PALETTE",
     "PLATFORMER_PALETTE",
     "RACING_PALETTE",
     "SHOOTER_PALETTE",

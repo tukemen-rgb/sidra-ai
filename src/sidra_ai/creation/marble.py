@@ -61,7 +61,8 @@ const W=cv.width,H=cv.height;
    is drawn. A fixed camera means these never change, which is exactly why
    a hundred lines is enough (C-1115). */
 const EYE=26,FOV=520,FAR=900,NEAR=12,LANE=120;
-let ball,things,gates,state,t,over;
+setPal(MARBLE_PAL_TOKEN);
+let ball,things,gates,state,t,over,COURSE=1;
 /* World to screen. z is depth ahead of the camera; y is up. Everything
    drawn here goes through this one function, so "3D" is this line. */
 function proj(x,y,z){const d=Math.max(NEAR,z);
@@ -77,7 +78,9 @@ function reset(){ball={x:0,y:8,z:0,vx:0};gates=0;t=0;state='roll';over='';
   things.push({z:150,kind:'gate',x:0,first:true});
   for(let i=1;i<26;i++){const z=150+i*130;
     if(rand()<0.42){things.push({z:z,kind:'block',x:(rand()*2-1)*(LANE-26)})}
-    things.push({z:z+65,kind:'gate',x:(rand()*2-1)*(LANE-GATEW)})}}
+    things.push({z:z+65,kind:'gate',x:(rand()*2-1)*(LANE-GATEW)})}
+  /* The whole run, in world units: distance is this course's scene. */
+  COURSE=things[things.length-1].z+80}
 reset();
 addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'||e.key==='ArrowRight')e.preventDefault();
@@ -105,15 +108,20 @@ function step(){
         else if(Math.abs(o.x-ball.x)<24){state='over';over='ブロックに当たった。';
           failBeat(W/2,H*0.6)}}});
     if(things.every(o=>o.done)){state='over';over='コースを走り切った。'}}
+  /* A straight corridor's scene is distance (§7 観察 5-6, C-1307): the sky,
+     the horizon band and the rails step once per third of the course, and
+     the final stretch is rolled at under the brightest sky of the run.
+     Gates and blocks keep their information colours (§4). */
+  setScene(ball.z>=COURSE*2/3?2:ball.z>=COURSE/3?1:0);
   /* Painter's algorithm: far things first, near things over them. That
      ordering *is* the depth - there is no buffer to test against. */
   const sky=scenePaint('SURFACE_TOKEN');
   cx.fillStyle=sky;cx.fillRect(0,0,W,H);
   const horizon=proj(0,0,FAR);
-  cx.fillStyle=shade('BG_TOKEN',1);cx.fillRect(0,0,W,horizon.y);
+  cx.fillStyle=shade(scenePaint('BG_TOKEN'),1);cx.fillRect(0,0,W,horizon.y);
   /* The floor, as receding rails and rungs. Perspective is doing all of
      the work; nothing here is a texture. */
-  cx.strokeStyle=shade('BORDER_TOKEN',1);cx.lineWidth=1;
+  cx.strokeStyle=shade(scenePaint('BORDER_TOKEN'),1);cx.lineWidth=1;
   for(const side of [-LANE,LANE]){cx.beginPath();
     const a=proj(side,0,NEAR),b=proj(side,0,FAR);
     cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);cx.stroke()}
@@ -156,7 +164,82 @@ function step(){
     cx.font='13px ui-monospace,monospace';
     cx.fillText('R / タップでもう一度',W/2,H/2+24);cx.textAlign='left'}
   requestAnimationFrame(step)}
+/* Read back off the running page: where the run is, which act the sky is
+   in, and the next thing ahead, so a probe can roll the course by hand. */
+function marbleFacts(){let next=null;
+  things.forEach(o=>{if(o.done||next)return;
+    if(o.z-ball.z>0)next={kind:o.kind,x:o.x,dz:o.z-ball.z}});
+  return {state:state,z:ball.z,x:ball.x,gates:gates,scene:SCENE,
+    course:COURSE,next:next}}
 step();
 """
 
-__all__ = ["MARBLE_HOW", "MARBLE_SCRIPT", "MARBLE_TITLE", "MARBLE_WORDS"]
+#: The page rolled in node: the same no-op browser the other probes build.
+#: The pilot steers at gates and away from blocks, and notes the act of
+#: the sky as each third of the course passes under the marble.
+PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+key('keydown', ' '); key('keyup', ' ');
+run(2);
+const early = marbleFacts();
+let sceneMid = null, frames = 0;
+while (marbleFacts().state === 'roll' && frames++ < 6000) {
+  const f = marbleFacts();
+  if (sceneMid === null && f.z > f.course / 3 + 60 && f.z < f.course * 2 / 3) sceneMid = f.scene;
+  key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
+  let aim = null;
+  if (f.next) {
+    /* Away from a block, into a gate. */
+    aim = f.next.kind === 'block'
+      ? (f.next.x >= f.x ? f.next.x - 60 : f.next.x + 60)
+      : f.next.x;
+  }
+  if (aim !== null && aim < f.x - 3) key('keydown', 'ArrowLeft');
+  else if (aim !== null && aim > f.x + 3) key('keydown', 'ArrowRight');
+  run(1);
+}
+const end = marbleFacts();
+const palette = sceneFacts();
+console.log(JSON.stringify({
+  scenes: palette.scenes,
+  sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
+  state: end.state, z: end.z, course: end.course, gates: end.gates,
+}));
+"""
+
+
+def probe_source(script: str) -> str:
+    """The page's own script, wrapped so the course can be rolled in node."""
+
+    return PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+__all__ = [
+    "MARBLE_HOW",
+    "MARBLE_SCRIPT",
+    "MARBLE_TITLE",
+    "MARBLE_WORDS",
+    "PROBE",
+    "probe_source",
+]
