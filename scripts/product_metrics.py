@@ -501,6 +501,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1204: every game rendered 2x horizontally squashed on a phone while
+    # desktop happened to hit the intrinsic width and looked perfect. The
+    # distortion is fully decided by the artifact's canvas attributes vs its
+    # canvas CSS rule, so it is checkable offline for the three canvas
+    # surfaces (game shell, 3D preview, art).
+    from sidra_ai.evals.mobile_aspect import evaluate_mobile_aspect
+
+    aspect = evaluate_mobile_aspect()
+    c.add(
+        "creation_mobile_aspect",
+        "generated canvases keep their shape on a phone",
+        10.0 * aspect.checks_passed / aspect.checks_total,
+        detail=f"{aspect.checks_passed}/{aspect.checks_total} surfaces; "
+               "src/sidra_ai/evals/mobile_aspect.py"
+               + ("" if aspect.passed else "; " + "; ".join(aspect.failures)),
+        kind=OUTCOME,
+    )
+
     honesty = evaluate_qa_honesty()
     c.add(
         "qa_offtopic_honesty",

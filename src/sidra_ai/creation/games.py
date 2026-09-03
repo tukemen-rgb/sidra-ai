@@ -542,6 +542,11 @@ def _no_external_assets(html: str) -> bool:
 def _page(
     title: str, tagline: str, how: str, script: str, evidence: list[str], theme: Theme
 ) -> str:
+    # The canvas must keep its intrinsic 720:320 ratio at every page width:
+    # `width:100%` with a pixel height squashed every game 2x horizontally on
+    # a phone while desktop (main max-width 760 - padding = 720) looked
+    # perfect, so nobody saw it (C-1204). `height:auto` scales height from
+    # the width/height attributes, the same rule art.py always used.
     t = theme.tokens
     sources = "".join(f"<li>{escape(line)}</li>" for line in evidence)
     return f"""<!doctype html>
@@ -555,7 +560,7 @@ body{{margin:0;background:{t["bg"]};color:{t["text"]};
 main{{max-width:760px;margin:0 auto;padding:32px 20px 48px}}
 h1{{font-size:22px;margin:0 0 6px;letter-spacing:.01em}}
 p.tag{{margin:0 0 20px;color:{t["subtle"]}}}
-canvas{{display:block;width:100%;height:320px;background:{t["surface"]};
+canvas{{display:block;width:100%;height:auto;background:{t["surface"]};
  border:1px solid {t["border"]};border-radius:{t["radius"]}}}
 .how{{margin:18px 0 0;padding:14px 16px;background:{t["raised"]};
  border-radius:{t["radius_tight"]};font-family:ui-monospace,SFMono-Regular,monospace;

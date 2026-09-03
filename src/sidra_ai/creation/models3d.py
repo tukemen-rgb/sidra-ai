@@ -287,7 +287,7 @@ def _preview_html(title: str, mesh: Mesh, evidence: tuple[str, ...]) -> str:
 :root{{color-scheme:dark}}
 body{{margin:0;background:#05070f;color:#e6f7ff;font-family:system-ui,sans-serif;
 display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px}}
-canvas{{background:#0a0f1c;border-radius:12px;max-width:100%}}
+canvas{{background:#0a0f1c;border-radius:12px;max-width:100%;height:auto}}
 h1{{font-size:1.1rem;margin:0}}
 small,li{{color:#8fb3c7}}
 ul{{margin:0;padding-left:1.2em}}
