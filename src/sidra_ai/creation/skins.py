@@ -35,9 +35,14 @@ import json
 #: by mashing each generated page for a full 60-second round and reading
 #: ``roundFacts().score``; a test replays that measurement so a template
 #: whose scoring changes shape cannot leave the thresholds behind.
+#:
+#: ``catch`` was re-measured when C-1405 made its score points rather than
+#: catches, and moved only 23 -> 25: the masher breaks its own runs almost
+#: at once, so it collects the multiplier barely at all. That is the
+#: feature working - the combo pays for playing well, not for playing.
 SKIN_UNIT: dict[str, int] = {
     "adventure": 2,
-    "catch": 23,
+    "catch": 25,
     "duel": 3,
     "fishing": 132,
     "kaiju": 3,

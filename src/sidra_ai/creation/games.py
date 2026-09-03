@@ -42,6 +42,7 @@ from sidra_ai.creation.adventure import (
 )
 from sidra_ai.creation.adapt import preamble_for as adapt_preamble_for
 from sidra_ai.creation.animation import with_animation
+from sidra_ai.creation.combo import preamble_for as combo_preamble_for
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.ghost import preamble_for as ghost_preamble_for
@@ -213,7 +214,7 @@ _CATCH = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const FALL=SPEED_TOKEN,WIDE=BAND_TOKEN,SEED=SEED_TOKEN;
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
-let px=0.5,shown=0.5,items=[],score=0,missed=0,t=0,firstDrop=true;
+let px=0.5,shown=0.5,items=[],score=0,caught=0,missed=0,t=0,firstDrop=true;
 addEventListener('keydown',e=>{if(e.code==='ArrowLeft'){px=Math.max(0,px-0.06)}
   if(e.code==='ArrowRight'){px=Math.min(1,px+0.06)}});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();
@@ -229,9 +230,13 @@ function step(){t++;if(t%FALL===0){
   const w=cv.width,h=cv.height;
   items.forEach(i=>{i.y+=0.012});
   items=items.filter(i=>{if(i.y<0.92)return true;
-    if(Math.abs(i.x-shown)<WIDE/2){score++;sfx('catch');
+    if(Math.abs(i.x-shown)<WIDE/2){
+      /* The run is worth what it is worth at the moment it pays out
+         (C-1405). Asked once, so the points added and the number drawn
+         cannot disagree. */
+      caught++;score+=comboHit();sfx('catch');
       shake(2);burst(i.x*cv.width,cv.height-30,10,'ACCENT_JUICE')}
-    else{missed++;sfx('clash');shake(5);hitstop(2)}return false});
+    else{comboMiss();missed++;sfx('clash');shake(5);hitstop(2)}return false});
   cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,w,h);
   /* the basket eases toward the pointer instead of snapping to it */
   shown+=(px-shown)*(REDUCED?1:0.25);
@@ -240,7 +245,9 @@ function step(){t++;if(t%FALL===0){
   items.forEach(i=>{sprite('target',i.x*w-10,i.y*h,20,20,'CYAN_TOKEN')});
   sprite('marker',(shown-WIDE/2)*w,h-30-pulse,WIDE*w,20+pulse,'MAGENTA_TOKEN');
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
-  cx.fillText('受け '+score+' / こぼし '+missed,40,34);
+  /* The multiplier is on screen at x1 as much as at x4, and the raw
+     count stays beside the points so 「得点」 cannot be mistaken for it. */
+  cx.fillText('得点 '+score+' '+comboLabel()+' / 受け '+caught+' / こぼし '+missed,40,34);
   cx.fillText('← → またはマウスで動かす',40,h-28);
   requestAnimationFrame(step)}
 step();
@@ -710,6 +717,10 @@ def generate_game(
             # Three losses in a row buy one step (C-1402). After the panel,
             # because a hand-set speed always wins.
             + adapt_preamble_for(key, tuple(pair[0] for pair in _DIFFICULTY[key].values()))
+            # Consecutive successes pay more (C-1405). After the juice kit,
+            # whose shake and burst it celebrates a rise with, and before
+            # the template body, which is the only thing that calls it.
+            + combo_preamble_for(key)
             # The shared mechanics, such as they are (C-1114). Needs
             # nothing but addEventListener, and is read by two templates.
             + PARTS_PREAMBLE

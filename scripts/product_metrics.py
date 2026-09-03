@@ -2492,6 +2492,107 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- playing well pays more than playing long ----------------------
+    #
+    # §13 事実 2: every template scored one point per thing, so a careful
+    # round and a greedy one came out the same. C-1405 wires a combo
+    # multiplier into catch first, and this asks the running page for the
+    # four things the rule claims: it rises on consecutive successes, one
+    # miss takes it back, it is on screen the whole time (at x1 as much as
+    # at x4), and the score it feeds is points rather than catches. The
+    # fifth reads the reduced-motion run: the rise keeps its sound and
+    # loses its particles, which is C-1020's rule rather than a new one.
+    from sidra_ai.creation.combo import COMBO_MAX, COMBO_STEP
+    from sidra_ai.creation.combo import probe_source as _combo_probe
+
+    combo_gaps: list[str] = []
+    combo_page = generate_game("キャッチゲームを作って").html
+    combo_script = _scene_re.search(r"<script>(.*?)</script>", combo_page, _scene_re.S)
+    if combo_script is None:
+        combo_gaps.append("no script on the page")
+    else:
+        def _combo_run(**kwargs):
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_combo_probe(combo_script.group(1), **kwargs),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            return json.loads(run.stdout.strip().splitlines()[-1])
+
+        try:
+            clean = _combo_run(frames=1200)
+            dropped = _combo_run(frames=1200, misses=[COMBO_STEP * COMBO_MAX])
+            quiet = _combo_run(frames=600, reduced=True)
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            combo_gaps.append(f"probe unavailable ({exc})")
+            clean = dropped = quiet = None
+
+        if clean is not None:
+            landings = clean["timeline"]
+            if len(landings) < COMBO_STEP * COMBO_MAX:
+                combo_gaps.append(f"only {len(landings)} landings to judge")
+            else:
+                # 1. it rises, on the rungs it says it does, and stops.
+                rungs = {row["caught"]: row["mult"] for row in landings if row["missed"] == 0}
+                wanted = {
+                    n: min(COMBO_MAX, 1 + n // COMBO_STEP)
+                    for n in rungs
+                }
+                off = {n: (rungs[n], wanted[n]) for n in rungs if rungs[n] != wanted[n]}
+                if off:
+                    combo_gaps.append(f"the ladder is not the rule: {sorted(off.items())[:3]}")
+                if max(rungs.values(), default=0) != COMBO_MAX:
+                    combo_gaps.append("a clean run never reaches the top rung")
+                # 2. the points are not the count.
+                top = landings[-1]
+                if top["score"] <= top["caught"]:
+                    combo_gaps.append(
+                        f"the multiplier does not reach the score ({top['score']} for {top['caught']})"
+                    )
+                # 3. it is on screen at every rung, x1 included.
+                seen_labels = {row["mult"]: row["hud"] for row in landings}
+                blank = [m for m, hud in seen_labels.items() if not hud or f"\u00d7{m}" not in hud]
+                if blank:
+                    combo_gaps.append(f"not drawn at x{sorted(blank)}")
+
+        if dropped is not None and dropped["timeline"]:
+            after = [row for row in dropped["timeline"] if row["missed"] == 1]
+            if not after:
+                combo_gaps.append("the deliberate miss never landed")
+            elif after[0]["mult"] != 1 or after[0]["run"] != 0:
+                combo_gaps.append(
+                    f"a miss did not take the run (x{after[0]['mult']}, run {after[0]['run']})"
+                )
+            elif not any(row["mult"] > 1 for row in after[1:]):
+                combo_gaps.append("the run never rebuilds after a miss")
+
+        if quiet is not None:
+            loud = [row for row in (clean or {}).get("timeline", []) if "gem" in row["rang"]]
+            calm = [row for row in quiet["timeline"] if "gem" in row["rang"]]
+            if not calm:
+                combo_gaps.append("reduced motion silences the rise as well")
+            elif loud and min(row["rose"] for row in loud) <= max(
+                row["rose"] for row in calm
+            ):
+                combo_gaps.append("reduced motion keeps the celebration's particles")
+    c.add(
+        "creation_combo_multiplier",
+        "連続成功が得点に効く",
+        0.0 if combo_gaps else 1.0,
+        detail=(
+            "; ".join(combo_gaps)
+            if combo_gaps
+            else f"catch を実走行: {COMBO_STEP} 連続ごとに 1 段・上限 x{COMBO_MAX}・"
+            "1 度の失敗で x1 へ・HUD に常時表示・点は受け数でなく倍率込み。"
+            "reduced では上がる音は残り粒子だけ落ちる"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

@@ -64,7 +64,8 @@ ROUND_LIVE: dict[str, tuple[str, ...]] = {
 #: caught rather than silently reporting nothing.
 ROUND_SCORE: dict[str, tuple[str, str]] = {
     "adventure": ("hero.gems", "宝石"),
-    "catch": ("score", "受け"),
+    # Points rather than catches since C-1405: the multiplier is in it.
+    "catch": ("score", "得点"),
     # Damage dealt, not health kept: a duel lost 3-2 was closer than one
     # lost 3-0, and only the first of those is worth chasing.
     "duel": ("3-e.hp", "与ダメージ"),
