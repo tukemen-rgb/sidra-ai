@@ -4745,3 +4745,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   シードを 3 つ回したことで adventure の欠陥（別シードで 10 秒無得点）が出た。
   効かなかった racing の路肩配置は取り消し。catch の決定化は数字目的でない旨を明記。
   5 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。
+2026-09-03 02:08 ループA started Board=13
