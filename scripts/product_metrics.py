@@ -1539,6 +1539,23 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1404 (b): easy's three laps outlasted the shared sixty-second clock,
+    # so the gentlest rung was the one nobody finishes. The ladder's paces
+    # stay and easy runs two laps; every rung is driven for real and counted
+    # finishable only if it reaches the goal with one time per lap.
+    from sidra_ai.evals.race_rungs import evaluate_race_rungs
+
+    rungs = evaluate_race_rungs()
+    c.add(
+        "creation_race_rungs_finishable",
+        "レースの全難度がクロック内に完走できる",
+        float(rungs.finishable),
+        detail=f"{rungs.finishable}/{rungs.rungs} rungs driven to the goal; "
+               "src/sidra_ai/evals/race_rungs.py"
+               + ("" if not rungs.failures else "; " + "; ".join(rungs.failures)),
+        kind=OUTCOME,
+    )
+
     # --- a race against the clock, judged by driving it ------------------
     #
     # レース sat on the apology side of the genre table. What separates a

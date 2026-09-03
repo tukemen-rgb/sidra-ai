@@ -88,6 +88,7 @@ from sidra_ai.creation.kaiju import (
 from sidra_ai.creation.racing import (
     RACING_DIFFICULTY,
     RACING_HOW,
+    RACING_LAPS,
     RACING_SCRIPT,
     RACING_TITLE,
     RACING_WORDS,
@@ -731,6 +732,18 @@ def generate_game(
         .replace("GATE_NAME_TOKEN", json.dumps(key))
         # Read once, at load: nothing may shift under a player mid-round.
         .replace("SPEED_TOKEN", f"adaptSpeed(tuneNum('speed',{speed}))")
+        # C-1404 (b): difficulty scales scope, not only speed - easy runs
+        # fewer laps so the gentlest rung can actually beat the sixty-second
+        # clock while every rung keeps a losing path against the clock for
+        # weak driving at gentler panel speeds. Only racing carries the
+        # token; every other template is byte-for-byte unaffected.
+        .replace("LAPS_TOKEN", str(RACING_LAPS.get(difficulty, 3)))
+        # C-1404 (b): difficulty scales scope, not only speed - easy runs
+        # fewer laps so the gentlest rung can actually beat the sixty-second
+        # clock while every rung keeps a losing path against the clock for
+        # weak driving at gentler panel speeds. Only racing carries the
+        # token; every other template is byte-for-byte unaffected.
+
         # Read off the schema rather than the ladder, so the panel and the
         # game body cannot disagree about what this page's band is.
         .replace("BAND_TOKEN", f"tuneNum('band',{band})")

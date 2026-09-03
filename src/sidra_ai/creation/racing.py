@@ -50,28 +50,39 @@ RACING_WORDS: tuple[str, ...] = (
 #:
 #: Easy is 2.4, and C-1402 measured what that means against C-1104's
 #: sixty-second clock: three laps take about 64 seconds, so the gentlest
-#: setting is the one nobody finishes - two laps and a buzzer. Raising it
-#: to 2.8 fixes that and takes away racing's only losing path (every rung
-#: then beats the clock, and nothing else here can be lost), which is a
-#: change to what this template *is*. Filed as C-1404 rather than decided
-#: inside an unrelated item; the measurement is in that entry.
+#: setting was the one nobody finishes - two laps and a buzzer. Raising the
+#: pace to 2.8 would have fixed that by taking away racing's only losing
+#: path (every rung then beats the clock), a change to what this template
+#: *is*. C-1404 decided (b) instead: the pace ladder stays, and easy runs
+#: fewer laps - difficulty scales scope, not only speed, and the clock can
+#: still win on every rung when the driving is bad enough.
 RACING_DIFFICULTY: dict[str, tuple[float, float]] = {
     "easy": (2.4, 260),
     "normal": (3.0, 190),
     "hard": (3.7, 130),
 }
 
+#: Laps per rung (C-1404 決定 (b)). Two easy laps take about 43 seconds
+#: against the sixty-second clock: finishable, with room left for the
+#: mistakes easy exists to forgive - and losable, because a run that keeps
+#: hitting obstacles still hears the buzzer.
+RACING_LAPS: dict[str, int] = {
+    "easy": 2,
+    "normal": 3,
+    "hard": 3,
+}
+
 RACING_TITLE = "ひかりのサーキット"
 RACING_HOW = (
     "← → でハンドルを切る。コース外と障害物は減速（走りは止まらない）。"
-    "3 周でゴール、周回ごとのタイムが残る。R でやり直し、M で消音。"
+    "やさしいは 2 周・ほかは 3 周でゴール、周回ごとのタイムが残る。R でやり直し、M で消音。"
 )
 
 RACING_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const PACE=SPEED_TOKEN,GAP=BAND_TOKEN,SEED=SEED_TOKEN;
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
-const W=cv.width,H=cv.height,CARY=H-56,LAP=1800,LAPS=3,ROADW=190;
+const W=cv.width,H=cv.height,CARY=H-56,LAP=1800,LAPS=LAPS_TOKEN,ROADW=190;
 /* The course is a function of distance, not a stored array: the same SEED
    bends the same way everywhere, and the probe can ask where the road is.
    The two periods keep the worst drift per frame below the steering speed,
@@ -131,7 +142,9 @@ function draw(){
   /* A lap is a scene: the palette steps once per lap and the final lap is
      the brightest frame of the run (§7 観察 5-6). Mood only - the road,
      the obstacles and the off-road state all read by shape and text. */
-  setScene(Math.min(lap,LAPS)-1);
+  /* Three acts however many laps: the last lap is always the brightest
+     act, so a two-lap easy run still ends on the climax (§7 観察 6). */
+  setScene(LAPS>1?Math.round((Math.min(lap,LAPS)-1)*2/(LAPS-1)):2);
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,W,H);
   cx.fillStyle=scenePaint('RAISED_TOKEN');
   for(let y=0;y<H;y+=8){const d=dist+(CARY-y);
