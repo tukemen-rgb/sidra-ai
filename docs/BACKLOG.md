@@ -2848,6 +2848,17 @@ C-12xx/13xx/14xx はループ用のまま）。
       Recorder に buffer/biquad を足し、hurt が noise+lowpass 経路・gem が
       oscillator 経路で鳴ることを実走行で読む。
       → 動かす数字: creation_sfx_texture unmeasurable→1
+- [~] 作業中 2026-09-03 16:42 辛口クリエイター **C-1312: BGM が戦闘を知らない（§6 定量の音楽側未反映）。**
+      （辛口クリエイターループ起票・観点=§6 の定量×§10。前回=§12）§6 定量の
+      実測「戦闘のショット長 中央値 2.1s は会話 4.4s の約半分＝戦闘は
+      イベントを 2 倍速で刻む」は C-1032（phase 間隔）と C-1034（音圧）には
+      反映済みだが、C-1304 の BGM は combat 中も平時と同じ 0.27s 刻みの
+      まま——空の色も効果音も山場を知るのに音楽だけが知らない。
+      実装: musicTick の予約刻みを combat 中は半分（MUSIC_STEP×0.5）に。
+      同じ 4 小節が倍速で脈打つ＝チップチューンの定石で、音量は既存の
+      §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
+      予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
+      → 動かす数字: creation_music_combat_density unmeasurable→1
 - [x] 完了 2026-09-03 16:10 UTC 辛口クリエイター（`creation_attack_buffer` unmeasurable→**1**、判定器 exit 0。adventure の剣と kaiju の砲に深さ 1 の攻撃キュー: cooldown 中の押しを保持し、明けたフレームで自動発火。kaiju は弾が飛翔中に消えるため「再装填された cooldown」を証人にして計測。probe で「swing/cool 中の 2 押し目が終了フレームで発火・1 押しは 1 回だけ・幽霊キュー無し」を両テンプレで実測。破壊 2 通り〔adventure 黙殺復活/kaiju キュー不発火〕で計器 0。pytest 2874 全通過・gate MISS 0）**C-1311: 連撃の 2 発目が捨てられる（§12 の攻撃キュー欠落）。**
       （辛口クリエイターループ起票・観点=§12 入力の寛容さの攻撃側。前回も
       §12 だがジャンプ／今回は攻撃で対象テンプレも別）adventure の剣は
