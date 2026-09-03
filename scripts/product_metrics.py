@@ -552,6 +552,22 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1210: the server carried chat history; the browser page never sent
+    # it, so every follow-up question abstained. Mechanics pinned on the
+    # page source; the end-to-end run lives in the loop log.
+    from sidra_ai.evals.ui_followup import evaluate_ui_followup
+
+    followup = evaluate_ui_followup()
+    c.add(
+        "ui_followup_capable",
+        "the browser can ask a follow-up question",
+        10.0 * followup.checks_passed / followup.checks_total,
+        detail=f"{followup.checks_passed}/{followup.checks_total} checks; "
+               "src/sidra_ai/evals/ui_followup.py"
+               + ("" if followup.passed else "; " + "; ".join(followup.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1207: the browser entry declared lang=ja and spoke English. Both
     # directions on the rendered page: boilerplate gone AND the Japanese
     # labels present, so deleting a label cannot pass as translating it.

@@ -277,6 +277,15 @@ ASK_PAGE = """<!doctype html>
     loadProjects();
   });
 
+  // The conversation, page-lifetime only (C-1210). The server has carried
+  // /v1/chat history since the envelope work, but this page never sent it,
+  // so every browser follow-up ("それはなぜ？") retrieved nothing and got
+  // the honest abstention. Kept in a variable, never in browser storage
+  // (the posture is pinned by test), so closing the tab ends the
+  // conversation - which is also the privacy this page promises.
+  var turns = [];
+  var MAX_TURNS = 8;
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var question = document.getElementById("q").value.trim();
@@ -291,10 +300,13 @@ ASK_PAGE = """<!doctype html>
     var headers = { "Content-Type": "application/json" };
     if (token) { headers["Authorization"] = "Bearer " + token; }
 
+    var payload = { message: question };
+    if (turns.length) { payload.history = turns.slice(-MAX_TURNS); }
+
     fetch("/v1/chat", {
       method: "POST",
       headers: headers,
-      body: JSON.stringify({ message: question })
+      body: JSON.stringify(payload)
     }).then(function (response) {
       if (!response.ok) {
         // Status only. The body of an error response is not shown, so a
@@ -305,6 +317,12 @@ ASK_PAGE = """<!doctype html>
     }).then(function (result) {
       statusLine.textContent = "";
       render(result);
+      // Only a real exchange joins the conversation: a refusal or an empty
+      // answer would replay noise into every later request.
+      if (result && result.answer && !result.refused) {
+        turns.push({ question: question, answer: result.answer });
+        if (turns.length > MAX_TURNS) { turns = turns.slice(-MAX_TURNS); }
+      }
       // A creation turn just wrote a file; the lists are stale the moment
       // the answer arrives.
       loadArtifacts();
