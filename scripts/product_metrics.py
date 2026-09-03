@@ -536,6 +536,22 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1207: the browser entry declared lang=ja and spoke English. Both
+    # directions on the rendered page: boilerplate gone AND the Japanese
+    # labels present, so deleting a label cannot pass as translating it.
+    from sidra_ai.evals.ui_language import evaluate_ui_language
+
+    ui_language = evaluate_ui_language()
+    c.add(
+        "ui_entry_japanese",
+        "the browser entry speaks the operator's language",
+        10.0 * ui_language.checks_passed / ui_language.checks_total,
+        detail=f"{ui_language.checks_passed}/{ui_language.checks_total} strings; "
+               "src/sidra_ai/evals/ui_language.py"
+               + ("" if ui_language.passed else "; " + "; ".join(ui_language.failures[:3])),
+        kind=OUTCOME,
+    )
+
     honesty = evaluate_qa_honesty()
     c.add(
         "qa_offtopic_honesty",

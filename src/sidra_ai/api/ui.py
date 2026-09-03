@@ -64,21 +64,21 @@ ASK_PAGE = """<!doctype html>
 </head>
 <body>
 <h1>SIDRA AI</h1>
-<p class="sub">Ask a question about the indexed repositories. Answers are
-grounded in retrieved documents and cite where each claim came from.</p>
+<p class="sub">索引済みリポジトリについて質問できます。回答は取得した文書に
+基づき、どの記述がどこから来たかを出典で示します。</p>
 <p class="sub">作るときも同じ欄です。「釣りゲームを作って」「デッキを作って」の
 ように書けば、質問ではなく制作として扱われ、できたファイルが下に並びます。</p>
 
 <form id="ask">
   <div class="row">
-    <label for="q">Question</label>
+    <label for="q">質問</label>
     <textarea id="q" name="q" required autofocus></textarea>
   </div>
   <div class="row">
-    <label for="token">API token (leave empty if none is configured)</label>
+    <label for="token">アクセストークン（設定していなければ空欄のまま）</label>
     <input id="token" name="token" type="password" autocomplete="off">
   </div>
-  <button type="submit" id="send">Ask</button>
+  <button type="submit" id="send">送信</button>
 </form>
 
 <p id="status"></p>
@@ -86,15 +86,15 @@ grounded in retrieved documents and cite where each claim came from.</p>
 <div id="sources"></div>
 
 <section id="artifacts">
-  <p class="note">Generated files
-    <button type="button" id="refresh">Refresh</button>
+  <p class="note">生成ファイル
+    <button type="button" id="refresh">更新</button>
   </p>
   <ol id="artifact-list"></ol>
   <p class="note" id="artifact-status"></p>
 </section>
 
 <section id="projects">
-  <p class="note">Productions（プロジェクト単位）</p>
+  <p class="note">プロジェクト（ひとまとまりの制作物）</p>
   <ol id="project-list"></ol>
   <p class="note" id="project-status"></p>
 </section>
@@ -116,14 +116,14 @@ grounded in retrieved documents and cite where each claim came from.</p>
     // markup here, whatever a document happens to contain.
     answer.textContent = result.answer || "";
     if (result.refused) {
-      statusLine.textContent = "Refused" + (result.reason ? ": " + result.reason : "");
+      statusLine.textContent = "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f" + (result.reason ? ": " + result.reason : "");
     }
     clear(sources);
     var citations = result.citations || [];
     if (!citations.length) { return; }
     var heading = document.createElement("p");
     heading.className = "note";
-    heading.textContent = "Sources";
+    heading.textContent = "\u51fa\u5178";
     sources.appendChild(heading);
     var list = document.createElement("ol");
     citations.forEach(function (c) {
@@ -138,7 +138,7 @@ grounded in retrieved documents and cite where each claim came from.</p>
       if (c.redacted) {
         var flag = document.createElement("span");
         flag.className = "note";
-        flag.textContent = " (redacted)";
+        flag.textContent = " \uff08\u4f0f\u305b\u5b57\u3042\u308a\uff09";
         item.appendChild(flag);
       }
       list.appendChild(item);
@@ -170,7 +170,7 @@ grounded in retrieved documents and cite where each claim came from.</p>
         link.click();
         URL.revokeObjectURL(url);
       }).catch(function (error) {
-        artifactStatus.textContent = "Download failed: " + error.message;
+        artifactStatus.textContent = "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u306b\u5931\u6557: " + error.message;
       });
   }
 
@@ -199,7 +199,7 @@ grounded in retrieved documents and cite where each claim came from.</p>
           artifactList.appendChild(item);
         });
       }).catch(function (error) {
-        artifactStatus.textContent = "Listing failed: " + error.message;
+        artifactStatus.textContent = "\u4e00\u89a7\u306e\u53d6\u5f97\u306b\u5931\u6557: " + error.message;
       });
   }
 
@@ -222,7 +222,7 @@ grounded in retrieved documents and cite where each claim came from.</p>
         link.click();
         URL.revokeObjectURL(url);
       }).catch(function (error) {
-        projectStatus.textContent = "Download failed: " + error.message;
+        projectStatus.textContent = "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u306b\u5931\u6557: " + error.message;
       });
   }
 
@@ -268,7 +268,7 @@ grounded in retrieved documents and cite where each claim came from.</p>
           projectList.appendChild(item);
         });
       }).catch(function (error) {
-        projectStatus.textContent = "Listing failed: " + error.message;
+        projectStatus.textContent = "\u4e00\u89a7\u306e\u53d6\u5f97\u306b\u5931\u6557: " + error.message;
       });
   }
 
@@ -284,7 +284,7 @@ grounded in retrieved documents and cite where each claim came from.</p>
     var token = document.getElementById("token").value;
 
     send.disabled = true;
-    statusLine.textContent = "Asking\\u2026";
+    statusLine.textContent = "\u554f\u3044\u5408\u308f\u305b\u4e2d\u2026";
     answer.textContent = "";
     clear(sources);
 
@@ -310,7 +310,7 @@ grounded in retrieved documents and cite where each claim came from.</p>
       loadArtifacts();
       loadProjects();
     }).catch(function (error) {
-      statusLine.textContent = "Failed: " + error.message;
+      statusLine.textContent = "\u5931\u6557: " + error.message;
     }).then(function () {
       send.disabled = false;
     });
