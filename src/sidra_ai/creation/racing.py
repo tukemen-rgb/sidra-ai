@@ -94,8 +94,10 @@ addEventListener('keyup',e=>{keys[e.key]=false});
 function step(){
   if(state==='race'){
     lapT++;
-    if(K('ArrowLeft'))car.x=Math.max(14,car.x-3.4);
-    if(K('ArrowRight'))car.x=Math.min(W-14,car.x+3.4);
+    /* Steering is the one mechanic four templates had each written out
+       (C-1114); this is the shared part, with the margin and the speed
+       this game chose. */
+    partsSteerX(car,3.4,14,W-14);
     /* Off the road the target pace drops and the car eases toward it, and
        recovery is slower than the loss: a mistake reads immediately but is
        paid back over a second, not a frame. */

@@ -91,6 +91,7 @@ from sidra_ai.creation.platformer import (
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.daily import DAILY_PREAMBLE
 from sidra_ai.creation.round import preamble_for as round_preamble_for
+from sidra_ai.creation.parts import PARTS_PREAMBLE
 from sidra_ai.creation.share import preamble_for as share_preamble_for
 from sidra_ai.creation.skins import preamble_for as skin_preamble_for
 from sidra_ai.creation.tuning import TUNE_PREAMBLE, panel_schema
@@ -629,6 +630,9 @@ def generate_game(
             # After the round: the line it writes is about a round that is
             # over, and it reads the clock's own verdict to know (C-1110).
             + share_preamble_for(key)
+            # The shared mechanics, such as they are (C-1114). Needs
+            # nothing but addEventListener, and is read by two templates.
+            + PARTS_PREAMBLE
             + _SPRITE_LOADER
             + spec.script
         )

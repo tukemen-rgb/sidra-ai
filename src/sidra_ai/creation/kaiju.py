@@ -99,8 +99,8 @@ function step(){t++;
   combat(state==='fight'&&gateState()==='playing');
   if(state==='fight'){
     if(me.cool>0)me.cool--;
-    if(K('ArrowLeft'))me.x=Math.max(30,me.x-2.1);
-    if(K('ArrowRight'))me.x=Math.min(W-30,me.x+2.1);
+    /* The shared steering part (C-1114), with this game's own margin. */
+    partsSteerX(me,2.1,30,W-30);
     if(Math.abs(me.x-(me.lastX||me.x))>0.4){me.step+=0.05;
       /* Dust on the footfall, not every frame: weight is the stride. */
       if(Math.sin(me.step*6.283)>0.97)dust.push({x:me.x,y:GROUND,r:2,a:1})}
