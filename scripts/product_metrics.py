@@ -501,6 +501,29 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1403: C-1201 put a subject-term floor under the *answer* path and
+    # the generators never got it, so a weekly-report request printed
+    # jam-making steps under 「わかっていること」 with a repository path
+    # beside each one - the shape a reader trusts most. Measured through
+    # the real chat path over a corpus that knows two unrelated subjects,
+    # both asked for in turn. Three checks per request, and the third is
+    # what keeps this honest: a run where retrieval handed over no
+    # unrelated evidence at all scores 0, because the other two would pass
+    # with the filter deleted.
+    from sidra_ai.evals.document_topicality import evaluate_document_topicality
+
+    topicality = evaluate_document_topicality()
+    c.add(
+        "document_fact_topicality",
+        "レポートが依頼の主題だけを根拠に挙げる",
+        10.0 * topicality.checks_passed / topicality.checks_total,
+        detail=f"{topicality.checks_passed}/{topicality.checks_total} checks "
+               f"(clean {topicality.clean}, kept {topicality.kept}, "
+               f"mixed {topicality.mixed} of {topicality.mixed_total}); "
+               "src/sidra_ai/evals/document_topicality.py",
+        kind=OUTCOME,
+    )
+
     # C-1204: every game rendered 2x horizontally squashed on a phone while
     # desktop happened to hit the intrinsic width and looked perfect. The
     # distortion is fully decided by the artifact's canvas attributes vs its
