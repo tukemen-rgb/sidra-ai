@@ -44,6 +44,7 @@ from sidra_ai.creation.adapt import preamble_for as adapt_preamble_for
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.combo import preamble_for as combo_preamble_for
 from sidra_ai.creation.graze import preamble_for as graze_preamble_for
+from sidra_ai.creation.recap import preamble_for as recap_preamble_for
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.ghost import preamble_for as ghost_preamble_for
@@ -743,6 +744,10 @@ def generate_game(
             # Last of the loop wrappers, so the "ここまで" banner is drawn
             # over everything else and holding the frame does not stop the
             # pad or the particles.
+            # Why a go ended (C-1409), defined before the round so the
+            # result strip can call it. Its expressions name the template's
+            # own counters, which exist by the time the strip is drawn.
+            + recap_preamble_for(key)
             + round_preamble_for(key)
             # After the round: the line it writes is about a round that is
             # over, and it reads the clock's own verdict to know (C-1110).

@@ -2967,6 +2967,137 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the losing strip says why -------------------------------------
+    #
+    # C-1409: a losing round offered 「R / タップでもう一度」 and nothing
+    # else - it asked for another go without saying what to do differently.
+    # The line is built from counters the round already keeps, so the check
+    # is that the number matches the loss that was actually produced, that
+    # a win says nothing, and that a cause counted zero is never named.
+    from sidra_ai.creation.games import _DIFFICULTY as _recap_ladder
+    from sidra_ai.creation.recap import LOSS_UNWIRED, LOSS_WIRED
+    from sidra_ai.creation.recap import probe_source as _recap_probe
+
+    recap_gaps: list[str] = []
+    if set(LOSS_WIRED) & set(LOSS_UNWIRED) or set(LOSS_WIRED) | set(
+        LOSS_UNWIRED
+    ) != set(_TOUCH_TEMPLATES):
+        recap_gaps.append("a template is neither wired nor given a reason")
+    _recap_asks = {
+        "shooter": ("シューティングゲームを作って", {}),
+        "marble": ("3D のゲームを作って", {}),
+        # An untouched platformer never falls, so its cause is zero and it
+        # correctly says nothing; holding right walks it off the ledges.
+        "platformer": ("ジャンプアクションを作って", {"hold": "ArrowRight"}),
+        "kaiju": ("怪獣と戦うゲームを作って", {}),
+        # Since C-1404 every racing rung finishes untouched, so its loss
+        # comes from the panel's slowest pace - the way C-1105 makes one.
+        "racing": (
+            "レースゲームを作って",
+            {"stored": {"speed": min(p[0] for p in _recap_ladder["racing"].values())}},
+        ),
+    }
+    for key in sorted(LOSS_WIRED):
+        request, drive = _recap_asks[key]
+        found = _scene_re.search(
+            r"<script>(.*?)</script>", generate_game(request).html, _scene_re.S
+        )
+        if found is None:
+            recap_gaps.append(f"{key}: no script on the page")
+            continue
+        try:
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_recap_probe(found.group(1), template=key, **drive),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            seen = json.loads(run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            recap_gaps.append(f"{key}: probe unavailable ({exc})")
+            continue
+        end = seen["atEnd"]
+        if seen.get("verdictWhileLive"):
+            recap_gaps.append(f"{key}: a reason was settled while the go was still live")
+        # The number has to be the counter's, not a constant that happens
+        # to look like one. Derived here from raw page state so a rewritten
+        # table disagrees with it.
+        raw = seen.get("counters") or {}
+        expected = {
+            "shooter": (3 - raw["hp"]) if raw.get("hp") is not None else None,
+            "platformer": raw.get("respawns"),
+            "kaiju": (3 - raw["cycles"]) if raw.get("cycles") is not None else None,
+        }.get(key)
+        if expected is not None and end.get("line"):
+            if str(int(expected)) not in end["line"]:
+                recap_gaps.append(
+                    f"{key}: the line's count is not the counter's "
+                    f"({end['line']!r} against {expected})"
+                )
+        if not end["lost"]:
+            recap_gaps.append(f"{key}: the go that was produced was not a loss")
+            continue
+        if not end["line"]:
+            recap_gaps.append(f"{key}: a loss with a counted cause said nothing")
+        elif not any(ch.isdigit() for ch in end["line"]):
+            recap_gaps.append(f"{key}: the line names no count ({end['line']!r})")
+        elif "0 " in end["line"]:
+            # A cause counted zero is not a cause.
+            recap_gaps.append(f"{key}: named a cause counted zero ({end['line']!r})")
+        # ...and the same page, asked about a win, stays quiet.
+        won = seen["afterWin"]
+        if not isinstance(won, dict):
+            recap_gaps.append(f"{key}: the win case could not be read ({won})")
+        elif won["lost"] or won["line"]:
+            recap_gaps.append(f"{key}: a win was still explained ({won['line']!r})")
+        # The line has to reach the strip, not just the function.
+        if end["line"] and end["line"] not in seen["strip"]:
+            recap_gaps.append(f"{key}: the line never reached the result strip")
+    # ...and the other direction: a loss the page cannot account for stays
+    # silent rather than inventing something. An untouched platformer never
+    # falls, so its one cause is zero.
+    if not recap_gaps:
+        found = _scene_re.search(
+            r"<script>(.*?)</script>",
+            generate_game("ジャンプアクションを作って").html,
+            _scene_re.S,
+        )
+        try:
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_recap_probe(found.group(1), template="platformer"),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            quiet = json.loads(run.stdout.strip().splitlines()[-1])["atEnd"]
+        except (OSError, _scene_sp.SubprocessError, ValueError, AttributeError) as exc:
+            recap_gaps.append(f"the zero-cause case could not be run ({exc})")
+            quiet = None
+        if quiet is not None:
+            if not quiet["lost"]:
+                recap_gaps.append("the untouched platformer round was not a loss")
+            elif quiet["line"]:
+                recap_gaps.append(
+                    f"a cause counted zero was named anyway ({quiet['line']!r})"
+                )
+    c.add(
+        "creation_loss_recap",
+        "負けた理由を一言で言う",
+        0.0 if recap_gaps else 1.0,
+        detail=(
+            "; ".join(recap_gaps)
+            if recap_gaps
+            else f"{len(LOSS_WIRED)} 型で実際に負けを作って確認: 帯の一言が"
+            "その回のカウンタと一致し、勝ちでは何も言わず、0 のカウンタは"
+            "名指ししない。未配線 5 型は理由つき（LOSS_UNWIRED）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

@@ -248,6 +248,12 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   /* What happened on top, what to do next underneath. */
   if(mark||left){c.fillText(mark+left,W/2,H-32)}
   c.fillText(right,W/2,H-12);
+  /* And, on a loss the template can account for, why (C-1409). Above the
+     score line so the order reads cause, result, next - and only when
+     there is a counted reason to give. */
+  let why='';try{why=recapLine()}catch(e){}
+  if(why){c.fillStyle='#05070fe6';c.fillRect(0,H-72,W,22);
+    c.fillStyle='#dfe7f5';c.fillText(why,W/2,H-56)}
   /* A colour that just opened is the reason to start the next round, so it
      is said on the screen that asks for one - and only when it happened. */
   let news=null;try{news=skinNews()}catch(e){}
