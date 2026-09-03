@@ -38,7 +38,8 @@ from sidra_ai.creation.daily import (  # noqa: E402
 )
 from sidra_ai.creation.games import TEMPLATES, generate_game  # noqa: E402
 from sidra_ai.creation.round import probe_source as round_probe  # noqa: E402
-from sidra_ai.creation.tuning import panel_schema  # noqa: E402
+from sidra_ai.creation.together import probe_source as together_probe  # noqa: E402
+from sidra_ai.creation.tuning import SPEED_BINDING, panel_schema  # noqa: E402
 
 #: A template whose world a seed decides, and the most visible of them: the
 #: adventure lays out three rooms from it.
@@ -82,6 +83,74 @@ def _preamble(*, on: bool, stamp: str) -> dict:
     )
     assert probe.returncode == 0, probe.stderr[:400]
     return json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+#: Every template, and the board rather than the seed. C-1107 measured one
+#: template and compared seed values; C-1118 found what that missed, and
+#: C-1119 closed it - so the check is now what a player would see.
+def _board(template: str, request: str, *, on: bool, stamp: str, pin: int) -> int:
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to draw the board")
+    page = generate_game(request, template=template).html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=together_probe(
+            script.group(1),
+            speed_expr=SPEED_BINDING[template],
+            frames=120,
+            quiet=True,
+            # Particles draw with Math.random and fire on their own in half
+            # the templates; C-1020 guarantees reduced motion is what drops
+            # them, which is what makes the board observable at all.
+            reduced=True,
+            random_pin=pin,
+            stamp=stamp,
+            stored={
+                f"sidra.tune.{template}": {"daily": on},
+                f"sidra.seen.{template}": "1",
+            },
+        ),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])["geometry"]
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_every_template_draws_the_same_board_today(template: str) -> None:
+    """Two requests, two different Math.random streams, one day.
+
+    The two streams are the point: a board that comes from chance rather
+    than from the seed draws differently, which is exactly what catch did
+    until C-1119 and what the seed comparison could never see.
+    """
+
+    a = _board(template, REQUESTS[0], on=True, stamp="2026-09-03", pin=111)
+    b = _board(template, REQUESTS[1], on=True, stamp="2026-09-03", pin=222)
+
+    assert a == b
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_every_template_draws_a_different_board_tomorrow(template: str) -> None:
+    today = _board(template, REQUESTS[0], on=True, stamp="2026-09-03", pin=111)
+    tomorrow = _board(template, REQUESTS[0], on=True, stamp="2026-09-04", pin=111)
+
+    assert today != tomorrow
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_with_the_switch_off_every_template_keeps_its_own(template: str) -> None:
+    a = _board(template, REQUESTS[0], on=False, stamp="2026-09-03", pin=111)
+    b = _board(template, REQUESTS[1], on=False, stamp="2026-09-03", pin=222)
+    shared = _board(template, REQUESTS[0], on=True, stamp="2026-09-03", pin=111)
+
+    assert a != b
+    assert a != shared
 
 
 # ------------------------------------------------------------ the three claims

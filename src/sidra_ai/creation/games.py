@@ -158,9 +158,15 @@ class GeneratedGame:
 
 _FISHING = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
-const SPEED=SPEED_TOKEN,BAND=BAND_TOKEN;
+const SPEED=SPEED_TOKEN,BAND=BAND_TOKEN,SEED=SEED_TOKEN;
+let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
+/* Where the fish are today. It used to be the middle, always, for
+   everybody - which meant this page had no board a seed could decide and
+   so could not honestly join 今日の挑戦 (C-1118 found it claiming to).
+   Kept off the edges so the band always fits on the line. */
+const SPOT=0.25+rand()*0.5;
 let pos=0,dir=1,score=0,casts=0,flash=0,msg='SPACE / クリックで合わせる';
-const zone=()=>[0.5-BAND/2,0.5+BAND/2];
+const zone=()=>[SPOT-BAND/2,SPOT+BAND/2];
 function step(){pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}draw();
   requestAnimationFrame(step)}
 function draw(){const w=cv.width,h=cv.height,now=performance.now();cx.fillStyle='SURFACE_TOKEN';
@@ -175,7 +181,7 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();cx.fillStyle=
   if(flash>0){cx.globalAlpha=0.35*ease(flash);cx.fillStyle='CYAN_TOKEN';
     cx.fillRect(0,0,w,h);cx.globalAlpha=1;flash-=0.04}
   sprite('marker',40+(w-80)*pos-8,h/2-34,16,68,'MAGENTA_TOKEN');
-  sprite('target',40+(w-80)*0.5-16,h/2-16+bob,32,32,'');
+  sprite('target',40+(w-80)*SPOT-16,h/2-16+bob,32,32,'');
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
 function cast(){casts++;const [a,b]=zone();
@@ -189,7 +195,8 @@ step();
 
 _CATCH = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
-const FALL=SPEED_TOKEN,WIDE=BAND_TOKEN;
+const FALL=SPEED_TOKEN,WIDE=BAND_TOKEN,SEED=SEED_TOKEN;
+let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 let px=0.5,shown=0.5,items=[],score=0,missed=0,t=0,firstDrop=true;
 addEventListener('keydown',e=>{if(e.code==='ArrowLeft'){px=Math.max(0,px-0.06)}
   if(e.code==='ArrowRight'){px=Math.min(1,px+0.06)}});
@@ -199,7 +206,10 @@ function step(){t++;if(t%FALL===0){
   /* The first one falls straight into the basket, wherever it is (§8 事実
      5). Everything after it is luck, as it should be - but the opening
      has to hand something over before it asks for anything. */
-  items.push({x:firstDrop?shown:Math.random(),y:0});firstDrop=false}
+  /* Seeded, so today's board is the same board for everyone who plays it
+     (C-1119). Math.random gave every device a different run and left this
+     page unable to join 今日の挑戦 honestly. */
+  items.push({x:firstDrop?shown:rand(),y:0});firstDrop=false}
   const w=cv.width,h=cv.height;
   items.forEach(i=>{i.y+=0.012});
   items=items.filter(i=>{if(i.y<0.92)return true;

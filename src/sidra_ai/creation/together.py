@@ -102,7 +102,11 @@ PROBE = """
 const allNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : allNothing),
   apply: () => allNothing, set: () => true });
-let allRnd = 2463534242;
+/* Pinned to a *given* stream rather than a fixed one. Two runs pinned to
+   different streams is how "is this board decided by the seed or by
+   chance?" becomes a measurable question: a seeded board draws the same
+   thing either way, and a Math.random board does not. */
+let allRnd = RANDOM_PIN_INPUT;
 Math.random = () => { allRnd ^= allRnd << 13; allRnd ^= allRnd >>> 17;
   allRnd ^= allRnd << 5; return ((allRnd >>> 0) % 100000) / 100000 };
 class AllDate {
@@ -111,7 +115,7 @@ class AllDate {
     return { getFullYear: () => y, getMonth: () => m - 1, getDate: () => d } }
 }
 globalThis.Date = AllDate;
-globalThis.matchMedia = () => ({ matches: false });
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
 let allClock = 0;
 globalThis.performance = { now: () => allClock };
 const allKeys = [], allUps = [], allPointers = [];
@@ -131,8 +135,22 @@ const allClipboard = [];
 /* Everything drawn at the bottom of the canvas, with its y, so two
    features writing into the same band are visible as such. */
 const allText = [], allColours = new Set();
+/* What was drawn where, as one rolling hash. Two runs that draw the same
+   shapes agree on it; the board is the shapes. */
+let allGeometry = 2166136261;
+function allHash(value){ const s = String(value);
+  for (let i = 0; i < s.length; i++) {
+    allGeometry ^= s.charCodeAt(i);
+    allGeometry = Math.imul(allGeometry, 16777619) >>> 0 } }
 const allCtx = new Proxy({
-  fillText: (t, x, y) => { allText.push({ text: String(t), y: Math.round(Number(y)) }) },
+  fillText: (t, x, y) => { allText.push({ text: String(t), y: Math.round(Number(y)) });
+    allHash('T' + String(t) + ',' + Math.round(Number(x)) + ',' + Math.round(Number(y))) },
+  fillRect: (...a) => { allHash('R' + a.map(n => Math.round(Number(n) * 100)).join(',')) },
+  strokeRect: (...a) => { allHash('S' + a.map(n => Math.round(Number(n) * 100)).join(',')) },
+  drawImage: (...a) => { allHash('I' + a.slice(1).map(n => Math.round(Number(n) * 100)).join(',')) },
+  arc: (...a) => { allHash('A' + a.map(n => Math.round(Number(n) * 100)).join(',')) },
+  moveTo: (...a) => { allHash('M' + a.map(n => Math.round(Number(n) * 100)).join(',')) },
+  lineTo: (...a) => { allHash('L' + a.map(n => Math.round(Number(n) * 100)).join(',')) },
   set fillStyle(v){ if (typeof v === 'string') allColours.add(v.toLowerCase()) },
   get fillStyle(){ return '' },
 }, { get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : allNothing)),
@@ -175,6 +193,16 @@ function allTap(){ allPointers.forEach(fn => fn({ pointerType: 'touch', pointerI
 const ALL_DIRS = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
 let allHeld = null, allEnded = false, allFrames = 0;
 for (let f = 0; f < FRAMES_INPUT && allQueued && !allEnded; f++) {
+  if (QUIET_INPUT) {
+    /* Started, then left alone. What the page draws with nobody touching
+       it is the board itself, with none of the particles and shakes an
+       input would add on top. */
+    const fn = allQueued; allQueued = null;
+    allClock += 50 / 3;
+    fn(allClock);
+    allFrames = f + 1;
+    continue;
+  }
   if (f % 30 === 0) {
     if (allHeld) { allRelease(allHeld) }
     const dir = ALL_DIRS[(f / 30) % ALL_DIRS.length];
@@ -206,7 +234,7 @@ if (allButton) { (allButton.handlers.click || []).forEach(fn => fn()) }
 console.log(JSON.stringify({
   atLoad: atLoad, atBreak: atBreak,
   frames: allFrames,
-  strip: strip, stripAt: stripAt,
+  strip: strip, stripAt: stripAt, geometry: allGeometry,
   clipboard: allClipboard,
   colours: [...allColours].sort(),
   facts: { gate: gateFacts(), round: roundFacts(), skin: skinFacts(), share: shareFacts() },
@@ -223,8 +251,24 @@ def probe_source(
     frames: int = 3800,
     stored: dict[str, object] | None = None,
     stamp: str = "2026-09-03",
+    random_pin: int = 2463534242,
+    quiet: bool = False,
+    reduced: bool = False,
 ) -> str:
-    """One page, every feature on, one round, then the copy button."""
+    """One page, every feature on, one round, then the copy button.
+
+    ``random_pin`` chooses which ``Math.random`` stream the run gets, and
+    ``quiet`` starts the game and then touches nothing. Together they ask
+    whether a board is decided by its seed: run the same day twice on two
+    different streams, and a seeded board draws the same thing while a
+    ``Math.random`` board does not.
+
+    ``reduced`` asks for ``prefers-reduced-motion``, which is where that
+    question can be answered at all: particle bursts draw with
+    ``Math.random`` and fire on their own in half the templates, so
+    without it the traces differ for reasons that have nothing to do with
+    the board. C-1020 already guarantees the decoration is what goes.
+    """
 
     payload = {
         key: (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
@@ -234,6 +278,9 @@ def probe_source(
         PROBE.replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("FRAMES_INPUT", str(int(frames)))
         .replace("STAMP_INPUT", stamp)
+        .replace("RANDOM_PIN_INPUT", str(int(random_pin)))
+        .replace("REDUCED_INPUT", "true" if reduced else "false")
+        .replace("QUIET_INPUT", "true" if quiet else "false")
         .replace("SPEED_PROBE", speed_expr)
         .replace("SCRIPT_PLACEHOLDER", script)
     )

@@ -2645,6 +2645,9 @@ def measure_creation(c: Collector) -> None:
                 ["node", "-"],
                 input=_fail_probe(
                     script.group(1),
+                    # The seed is read at load; a full round per template
+                    # would cost minutes to learn nothing more.
+                    frames=40,
                     stamp=stamp,
                     stored={f"sidra.tune.{template}": {"daily": on}},
                 ),
@@ -2659,38 +2662,87 @@ def measure_creation(c: Collector) -> None:
             return None, f"{template}: probe unavailable ({type(exc).__name__})"
 
     daily_gaps: list[str] = []
-    # A template whose world a seed decides. Adventure lays out three rooms
-    # from it, which is the most visible board of the nine.
-    _daily_template = "adventure"
+    daily_ok: list[str] = []
+    # Every template, and the *board* rather than the seed.
+    #
+    # C-1107's judge drove one template and compared the seed value, and
+    # both halves of that were too weak. C-1118 found catch and fishing
+    # claiming a shared board while laying theirs out with Math.random -
+    # their seed matched because every page binds one, whether or not
+    # anything reads it. So this compares what was drawn: two requests on
+    # the same day have to draw the same board, tomorrow a different one,
+    # and with the switch off each request keeps its own.
+    #
+    # Two more things make that question answerable. Each run is pinned to
+    # a *different* Math.random stream, so a board that comes from chance
+    # rather than from the seed shows up as a difference. And each run asks
+    # for reduced motion, because particle bursts draw with Math.random and
+    # fire on their own in half the templates - without it the traces
+    # differ for reasons that have nothing to do with the board.
+    from sidra_ai.creation.together import probe_source as _board_probe
+    from sidra_ai.creation.tuning import SPEED_BINDING as _board_binding
+
     _daily_pairs = ("迷宮を冒険するゲームを作って", "べつの冒険ゲームを作って")
-    runs = {}
-    for label, request, on, stamp in (
-        ("todayA", _daily_pairs[0], True, "2026-09-03"),
-        ("todayB", _daily_pairs[1], True, "2026-09-03"),
-        ("tomorrow", _daily_pairs[0], True, "2026-09-04"),
-        ("offA", _daily_pairs[0], False, "2026-09-03"),
-        ("offB", _daily_pairs[1], False, "2026-09-03"),
-    ):
-        seen, problem = _daily_run(request, _daily_template, on=on, stamp=stamp)
-        if problem:
-            daily_gaps.append(problem)
-            break
-        runs[label] = seen
-    if len(runs) == 5:
-        if runs["todayA"]["seed"] is None:
-            daily_gaps.append("the page has no seed to share")
-        elif runs["todayA"]["seed"] != runs["todayB"]["seed"]:
-            daily_gaps.append("two requests got different boards on the same day")
-        elif runs["todayA"]["seed"] == runs["tomorrow"]["seed"]:
-            daily_gaps.append("tomorrow is the same board as today")
-        elif runs["offA"]["seed"] == runs["offB"]["seed"]:
-            daily_gaps.append("with the switch off, every request got the same world")
-        elif runs["offA"]["seed"] == runs["todayA"]["seed"]:
-            daily_gaps.append("the daily seed applies with the switch off")
-        elif not [line for line in runs["todayA"]["strip"] if "今日の挑戦" in line]:
-            daily_gaps.append("the result does not say it was today's board")
-        elif [line for line in runs["offA"]["strip"] if "今日の挑戦" in line]:
-            daily_gaps.append("the result claims today's board with the switch off")
+
+    def _daily_board(template, request, *, on, stamp, pin):
+        page = _tune_generate(request, template=template).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            return None, f"{template}: no script"
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_board_probe(
+                    script.group(1),
+                    speed_expr=_board_binding[template],
+                    frames=120,
+                    quiet=True,
+                    reduced=True,
+                    random_pin=pin,
+                    stamp=stamp,
+                    stored={
+                        f"sidra.tune.{template}": {"daily": on},
+                        f"sidra.seen.{template}": "1",
+                    },
+                ),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1])["geometry"], None
+        except (OSError, _scene_sp.SubprocessError, ValueError, KeyError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    for key in sorted(_tune_templates):
+        boards = {}
+        trouble = None
+        for label, request, on, stamp, pin in (
+            ("todayA", _daily_pairs[0], True, "2026-09-03", 111),
+            ("todayB", _daily_pairs[1], True, "2026-09-03", 222),
+            ("tomorrow", _daily_pairs[0], True, "2026-09-04", 111),
+            ("offA", _daily_pairs[0], False, "2026-09-03", 111),
+            ("offB", _daily_pairs[1], False, "2026-09-03", 222),
+        ):
+            drawn, problem = _daily_board(key, request, on=on, stamp=stamp, pin=pin)
+            if problem:
+                trouble = problem
+                break
+            boards[label] = drawn
+        if not trouble:
+            if boards["todayA"] != boards["todayB"]:
+                trouble = f"{key}: two requests drew different boards on the same day"
+            elif boards["todayA"] == boards["tomorrow"]:
+                trouble = f"{key}: tomorrow draws the same board as today"
+            elif boards["offA"] == boards["offB"]:
+                trouble = f"{key}: with the switch off, every request drew the same world"
+            elif boards["offA"] == boards["todayA"]:
+                trouble = f"{key}: the daily board applies with the switch off"
+        if trouble:
+            daily_gaps.append(trouble)
+        else:
+            daily_ok.append(key)
     # The point of deriving it locally: a shared board that cost a request
     # would be a different product and a broken promise.
     for banned in ("fetch(", "XMLHttpRequest", "://", "sendBeacon"):
@@ -2701,11 +2753,12 @@ def measure_creation(c: Collector) -> None:
             daily_gaps.append(f"a template shadows {name}")
     c.add(
         "creation_daily_seed",
-        "日付だけで共有される盤面",
-        0.0 if daily_gaps else 1.0,
+        "日付だけで盤面が共有される型",
+        float(len(daily_ok)) if not daily_gaps else 0.0,
         detail=(
-            "パネルの「今日の挑戦」を入れると、依頼文が違っても同じ日は同じ盤面。"
-            "翌日は別の盤面。切ると依頼ごとの世界に戻る。"
+            "描いた盤面そのものを比較。依頼文が違っても同じ日は同じ盤面、"
+            "翌日は別、切れば依頼ごとの世界。各走行は Math.random の系列を"
+            "変えて回すので、種ではなく偶然で決まる盤面は一致しない。"
             "日付→ハッシュをページ内で計算するだけで、通信は 0"
             if not daily_gaps
             else "; ".join(daily_gaps)

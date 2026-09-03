@@ -52,10 +52,13 @@ KEYS = sorted(TEMPLATES)
 REQUEST = "ゲームを作って"
 STAMP = "2026-09-03"
 SEED = zlib.crc32(REQUEST.encode("utf-8"))
-#: The two whose board is not seeded, so cannot be shared. Written down
-#: rather than derived, so that giving one of them a seed later has to come
-#: past this list on the way.
-SEEDLESS = ("catch", "fishing")
+#: Templates whose board is not seeded and so cannot be shared. Empty
+#: today: catch and fishing were the two, and C-1119 gave them seeded
+#: boards rather than leaving them silent. Kept as a list rather than
+#: deleted, because the rule outlives the case - a template written
+#: tomorrow with no seed must not claim the day either, and the assertion
+#: below is what would notice.
+SEEDLESS: tuple[str, ...] = ()
 
 
 def _script(template: str):
@@ -119,11 +122,13 @@ def test_the_result_strip_fits_on_the_canvas(template: str) -> None:
 
 @pytest.mark.parametrize("template", SEEDLESS)
 def test_a_board_nobody_else_has_is_not_called_todays(template: str) -> None:
-    """These two lay their board out with Math.random.
+    """The rule, for any template that has no seed.
 
-    The daily switch can be on and the board is still only this player's,
+    The daily switch can be on and the board still be only this player's,
     so neither the screen nor the copied line may say otherwise - the whole
-    value of the stamp is that it is everybody's.
+    value of the stamp is that it is everybody's. No template is in this
+    state today; the parametrisation is empty on purpose, and the next test
+    is what keeps it that way.
     """
 
     seen = _everything(template)
@@ -133,7 +138,29 @@ def test_a_board_nobody_else_has_is_not_called_todays(template: str) -> None:
     assert STAMP not in (seen["clipboard"][0] if seen["clipboard"] else "")
 
 
-@pytest.mark.parametrize("template", [k for k in KEYS if k not in SEEDLESS])
+def test_the_claim_is_gated_on_having_a_board_at_all() -> None:
+    """The mechanism behind the rule, since no template exercises it now.
+
+    ``dailyBoard`` is the switch *and* a seed. Without the second half the
+    page would go back to dating a board nobody else has, which is what
+    C-1118 found catch and fishing doing.
+    """
+
+    from sidra_ai.creation.daily import DAILY_PREAMBLE
+
+    assert "function dailyBoard(){" in DAILY_PREAMBLE
+    assert "dailyOn()&&typeof SEED!=='undefined'" in DAILY_PREAMBLE
+
+
+@pytest.mark.parametrize("template", KEYS)
+def test_every_shipped_template_has_a_board_to_share(template: str) -> None:
+    """C-1119: two of the ten used to lay their board out with Math.random,
+    which left them unable to join the shared day honestly."""
+
+    assert _everything(template)["facts"]["round"]["seed"] is not None
+
+
+@pytest.mark.parametrize("template", KEYS)
 def test_a_shared_board_still_says_so(template: str) -> None:
     """The fix must not have silenced the templates that do have a board."""
 
