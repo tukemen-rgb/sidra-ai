@@ -2835,6 +2835,23 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [~] 作業中 2026-09-03 07:22 辛口ユーザー **C-1203: 生成文書の出典が全部「出典不明」になる。**
+      （辛口ユーザーループ起票・生成文書 1/10）文書生成の売りは「数字は
+      すべて出典から」なのに、実物は本文の全箇条書きが「（出典: 出典不明）」、
+      末尾の出典欄は「この依頼で索引から根拠は見つかりませんでした」、
+      要約は「根拠 0 件」——**抜粋を 5 件載せながら**。読んだ社員は
+      どれも検証できない。**再現手順**: site を ingest →
+      `POST /v1/chat {"message":"週報のテンプレ文書を作って"}` →
+      `.sidra/artifacts/doc-report-*.md` を開く → 全行 出典不明・出典欄が
+      自己矛盾。原因: `SidraService._facts_for` が
+      `result.chunk.repository` / `result.chunk.path` を読むが、Chunk に
+      その属性は無い（provenance の下にある）ため getattr の既定値 "" が
+      全件に入る。**最小の解決**: provenance から repository/path を読む
+      1 箇所修正。→ 動かす数字: creation_document_provenance
+      unmeasurable→10（新設・実 chat 経由で生成した文書の全事実が
+      実在の repo/path を出典に持ち「出典不明」が 0 件であること）
+      （別件メモ: 事実の中身が依頼と無関係に寄る問題は C-1201 の主題語
+      ゲートを facts にも通すかを含め別サイクルで扱う）
 - [x] 完了 2026-09-03 06:4x UTC 辛口ユーザー（`qa_error_language_match` unmeasurable→**10**、判定器 exit 0。5 通りの破壊で 10→7.5/5.0 に落ちることを確認。実機で「天気を教えて」に日本語の棄権文＋grounding の棄権判定も通過）**C-1202: 「見つからない」の文言が英語＋内部 API 用語。**
       （辛口ユーザーループ起票・エラー文言 2/10）日本語で質問した社員への
       no-evidence 応答が「No indexed evidence matched this question. Run POST
