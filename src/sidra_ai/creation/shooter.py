@@ -19,7 +19,10 @@ waves descend, ``BAND_TOKEN`` the frames between spawns, ``SEED_TOKEN`` the
 formation seed. ``REDUCED``/``FRAME`` come from the animation preamble - the
 starfield and the thruster flicker freeze under reduced motion while the
 shooting keeps working - and ``sfx``/``shake``/``hitstop``/``burst`` come
-from the audio and juice preambles.
+from the audio and juice preambles. ``setPal``/``setScene``/``scenePaint``
+come from the scene preamble: the 60-second round is three acts, the sky
+steps once per act, and the final act is the brightest frame of the fight
+(§7 観察 5-6), so 第 N 波 is something the picture says too.
 """
 
 from __future__ import annotations
@@ -54,6 +57,12 @@ SHOOTER_HOW = (
 SHOOTER_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const FALL=SPEED_TOKEN,WAVE=BAND_TOKEN,SEED=SEED_TOKEN;
+setPal(SHOOTER_PAL_TOKEN);
+/* The 60-second round in three acts (game-design-notes.md §7 観察 5-6):
+   the HUD already counts 第 N 波, so the sky agrees with it. ACT is a
+   third of the round in frames; the final third is the brightest sky of
+   the fight, because the wave the clock catches you on is the climax. */
+const ACT=1200;
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const W=cv.width,H=cv.height,SHIP=22;
 let ship,shots,foes,stars,score,wave,t,state,fire;
@@ -102,7 +111,12 @@ function step(){const now=performance.now();
     stars.forEach(s=>{s.y+=REDUCED?0:s.s;if(s.y>H){s.y=0;s.x=rand()*W}})}
   draw(now);requestAnimationFrame(step)}
 function draw(now){
-  cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,W,H);
+  /* The act is read off the play clock, not the wave count: the round is
+     time-boxed (C-1104), so thirds of the clock are thirds of the go at
+     every difficulty. Mood only - the ship, the foes and the shots keep
+     their information colours and their shapes (§4). */
+  setScene(t>=ACT*2?2:t>=ACT?1:0);
+  cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,W,H);
   cx.fillStyle='#ffffff44';
   stars.forEach(s=>{cx.fillRect(s.x,s.y,s.s,s.s*2)});
   cx.fillStyle='CYAN_TOKEN';
@@ -129,8 +143,99 @@ function draw(now){
     const a='撃墜 '+score+' 機。';cx.fillText(a,W/2-a.length*10,H/2-8);
     cx.font='13px ui-monospace,monospace';
     const b='SPACE か R、タップでもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}
+/* Read back off the running page rather than grepped for: the act the sky
+   is in, and the nearest incoming hull, so a probe can dodge like a hand. */
+function shooterFacts(){const incoming=[];
+  foes.forEach(f=>{if(f.hp>0&&f.y>ship.y-170){incoming.push([f.x,f.y])}});
+  return {t:t,wave:wave,scene:SCENE,hp:ship.hp,state:state,score:score,
+    x:ship.x,w:W,incoming:incoming}}
 reset();step();
 """
+
+#: The page driven in node, the same no-op browser the racing probe built:
+#: the fight is flown through all three acts so the sky's act changes can
+#: be read off the running page instead of trusted from the palette table.
+#: The pilot holds fire and sidesteps the nearest incoming hull - dodging,
+#: not luck, is what carries three hit points across two thousand frames.
+PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+/* One clock across every run() call: the round preamble reads the frame
+   timestamp, and a clock that restarted at zero would hold its ROUND_T0
+   forever. */
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+/* Past the briefing: the gate holds every frame until pressed. */
+key('keydown', ' '); key('keyup', ' ');
+run(2);
+const early = shooterFacts();
+/* Fly the round: hold fire, sidestep whatever is closing in, and note the
+   act of the sky as each third of the clock arrives. */
+key('keydown', ' ');
+let sceneMid = null;
+while (shooterFacts().state === 'play' && shooterFacts().t < 2520) {
+  const f = shooterFacts();
+  if (f.t >= 1300 && f.t < 2400 && sceneMid === null) sceneMid = f.scene;
+  key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
+  /* Two jobs, in priority order. Dodge: only hulls at the ship's own
+     altitude can hit it, so those are the ones that pick the lane - and a
+     lane is no good if getting there means crossing one of them. Hunt:
+     with nothing imminent, sit under the lowest hull so the held trigger
+     thins the field; a pilot that only dodged let the sky saturate. */
+  const im = f.incoming.filter(([fx, fy]) => fy > 226 && fy < 330);
+  let goal = null;
+  if (im.some(([fx]) => Math.abs(fx - f.x) < 40)) {
+    let bestClear = -1e9, bestSafe = null, best = f.x;
+    for (let x = 26; x <= f.w - 26; x += 8) {
+      let clear = 1e9;
+      im.forEach(([fx]) => { clear = Math.min(clear, Math.abs(x - fx)) });
+      const lo = Math.min(f.x, x), hi = Math.max(f.x, x);
+      const blocked = im.some(([fx]) => fx > lo - 28 && fx < hi + 28);
+      const score = Math.min(clear, 120) - Math.abs(x - f.x) * 0.02;
+      if (score > bestClear) { bestClear = score; best = x }
+      if (!blocked && (bestSafe === null || score > bestSafe[1])) bestSafe = [x, score];
+    }
+    goal = bestSafe ? bestSafe[0] : best;
+  } else {
+    let ty = -1;
+    f.incoming.forEach(([fx, fy]) => { if (fy <= 226 && fy > ty) { ty = fy; goal = fx } });
+  }
+  if (goal !== null && goal < f.x - 4) key('keydown', 'ArrowLeft');
+  else if (goal !== null && goal > f.x + 4) key('keydown', 'ArrowRight');
+  run(1);
+}
+const end = shooterFacts();
+const palette = sceneFacts();
+console.log(JSON.stringify({
+  scenes: palette.scenes,
+  sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
+  t: end.t, wave: end.wave, hp: end.hp, score: end.score, state: end.state,
+}));
+"""
+
+
+def probe_source(script: str) -> str:
+    """The page's own script, wrapped so the fight can be flown in node."""
+
+    return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 __all__ = [
     "SHOOTER_DIFFICULTY",
@@ -138,4 +243,6 @@ __all__ = [
     "SHOOTER_SCRIPT",
     "SHOOTER_TITLE",
     "SHOOTER_WORDS",
+    "PROBE",
+    "probe_source",
 ]

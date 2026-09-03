@@ -49,6 +49,7 @@ from sidra_ai.creation.scene import (
     KAIJU_PALETTE,
     RACING_PALETTE,
     PLATFORMER_PALETTE,
+    SHOOTER_PALETTE,
     SCENE_PREAMBLE,
 )
 from sidra_ai.creation.startscreen import BRIEFINGS, GATE_PREAMBLE
@@ -663,6 +664,7 @@ def generate_game(
         .replace("KAIJU_PAL_TOKEN", json.dumps([list(p) for p in KAIJU_PALETTE]))
         .replace("RACING_PAL_TOKEN", json.dumps([list(p) for p in RACING_PALETTE]))
         .replace("PLAT_PAL_TOKEN", json.dumps([list(p) for p in PLATFORMER_PALETTE]))
+        .replace("SHOOTER_PAL_TOKEN", json.dumps([list(p) for p in SHOOTER_PALETTE]))
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
         .replace("SEED_TOKEN", f"seedNow({zlib.crc32(request.encode('utf-8'))})")

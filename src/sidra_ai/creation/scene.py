@@ -83,6 +83,20 @@ PLATFORMER_PALETTE: tuple[tuple[float, float, float], ...] = (
     (78.0, 1.05, 0.21),
 )
 
+#: Shooter, one entry per act of the 60-second round: patrol, raid, the
+#: final stretch.
+#:
+#: The HUD has always counted 第 N 波; this is the sky agreeing with it. A
+#: cold opening, a warmer middle as the formations thicken, and the last
+#: third of the round holds the brightness budget - the wave you are on
+#: when the clock runs out is the climax, so it is the brightest sky of
+#: the fight (§7 観察 5-6).
+SHOOTER_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (-52.0, 0.85, 0.02),
+    (24.0, 1.15, 0.08),
+    (80.0, 1.05, 0.22),
+)
+
 #: Installed before every template. Defines the transform and leaves the
 #: palette itself to the template, which calls ``setPal`` once at boot.
 SCENE_PREAMBLE = """
@@ -167,5 +181,6 @@ __all__ = [
     "KAIJU_PALETTE",
     "PLATFORMER_PALETTE",
     "RACING_PALETTE",
+    "SHOOTER_PALETTE",
     "SCENE_PREAMBLE",
 ]

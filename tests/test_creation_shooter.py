@@ -10,7 +10,12 @@ quietly break.
 
 from __future__ import annotations
 
+import json
 import re
+import shutil
+import subprocess
+
+import pytest
 
 from sidra_ai.creation.game_job import build_game_generator
 from sidra_ai.creation.games import (
@@ -21,7 +26,25 @@ from sidra_ai.creation.games import (
     validate_game_html,
 )
 from sidra_ai.creation.intent import detect_creation_intent
+from sidra_ai.creation.shooter import probe_source
 from sidra_ai.creation.touchpad import unreachable_keys
+
+
+def _flown(request: str = "シューティングゲームを作って") -> dict:
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    page = generate_game(request).html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=probe_source(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])
 
 
 def test_a_shooting_request_reaches_the_shooter():
@@ -90,6 +113,33 @@ def test_the_same_request_is_the_same_fight():
     seed = lambda page: re.search(r"SEED=seedNow\((\d+)\)", page).group(1)  # noqa: E731
     assert seed(first) == seed(again)
     assert seed(first) != seed(other)
+
+
+def test_the_round_is_three_acts_and_the_sky_steps_with_them():
+    """§7 観察 5: the HUD's 第 N 波 is something the picture says too.
+
+    Flown, not grepped: the probe pilots the fight through all three
+    thirds of the round and reads the act off the running page at each.
+    """
+
+    facts = _flown()
+
+    assert facts["state"] == "play", "the pilot reached the final act alive"
+    assert facts["sceneEarly"] == 0
+    assert facts["sceneMid"] == 1
+    assert facts["sceneLate"] == 2
+
+
+def test_the_final_act_is_the_brightest_sky_of_the_fight():
+    """§7 観察 6: brightness is a budget, spent on the climax."""
+
+    facts = _flown()
+    scenes = facts["scenes"]
+
+    assert len(scenes) == 3
+    assert len({s["floor"] for s in scenes}) == 3, "each act paints its own sky"
+    assert scenes[2]["lum"] > scenes[0]["lum"]
+    assert scenes[2]["lum"] >= scenes[1]["lum"]
 
 
 def test_every_key_the_shooter_reads_has_a_pad_button():
