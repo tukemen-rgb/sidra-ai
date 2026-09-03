@@ -5056,3 +5056,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   0→1→2 と「最終幕が最も明るい」を 4 テーマ（紙のミラーも）で実測。
   破壊 2 通り（setScene 未配線／最大明度が中間幕）で落ちることを確認。
   pytest exit 0（2810 件）/ gate exit 0（MISS 0）。
+2026-09-03 12:12 ループA started Board=13
