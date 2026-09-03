@@ -3078,6 +3078,26 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [~] 作業中 2026-09-03 21:20 辛口ユーザー **C-1217: スライドの箇条書きが 120 字でぶつ切り——「（components/UploadForm.ts」「revenue-model.md の」で終わる。**
+      （辛口ユーザーループ起票・4 巡目 生成文書/スライド・3/10）実コーパスで
+      「GAMEYARDの収益方針についてスライドを作って」→ 生成された deck の
+      埋まった 1 枚（根拠となる数字）の箇条書き 3 本が 3 本とも文の途中で
+      切れて終わる:「…投稿ごとに取っている （components/UploadForm.ts」
+      「…場は仲介しない） 注意」「…注意: revenue-model.md の」。
+      decks.py `_bullets_for` が fact.text を `[:120]` で機械切断しており、
+      C-1213 で導入済みの `whole_sentences` がこの第 2 の切断点に未適用。
+      さらに `whole_sentences` 自体も ASCII の「.」を無条件に文末扱いする
+      ため、「revenue-model.md」の拡張子ドットで切ると「revenue-model.」
+      というファイル名の途中で終わる。**再現手順**: sidra-api 起動 →
+      site 索引済みで POST /v1/chat {"message":"GAMEYARDの収益方針について
+      スライドを作って"} → artifact の deck HTML を開く → 3 本の bullet が
+      すべて語の途中で終わる。**最小の解決**: (1) `_bullets_for` の 120 字
+      カット後に `whole_sentences` を適用（縮める方向のみ・120 上限不変）、
+      (2) `_SENTENCE_END` の ASCII ドットを「直後が語構成文字でない場合
+      のみ」文末と数える（。．！？は従来どおり・3.5 や model.md の内部
+      ドットで切らない）。→ 動かす数字: creation_deck_bullet_sentences
+      unmeasurable→10（新設・bullet が文末で終わる × 断片は素通し ×
+      ファイル名ドットで切らない）
 - [x] 完了 2026-09-03 20:5x UTC 辛口ユーザー（`qa_citation_readability` unmeasurable→**10**、判定器 exit 0。5 通りの破壊で 10→4.3/5.7/8.6/8.6/7.1 に落ちることを確認。実コーパス再質問: [S1] が「D-CY4. 決済を持つか（…） A. 持たない（GAMEYARD と同じ方針。無料で始める）」と実内容つき平文に）**C-1216: 回答の第 1 引用が「## D-CY4. 決済を持つか（…） - [ ] **A.」——生の Markdown 記号つき・ほぼ無内容のぶつ切り。**
       （辛口ユーザーループ起票・4 巡目 質問応答・2/10）実コーパス
       （tukemen-rgb/site 115 文書）に「GAMEYARDの収益はどうなっていますか」
