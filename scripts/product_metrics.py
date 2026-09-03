@@ -2252,6 +2252,7 @@ def measure_creation(c: Collector) -> None:
     import subprocess as _scene_sp
 
     from sidra_ai.creation.adventure import world_probe as _adv_probe
+    from sidra_ai.creation.catchgame import probe_source as _catch_scene_probe
     from sidra_ai.creation.fishing import probe_source as _fishing_scene_probe
     from sidra_ai.creation.kaiju import probe_source as _kaiju_scene_probe
     from sidra_ai.creation.marble import probe_source as _marble_scene_probe
@@ -2262,14 +2263,15 @@ def measure_creation(c: Collector) -> None:
     #: more than one scene to tell apart, and only those: rooms for the
     #: adventure, phases for the kaiju, acts of the round for the shooter
     #: (C-1301), thirds of the corridor for the marble (C-1307), thirds of
-    #: the round clock for the fishing (C-1315). A single-scene template
-    #: would inflate the count.
+    #: the round clock for the fishing and the catch (C-1315, C-1319). A
+    #: single-scene template would inflate the count.
     _scene_targets = (
         ("迷宮を冒険するゲームを作って", "adventure", _adv_probe),
         ("巨大怪獣と戦うゲームを作って", "kaiju", _kaiju_scene_probe),
         ("シューティングゲームを作って", "shooter", _shooter_scene_probe),
         ("玉転がしゲームを作って", "marble", _marble_scene_probe),
         ("釣りゲームを作って", "fishing", _fishing_scene_probe),
+        ("キャッチゲームを作って", "catch", _catch_scene_probe),
     )
     #: One request per theme, so the default is measured alongside the three
     #: named ones. The default is the empty suffix.
@@ -2344,7 +2346,8 @@ def measure_creation(c: Collector) -> None:
         else 0.0,
         detail=(
             "adventure の部屋間・kaiju の phase 間・shooter の幕間・marble の"
-            "コース 3 分割・fishing のラウンド 3 等分で実際の描画色が変わり、"
+            "コース 3 分割・fishing / catch のラウンド 3 等分で実際の描画色が"
+            "変わり、"
             "最も明るい場面が最終部にある。4 テーマすべてで確認、壁と床の"
             "明度差はテーマ既定値のまま"
             if not scene_gaps
@@ -2365,7 +2368,12 @@ def measure_creation(c: Collector) -> None:
     # called at sixty seconds - the arc decorates the round, it must not
     # touch it.
     round_scene_gaps: list[str] = []
-    for _rs_request in ("釣りゲームを作って", "難しい釣りゲームを作って"):
+    for _rs_request, _rs_probe_builder, _rs_hit in (
+        ("釣りゲームを作って", _fishing_scene_probe, "cast"),
+        ("難しい釣りゲームを作って", _fishing_scene_probe, "cast"),
+        ("キャッチゲームを作って", _catch_scene_probe, "caught"),
+        ("難しいキャッチゲームを作って", _catch_scene_probe, "caught"),
+    ):
         _rs_page = generate_game(_rs_request).html
         _rs_script = _scene_re.search(r"<script>(.*?)</script>", _rs_page, _scene_re.S)
         if _rs_script is None:
@@ -2374,7 +2382,7 @@ def measure_creation(c: Collector) -> None:
         try:
             _rs_run = _scene_sp.run(
                 ["node", "-"],
-                input=_fishing_scene_probe(_rs_script.group(1)),
+                input=_rs_probe_builder(_rs_script.group(1)),
                 capture_output=True,
                 text=True,
                 timeout=180,
@@ -2394,8 +2402,8 @@ def measure_creation(c: Collector) -> None:
             range(len(_rs_scenes)), key=lambda i: _rs_scenes[i]["lum"]
         ) != len(_rs_scenes) - 1:
             round_scene_gaps.append(f"{_rs_request}: the last sky is not the brightest")
-        if _rs.get("castEarly") != 1 or _rs.get("castLate") != 1:
-            round_scene_gaps.append(f"{_rs_request}: a cast in the band no longer lands")
+        if _rs.get(_rs_hit + "Early") != 1 or _rs.get(_rs_hit + "Late") != 1:
+            round_scene_gaps.append(f"{_rs_request}: a play under the sky no longer lands")
         if not _rs.get("done") or _rs.get("reason") != "time":
             round_scene_gaps.append(f"{_rs_request}: the round no longer reaches its break")
     c.add(
@@ -2403,9 +2411,9 @@ def measure_creation(c: Collector) -> None:
         "時間の経過で空が変わる",
         1.0 if not round_scene_gaps else 0.0,
         detail=(
-            "fishing のラウンドを最後まで実プレイ: 幕 0→1→2 が実時間の 3 等分"
-            "で切り替わり、最終幕が最明、第 1 幕と最終幕の両方で帯内の合わせが"
-            "成立、60 秒の区切りは不変（§7 観察 5-6 のラウンド版）"
+            "fishing と catch のラウンドを最後まで実プレイ: 幕 0→1→2 が実時間"
+            "の 3 等分で切り替わり、最終幕が最明、第 1 幕と最終幕の両方で合わせ"
+            "／受けが成立、60 秒の区切りは不変（§7 観察 5-6 のラウンド版）"
             if not round_scene_gaps
             else "; ".join(round_scene_gaps)
         ),

@@ -123,6 +123,19 @@ FISHING_PALETTE: tuple[tuple[float, float, float], ...] = (
     (80.0, 1.05, 0.22),
 )
 
+#: Catch, one entry per third of the sixty-second round: cool morning,
+#: warm midday, the bright last stretch.
+#:
+#: The other of the two clock-bound templates (C-1315 gave fishing its
+#: three skies): no course, no rooms, so the round clock is the journey
+#: and the final twenty seconds hold the brightness budget - the catches
+#: you land as time runs out are the climax (§7 観察 5-6 over §8's round).
+CATCH_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (-56.0, 0.88, 0.02),
+    (22.0, 1.12, 0.09),
+    (80.0, 1.05, 0.22),
+)
+
 #: Installed before every template. Defines the transform and leaves the
 #: palette itself to the template, which calls ``setPal`` once at boot.
 SCENE_PREAMBLE = """
@@ -204,6 +217,7 @@ function sceneFacts(){const keep=SCENE,out=[];
 
 __all__ = [
     "ADVENTURE_PALETTE",
+    "CATCH_PALETTE",
     "FISHING_PALETTE",
     "KAIJU_PALETTE",
     "MARBLE_PALETTE",

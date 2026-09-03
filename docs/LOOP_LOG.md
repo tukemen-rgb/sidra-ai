@@ -5829,3 +5829,21 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
 
   破壊 5 通りで 0 に落ちることを確認: ①勝ちでも言う ②0 を名指しする
   ③帯まで届かない ④走行中に確定する ⑤数字を定数にする。
+2026-09-04 00:10 辛口クリエイター C-1319 完了 creation_scene_palettes 5 -> 6（判定器 exit 0）
+  観点=§7（配色と構成・前回=§6）。時計で区切られる 2 型のうち fishing は
+  C-1315 で 3 幕の空を得たが、catch は最後まで 1 枚の平坦な背景のまま
+  だった——場面パレットの残った時計型の穴。実装: CATCH_PALETTE（朝→
+  日中→最明の最終 20 秒）を scene.py に追加し、step() が ROUND_MS の
+  3 等分で setScene、背景だけ scenePaint 経由（落下物・受け皿・HUD の
+  アクセントは §4 の読みやすさのため不変）。probe は新設 catchgame.py
+  （テンプレ本体は games.py のまま・fishing.py と同じ建付け）で実プレイ:
+  最下の落下物へ受け皿を寄せて受けながら、幕 0→1→2 が 24s/45s に切替・
+  第 1 幕と最終幕で受けが各 1 点・輝度 0.025→0.094→0.225 の単調増加・
+  60s の time 区切り不変を既定/hard/紙テーマの全部で確認。
+  _scene_targets に catch を追加（5 型→6 型、4 テーマ×6 型の汎用検査）、
+  creation_round_scene も fishing+catch の 4 走行に拡張。
+  破壊 2 通り: setScene(0) 固定→専用計器「the sky ignores the clock」で
+  0（汎用は素通し＝専用の存在理由）／最終幕を暗く→汎用 4 テーマ・専用の
+  両方が「brightest is not last」で 0。
+  pytest exit 0（2966 passed / 1 skip）/ gate exit 0（MISS 0）。
+

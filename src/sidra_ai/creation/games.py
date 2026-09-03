@@ -59,6 +59,7 @@ from sidra_ai.creation.marble import (
 )
 from sidra_ai.creation.scene import (
     ADVENTURE_PALETTE,
+    CATCH_PALETTE,
     FISHING_PALETTE,
     MARBLE_PALETTE,
     KAIJU_PALETTE,
@@ -227,6 +228,14 @@ const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const FALL=SPEED_TOKEN,WIDE=BAND_TOKEN,SEED=SEED_TOKEN;
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 let px=0.5,shown=0.5,items=[],score=0,caught=0,missed=0,t=0,firstDrop=true;
+/* The other clock-bound template gets its three skies too (C-1319, the
+   catch half of C-1315): the sixty seconds split into thirds and the
+   brightest sky is saved for the last stretch. ROUND_MS is played time,
+   so the title screen spends none of the day. */
+setPal(CATCH_PAL_TOKEN);
+function catchFacts(){return {shown:shown,px:px,score:score,caught:caught,
+  missed:missed,scene:SCENE,ms:ROUND_MS,
+  items:items.map(i=>({x:i.x,y:i.y}))}}
 addEventListener('keydown',e=>{if(e.code==='ArrowLeft'){px=Math.max(0,px-0.06)}
   if(e.code==='ArrowRight'){px=Math.min(1,px+0.06)}});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();
@@ -249,7 +258,8 @@ function step(){t++;if(t%FALL===0){
       caught++;score+=comboHit();sfx('catch');
       shake(2);burst(i.x*cv.width,cv.height-30,10,'ACCENT_JUICE')}
     else{comboMiss();missed++;sfx('clash');shake(5);hitstop(2)}return false});
-  cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,w,h);
+  setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
+  cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,w,h);
   /* the basket eases toward the pointer instead of snapping to it */
   shown+=(px-shown)*(REDUCED?1:0.25);
   /* decorative: a four-frame pulse, frozen when reduced */
@@ -822,6 +832,7 @@ def generate_game(
         .replace("SHOOTER_PAL_TOKEN", json.dumps([list(p) for p in SHOOTER_PALETTE]))
         .replace("MARBLE_PAL_TOKEN", json.dumps([list(p) for p in MARBLE_PALETTE]))
         .replace("FISHING_PAL_TOKEN", json.dumps([list(p) for p in FISHING_PALETTE]))
+        .replace("CATCH_PAL_TOKEN", json.dumps([list(p) for p in CATCH_PALETTE]))
         # Before SEED_TOKEN would matter and free of it as a substring: the
         # music's own seed, request-derived, so the same words are the same
         # song in every template - the seedless ones included (C-1304).
