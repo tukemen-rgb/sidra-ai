@@ -552,6 +552,22 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1208: the with-evidence framing (the line every answered question
+    # opens with) also follows the question's language now; C-1202 covered
+    # only the no-evidence reply. Both languages through real chat, plus
+    # proof both answers still pass the grounding eval.
+    from sidra_ai.evals.qa_honesty import evaluate_answer_language
+
+    answer_language = evaluate_answer_language()
+    c.add(
+        "qa_answer_language_match",
+        "answered questions are framed in their language",
+        10.0 * answer_language.checks_passed / answer_language.checks_total,
+        detail=f"{answer_language.checks_passed}/{answer_language.checks_total} checks; "
+               "src/sidra_ai/evals/qa_honesty.py evaluate_answer_language",
+        kind=OUTCOME,
+    )
+
     honesty = evaluate_qa_honesty()
     c.add(
         "qa_offtopic_honesty",

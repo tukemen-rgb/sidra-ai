@@ -74,11 +74,26 @@ class EchoModelAdapter(LocalModelAdapter):
                 )
             return self._result(request, text, finish_reason="no_evidence")
 
-        lines = [
-            "Answering from indexed repository DATA "
-            "(extractive; local backend, no external API).",
-            "",
-        ]
+        # The framing lines follow the question's language, same rule and
+        # same reason as the no-evidence reply above (C-1202/C-1208): rule 6
+        # holds for the successful path too, and this preamble opens every
+        # answered Japanese question. The [S#] labels and excerpts between
+        # them are untouched either way, so grounding's citation checks and
+        # every excerpt-based judge read the same evidence.
+        if _CJK.search(request.user_message):
+            preamble = (
+                "索引済みリポジトリの DATA から回答します"
+                "（抜粋・ローカル生成・外部 API 不使用）。"
+            )
+            footer = "引用した出典: "
+        else:
+            preamble = (
+                "Answering from indexed repository DATA "
+                "(extractive; local backend, no external API)."
+            )
+            footer = "Cited sources: "
+
+        lines = [preamble, ""]
         for match in blocks:
             excerpt = self._lead(match.group("content"))
             lines.append(f"[{match.group('label')}] {match.group('citation')}")
@@ -86,7 +101,7 @@ class EchoModelAdapter(LocalModelAdapter):
             lines.append("")
 
         lines.append(
-            "Cited sources: "
+            footer
             + ", ".join(f"[{m.group('label')}] {m.group('citation')}" for m in blocks)
         )
         return self._result(request, "\n".join(lines).strip())

@@ -182,6 +182,58 @@ def evaluate_no_evidence_language() -> ErrorLanguageResult:
     )
 
 
+def evaluate_answer_language() -> ErrorLanguageResult:
+    """The successful path's framing must also match the question (C-1208).
+
+    C-1202 fixed the no-evidence reply; this holds the with-evidence one -
+    the line every answered question opens with. Six checks through the
+    real chat over the populated corpus: the Japanese question gets the
+    Japanese preamble and sources line with no English boilerplate, the
+    English question keeps the English framing, and both answers still pass
+    the grounding eval, because reframing that broke citation checking
+    would trade a wording bug for a measurement bug.
+    """
+
+    from sidra_ai.evals.grounding import evaluate_grounding
+
+    service = _build_service()
+    checks = 0
+    failures: list[str] = []
+
+    japanese = service.chat("広告の方針を教えて")
+    if "索引済みリポジトリの DATA から回答します" in japanese["answer"] and "引用した出典" in japanese["answer"]:
+        checks += 1
+    else:
+        failures.append("japanese answer lost its japanese framing")
+    if "Answering from indexed" not in japanese["answer"] and "Cited sources" not in japanese["answer"]:
+        checks += 1
+    else:
+        failures.append("japanese answer still carries English boilerplate")
+    if japanese["citations"] and evaluate_grounding(japanese["answer"], japanese["citations"]).passed:
+        checks += 1
+    else:
+        failures.append("japanese answer no longer grounds")
+
+    english = service.chat("Is the ingestion client read-only?")
+    if "Answering from indexed repository DATA" in english["answer"]:
+        checks += 1
+    else:
+        failures.append("english answer lost its English preamble")
+    if "Cited sources:" in english["answer"]:
+        checks += 1
+    else:
+        failures.append("english answer lost its sources line")
+    if english["citations"] and evaluate_grounding(english["answer"], english["citations"]).passed:
+        checks += 1
+    else:
+        failures.append("english answer no longer grounds")
+
+    return ErrorLanguageResult(
+        passed=not failures, checks_passed=checks, checks_total=6,
+        failures=tuple(failures),
+    )
+
+
 def _build_service(populate: bool = True):
     """A real ``SidraService`` over the synthetic corpus, echo backend.
 

@@ -172,6 +172,41 @@ def test_no_evidence_language_eval_passes():
     assert result.checks_passed == result.checks_total == 4
 
 
+# ------------------------------------- C-1208: with-evidence framing
+
+
+def test_japanese_answer_is_framed_in_japanese(service: SidraService):
+    service.store.add(_document(GLUE_RICH))
+
+    result = service.chat("広告の方針を教えて")
+
+    assert "索引済みリポジトリの DATA から回答します" in result["answer"]
+    assert "引用した出典" in result["answer"]
+    assert "Answering from indexed" not in result["answer"]
+    assert "Cited sources" not in result["answer"]
+    # The evidence blocks themselves are untouched by the reframing.
+    assert "[S1]" in result["answer"]
+
+
+def test_english_answer_keeps_english_framing(service: SidraService):
+    service.store.add(
+        _document("The ads policy allows no third-party scripts on GAMEYARD pages.")
+    )
+
+    result = service.chat("What is the ads policy?")
+
+    assert "Answering from indexed repository DATA" in result["answer"]
+    assert "Cited sources:" in result["answer"]
+
+
+def test_answer_language_eval_passes():
+    from sidra_ai.evals.qa_honesty import evaluate_answer_language
+
+    result = evaluate_answer_language()
+    assert result.failures == ()
+    assert result.checks_passed == result.checks_total == 6
+
+
 # ------------------------------------------------------------- the judge
 
 
