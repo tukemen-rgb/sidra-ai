@@ -5100,3 +5100,14 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   できるようにしてから 5 通り全てで 10→7.5〜2.5 を確認。
   実機の一覧 63 行中 meta 0 行・既存の artifacts API テスト 24 件も緑。
   pytest exit 0（2849 件+skip 10・全通し）/ gate exit 0（MISS 0）。
+2026-09-03 13:10 辛口クリエイター C-1308 完了 creation_sfx_texture unmeasurable -> 1（判定器 exit 0）
+  観点=§2（効果音の合成・前回=§7）。sfxr 技法列挙のうちノイズ波形と LPF スイープが
+  未実装で、被弾も敗北も oscillator のブザー音だった。sfx() に wave='noise' 経路
+  （0.5 秒の白色雑音バッファを 1 回だけ生成→BiquadFilter lowpass を f0→f1 で
+  下降スイープ→共通 gain）を足し、hurt（1800→180Hz）と lose（1200→90Hz）を
+  noise 化。gain を先に作る順序で音圧契約は完全互換（calm 0.24 / loud 0.48 /
+  muted 0 / ceiling 不変を実測）。probe の Recorder は当初ノード「生成」を記録して
+  いたが、破壊試験で「LPF を作るのに繋がない」がすり抜けたため「何に接続されたか」
+  を記録する方式に締め直した（noise→lowpass→out の配線そのものが合否）。
+  破壊 2 通り（hurt を tone に戻す／LPF バイパス）で 0 に落ちる。
+  pytest exit 0（2831 件）/ gate exit 0（MISS 0）。

@@ -2457,6 +2457,64 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the explosion is not a buzzer ---------------------------------
+    #
+    # §2's sfxr palette is more than three oscillator shapes: the
+    # explosion/hit family is white noise through a falling low-pass, and
+    # until C-1308 every impact in every game was a tone. Read off the
+    # driven page's own AudioContext: the hurt effect must build a noise
+    # source and a low-pass filter, the melodic gem must still be an
+    # oscillator, and the loudness contract (combat step, mute) must be
+    # exactly what it was.
+    from sidra_ai.creation.audio import PROBE as _sfx_probe
+
+    texture_gaps: list[str] = []
+    texture_page = generate_game("シューティングゲームを作って").html
+    texture_script = _scene_re.search(
+        r"<script>(.*?)</script>", texture_page, _scene_re.S
+    )
+    if texture_script is None:
+        texture_gaps.append("no script on the page")
+    else:
+        try:
+            texture_run = _scene_sp.run(
+                ["node", "-"],
+                input=_sfx_probe.replace("SCRIPT_PLACEHOLDER", texture_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if texture_run.returncode != 0:
+                raise ValueError(texture_run.stderr.strip()[:60])
+            timbre = json.loads(texture_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            timbre = None
+            texture_gaps.append(f"probe unavailable ({exc})")
+        if timbre is not None:
+            hurt = timbre.get("hurtNodes") or []
+            gem = timbre.get("gemNodes") or []
+            if "noise->lowpass" not in hurt or "lowpass->out" not in hurt:
+                texture_gaps.append(f"the hit is not noise through a low-pass ({hurt})")
+            if "oscillator" in hurt or "noise->direct" in hurt:
+                texture_gaps.append(f"the hit's wiring is wrong ({hurt})")
+            if gem != ["oscillator"]:
+                texture_gaps.append(f"the melodic family changed texture ({gem})")
+            if timbre.get("mutedPlayed") != 0 or not timbre.get("loud"):
+                texture_gaps.append("the loudness contract moved")
+    c.add(
+        "creation_sfx_texture",
+        "打撃がノイズで鳴る",
+        0.0 if texture_gaps else 1.0,
+        detail=(
+            "; ".join(texture_gaps)
+            if texture_gaps
+            else "実走行の AudioContext で確認: hurt/lose は白色雑音＋下降"
+            "ローパス（§2 の explosion 系）、旋律系は従来の oscillator、"
+            "戦闘音圧段とミュートは不変"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

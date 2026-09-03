@@ -66,3 +66,44 @@ def test_audio_failure_cannot_crash_the_game() -> None:
     """The sfx body is wrapped: no audio device is a machine, not a bug."""
 
     assert "try{" in SFX_PREAMBLE and "catch(err)" in SFX_PREAMBLE
+
+
+def test_the_hit_is_noise_and_the_melody_is_a_tone() -> None:
+    """§2's explosion family (C-1308), read off the page's own AudioContext.
+
+    The hurt effect must be white noise through a falling low-pass, the gem
+    must still be an oscillator, and the loudness contract must not move.
+    """
+
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.audio import PROBE
+    from sidra_ai.creation.games import generate_game
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = generate_game("シューティングゲームを作って").html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=PROBE.replace("SCRIPT_PLACEHOLDER", script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    heard = _json.loads(probe.stdout.strip().splitlines()[-1])
+
+    assert "noise->lowpass" in heard["hurtNodes"]
+    assert "lowpass->out" in heard["hurtNodes"]
+    assert "oscillator" not in heard["hurtNodes"]
+    assert "noise->direct" not in heard["hurtNodes"]
+    assert heard["gemNodes"] == ["oscillator"]
+    assert heard["mutedPlayed"] == 0
+    assert heard["loud"] and heard["loud"] > heard["calm"]
