@@ -295,8 +295,15 @@ class SidraService:
             excerpt, withheld = citation_excerpt(content, self.output_guard, query)
             if withheld or not excerpt:
                 continue
-            repository = getattr(result.chunk, "repository", "")
-            path = getattr(result.chunk, "path", "")
+            # Repository and path live on the chunk's provenance, not the
+            # chunk itself. Reading them off the chunk (C-1203) made every
+            # generated document label every fact 「出典不明」 while its
+            # sources section claimed nothing was retrieved - excerpts with
+            # no way to verify them, in the product whose selling point is
+            # provenance.
+            provenance = result.chunk.provenance
+            repository = getattr(provenance, "repository", "")
+            path = getattr(provenance, "path", "")
             facts.append(Fact(text=excerpt, source=f"{repository} {path}".strip()))
         return facts
 

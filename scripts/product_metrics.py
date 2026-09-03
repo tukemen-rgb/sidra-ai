@@ -484,6 +484,23 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1203: every generated document labelled every fact 「出典不明」 while
+    # its sources section said nothing was retrieved - the provenance was
+    # read off the chunk instead of chunk.provenance. Measured through the
+    # real chat path: the saved artifact must name repository+path for its
+    # facts and contain no 出典不明.
+    from sidra_ai.evals.document_provenance import evaluate_document_provenance
+
+    provenance_result = evaluate_document_provenance()
+    c.add(
+        "creation_document_provenance",
+        "generated documents name their sources",
+        10.0 * provenance_result.checks_passed / provenance_result.checks_total,
+        detail=f"{provenance_result.checks_passed}/{provenance_result.checks_total} checks; "
+               "src/sidra_ai/evals/document_provenance.py",
+        kind=OUTCOME,
+    )
+
     honesty = evaluate_qa_honesty()
     c.add(
         "qa_offtopic_honesty",
