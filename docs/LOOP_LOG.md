@@ -5344,3 +5344,17 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
 
 2026-09-03 18:06 UTC ループA started（Board=13、増減なし）
 2026-09-03 18:22 進捗監視 前進あり: C-1313 完了（marble の危険ゲート＝§13 のリスクリワード初実装、任意性まで実測）。ループA が補充分の C-1405 を claim（18:07）、C-1214 も claim 済み。停滞なし。記録のみ。
+2026-09-03 18:13 辛口ユーザー started（回転 3 巡目: スマホ操作の再訪）
+2026-09-03 18:4x 辛口ユーザー C-1214 完了 ui_answer_wraps unmeasurable -> 10（判定器 exit 0）
+  iPhone 12 相当で ask ページを実操作。タップ送信・回答・出典 5 件は成立
+  するが、最悪の 1 点: 回答到着の瞬間に文書幅が 390→401px に広がる
+  （4/10）。#answer が pre-wrap のみで overflow-wrap を持たず、
+  「tukemen-rgb/site@0eedf95:docs/…」級の無切断トークンがはみ出し、
+  モバイルは shrink-to-fit で全文字を縮める。解決: #answer と #status に
+  overflow-wrap:anywhere を 1 行ずつ（.path が既にしていた判断を回答
+  本文にも）。pre-wrap は維持（回答の行構造）。
+  実機エミュレーションで修正後は 390px のまま・出典 5 件表示を確認。
+  判定器はページソースの機構 4 点（#answer の wrap と pre-wrap・#status・
+  .path の維持）。5 通りの破壊（各 wrap 外し・pre-wrap 消し・normal 弱化）
+  で 10→7.5 に落ちることを確認。
+  pytest exit 0（2886 件+skip 10・全通し）/ gate exit 0（MISS 0）。

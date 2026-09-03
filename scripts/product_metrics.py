@@ -607,6 +607,23 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1214: a long citation token widened the page past a phone viewport
+    # and the browser shrank every glyph to fit. The wrap mechanics are
+    # pinned on the page source; the E2E (scrollWidth == viewport after an
+    # answer, iPhone emulation) ran at fix time, recorded in the loop log.
+    from sidra_ai.evals.ui_answer_wraps import evaluate_ui_answer_wraps
+
+    wraps = evaluate_ui_answer_wraps()
+    c.add(
+        "ui_answer_wraps",
+        "the answer stays inside a phone viewport",
+        10.0 * wraps.checks_passed / wraps.checks_total,
+        detail=f"{wraps.checks_passed}/{wraps.checks_total} checks; "
+               "src/sidra_ai/evals/ui_answer_wraps.py"
+               + ("" if wraps.passed else "; " + "; ".join(wraps.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1211: failures surfaced as bare HTTP codes; the page now maps the
     # reachable classes to Japanese guidance while the error body stays
     # hidden and the code stays printed.

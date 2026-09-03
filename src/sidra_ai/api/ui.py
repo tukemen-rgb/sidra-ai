@@ -54,8 +54,12 @@ ASK_PAGE = """<!doctype html>
   .row { margin-bottom: 1rem; }
   button { font: inherit; padding: .5rem 1.25rem; border-radius: .25rem; cursor: pointer; }
   button[disabled] { opacity: .5; cursor: progress; }
-  #answer { white-space: pre-wrap; margin: 1.5rem 0 0; }
-  #status { margin: 1rem 0 0; font-size: .875rem; opacity: .8; }
+  /* overflow-wrap on the answer and status for the same reason .path has
+     it: citation labels and error text carry long unbroken tokens, and on
+     a phone one such token widens the document past the viewport - the
+     browser then shrinks every glyph on the page to fit (C-1214). */
+  #answer { white-space: pre-wrap; overflow-wrap: anywhere; margin: 1.5rem 0 0; }
+  #status { margin: 1rem 0 0; font-size: .875rem; opacity: .8; overflow-wrap: anywhere; }
   ol { padding-left: 1.25rem; }
   li { margin-bottom: .5rem; font-size: .875rem; }
   .path { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
