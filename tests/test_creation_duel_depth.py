@@ -148,3 +148,49 @@ def test_leaving_the_locked_lane_is_a_dodge_and_staying_is_a_hit():
 
     assert seen["dodged"]["hpAfter"] == seen["dodged"]["hpBefore"]
     assert seen["stayed"]["hpAfter"] == seen["stayed"]["hpBefore"] - 1
+
+
+def _paced(request: str = "ビームで撃ち合うゲームを作って") -> dict:
+    """Twelve dodged volleys per act - full health, first blood, match point."""
+
+    import json as _json
+
+    from sidra_ai.creation.duel import pace_probe
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    page = generate_game(request).html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=pace_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return _json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_match_point_charges_faster_than_the_opening_bell():
+    """§6's second-half change (C-1318), measured off the running fight."""
+
+    paced = _paced()
+    rates = [paced[act]["rate"] for act in ("opening", "middle", "clutch")]
+
+    assert rates[0] < rates[1] < rates[2], "the fill rate steps with the act"
+    assert abs(rates[2] / rates[0] - 1.3) < 0.02
+    assert paced["clutch"]["mean"] < paced["opening"]["mean"], (
+        "the last act is faster end to end, not only on paper"
+    )
+
+
+def test_the_crescendo_never_eats_the_telegraph():
+    """C-1309's fairness survives every act: 15+ frames of locked warning."""
+
+    paced = _paced()
+
+    for act in ("opening", "middle", "clutch"):
+        assert paced[act]["minLock"] >= 15, (act, paced[act]["minLock"])
+    assert paced["state"] == "play", "a perfect dodger is never hit"

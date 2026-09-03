@@ -75,10 +75,25 @@ const OVER_LIMIT=48,STUN_FRAMES=90;
    number C-1022 itself measured) could answer. Eighteen frames of locked,
    visible aim is what turns "read the aura" from a promise into a rule. */
 const AIM_LOCK=18;
+/* §6's second-half change (C-1318), duel edition: the guardian and the
+   kaiju both quicken past half health, but this - the only versus mode -
+   used to volley at the same pace at match point as at the opening bell.
+   The act is how close anyone is to losing: both fresh, first blood,
+   match point. The foe's charge fills faster and its pauses shrink by
+   the same multipliers the shooter's and marble's acts use; the player's
+   own charge is untouched (the boss changes, your sword does not), and
+   the aim-lock offset scales WITH the rate so the locked telegraph is
+   exactly AIM_LOCK frames of wall-clock warning in every act (C-1309). */
+const TENSE=[1,1.15,1.3];
+function duelAct(){if(!p||!e)return 0;
+  const low=Math.min(p.hp,e.hp);
+  return low<=1?2:(p.hp<3||e.hp<3)?1:0}
+function tempo(){return TENSE[duelAct()]}
 let p,e,state,winner,flash,spark,mash;
 function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,
   think:0,hitLock:false,over:0,stun:0,aim:-1,fireAt:0}}
 function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
+  act:duelAct(),tense:TENSE.slice(),
   playerStun:p?p.stun:0,playerOver:p?p.over:0,enemyStun:e?e.stun:0,
   aim:e?e.aim:-1,aimLock:AIM_LOCK,enemyHold:e?e.hold:false,
   enemyCharge:e?e.charge:0,enemyFireAt:e?e.fireAt:0,
@@ -114,7 +129,7 @@ function fire(f){if(state!=='play'||!f.hold||f.stun>0)return;f.hold=false;f.over
   f.charge=0}
 function cpu(){if(e.stun>0){e.stun--;return}
   e.think--;
-  if(e.think<=0){e.think=(CTHINK+rand()*CTHINK)*CPU_THINK;
+  if(e.think<=0){e.think=(CTHINK+rand()*CTHINK)*CPU_THINK/tempo();
     const move=rand();
     /* A body that wandered off its own locked sightline would make the
        telegraph a lie twice over, so thinking moves only while unaimed. */
@@ -126,11 +141,11 @@ function cpu(){if(e.stun>0){e.stun--;return}
          AIM_LOCK frames before that point - where. Nothing about it is
          re-rolled at the trigger (C-1309). */
       e.fireAt=CPU_FIRE[0]+rand()*CPU_FIRE[1];e.aim=-1}}
-  if(e.hold){e.charge+=0.9*CSPEED;
+  if(e.hold){e.charge+=0.9*CSPEED*tempo();
     /* Same rule, same fighter: an opponent immune to the overload would be
        a penalty on the player rather than a rule of the game. */
     if(e.charge>=100){e.over++;if(e.over>OVER_LIMIT){e.aim=-1;overload(e);return}}
-    if(e.aim<0&&e.charge>=e.fireAt-AIM_LOCK*0.9*CSPEED){
+    if(e.aim<0&&e.charge>=e.fireAt-AIM_LOCK*0.9*CSPEED*tempo()){
       e.aim=p.lane;e.lane=e.aim}
     if(e.charge>e.fireAt){e.hold=false;e.over=0;
       e.beamLane=e.aim>=0?e.aim:e.lane;e.lane=e.beamLane;
@@ -340,6 +355,75 @@ def aim_probe(script: str) -> str:
     return AIM_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The whole match's tempo, measured act by act (§6, C-1318): a perfect
+#: dodger takes twelve volleys at full health, at first blood, and at match
+#: point, and the frames between shots must shrink while the locked
+#: telegraph window stays as long as ever.
+PACE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const keyHandlers = [];
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') keyHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
+const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+keyHandlers.forEach(fn => fn(press));
+run(2);
+/* Twelve dodged volleys at one health state: step off the locked lane
+   every frame, record the gap between consecutive shots and how long the
+   aim stayed locked before each. */
+function paceOf(hp, volleys){
+  e.hp = hp; p.hp = 3;
+  const gaps = [], locks = [];
+  let guard = 0, lastFire = null, frame = 0, lockAt = null;
+  let fired = 0, wasBeam = false, wasAim = false, chargeRate = 0;
+  while (fired < volleys && guard++ < 30000) {
+    if (e.aim >= 0 && p.lane === e.aim) { p.lane = (e.aim + 1) % 3 }
+    const c0 = e.charge;
+    run(1); frame++;
+    /* The foe's fill rate, read off a single frame of holding: this is
+       the deterministic half of the act's tempo, free of the volley
+       timing's seeded noise. */
+    if (e.charge > c0) { chargeRate = Math.max(chargeRate, e.charge - c0) }
+    if (e.aim >= 0 && !wasAim) { lockAt = frame }
+    wasAim = e.aim >= 0;
+    const isBeam = e.beam > 0;
+    if (isBeam && !wasBeam) {
+      if (lastFire !== null) gaps.push(frame - lastFire);
+      if (lockAt !== null) locks.push(frame - lockAt);
+      lastFire = frame; lockAt = null; fired++;
+    }
+    wasBeam = isBeam;
+  }
+  const mean = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null;
+  return { act: duelFacts().act, mean: mean, n: gaps.length, rate: chargeRate,
+    minLock: locks.length ? Math.min.apply(null, locks) : null };
+}
+const opening = paceOf(3, 12);
+const middle = paceOf(2, 12);
+const clutch = paceOf(1, 12);
+console.log(JSON.stringify({ style: duelFacts().style, tense: duelFacts().tense,
+  opening: opening, middle: middle, clutch: clutch,
+  state: state, pHp: p.hp }));
+"""
+
+
+def pace_probe(script: str) -> str:
+    """The page's own script, wrapped so the match's tempo can be timed."""
+
+    return PACE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "DUEL_DIFFICULTY",
     "DUEL_HOW",
@@ -347,6 +431,8 @@ __all__ = [
     "DUEL_TITLE",
     "DUEL_WORDS",
     "AIM_PROBE",
+    "PACE_PROBE",
+    "pace_probe",
     "PROBE",
     "aim_probe",
     "probe_source",

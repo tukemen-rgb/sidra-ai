@@ -3125,6 +3125,79 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- match point plays faster than the opening bell ----------------
+    #
+    # §6's second-half change, duel edition (C-1318): the guardian and the
+    # kaiju both quicken past half health, but the only versus mode used
+    # to volley at the same pace at match point as at the opening. A
+    # perfect dodger now takes twelve volleys at full health, at first
+    # blood, and at match point: the foe's measured fill rate must step
+    # ×1.15/×1.3 (the shooter's and marble's act table), the match point
+    # must be behaviourally faster end to end, and the locked telegraph
+    # must still give 15+ frames of warning in the last exchange - the
+    # crescendo is not allowed to eat the fairness it plays over.
+    from sidra_ai.creation.duel import pace_probe as _duel_pace_probe
+
+    pace_gaps: list[str] = []
+    for _pace_req in ("ビームで撃ち合うゲームを作って", "難しい対戦ゲームを作って"):
+        _pace_page = generate_game(_pace_req).html
+        _pace_script = _scene_re.search(r"<script>(.*?)</script>", _pace_page, _scene_re.S)
+        if _pace_script is None:
+            pace_gaps.append(f"{_pace_req}: no script")
+            continue
+        try:
+            _pace_run = _scene_sp.run(
+                ["node", "-"],
+                input=_duel_pace_probe(_pace_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _pace_run.returncode != 0:
+                pace_gaps.append(f"{_pace_req}: {_pace_run.stderr.strip()[:60]}")
+                continue
+            _pace = json.loads(_pace_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            pace_gaps.append(f"{_pace_req}: probe unavailable ({type(exc).__name__})")
+            continue
+        _acts = (_pace.get("opening"), _pace.get("middle"), _pace.get("clutch"))
+        # Twelve shots leave eleven measured gaps between them.
+        if any(a is None or a.get("n") != 11 for a in _acts):
+            pace_gaps.append(f"{_pace_req}: an act was not fought out")
+            continue
+        _rates = [a["rate"] for a in _acts]
+        if not (_rates[0] < _rates[1] < _rates[2]):
+            pace_gaps.append(f"{_pace_req}: the fill rate ignores the act ({_rates})")
+        elif abs(_rates[2] / _rates[0] - 1.3) > 0.02:
+            pace_gaps.append(
+                f"{_pace_req}: match point fills x{_rates[2] / _rates[0]:.2f}, not x1.3"
+            )
+        if _acts[2]["mean"] >= _acts[0]["mean"]:
+            pace_gaps.append(
+                f"{_pace_req}: match point is no faster end to end "
+                f"({_acts[0]['mean']:.0f} -> {_acts[2]['mean']:.0f} frames)"
+            )
+        if any(a["minLock"] is None or a["minLock"] < 15 for a in _acts):
+            pace_gaps.append(
+                f"{_pace_req}: the crescendo ate the telegraph "
+                f"({[a['minLock'] for a in _acts]})"
+            )
+        if _pace.get("state") != "play":
+            pace_gaps.append(f"{_pace_req}: the measured match ended by itself")
+    c.add(
+        "creation_duel_matchpoint",
+        "土壇場が開幕より速い",
+        0.0 if pace_gaps else 1.0,
+        detail=(
+            "; ".join(pace_gaps)
+            if pace_gaps
+            else "完全回避で各幕 12 ボレーを実測: 敵のチャージ充填率が幕ごとに"
+            "×1.15/×1.3 と上がり、土壇場は開幕より実測で速く、ロック→発射の"
+            "予兆は全幕 15f 以上のまま（§6 の後半変化・公正予兆 C-1309 と両立）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the other half of the coyote window ---------------------------
     #
     # §12: a jump pressed and held a few frames before landing fires on
