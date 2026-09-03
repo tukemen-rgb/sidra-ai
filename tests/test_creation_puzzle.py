@@ -129,3 +129,49 @@ def test_difficulty_changes_the_board_rather_than_the_wording():
         r"COLOURS=tuneNum\('speed',(\d+)\),COLS=tuneNum\('band',(\d+)\)", page
     ).groups()
     assert grab(easy) != grab(hard)
+
+
+def _flown(*, reduced: bool = False) -> dict:
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    from sidra_ai.creation.puzzle import probe_source
+
+    page = generate_game("パズルゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=probe_source(script.group(1), reduced=reduced),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_collapse_is_an_ease_and_not_a_teleport():
+    """§1 トゥイーン: the fall is seen. Popped and watched on the running page.
+
+    Right after the pop the board is away from rest, mid-flight it has
+    moved back but not arrived (an ease, not a delayed snap), and by the
+    end it is exactly at rest.
+    """
+
+    facts = _flown()
+
+    assert facts["hadTarget"], "the board offered a group with a tile above it"
+    assert facts["scoreAfter"] > facts["scoreBefore"], "the measured pop happened"
+    assert facts["movingAtPop"] > 0
+    assert 0 < facts["movingMid"] < facts["movingAtPop"]
+    assert facts["movingSettled"] == 0
+
+
+def test_reduced_motion_keeps_the_snap():
+    """The tween is decoration: under reduced motion the board never moves."""
+
+    facts = _flown(reduced=True)
+
+    assert facts["scoreAfter"] > facts["scoreBefore"], "the game itself still works"
+    assert facts["movingAtPop"] == 0
+    assert facts["movingMid"] == 0

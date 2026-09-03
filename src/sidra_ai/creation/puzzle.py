@@ -20,6 +20,10 @@ colours are in play (fewer is easier), ``BAND_TOKEN`` the board width,
 ``SEED_TOKEN`` the layout. ``REDUCED``/``FRAME`` come from the animation
 preamble - the cursor's pulse freezes, the puzzle does not - and
 ``sfx``/``shake``/``hitstop``/``burst`` from the audio and juice preambles.
+The collapse is animated (§1 トゥイーン): the grid is final the frame a
+group pops, but each tile keeps a visual offset from its new square that
+eases to zero, so the fall is seen instead of teleported - and under
+reduced motion no offset is ever written.
 """
 
 from __future__ import annotations
@@ -55,11 +59,12 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
 const ROWS=8,CELL=Math.min(30,Math.floor((cv.height-70)/ROWS));
 const OX=Math.round((cv.width-COLS*CELL)/2),OY=44;
 const PALETTE=['CYAN_TOKEN','MAGENTA_TOKEN','#e8c46a','#7fd18a','#9a8cf0'];
-let grid,cur,score,state,cleared;
-function reset(){rs=(SEED>>>0)||1;grid=[];score=0;state='play';cleared=false;
-  cur={x:0,y:0};
-  for(let y=0;y<ROWS;y++){const row=[];
-    for(let x=0;x<COLS;x++){row.push(Math.floor(rand()*COLOURS))}grid.push(row)}}
+let grid,cur,score,state,cleared,offY,offX;
+function reset(){rs=(SEED>>>0)||1;grid=[];offY=[];offX=[];score=0;state='play';
+  cleared=false;cur={x:0,y:0};
+  for(let y=0;y<ROWS;y++){const row=[],oy=[],ox=[];
+    for(let x=0;x<COLS;x++){row.push(Math.floor(rand()*COLOURS));
+      oy.push(0);ox.push(0)}grid.push(row);offY.push(oy);offX.push(ox)}}
 /* Flood fill on colour, four-connected. Returns the cells, so the caller can
    both judge the move and know where to throw particles. */
 function group(x,y){const c=grid[y][x];if(c<0)return [];
@@ -72,16 +77,32 @@ function group(x,y){const c=grid[y][x];if(c<0)return [];
     stack.push([px+1,py],[px-1,py],[px,py+1],[px,py-1])}
   return out}
 /* Down, then left: the two collapses are what make an early move change
-   every later one. */
+   every later one. The LOGIC is still instant - the board below is final
+   the frame the group pops - but each move is recorded as a visual offset
+   (pixels above / right of the final square) that settle() eases to zero,
+   so the fall is seen instead of teleported (§1 トゥイーン). Offsets carry
+   through both passes and through chained pops mid-flight; under reduced
+   motion no offset is written and the board keeps snapping. */
 function collapse(){
   for(let x=0;x<COLS;x++){const col=[];
-    for(let y=ROWS-1;y>=0;y--){if(grid[y][x]>=0)col.push(grid[y][x])}
-    for(let y=ROWS-1,i=0;y>=0;y--,i++){grid[y][x]=i<col.length?col[i]:-1}}
+    for(let y=ROWS-1;y>=0;y--){if(grid[y][x]>=0)col.push(
+      {v:grid[y][x],oy:y,rem:offY[y][x]})}
+    for(let y=ROWS-1,i=0;y>=0;y--,i++){
+      if(i<col.length){grid[y][x]=col[i].v;
+        offY[y][x]=REDUCED?0:col[i].rem+(y-col[i].oy)*CELL}
+      else{grid[y][x]=-1;offY[y][x]=0}}}
   let write=0;
   for(let x=0;x<COLS;x++){let full=false;
     for(let y=0;y<ROWS;y++){if(grid[y][x]>=0)full=true}
     if(full){if(write!==x){for(let y=0;y<ROWS;y++){grid[y][write]=grid[y][x];
-      grid[y][x]=-1}}write++}}}
+      offY[y][write]=offY[y][x];
+      offX[y][write]=REDUCED?0:offX[y][x]+(x-write)*CELL;
+      grid[y][x]=-1;offY[y][x]=0;offX[y][x]=0}}write++}}}
+/* Exponential ease-out, the identity under reduced motion: ~0.3s from a
+   full-board drop to rest, snapped to the grid below half a pixel. */
+function settle(){for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
+  offY[y][x]*=0.72;if(offY[y][x]<0.5)offY[y][x]=0;
+  offX[y][x]*=0.72;if(offX[y][x]<0.5)offX[y][x]=0}}}
 function movesLeft(){for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
   if(grid[y][x]>=0&&group(x,y).length>1)return true}}return false}
 function pop(){if(state!=='play')return;
@@ -119,7 +140,7 @@ function draw(now){
   cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,cv.width,cv.height);
   for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){const v=grid[y][x];
     if(v<0)continue;
-    const px=OX+x*CELL,py=OY+y*CELL;
+    const px=OX+x*CELL+offX[y][x],py=OY+y*CELL-offY[y][x];
     cx.fillStyle=PALETTE[v]||'CYAN_TOKEN';
     cx.fillRect(px+1,py+1,CELL-2,CELL-2);
     /* Shape as well as colour (C-1018): each colour carries its own pip
@@ -142,9 +163,85 @@ function draw(now){
     cx.font='13px ui-monospace,monospace';
     const b='得点 '+score+' / SPACE か R でもう一度';
     cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}}
-function step(){draw(performance.now());requestAnimationFrame(step)}
+function step(){settle();draw(performance.now());requestAnimationFrame(step)}
+/* Read back off the running page: how far the board is from rest, and a
+   group whose pop is guaranteed to drop something (a member with a foreign
+   tile directly above), so a probe measures a real fall, not a lucky one. */
+function puzzleFacts(){let mx=0;
+  for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
+    mx=Math.max(mx,offY[y][x],offX[y][x])}}
+  let tx=-1,ty=-1;
+  outer:for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
+    if(grid[y][x]<0)continue;const g=group(x,y);if(g.length<2)continue;
+    const k={};g.forEach(c=>{k[c[0]+','+c[1]]=1});
+    for(const [gx,gy] of g){if(gy>0&&grid[gy-1][gx]>=0&&!k[gx+','+(gy-1)]){
+      tx=x;ty=y;break outer}}}}
+  return {state:state,score:score,moving:mx,
+    cur:{x:cur.x,y:cur.y},target:{x:tx,y:ty}}}
 reset();step();
 """
+
+#: The page driven in node: the browser is the same no-op proxy the other
+#: template probes build. One guaranteed-to-fall group is popped and the
+#: board's distance from rest is read the frame after, then again once the
+#: settle should be over - and under reduced motion the same pop must
+#: never move at all.
+PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+/* Past the briefing gate - the gate press may also reach the template and
+   pop at the starting cursor, so the board is given time to come to rest
+   before the measured pop. Then walk the cursor onto the falling group. */
+key(' ');
+run(40);
+const before = puzzleFacts();
+const t = before.target;
+if (t.x >= 0) {
+  while (puzzleFacts().cur.x !== t.x) key(puzzleFacts().cur.x < t.x ? 'ArrowRight' : 'ArrowLeft');
+  while (puzzleFacts().cur.y !== t.y) key(puzzleFacts().cur.y < t.y ? 'ArrowDown' : 'ArrowUp');
+}
+key(' ');
+const justPopped = puzzleFacts();
+run(6);
+const midFlight = puzzleFacts();
+run(60);
+const settled = puzzleFacts();
+console.log(JSON.stringify({
+  hadTarget: t.x >= 0,
+  scoreBefore: before.score, scoreAfter: justPopped.score,
+  movingAtPop: justPopped.moving, movingMid: midFlight.moving,
+  movingSettled: settled.moving, state: settled.state,
+}));
+"""
+
+
+def probe_source(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so one pop can be watched in node."""
+
+    return PROBE.replace("REDUCED_INPUT", "true" if reduced else "false").replace(
+        "SCRIPT_PLACEHOLDER", script
+    )
 
 __all__ = [
     "PUZZLE_DIFFICULTY",
@@ -152,4 +249,6 @@ __all__ = [
     "PUZZLE_SCRIPT",
     "PUZZLE_TITLE",
     "PUZZLE_WORDS",
+    "PROBE",
+    "probe_source",
 ]

@@ -2011,6 +2011,73 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the fall is seen, not teleported ------------------------------
+    #
+    # §1's technique list - sound, shake, hitstop, particles - was wired
+    # long ago; the tween was wired nowhere. For a SameGame the collapse
+    # IS the juice, and until C-1303 the board snapped in one frame. This
+    # number pops one guaranteed-to-fall group on the running page and
+    # watches the board: moving right after the pop, strictly less but
+    # still moving mid-flight (an ease, not a delayed snap), at rest by
+    # the end - and under reduced motion, never moving at all.
+    from sidra_ai.creation.puzzle import probe_source as _puzzle_probe
+
+    tween_gaps: list[str] = []
+    tween_page = generate_game("パズルゲームを作って").html
+    tween_script = _scene_re.search(r"<script>(.*?)</script>", tween_page, _scene_re.S)
+    if tween_script is None:
+        tween_gaps.append("no script on the page")
+    else:
+        for label, reduced in (("normal", False), ("reduced", True)):
+            try:
+                tween_probe = _scene_sp.run(
+                    ["node", "-"],
+                    input=_puzzle_probe(tween_script.group(1), reduced=reduced),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if tween_probe.returncode != 0:
+                    raise ValueError(tween_probe.stderr.strip()[:60])
+                seen = json.loads(tween_probe.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                tween_gaps.append(f"{label}: probe unavailable ({exc})")
+                continue
+            if not seen.get("hadTarget") or seen.get("scoreAfter", 0) <= seen.get(
+                "scoreBefore", 0
+            ):
+                tween_gaps.append(f"{label}: the measured pop did not happen")
+                continue
+            if reduced:
+                if seen["movingAtPop"] != 0 or seen["movingMid"] != 0:
+                    tween_gaps.append(
+                        f"reduced motion still animates ({seen['movingAtPop']}px)"
+                    )
+            else:
+                if seen["movingAtPop"] <= 0:
+                    tween_gaps.append("the board teleports: no offset at the pop")
+                elif not (0 < seen["movingMid"] < seen["movingAtPop"]):
+                    tween_gaps.append(
+                        f"not an ease: {seen['movingAtPop']}px -> "
+                        f"{seen['movingMid']}px mid-flight"
+                    )
+                elif seen["movingSettled"] != 0:
+                    tween_gaps.append(
+                        f"never comes to rest ({seen['movingSettled']}px left)"
+                    )
+    c.add(
+        "creation_puzzle_tween",
+        "盤面の落下が見える型",
+        0.0 if tween_gaps else 1.0,
+        detail=(
+            "; ".join(tween_gaps)
+            if tween_gaps
+            else "puzzle で 1 手を実際に消して計測: 直後は動き、途中は減衰し、"
+            "静止する。reduced-motion では最初から動かない"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the
