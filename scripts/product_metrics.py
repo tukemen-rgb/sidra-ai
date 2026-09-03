@@ -1354,6 +1354,24 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- keyboard play stays on the board -------------------------------
+    #
+    # C-1215: arrows and Space scrolled the page under the game (208px in
+    # six presses, every template). The guard's mechanics are pinned across
+    # templates; the browser-level proof ran at fix time (loop log).
+    from sidra_ai.evals.keys_dont_scroll import evaluate_keys_dont_scroll
+
+    scroll_guard = evaluate_keys_dont_scroll()
+    c.add(
+        "creation_keys_dont_scroll",
+        "矢印と SPACE がページをスクロールさせない",
+        10.0 * scroll_guard.checks_passed / scroll_guard.checks_total,
+        detail=f"{scroll_guard.checks_passed}/{scroll_guard.checks_total} checks; "
+               "src/sidra_ai/evals/keys_dont_scroll.py"
+               + ("" if scroll_guard.passed else "; " + "; ".join(scroll_guard.failures)),
+        kind=OUTCOME,
+    )
+
     # --- the fishing target is actually drawn ---------------------------
     #
     # C-1206: the default template's target was `sprite('target',...,'')` -

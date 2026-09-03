@@ -260,6 +260,20 @@ step();
 #: before this existed. With sprites it still falls through until the image
 #: has decoded, and permanently if the file is missing - a production whose
 #: assets directory was emptied stays playable rather than blank.
+#: Keyboard play must not scroll the page (C-1215). The browser's default
+#: for arrows and Space is scrolling, so walking south in the adventure
+#: pushed the board off screen (208px in six presses - and every template
+#: shares this shell). Guarded once, on the native listener before the
+#: remap wrapper exists, and only when focus is not on a form control:
+#: the tuning panel's sliders and inputs keep their arrow keys.
+_SCROLL_GUARD = """
+addEventListener('keydown',function(e){
+  const t=(e.target&&e.target.tagName)||'';
+  if(/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t))return;
+  if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0)e.preventDefault();
+});
+"""
+
 _SPRITE_LOADER = """
 const SPRITES=SPRITE_MAP_TOKEN,IMAGES={};
 Object.keys(SPRITES).forEach(function(name){
@@ -680,11 +694,15 @@ def generate_game(
         # frame. Juice wraps first so the pad ends up drawn on top of the
         # particles rather than under them.
         (
-            # First of everything: the key re-assignment (§4, C-1305) wraps
-            # addEventListener, so it must exist before any preamble or
-            # template registers a handler - otherwise a remapped key would
-            # reach some listeners in the old spelling.
-            remap_preamble_for(key, spec.script)
+            # Before even the remap wrapper: the scroll guard rides the
+            # native addEventListener, so the page never scrolls under the
+            # game whatever later wrappers do to key events (C-1215).
+            _SCROLL_GUARD
+            # First of everything else: the key re-assignment (§4, C-1305)
+            # wraps addEventListener, so it must exist before any preamble
+            # or template registers a handler - otherwise a remapped key
+            # would reach some listeners in the old spelling.
+            + remap_preamble_for(key, spec.script)
             # The skins before the panel: TUNE_ACCENT is resolved through
             # skinAccent, so the colour a template paints with is the one
             # the player earned unless they picked one by hand (C-1109).

@@ -5409,3 +5409,32 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
 
 2026-09-03 19:13 UTC ループA started（Board=13、増減なし）
 2026-09-03 19:22 進捗監視 前進あり: C-1405 完了（catch にコンボ倍率、補充分 2 件目の消化）・C-1314 完了（marble のエスカレーション）。C-1406 をループA が claim（19:14）、C-1215 も claim 済み。停滞なし。記録のみ。
+
+2026-09-03 19:12 UTC 辛口ユーザー C-1215 完了（4 巡目 生成ゲーム・2/10 → 解決）
+  「矢印キーで遊ぶとゲームがページごとスクロールして画面外へ」。
+  adventure を実プレイ: ↓ 6 回でページが 208px 流れ、盤面が上へ消える。
+  SPACE でも 32px。puzzle・shooter も同値——共通シェル全テンプレの欠陥。
+
+  **最小の解決**: `_SCROLL_GUARD` を games.py の preamble 鎖の先頭
+  （remap より前＝素の addEventListener）に 1 つ追加。矢印 4 方向と
+  SPACE の keydown を preventDefault——ただしフォーカスが
+  INPUT/TEXTAREA/SELECT/BUTTON にあるときは素通し（調整パネルの
+  スライダーは矢印キーで動き続ける）。
+
+  **E2E 実測**（Playwright・再生成ページ）: ↓×6 → scrollY 0、
+  SPACE×3 → 0（修正前 208/32）。range 入力への ArrowDown は
+  defaultPrevented:false——フォーム部品は無傷。
+
+  **評価の目印は 2 度締め直した**（正直に記録）: ①破壊④で
+  「最初の e.preventDefault(); を消す」が fishing 側の handler に当たり
+  ガードが残ったまま検出——目印を複合文字列
+  `indexOf(e.key)>=0)e.preventDefault()` に変更。②SPACE だけ外す破壊が
+  すり抜け——鍵リストの目印を `' ',` 始まりに変更。締め直し後、
+  破壊 5 通り（鎖から外す／フォーム除外を消す／矢印を外す／SPACE を
+  外す／ガードを noop 化）すべてで 10→2.0 に落ちることを確認。
+
+  判定器 exit 0: creation_keys_dont_scroll unmeasurable→10。
+  ※compare には creation_combo_multiplier unmeasurable→1 も並ぶが、
+  これはループAの C-1405 の数字（事前計測の baseline が pull 前のため
+  巻き込まれた）。本サイクルの動いた数字は keys_dont_scroll のみ。
+  pytest 全通し（exit 0・FAILED 0・約 2,900 件）。gate MISS 0。
