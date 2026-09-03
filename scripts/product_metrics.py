@@ -676,6 +676,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1218: C-1211 translated HTTP status codes, but a fetch that never
+    # reached the server rejected with an English TypeError string shown
+    # verbatim (「失敗: Failed to fetch」). reason() now maps the network
+    # rejection to Japanese guidance; the real page aborting /v1/chat was
+    # verified at fix time, recorded in the loop log.
+    from sidra_ai.evals.ui_network_error_guidance import (
+        evaluate_ui_network_error_guidance,
+    )
+
+    net_guidance = evaluate_ui_network_error_guidance()
+    c.add(
+        "ui_network_error_guidance",
+        "サーバーに繋がらないとき日本語で対処を示す",
+        10.0 * net_guidance.checks_passed / net_guidance.checks_total,
+        detail=f"{net_guidance.checks_passed}/{net_guidance.checks_total} checks; "
+               "src/sidra_ai/evals/ui_network_error_guidance.py"
+               + ("" if net_guidance.passed else "; " + "; ".join(net_guidance.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1210: the server carried chat history; the browser page never sent
     # it, so every follow-up question abstained. Mechanics pinned on the
     # page source; the end-to-end run lives in the loop log.

@@ -5665,3 +5665,38 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
 
 2026-09-03 22:08 UTC ループA started（Board=13、増減なし）
 2026-09-03 22:22 進捗監視 前進あり: C-1317 完了（SFX ピッチジッタ、同一音の反復を計器が言い当てる）。ループA が補充分 C-1408 を claim（22:08）、C-1218 も claim 済み。停滞なし。記録のみ。
+
+2026-09-03 22:12 UTC 辛口ユーザー C-1218 完了（4 巡目 エラー文言・4/10 → 解決）
+  「サーバーに繋がらないと画面に『失敗: Failed to fetch』」。ask 画面で
+  質問中にローカルの sidra-api が落ちる／未起動だと応答が返らず fetch が
+  拒否され、catch が `error.message` をそのまま表示——全編日本語の UI に
+  英語のブラウザ文字列が出て、しかも「サーバーを起動する・接続を確認する」
+  という次の一手が一言も無い。C-1211 の `explain()` は HTTP ステータス
+  専用で、応答が 1 つも返らない fetch 拒否（TypeError）はそこを通らない。
+  5 つの catch（回答・一覧取得・ダウンロード×2）すべて同じ。
+
+  **最小の解決**: `reason(error)` を追加——fetch 拒否（TypeError）は
+  日本語の案内文「サーバーに接続できません。ローカルの sidra-api が
+  起動しているか、接続を確認してください」に、自前の HTTP エラー
+  （explain 由来・既に日本語）は `error.message` のまま通す。5 つの
+  catch を `error.message`→`reason(error)` に置換。仕様上 fetch の
+  ネットワーク層拒否は必ず TypeError なので分岐は確実。
+
+  **E2E 実測**（Playwright・実ページ）: `page.route('**/v1/chat',
+  abort('connectionrefused'))` で本物の送信フローを失敗させると
+  #status が「失敗: サーバーに接続できません。…」に。到達不能 port への
+  fetch reject が TypeError であることも確認。HTTP 422 の explain 文言は
+  reason を通しても素通し。
+
+  判定器 exit 0: ui_network_error_guidance unmeasurable→10（動いた数字は
+  この 1 つだけ）。破壊 5 通り（reason 撤去／TypeError 分岐撤去／案内文を
+  英語のまま／非ネットワークを握りつぶす／catch 1 つ取り残し）で
+  10→6.7/6.7/8.3/8.3/6.7。pytest 全通し（exit 0・FAILED 0）。gate OK。
+
+  ※ 実装中に ui.py が別ループの正規化で文字列リテラルの日本語が
+  \uXXXX に変換されていた（explain() と同じ体裁）。デコード内容は
+  正しく、5 catch の配線・import も確認済み。
+
+  次サイクル候補（6 点未満のみ）: ①commit 抜粋のトレーラ行ノイズ
+  （3/10）②「最近どんな変更が」に commit が出ない（3/10）——次は
+  スマホ操作に戻す巡目。

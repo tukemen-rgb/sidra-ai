@@ -124,6 +124,19 @@ ASK_PAGE = """<!doctype html>
     return why ? why + "\uff08HTTP " + status + "\uff09" : "HTTP " + status;
   }
 
+  // A fetch that never gets a response (server down, offline, connection
+  // dropped) rejects with a TypeError whose message is an English browser
+  // string - "Failed to fetch" / "Load failed" - which is meaningless in a
+  // Japanese UI and says nothing about what to do (C-1218). Our own
+  // HTTP-status errors are thrown as Error(explain(...)) and are already
+  // Japanese, so only the network-level rejection needs translating.
+  function reason(error) {
+    if (error instanceof TypeError) {
+      return "\u30b5\u30fc\u30d0\u30fc\u306b\u63a5\u7d9a\u3067\u304d\u307e\u305b\u3093\u3002\u30ed\u30fc\u30ab\u30eb\u306e sidra-api \u304c\u8d77\u52d5\u3057\u3066\u3044\u308b\u304b\u3001\u63a5\u7d9a\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044";
+    }
+    return error.message;
+  }
+
   function clear(node) {
     while (node.firstChild) { node.removeChild(node.firstChild); }
   }
@@ -187,7 +200,7 @@ ASK_PAGE = """<!doctype html>
         link.click();
         URL.revokeObjectURL(url);
       }).catch(function (error) {
-        artifactStatus.textContent = "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u306b\u5931\u6557: " + error.message;
+        artifactStatus.textContent = "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u306b\u5931\u6557: " + reason(error);
       });
   }
 
@@ -216,7 +229,7 @@ ASK_PAGE = """<!doctype html>
           artifactList.appendChild(item);
         });
       }).catch(function (error) {
-        artifactStatus.textContent = "\u4e00\u89a7\u306e\u53d6\u5f97\u306b\u5931\u6557: " + error.message;
+        artifactStatus.textContent = "\u4e00\u89a7\u306e\u53d6\u5f97\u306b\u5931\u6557: " + reason(error);
       });
   }
 
@@ -239,7 +252,7 @@ ASK_PAGE = """<!doctype html>
         link.click();
         URL.revokeObjectURL(url);
       }).catch(function (error) {
-        projectStatus.textContent = "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u306b\u5931\u6557: " + error.message;
+        projectStatus.textContent = "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u306b\u5931\u6557: " + reason(error);
       });
   }
 
@@ -285,7 +298,7 @@ ASK_PAGE = """<!doctype html>
           projectList.appendChild(item);
         });
       }).catch(function (error) {
-        projectStatus.textContent = "\u4e00\u89a7\u306e\u53d6\u5f97\u306b\u5931\u6557: " + error.message;
+        projectStatus.textContent = "\u4e00\u89a7\u306e\u53d6\u5f97\u306b\u5931\u6557: " + reason(error);
       });
   }
 
@@ -345,7 +358,7 @@ ASK_PAGE = """<!doctype html>
       loadArtifacts();
       loadProjects();
     }).catch(function (error) {
-      statusLine.textContent = "\u5931\u6557: " + error.message;
+      statusLine.textContent = "\u5931\u6557: " + reason(error);
     }).then(function () {
       send.disabled = false;
     });
