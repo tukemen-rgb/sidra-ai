@@ -2420,6 +2420,45 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the song knows the fight --------------------------------------
+    #
+    # §6 定量: combat cuts run at half the length of talk (2.1s vs 4.4s),
+    # so combat keeps time twice as fast. The sky (C-1301) and the gain
+    # (C-1034) already know the climax; C-1312 teaches the music: the same
+    # four bars reserve about twice the notes over the same frames while
+    # combat is on, and M still silences everything. Read off the same
+    # driven run as the music number above.
+    density_gaps: list[str] = []
+    if music_gaps:
+        density_gaps.append("the music itself is not passing")
+    elif len(heard) == 2:
+        seen = heard[0]
+        calm_n, fight_n = seen.get("calmN", 0), seen.get("fightN", 0)
+        if calm_n <= 0:
+            density_gaps.append("no calm baseline to compare against")
+        elif fight_n < calm_n * 1.6:
+            density_gaps.append(
+                f"combat does not quicken the pulse ({calm_n} -> {fight_n})"
+            )
+        elif fight_n > calm_n * 2.6:
+            density_gaps.append(
+                f"combat floods rather than doubles ({calm_n} -> {fight_n})"
+            )
+        if seen.get("afterN") != seen.get("atMuteN"):
+            density_gaps.append("M no longer silences the fight's music")
+    c.add(
+        "creation_music_combat_density",
+        "音楽が戦闘で倍速になる",
+        0.0 if density_gaps else 1.0,
+        detail=(
+            "; ".join(density_gaps)
+            if density_gaps
+            else "同一走行で計測: 同じ 300 フレームの予約数が combat 中は"
+            "約 2 倍（§6 定量の 2.1s/4.4s）。M ミュートは戦闘中も勝つ"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

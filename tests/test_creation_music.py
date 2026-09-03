@@ -70,3 +70,13 @@ def test_the_same_request_is_the_same_tune_and_pentatonic():
     # The walk stays on the ten pentatonic degrees (or rests): the property
     # that makes an unheard generated tune safe to ship (§10 事実 3).
     assert all(-1 <= d <= 9 for d in first["mel"])
+
+
+def test_combat_doubles_the_pulse_and_the_mute_still_wins():
+    """§6 定量 (C-1312): the same frames reserve about twice the notes in a fight."""
+
+    heard = _heard()
+
+    assert heard["calmN"] > 0
+    assert heard["calmN"] * 1.6 <= heard["fightN"] <= heard["calmN"] * 2.6
+    assert heard["afterN"] == heard["atMuteN"], "M silences combat music too"

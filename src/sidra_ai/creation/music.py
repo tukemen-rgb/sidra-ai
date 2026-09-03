@@ -96,13 +96,18 @@ function musicTick(tms){
      catching up a paused tab in one burst would be a chord of the whole
      backlog, not a resume. */
   if(MUSIC_NEXT<0||now-MUSIC_NEXT>1){MUSIC_NEXT=now}
+  /* The fight doubles the pulse (§6 定量: combat shots run at half the
+     length of talk - 2.1s vs 4.4s - so combat keeps time twice as fast).
+     Same four bars, same notes, twice the tread; the gain step §6 観察 4
+     already gives every note stays as it was, and M still wins. */
+  const stepNow=COMBAT?MUSIC_STEP*0.5:MUSIC_STEP;
   while(MUSIC_NEXT<now+MUSIC_AHEAD){
     const i=MUSIC_I%MUSIC_STEPS,off=MUSIC_NEXT-now;
     const m=MUSIC_MEL[i];
-    if(m>=0)musicNote(musicHz(m),off,MUSIC_STEP*0.9,0.045,'square');
+    if(m>=0)musicNote(musicHz(m),off,stepNow*0.9,0.045,'square');
     const b=MUSIC_BASS[i];
-    if(b>=0)musicNote(musicHz(b)/4,off,MUSIC_STEP*1.8,0.055,'triangle');
-    MUSIC_I++;MUSIC_NEXT+=MUSIC_STEP}}
+    if(b>=0)musicNote(musicHz(b)/4,off,stepNow*1.8,0.055,'triangle');
+    MUSIC_I++;MUSIC_NEXT+=stepNow}}
 /* The page's own frame loop is the JS-side clock. Later wrappers (pad,
    round) capture this one, so the tick survives the round banner too. */
 const MUSIC_RAF=requestAnimationFrame;
@@ -147,14 +152,24 @@ const before = musicFacts();
 key(' ');
 run(300);
 const playing = musicFacts();
-/* M mutes: no further notes are reserved. */
+/* The fight doubles the pulse: the same 300 frames must reserve about
+   twice the notes while combat is on (§6 定量, C-1312). */
+const calmN = musicFacts().scheduled - before.scheduled;
+combat(true);
+run(300);
+const fightN = musicFacts().scheduled - playing.scheduled;
+combat(false);
+/* M mutes: no further notes are reserved - in or out of combat. */
 key('m');
+combat(true);
 const atMute = musicFacts().scheduled;
 run(200);
+combat(false);
 const after = musicFacts();
 console.log(JSON.stringify({
   beforeOn: before.on, beforeN: before.scheduled,
-  playingN: playing.scheduled, atMuteN: atMute, afterN: after.scheduled,
+  playingN: playing.scheduled, calmN: calmN, fightN: fightN,
+  atMuteN: atMute, afterN: after.scheduled,
   mel: playing.mel, bass: playing.bass, steps: playing.steps,
 }));
 """

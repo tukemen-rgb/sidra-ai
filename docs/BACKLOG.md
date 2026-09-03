@@ -2848,7 +2848,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       Recorder に buffer/biquad を足し、hurt が noise+lowpass 経路・gem が
       oscillator 経路で鳴ることを実走行で読む。
       → 動かす数字: creation_sfx_texture unmeasurable→1
-- [~] 作業中 2026-09-03 16:42 辛口クリエイター **C-1312: BGM が戦闘を知らない（§6 定量の音楽側未反映）。**
+- [x] 完了 2026-09-03 17:05 UTC 辛口クリエイター（`creation_music_combat_density` unmeasurable→**1**、判定器 exit 0。musicTick の予約刻みを combat 中は MUSIC_STEP×0.5 に——同じ 4 小節が倍速で脈打つ。同一走行の probe で「同じ 300f の予約数 20→36（約 1.8 倍、休符込みで期待どおり）・M ミュートは戦闘中も勝つ・洪水化（>2.6 倍）も検出」を実測。破壊 2 通り〔刻み平坦/ミュートが combat に負ける〕で計器 0。pytest 2885 全通過・gate MISS 0）**C-1312: BGM が戦闘を知らない（§6 定量の音楽側未反映）。**
       （辛口クリエイターループ起票・観点=§6 の定量×§10。前回=§12）§6 定量の
       実測「戦闘のショット長 中央値 2.1s は会話 4.4s の約半分＝戦闘は
       イベントを 2 倍速で刻む」は C-1032（phase 間隔）と C-1034（音圧）には
