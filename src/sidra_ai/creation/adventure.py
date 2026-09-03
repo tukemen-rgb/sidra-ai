@@ -67,7 +67,7 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
 const NAMES=['森のはずれ','ひかり苔の洞窟','風の祭壇'];
 let rooms=[],enemies=[],room=0,msg='',msgT=0;
 let hero={x:0,y:0,dir:2,hp:3,gems:0,key:false,swing:0,inv:0};
-let state='play';let keyDrop=null;
+let state='play';let keyDrop=null;let FIRSTCUT=true;
 function empty(){const m=[];for(let y=0;y<GH;y++){const r=[];
   for(let x=0;x<GW;x++){r.push(x===0||y===0||x===GW-1||y===GH-1?1:0)}m.push(r)}return m}
 function carve(m,code,n){let put=0;while(put<n){const x=2+Math.floor(rand()*(GW-4)),
@@ -76,6 +76,10 @@ function pond(m){const px=4+Math.floor(rand()*(GW-10)),py=2+Math.floor(rand()*(G
   for(let y=py;y<py+2;y++){for(let x=px;x<px+3;x++){if(m[y][x]===0){m[y][x]=3}}}}
 function build(){
   const forest=empty();carve(forest,2,14);pond(forest);forest[3][3]=8;forest[4][GW-1]=5;
+  /* One tuft of grass right where the hero wakes, whatever the seed did
+     (§8 事実 5). carve() and pond() place by luck, so on some seeds the
+     first swing hit nothing at all and the opening had no answer. */
+  forest[4][3]=2;
   /* the sink: somewhere to spend gems, on the way out of the first room */
   forest[6][6]=9;
   const cave=empty();carve(cave,1,10);cave[0][6]=4;cave[0][13]=4;
@@ -97,7 +101,7 @@ function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
      next to the door bites the hero before the room is even visible */
   ||Math.abs(x-1)+Math.abs(y-4)<5);
   return {x:OX+x*TILE+8,y:OY+y*TILE+8,dx:0,dy:0,t:0,alive:true}}
-function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';
+function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRSTCUT=true;
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
     charm:false,swing:0,inv:0};
   say('ぼうしの勇者、めざめる。')}
@@ -119,7 +123,10 @@ function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword
     const t=rooms[room][ty][tx];
     if(t===2){rooms[room][ty][tx]=0;sfx('cut');
       burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,10,'ACCENT_JUICE');
-      if(rand()<0.34){hero.gems++;say('草のかげに宝石があった。');sfx('gem');
+      /* The first cut always pays. After that the odds are the odds -
+         what §8 asks for is a first success, not an easier game. */
+      if(FIRSTCUT||rand()<0.34){FIRSTCUT=false;
+        hero.gems++;say('草のかげに宝石があった。');sfx('gem');
         burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,14,'ALERT_JUICE')}}
     if(t===7){if(hero.key){state='win';sfx('win')}else{say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}}
     if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」');sfx('step')}

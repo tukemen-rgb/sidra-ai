@@ -79,7 +79,11 @@ function build(){
   /* The first and last ledges are fixed so the opening steps and the goal
      are always fair; the seed decides everything between them. Gaps stay
      under the arc's reach (RUN x airtime) at every difficulty. */
-  plats=[{x:0,y:262,w:150}];orbs=[];
+  plats=[{x:0,y:262,w:150}];
+  /* The first gem sits on the starting ledge, within a step of where the
+     player lands (§8 事実 5): the opening has to hand something over
+     before it asks for anything. Everything after it is the seed's. */
+  orbs=[{x:110,y:236,got:false}];
   let x=150,y=262;
   for(let i=0;i<NPLAT;i++){
     x+=Math.round((34+rand()*20)*GAPF);

@@ -70,12 +70,12 @@ const W=cv.width,H=cv.height,CARY=H-56,LAP=1800,LAPS=3,ROADW=190;
    so the road is always followable at every difficulty. */
 const PH1=rand()*6.283,PH2=rand()*6.283;
 function roadAt(d){return W/2+Math.sin(d/380+PH1)*150+Math.sin(d/151+PH2)*62}
-let car,obs,dist,lap,lapT,times,state,grace,spd,nextObs;
+let car,obs,dist,lap,lapT,times,state,grace,spd,nextObs,passed;
 function reset(){car={x:roadAt(0)};obs=[];dist=0;lap=1;lapT=0;times=[];
-  state='race';grace=0;spd=PACE;nextObs=320}
+  state='race';grace=0;spd=PACE;nextObs=320;passed=0}
 setPal(RACING_PAL_TOKEN);
 function onRoad(){return Math.abs(car.x-roadAt(dist))<ROADW/2-8}
-function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,
+function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,passed:passed,
   base:PACE,carX:car.x,road:roadAt(dist),roadW:ROADW,grace:grace,
   onRoad:onRoad(),times:times.slice(),lapT:lapT}}
 /* A hit is a cost, not an ending: the pace is cut, a short grace window
@@ -109,6 +109,9 @@ function step(){
     obs=obs.filter(o=>{
       if(grace===0&&Math.abs(o.d-dist)<14&&Math.abs(o.x-car.x)<26){
         hitObstacle();return false}
+      /* Counted as it goes by, so "I got past one" is a thing the page
+         knows rather than a thing only the player felt. */
+      if(o.d<=dist-14){passed++;return false}
       return o.d>dist-60});
     if(dist>=lap*LAP)crossLine()}
   draw();requestAnimationFrame(step)}

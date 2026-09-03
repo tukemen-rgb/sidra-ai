@@ -180,12 +180,16 @@ step();
 _CATCH = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const FALL=SPEED_TOKEN,WIDE=BAND_TOKEN;
-let px=0.5,shown=0.5,items=[],score=0,missed=0,t=0;
+let px=0.5,shown=0.5,items=[],score=0,missed=0,t=0,firstDrop=true;
 addEventListener('keydown',e=>{if(e.code==='ArrowLeft'){px=Math.max(0,px-0.06)}
   if(e.code==='ArrowRight'){px=Math.min(1,px+0.06)}});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();
   px=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))});
-function step(){t++;if(t%FALL===0){items.push({x:Math.random(),y:0})}
+function step(){t++;if(t%FALL===0){
+  /* The first one falls straight into the basket, wherever it is (§8 事実
+     5). Everything after it is luck, as it should be - but the opening
+     has to hand something over before it asks for anything. */
+  items.push({x:firstDrop?shown:Math.random(),y:0});firstDrop=false}
   const w=cv.width,h=cv.height;
   items.forEach(i=>{i.y+=0.012});
   items=items.filter(i=>{if(i.y<0.92)return true;

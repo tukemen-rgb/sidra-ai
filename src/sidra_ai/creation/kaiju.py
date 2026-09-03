@@ -73,7 +73,10 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
 const W=cv.width,H=cv.height,GROUND=H-46,BEAT=126;
 let me,shots,boss,cracks,dust,t,state,cycles;
 function reset(){
-  me={x:W*0.22,hp:3,step:0,cool:0};
+  /* Under the leg, not across the field (§8 事実 5): the first shot a
+     new player fires has to hit something. Walking away is a choice
+     they make after that, not a toll before it. */
+  me={x:W*0.68,hp:3,step:0,cool:0};
   shots=[];cracks=[];dust=[];t=0;cycles=0;state='fight';
   boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
 setPal(KAIJU_PAL_TOKEN);

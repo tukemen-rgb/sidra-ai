@@ -2504,6 +2504,87 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the first ten seconds contain one win --------------------------
+    #
+    # C-1108, §8 事実 5・8. What decides whether someone plays a second
+    # round is whether the first gave them anything, and the pages had no
+    # rule about their opening at all.
+    #
+    # The claim is about a player, so the judge is one: a masher that
+    # presses the action, leans on a direction, taps the canvas, and knows
+    # nothing about any particular game. It *wanders* rather than travels -
+    # which is the point. An opening that requires walking across the field
+    # to find the first target is an opening that asks for intent the
+    # player has not formed yet, so the first success has to come to them.
+    #
+    # Run over several requests per template: the seed decides the layout,
+    # and "guaranteed" that held for one seed would be a coincidence.
+    from sidra_ai.creation.opening import (
+        FIRST_SUCCESS as _open_success,
+        OPENING_SECONDS as _open_seconds,
+        probe_source as _open_probe,
+    )
+
+    _open_requests = ("ゲームを作って", "楽しいゲームを作って", "難しいゲームを作って")
+    open_gaps: list[str] = []
+    open_ok: list[str] = []
+    open_worst = 0.0
+    for key in sorted(_tune_templates):
+        if key not in _open_success:
+            open_gaps.append(f"{key}: no first success declared")
+            continue
+        slowest = 0.0
+        for request in _open_requests:
+            page = _tune_generate(request, template=key).html
+            script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+            if script is None:
+                open_gaps.append(f"{key}: no script")
+                break
+            try:
+                probe = _scene_sp.run(
+                    ["node", "-"],
+                    input=_open_probe(script.group(1), key),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if probe.returncode != 0:
+                    open_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                    break
+                seen = json.loads(probe.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                open_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+                break
+            # A success that was already true before anyone played is not a
+            # success, it is a mistake in the expression - and the number
+            # would then be measuring nothing at all.
+            if seen.get("wonBeforePlaying"):
+                open_gaps.append(f"{key}: the win was already true before playing")
+                break
+            if seen.get("firstWinMs") is None:
+                open_gaps.append(
+                    f"{key}: no {_open_success[key][1]} in {_open_seconds}s "
+                    f"of 「{request}」"
+                )
+                break
+            slowest = max(slowest, seen["firstWinMs"] / 1000)
+        else:
+            open_ok.append(key)
+            open_worst = max(open_worst, slowest)
+    c.add(
+        "creation_first_success_10s",
+        "最初の 10 秒に成功がある型",
+        float(len(open_ok)) if not open_gaps else 0.0,
+        detail=(
+            f"何も知らないプレイヤー（連打＋方向キーを握るだけ）で実プレイ。"
+            f"依頼文 3 種＝シード 3 種すべてで {_open_seconds} 秒以内に最初の成功。"
+            f"いちばん遅い型で {open_worst:.1f} 秒"
+            if not open_gaps
+            else "; ".join(open_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

@@ -4739,3 +4739,9 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   4 通りの破壊で 0 に落ちることを確認。既存テスト 2 件を綴りに合わせて更新。
   pytest exit 0 / gate exit 0（MISS 0）。
 2026-09-03 01:06 UTC ループA started Board=13
+- C-1108 完了。creation_first_success_10s unmeasurable→9（product_metrics --compare exit 0）。
+  opening.py 新規。「何も知らないプレイヤー」で 9 型 × シード 3 種を実プレイ。
+  6 型は既に合格、直したのは adventure/platformer/kaiju/racing の 4 箇所のみ。
+  シードを 3 つ回したことで adventure の欠陥（別シードで 10 秒無得点）が出た。
+  効かなかった racing の路肩配置は取り消し。catch の決定化は数字目的でない旨を明記。
+  5 通りの破壊で 0 に落ちることを確認。pytest exit 0 / gate exit 0（MISS 0）。
