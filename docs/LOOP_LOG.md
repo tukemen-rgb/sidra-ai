@@ -4785,3 +4785,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   異常なし: localStorage 5 鍵は衝突なし・型ごとに分離。hitstop による帯の 130ms 遅延は設計どおり。
   6 通りの破壊で 0 に落ちることを確認（5 番目は最初効かず、y 座標で帯を特定するよう締め直した）。
   pytest exit 0（2587 件）/ gate exit 0（MISS 0）。
+2026-09-03 05:51 進捗監視 前進あり: C-1118 完了 creation_features_together unmeasurable→9（発見 2・直し 2）。C-1201/C-1301 は claim 済みで停滞なし。記録のみ。
