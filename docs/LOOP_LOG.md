@@ -4811,3 +4811,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   直して全 4 テーマ＋hard を無傷通過（撃墜 87〜101）。破壊 3 通り（最大明度が中間
   幕／2 幕が同色／setScene 未配線）で計器とテストが落ちることを確認。
   pytest exit 0（2532 件）/ gate exit 0（MISS 0）。
+2026-09-03 06:09 ループA started Board=13
