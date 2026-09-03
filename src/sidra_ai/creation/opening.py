@@ -34,6 +34,7 @@ FIRST_SUCCESS: dict[str, tuple[str, str]] = {
     "duel": ("3-e.hp>=1", "1 発当てる"),
     "fishing": ("score>=1", "1 匹釣る"),
     "kaiju": ("boss.legHp<LEGHP", "脚に一撃入れる"),
+    "marble": ("gates>=1", "最初のゲートを抜ける"),
     "platformer": ("me.gems>=1", "宝石を 1 個拾う"),
     "puzzle": ("score>=1", "1 手消す"),
     # Not a lap: a lap is eighteen seconds away and useless as a first

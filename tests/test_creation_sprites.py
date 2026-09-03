@@ -98,6 +98,10 @@ def test_each_template_gets_the_two_names_its_page_draws() -> None:
         # The adventure page draws a world, not a target and a marker; its
         # set is the five things its own script asks sprite() for.
         "adventure": {"hero", "enemy", "rock", "bush", "npc"},
+        # The marble is lit by depth: its shading is the perspective cue,
+        # so a flat image would be the one thing on screen disagreeing
+        # with it. Drawn, like the duel's fighters.
+        "marble": set(),
         # The duel draws its fighters procedurally; sprite() falls back to
         # the shapes the template always drew, which is the supported state.
         "duel": set(),

@@ -55,9 +55,21 @@ def test_reduced_motion_keeps_hitstop():
 
 
 def test_every_template_is_wired_to_all_three():
+    """Directly, or through the shared failure kit.
+
+    C-1105 bundled the three into ``failBeat`` precisely so a template
+    would not hand-roll its own losing beat, and its own tests pin what is
+    in the bundle (``FAIL_SHAKE``/``FAIL_HITSTOP``/``FAIL_PARTICLES`` are
+    all asserted positive, and every template that can lose is required to
+    call it). A template whose only freeze is the one it loses on is
+    wired - and inventing a second hitstop so a grep here would pass would
+    be padding, not weight.
+    """
+
     for key, spec in TEMPLATES.items():
         for name in ("shake", "hitstop", "burst"):
-            assert f"{name}(" in spec.script, f"{key} never calls {name}()"
+            wired = f"{name}(" in spec.script or "failBeat(" in spec.script
+            assert wired, f"{key} never reaches {name}(), directly or via failBeat()"
 
 
 def test_the_pages_still_run_with_the_juice_in_them():

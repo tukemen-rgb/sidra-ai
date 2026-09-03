@@ -44,6 +44,12 @@ from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
+from sidra_ai.creation.marble import (
+    MARBLE_HOW,
+    MARBLE_SCRIPT,
+    MARBLE_TITLE,
+    MARBLE_WORDS,
+)
 from sidra_ai.creation.scene import (
     ADVENTURE_PALETTE,
     KAIJU_PALETTE,
@@ -280,6 +286,12 @@ TEMPLATES: dict[str, GameTemplate] = {
         RACING_HOW,
         RACING_SCRIPT,
     ),
+    "marble": GameTemplate(
+        "marble",
+        MARBLE_TITLE,
+        MARBLE_HOW,
+        MARBLE_SCRIPT,
+    ),
     "platformer": GameTemplate(
         "platformer",
         PLATFORMER_TITLE,
@@ -291,6 +303,7 @@ TEMPLATES: dict[str, GameTemplate] = {
 #: Difficulty is two numbers per template, not a label. Keeping the mapping
 #: here means "難しくして" changes the game rather than the wording.
 _DIFFICULTY = {
+    "marble": {"easy": (3.4, 34), "normal": (4.6, 26), "hard": (6.2, 19)},
     "fishing": {"easy": (0.008, 0.34), "normal": (0.014, 0.22), "hard": (0.024, 0.12)},
     "catch": {"easy": (34, 0.30), "normal": (22, 0.20), "hard": (13, 0.12)},
     "adventure": ADVENTURE_DIFFICULTY,
@@ -372,6 +385,10 @@ def choose_template(request: str) -> str:
     # Before the shooter and the adventure: 「巨大な怪獣を撃つ」 names a boss
     # fight, and a request whose subject is the monster should not land on a
     # template where every enemy is the player's size.
+    # Before every genre word: 「3D のシューティング」 names a dimension the
+    # other nine cannot draw at all, so the dimension outranks the verb.
+    if any(fold_kana(word.lower()) in lowered for word in MARBLE_WORDS):
+        return "marble"
     if any(fold_kana(word.lower()) in lowered for word in _KAIJU_WORDS):
         return "kaiju"
     if any(fold_kana(word.lower()) in lowered for word in _PUZZLE_WORDS):
@@ -406,7 +423,10 @@ def choose_template(request: str) -> str:
 #: template landing later flips the answer without anyone editing this list.
 #: Order is the tie-break: "対戦シューティング" is a shooter, not a versus game.
 _GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    # First: a giant-boss request names the monster, and every other genre
+    # First of all: 3D names a dimension none of the other nine can
+    # draw, so it outranks every word describing what you do in it.
+    ("3D コース", "marble", MARBLE_WORDS),
+    # Then: a giant-boss request names the monster, and every other genre
     # word in the sentence ("撃つ", "冒険") is describing what you do to it.
     ("巨大ボス", "kaiju", KAIJU_WORDS),
     (

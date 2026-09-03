@@ -856,6 +856,7 @@ def measure_creation(c: Collector) -> None:
                 "巨大な怪獣と戦うゲームを作って",
                 "レースゲームを作って",
                 "横スクロールのゲームを作って",
+                "3D のゲームを作って",
             )
         }
     )
@@ -2791,6 +2792,7 @@ def measure_creation(c: Collector) -> None:
     # would move something, and the traces would stop matching.
     from sidra_ai.creation.skins import (
         PREAMBLE_NAMES as _skin_names,
+        canonical_colour as _skin_colour,
         SKIN_PREAMBLE as _skin_preamble,
         probe_source as _skin_probe,
         skin_spec as _skin_spec,
@@ -2862,9 +2864,9 @@ def measure_creation(c: Collector) -> None:
             skin_gaps.append(f"{key}: the picked colour is not the one worn")
         elif worn["accent"] != earned["accent"]:
             skin_gaps.append(f"{key}: the page paints with {worn['accent']}, not the skin")
-        elif earned["accent"].lower() not in worn["colours"]:
+        elif earned["accent"].lower() not in {_skin_colour(c) for c in worn["colours"]}:
             skin_gaps.append(f"{key}: the skin colour was never drawn")
-        elif earned["accent"].lower() in plain["colours"]:
+        elif earned["accent"].lower() in {_skin_colour(c) for c in plain["colours"]}:
             skin_gaps.append(f"{key}: the skin colour was drawn without the skin")
         # The fairness invariant, and the only reason the number is worth
         # anything: same shapes, same score, different colours.
@@ -2872,7 +2874,9 @@ def measure_creation(c: Collector) -> None:
             skin_gaps.append(f"{key}: the skin changed what was drawn where")
         elif worn["scores"] != plain["scores"]:
             skin_gaps.append(f"{key}: the skin changed how the round went")
-        elif worn["colours"] == plain["colours"]:
+        elif {_skin_colour(c) for c in worn["colours"]} == {
+            _skin_colour(c) for c in plain["colours"]
+        }:
             skin_gaps.append(f"{key}: the skin changed nothing at all")
         # The traces can only see an axis the masher exercises, and it
         # cannot exercise all of them - the adventure keeps its enemies in
@@ -3815,11 +3819,16 @@ def _measure_juice() -> tuple[float, str]:
     if still["hitstop"] <= 0:
         return 0.0, "hitstop was disabled by reduced motion; it moves nothing"
 
+    # Directly, or through C-1105's shared failure kit: failBeat *is* the
+    # three, and creation_fail_beat proves it by driving every template to
+    # an actual loss and watching the screen. A template whose only freeze
+    # is the one it loses on is wired; inventing a second hitstop so this
+    # grep would pass would be padding rather than weight.
     unwired = [
         f"{key}: no {name}()"
         for key, spec in sorted(TEMPLATES.items())
         for name in ("shake", "hitstop", "burst")
-        if f"{name}(" not in spec.script
+        if f"{name}(" not in spec.script and "failBeat(" not in spec.script
     ]
     if unwired:
         return 0.0, "; ".join(unwired)
@@ -3832,7 +3841,7 @@ def _measure_juice() -> tuple[float, str]:
     return 1.0, (
         f"shake {moving['shake']} -> 0 and {moving['particles']} particles -> 0 "
         f"under reduced motion, hitstop kept; all {len(TEMPLATES)} templates "
-        "call shake, hitstop and burst"
+        "reach shake, hitstop and burst (directly or through failBeat)"
     )
 
 

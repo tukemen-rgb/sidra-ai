@@ -41,6 +41,7 @@ SKIN_UNIT: dict[str, int] = {
     "duel": 3,
     "fishing": 132,
     "kaiju": 3,
+    "marble": 1,
     "platformer": 1,
     "puzzle": 58,
     "racing": 3,
@@ -169,6 +170,27 @@ if(typeof document!=='undefined'&&document.addEventListener&&document.readyState
   document.addEventListener('DOMContentLoaded',skinPanel)}else{skinPanel()}
 /* --- end cosmetic unlocks --- */
 """
+
+
+def canonical_colour(value: str) -> str:
+    """``rgb(255,138,61)`` and ``#ff8a3d`` are the same colour.
+
+    Templates that shade by depth (the 3D one, C-1115) build their fills
+    arithmetically and hand the context an ``rgb(...)``. Comparing the raw
+    strings said the skin colour was never drawn when it was on screen the
+    whole time - a limitation of the judge, found by a template written
+    after it.
+    """
+
+    text = str(value).strip().lower()
+    if text.startswith("rgb"):
+        parts = [p.strip() for p in text[text.find("(") + 1 : text.find(")")].split(",")]
+        if len(parts) >= 3:
+            try:
+                return "#" + "".join(f"{int(float(p)):02x}" for p in parts[:3])
+            except ValueError:
+                return text
+    return text
 
 
 def preamble_for(template: str) -> str:
@@ -399,6 +421,7 @@ __all__ = [
     "SKIN_UNIT",
     "preamble_for",
     "probe_source",
+    "canonical_colour",
     "skin_spec",
     "stray_calls",
 ]

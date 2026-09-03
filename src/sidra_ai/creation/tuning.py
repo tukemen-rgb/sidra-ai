@@ -58,6 +58,7 @@ AXIS_LABELS: dict[str, tuple[str, str]] = {
     "shooter": ("降下の速さ", "湧きの間隔"),
     "puzzle": ("色の数", "盤の幅"),
     "kaiju": ("外殻が開く速さ", "脚の耐久"),
+    "marble": ("転がる速さ", "ゲートの広さ"),
     "racing": ("基本ペース", "障害物の最小間隔"),
     "platformer": ("足場の間隔", "足場の数"),
 }
@@ -343,6 +344,7 @@ SPEED_BINDING: dict[str, str] = {
     "shooter": "FALL",
     "puzzle": "COLOURS",
     "kaiju": "CRACK",
+    "marble": "ROLL",
     "racing": "PACE",
     "platformer": "GAPF",
 }
