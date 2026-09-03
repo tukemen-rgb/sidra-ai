@@ -150,6 +150,21 @@ def panel_schema(
             # standing between a returning player and the game. On, for
             # somebody who wants to re-read the three lines every time.
             {"key": "brief", "label": "毎回ブリーフィングを見る", "type": "flag", "default": brief_default},
+            # C-1408. Full by default, and a whole number of percent: the
+            # page has always opened at the loudness its author chose, and
+            # M stays the instant off. This is the dial between the two -
+            # the thing a person reaches for when a game is welcome but
+            # loud, which "silence it entirely" is not an answer to.
+            {
+                "key": "volume",
+                "label": "音量",
+                "type": "number",
+                "default": 100,
+                "min": 0,
+                "max": 100,
+                "step": 5,
+                "integer": True,
+            },
             # C-1401. On by default: a past self that has to be switched on
             # is a past self nobody meets.
             {"key": "ghost", "label": "自己ベストのゴースト", "type": "flag", "default": ghost_default},

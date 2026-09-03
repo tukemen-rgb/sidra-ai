@@ -2840,6 +2840,113 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a dial, not just an off switch --------------------------------
+    #
+    # C-1408: the panel let a player change the difficulty, two axes, the
+    # accent and three flags, and the only thing it could do about sound
+    # was M for all-or-nothing. The volume rides a single master factor
+    # applied *after* the ceiling, which is the part worth measuring: the
+    # fight's loudness step (§6 観察 4) is a ratio between two gains, and a
+    # factor multiplied in before Math.min would be squeezed by the clamp
+    # at full volume and not at half. So the ratio is read at two volumes
+    # and must be the same number.
+    from sidra_ai.creation.audio import volume_probe_source as _vol_probe
+
+    vol_gaps: list[str] = []
+    vol_page = generate_game("シューティングゲームを作って").html
+    vol_script = _scene_re.search(r"<script>(.*?)</script>", vol_page, _scene_re.S)
+    if vol_script is None:
+        vol_gaps.append("no script on the page")
+    else:
+        heard = {}
+        for level in (100, 50, 0):
+            try:
+                run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_vol_probe(vol_script.group(1), volume=level),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if run.returncode != 0:
+                    raise ValueError(run.stderr.strip()[:60])
+                heard[level] = json.loads(run.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                vol_gaps.append(f"probe unavailable ({exc})")
+                break
+
+        if len(heard) == 3:
+            full, half, off = heard[100], heard[50], heard[0]
+            # 1. half means half, in the gain the page actually scheduled.
+            if not full.get("calm"):
+                vol_gaps.append("nothing was played at full volume")
+            elif abs(half["calm"] - full["calm"] * 0.5) > 1e-6:
+                vol_gaps.append(
+                    f"50% is not half ({full['calm']} -> {half['calm']})"
+                )
+            # 2. zero is silence, not a very quiet sound.
+            if off["calm"] is not None or off["tuneCount"] != 0:
+                vol_gaps.append("0% still made a sound")
+            # 3. the dial and the mute are different controls.
+            if any(seen["mutedPlayed"] for seen in heard.values()):
+                vol_gaps.append("M no longer silences the page")
+            elif half["afterMute"] != half["calm"]:
+                vol_gaps.append("releasing M did not hand back the set volume")
+            # 4. the setting survives the trip through storage.
+            for level, seen in heard.items():
+                if seen.get("stored") != level:
+                    vol_gaps.append(
+                        f"a stored {level}% came back as {seen.get('stored')!r}"
+                    )
+            # 5. ...and the fight's step over calm is the same step.
+            ratios = {}
+            for level in (100, 50):
+                seen = heard[level]
+                if seen.get("calmClamped"):
+                    ratios[level] = round(seen["loudClamped"] / seen["calmClamped"], 6)
+            if len(ratios) != 2:
+                vol_gaps.append("the combat step could not be read at both volumes")
+            elif ratios[100] != ratios[50]:
+                vol_gaps.append(
+                    f"the volume changed the fight's step ({ratios[100]} vs {ratios[50]})"
+                )
+            # ...and the same, where the ceiling can actually be reached.
+            # Nothing shipped comes near MAX_GAIN (the loudest effect peaks
+            # at 0.48 against 0.9), so with today's values the dial's
+            # position either side of Math.min changes nothing and the two
+            # orderings are indistinguishable in any real sound. musicNote
+            # takes its gain from the caller, so it is the one path where
+            # the rule can be measured instead of assumed.
+            if not full.get("clampedTune"):
+                vol_gaps.append("the clamped gain could not be read")
+            elif abs(half["clampedTune"] - full["clampedTune"] * 0.5) > 1e-6:
+                vol_gaps.append(
+                    "the dial is applied before the ceiling: a clamped gain "
+                    f"went {full['clampedTune']} -> {half['clampedTune']}, not half"
+                )
+            # 6. the music rides the same dial as the effects.
+            if not full.get("tune"):
+                vol_gaps.append("the music scheduled no note to check")
+            elif abs(half["tune"] - full["tune"] * 0.5) > 1e-6:
+                vol_gaps.append(
+                    f"the music ignores the dial ({full['tune']} -> {half['tune']})"
+                )
+    c.add(
+        "creation_volume_axis",
+        "音量が段階で変えられる",
+        0.0 if vol_gaps else 1.0,
+        detail=(
+            "; ".join(vol_gaps)
+            if vol_gaps
+            else "実走行で確認: 50% で実 gain が半分・0% は無音（node を"
+            "1 つも作らない）・M は独立で解除すると設定音量が戻る・"
+            "保存が往復する・BGM も同じダイヤル・戦闘音圧比は 100% と"
+            "50% で同一。**天井（MAX_GAIN）は現状どの音も届かない**ので、"
+            "掛ける順序は musicNote に天井が効く gain を渡して実測した"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

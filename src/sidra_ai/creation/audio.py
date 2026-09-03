@@ -37,6 +37,8 @@ capped, because a game whose fight scenes clip is not louder, it is broken.
 
 from __future__ import annotations
 
+import json
+
 #: The names templates may call. One vocabulary for all four games, so a new
 #: template picks from the same drawer instead of growing private sounds.
 PREAMBLE_NAMES: tuple[str, ...] = (
@@ -77,8 +79,18 @@ addEventListener('keydown',e=>{if(e.key==='m'||e.key==='M'){MUTED=!MUTED}});
    second mute: M still wins, below. */
 function combat(on){COMBAT=!!on}
 function combatOn(){return COMBAT}
+/* The listener's own dial (C-1408), read live so the panel's value is the
+   one the next sound uses. Applied *after* the ceiling on purpose: the
+   fight's loudness step is a ratio between two gains, and a factor that
+   went in before Math.min would be squeezed by the clamp at full volume
+   and not at half - the ratio §6 measures would then depend on where the
+   slider happens to sit. Multiplying afterwards leaves every ratio in the
+   mix exactly as its author set it, and only the whole gets quieter.
+   Guarded: the preamble sits above pages that may have no panel. */
+function masterGain(){try{return Math.min(1,Math.max(0,tuneNum('volume',100)/100))}
+  catch(e){return 1}}
 function sfxGain(name){const spec=SFX_TABLE[name];if(!spec)return 0;
-  return Math.min(MAX_GAIN,spec[4]*(COMBAT?COMBAT_GAIN:1))}
+  return Math.min(MAX_GAIN,spec[4]*(COMBAT?COMBAT_GAIN:1))*masterGain()}
 const SFX_TABLE={
   sword:['square',420,180,0.09,0.18],
   cut:['triangle',700,320,0.08,0.2],
@@ -101,7 +113,10 @@ const SFX_TABLE={
    be consumed by a sound. */
 const SFX_JITTER=0.04;
 function sfx(name){
-  if(MUTED)return;
+  /* Zero is silence, not a very quiet sound. Scheduling one would hand
+     exponentialRampToValueAtTime a start value of 0, which has no defined
+     ramp, and would build a node graph for something nobody can hear. */
+  if(MUTED||masterGain()<=0)return;
   const spec=SFX_TABLE[name];if(!spec)return;
   try{
     if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)()}
@@ -255,11 +270,114 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The volume dial, measured on a page that was opened with the slider
+#: already at a value - which is the path a person's setting actually
+#: takes, through storage and back out on the next load.
+VOLUME_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const keyHandlers = [];
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') keyHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+/* Any tuning key answers with the stored panel, so the probe does not have
+   to know which template it is driving. */
+const writes = [];
+const storedPanel = STORED_INPUT;
+globalThis.localStorage = {
+  getItem: (k) => (k.indexOf('sidra.tune.') === 0 ? JSON.stringify(storedPanel) : null),
+  setItem: (k, v) => { writes.push([k, v]) },
+  removeItem: () => {} };
+const played = [];
+class Ctx {
+  constructor(){ this.currentTime = 0; this.sampleRate = 44100; this.state = 'running' }
+  resume(){}
+  createGain(){ const g = { gain: {
+    setValueAtTime: (v) => { played.push(v) },
+    exponentialRampToValueAtTime: () => {},
+    linearRampToValueAtTime: () => {} }, connect(){} }; return g }
+  createOscillator(){ return { frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+    connect(){}, start(){}, stop(){}, type: '' } }
+  createBufferSource(){ return { connect(){}, start(){}, stop(){}, buffer: null } }
+  createBiquadFilter(){ return { frequency: { setValueAtTime(){},
+    exponentialRampToValueAtTime(){} }, connect(){}, type: '' } }
+  createBuffer(_c, len){ return { getChannelData: () => new Float32Array(len) } }
+  get destination(){ return { } }
+}
+globalThis.window = globalThis;
+globalThis.AudioContext = Ctx;
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function measure(fn){ played.length = 0; fn(); return played.slice() }
+function press(k){ keyHandlers.forEach(fn => fn({ key: k, code: k,
+  preventDefault(){}, stopImmediatePropagation(){} })) }
+combat(false);
+const calm = measure(() => sfx('hurt'));
+combat(true);
+const loud = measure(() => sfx('hurt'));
+combat(false);
+/* The fight's step has to be read on a sound the ceiling actually binds,
+   or the ordering of the dial and the clamp cannot show. 'hurt' peaks at
+   0.48 in combat and never reaches MAX_GAIN, so moving the dial to the
+   wrong side of Math.min leaves its ratio at exactly 2 either way - which
+   is how a first version of this probe passed a page whose ratio really
+   did depend on the slider. 'lose' clamps: 0.6 calm, 0.9 in the fight. */
+const calmClamped = measure(() => sfx('lose'));
+combat(true);
+const loudClamped = measure(() => sfx('lose'));
+combat(false);
+/* The dial and the mute are different controls: M silences a page at any
+   volume, and releasing it hands back the volume that was set. */
+press('m');
+const whileMuted = measure(() => sfx('hurt'));
+press('m');
+const afterMute = measure(() => sfx('hurt'));
+/* The music rides the same dial. */
+const tune = measure(() => musicNote(440, 0, 0.2, 0.2, 'square'));
+/* The one place the ceiling can actually be reached. Nothing the product
+   ships comes near MAX_GAIN - the loudest effect peaks at 0.48 against a
+   0.9 ceiling - so with the shipped values the dial's position relative to
+   Math.min makes no difference at all, and a ratio read off any real sound
+   cannot tell the two orderings apart. musicNote takes its gain from the
+   caller, so asking it for one the clamp does bind is the only way to
+   measure the rule rather than assume it. */
+combat(true);
+const clampedTune = measure(() => musicNote(440, 0, 0.2, 0.8, 'square'));
+combat(false);
+console.log(JSON.stringify({
+  volume: tuneNum('volume', 100), master: masterGain(),
+  calm: calm[0] ?? null, loud: loud[0] ?? null,
+  calmClamped: calmClamped[0] ?? null, loudClamped: loudClamped[0] ?? null,
+  mutedPlayed: whileMuted.length, afterMute: afterMute[0] ?? null,
+  tune: tune[0] ?? null, tuneCount: tune.length,
+  clampedTune: clampedTune[0] ?? null,
+  stored: tuneFacts().values.volume,
+}));
+"""
+
+
+def volume_probe_source(script: str, *, volume: int) -> str:
+    """Open the page with the slider already at ``volume`` and listen."""
+
+    return VOLUME_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "STORED_INPUT", json.dumps({"volume": volume})
+    )
+
+
 __all__ = [
     "COMBAT_GAIN",
     "MAX_GAIN",
     "PREAMBLE_NAMES",
     "PROBE",
     "SFX_PREAMBLE",
+    "VOLUME_PROBE",
     "probe_source",
+    "volume_probe_source",
 ]

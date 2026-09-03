@@ -74,7 +74,11 @@ const MUSIC_MEL=[],MUSIC_BASS=[];
 function musicArm(){MUSIC_ON=true}
 addEventListener('keydown',musicArm);
 addEventListener('pointerdown',musicArm);
-function musicNote(freq,off,dur,vol,wave){MUSIC_N++;
+function musicNote(freq,off,dur,vol,wave){
+  /* Same rule as the effects: silence is silence (C-1408). Counted as not
+     scheduled, because it was not. */
+  if(masterGain()<=0)return;
+  MUSIC_N++;
   try{
     if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)()}
     if(AC.state==='suspended'){AC.resume()}
@@ -83,7 +87,9 @@ function musicNote(freq,off,dur,vol,wave){MUSIC_N++;
     osc.type=wave;osc.frequency.setValueAtTime(freq,t0);
     /* The fight raises the music one step too (§6 観察 4), below the same
        ceiling and the same mute as everything else. */
-    const v=Math.min(MAX_GAIN,vol*(COMBAT?COMBAT_GAIN:1));
+    /* Same dial as the effects, applied after the same ceiling (C-1408),
+       so the fight's step over calm keeps its size at every volume. */
+    const v=Math.min(MAX_GAIN,vol*(COMBAT?COMBAT_GAIN:1))*masterGain();
     gain.gain.setValueAtTime(v,t0);
     gain.gain.exponentialRampToValueAtTime(0.001,t0+dur);
     osc.connect(gain);gain.connect(AC.destination);
