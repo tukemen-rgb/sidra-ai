@@ -72,6 +72,41 @@ def test_every_template_is_wired_to_all_three():
             assert wired, f"{key} never reaches {name}(), directly or via failBeat()"
 
 
+def test_the_win_beat_outranks_the_failure_beat():
+    # §6 spends the biggest moment on the takedown; before C-1316 every
+    # template's victory was lighter than its loss (marble's was silent).
+    from sidra_ai.creation.juice import FAIL_SHAKE, WIN_SHAKE
+
+    assert WIN_SHAKE > FAIL_SHAKE
+
+
+def test_the_win_beat_fires_full_weight_with_motion():
+    moving = _probe(reduced=False)
+
+    assert moving["winBeats"] == 1
+    assert moving["winShake"] >= 16
+    assert moving["winParticles"] > 0
+    assert moving["winHitstop"] > 0
+
+
+def test_reduced_motion_stills_the_win_beat_but_keeps_it():
+    still = _probe(reduced=True)
+
+    assert still["winBeats"] == 1, "the beat itself survives the setting"
+    assert still["winShake"] == 0
+    assert still["winParticles"] == 0
+    assert still["winHitstop"] > 0, "the hitstop is what carries it"
+
+
+def test_every_win_state_reaches_the_shared_beat():
+    """Seven templates can be won; all seven celebrate through one kit."""
+
+    for key in ("adventure", "duel", "kaiju", "marble", "platformer", "puzzle", "racing"):
+        assert "winBeat(" in TEMPLATES[key].script, f"{key} wins in silence"
+    for key in ("fishing", "catch", "shooter"):
+        assert "winBeat(" not in TEMPLATES[key].script, f"{key} has no win state to celebrate"
+
+
 def test_the_pages_still_run_with_the_juice_in_them():
     for key in TEMPLATES:
         verdict = validate_game_html(generate_game("ゲームを作って", template=key).html)

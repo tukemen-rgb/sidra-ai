@@ -130,7 +130,8 @@ function step(){
               burst(proj(o.x,10,NEAR+40).x,H*0.55,10,'ACCENT_JUICE')}}}
         else if(Math.abs(o.x-ball.x)<24){state='over';over='ブロックに当たった。';
           failBeat(W/2,H*0.6)}}});
-    if(things.every(o=>o.done)){state='over';over='コースを走り切った。'}}
+    if(things.every(o=>o.done)){state='over';over='コースを走り切った。';
+      winBeat(W/2,H*0.5)}}
   /* A straight corridor's scene is distance (§7 観察 5-6, C-1307): the sky,
      the horizon band and the rails step once per third of the course, and
      the final stretch is rolled at under the brightest sky of the run.
@@ -264,6 +265,7 @@ console.log(JSON.stringify({
   state: end.state, z: end.z, course: end.course, gates: end.gates,
   score: end.score, hotTotal: end.hotTotal, hotTaken: end.hotTaken,
   rates: actZ.map((z, i) => actF[i] ? z / actF[i] : 0),
+  winBeats: winBeats(), failBeats: failBeats(),
 }));
 """
 

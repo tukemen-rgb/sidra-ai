@@ -75,6 +75,17 @@ def test_the_course_reaccelerates_by_thirds():
     assert rolled["state"] == "over", "the faster course still completes"
 
 
+def test_completing_the_course_fires_the_win_beat_once():
+    """§1/§6 (C-1316): the run-in under the brightest sky ends on the
+    heaviest beat of the round - and never on the failure's."""
+
+    rolled = _rolled()
+
+    assert rolled["state"] == "over"
+    assert rolled["winBeats"] == 1
+    assert rolled["failBeats"] == 0
+
+
 def test_hot_gates_stand_in_a_blocks_shadow_and_pay_double():
     """§13 事実 1 (C-1313): optional danger, rewarded - and honest arithmetic."""
 

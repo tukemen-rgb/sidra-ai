@@ -2859,7 +2859,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
-- [~] 作業中 2026-09-03 20:48 辛口クリエイター **C-1316: 勝利の瞬間が敗北より貧しい（§1 juice・§6 の見せ場逆転）。**
+- [x] 完了 2026-09-03 21:20 UTC 辛口クリエイター（`creation_win_beat` unmeasurable→**7**、判定器 exit 0。juice.py に winBeat(x,y)（WIN_SHAKE=16＞敗北 14・粒子 26・ヒットストップ 7・sfx('win')・粒子は ACCENT 色）を新設し、勝ち状態を持つ 7 型の勝利箇所を置換（marble は無音→ビート、kaiju は揺れ 10 win 音なし→ビート、platformer/racing の揺れ 6 手作業＋puzzle/duel/adventure の音だけ→ビート）。実走 3 本（marble 完走・kaiju 3 サイクル・platformer 旗）でビート丁度 1 回・完走で failBeat 0、kit 単体駆動で 16/26/7、reduced では揺れ・粒子 0 のままビートとヒットストップは残る。勝ち状態の無い fishing/catch/shooter は winBeat を呼ばないことも検査。破壊 2 通り〔marble の勝利を無音に→静的+実走の両方で 0 ／ WIN_SHAKE=6→重さ逆転を言い当てて 0〕。pytest exit 0（2933 passed / 1 skip）・gate MISS 0）**C-1316: 勝利の瞬間が敗北より貧しい（§1 juice・§6 の見せ場逆転）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§7）
       C-1105 で敗北は共通ビート（揺れ 14・ヒットストップ・粒子・音）を
       得たが、勝利側は各テンプレの手作業のまま: marble の完走は無音・

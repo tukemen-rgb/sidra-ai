@@ -165,7 +165,7 @@ function step(){const now=performance.now();
         say('灯籠がともった。落ちてもここから。')}
       else if(msgT<=0){say('灯籠は宝石 '+LAMP_COST+' 個で点く（いま '+me.gems+' 個）。')}}
     if(Math.abs(flag.x-me.x)<16&&me.y>flag.y-30&&me.y<=flag.y+2){
-      state='goal';sfx('win');shake(6);burst(flag.x,flag.y-30,22,'ACCENT_JUICE')}
+      state='goal';winBeat(flag.x,flag.y-30)}
     /* Falling costs a walk back, never the run: respawn at the last lit
        lantern (or the start), no game over. */
     if(me.y>H+40){respawns++;me.x=me.cpX;me.y=me.cpY-6;me.vy=0;me.coyote=0;
@@ -412,6 +412,7 @@ console.log(JSON.stringify({
   thirdRespawnX: thirdRespawn && thirdRespawn.x, lampX: afterLamp.lampX,
   state: end.state, respawns: end.respawns,
   combatOn: typeof combatOn === 'function' ? combatOn() : null,
+  winBeats: winBeats(),
 }));
 """
 

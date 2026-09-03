@@ -3706,6 +3706,108 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the win is the heaviest moment of the round (C-1316) -----------
+    #
+    # §6 spends the biggest moment on the takedown and §1 scales the kick
+    # to the weight of the event - yet after C-1105 every template's
+    # victory was *lighter* than its loss (marble's was silent, kaiju's had
+    # no win sound, the rest shook less than the failure's 14). One shared
+    # winBeat now marks all seven win moments, and this number is earned
+    # three ways: the kit itself is run in node under both motion settings,
+    # three templates are actually played to their wins, and all seven
+    # scripts are checked for the call - a win state that stopped calling
+    # it would be a silent climax again.
+    from sidra_ai.creation.juice import WIN_SHAKE as _win_shake
+    from sidra_ai.creation.juice import probe_source as _win_kit_probe
+    from sidra_ai.creation.platformer import probe_source as _plat_probe
+
+    _win_templates = ("adventure", "duel", "kaiju", "marble", "platformer", "puzzle", "racing")
+    win_gaps: list[str] = []
+    for _wt in _win_templates:
+        if "winBeat(" not in _tune_templates[_wt].script:
+            win_gaps.append(f"{_wt}: the win moment never reaches winBeat()")
+    for _wt in ("fishing", "catch", "shooter"):
+        if "winBeat(" in _tune_templates[_wt].script:
+            win_gaps.append(f"{_wt}: calls winBeat but has no win state")
+    if _win_shake <= _fail_shake:
+        win_gaps.append(
+            f"the win shakes {_win_shake}, no more than the loss ({_fail_shake}) - "
+            "the climax is outranked by the failure again"
+        )
+    # The kit, run: full weight with motion, zero shake without, and the
+    # beat itself survives the setting.
+    for _reduced in (False, True):
+        try:
+            _kit = _scene_sp.run(
+                ["node", "-"],
+                input=_win_kit_probe(reduced=_reduced),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            _kit_out = json.loads(_kit.stdout.strip().splitlines()[-1]) if _kit.returncode == 0 else None
+        except (OSError, _scene_sp.SubprocessError, ValueError):
+            _kit_out = None
+        if not _kit_out or _kit_out.get("winBeats") != 1:
+            win_gaps.append(f"kit reduced={_reduced}: winBeat did not run once")
+            continue
+        if _reduced and _kit_out.get("winShake") != 0:
+            win_gaps.append(f"kit: shake {_kit_out.get('winShake')} survived reduced motion")
+        if not _reduced and _kit_out.get("winShake", 0) < _win_shake:
+            win_gaps.append(f"kit: the win shook only {_kit_out.get('winShake')}")
+        if _kit_out.get("winHitstop", 0) <= 0:
+            win_gaps.append(f"kit reduced={_reduced}: the win beat lost its hitstop")
+    # Three wins actually reached: the corridor completed, the kaiju felled,
+    # the flag touched - each must fire the beat exactly once, and the clean
+    # completion must not fire the failure's.
+    for _wreq, _wprobe, _wwant in (
+        ("玉転がしゲームを作って", _marble_scene_probe, ("over", 0)),
+        ("巨大怪獣と戦うゲームを作って", _kaiju_scene_probe, ("won", 0)),
+        ("横スクロールのジャンプゲームを作って", _plat_probe, ("goal", None)),
+    ):
+        _wpage = generate_game(_wreq).html
+        _wscript = _scene_re.search(r"<script>(.*?)</script>", _wpage, _scene_re.S)
+        if _wscript is None:
+            win_gaps.append(f"{_wreq}: no script")
+            continue
+        try:
+            _wrun = _scene_sp.run(
+                ["node", "-"],
+                input=_wprobe(_wscript.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _wrun.returncode != 0:
+                win_gaps.append(f"{_wreq}: {_wrun.stderr.strip()[:60]}")
+                continue
+            _wout = json.loads(_wrun.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            win_gaps.append(f"{_wreq}: probe unavailable ({type(exc).__name__})")
+            continue
+        if _wout.get("state") != _wwant[0]:
+            win_gaps.append(f"{_wreq}: the win was not reached ({_wout.get('state')})")
+            continue
+        if _wout.get("winBeats") != 1:
+            win_gaps.append(f"{_wreq}: the win fired the beat {_wout.get('winBeats')} time(s)")
+        if _wwant[1] is not None and _wout.get("failBeats") != _wwant[1]:
+            win_gaps.append(f"{_wreq}: a won round fired the failure beat")
+    c.add(
+        "creation_win_beat",
+        "勝利の瞬間が最も重い型",
+        float(len(_win_templates)) if not win_gaps else 0.0,
+        detail=(
+            "勝ち状態を持つ 7 型すべてが共通 winBeat（揺れ 16＝敗北 14 より重い・"
+            "粒子・ヒットストップ・win 音）を通る。marble 完走・kaiju 撃破・"
+            "platformer 旗は実プレイでビート 1 回を確認、reduced-motion では"
+            "揺れ 0 のままビートは残る。勝ち状態の無い 3 型（fishing / catch / "
+            "shooter）は数えず、winBeat も呼ばない"
+            if not win_gaps
+            else "; ".join(win_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the result leads back in ---------------------------------------
     #
     # C-1106, §8 事実 3. A result screen that only says what happened is a

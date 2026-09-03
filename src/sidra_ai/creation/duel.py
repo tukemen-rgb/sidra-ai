@@ -140,7 +140,7 @@ function cpu(){if(e.stun>0){e.stun--;return}
 function hit(who){who.hp--;flash=1;sfx('hurt');
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
-    if(who===e){winner='勝利。ひかりが押し切った。';sfx('win')}
+    if(who===e){winner='勝利。ひかりが押し切った。';winBeat(EX,LANES[e.lane])}
     else{winner='敗北。もう一度。';failBeat(PX,LANES[p.lane])}}}
 function step(){const now=performance.now();
   combat(state==='play'&&gateState()==='playing');

@@ -40,6 +40,8 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "particleCount",
     "failBeat",
     "failBeats",
+    "winBeat",
+    "winBeats",
 )
 
 #: The failure beat's three numbers, in the units the effects above take.
@@ -49,6 +51,15 @@ PREAMBLE_NAMES: tuple[str, ...] = (
 FAIL_SHAKE = 14
 FAIL_HITSTOP = 7
 FAIL_PARTICLES = 20
+
+#: The victory beat's numbers (C-1316). Heavier than the failure's, not
+#: just heavier than a hit: §6 puts the biggest moment of the whole fight
+#: at the takedown, and §1 scales the kick to the weight of the event -
+#: yet every template's win used to be *lighter* than its loss (marble's
+#: was silent). The win is the heaviest thing a round can show.
+WIN_SHAKE = 16
+WIN_HITSTOP = 7
+WIN_PARTICLES = 26
 
 JUICE_PREAMBLE = """
 /* --- juice: shake, hitstop, particles (knowledge base §1) ------------- */
@@ -75,6 +86,19 @@ function failBeat(x,y){FAIL_BEATS++;
   burst(x===undefined?0:x,y===undefined?0:y,%(parts)d,'ALERT_JUICE');
   try{sfx('lose')}catch(e){}}
 function failBeats(){return FAIL_BEATS}
+/* The moment a round is WON, as one call (C-1316). The mirror of the
+   failure beat, one step heavier: §6 spends the biggest moment on the
+   takedown, and before this every template's victory was lighter than its
+   loss - marble's was silent. Accent-coloured where the failure is alert,
+   the win sound where the failure has the lose sound, and reduced motion
+   is inherited the same way: shake and burst are already no-ops, the
+   hitstop carries the beat. */
+let WIN_BEATS=0;
+function winBeat(x,y){WIN_BEATS++;
+  shake(%(wshake)d);hitstop(%(whitstop)d);
+  burst(x===undefined?0:x,y===undefined?0:y,%(wparts)d,'ACCENT_JUICE');
+  try{sfx('win')}catch(e){}}
+function winBeats(){return WIN_BEATS}
 function stepShake(){if(!JCV)return;
   if(SHAKE>0.05){SHAKE*=0.78;
     const dx=(Math.random()*2-1)*SHAKE,dy=(Math.random()*2-1)*SHAKE;
@@ -97,7 +121,14 @@ requestAnimationFrame=function(fn){
        template's loop instead of pausing it. */
     if(HITSTOP>0){HITSTOP--;JUICE_RAF(tick);return}
     fn(t);stepParticles();stepShake()})};
-""" % {"shake": FAIL_SHAKE, "hitstop": FAIL_HITSTOP, "parts": FAIL_PARTICLES}
+""" % {
+    "shake": FAIL_SHAKE,
+    "hitstop": FAIL_HITSTOP,
+    "parts": FAIL_PARTICLES,
+    "wshake": WIN_SHAKE,
+    "whitstop": WIN_HITSTOP,
+    "wparts": WIN_PARTICLES,
+}
 
 #: Runs the three effects with the viewer's setting pinned, and prints what
 #: they did. The metric executes this in node, so "reduced motion turns the
@@ -111,11 +142,20 @@ JUICE_PLACEHOLDER
 shake(8);
 burst(10, 10, 12, '#fff');
 hitstop(4);
+const plain = { shake: shakeAmount(), particles: particleCount(), hitstop: HITSTOP };
+/* The victory beat, through the same switches (C-1316): its shake and
+   particles are the no-ops reduced motion already made them, its hitstop
+   stays, and it counts itself exactly once. */
+winBeat(5, 5);
 console.log(JSON.stringify({
   reduced: REDUCED,
-  shake: shakeAmount(),
-  particles: particleCount(),
-  hitstop: HITSTOP,
+  shake: plain.shake,
+  particles: plain.particles,
+  hitstop: plain.hitstop,
+  winShake: shakeAmount(),
+  winParticles: particleCount() - plain.particles,
+  winHitstop: HITSTOP,
+  winBeats: winBeats(),
 }));
 """
 
@@ -139,5 +179,8 @@ __all__ = [
     "JUICE_PREAMBLE",
     "PREAMBLE_NAMES",
     "PROBE",
+    "WIN_HITSTOP",
+    "WIN_PARTICLES",
+    "WIN_SHAKE",
     "probe_source",
 ]

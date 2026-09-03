@@ -119,7 +119,7 @@ function pop(){if(state!=='play')return;
     cleared=grid.every(r=>r.every(v=>v<0));
     /* Clearing the board is a win; running out of moves is the loss the
        beat is for. */
-    if(cleared){sfx('win')}else{failBeat(cv.width/2,cv.height/2)}}}
+    if(cleared){winBeat(cv.width/2,cv.height/2)}else{failBeat(cv.width/2,cv.height/2)}}}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
   if(e.code==='Space'){e.preventDefault();

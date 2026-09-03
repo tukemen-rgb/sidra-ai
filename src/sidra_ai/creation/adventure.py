@@ -147,7 +147,7 @@ function swing(){if(state!=='play')return;
        the lock while the guardian is on its feet. */
     if(t===7){if(!hero.key){say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}
       else if(guard&&guard.alive){say('番人が生きている限り、宝箱は開かない。');sfx('clash')}
-      else{state='win';sfx('win')}}
+      else{state='win';winBeat(hero.x,hero.y)}}
     if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」');sfx('step')}
     /* The sink (§5): gems were a tap with no outlet, so cutting grass paid
        in a number. Three of them buy a heart, which is what makes the

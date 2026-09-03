@@ -95,7 +95,7 @@ function hitLeg(){boss.legHp--;boss.hurt=8;boss.smoke=34;shake(3);burst(legX(),G
     hitstop(4);sfx('key')}}
 function hitHead(){cycles++;boss.hurt=12;shake(7);burst(legX(),boss.head,16,'ACCENT_JUICE');
   hitstop(6);sfx('sword');
-  if(cycles>=3){state='won';boss.shown=true;boss.phase='down';shake(10)}
+  if(cycles>=3){state='won';boss.shown=true;boss.phase='down';winBeat(legX(),boss.head)}
   else{boss.phase='leg';boss.legHp=LEGHP;boss.head=-160;boss.timer=BEAT}}
 function openCrack(){const x=60+rand()*(W-120);
   cracks.push({x:x,w:0,warn:34,open:0});sfx('charge')}
@@ -244,6 +244,7 @@ console.log(JSON.stringify({
   cyclesAfterMisses: afterMisses.cycles, legHpAfterMisses: afterMisses.legHp,
   sawOpen: sawOpen, bodyWhileAlive: bodyWhileAlive,
   cycles: end.cycles, shown: end.shown, state: end.state, kills: cyclesAt.length,
+  winBeats: winBeats(), failBeats: failBeats(),
 }));
 """
 

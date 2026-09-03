@@ -102,8 +102,7 @@ function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,pass
 function hitObstacle(){grace=45;spd=Math.max(PACE*0.35,spd*0.45);
   shake(5);hitstop(3);sfx('clash');burst(car.x,CARY,10,'ALERT_JUICE')}
 function crossLine(){times.push(lapT);lapT=0;
-  if(lap>=LAPS){state='goal';sfx('win');shake(6);
-    burst(car.x,CARY-20,16,'ACCENT_JUICE')}
+  if(lap>=LAPS){state='goal';winBeat(car.x,CARY-20)}
   else{lap++;sfx('key')}}
 const keys={};function K(k){return keys[k]}
 addEventListener('keydown',e=>{keys[e.key]=true;
