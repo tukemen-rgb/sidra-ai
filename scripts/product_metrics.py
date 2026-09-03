@@ -2815,8 +2815,15 @@ def measure_creation(c: Collector) -> None:
                 # The daily stamp is safe to paste precisely because it is
                 # everybody's; saying it on a board that is not shared
                 # would make the claim meaningless.
-                elif daily and _share_stamp not in text:
+                # Only a page whose board comes from the seed has a board
+                # to share. Two templates lay theirs out with Math.random
+                # and have none, so for them the switch can be on and the
+                # line must still not say 今日の. (C-1118 found the page
+                # saying it anyway; this judge asked for it.)
+                elif daily and seen["round"]["seed"] is not None and _share_stamp not in text:
                     trouble = f"{where}: today's board is not named"
+                elif daily and seen["round"]["seed"] is None and _share_stamp in text:
+                    trouble = f"{where}: a board nobody else has is dated as today's"
                 elif not daily and _share_stamp in text:
                     trouble = f"{where}: a private board is dated as today's"
             if trouble:
@@ -2959,6 +2966,136 @@ def measure_creation(c: Collector) -> None:
             "毎回見たい人は調整パネルで戻せる"
             if not start_gaps
             else "; ".join(start_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- all ten of them at once, on the same frame ---------------------
+    #
+    # C-1118. C-1104 to C-1116 landed in twelve hours and every one has a
+    # judge that says 1 - each driving the page with its own feature on and
+    # the rest at their defaults. Nobody had run the clock, the failure
+    # beat, the result strip, the daily seed, the unlock, the share line,
+    # the panel and the instant start together, which is the only way a
+    # person will ever run them.
+    #
+    # The sweep found two real defects and this number is what keeps them
+    # fixed: the strip had grown to ~800px on a 720px canvas (centred, so
+    # it lost both ends), and two templates that have no seed at all were
+    # claiming 今日の挑戦 - on screen and in the line people paste.
+    from sidra_ai.creation.together import (
+        CANVAS_WIDTH as _all_width,
+        key_gaps as _all_keys,
+        probe_source as _all_probe,
+        text_width as _all_text_width,
+    )
+    from sidra_ai.creation.share import leaks as _all_leaks
+    from sidra_ai.creation.skins import skin_spec as _all_skin
+    from sidra_ai.creation.tuning import SPEED_BINDING as _all_binding
+
+    _all_stamp = "2026-09-03"
+    _all_request = "ゲームを作って"
+    together_gaps: list[str] = []
+    together_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        art = _tune_generate(_all_request, template=key)
+        found = _scene_re.search(r"<script>(.*?)</script>", art.html, _scene_re.S)
+        if found is None:
+            together_gaps.append(f"{key}: no script")
+            continue
+        body = found.group(1)
+        earned = _all_skin(key)["skins"][1]
+        hardest = max(pair[0] for pair in _tune_ladder[key].values())
+        stored = {
+            f"sidra.seen.{key}": "1",
+            f"sidra.skin.{key}": earned["id"],
+            f"sidra.total.{key}": str(earned["at"]),
+            f"sidra.best.{key}": "999999",
+            f"sidra.tune.{key}": {"daily": True, "speed": hardest},
+        }
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_all_probe(
+                    body,
+                    speed_expr=_all_binding[key],
+                    stored=stored,
+                    stamp=_all_stamp,
+                ),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if probe.returncode != 0:
+                together_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                continue
+            seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            together_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            continue
+        gate, strip = seen["atLoad"]["gate"], seen["strip"]
+        lines = sorted({item["text"] for item in strip})
+        # The strip's own two lines, told apart from the clock's banner and
+        # from the template's own ending by where they are drawn. Without
+        # this, emptying the strip's retry hint still passed: four templates
+        # print a 「もう一度」 of their own somewhere higher up.
+        band = sorted({item["text"] for item in strip if item["y"] >= 280})
+        # A page whose board is not seed-derived has no shared board, so
+        # neither the strip nor the copied line may say it has one.
+        shared = seen["facts"]["round"]["seed"] is not None
+        said_today = [line for line in band if "今日の挑戦" in line]
+        copied = seen["clipboard"][0] if seen["clipboard"] else ""
+        wide = [line for line in lines if _all_text_width(line) > _all_width]
+        problems = _all_keys(body)
+        if not gate["skipped"] or gate["frames"] < 1:
+            problems.append("the briefing was not skipped on a return visit")
+        elif gate["gesture"]:
+            problems.append("a sound was played before anyone touched anything")
+        if seen["atLoad"]["speed"] != hardest:
+            problems.append(f"the panel's speed did not reach the game ({seen['atLoad']['speed']})")
+        if seen["atLoad"]["accent"] != earned["accent"]:
+            problems.append("the earned colour is not the one being painted with")
+        if not (seen["atBreak"]["round"]["done"] or seen["atBreak"]["round"]["ended"]):
+            problems.append("the round never reached a break")
+        if seen["stripAt"] is None:
+            problems.append("the result screen never drew anything")
+        if wide:
+            problems.append(f"the result strip runs off the canvas: {wide[0][:40]}…")
+        if not [line for line in band if "もう一度" in line]:
+            problems.append("the result strip does not say how to go again")
+        if shared and not said_today:
+            problems.append("today's board is not named on a page that has one")
+        if not shared and said_today:
+            problems.append("a board nobody else has is called today's")
+        if not copied:
+            problems.append("nothing was copied from the result screen")
+        else:
+            problems += _all_leaks(
+                copied,
+                request=_all_request,
+                title=art.title,
+                seed=_share_zlib.crc32(_all_request.encode("utf-8")),
+            )
+            if shared != (_all_stamp in copied):
+                problems.append("the copied line disagrees with the screen about today")
+        stray = [k for k in seen["writes"] if not k.endswith("." + key)]
+        if stray:
+            problems.append(f"a write escaped this template's namespace: {stray}")
+        if problems:
+            together_gaps.append(f"{key}: " + "; ".join(problems[:3]))
+        else:
+            together_ok.append(key)
+    c.add(
+        "creation_features_together",
+        "10 機能を同時に入れても壊れない型",
+        float(len(together_ok)) if not together_gaps else 0.0,
+        detail=(
+            "即時開始・ブリーフィング既読・日替わり・手動の速度・獲得スキン・"
+            "60 秒区切り・失敗演出・リザルト帯・共有文を全部入れて 9 型を実プレイ。"
+            "帯が canvas に収まること、日替わりを名乗るのは種のある盤面だけ、"
+            "localStorage の鍵が型ごとに分かれていることを同時に確認"
+            if not together_gaps
+            else "; ".join(together_gaps)
         ),
         kind=OUTCOME,
     )

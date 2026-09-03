@@ -129,11 +129,20 @@ def test_the_line_carries_the_score_and_a_row_derived_from_it(template: str) -> 
 
 def test_today_is_named_only_when_the_board_is_shared() -> None:
     """The stamp is safe to paste because it is everybody's. Saying it over
-    a board nobody else has would make the claim meaningless."""
+    a board nobody else has would make the claim meaningless.
 
-    shared, _ = _play(PLAYED, daily=True)
-    private, _ = _play(PLAYED, daily=False)
+    Driven on a template whose board actually comes from the seed. This
+    test used to run on ``fishing`` and passed, which was the bug: fishing
+    lays its board out with ``Math.random`` and has no seed at all, so it
+    was dating a board only that player had. C-1118's sweep found it - see
+    ``tests/test_creation_features_together.py`` for the other half.
+    """
 
+    seeded = "adventure"
+    shared, _ = _play(seeded, daily=True)
+    private, _ = _play(seeded, daily=False)
+
+    assert shared["round"]["seed"] is not None
     assert STAMP in shared["facts"]["text"]
     assert STAMP not in private["facts"]["text"]
 

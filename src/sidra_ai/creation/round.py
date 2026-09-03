@@ -214,7 +214,12 @@ function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
    again" reads the same everywhere. */
 function drawResultStrip(){if(!RCV)return;roundBank();
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
-  c.save();c.fillStyle='#05070fe6';c.fillRect(0,H-34,W,34);
+  /* Two lines, not one. Each of C-1104, C-1106, C-1107 and C-1110 added a
+     clause to this strip while the others were switched off; with all four
+     on it measured about 800px on a 720px canvas, and being centred it lost
+     both ends - the daily stamp on the left and the copy hint on the right.
+     Found by C-1118's sweep, which is the only run that had them all on. */
+  c.save();c.fillStyle='#05070fe6';c.fillRect(0,H-52,W,52);
   c.fillStyle='#dfe7f5';c.textAlign='center';
   c.font='13px ui-monospace,monospace';
   let left='';
@@ -226,17 +231,19 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   /* Whose board this was. Only when the switch is on: a line that always
      said 今日の挑戦 would make the shared attempt meaningless. */
   let mark='';
-  try{if(dailyOn()){mark='今日の挑戦 '+dailyStamp()+'   '}}catch(e){}
+  try{if(dailyBoard()){mark='今日の挑戦 '+dailyStamp()+'   '}}catch(e){}
   /* The copy key is offered only where there is something to copy. */
   let right='R / タップでもう一度';
   try{if(shareReady()){right+='   C / 結果をコピー'}}catch(e){}
-  c.fillText(mark+(left?(left+'   '+right):right),W/2,H-13);
+  /* What happened on top, what to do next underneath. */
+  if(mark||left){c.fillText(mark+left,W/2,H-32)}
+  c.fillText(right,W/2,H-12);
   /* A colour that just opened is the reason to start the next round, so it
      is said on the screen that asks for one - and only when it happened. */
   let news=null;try{news=skinNews()}catch(e){}
-  if(news){c.fillStyle='#05070fe6';c.fillRect(0,H-64,W,30);
+  if(news){c.fillStyle='#05070fe6';c.fillRect(0,H-82,W,30);
     c.fillStyle=TUNE_ACCENT;
-    c.fillText('新しい見た目「'+news+'」が開きました',W/2,H-44)}
+    c.fillText('新しい見た目「'+news+'」が開きました',W/2,H-62)}
   c.textAlign='left';c.restore()}
 function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   ended:roundEnded(),limit:ROUND_LIMIT_MS,

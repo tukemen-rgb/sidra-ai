@@ -30,6 +30,7 @@ from __future__ import annotations
 #: preambles': a template that happened to define ``seedNow`` would break
 #: only in the generated page.
 PREAMBLE_NAMES: tuple[str, ...] = (
+    "dailyBoard",
     "seedNow",
     "dailyOn",
     "dailyStamp",
@@ -57,6 +58,13 @@ function dailySeed(){if(!DAILY_STAMP)return 0;
    makes a generated game that person's game, and a revision rebuilt from
    the same request expects the same world back. */
 function dailyOn(){try{return tuneFlag('daily',false)}catch(e){return false}}
+/* Whether *this* page's board is the shared one. Two templates lay their
+   board out with Math.random and have no SEED at all, so for them the
+   switch can be on and the board still is not everybody's - and saying
+   「今日の挑戦」 over it would be a false claim, in a line people paste.
+   Found by C-1118's sweep; C-1107's judge only ever drove the adventure. */
+function dailyBoard(){try{return dailyOn()&&typeof SEED!=='undefined'}
+  catch(e){return false}}
 function seedNow(fallback){return dailyOn()?dailySeed():fallback}
 """
 

@@ -122,7 +122,7 @@ function shareText(){
      what makes it safe to paste. The request-derived seed is the opposite
      and never appears. */
   let head=SHARE_SPEC.name;
-  try{if(dailyOn()){head='今日の'+SHARE_SPEC.name+' '+dailyStamp()}}catch(e){}
+  try{if(dailyBoard()){head='今日の'+SHARE_SPEC.name+' '+dailyStamp()}}catch(e){}
   const bar=shareBar(score);
   let line=head+(bar?(' '+bar):'')+' '+ROUND_LABEL+' '+score;
   /* Only when there is something to have been best at: a first run that
