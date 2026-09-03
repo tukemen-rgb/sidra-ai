@@ -624,6 +624,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1216: the top citation for a real revenue question was 26 characters
+    # of raw Markdown cut mid-checkbox (「## D-CY4. … - [ ] **A.」). The lead
+    # extractor now flattens markup (C-1212's plain_text) and label fragments
+    # no longer consume the sentence budget; the live re-ask against the real
+    # corpus ran at fix time, recorded in the loop log.
+    from sidra_ai.evals.citation_readability import evaluate_citation_readability
+
+    readable = evaluate_citation_readability()
+    c.add(
+        "qa_citation_readability",
+        "回答の引用が読める文で出る（記号なし・実内容あり）",
+        10.0 * readable.checks_passed / readable.checks_total,
+        detail=f"{readable.checks_passed}/{readable.checks_total} checks; "
+               "src/sidra_ai/evals/citation_readability.py"
+               + ("" if readable.passed else "; " + "; ".join(readable.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1211: failures surfaced as bare HTTP codes; the page now maps the
     # reachable classes to Japanese guidance while the error body stays
     # hidden and the code stays printed.

@@ -38,6 +38,10 @@ _MD_BOLD = re.compile(r"\*\*([^*]+)\*\*")
 _MD_EMPHASIS = re.compile(r"(?<![\w*])\*([^*\s][^*]*)\*(?![\w*])")
 _MD_CODE = re.compile(r"`([^`]+)`")
 _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
+#: A bullet at the start of a line, with or without a task checkbox. Only
+#: line-anchored so a mid-sentence dash (「令和 - 平成」) is never touched;
+#: applied before whitespace collapse, while line starts still exist (C-1216).
+_MD_LIST = re.compile(r"(?m)^[ \t]*[-*+][ \t]+(?:\[[ xX]\][ \t]+)?")
 
 
 def plain_text(text: str) -> str:
@@ -49,6 +53,7 @@ def plain_text(text: str) -> str:
     character from quoted evidence is worse than showing one marker.
     """
 
+    text = _MD_LIST.sub("", text)
     text = _MD_HEADING.sub("", text)
     text = _MD_BOLD.sub(r"\1", text)
     text = _MD_EMPHASIS.sub(r"\1", text)

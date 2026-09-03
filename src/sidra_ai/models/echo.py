@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 
+from sidra_ai.creation.evidence import plain_text
 from sidra_ai.models.base import (
     GenerationRequest,
     GenerationResult,
@@ -24,6 +25,10 @@ from sidra_ai.models.base import (
 #: A question containing any CJK character is treated as Japanese for the
 #: canned no-evidence reply. Same ranges as retrieval tokenization.
 _CJK = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
+
+#: Below this many characters a "sentence" is a label or list-marker
+#: fragment (「D-CY4.」「A.」), not content a reader can act on.
+_MIN_INFORMATIVE = 12
 
 _BLOCK = re.compile(
     r"<<<SIDRA_DATA_BLOCK (?P<label>S\d+)>>>\n"
@@ -108,9 +113,23 @@ class EchoModelAdapter(LocalModelAdapter):
 
     # ------------------------------------------------------------------
     def _lead(self, content: str) -> str:
-        collapsed = " ".join(content.split())
+        # The corpus is Markdown, and a sentence-terminator split treats a
+        # heading label (「## D-CY4.」) and a checkbox stub (「**A.」) as two
+        # full sentences - the whole excerpt budget spent before any actual
+        # content (C-1216). Flatten the markup the way generated documents
+        # already do (C-1212; symbols only, every literal survives), and let
+        # short fragments ride along without consuming a sentence slot.
+        collapsed = plain_text(content)
         sentences = re.split(r"(?<=[.。!?！？])\s+", collapsed)
-        lead = " ".join(sentences[: self.max_sentences_per_block]).strip()
+        take = 0
+        informative = 0
+        for sentence in sentences:
+            take += 1
+            if len(sentence.strip()) >= _MIN_INFORMATIVE:
+                informative += 1
+                if informative >= self.max_sentences_per_block:
+                    break
+        lead = " ".join(sentences[:take]).strip()
         return (lead[:400] + "...") if len(lead) > 400 else lead or "(empty)"
 
     def _result(
