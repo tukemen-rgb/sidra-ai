@@ -21,6 +21,10 @@ from sidra_ai.models.base import (
     estimate_tokens,
 )
 
+#: A question containing any CJK character is treated as Japanese for the
+#: canned no-evidence reply. Same ranges as retrieval tokenization.
+_CJK = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
+
 _BLOCK = re.compile(
     r"<<<SIDRA_DATA_BLOCK (?P<label>S\d+)>>>\n"
     r"source: (?P<citation>[^\n]*)\n"
@@ -45,12 +49,29 @@ class EchoModelAdapter(LocalModelAdapter):
         blocks = list(_BLOCK.finditer(request.data_context))
 
         if not blocks:
-            text = (
-                "No indexed evidence matched this question. "
-                "Run POST /v1/github/analyze to ingest the repositories, or "
-                "rephrase the question.\n\n"
-                f"Question received: {request.user_message.strip()}"
-            )
+            question = request.user_message.strip()
+            if _CJK.search(question):
+                # SYSTEM_PROMPT rule 6 - born from the 2026-08-27 incident -
+                # says a Japanese question gets a Japanese answer, and this
+                # canned text was the one reply that ignored it (C-1202). It
+                # must open with a marker `grounding._NO_EVIDENCE_MARKERS`
+                # recognizes at sentence start, and every later sentence must
+                # start with an advisory prefix (別の/確認), so the honest
+                # abstention still *counts* as one in the grounding eval.
+                text = (
+                    "現時点では十分な根拠がありません。資料を索引した範囲では、"
+                    "この質問へ答えられる内容が見つかりませんでした。"
+                    "別の言い方で質問し直すか、対象リポジトリの取り込み"
+                    "（POST /v1/github/analyze）を管理者に依頼してください。\n\n"
+                    f"確認した質問: {question}"
+                )
+            else:
+                text = (
+                    "No indexed evidence matched this question. "
+                    "Run POST /v1/github/analyze to ingest the repositories, or "
+                    "rephrase the question.\n\n"
+                    f"Question received: {question}"
+                )
             return self._result(request, text, finish_reason="no_evidence")
 
         lines = [

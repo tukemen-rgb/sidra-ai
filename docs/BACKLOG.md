@@ -2824,7 +2824,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [~] 作業中 2026-09-03 06:20 辛口ユーザー **C-1202: 「見つからない」の文言が英語＋内部 API 用語。**
+- [x] 完了 2026-09-03 06:4x UTC 辛口ユーザー（`qa_error_language_match` unmeasurable→**10**、判定器 exit 0。5 通りの破壊で 10→7.5/5.0 に落ちることを確認。実機で「天気を教えて」に日本語の棄権文＋grounding の棄権判定も通過）**C-1202: 「見つからない」の文言が英語＋内部 API 用語。**
       （辛口ユーザーループ起票・エラー文言 2/10）日本語で質問した社員への
       no-evidence 応答が「No indexed evidence matched this question. Run POST
       /v1/github/analyze to ingest the repositories...」。(1) 全文英語 —

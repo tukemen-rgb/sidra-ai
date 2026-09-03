@@ -129,7 +129,60 @@ PROBES: tuple[HonestyProbe, ...] = (
 )
 
 
-def _build_service():
+@dataclass(frozen=True)
+class ErrorLanguageResult:
+    """C-1202: the no-evidence reply must speak the question's language."""
+
+    passed: bool
+    checks_passed: int
+    checks_total: int
+    failures: tuple[str, ...] = ()
+
+
+def evaluate_no_evidence_language() -> ErrorLanguageResult:
+    """Ask an empty-corpus service in both languages; judge the canned reply.
+
+    Four checks, all through the real ``chat`` path: the Japanese question
+    gets a Japanese abstention (no English boilerplate), the English question
+    keeps the English one, and both replies still register as honest
+    abstention with :func:`sidra_ai.evals.grounding.evaluate_grounding` -
+    a translated message that stops counting as abstention would trade a
+    wording bug for a measurement bug.
+    """
+
+    from sidra_ai.evals.grounding import evaluate_grounding
+
+    service = _build_service(populate=False)
+    checks = 0
+    failures: list[str] = []
+
+    japanese = service.chat("天気を教えて")
+    if "No indexed evidence" not in japanese["answer"] and "根拠がありません" in japanese["answer"]:
+        checks += 1
+    else:
+        failures.append("japanese question answered with the English canned text")
+    if evaluate_grounding(japanese["answer"], japanese["citations"]).passed:
+        checks += 1
+    else:
+        failures.append("japanese abstention no longer counts as abstention")
+
+    english = service.chat("What changed recently?")
+    if "No indexed evidence" in english["answer"]:
+        checks += 1
+    else:
+        failures.append("english question lost the English canned text")
+    if evaluate_grounding(english["answer"], english["citations"]).passed:
+        checks += 1
+    else:
+        failures.append("english abstention no longer counts as abstention")
+
+    return ErrorLanguageResult(
+        passed=not failures, checks_passed=checks, checks_total=4,
+        failures=tuple(failures),
+    )
+
+
+def _build_service(populate: bool = True):
     """A real ``SidraService`` over the synthetic corpus, echo backend.
 
     The probes run through ``chat`` itself rather than re-implementing its
@@ -158,8 +211,9 @@ def _build_service():
         quarantine_store=QuarantineStore(tmp / "quarantine.jsonl"),
     )
     store = DocumentStore(gate)
-    for chunk in _EVAL_CHUNKS:
-        store.add(Document(content=chunk.content, provenance=chunk.provenance))
+    if populate:
+        for chunk in _EVAL_CHUNKS:
+            store.add(Document(content=chunk.content, provenance=chunk.provenance))
     return SidraService(settings, store=store, gate=gate)
 
 

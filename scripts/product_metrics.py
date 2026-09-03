@@ -466,6 +466,24 @@ def measure_answer_quality(c: Collector) -> None:
     # questions is a worse product than the one that bluffed.
     from sidra_ai.evals.qa_honesty import PROBES, evaluate_qa_honesty
 
+    # C-1202: the canned no-evidence reply used to be English with an internal
+    # API instruction regardless of the question's language - the exact
+    # failure SYSTEM_PROMPT rule 6 was written against (2026-08-27 incident).
+    # Measured through the real chat path over an empty corpus, both
+    # directions, plus proof each reply still counts as abstention in the
+    # grounding eval.
+    from sidra_ai.evals.qa_honesty import evaluate_no_evidence_language
+
+    language = evaluate_no_evidence_language()
+    c.add(
+        "qa_error_language_match",
+        "no-evidence reply speaks the question's language",
+        10.0 * language.checks_passed / language.checks_total,
+        detail=f"{language.checks_passed}/{language.checks_total} checks; "
+               "src/sidra_ai/evals/qa_honesty.py evaluate_no_evidence_language",
+        kind=OUTCOME,
+    )
+
     honesty = evaluate_qa_honesty()
     c.add(
         "qa_offtopic_honesty",

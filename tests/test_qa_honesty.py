@@ -115,7 +115,10 @@ def test_offtopic_question_gets_the_no_evidence_answer(service: SidraService):
 
     assert result["refused"] is False
     assert result["citations"] == []
-    assert "No indexed evidence matched" in result["answer"]
+    # C-1202: a Japanese question gets the Japanese abstention, not the
+    # English canned text with an internal API instruction.
+    assert "根拠がありません" in result["answer"]
+    assert "No indexed evidence" not in result["answer"]
 
 
 def test_ontopic_question_still_answers_with_citations(service: SidraService):
@@ -138,6 +141,35 @@ def test_follow_up_is_judged_with_its_carried_history(service: SidraService):
     )
 
     assert result["citations"], "history-carried subject must keep its evidence"
+
+
+# ---------------------------------------------- C-1202: reply language
+
+
+def test_japanese_no_evidence_reply_is_japanese_and_still_abstains(
+    service: SidraService,
+):
+    from sidra_ai.evals.grounding import evaluate_grounding
+
+    result = service.chat("会議室の予約方法を教えて")
+
+    assert "No indexed evidence" not in result["answer"]
+    assert "根拠がありません" in result["answer"]
+    assert evaluate_grounding(result["answer"], result["citations"]).passed
+
+
+def test_english_no_evidence_reply_stays_english(service: SidraService):
+    result = service.chat("What is the deployment cadence?")
+
+    assert "No indexed evidence matched" in result["answer"]
+
+
+def test_no_evidence_language_eval_passes():
+    from sidra_ai.evals.qa_honesty import evaluate_no_evidence_language
+
+    result = evaluate_no_evidence_language()
+    assert result.failures == ()
+    assert result.checks_passed == result.checks_total == 4
 
 
 # ------------------------------------------------------------- the judge
