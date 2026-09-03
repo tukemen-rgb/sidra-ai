@@ -107,6 +107,19 @@ ASK_PAGE = """<!doctype html>
   var answer = document.getElementById("answer");
   var sources = document.getElementById("sources");
 
+  // Status codes an operator can act on, said in their language (C-1211).
+  // The response BODY stays hidden on purpose - a detail the API kept
+  // private must stay private - but the class of failure is not a secret,
+  // and "HTTP 422" alone tells an operator nothing about what to do next.
+  function explain(status) {
+    var why = "";
+    if (status === 401 || status === 403) { why = "\u30a2\u30af\u30bb\u30b9\u30c8\u30fc\u30af\u30f3\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044"; }
+    else if (status === 413 || status === 422) { why = "\u5165\u529b\u304c\u9577\u3059\u304e\u308b\u304b\u5f62\u5f0f\u304c\u4e0d\u6b63\u3067\u3059\u3002\u77ed\u304f\u3057\u3066\u518d\u9001\u3057\u3066\u304f\u3060\u3055\u3044"; }
+    else if (status === 429) { why = "\u6df7\u307f\u5408\u3063\u3066\u3044\u307e\u3059\u3002\u5c11\u3057\u5f85\u3063\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044"; }
+    else if (status >= 500) { why = "\u30b5\u30fc\u30d0\u5074\u3067\u554f\u984c\u304c\u8d77\u304d\u307e\u3057\u305f\u3002\u6642\u9593\u3092\u304a\u3044\u3066\u518d\u8a66\u884c\u3057\u3066\u304f\u3060\u3055\u3044"; }
+    return why ? why + "\uff08HTTP " + status + "\uff09" : "HTTP " + status;
+  }
+
   function clear(node) {
     while (node.firstChild) { node.removeChild(node.firstChild); }
   }
@@ -160,7 +173,7 @@ ASK_PAGE = """<!doctype html>
     // this origin.
     fetch("/v1/artifacts/" + encodeURIComponent(name), { headers: authHeaders() })
       .then(function (response) {
-        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        if (!response.ok) { throw new Error(explain(response.status)); }
         return response.blob();
       }).then(function (blob) {
         var url = URL.createObjectURL(blob);
@@ -177,7 +190,7 @@ ASK_PAGE = """<!doctype html>
   function loadArtifacts() {
     fetch("/v1/artifacts", { headers: authHeaders() })
       .then(function (response) {
-        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        if (!response.ok) { throw new Error(explain(response.status)); }
         return response.json();
       }).then(function (result) {
         clear(artifactList);
@@ -212,7 +225,7 @@ ASK_PAGE = """<!doctype html>
     fetch("/v1/projects/" + encodeURIComponent(slug) + "/" + name.split("/").map(encodeURIComponent).join("/"),
       { headers: authHeaders() })
       .then(function (response) {
-        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        if (!response.ok) { throw new Error(explain(response.status)); }
         return response.blob();
       }).then(function (blob) {
         var url = URL.createObjectURL(blob);
@@ -229,7 +242,7 @@ ASK_PAGE = """<!doctype html>
   function loadProjects() {
     fetch("/v1/projects", { headers: authHeaders() })
       .then(function (response) {
-        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        if (!response.ok) { throw new Error(explain(response.status)); }
         return response.json();
       }).then(function (result) {
         clear(projectList);
@@ -311,7 +324,7 @@ ASK_PAGE = """<!doctype html>
       if (!response.ok) {
         // Status only. The body of an error response is not shown, so a
         // detail the API chose to keep private stays private.
-        throw new Error("HTTP " + response.status);
+        throw new Error(explain(response.status));
       }
       return response.json();
     }).then(function (result) {

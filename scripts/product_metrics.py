@@ -552,6 +552,22 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1211: failures surfaced as bare HTTP codes; the page now maps the
+    # reachable classes to Japanese guidance while the error body stays
+    # hidden and the code stays printed.
+    from sidra_ai.evals.ui_error_guidance import evaluate_ui_error_guidance
+
+    guidance = evaluate_ui_error_guidance()
+    c.add(
+        "ui_error_guidance",
+        "a failed request says what to do next",
+        10.0 * guidance.checks_passed / guidance.checks_total,
+        detail=f"{guidance.checks_passed}/{guidance.checks_total} checks; "
+               "src/sidra_ai/evals/ui_error_guidance.py"
+               + ("" if guidance.passed else "; " + "; ".join(guidance.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1210: the server carried chat history; the browser page never sent
     # it, so every follow-up question abstained. Mechanics pinned on the
     # page source; the end-to-end run lives in the loop log.
