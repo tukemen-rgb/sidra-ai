@@ -5662,3 +5662,5 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   反復」を言い当てて 0／JITTER=0.4→帯外 325-675Hz を言い当てて 0。
   pytest exit 0（2946 passed / 1 skip）/ gate exit 0（MISS 0）。
 
+
+2026-09-03 22:08 UTC ループA started（Board=13、増減なし）
