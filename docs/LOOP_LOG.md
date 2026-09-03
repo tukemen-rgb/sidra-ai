@@ -4928,3 +4928,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   導入（種なし fishing/catch にも曲が付く）。実走行で「入力前 0 音・入力後に予約・
   M で停止・同依頼同曲・別依頼別曲」を確認。破壊 3 通り（起動時 ON／ミュート無視／
   tick 未配線）で 0 に落ちる。pytest exit 0（2732 件）/ gate exit 0（MISS 0）。
+2026-09-03 09:08 ループA started Board=13
