@@ -142,6 +142,25 @@ def test_the_final_act_is_the_brightest_sky_of_the_fight():
     assert scenes[2]["lum"] >= scenes[1]["lum"]
 
 
+def test_the_fight_escalates_act_by_act():
+    """§6 観察 3: the acts change the fight, not only the paint.
+
+    Read off the flown page at spawn time: the final act must actually
+    drop faster and spawn denser than the opening one - the docstring's
+    "waves ... get faster" is a promise this test holds it to.
+    """
+
+    facts = _flown()
+    spawns, vy = facts["actSpawn"], facts["actVyAvg"]
+
+    assert facts["state"] == "play" and facts["t"] >= 3400, "reached the final act"
+    assert min(spawns) >= 1, spawns
+    assert vy[2] > vy[1] > vy[0], "each act falls faster than the last"
+    pace_first = 1200 / spawns[0]
+    pace_final = (facts["t"] - 2400) / spawns[2]
+    assert pace_final < pace_first * 0.85, "the final act spawns denser"
+
+
 def test_every_key_the_shooter_reads_has_a_pad_button():
     # The pad guard covers all templates, but a new one is exactly where a
     # phone-unreachable control gets added without anyone noticing.

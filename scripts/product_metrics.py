@@ -1928,6 +1928,72 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the crescendo is in the fight, not only in the paint ----------
+    #
+    # §6 観察 3: escalation has a shape - the same fight, re-accelerated.
+    # C-1301 gave the shooter's round three acts of sky; this number asks
+    # whether the fight itself escalates. Measured off the flown page: the
+    # probe pilots the round into the final act and reads back, per act,
+    # how many waves actually spawned and how fast they actually fell. A
+    # palette stepping over a flat fight passes the scene number and fails
+    # this one - the docstring's "waves ... get faster" has to be a fact
+    # about the running page.
+    esc_gaps: list[str] = []
+    esc_page = generate_game("シューティングゲームを作って").html
+    esc_script = _scene_re.search(r"<script>(.*?)</script>", esc_page, _scene_re.S)
+    if esc_script is None:
+        esc_gaps.append("no script on the page")
+    else:
+        try:
+            esc_probe = _scene_sp.run(
+                ["node", "-"],
+                input=_shooter_scene_probe(esc_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if esc_probe.returncode != 0:
+                raise ValueError(esc_probe.stderr.strip()[:60])
+            flown = json.loads(esc_probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            flown = None
+            esc_gaps.append(f"probe unavailable ({exc})")
+        if flown is not None:
+            spawns = flown.get("actSpawn") or []
+            vy = flown.get("actVyAvg") or []
+            if flown.get("state") != "play" or flown.get("t", 0) < 3400:
+                # A dead pilot has not seen the final act, so the numbers
+                # below would describe a fight nobody reached.
+                esc_gaps.append(
+                    f"the pilot did not reach the final act "
+                    f"(state={flown.get('state')}, t={flown.get('t')})"
+                )
+            elif len(spawns) != 3 or min(spawns) < 1 or len(vy) != 3:
+                esc_gaps.append(f"per-act spawn log incomplete: {spawns}")
+            else:
+                pace0 = 1200 / spawns[0]
+                pace2 = (flown["t"] - 2400) / spawns[2]
+                if vy[2] < vy[0] * 1.15:
+                    esc_gaps.append(
+                        f"the final act falls no faster ({vy[0]:.2f} -> {vy[2]:.2f})"
+                    )
+                if pace2 > pace0 * 0.85:
+                    esc_gaps.append(
+                        f"the final act spawns no denser ({pace0:.0f}f -> {pace2:.0f}f)"
+                    )
+    c.add(
+        "creation_combat_escalation",
+        "戦闘が幕ごとに強くなる型",
+        0.0 if esc_gaps else 1.0,
+        detail=(
+            "; ".join(esc_gaps)
+            if esc_gaps
+            else "shooter を最終幕まで実際に操縦: 降下速度と出現密度が"
+            "幕ごとに実測で上がる（最終幕が最速・最密）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

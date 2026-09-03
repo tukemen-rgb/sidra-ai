@@ -63,17 +63,26 @@ setPal(SHOOTER_PAL_TOKEN);
    third of the round in frames; the final third is the brightest sky of
    the fight, because the wave the clock catches you on is the climax. */
 const ACT=1200;
+/* §6 観察 3: escalation has a shape - the same fight, re-accelerated. Each
+   act drops faster and spawns denser than the last, so the sky's colour
+   change (C-1301) is a change in the fight rather than a coat of paint.
+   Logged per act at spawn time, so a probe reads the escalation off the
+   running page instead of off this table. */
+const ACT_FALL=[1,1.15,1.3],ACT_GAP=[1,0.85,0.7];
+function actOf(){return t>=ACT*2?2:t>=ACT?1:0}
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const W=cv.width,H=cv.height,SHIP=22;
-let ship,shots,foes,stars,score,wave,t,state,fire;
+let ship,shots,foes,stars,score,wave,t,state,fire,spawnIn,actSpawn,actVy;
 function reset(){ship={x:W/2,y:H-34,hp:3,cool:0};shots=[];foes=[];score=0;wave=0;
   t=0;state='play';fire=false;rs=(SEED>>>0)||1;
+  spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];
   stars=[];for(let i=0;i<48;i++){stars.push({x:rand()*W,y:rand()*H,s:0.4+rand()*1.4})}}
 /* A formation, not a scatter: rows read as a wave the player can answer. */
-function spawn(){wave++;const n=3+Math.floor(rand()*4),gap=W/(n+1),
-  drop=0.35+rand()*0.35,sway=rand()<0.5?-1:1;
+function spawn(){wave++;const a=actOf(),n=3+Math.floor(rand()*4),gap=W/(n+1),
+  drop=0.35+rand()*0.35,sway=rand()<0.5?-1:1,vy=FALL*(0.8+drop)*ACT_FALL[a];
+  actSpawn[a]++;actVy[a]+=vy;
   for(let i=0;i<n;i++){foes.push({x:gap*(i+1),y:-24-((i%2)*18),
-    vy:FALL*(0.8+drop),vx:sway*(0.2+rand()*0.5),r:13,hp:1})}}
+    vy:vy,vx:sway*(0.2+rand()*0.5),r:13,hp:1})}}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
   if(e.code==='Space'){e.preventDefault();
@@ -92,7 +101,7 @@ function step(){const now=performance.now();
     if(keys['arrowleft']||keys['a']){ship.x=Math.max(SHIP,ship.x-4)}
     if(keys['arrowright']||keys['d']){ship.x=Math.min(W-SHIP,ship.x+4)}
     if(fire)shoot();
-    if(t%Math.round(WAVE)===0)spawn();
+    if(--spawnIn<=0){spawn();spawnIn=Math.max(8,Math.round(WAVE*ACT_GAP[actOf()]))}
     shots.forEach(s=>{s.y-=7});
     shots=shots.filter(s=>s.y>-10);
     foes.forEach(f=>{f.y+=f.vy;f.x+=f.vx;
@@ -115,7 +124,7 @@ function draw(now){
      time-boxed (C-1104), so thirds of the clock are thirds of the go at
      every difficulty. Mood only - the ship, the foes and the shots keep
      their information colours and their shapes (§4). */
-  setScene(t>=ACT*2?2:t>=ACT?1:0);
+  setScene(actOf());
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,W,H);
   cx.fillStyle='#ffffff44';
   stars.forEach(s=>{cx.fillRect(s.x,s.y,s.s,s.s*2)});
@@ -148,7 +157,8 @@ function draw(now){
 function shooterFacts(){const incoming=[];
   foes.forEach(f=>{if(f.hp>0&&f.y>ship.y-170){incoming.push([f.x,f.y])}});
   return {t:t,wave:wave,scene:SCENE,hp:ship.hp,state:state,score:score,
-    x:ship.x,w:W,incoming:incoming}}
+    x:ship.x,w:W,incoming:incoming,act:actOf(),
+    actSpawn:actSpawn.slice(),actVy:actVy.slice()}}
 reset();step();
 """
 
@@ -191,7 +201,7 @@ const early = shooterFacts();
    act of the sky as each third of the clock arrives. */
 key('keydown', ' ');
 let sceneMid = null;
-while (shooterFacts().state === 'play' && shooterFacts().t < 2520) {
+while (shooterFacts().state === 'play' && shooterFacts().t < 3480) {
   const f = shooterFacts();
   if (f.t >= 1300 && f.t < 2400 && sceneMid === null) sceneMid = f.scene;
   key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
@@ -228,6 +238,10 @@ console.log(JSON.stringify({
   scenes: palette.scenes,
   sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
   t: end.t, wave: end.wave, hp: end.hp, score: end.score, state: end.state,
+  /* Escalation, as measured: waves counted per act at spawn time, and the
+     descent speed each act actually shipped (C-1302). */
+  actSpawn: end.actSpawn,
+  actVyAvg: end.actVy.map((v, i) => end.actSpawn[i] ? v / end.actSpawn[i] : 0),
 }));
 """
 
