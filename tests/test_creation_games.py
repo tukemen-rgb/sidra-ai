@@ -26,6 +26,7 @@ from sidra_ai.creation import (  # noqa: E402
     generate_game,
     validate_game_html,
 )
+from sidra_ai.creation.share import SHARE_EMOJI  # noqa: E402
 from sidra_ai.creation.games import (  # noqa: E402
     choose_difficulty,
     choose_template,
@@ -133,7 +134,27 @@ def test_prohibited_defaults_stay_out(key) -> None:
     assert "backdrop-filter" not in html, "no glassmorphism (§3)"
     assert "box-shadow" not in html, "no glow or drop shadow (§3)"
     assert "fonts.googleapis" not in html, "no new font CDN (§3)"
-    assert not any(ord(ch) > 0x1F000 for ch in html), "no emoji as icons (§3)"
+
+
+@pytest.mark.parametrize("key", sorted(TEMPLATES))
+def test_the_only_emoji_in_the_page_is_the_one_you_paste(key) -> None:
+    """§3's ban is on emoji **as interface icons** (docs/OUTCOMES.md), and
+    that stands: no button, label or heading carries one.
+
+    The one place the knowledge base asks for them by name is the copied
+    result - §8 事実 7 records that Wordle's spread ran on an emoji grid
+    with no URL in it - so C-1110's row is the single exception, and it is
+    pinned rather than merely allowed: the mark appears exactly once in
+    the page, in the share spec the copied line is built from, and never
+    anywhere a person can see it in the interface.
+    """
+
+    html = generate_game("ゲームを作って", template=key).html
+    mark = SHARE_EMOJI[key]
+
+    strays = {ch for ch in html if ord(ch) > 0x1F000} - set(mark)
+    assert not strays, f"emoji used as an icon (§3): {strays}"
+    assert html.count(mark) == 1, "the share mark is drawn in the interface too"
 
 
 @pytest.mark.parametrize("key", sorted(TEMPLATES))

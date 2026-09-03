@@ -2720,6 +2720,134 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a result you can paste, that gives nothing away ----------------
+    #
+    # C-1110, §8 事実 7. What spreads a game is a result its player wants
+    # to show; what makes showing it safe for everybody else is that the
+    # result cannot be read backwards into the answer.
+    #
+    # So the number is about the characters that reach the clipboard, and
+    # the judge reads them off the running page: it plays a round out,
+    # waits for the result to come up, presses the page's own button, and
+    # then asks what was copied. Three things must be absent from that
+    # string - a URL, the person (their words, their title, their device)
+    # and the board (above all the seed) - and the score must be present,
+    # in a row whose length is derived from it rather than decorative.
+    import zlib as _share_zlib
+
+    from sidra_ai.creation.share import (
+        PREAMBLE_NAMES as _share_names,
+        SHARE_MAX as _share_max,
+        SHARE_PREAMBLE as _share_preamble,
+        leaks as _share_leaks,
+        probe_source as _share_probe,
+        share_spec as _share_spec,
+    )
+
+    _share_request = "ゲームを作って"
+    _share_stamp = "2026-09-03"
+    _share_seed = _share_zlib.crc32(_share_request.encode("utf-8"))
+
+    def _share_run(template, *, daily):
+        art = _tune_generate(_share_request, template=template)
+        script = _scene_re.search(r"<script>(.*?)</script>", art.html, _scene_re.S)
+        if script is None:
+            return None, None, f"{template}: no script"
+        stored = {f"sidra.tune.{template}": {"daily": True}} if daily else {}
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_share_probe(script.group(1), stored=stored, stamp=_share_stamp),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if probe.returncode != 0:
+                return None, None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), art.title, None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    share_gaps: list[str] = []
+    share_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        spec = _share_spec(key)
+        trouble = None
+        for daily in (False, True):
+            seen, title, problem = _share_run(key, daily=daily)
+            if problem:
+                trouble = problem
+                break
+            facts = seen["facts"]
+            copied = seen["afterClick"]
+            where = f"{key} (daily {'on' if daily else 'off'})"
+            if not seen["button"]:
+                trouble = f"{where}: no copy button on the page"
+            # Before there is a result there is nothing to copy. A button
+            # that answered mid-round would be sharing a number nobody
+            # finished scoring.
+            elif seen["early"]["ready"] or seen["early"]["text"] is not None:
+                trouble = f"{where}: a result was copyable while the round was running"
+            elif len(copied) != 1 or copied[0] != facts["text"]:
+                trouble = f"{where}: pressing the button copied {copied!r}"
+            elif facts["copies"] < 2:
+                trouble = f"{where}: the keyboard route does not copy"
+            else:
+                text = copied[0]
+                found = _share_leaks(
+                    text, request=_share_request, title=title or "", seed=_share_seed
+                )
+                score = facts["score"]
+                want = (
+                    ""
+                    if not (score and score > 0)
+                    else facts["emoji"]
+                    * max(1, min(facts["max"], round(score / facts["per"])))
+                )
+                if found:
+                    trouble = f"{where}: {'; '.join(found)}"
+                elif str(score) not in text:
+                    trouble = f"{where}: the line does not carry the score"
+                elif facts["bar"] != want:
+                    trouble = f"{where}: the row is not derived from the score"
+                elif len(facts["bar"]) and facts["bar"] not in text:
+                    trouble = f"{where}: the row was not in the copied line"
+                # The daily stamp is safe to paste precisely because it is
+                # everybody's; saying it on a board that is not shared
+                # would make the claim meaningless.
+                elif daily and _share_stamp not in text:
+                    trouble = f"{where}: today's board is not named"
+                elif not daily and _share_stamp in text:
+                    trouble = f"{where}: a private board is dated as today's"
+            if trouble:
+                break
+        if trouble:
+            share_gaps.append(trouble)
+        else:
+            share_ok.append(key)
+    # The line is pasted by hand, into whatever the person chooses. Nothing
+    # about it goes anywhere by itself.
+    for banned in ("fetch(", "XMLHttpRequest", "://", "sendBeacon", "WebSocket", "share("):
+        if banned in _share_preamble:
+            share_gaps.append(f"the share line reaches out: {banned!r}")
+    for name in _share_names:
+        if any(f"function {name}(" in spec.script for spec in _tune_templates.values()):
+            share_gaps.append(f"a template shadows {name}")
+    c.add(
+        "creation_share_text",
+        "ネタバレなしで貼れる結果の行がある型",
+        float(len(share_ok)) if not share_gaps else 0.0,
+        detail=(
+            f"実プレイでラウンドを終わらせ、ページ自身のボタンを押して"
+            f"クリップボードに載った文字列を検査。絵文字は最大 {_share_max} 個で"
+            "スコアから導出。URL・依頼文・タイトル・シード・端末情報のいずれも"
+            "含まない。日替わりが入のときだけ日付が付く"
+            if not share_gaps
+            else "; ".join(share_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

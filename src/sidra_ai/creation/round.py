@@ -137,6 +137,11 @@ function roundTick(t){
   /* The template finished on its own: its screen is the break, and the
      clock has nothing to add. Reset so a restart gets a full go. */
   if(roundEnded()){ROUND_T0=now;ROUND_MS=0;ROUND_REASON='template';return}
+  /* A template that restarts in place (kaiju's tap, the duel's R) begins a
+     round the bank has already been closed for. Without this the second
+     go's strip - and the line C-1110 copies - would still be reporting the
+     first one's score. */
+  if(ROUND_BANKED&&!ROUND_DONE){ROUND_BANKED=false;ROUND_FINAL=null;ROUND_RECORD=false}
   /* Once the clock has fired, only an explicit restart clears it. An
      earlier version cleared it as soon as the template looked "live"
      again - but the clock fires precisely when the template has *not*
@@ -222,7 +227,9 @@ function drawResultStrip(){if(!RCV)return;roundBank();
      said 今日の挑戦 would make the shared attempt meaningless. */
   let mark='';
   try{if(dailyOn()){mark='今日の挑戦 '+dailyStamp()+'   '}}catch(e){}
-  const right='R / タップでもう一度';
+  /* The copy key is offered only where there is something to copy. */
+  let right='R / タップでもう一度';
+  try{if(shareReady()){right+='   C / 結果をコピー'}}catch(e){}
   c.fillText(mark+(left?(left+'   '+right):right),W/2,H-13);
   /* A colour that just opened is the reason to start the next round, so it
      is said on the screen that asks for one - and only when it happened. */
@@ -328,6 +335,11 @@ roundKeys.forEach(fn => fn({ key: 'r', code: 'KeyR',
   preventDefault(){}, stopImmediatePropagation(){} }));
 roundRun(2);
 const afterKey = { live: roundLive(), ended: roundEnded(), reloads: tuneProbeReloadsShim() };
+/* A template that restarts in place is now in a *new* round, and the bank
+   for the old one has to be shut: a strip - or a line to paste - still
+   reporting the previous score would be reporting a round nobody is
+   playing. Null here means the bank was cleared. */
+const afterRestart = roundFacts().score;
 function tuneProbeReloadsShim(){ return roundReloads }
 console.log(JSON.stringify({
   gatedMs: beforePress,
@@ -340,7 +352,7 @@ console.log(JSON.stringify({
   strip: roundStrip,
   score: end.score, best: end.best, record: end.record, liveScore: end.live,
   seed: end.seed, daily: end.daily, stamp: end.stamp,
-  afterTap: afterTap, afterKey: afterKey,
+  afterTap: afterTap, afterKey: afterKey, afterRestart: afterRestart,
   breakAt: firstBreak ? firstBreak.ms : null,
   reason: firstBreak ? firstBreak.by : null,
   endState: firstBreak ? firstBreak.state : null,

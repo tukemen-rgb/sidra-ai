@@ -121,6 +121,27 @@ def test_coming_back_belongs_to_whoever_ended_the_round(template: str) -> None:
         assert seen["reloads"] == 0
 
 
+#: The templates that restart where they stand rather than by re-running
+#: the page. For these, "go again" begins a round the bank has been closed
+#: for, so the bank has to open again.
+RESTARTS_IN_PLACE = ("duel", "racing", "shooter")
+
+
+@pytest.mark.parametrize("template", RESTARTS_IN_PLACE)
+def test_a_second_go_is_not_still_reporting_the_first(template: str) -> None:
+    """Found while building C-1110's line.
+
+    ``roundBank`` runs once per round and had nothing that reopened it, so
+    a template restarting in place kept the previous round's score - which
+    the strip printed, and which a copied result would have claimed.
+    """
+
+    seen = _play(template)
+
+    assert seen["score"] is not None, "no round was banked to begin with"
+    assert seen["afterRestart"] is None, "the new round still holds the old score"
+
+
 @pytest.mark.parametrize("template", KEYS)
 def test_the_break_does_not_come_early(template: str) -> None:
     """A bound that fired over an unfinished game would be a worse game."""

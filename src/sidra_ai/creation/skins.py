@@ -316,22 +316,30 @@ skinRelease(skinPress(' ', 'Space'));
    the two checks fail in different ways, which is the point of having
    both. */
 const SKIN_DIRS = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
-let skinHeld = null;
+let skinHeld = null, skinDone = false;
 const skinScores = [];
-for (let f = 0; f < FRAMES_INPUT && skinQueued; f++) {
+/* One round, and it stops when that round ends. Several templates restart
+   on the action key or on a tap, so a masher that kept going would bank
+   two rounds in one load and the price of a colour would be measured
+   against the wrong thing. */
+for (let f = 0; f < FRAMES_INPUT && skinQueued && !skinDone; f++) {
   if (f % 30 === 0) {
     if (skinHeld) { skinRelease(skinHeld) }
     const dir = SKIN_DIRS[(f / 30) % SKIN_DIRS.length];
     skinHeld = skinPress(dir, dir) }
-  if (f % 15 === 0) {
-    skinRelease(skinPress(' ', 'Space'));
-    /* Not once the round is over: the result screen's tap is "go again",
-       and a probe that pressed it would be measuring the restart. */
-    if (!roundFacts().done) { skinTap() } }
+  if (f % 15 === 0) { skinRelease(skinPress(' ', 'Space')); skinTap() }
   const fn = skinQueued; skinQueued = null;
   skinClock += 50 / 3;
   fn(skinClock);
   if (f % 300 === 0) { skinScores.push(roundFacts().live) }
+  const now = roundFacts();
+  if (f > 60 && (now.done || now.ended)) { skinDone = true }
+}
+/* Two more frames, untouched, so the strip draws and the round is banked. */
+for (let i = 0; i < 2 && skinQueued; i++) {
+  const fn = skinQueued; skinQueued = null;
+  skinClock += 50 / 3;
+  fn(skinClock);
 }
 /* The picker the page built, walked rather than remembered. */
 function skinFlatten(el){ return [el].concat((el.children || []).flatMap(skinFlatten)) }

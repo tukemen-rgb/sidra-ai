@@ -90,6 +90,7 @@ from sidra_ai.creation.platformer import (
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.daily import DAILY_PREAMBLE
 from sidra_ai.creation.round import preamble_for as round_preamble_for
+from sidra_ai.creation.share import preamble_for as share_preamble_for
 from sidra_ai.creation.skins import preamble_for as skin_preamble_for
 from sidra_ai.creation.tuning import TUNE_PREAMBLE, panel_schema
 from sidra_ai.creation.duel import (
@@ -624,6 +625,9 @@ def generate_game(
             # over everything else and holding the frame does not stop the
             # pad or the particles.
             + round_preamble_for(key)
+            # After the round: the line it writes is about a round that is
+            # over, and it reads the clock's own verdict to know (C-1110).
+            + share_preamble_for(key)
             + _SPRITE_LOADER
             + spec.script
         )
