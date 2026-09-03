@@ -4886,3 +4886,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   (2) juice の wiring 検査を「直接または failBeat 経由」に正した（保証は creation_fail_beat=10 が実プレイで担保）。
   途中で compare exit 2（REGRESSED）が出たのでマージせず、判定器を直してから再実行。
   4 通りの破壊で確認。pytest exit 0（2719 件）/ gate exit 0（MISS 0）。
+2026-09-03 08:09 ループA started Board=13
