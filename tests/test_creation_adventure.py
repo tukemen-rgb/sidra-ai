@@ -201,3 +201,35 @@ def test_the_win_only_follows_the_fall():
 
     assert fought["fallenAlive"] is False
     assert fought["finalState"] == "win"
+
+
+def test_a_press_during_the_swing_fires_when_the_arm_is_free():
+    """§12's attack side (C-1311), played: one queued blow, no ghosts."""
+
+    import json as _json
+    import re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.adventure import combo_probe
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = generate_game("迷宮を冒険するゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=combo_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    seen = _json.loads(probe.stdout.strip().splitlines()[-1])
+
+    assert seen["keptQueue"] is True
+    assert seen["secondSwing"] >= 8, "the queued blow fired at the swing's end"
+    assert seen["afterSingle"] == 0 and seen["ghostQueue"] is False

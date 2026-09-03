@@ -81,7 +81,11 @@ function reset(){
   boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
 setPal(KAIJU_PAL_TOKEN);
 function legX(){return W*0.72+Math.sin(t/90)*26}
-function fire(){if(me.cool>0||state!=='fight')return;me.cool=11;
+function fire(){if(state!=='fight')return;
+  /* A press during the cooldown is kept, not dropped (§12, C-1311): one
+     queued shot, fired the frame the cannon is ready. */
+  if(me.cool>0){me.queued=true;return}
+  me.cool=11;
   shots.push({x:me.x,y:GROUND-26,vy:-7});sfx('fire')}
 function hitLeg(){boss.legHp--;boss.hurt=8;boss.smoke=34;shake(3);burst(legX(),GROUND-70,7,'ALERT_JUICE');
   sfx('cut');
@@ -98,7 +102,8 @@ function openCrack(){const x=60+rand()*(W-120);
 function step(){t++;
   combat(state==='fight'&&gateState()==='playing');
   if(state==='fight'){
-    if(me.cool>0)me.cool--;
+    if(me.cool>0){me.cool--;
+      if(me.cool===0&&me.queued){me.queued=false;fire()}}
     /* The shared steering part (C-1114), with this game's own margin. */
     partsSteerX(me,2.1,30,W-30);
     if(Math.abs(me.x-(me.lastX||me.x))>0.4){me.step+=0.05;
@@ -249,7 +254,63 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+
+#: The queued shot, played (C-1311): a press during the cooldown fires the
+#: frame the cannon is ready; a single press shoots exactly once.
+QUEUE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+/* The shot itself flies off and vanishes, so the cannon's own cooldown is
+   the witness: a re-armed cooldown eleven frames after the first shot is
+   the queued second shot firing. */
+me.cool = 0; me.queued = false; shots.length = 0;
+key(' ');
+const afterFirst = shots.length, coolStart = me.cool;
+run(3);
+key(' ');
+const keptQueue = me.queued === true;
+run(9);
+const coolAfterQueue = me.cool;
+run(30); me.queued = false; me.cool = 0;
+key(' ');
+run(12);
+const coolAfterSingle = me.cool, ghostQueue = me.queued === true;
+console.log(JSON.stringify({ afterFirst: afterFirst, coolStart: coolStart,
+  keptQueue: keptQueue, coolAfterQueue: coolAfterQueue,
+  coolAfterSingle: coolAfterSingle, ghostQueue: ghostQueue }));
+"""
+
+
+def queue_probe(script: str) -> str:
+    """The page's own script, wrapped so a queued shot can be watched."""
+
+    return QUEUE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
 __all__ = [
+    "QUEUE_PROBE",
+    "queue_probe",
     "KAIJU_DIFFICULTY",
     "KAIJU_HOW",
     "KAIJU_SCRIPT",

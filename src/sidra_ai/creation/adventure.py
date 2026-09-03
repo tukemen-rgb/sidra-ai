@@ -126,7 +126,12 @@ addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
   if(e.key==='r'||e.key==='R'){if(state!=='play')reset()}});
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
 cv.addEventListener('pointerdown',()=>{if(state==='play'){swing()}else{reset()}});
-function swing(){if(state!=='play'||hero.swing>0)return;hero.swing=10;sfx('sword');
+function swing(){if(state!=='play')return;
+  /* A press during the swing is kept, not dropped (§12, C-1311): one
+     queued blow, fired the frame the arm is free. Mashing becomes a
+     steady fastest-possible rhythm instead of a lottery. */
+  if(hero.swing>0){hero.queued=true;return}
+  hero.swing=10;sfx('sword');
   const fx=hero.x+[0,16,0,-16][hero.dir]*1.25,fy=hero.y+[-16,0,16,0][hero.dir]*1.25;
   const tx=Math.floor((fx-OX)/TILE),ty=Math.floor((fy-OY)/TILE);
   if(ty>=0&&ty<GH&&tx>=0&&tx<GW){
@@ -358,7 +363,10 @@ function step(){const now=performance.now();
   combat(state==='play'&&gateState()==='playing'&&
     ((enemies[room]||[]).some(e=>e.alive&&Math.hypot(e.x-hero.x,e.y-hero.y)<120)
      ||(room===2&&guard!==null&&guard.alive&&Math.hypot(guard.x-hero.x,guard.y-hero.y)<160)));
-  if(state==='play'){if(hero.swing>0)hero.swing--;if(hero.inv>0)hero.inv--;
+  if(state==='play'){
+    if(hero.swing>0){hero.swing--;
+      if(hero.swing===0&&hero.queued){hero.queued=false;swing()}}
+    if(hero.inv>0)hero.inv--;
     moveHero();moveEnemies();moveGuard()}
   draw(now);requestAnimationFrame(step)}
 reset();step();
@@ -401,6 +409,59 @@ console.log(JSON.stringify({
   gems: hero.gems,
 }));
 """
+
+
+#: The queued blow, played (C-1311): a press during the swing fires the
+#: frame the arm is free; a single press swings exactly once.
+COMBO_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+/* Double press: the second lands mid-swing and must fire at its end. */
+hero.swing = 0; hero.queued = false;
+key(' ');
+const firstSwing = hero.swing;
+run(3);
+key(' ');
+const midSwing = hero.swing, keptQueue = hero.queued === true;
+run(8);
+const secondSwing = hero.swing;
+/* Single press: exactly one swing, then quiet. */
+run(20); hero.queued = false;
+key(' ');
+run(14);
+const afterSingle = hero.swing, ghostQueue = hero.queued === true;
+console.log(JSON.stringify({ firstSwing: firstSwing, midSwing: midSwing,
+  keptQueue: keptQueue, secondSwing: secondSwing,
+  afterSingle: afterSingle, ghostQueue: ghostQueue }));
+"""
+
+
+def combo_probe(script: str) -> str:
+    """The page's own script, wrapped so a queued swing can be watched."""
+
+    return COMBO_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
 #: The guardian fought in node: the same no-op browser, the fight driven by
@@ -495,7 +556,9 @@ __all__ = [
     "ADVENTURE_SCRIPT",
     "ADVENTURE_TITLE",
     "ADVENTURE_WORDS",
+    "COMBO_PROBE",
     "GUARD_PROBE",
+    "combo_probe",
     "WORLD_PROBE",
     "guard_probe",
     "world_probe",

@@ -2683,6 +2683,68 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the second blow is kept, not dropped --------------------------
+    #
+    # §12's attack side (C-1311): a press during the sword's swing or the
+    # cannon's cooldown queues exactly one follow-up that fires the frame
+    # the weapon is free. Judged by playing both fighters: the mid-swing
+    # press restarts the swing at its end, the mid-cool press re-arms the
+    # cooldown eleven frames later, and a single press acts exactly once.
+    from sidra_ai.creation.adventure import combo_probe as _adv_combo_probe
+    from sidra_ai.creation.kaiju import queue_probe as _kaiju_queue_probe
+
+    ab_gaps: list[str] = []
+
+    def _drive(request: str, builder) -> dict | None:
+        page_ = generate_game(request).html
+        script_ = _scene_re.search(r"<script>(.*?)</script>", page_, _scene_re.S)
+        if script_ is None:
+            ab_gaps.append(f"{request}: no script")
+            return None
+        try:
+            run_ = _scene_sp.run(
+                ["node", "-"],
+                input=builder(script_.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if run_.returncode != 0:
+                raise ValueError(run_.stderr.strip()[:60])
+            return json.loads(run_.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            ab_gaps.append(f"{request}: probe unavailable ({exc})")
+            return None
+
+    sworded = _drive("迷宮を冒険するゲームを作って", _adv_combo_probe)
+    if sworded is not None:
+        if not sworded["keptQueue"]:
+            ab_gaps.append("adventure: the mid-swing press is dropped")
+        if sworded["secondSwing"] < 8:
+            ab_gaps.append("adventure: the queued blow never fires")
+        if sworded["afterSingle"] != 0 or sworded["ghostQueue"]:
+            ab_gaps.append("adventure: a single press does not act exactly once")
+    gunned = _drive("巨大怪獣と戦うゲームを作って", _kaiju_queue_probe)
+    if gunned is not None:
+        if not gunned["keptQueue"]:
+            ab_gaps.append("kaiju: the mid-cool press is dropped")
+        if gunned["coolAfterQueue"] <= 0:
+            ab_gaps.append("kaiju: the queued shot never fires")
+        if gunned["coolAfterSingle"] != 0 or gunned["ghostQueue"]:
+            ab_gaps.append("kaiju: a single press does not act exactly once")
+    c.add(
+        "creation_attack_buffer",
+        "連撃の 2 発目が拾われる",
+        0.0 if ab_gaps else 1.0,
+        detail=(
+            "; ".join(ab_gaps)
+            if ab_gaps
+            else "剣と砲を実際に連打して計測: cooldown 中の押しは 1 発だけ"
+            "キューされ、明けたフレームで発火。1 押しは 1 回だけ"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

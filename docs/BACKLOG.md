@@ -2848,7 +2848,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       Recorder に buffer/biquad を足し、hurt が noise+lowpass 経路・gem が
       oscillator 経路で鳴ることを実走行で読む。
       → 動かす数字: creation_sfx_texture unmeasurable→1
-- [~] 作業中 2026-09-03 15:42 辛口クリエイター **C-1311: 連撃の 2 発目が捨てられる（§12 の攻撃キュー欠落）。**
+- [x] 完了 2026-09-03 16:10 UTC 辛口クリエイター（`creation_attack_buffer` unmeasurable→**1**、判定器 exit 0。adventure の剣と kaiju の砲に深さ 1 の攻撃キュー: cooldown 中の押しを保持し、明けたフレームで自動発火。kaiju は弾が飛翔中に消えるため「再装填された cooldown」を証人にして計測。probe で「swing/cool 中の 2 押し目が終了フレームで発火・1 押しは 1 回だけ・幽霊キュー無し」を両テンプレで実測。破壊 2 通り〔adventure 黙殺復活/kaiju キュー不発火〕で計器 0。pytest 2874 全通過・gate MISS 0）**C-1311: 連撃の 2 発目が捨てられる（§12 の攻撃キュー欠落）。**
       （辛口クリエイターループ起票・観点=§12 入力の寛容さの攻撃側。前回も
       §12 だがジャンプ／今回は攻撃で対象テンプレも別）adventure の剣は
       swing 中（10f）、kaiju の砲は cool 中（11f）の押しを黙って捨てる。

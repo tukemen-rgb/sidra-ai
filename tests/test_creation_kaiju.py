@@ -147,3 +147,36 @@ def test_difficulty_changes_the_fight_not_the_wording() -> None:
 def test_the_words_that_route_here_include_the_ones_an_owner_types() -> None:
     for word in ("怪獣", "巨大", "ボス戦", "kaiju"):
         assert word in KAIJU_WORDS
+
+
+def test_a_press_during_the_cooldown_fires_when_the_cannon_is_ready():
+    """§12's attack side (C-1311), played: the re-armed cooldown is the witness."""
+
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.games import generate_game as _gen
+    from sidra_ai.creation.kaiju import queue_probe
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = _gen("巨大怪獣と戦うゲームを作って").html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=queue_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    seen = _json.loads(probe.stdout.strip().splitlines()[-1])
+
+    assert seen["keptQueue"] is True
+    assert seen["coolAfterQueue"] > 0, "the queued shot re-armed the cooldown"
+    assert seen["coolAfterSingle"] == 0 and seen["ghostQueue"] is False
