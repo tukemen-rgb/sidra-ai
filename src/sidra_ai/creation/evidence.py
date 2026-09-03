@@ -57,6 +57,34 @@ def plain_text(text: str) -> str:
     return " ".join(text.split())
 
 
+#: Sentence terminators for :func:`whole_sentences`, Japanese and Latin.
+_SENTENCE_END = re.compile(r"[。．.!?！？]")
+
+#: Below this many characters, a trimmed excerpt says less than a dangling
+#: one: 「掲載は 21,907 件。」 alone can carry a claim, but trimming a
+#: 200-character window down to its first ten characters throws away the
+#: evidence to polish the punctuation.
+_MIN_TRIMMED = 50
+
+
+def whole_sentences(text: str) -> str:
+    """Cut a generator-bound excerpt back to its last complete sentence.
+
+    The excerpt window starts at a line boundary by design but ends at a
+    hard character cap, so slide bullets used to end mid-word (「…予約投」,
+    C-1213). Text with no terminator, or whose last terminator sits too
+    close to the head, is returned unchanged - a fragment with content
+    beats an empty polish. Never widens the cap; it only trims.
+    """
+
+    last = None
+    for match in _SENTENCE_END.finditer(text):
+        last = match
+    if last is None or last.end() < _MIN_TRIMMED:
+        return text
+    return text[: last.end()].rstrip()
+
+
 @dataclass(frozen=True)
 class Fact:
     """One retrieved claim and where it came from.

@@ -484,6 +484,22 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1213: the excerpt window's hard tail cut left bullets ending
+    # mid-word; generator-bound facts are trimmed to their last complete
+    # sentence, and terminator-free fragments pass through whole.
+    from sidra_ai.evals.fact_whole_sentences import evaluate_fact_whole_sentences
+
+    whole = evaluate_fact_whole_sentences()
+    c.add(
+        "creation_fact_whole_sentences",
+        "deck and document bullets end at a sentence",
+        10.0 * whole.checks_passed / whole.checks_total,
+        detail=f"{whole.checks_passed}/{whole.checks_total} checks; "
+               "src/sidra_ai/evals/fact_whole_sentences.py"
+               + ("" if whole.passed else "; " + "; ".join(whole.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1212: slide bullets carried the corpus's Markdown decoration as
     # literal ## / ** / > characters. Facts are flattened at the seam that
     # makes them; both directions measured - decoration gone, words intact.
