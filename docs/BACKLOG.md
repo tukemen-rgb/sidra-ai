@@ -2859,6 +2859,21 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
+- [~] 作業中 2026-09-03 20:48 辛口クリエイター **C-1316: 勝利の瞬間が敗北より貧しい（§1 juice・§6 の見せ場逆転）。**
+      （辛口クリエイターループ起票・観点=§1 手触り。前回=§7）
+      C-1105 で敗北は共通ビート（揺れ 14・ヒットストップ・粒子・音）を
+      得たが、勝利側は各テンプレの手作業のまま: marble の完走は無音・
+      無演出、kaiju の勝利は win 音なしで揺れ 10、platformer / racing は
+      揺れ 6、adventure / duel / puzzle は音だけ——**全 7 箇所で敗北の
+      ほうが勝利より重い**。§1 の重さ比例と §6 の「撃破が最大の見せ場」の
+      逆転。実装: juice.py に winBeat(x,y)（WIN_SHAKE=16 で敗北 14 より
+      重い・粒子は ACCENT・sfx('win')・reduced では揺れ 0 でビートは残る）
+      を追加し、勝ち状態を持つ 7 型（adventure/duel/kaiju/marble/
+      platformer/puzzle/racing）の勝利箇所を winBeat に置換。計測は
+      実走 3 型（marble 完走・kaiju 3 サイクル・platformer 旗）で
+      winBeats()==1 を読み、7 型全部の script で勝ち状態代入と winBeat の
+      同居を検査、reduced 実走 1 本。→ 動かす数字: creation_win_beat
+      unmeasurable→7
 - [x] 完了 2026-09-03 20:25 UTC 辛口クリエイター（`creation_round_scene` unmeasurable→**1**・`creation_scene_palettes` 4→**5**、判定器 exit 0。FISHING_PALETTE（3 幕・最終幕 +0.22 で最明）を追加し、step() が ROUND_MS のラウンド 3 等分で setScene、背景・水面帯・魚の目だけ scenePaint 経由（魚体・マーカー・帯のアクセントは §4 のため不変）。実プレイで幕 0→1→2 が 24s/45s 時点で成立・第 1 幕と最終幕の両方で帯内の合わせが 1 点ずつ入る・60s の time 区切りと輝度単調増加（既定 0.024→0.104→0.225、紙テーマでも最終幕最明）を確認。破壊 2 通り〔setScene(0) 固定→専用計器 0 ／ 最終幕を暗く→汎用・専用とも 0〕。pytest exit 0（fail 0・skip 11）・gate MISS 0）**C-1315: fishing の空が 60 秒間まったく変わらない（§7 観察 5-6・時間の幕）。**
       （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§6）
       場面パレットは 6 型に入ったが、既定テンプレ＝最も多く生成される
