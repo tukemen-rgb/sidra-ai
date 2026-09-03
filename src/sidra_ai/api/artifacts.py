@@ -65,6 +65,13 @@ def list_artifacts(data_dir: str | Path) -> list[Artifact]:
             continue
         if not SAFE_NAME.match(path.name):
             continue
+        # Revision sidecars (C-1112) are read by the revise path's own glob,
+        # never through this listing - and shown to an operator they doubled
+        # every row and read as gibberish when clicked (C-1209). Hidden from
+        # the listing only: the file stays on disk and stays downloadable by
+        # name, so nothing that already points at one breaks.
+        if path.name.endswith(".meta.json"):
+            continue
         stat = path.stat()
         found.append(
             Artifact(

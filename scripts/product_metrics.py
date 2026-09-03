@@ -536,6 +536,22 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1209: every generation doubled the file list with its revision
+    # sidecar; the listing now shows deliverables only while the sidecar
+    # stays downloadable by name for the revise path and debugging.
+    from sidra_ai.evals.artifact_listing import evaluate_artifact_listing
+
+    listing = evaluate_artifact_listing()
+    c.add(
+        "ui_artifact_list_clean",
+        "the file list shows deliverables, not plumbing",
+        10.0 * listing.checks_passed / listing.checks_total,
+        detail=f"{listing.checks_passed}/{listing.checks_total} checks; "
+               "src/sidra_ai/evals/artifact_listing.py"
+               + ("" if listing.passed else "; " + "; ".join(listing.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1207: the browser entry declared lang=ja and spoke English. Both
     # directions on the rendered page: boilerplate gone AND the Japanese
     # labels present, so deleting a label cannot pass as translating it.
