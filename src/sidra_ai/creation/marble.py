@@ -61,6 +61,13 @@ const W=cv.width,H=cv.height;
    is drawn. A fixed camera means these never change, which is exactly why
    a hundred lines is enough (C-1115). */
 const EYE=26,FOV=520,FAR=900,NEAR=12,LANE=120;
+/* §6 観察 3 (C-1314): the course re-accelerates by thirds - the same
+   multipliers the shooter's acts use - so the brightest sky (C-1307) is
+   also the fastest stretch, and the crescendo is in the roll, not only
+   in the paint. */
+const ACT_ROLL=[1,1.15,1.3];
+function actOf(){return ball.z>=COURSE*2/3?2:ball.z>=COURSE/3?1:0}
+function rollNow(){return ROLL*ACT_ROLL[actOf()]}
 setPal(MARBLE_PAL_TOKEN);
 let ball,things,gates,score,hotTaken,hotTotal,state,t,over,COURSE=1;
 /* World to screen. z is depth ahead of the camera; y is up. Everything
@@ -104,14 +111,14 @@ function step(){
     /* The shared steering part (C-1114), in world units rather than
        pixels: the part does not care which space it is moving in. */
     partsSteerX(ball,3.4,-LANE+14,LANE-14);
-    ball.z+=ROLL;
+    ball.z+=rollNow();
     /* Roll: the marble bobs a little so the depth reads as motion. */
     ball.y=8+Math.sin(t*0.18)*1.6;
     things.forEach(o=>{if(o.done)return;
       const dz=o.z-ball.z;
       /* The first gate lines itself up while it is still ahead. */
       if(o.first&&dz<90){o.x=ball.x}
-      if(dz<0&&dz>-ROLL-6){o.done=true;
+      if(dz<0&&dz>-rollNow()-6){o.done=true;
         if(o.kind==='gate'){
           if(Math.abs(o.x-ball.x)<GATEW){gates++;
             /* The risk pays in points AND in feel: the hot gate rings a
@@ -128,7 +135,7 @@ function step(){
      the horizon band and the rails step once per third of the course, and
      the final stretch is rolled at under the brightest sky of the run.
      Gates and blocks keep their information colours (§4). */
-  setScene(ball.z>=COURSE*2/3?2:ball.z>=COURSE/3?1:0);
+  setScene(actOf());
   /* Painter's algorithm: far things first, near things over them. That
      ordering *is* the depth - there is no buffer to test against. */
   const sky=scenePaint('SURFACE_TOKEN');
@@ -194,7 +201,7 @@ function step(){
 function marbleFacts(){let next=null;
   things.forEach(o=>{if(o.done||next)return;
     if(o.z-ball.z>0)next={kind:o.kind,x:o.x,dz:o.z-ball.z}});
-  return {state:state,z:ball.z,x:ball.x,gates:gates,score:score,
+  return {state:state,z:ball.z,x:ball.x,spd:rollNow(),gates:gates,score:score,
     hotTotal:hotTotal,hotTaken:hotTaken,scene:SCENE,
     course:COURSE,next:next}}
 step();
@@ -230,8 +237,12 @@ key('keydown', ' '); key('keyup', ' ');
 run(2);
 const early = marbleFacts();
 let sceneMid = null, frames = 0;
+/* The crescendo, measured: distance covered and frames spent, per act. */
+const actZ = [0, 0, 0], actF = [0, 0, 0];
+let lastZ = early.z;
 while (marbleFacts().state === 'roll' && frames++ < 6000) {
   const f = marbleFacts();
+  actZ[f.scene] += f.z - lastZ; actF[f.scene]++; lastZ = f.z;
   if (sceneMid === null && f.z > f.course / 3 + 60 && f.z < f.course * 2 / 3) sceneMid = f.scene;
   key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
   let aim = null;
@@ -252,6 +263,7 @@ console.log(JSON.stringify({
   sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
   state: end.state, z: end.z, course: end.course, gates: end.gates,
   score: end.score, hotTotal: end.hotTotal, hotTaken: end.hotTaken,
+  rates: actZ.map((z, i) => actF[i] ? z / actF[i] : 0),
 }));
 """
 

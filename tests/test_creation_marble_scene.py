@@ -62,6 +62,19 @@ def test_the_pilot_actually_plays_the_course():
     assert rolled["gates"] >= 10
 
 
+def test_the_course_reaccelerates_by_thirds():
+    """§6 観察 3 at course scale (C-1314): each act rolls faster than the last."""
+
+    rolled = _rolled()
+    rates = rolled["rates"]
+
+    assert len(rates) == 3
+    assert min(rates) > 0, "every act was actually rolled through"
+    assert rates[0] < rates[1] < rates[2], "the pace steps up with the sky"
+    assert rates[2] >= rates[0] * 1.2, "the final stretch is clearly the fastest"
+    assert rolled["state"] == "over", "the faster course still completes"
+
+
 def test_hot_gates_stand_in_a_blocks_shadow_and_pay_double():
     """§13 事実 1 (C-1313): optional danger, rewarded - and honest arithmetic."""
 

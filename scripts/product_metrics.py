@@ -2905,6 +2905,63 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the crescendo is in the roll, not only in the paint -----------
+    #
+    # §6 観察 3, at course scale (C-1314): the marble's three skies were
+    # three colours over one constant speed - the same decorated flatness
+    # C-1302 fixed in the shooter. Judged by rolling the course and
+    # measuring the distance covered per frame in each act: strictly
+    # rising, with the final stretch at least a fifth faster than the
+    # first, while the hot gates and the finish still hold.
+    ce_gaps: list[str] = []
+    ce_page = generate_game("玉転がしゲームを作って").html
+    ce_script = _scene_re.search(r"<script>(.*?)</script>", ce_page, _scene_re.S)
+    if ce_script is None:
+        ce_gaps.append("no script on the page")
+    else:
+        try:
+            ce_run = _scene_sp.run(
+                ["node", "-"],
+                input=_marble_rr_probe(ce_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if ce_run.returncode != 0:
+                raise ValueError(ce_run.stderr.strip()[:60])
+            paced = json.loads(ce_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            paced = None
+            ce_gaps.append(f"probe unavailable ({exc})")
+        if paced is not None:
+            rates = paced.get("rates") or []
+            if len(rates) != 3 or min(rates) <= 0:
+                ce_gaps.append(f"an act was never rolled through ({rates})")
+            elif not (rates[0] < rates[1] < rates[2]):
+                ce_gaps.append(
+                    "the course does not re-accelerate "
+                    f"({[round(r, 2) for r in rates]})"
+                )
+            elif rates[2] < rates[0] * 1.2:
+                ce_gaps.append(
+                    f"the final stretch is barely faster "
+                    f"({rates[0]:.2f} -> {rates[2]:.2f})"
+                )
+            if paced is not None and paced.get("state") != "over":
+                ce_gaps.append("the faster course no longer completes")
+    c.add(
+        "creation_course_escalation",
+        "コースが幕ごとに速くなる",
+        0.0 if ce_gaps else 1.0,
+        detail=(
+            "; ".join(ce_gaps)
+            if ce_gaps
+            else "marble を実走して幕別の実測速度を計測: 単調増加で最終幕が"
+            "最速（×1.3）、完走と熱いゲートは不変（§6 観察 3 のコース版）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the
