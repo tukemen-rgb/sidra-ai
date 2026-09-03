@@ -90,6 +90,7 @@ from sidra_ai.creation.platformer import (
 from sidra_ai.creation.touchpad import PAD_PREAMBLE
 from sidra_ai.creation.daily import DAILY_PREAMBLE
 from sidra_ai.creation.round import preamble_for as round_preamble_for
+from sidra_ai.creation.skins import preamble_for as skin_preamble_for
 from sidra_ai.creation.tuning import TUNE_PREAMBLE, panel_schema
 from sidra_ai.creation.duel import (
     DUEL_DIFFICULTY,
@@ -604,9 +605,13 @@ def generate_game(
         # frame. Juice wraps first so the pad ends up drawn on top of the
         # particles rather than under them.
         (
-            # The panel first: every preamble after it, and every template,
+            # The skins before the panel: TUNE_ACCENT is resolved through
+            # skinAccent, so the colour a template paints with is the one
+            # the player earned unless they picked one by hand (C-1109).
+            skin_preamble_for(key)
+            # Then the panel: every preamble after it, and every template,
             # paints with TUNE_ACCENT and reads its numbers through tuneNum.
-            TUNE_PREAMBLE
+            + TUNE_PREAMBLE
             # After the panel (it reads the switch) and before anything
             # that uses SEED_TOKEN, which is every template body.
             + DAILY_PREAMBLE

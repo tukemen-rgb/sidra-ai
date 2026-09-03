@@ -199,7 +199,11 @@ function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
   ROUND_FINAL=roundScore();ROUND_BEST=roundBestRead();
   if(ROUND_FINAL===null)return;
   if(ROUND_BEST===null||ROUND_FINAL>ROUND_BEST){ROUND_RECORD=true;
-    roundBestWrite(ROUND_FINAL);ROUND_BEST=ROUND_FINAL}}
+    roundBestWrite(ROUND_FINAL);ROUND_BEST=ROUND_FINAL}
+  /* The same number, banked a second way: the best is this round against
+     the last one, the total is every round there has ever been (C-1109).
+     Both stay on this device. */
+  try{skinBank(ROUND_FINAL)}catch(e){}}
 /* One strip, drawn over whatever ended the round - the clock's banner or
    the template's own screen - so "how far off am I, and how do I go
    again" reads the same everywhere. */
@@ -220,6 +224,12 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   try{if(dailyOn()){mark='今日の挑戦 '+dailyStamp()+'   '}}catch(e){}
   const right='R / タップでもう一度';
   c.fillText(mark+(left?(left+'   '+right):right),W/2,H-13);
+  /* A colour that just opened is the reason to start the next round, so it
+     is said on the screen that asks for one - and only when it happened. */
+  let news=null;try{news=skinNews()}catch(e){}
+  if(news){c.fillStyle='#05070fe6';c.fillRect(0,H-64,W,30);
+    c.fillStyle=TUNE_ACCENT;
+    c.fillText('新しい見た目「'+news+'」が開きました',W/2,H-44)}
   c.textAlign='left';c.restore()}
 function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   ended:roundEnded(),limit:ROUND_LIMIT_MS,

@@ -172,7 +172,9 @@ function tuneValues(){const o={};TUNE_SPEC.fields.forEach(function(f){
     :(f.type==='choice'?tuneChoice(f.key,f.default)
     :(f.type==='flag'?tuneFlag(f.key,f.default):tuneNum(f.key,f.default)))});
   return o}
-const TUNE_ACCENT=tuneValues().accent;
+/* An explicitly chosen colour wins; otherwise whatever skin the player
+   has earned and picked (C-1109); otherwise the theme's own accent. */
+const TUNE_ACCENT=tuneText('accent',skinAccent(tuneField('accent').default));
 function tuneWrite(next){const s=tuneStore();if(!s)return false;
   try{s.setItem(TUNE_KEY,JSON.stringify(next));return true}catch(e){return false}}
 /* Applying means re-running this same file. Nothing is rebuilt and nothing
@@ -224,6 +226,7 @@ function tunePanel(){
   TUNE_SPEC.fields.forEach(function(f){box.appendChild(tuneControl(f,values[f.key]))});
   const reset=document.createElement('button');reset.type='button';
   reset.textContent='既定に戻す';
+  reset.setAttribute('data-tune-reset','1');
   reset.addEventListener('click',tuneReset);box.appendChild(reset);
   host.appendChild(box);return box}
 /* What the judge reads back after driving the real controls. */
@@ -275,7 +278,7 @@ function tuneProbeFlatten(el){ return [el].concat((el.children||[]).flatMap(tune
 const tuneProbeNodes = tuneProbeFlatten(TUNE_PROBE_BODY);
 const tuneProbePanel = tuneProbeNodes.filter(n => n.id === 'tune')[0] || null;
 const tuneProbeControls = tuneProbeNodes.filter(n => n.attrs && n.attrs['data-tune']);
-const tuneProbeButtons = tuneProbeNodes.filter(n => n.tagName === 'button');
+const tuneProbeButtons = tuneProbeNodes.filter(n => n.attrs && n.attrs['data-tune-reset']);
 const tuneProbeBefore = tuneFacts();
 let tuneProbeMoved = null;
 const tuneProbeSlider = tuneProbeControls.filter(n => n.getAttribute('data-tune') === 'speed')[0];

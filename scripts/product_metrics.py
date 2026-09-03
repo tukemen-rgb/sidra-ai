@@ -2585,6 +2585,141 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a score buys a colour, and never anything else ----------------
+    #
+    # C-1109, §8 事実 6. Somewhere for the time already spent to go is
+    # what brings people back, and the usual way of building it is the way
+    # that ruins a game: unlock the faster ship and everyone who arrives
+    # later plays a worse game than the people who arrived early.
+    #
+    # So the number is not "unlocks exist". Each template is played out
+    # twice by the same masher, on the same seed, with the same inputs and
+    # the same cumulative total - once wearing the earned skin and once
+    # not - and the two runs have to draw **the same shapes in different
+    # colours**. The geometry trace is what makes the fairness claim
+    # measurable: a skin that touched a speed, a size or a spawn interval
+    # would move something, and the traces would stop matching.
+    from sidra_ai.creation.skins import (
+        PREAMBLE_NAMES as _skin_names,
+        SKIN_PREAMBLE as _skin_preamble,
+        probe_source as _skin_probe,
+        skin_spec as _skin_spec,
+        stray_calls as _skin_stray,
+    )
+
+    def _skin_run(template, *, stored, pick=None):
+        page = _tune_generate("ゲームを作って", template=template).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            return None, f"{template}: no script"
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_skin_probe(script.group(1), stored=stored, pick=pick),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    def _skin_script(template):
+        page = _tune_generate("ゲームを作って", template=template).html
+        found = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        return found.group(1) if found else ""
+
+    skin_gaps: list[str] = []
+    skin_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        spec = _skin_spec(key)
+        earned = spec["skins"][1]
+        total_key, pick_key = f"sidra.total.{key}", f"sidra.skin.{key}"
+        # Nothing played yet: only the free colour, and the rest priced.
+        zero, problem = _skin_run(key, stored={})
+        if problem:
+            skin_gaps.append(problem)
+            continue
+        # The same earned total in both runs, so the only difference
+        # between them is which colour is being worn. Picking happens
+        # after the round, so this run doubles as the picker check.
+        plain, problem = _skin_run(key, stored={total_key: str(earned["at"])}, pick=earned["id"])
+        if problem:
+            skin_gaps.append(problem)
+            continue
+        worn, problem = _skin_run(
+            key, stored={total_key: str(earned["at"]), pick_key: earned["id"]}
+        )
+        if problem:
+            skin_gaps.append(problem)
+            continue
+        locked_at_zero = [p["id"] for p in zero["pickers"] if p["locked"]]
+        banked = float(zero["storedTotal"] or 0)
+        if zero["facts"]["unlocked"] != ["base"]:
+            skin_gaps.append(f"{key}: a skin was open before anything was played")
+        elif earned["id"] not in locked_at_zero:
+            skin_gaps.append(f"{key}: {earned['id']} was not shown as locked")
+        elif banked <= 0:
+            skin_gaps.append(f"{key}: a round of play banked nothing")
+        elif banked >= earned["at"]:
+            # A skin one round hands over is not a reason to play a second.
+            skin_gaps.append(f"{key}: one round opened a skin ({banked} >= {earned['at']})")
+        elif plain["picked"] != earned["id"] or plain["reloads"] < 1:
+            skin_gaps.append(f"{key}: pressing an earned colour did not apply it")
+        elif worn["facts"]["current"] != earned["id"]:
+            skin_gaps.append(f"{key}: the picked colour is not the one worn")
+        elif worn["accent"] != earned["accent"]:
+            skin_gaps.append(f"{key}: the page paints with {worn['accent']}, not the skin")
+        elif earned["accent"].lower() not in worn["colours"]:
+            skin_gaps.append(f"{key}: the skin colour was never drawn")
+        elif earned["accent"].lower() in plain["colours"]:
+            skin_gaps.append(f"{key}: the skin colour was drawn without the skin")
+        # The fairness invariant, and the only reason the number is worth
+        # anything: same shapes, same score, different colours.
+        elif worn["geometry"] != plain["geometry"]:
+            skin_gaps.append(f"{key}: the skin changed what was drawn where")
+        elif worn["scores"] != plain["scores"]:
+            skin_gaps.append(f"{key}: the skin changed how the round went")
+        elif worn["colours"] == plain["colours"]:
+            skin_gaps.append(f"{key}: the skin changed nothing at all")
+        # The traces can only see an axis the masher exercises, and it
+        # cannot exercise all of them - the adventure keeps its enemies in
+        # a room this player never reaches. So the same claim is made a
+        # second way, from the assembled page: nothing outside the three
+        # sanctioned call sites can reach a skin at all.
+        elif _skin_stray(_skin_script(key), key):
+            skin_gaps.append(
+                f"{key}: the skin is reached from outside its three call sites - "
+                + "; ".join(_skin_stray(_skin_script(key), key))
+            )
+        else:
+            skin_ok.append(key)
+    # The total is the player's own and stays on the player's own machine.
+    for banned in ("fetch(", "XMLHttpRequest", "://", "sendBeacon", "WebSocket"):
+        if banned in _skin_preamble:
+            skin_gaps.append(f"the unlock reaches out: {banned!r}")
+    for name in _skin_names:
+        if any(f"function {name}(" in spec.script for spec in _tune_templates.values()):
+            skin_gaps.append(f"a template shadows {name}")
+    c.add(
+        "creation_cosmetic_unlock",
+        "性能を変えずに見た目だけが開く型",
+        float(len(skin_ok)) if not skin_gaps else 0.0,
+        detail=(
+            "同じシード・同じ入力・同じ累計で 2 回実プレイし、"
+            "描いた図形とスコアが完全一致・色だけが違うことを確認。"
+            "加えて組み上がったページを読み、スキンに触れる箇所が"
+            "色・加算・告知の 3 か所しかないことを確認（速さ等には届かない）。"
+            "累計はラウンド終了時に端末内へ加算（通信 0）、"
+            "1 ラウンドでは開かない価格"
+            if not skin_gaps
+            else "; ".join(skin_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real
