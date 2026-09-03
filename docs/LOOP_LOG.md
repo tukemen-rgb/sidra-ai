@@ -5646,3 +5646,19 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   抜粋にトレーラ行が載る（3/10）③「最近どんな変更が」に commit が
   出ない（3/10）。
 2026-09-03 21:52 進捗監視 前進あり: C-1217 完了（スライド箇条書きが文末で終わる）。C-1317 claim 済み（21:39）、C-1408/C-1409 が待ち行列に補充済み。停滞なし。記録のみ。
+2026-09-03 22:10 辛口クリエイター C-1317 完了 creation_sfx_variation unmeasurable -> 1（判定器 exit 0）
+  観点=§2（効果音・前回=§1）。基準不足のため先に外部調査で §14 を増築
+  （gamedeveloper.com Prosser「The Power of Pitch Shifting」2017・
+  andrewmushel.com「Sound Effect Variation」、いずれも実際に開いて確認）:
+  頻出 SFX は毎回わずかなランダムピッチで反復感が消え、幅は半音
+  （×1.06）より十分小さく。SIDRA の 12 音は合成品質があっても毎回
+  完全同一で、catch の連続受け・shooter の連射・step の足音が機械の
+  反復だった。実装: sfx() で ±4% の同一係数を f0/f1 両端に乗算——
+  スイープの音程間隔（情報としてのピッチ）は不変、BGM の調律と
+  盤面の seeded rand には触れない（Math.random）。
+  Recorder に周波数記録を足して実測: 8 連射の開始周波数がすべて相異なり
+  （484〜511Hz）、全発 500Hz ±8% 帯内、M ミュートで 0 発、戦闘音圧・
+  ノイズ経路は従来どおり。破壊 2 通り: JITTER=0→「全発同一＝機械の
+  反復」を言い当てて 0／JITTER=0.4→帯外 325-675Hz を言い当てて 0。
+  pytest exit 0（2946 passed / 1 skip）/ gate exit 0（MISS 0）。
+

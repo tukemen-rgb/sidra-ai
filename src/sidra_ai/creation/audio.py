@@ -92,13 +92,23 @@ const SFX_TABLE={
   win:['triangle',523,1046,0.5,0.2],
   lose:['noise',1200,90,0.6,0.2],
   step:['triangle',240,200,0.04,0.05]};
+/* Repeats stay fresh (§14 事実 1): every playback shifts the whole sweep
+   by one small random factor - well under the semitone (x1.06) that reads
+   as a deliberate step - so a catch streak or a footstep run never sounds
+   like the same sample twice. Both ends of the sweep move together, which
+   keeps its interval, and the interval is the information (§14 事実 1 の
+   第 3 形). Math.random, not the game's rand(): the board's seed must not
+   be consumed by a sound. */
+const SFX_JITTER=0.04;
 function sfx(name){
   if(MUTED)return;
   const spec=SFX_TABLE[name];if(!spec)return;
   try{
     if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)()}
     if(AC.state==='suspended'){AC.resume()}
-    const t0=AC.currentTime,[wave,f0,f1,dur]=spec,vol=sfxGain(name);
+    const t0=AC.currentTime,[wave,rawF0,rawF1,dur]=spec,vol=sfxGain(name);
+    const jit=1+(Math.random()*2-1)*SFX_JITTER;
+    const f0=rawF0*jit,f1=rawF1*jit;
     /* The gain first: it carries the volume the loudness judge reads, and
        it must be on the books whatever the source turns out to be. */
     const gain=AC.createGain();
@@ -144,8 +154,12 @@ const played = [];
 const nodes = [];
 function Recorder(){ this.state='running'; this.currentTime=0; this.destination={};
   this.sampleRate=44100 }
+/* Starting frequencies, so the repeat variation is a read fact too: the
+   same effect fired eight times must land on close-but-different pitches
+   (§14, C-1317). */
+const freqs = [];
 Recorder.prototype.createOscillator = function(){
-  return { type:'', frequency:{setValueAtTime(){}, exponentialRampToValueAtTime(){}},
+  return { type:'', frequency:{setValueAtTime(v){ freqs.push(v) }, exponentialRampToValueAtTime(){}},
            connect(){ nodes.push('oscillator') }, start(){}, stop(){} } };
 Recorder.prototype.createBuffer = function(ch, len){
   return { getChannelData: () => new Float32Array(len) } };
@@ -214,12 +228,23 @@ combat(false);
 /* Texture, as built: what nodes each family's effect actually created. */
 nodes.length = 0; sfx('hurt'); const hurtNodes = nodes.slice();
 nodes.length = 0; sfx('gem'); const gemNodes = nodes.slice();
+/* The repeat, as heard (§14, C-1317): the same effect eight times over.
+   Each start frequency must sit near the table's pitch and the eight must
+   not all be the same one - and the mute stops the variation with the
+   sound, because there is no sound. */
+freqs.length = 0;
+for (let i = 0; i < 8; i++) sfx('catch');
+const catchFreqs = freqs.slice();
+keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
+freqs.length = 0; sfx('catch'); const mutedFreqs = freqs.length;
+keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
 console.log(JSON.stringify({
   calm: calm[0] ?? null, loud: loud[0] ?? null,
   mutedPlayed: muted.length, backToCalm: backToCalm[0] ?? null,
   peak: Math.max.apply(null, peaks), hasCombat: typeof combat === 'function',
   combatDuringPlay: combatDuringPlay, nearEnemy: nearEnemy,
   hurtNodes: hurtNodes, gemNodes: gemNodes,
+  catchFreqs: catchFreqs, mutedFreqs: mutedFreqs,
 }));
 """
 

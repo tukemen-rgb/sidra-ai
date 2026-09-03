@@ -2859,7 +2859,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
-- [~] 作業中 2026-09-03 21:47 辛口クリエイター **C-1317: 全 SFX が毎回まったく同じ周波数で鳴る（§2→§14 の反復変化）。**
+- [x] 完了 2026-09-03 22:10 UTC 辛口クリエイター（`creation_sfx_variation` unmeasurable→**1**、判定器 exit 0。外部調査で §14（Prosser の pitch shifting・Mushel の variation、URL 実開）を増築してから、sfx() に SFX_JITTER=0.04（半音 6% 未満）を f0/f1 両端へ同一係数で乗算。実測: 同じ catch を 8 連射して開始周波数 8 個がすべて相異なり（例 484〜511Hz）、全発が表の 500Hz ±8% 帯に収まり、M ミュートで 0 発、戦闘音圧比・ノイズ経路・BGM 音階は不変。Math.random なので盤面の seeded rand は不消費。破壊 2 通り〔JITTER=0→全発同一を言い当てて 0 ／ JITTER=0.4→帯外 325-675Hz を言い当てて 0〕。pytest exit 0（2946 passed / 1 skip）・gate MISS 0）**C-1317: 全 SFX が毎回まったく同じ周波数で鳴る（§2→§14 の反復変化）。**
       （辛口クリエイターループ起票・観点=§2 効果音。前回=§1。基準不足の
       ため外部調査で §14 を増築してから起票）
       SFX_TABLE の 12 音は合成品質はあっても毎回完全に同一で、catch の

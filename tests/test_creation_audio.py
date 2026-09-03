@@ -107,3 +107,12 @@ def test_the_hit_is_noise_and_the_melody_is_a_tone() -> None:
     assert heard["gemNodes"] == ["oscillator"]
     assert heard["mutedPlayed"] == 0
     assert heard["loud"] and heard["loud"] > heard["calm"]
+
+    # §14 (C-1317): the same effect eight times over never lands on the
+    # same pitch twice, stays well under a semitone of the table's value,
+    # and the mute stops the variation with the sound.
+    freqs = heard["catchFreqs"]
+    assert len(freqs) == 8
+    assert len(set(freqs)) >= 4, "the repeat is a machine again"
+    assert all(500 * 0.92 <= f <= 500 * 1.08 for f in freqs), freqs
+    assert heard["mutedFreqs"] == 0

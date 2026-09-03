@@ -3003,6 +3003,49 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the repeat never lands on the same pitch twice ----------------
+    #
+    # §14 事実 1 (C-1317): frequently fired effects need a small random
+    # pitch shift or they read as a machine - and 事実 2 caps it: the
+    # variation must stay well under the semitone (x1.06) that reads as a
+    # deliberate step. Read off the same driven page as the texture above:
+    # the same effect fired eight times must land on close-but-different
+    # start frequencies, every one inside +-8% of the table's pitch, and
+    # the mute must stop the variation with the sound.
+    variation_gaps: list[str] = []
+    if timbre is None:
+        variation_gaps.append("probe unavailable (shared with texture)")
+    else:
+        heard_freqs = timbre.get("catchFreqs") or []
+        _sfx_centre = 500.0  # SFX_TABLE catch f0; the probe fires 'catch'
+        if len(heard_freqs) != 8:
+            variation_gaps.append(f"the repeat was not heard ({len(heard_freqs)} of 8)")
+        elif len(set(heard_freqs)) < 4:
+            variation_gaps.append("the same pitch every time - the repeat is a machine again")
+        elif any(
+            not (_sfx_centre * 0.92 <= f <= _sfx_centre * 1.08) for f in heard_freqs
+        ):
+            variation_gaps.append(
+                f"a repeat jumped out of the band ({min(heard_freqs):.0f}"
+                f"-{max(heard_freqs):.0f} around {_sfx_centre:.0f})"
+            )
+        if timbre is not None and timbre.get("mutedFreqs") != 0:
+            variation_gaps.append("the mute no longer stops the sound")
+    c.add(
+        "creation_sfx_variation",
+        "同じ音が二度同じに鳴らない",
+        0.0 if variation_gaps else 1.0,
+        detail=(
+            "; ".join(variation_gaps)
+            if variation_gaps
+            else "同じ効果音を 8 連射して実測: 開始周波数が毎回わずかに違い"
+            "（±4% ジッタ、半音未満）、全発が表の音程 ±8% に収まり、"
+            "M ミュートで止まる。スイープの両端が同じ係数で動くので"
+            "音の正体（情報としてのピッチ）は不変（§14）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the telegraph tells you where, not only when ------------------
     #
     # The duel's own rule is "dodge by reading the aura" (C-1022), but the
