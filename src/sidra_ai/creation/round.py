@@ -70,7 +70,7 @@ ROUND_SCORE: dict[str, tuple[str, str]] = {
     "duel": ("3-e.hp", "与ダメージ"),
     "fishing": ("score", "釣果"),
     "kaiju": ("cycles", "頭部への一撃"),
-    "marble": ("gates", "通過ゲート"),
+    "marble": ("score", "スコア"),
     "platformer": ("me.gems", "宝石"),
     "puzzle": ("score", "得点"),
     "racing": ("times.length", "完了ラップ"),

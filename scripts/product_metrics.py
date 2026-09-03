@@ -2833,6 +2833,61 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- danger you can decline, points you cannot fake ----------------
+    #
+    # §13 事実 1: reward the player who takes a risk the game never
+    # demanded. The marble's hot gates (C-1313) stand in a block's shadow
+    # and pay double; the opening gift gate never does. Judged by rolling
+    # the course: hot gates exist, the pilot takes some, the score is
+    # exactly the plain gates plus twice the hot ones, and the run ends
+    # whether or not the hot ones were taken (the risk is optional).
+    from sidra_ai.creation.marble import probe_source as _marble_rr_probe
+
+    rr_gaps: list[str] = []
+    rr_page = generate_game("玉転がしゲームを作って").html
+    rr_script = _scene_re.search(r"<script>(.*?)</script>", rr_page, _scene_re.S)
+    if rr_script is None:
+        rr_gaps.append("no script on the page")
+    else:
+        try:
+            rr_run = _scene_sp.run(
+                ["node", "-"],
+                input=_marble_rr_probe(rr_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if rr_run.returncode != 0:
+                raise ValueError(rr_run.stderr.strip()[:60])
+            rolled = json.loads(rr_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            rolled = None
+            rr_gaps.append(f"probe unavailable ({exc})")
+        if rolled is not None:
+            if rolled.get("hotTotal", 0) < 2:
+                rr_gaps.append(f"no danger on the course ({rolled.get('hotTotal')})")
+            if rolled.get("hotTaken", 0) < 1:
+                rr_gaps.append("the risk was never worth taking")
+            expected = (rolled["gates"] - rolled["hotTaken"]) + 2 * rolled["hotTaken"]
+            if rolled.get("score") != expected:
+                rr_gaps.append(
+                    f"the score lies ({rolled.get('score')} != {expected})"
+                )
+            if rolled.get("state") != "over":
+                rr_gaps.append("the course no longer completes")
+    c.add(
+        "creation_risk_reward",
+        "取らなくてよい危険が報いる",
+        0.0 if rr_gaps else 1.0,
+        detail=(
+            "; ".join(rr_gaps)
+            if rr_gaps
+            else "marble を実走: ブロックの陰のゲートが 2 点で実在し、"
+            "合計は素点＋加点に一致、取らなくても完走できる（§13 事実 1）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

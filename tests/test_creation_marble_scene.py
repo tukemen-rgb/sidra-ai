@@ -60,3 +60,15 @@ def test_the_pilot_actually_plays_the_course():
 
     assert rolled["state"] == "over"
     assert rolled["gates"] >= 10
+
+
+def test_hot_gates_stand_in_a_blocks_shadow_and_pay_double():
+    """§13 事実 1 (C-1313): optional danger, rewarded - and honest arithmetic."""
+
+    rolled = _rolled()
+
+    assert rolled["hotTotal"] >= 2, "the course offers real optional danger"
+    assert rolled["hotTaken"] >= 1, "the pilot found the risk worth taking"
+    expected = (rolled["gates"] - rolled["hotTaken"]) + 2 * rolled["hotTaken"]
+    assert rolled["score"] == expected
+    assert rolled["state"] == "over", "the risk is optional; the run still ends"

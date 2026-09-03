@@ -62,12 +62,13 @@ const W=cv.width,H=cv.height;
    a hundred lines is enough (C-1115). */
 const EYE=26,FOV=520,FAR=900,NEAR=12,LANE=120;
 setPal(MARBLE_PAL_TOKEN);
-let ball,things,gates,state,t,over,COURSE=1;
+let ball,things,gates,score,hotTaken,hotTotal,state,t,over,COURSE=1;
 /* World to screen. z is depth ahead of the camera; y is up. Everything
    drawn here goes through this one function, so "3D" is this line. */
 function proj(x,y,z){const d=Math.max(NEAR,z);
   return {x:W/2+x*FOV/d,y:H*0.62-(y-EYE)*FOV/d,s:FOV/d}}
-function reset(){ball={x:0,y:8,z:0,vx:0};gates=0;t=0;state='roll';over='';
+function reset(){ball={x:0,y:8,z:0,vx:0};gates=0;score=0;hotTaken=0;hotTotal=0;
+  t=0;state='roll';over='';
   rs=(SEED>>>0)||1;things=[];
   /* A gate first and close, so the opening hands something over before it
      asks for anything (§8 事実 5). Fixed at the middle it was not a gift at
@@ -80,7 +81,16 @@ function reset(){ball={x:0,y:8,z:0,vx:0};gates=0;t=0;state='roll';over='';
     if(rand()<0.42){things.push({z:z,kind:'block',x:(rand()*2-1)*(LANE-26)})}
     things.push({z:z+65,kind:'gate',x:(rand()*2-1)*(LANE-GATEW)})}
   /* The whole run, in world units: distance is this course's scene. */
-  COURSE=things[things.length-1].z+80}
+  COURSE=things[things.length-1].z+80;
+  /* The optional danger (§13 事実 1, C-1313): a gate standing in a block's
+     shadow - close behind it, close beside it - pays double. Reaching it
+     means swerving around the block and back; skipping it costs nothing
+     but the points. The opening gift gate is never hot: a present with a
+     price on it is not a present. */
+  things.forEach(o=>{if(o.kind!=='gate'||o.first)return;
+    o.hot=things.some(b=>b.kind==='block'&&o.z-b.z>0&&o.z-b.z<160&&
+      Math.abs(b.x-o.x)<95);
+    if(o.hot)hotTotal++})}
 reset();
 addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'||e.key==='ArrowRight')e.preventDefault();
@@ -103,8 +113,14 @@ function step(){
       if(o.first&&dz<90){o.x=ball.x}
       if(dz<0&&dz>-ROLL-6){o.done=true;
         if(o.kind==='gate'){
-          if(Math.abs(o.x-ball.x)<GATEW){gates++;sfx('catch');
-            shake(2);burst(proj(o.x,10,NEAR+40).x,H*0.55,10,'ACCENT_JUICE')}}
+          if(Math.abs(o.x-ball.x)<GATEW){gates++;
+            /* The risk pays in points AND in feel: the hot gate rings a
+               brighter bell and kicks the camera harder (§13: the reward
+               has to change the play, not decorate it). */
+            if(o.hot){score+=2;hotTaken++;sfx('key');shake(4);
+              burst(proj(o.x,10,NEAR+40).x,H*0.55,16,'ALERT_JUICE')}
+            else{score+=1;sfx('catch');shake(2);
+              burst(proj(o.x,10,NEAR+40).x,H*0.55,10,'ACCENT_JUICE')}}}
         else if(Math.abs(o.x-ball.x)<24){state='over';over='ブロックに当たった。';
           failBeat(W/2,H*0.6)}}});
     if(things.every(o=>o.done)){state='over';over='コースを走り切った。'}}
@@ -137,7 +153,16 @@ function step(){
     if(o.kind==='gate'){const half=GATEW*p.s,top=proj(o.x,44,d);
       cx.strokeStyle=shade(TUNE_ACCENT,k);cx.lineWidth=Math.max(1,3*p.s);
       cx.beginPath();cx.moveTo(p.x-half,p.y);cx.lineTo(p.x-half,top.y);
-      cx.lineTo(p.x+half,top.y);cx.lineTo(p.x+half,p.y);cx.stroke()}
+      cx.lineTo(p.x+half,top.y);cx.lineTo(p.x+half,p.y);cx.stroke();
+      /* Worth double, and it says so by FORM (§4): a second inner frame
+         and a diamond at the apex, not a colour swap. */
+      if(o.hot){const h2=half*0.8;
+        cx.beginPath();cx.moveTo(p.x-h2,p.y);cx.lineTo(p.x-h2,top.y+4*p.s);
+        cx.lineTo(p.x+h2,top.y+4*p.s);cx.lineTo(p.x+h2,p.y);cx.stroke();
+        const r=Math.max(2,6*p.s);
+        cx.beginPath();cx.moveTo(p.x,top.y-r);cx.lineTo(p.x+r,top.y);
+        cx.lineTo(p.x,top.y+r);cx.lineTo(p.x-r,top.y);cx.closePath();
+        cx.fillStyle=shade(TUNE_ACCENT,k);cx.fill()}}
     else{const w=26*p.s,h=30*p.s;
       cx.fillStyle=shade('MAGENTA_TOKEN',k);
       cx.fillRect(p.x-w,p.y-h,w*2,h);
@@ -157,7 +182,7 @@ function step(){
   cx.fillStyle=shade(TUNE_ACCENT,1);cx.beginPath();
   cx.arc(bp.x-br*0.28,bp.y-br*0.3,br*0.62,0,6.2832);cx.fill();
   cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
-  cx.fillText('ゲート '+gates+'  距離 '+Math.round(ball.z),40,30);
+  cx.fillText('スコア '+score+'  ゲート '+gates+'  距離 '+Math.round(ball.z),40,30);
   if(state!=='roll'){cx.fillStyle='#05070fcc';cx.fillRect(0,H/2-40,W,80);
     cx.fillStyle='#dfe7f5';cx.textAlign='center';
     cx.font='20px ui-monospace,monospace';cx.fillText(over,W/2,H/2-6);
@@ -169,7 +194,8 @@ function step(){
 function marbleFacts(){let next=null;
   things.forEach(o=>{if(o.done||next)return;
     if(o.z-ball.z>0)next={kind:o.kind,x:o.x,dz:o.z-ball.z}});
-  return {state:state,z:ball.z,x:ball.x,gates:gates,scene:SCENE,
+  return {state:state,z:ball.z,x:ball.x,gates:gates,score:score,
+    hotTotal:hotTotal,hotTaken:hotTaken,scene:SCENE,
     course:COURSE,next:next}}
 step();
 """
@@ -225,6 +251,7 @@ console.log(JSON.stringify({
   scenes: palette.scenes,
   sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
   state: end.state, z: end.z, course: end.course, gates: end.gates,
+  score: end.score, hotTotal: end.hotTotal, hotTaken: end.hotTaken,
 }));
 """
 
