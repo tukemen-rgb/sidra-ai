@@ -44,6 +44,7 @@ from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.juice import JUICE_PREAMBLE
+from sidra_ai.creation.music import MUSIC_PREAMBLE
 from sidra_ai.creation.marble import (
     MARBLE_HOW,
     MARBLE_SCRIPT,
@@ -655,6 +656,10 @@ def generate_game(
             + DAILY_PREAMBLE
             + GATE_PREAMBLE
             + SFX_PREAMBLE
+            # Right after the effects: the music shares their AC, mute and
+            # combat step, and reads SEED through a typeof guard so the
+            # seedless templates still get a (fixed) tune (C-1304).
+            + MUSIC_PREAMBLE
             + JUICE_PREAMBLE
             + SCENE_PREAMBLE
             + PAD_PREAMBLE
@@ -704,6 +709,10 @@ def generate_game(
         .replace("RACING_PAL_TOKEN", json.dumps([list(p) for p in RACING_PALETTE]))
         .replace("PLAT_PAL_TOKEN", json.dumps([list(p) for p in PLATFORMER_PALETTE]))
         .replace("SHOOTER_PAL_TOKEN", json.dumps([list(p) for p in SHOOTER_PALETTE]))
+        # Before SEED_TOKEN would matter and free of it as a substring: the
+        # music's own seed, request-derived, so the same words are the same
+        # song in every template - the seedless ones included (C-1304).
+        .replace("MUSIC_SEED_INPUT", str(zlib.crc32(request.encode("utf-8"))))
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
         .replace("SEED_TOKEN", f"seedNow({zlib.crc32(request.encode('utf-8'))})")

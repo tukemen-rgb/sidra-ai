@@ -2097,6 +2097,71 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the other half of 効果音と音楽 --------------------------------
+    #
+    # §1 names sound AND music; C-1017 shipped the sound and nothing
+    # shipped the music. §10's three facts make a safe, self-contained
+    # loop possible (two-clock scheduling, four repeated bars, a
+    # pentatonic walk that cannot land on a wrong note). Counted only if
+    # every template carries the preamble, and judged by watching a page
+    # play: quiet before the first input, reserving notes after it, dead
+    # the moment M mutes, and the same request humming the same tune.
+    from sidra_ai.creation.music import probe_source as _music_probe
+
+    music_gaps: list[str] = []
+    unwired = [
+        key
+        for key in sorted(_TOUCH_TEMPLATES)
+        if "musicTick" not in generate_game("ゲームを作って", template=key).html
+    ]
+    if unwired:
+        music_gaps.append(f"no music on: {', '.join(unwired)}")
+    music_page = generate_game("パズルゲームを作って").html
+    music_script = _scene_re.search(r"<script>(.*?)</script>", music_page, _scene_re.S)
+    if music_script is None:
+        music_gaps.append("no script on the page")
+    else:
+        heard = []
+        for _ in range(2):
+            try:
+                music_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_music_probe(music_script.group(1)),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if music_run.returncode != 0:
+                    raise ValueError(music_run.stderr.strip()[:60])
+                heard.append(json.loads(music_run.stdout.strip().splitlines()[-1]))
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                music_gaps.append(f"probe unavailable ({exc})")
+                break
+        if len(heard) == 2:
+            seen, again = heard
+            if seen["beforeOn"] or seen["beforeN"] != 0:
+                music_gaps.append("hums before the first input")
+            if seen["playingN"] <= 0:
+                music_gaps.append("armed and still silent")
+            if seen["afterN"] != seen["atMuteN"]:
+                music_gaps.append(
+                    f"M does not stop it ({seen['atMuteN']} -> {seen['afterN']})"
+                )
+            if seen["mel"] != again["mel"] or seen["bass"] != again["bass"]:
+                music_gaps.append("the same request is not the same tune")
+    c.add(
+        "creation_game_music",
+        "BGM が流れるゲームの型",
+        0.0 if music_gaps else float(len(_TOUCH_TEMPLATES)),
+        detail=(
+            "; ".join(music_gaps)
+            if music_gaps
+            else "全型にシード由来のペンタトニック 4 小節ループ。実走行で"
+            "「入力前は無音・入力後に予約・M で停止・同依頼同曲」を確認"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

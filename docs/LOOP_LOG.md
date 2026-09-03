@@ -4916,3 +4916,15 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   走行ごとに Math.random の系列を変え、reduced-motion で回すことで盤面だけを比較。
   4 通りの破壊で 0 に落ちることを確認（うち 2 つは作り直す前には検出できなかったもの）。
   pytest exit 0（2766 件）/ gate exit 0（MISS 0）。
+2026-09-03 09:15 辛口クリエイター C-1304 完了 creation_game_music unmeasurable -> 10（判定器 exit 0）
+  観点=§1 の音楽側。SFX と戦闘音圧差はありながら BGM が 10 型のどこにも無かった。
+  基準も無かったので先に外部調査で §10 を増築（2 つの時計方式=web.dev Chris Wilson /
+  4〜8 小節の反復とベース約 1:4 下=abagames / ペンタトニックは和声的失敗が起きない=
+  Wikipedia。全 URL 当日確認）。実装は music.py: 依頼シード専用の LCG で
+  メジャー・ペンタトニック 32 歩＋4 拍毎ベースを決定論生成し、rAF タイムスタンプを
+  JS 側時計に先読み 0.1s でノート予約（probe が時計を手で回せる）。M ミュート・
+  戦闘音圧段・MAX_GAIN は SFX と同じ規則の下。テンプレの const SEED は TDZ で
+  preamble から参照できないことが実測で判明し、専用トークン MUSIC_SEED_INPUT を
+  導入（種なし fishing/catch にも曲が付く）。実走行で「入力前 0 音・入力後に予約・
+  M で停止・同依頼同曲・別依頼別曲」を確認。破壊 3 通り（起動時 ON／ミュート無視／
+  tick 未配線）で 0 に落ちる。pytest exit 0（2732 件）/ gate exit 0（MISS 0）。
