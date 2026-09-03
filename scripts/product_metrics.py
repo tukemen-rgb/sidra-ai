@@ -2590,6 +2590,60 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the other half of the coyote window ---------------------------
+    #
+    # §12: a jump pressed and held a few frames before landing fires on
+    # the exact landing frame instead of being dropped (Celeste's jump
+    # buffering; ~4 frames is the trade's number). Judged by playing it
+    # (C-1310): the held press is airborne when it lands in the buffer,
+    # the jump fires within a handful of frames of touching down, a press
+    # released before landing is discarded, and a press in open air still
+    # never jumps on the spot.
+    from sidra_ai.creation.platformer import buffer_probe as _plat_buffer_probe
+
+    jb_gaps: list[str] = []
+    jb_page = generate_game("プラットフォーマーを作って").html
+    jb_script = _scene_re.search(r"<script>(.*?)</script>", jb_page, _scene_re.S)
+    if jb_script is None:
+        jb_gaps.append("no script on the page")
+    else:
+        try:
+            jb_run = _scene_sp.run(
+                ["node", "-"],
+                input=_plat_buffer_probe(jb_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if jb_run.returncode != 0:
+                raise ValueError(jb_run.stderr.strip()[:60])
+            played = json.loads(jb_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            played = None
+            jb_gaps.append(f"probe unavailable ({exc})")
+        if played is not None:
+            held, rel = played.get("held") or {}, played.get("released") or {}
+            if not held.get("airborneAtPress") or held.get("bufferAtPress", 0) <= 0:
+                jb_gaps.append("the early press is not kept")
+            if not held.get("jumped") or held.get("frames", 99) > 6:
+                jb_gaps.append("the kept press does not fire on landing")
+            if rel.get("jumped"):
+                jb_gaps.append("a released press still jumps")
+            if not played.get("openAirNoJump"):
+                jb_gaps.append("open air grew a jump")
+    c.add(
+        "creation_jump_buffer",
+        "着地直前のジャンプが拾われる",
+        0.0 if jb_gaps else 1.0,
+        detail=(
+            "; ".join(jb_gaps)
+            if jb_gaps
+            else "実際に跳んで計測: 着地数フレーム前の押しっぱなしは着地"
+            "フレームで跳び、離せば破棄、空中の即ジャンプは従来どおり無い"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page carries its own form ---------------------------------
     #
     # §9 学び (4): every generator on the market loses the person at the

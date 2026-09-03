@@ -68,9 +68,12 @@ PLATFORMER_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const GAPF=SPEED_TOKEN,NPLAT=BAND_TOKEN,SEED=SEED_TOKEN;
 const W=cv.width,H=cv.height;
-/* The two numbers that make the jump readable: 6 coyote frames after the
-   feet leave a ledge, and an early release capped to CUT (早離しで低く). */
-const GRAV=0.42,JUMP=-7.2,CUT=-2.6,RUN=2.4,COYOTE=6,LAMP_COST=5;
+/* The three numbers that make the jump readable: 6 coyote frames after
+   the feet leave a ledge, an early release capped to CUT (早離しで低く),
+   and 5 buffer frames - a jump pressed and held just before landing fires
+   on the exact landing frame instead of being dropped (§12, C-1310).
+   Coyote and buffer are the two halves of the same forgiveness. */
+const GRAV=0.42,JUMP=-7.2,CUT=-2.6,RUN=2.4,COYOTE=6,BUFFER=5,LAMP_COST=5;
 setPal(PLAT_PAL_TOKEN);
 /* seeded LCG: same request, same course - the regeneration promise. */
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
@@ -101,7 +104,8 @@ function build(){
      read as one */
   orbs=orbs.filter(o=>Math.abs(o.x-lamp.x)>1)}
 function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;
-  me={x:60,y:230,vy:0,ground:false,coyote:0,held:false,gems:0,cpX:60,cpY:262};
+  me={x:60,y:230,vy:0,ground:false,coyote:0,buffer:0,held:false,gems:0,
+    cpX:60,cpY:262};
   say('足場を渡って、旗まで。')}
 function say(t){msg=t;msgT=150}
 const keys={};
@@ -109,9 +113,12 @@ function K(k){return keys[k]}
 function tryJump(){if(state!=='play')return;
   /* coyote>0 covers both "standing" and "just walked off": the window is
      refilled every grounded frame and spent one frame at a time in the air,
-     so a late edge press lands and a mid-fall press does not. */
-  if(me.coyote>0){me.vy=JUMP;me.coyote=0;me.ground=false;sfx('catch')}}
-function cutJump(){me.held=false;if(me.vy<CUT)me.vy=CUT}
+     so a late edge press lands and a mid-fall press does not - not right
+     away. A press held while airborne is kept for BUFFER frames instead of
+     dropped, and fires on the landing frame (§12). */
+  if(me.coyote>0){me.vy=JUMP;me.coyote=0;me.ground=false;sfx('catch')}
+  else{me.buffer=BUFFER}}
+function cutJump(){me.held=false;me.buffer=0;if(me.vy<CUT)me.vy=CUT}
 addEventListener('keydown',e=>{keys[e.key]=true;
   if(e.key==='ArrowUp'||e.code==='Space'){e.preventDefault();
     if(!me.held){me.held=true;tryJump()}}
@@ -139,8 +146,12 @@ function step(){const now=performance.now();
            also kicks the camera a little */
         burst(me.x,me.y,Math.min(12,2+Math.round(vBefore)),'ACCENT_JUICE');
         if(vBefore>5)shake(2)}
-      me.ground=true;me.coyote=COYOTE}
+      me.ground=true;me.coyote=COYOTE;
+      /* The buffered jump: pressed a few frames early, still held, fired
+         the frame the feet touch - the other half of the coyote window. */
+      if(me.buffer>0&&me.held){me.buffer=0;tryJump()}}
     else{me.ground=false;if(me.coyote>0)me.coyote--}
+    if(me.buffer>0)me.buffer--;
     orbs.forEach(o=>{if(!o.got&&Math.abs(o.x-me.x)<14&&Math.abs(o.y-(me.y-10))<18){
       o.got=true;me.gems++;sfx('gem');burst(o.x,o.y,10,'ACCENT_JUICE');
       say(me.gems>=LAMP_COST&&!lamp.lit
@@ -227,11 +238,76 @@ function draw(now){
     const b='宝石 '+me.gems+' 個 / 落下 '+respawns+' 回 / R かタップでもう一度';
     cx.fillText(b,W/2-b.length*6.5,H/2+18)}}
 function platFacts(){return{x:me.x,y:me.y,vy:me.vy,ground:me.ground,
-  coyote:me.coyote,window:COYOTE,gems:me.gems,respawns:respawns,
+  coyote:me.coyote,window:COYOTE,buffer:me.buffer,bufferWindow:BUFFER,
+  gems:me.gems,respawns:respawns,
   lit:lamp.lit,cpX:me.cpX,state:state,lampX:lamp.x,lampY:lamp.y,
   flagX:flag.x,flagY:flag.y,world:LW}}
 reset();step();
 """
+
+#: The buffered jump, played (C-1310): pressed and held a few frames before
+#: landing it fires on the landing frame; released before landing it is
+#: discarded - and a press in open air still never jumps on the spot.
+BUFFER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const keyHandlers = [], upHandlers = [];
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => {
+  if (type === 'keydown') keyHandlers.push(fn);
+  if (type === 'keyup') upHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
+function ev(key){ return { key: key, code: key === ' ' ? 'Space' : key,
+  preventDefault(){}, stopImmediatePropagation(){} } }
+function press(key){ keyHandlers.forEach(fn => fn(ev(key))) }
+function lift(key){ upHandlers.forEach(fn => fn(ev(key))) }
+press(' '); lift(' '); run(80);
+const g0 = platFacts().y;
+/* Hop, and on the way back down - a couple of frames from the ledge -
+   press and HOLD. The jump must fire the frame the feet touch. */
+function hopThenPress(release){
+  press('ArrowUp'); run(6); lift('ArrowUp');
+  let guard = 0;
+  while ((platFacts().vy < 0 || platFacts().y < g0 - 14) && guard++ < 300) run(1);
+  press('ArrowUp');
+  const at = platFacts();
+  if (release) { lift('ArrowUp') }
+  let jumped = false, frames = 0;
+  for (let i = 0; i < 12; i++) { run(1);
+    if (platFacts().vy < 0) { jumped = true; frames = i + 1; break } }
+  if (!release) { lift('ArrowUp') }
+  run(80);
+  return { airborneAtPress: !at.ground && at.vy > 0, bufferAtPress: at.buffer,
+    jumped: jumped, frames: frames };
+}
+const held = hopThenPress(false);
+const released = hopThenPress(true);
+/* Open air is still open air: a press high above the ground must not
+   move the player upward on the spot. */
+me.y = g0 - 120; me.vy = 0; me.ground = false; me.coyote = 0; run(1);
+press('ArrowUp'); run(1);
+const openAir = platFacts().vy > 0 || platFacts().y < g0 - 60 ? platFacts().vy >= 0 : false;
+lift('ArrowUp');
+console.log(JSON.stringify({ bufferWindow: platFacts().bufferWindow,
+  held: held, released: released, openAirNoJump: openAir }));
+"""
+
+
+def buffer_probe(script: str) -> str:
+    """The page's own script, wrapped so a buffered jump can be watched."""
+
+    return BUFFER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
 
 #: The page driven in node: the browser is a no-op proxy, the real script
 #: runs, and the course is played - a late edge jump, a mid-fall jump, two
@@ -352,6 +428,8 @@ __all__ = [
     "PLATFORMER_SCRIPT",
     "PLATFORMER_TITLE",
     "PLATFORMER_WORDS",
+    "BUFFER_PROBE",
+    "buffer_probe",
     "PROBE",
     "probe_source",
 ]

@@ -210,3 +210,48 @@ def test_the_course_is_seeded_by_the_request() -> None:
 def test_the_words_that_route_here_include_the_ones_an_owner_types() -> None:
     for word in ("プラットフォーマー", "横スクロール", "platformer"):
         assert word in PLATFORMER_WORDS
+
+
+def _buffered() -> dict:
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.games import generate_game
+    from sidra_ai.creation.platformer import buffer_probe
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = generate_game("プラットフォーマーを作って").html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=buffer_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return _json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_a_jump_pressed_just_before_landing_fires_on_the_landing_frame():
+    """§12 (C-1310): the buffered half of the coyote forgiveness, played."""
+
+    seen = _buffered()
+
+    assert seen["held"]["airborneAtPress"] is True
+    assert seen["held"]["bufferAtPress"] > 0
+    assert seen["held"]["jumped"] is True
+    assert seen["held"]["frames"] <= 6
+
+
+def test_a_released_press_is_discarded_and_open_air_grows_no_jump():
+    seen = _buffered()
+
+    assert seen["released"]["jumped"] is False, "letting go cancels the buffer"
+    assert seen["openAirNoJump"] is True, "no quiet double jump appeared"
