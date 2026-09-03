@@ -660,6 +660,56 @@ def measure_answer_quality(c: Collector) -> None:
 # --- can it make the thing that was asked for -------------------------
 
 
+#: Plays a generated fishing page in node with a *recording* 2D context and
+#: reports whether a filled body+tail land inside the band the page painted.
+#: The environment stub mirrors sidra_ai.creation.duel.PROBE; the context
+#: records instead of swallowing, because this metric is about what is drawn.
+_FISHING_DRAW_PROBE = """
+const calls=[];let path=[],ell=null,style='';
+const recorder={
+  get fillStyle(){return style},set fillStyle(v){style=String(v)},
+  fillRect(x,y,w,h){calls.push({t:'rect',x,y,w,h})},
+  beginPath(){path=[];ell=null},
+  moveTo(x,y){path.push([x,y])},lineTo(x,y){path.push([x,y])},
+  ellipse(x,y){ell={x:x,y:y}},closePath(){},
+  fill(){if(ell){calls.push({t:'body',x:ell.x,y:ell.y});ell=null}
+    else if(path.length){const xs=path.map(p=>p[0]),ys=path.map(p=>p[1]);
+      calls.push({t:'tail',x:(Math.min(...xs)+Math.max(...xs))/2,
+        y:(Math.min(...ys)+Math.max(...ys))/2});path=[]}},
+};
+const cxProxy=new Proxy(recorder,{
+  get:(t,k)=>k in t?t[k]:()=>{},set:(t,k,v)=>{if(k in t){t[k]=v}return true}});
+const keyHandlers=[];
+globalThis.matchMedia=()=>({matches:false});
+globalThis.performance={now:()=>0};
+globalThis.addEventListener=(type,fn)=>{if(type==='keydown')keyHandlers.push(fn)};
+globalThis.Image=function(){return {}};
+globalThis.document={getElementById:()=>({
+  width:720,height:320,style:{},addEventListener:()=>{},
+  getBoundingClientRect:()=>({left:0,top:0,width:720,height:320}),
+  getContext:()=>cxProxy})};
+let queued=null;
+globalThis.requestAnimationFrame=(fn)=>{queued=fn;return 1};
+SCRIPT_PLACEHOLDER
+function run(n){for(let i=0;i<n&&queued;i++){const fn=queued;queued=null;fn(i*16)}}
+const press={key:' ',code:'Space',preventDefault(){},stopImmediatePropagation(){}};
+keyHandlers.forEach(fn=>fn(press));
+run(4);
+/* The band: the page's own zone highlight - on the line (y=134, h=52) but
+   narrower than the full 640px line it sits on. */
+const band=calls.find(c=>c.t==='rect'&&Math.round(c.y)===134&&Math.round(c.h)===52
+  &&c.w>0&&c.w<600&&c.x>40);
+let bodyInBand=false,tailInBand=false;
+if(band){
+  bodyInBand=calls.some(c=>c.t==='body'&&c.x>=band.x-20&&c.x<=band.x+band.w+20
+    &&Math.abs(c.y-160)<24);
+  tailInBand=calls.some(c=>c.t==='tail'&&c.x>=band.x-30&&c.x<=band.x+band.w+30
+    &&Math.abs(c.y-160)<24);
+}
+console.log(JSON.stringify({band:!!band,bodyInBand:bodyInBand,tailInBand:tailInBand}));
+"""
+
+
 def measure_boss_questions(c: Collector) -> None:
     """Can the owner's twenty questions be re-scored by someone else?
 
@@ -1148,6 +1198,58 @@ def measure_creation(c: Collector) -> None:
             "walls carry form, doors carry a chevron, the pond is real"
             if not readable_reasons
             else "; ".join(readable_reasons)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the fishing target is actually drawn ---------------------------
+    #
+    # C-1206: the default template's target was `sprite('target',...,'')` -
+    # nothing at all on a standalone page - while the code computed a bob
+    # animation for it. Checked by *playing the page in node* with a
+    # recording context, because the cheap fake here is a fish drawn
+    # anywhere: the fill has to land inside the band the page itself painted.
+    import re as _fish_re
+    import subprocess as _fish_sp
+
+    fish_page = generate_game("ゲームを作って").html
+    fish_reasons = []
+    fish_script = _fish_re.search(r"<script>(.*?)</script>", fish_page, _fish_re.S)
+    if fish_script is None:
+        fish_reasons.append("no script")
+    else:
+        try:
+            probe = _fish_sp.run(
+                ["node", "-"],
+                input=_FISHING_DRAW_PROBE.replace(
+                    "SCRIPT_PLACEHOLDER", fish_script.group(1)
+                ),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if probe.returncode != 0:
+                fish_reasons.append(probe.stderr.strip()[:80])
+            else:
+                seen = json.loads(probe.stdout)
+                if not seen.get("band"):
+                    fish_reasons.append("the band itself was not painted")
+                elif not seen.get("bodyInBand"):
+                    fish_reasons.append("no filled body lands inside the band")
+                elif not seen.get("tailInBand"):
+                    fish_reasons.append("the body has no tail (a bare blob)")
+        except (OSError, _fish_sp.SubprocessError, ValueError) as exc:
+            fish_reasons.append(f"probe unavailable: {type(exc).__name__}")
+    if not validate_game_html(fish_page)["playable"]:
+        fish_reasons.append("page no longer parses")
+    c.add(
+        "creation_fishing_target_drawn",
+        "釣りの的（魚）が描かれている",
+        0.0 if fish_reasons else 1.0,
+        detail=(
+            "a filled body and tail land inside the page's own band"
+            if not fish_reasons
+            else "; ".join(fish_reasons)
         ),
         kind=OUTCOME,
     )

@@ -183,6 +183,16 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();cx.fillStyle=
   if(flash>0){cx.globalAlpha=0.35*ease(flash);cx.fillStyle='CYAN_TOKEN';
     cx.fillRect(0,0,w,h);cx.globalAlpha=1;flash-=0.04}
   sprite('marker',40+(w-80)*pos-8,h/2-34,16,68,'MAGENTA_TOKEN');
+  /* The fish itself: body, tail, eye (C-1206). Every other empty-fallback
+     sprite slot sits over a procedural body; this one had none, so the
+     page computed a bob for a target it never drew. Painted before the
+     sprite call so a real asset in the 'target' slot covers it. */
+  const fx=40+(w-80)*SPOT,fy=h/2+bob;
+  cx.fillStyle='CYAN_TOKEN';cx.beginPath();
+  cx.ellipse(fx+3,fy,13,8,0,0,6.284);cx.fill();
+  cx.beginPath();cx.moveTo(fx-8,fy);cx.lineTo(fx-16,fy-7);cx.lineTo(fx-16,fy+7);
+  cx.closePath();cx.fill();
+  cx.fillStyle='SURFACE_TOKEN';cx.fillRect(fx+9,fy-3,3,3);
   sprite('target',40+(w-80)*SPOT-16,h/2-16+bob,32,32,'');
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
