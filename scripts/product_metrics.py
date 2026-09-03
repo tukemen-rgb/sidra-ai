@@ -2848,6 +2848,121 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- open it, press once, play ---------------------------------------
+    #
+    # C-1111, §8 事実 8. The briefing screen (C-1033) is worth having and
+    # it is in tension with "playable the moment it opens". The resolution
+    # is not to drop one of them: the first visit gets the three lines and
+    # one input of *any* kind starts the game, and every visit after that
+    # opens straight into play, because the briefing is only news once.
+    #
+    # Measured from load, in frames, on the running page. "Playable" is
+    # not a state name here - it is the template's own callback receiving
+    # frames, which is the thing a player can actually act on.
+    from sidra_ai.creation.startscreen import (
+        FIRST_INPUTS as _start_inputs,
+        INSTANT_FRAMES as _start_frames,
+        start_probe_source as _start_probe,
+    )
+
+    def _start_run(template, script, **kw):
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_start_probe(script, **kw),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    start_gaps: list[str] = []
+    start_ok: list[str] = []
+    start_worst = 0.0
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            start_gaps.append(f"{key}: no script")
+            continue
+        body = script.group(1)
+        seen = {f"sidra.seen.{key}": "1"}
+        trouble = None
+        # A first visit is gated: the three lines are what the controls are.
+        fresh, problem = _start_run(key, body)
+        if problem:
+            start_gaps.append(problem)
+            continue
+        if fresh["untouched"]["frames"] != 0 or fresh["untouched"]["state"] != "title":
+            trouble = f"{key}: the first visit skipped its own briefing"
+        # ...and one input of any kind opens it, within one frame.
+        for kind, pressed in _start_inputs:
+            if trouble:
+                break
+            after, problem = _start_run(key, body, kind=kind, key=pressed)
+            if problem:
+                trouble = problem
+                break
+            name = "tap" if kind == "tap" else repr(pressed)
+            if after["frames"][0] < 1:
+                trouble = f"{key}: {name} did not start the game"
+            elif after["frames"][0] != _start_frames:
+                trouble = f"{key}: {name} took {after['frames'][0]} frames, not {_start_frames}"
+            elif not after["stored"]:
+                trouble = f"{key}: starting was not remembered for next time"
+            else:
+                start_worst = max(start_worst, after["frames"][0] * 50 / 3)
+        if not trouble:
+            # A return visit opens straight into play, with no input at all.
+            back, problem = _start_run(key, body, stored=dict(seen))
+            if problem:
+                trouble = problem
+            elif not back["untouched"]["skipped"] or back["untouched"]["frames"] < 1:
+                trouble = f"{key}: a return visit still had to be pressed through"
+            # And it has made no sound, because no gesture has happened. A
+            # page that opened playing and played a sound anyway would be
+            # asking the browser for something it refuses.
+            elif back["untouched"]["gesture"]:
+                trouble = f"{key}: a sound was played before anyone touched anything"
+        if not trouble:
+            touched, problem = _start_run(key, body, stored=dict(seen), kind="key", key=" ")
+            if problem:
+                trouble = problem
+            elif not touched["afterInput"]["gesture"]:
+                trouble = f"{key}: the first input on a skipped start unlocked no sound"
+        if not trouble:
+            # The way back to the briefing, for somebody who wants it.
+            asked, problem = _start_run(
+                key, body, stored={**seen, f"sidra.tune.{key}": {"brief": True}}
+            )
+            if problem:
+                trouble = problem
+            elif asked["untouched"]["skipped"] or asked["untouched"]["frames"] != 0:
+                trouble = f"{key}: the briefing cannot be asked for again"
+        if trouble:
+            start_gaps.append(trouble)
+        else:
+            start_ok.append(key)
+    c.add(
+        "creation_instant_start",
+        "1 入力で遊べて、2 回目は待たされない型",
+        float(len(start_ok)) if not start_gaps else 0.0,
+        detail=(
+            f"ロードから実プレイで計測。初回はブリーフィングが出て、"
+            f"キー 5 種＋タップのどれでも 1 入力・{_start_frames} フレーム"
+            f"（{start_worst:.0f}ms）で操作可能に。2 回目以降は無入力で"
+            "そのまま遊べ、かつジェスチャ前に音は鳴らさない。"
+            "毎回見たい人は調整パネルで戻せる"
+            if not start_gaps
+            else "; ".join(start_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

@@ -117,6 +117,11 @@ def panel_schema(template: str, ladder: dict[str, tuple[float, float]], *, diffi
             # a generated game *that person's* game, and a revision rebuilt
             # from the same request expects the same world back.
             {"key": "daily", "label": "今日の挑戦", "type": "flag", "default": False},
+            # C-1111. Off by default: the briefing is shown on the first
+            # visit whatever this says, and after that it is the thing
+            # standing between a returning player and the game. On, for
+            # somebody who wants to re-read the three lines every time.
+            {"key": "brief", "label": "毎回ブリーフィングを見る", "type": "flag", "default": False},
         ],
     }
 

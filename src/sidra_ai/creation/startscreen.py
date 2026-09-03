@@ -25,7 +25,15 @@ re-scheduling itself, exactly as the hitstop does.
 from __future__ import annotations
 
 #: What the preamble introduces.
-PREAMBLE_NAMES: tuple[str, ...] = ("gateState", "gateFrames", "gateBrief")
+PREAMBLE_NAMES: tuple[str, ...] = (
+    "gateState",
+    "gateFrames",
+    "gateBrief",
+    "gateSkipped",
+    "gateSeen",
+    "gateGesture",
+    "gateFacts",
+)
 
 #: The three lines the title screen prints before anyone presses anything:
 #: what you are trying to do, what you press, and what is in your way.
@@ -93,25 +101,54 @@ GATE_PREAMBLE = """
 /* --- start screen and pause (installed first: its overlay draws last) --- */
 const GCV=document.getElementById('stage');
 const GTITLE=TITLE_TOKEN,GHOW=HOWTO_TOKEN,GBRIEF=BRIEF_TOKEN;
-let GATE='title',GATE_RAN=0;
+let GATE='title',GATE_RAN=0,GATE_SKIPPED=false,GATE_GESTURE=false;
+const GATE_SEEN_KEY='sidra.seen.'+GATE_NAME_TOKEN;
 function gateState(){return GATE}
 function gateFrames(){return GATE_RAN}
 function gateBrief(){return GBRIEF}
+function gateSkipped(){return GATE_SKIPPED}
+function gateStore(){try{return (typeof localStorage!=='undefined')?localStorage:null}
+  catch(e){return null}}
+function gateSeen(){const s=gateStore();
+  try{return !!(s&&s.getItem(GATE_SEEN_KEY))}catch(e){return false}}
+function gateRemember(){const s=gateStore();
+  try{if(s)s.setItem(GATE_SEEN_KEY,'1')}catch(e){}}
+/* The gesture the AudioContext has been waiting for. Kept apart from
+   starting, because a page that opened straight into play (C-1111) has had
+   no gesture yet - and a sound played without one is a sound the browser
+   refuses and the player learns the game does not have. */
+function gateGesture(){if(GATE_GESTURE)return;GATE_GESTURE=true;
+  try{sfx('step')}catch(e){}}
 function gateStart(){if(GATE==='playing')return;
-  /* The press that starts the game is the user gesture the AudioContext has
-     been waiting for; a game whose first sound is silent taught the player
-     it has none. */
-  GATE='playing';try{sfx('step')}catch(e){}}
+  GATE='playing';gateRemember();gateGesture()}
 function gateTogglePause(){if(GATE==='title')return;
   GATE=GATE==='paused'?'playing':'paused'}
+/* Second visit onward, the briefing is not news. It is skipped before the
+   first frame - so there is nothing to press through - unless the player
+   asked to see it every time in 調整. The first visit is never skipped:
+   the three lines are what the controls *are*. */
+if(gateSeen()&&!tuneFlag('brief',false)){GATE='playing';GATE_SKIPPED=true}
 addEventListener('keydown',e=>{
-  if(e.key==='p'||e.key==='P'){e.preventDefault();e.stopImmediatePropagation();
+  /* Pause belongs to a game that has started. On the title screen P is
+     just another key, because "any key" has to mean any key - a player
+     who reaches for P first was getting nothing at all. */
+  if((e.key==='p'||e.key==='P')&&GATE!=='title'){
+    e.preventDefault();e.stopImmediatePropagation();
     gateTogglePause();return}
   if(GATE!=='playing'){e.preventDefault();e.stopImmediatePropagation();
-    gateStart()}},true);
+    gateStart();return}
+  gateGesture()},true);
 if(GCV){GCV.addEventListener('pointerdown',e=>{
   if(GATE!=='playing'){e.preventDefault();e.stopImmediatePropagation();
-    gateStart()}},true)}
+    gateStart();return}
+  gateGesture()},true)}
+/* What the judge reads back. Every one of these is a fact about the
+   running page: whether the template is getting frames at all, whether the
+   briefing was skipped, and whether a gesture has happened - the last
+   because a page that opened straight into play must not have made a sound
+   yet, and "no sound" is otherwise indistinguishable from a broken stub. */
+function gateFacts(){return {state:GATE,frames:GATE_RAN,skipped:GATE_SKIPPED,
+  seen:gateSeen(),gesture:GATE_GESTURE}}
 function gateWrap(text,limit){const out=[];let line='';
   for(const ch of text){line+=ch;
     if(line.length>=limit){out.push(line);line=''}}
@@ -200,4 +237,128 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-__all__ = ["BRIEFINGS", "GATE_PREAMBLE", "PREAMBLE_NAMES", "PROBE", "probe_source"]
+#: How long the gate itself is allowed to stand between a person and the
+#: game, once they have made their one input. One frame: the press is
+#: handled, the next frame belongs to the template.
+INSTANT_FRAMES = 1
+
+#: The inputs a first-time player might actually reach for. "Any key" has
+#: to mean any key, so the judge tries the ones that are easy to get wrong:
+#: the letter that is also a shortcut, the arrow that is also a control,
+#: and the tap, which is the only input a phone has.
+FIRST_INPUTS: tuple[tuple[str, str], ...] = (
+    ("key", " "),
+    ("key", "Enter"),
+    ("key", "ArrowRight"),
+    ("key", "x"),
+    # P is the pause key once the game is running. On the title screen it
+    # used to do nothing at all, which made "press any key" false for
+    # exactly one key.
+    ("key", "p"),
+    ("tap", ""),
+)
+
+#: Runs a generated page from load, with whatever the browser remembers,
+#: and delivers at most one input. The whole claim is about the first few
+#: frames, so the probe counts them rather than trusting a state name.
+START_PROBE = """
+const startNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : startNothing),
+  apply: () => startNothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: false });
+let startClock = 0;
+globalThis.performance = { now: () => startClock };
+const startKeys = [], startPointers = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') startKeys.push(fn) };
+globalThis.Image = function(){ return startNothing };
+const startStore = STORED_INPUT;
+globalThis.localStorage = {
+  getItem: (k) => (k in startStore ? startStore[k] : null),
+  setItem: (k, v) => { startStore[k] = String(v) },
+  removeItem: (k) => { delete startStore[k] } };
+globalThis.location = { reload: () => {} };
+function startElement(tag){
+  const el = { tagName: tag, style: {}, children: [], attrs: {}, handlers: {},
+    appendChild(c){ this.children.push(c); return c },
+    setAttribute(k, v){ this.attrs[k] = v }, getAttribute(k){ return this.attrs[k] },
+    addEventListener(name, fn){ (this.handlers[name] = this.handlers[name] || []).push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => startNothing, width: 720, height: 320 };
+  return el }
+const startBody = startElement('body');
+globalThis.document = { readyState: 'complete', body: startBody,
+  createElement: startElement, querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {},
+    addEventListener: (type, fn) => { if (type === 'pointerdown') startPointers.push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => startNothing }) };
+let startQueued = null;
+globalThis.requestAnimationFrame = (fn) => { startQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function startRun(n){ for (let i = 0; i < n && startQueued; i++) {
+  const fn = startQueued; startQueued = null; startClock += 50 / 3; fn(startClock) } }
+/* What the page does when nobody touches it. A first visit must be sitting
+   on its briefing here; a return visit must already be playing. */
+startRun(WARMUP_INPUT);
+const startUntouched = gateFacts();
+let startPressed = null;
+if (INPUT_KIND === 'key') {
+  const ev = { key: INPUT_KEY, code: 'Probe',
+    preventDefault(){}, stopImmediatePropagation(){} };
+  startKeys.forEach(fn => fn(ev));
+  startPressed = 'key';
+} else if (INPUT_KIND === 'tap') {
+  startPointers.forEach(fn => fn({ pointerType: 'touch', pointerId: 1,
+    clientX: 360, clientY: 160, preventDefault(){}, stopImmediatePropagation(){} }));
+  startPressed = 'tap';
+}
+const startAfterInput = gateFacts();
+/* One frame is all the gate is allowed once the input has landed. */
+const startFrames = [];
+for (let i = 0; i < 4; i++) { startRun(1); startFrames.push(gateFacts().frames) }
+console.log(JSON.stringify({
+  untouched: startUntouched, afterInput: startAfterInput,
+  pressed: startPressed, frames: startFrames,
+  facts: gateFacts(), warmup: WARMUP_INPUT,
+  running: startQueued !== null,
+  stored: Object.keys(startStore),
+}));
+"""
+
+
+def start_probe_source(
+    script: str,
+    *,
+    stored: dict[str, object] | None = None,
+    kind: str = "none",
+    key: str = " ",
+    warmup: int = 3,
+) -> str:
+    """The page from load, with one input at most."""
+
+    import json as _json
+
+    payload = {
+        name: (value if isinstance(value, str) else _json.dumps(value, ensure_ascii=False))
+        for name, value in (stored or {}).items()
+    }
+    return (
+        START_PROBE.replace("STORED_INPUT", _json.dumps(payload, ensure_ascii=False))
+        .replace("WARMUP_INPUT", str(int(warmup)))
+        .replace("INPUT_KIND", _json.dumps(kind))
+        .replace("INPUT_KEY", _json.dumps(key))
+        .replace("SCRIPT_PLACEHOLDER", script)
+    )
+
+
+__all__ = [
+    "BRIEFINGS",
+    "FIRST_INPUTS",
+    "GATE_PREAMBLE",
+    "INSTANT_FRAMES",
+    "PREAMBLE_NAMES",
+    "PROBE",
+    "START_PROBE",
+    "probe_source",
+    "start_probe_source",
+]

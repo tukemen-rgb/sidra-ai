@@ -643,6 +643,8 @@ def generate_game(
         # generator's own number, which is why this is a substitution and
         # not a rewrite of nine templates.
         .replace("TUNE_SPEC_TOKEN", json.dumps(schema, ensure_ascii=False))
+        # Which template's briefing has been read, per template.
+        .replace("GATE_NAME_TOKEN", json.dumps(key))
         .replace("SPEED_TOKEN", f"tuneNum('speed',{speed})")
         .replace("BAND_TOKEN", f"tuneNum('band',{band})")
         # Quoted first: the accent every template paints with becomes one
