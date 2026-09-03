@@ -2176,6 +2176,7 @@ def measure_creation(c: Collector) -> None:
     import subprocess as _scene_sp
 
     from sidra_ai.creation.adventure import world_probe as _adv_probe
+    from sidra_ai.creation.fishing import probe_source as _fishing_scene_probe
     from sidra_ai.creation.kaiju import probe_source as _kaiju_scene_probe
     from sidra_ai.creation.marble import probe_source as _marble_scene_probe
     from sidra_ai.creation.shooter import probe_source as _shooter_scene_probe
@@ -2184,13 +2185,15 @@ def measure_creation(c: Collector) -> None:
     #: request phrase -> (template key, probe builder). The templates with
     #: more than one scene to tell apart, and only those: rooms for the
     #: adventure, phases for the kaiju, acts of the round for the shooter
-    #: (C-1301), thirds of the corridor for the marble (C-1307). A
-    #: single-scene template would inflate the count.
+    #: (C-1301), thirds of the corridor for the marble (C-1307), thirds of
+    #: the round clock for the fishing (C-1315). A single-scene template
+    #: would inflate the count.
     _scene_targets = (
         ("迷宮を冒険するゲームを作って", "adventure", _adv_probe),
         ("巨大怪獣と戦うゲームを作って", "kaiju", _kaiju_scene_probe),
         ("シューティングゲームを作って", "shooter", _shooter_scene_probe),
         ("玉転がしゲームを作って", "marble", _marble_scene_probe),
+        ("釣りゲームを作って", "fishing", _fishing_scene_probe),
     )
     #: One request per theme, so the default is measured alongside the three
     #: named ones. The default is the empty suffix.
@@ -2265,10 +2268,70 @@ def measure_creation(c: Collector) -> None:
         else 0.0,
         detail=(
             "adventure の部屋間・kaiju の phase 間・shooter の幕間・marble の"
-            "コース 3 分割で実際の描画色が変わり、最も明るい場面が最終部に"
-            "ある。4 テーマすべてで確認、壁と床の明度差はテーマ既定値のまま"
+            "コース 3 分割・fishing のラウンド 3 等分で実際の描画色が変わり、"
+            "最も明るい場面が最終部にある。4 テーマすべてで確認、壁と床の"
+            "明度差はテーマ既定値のまま"
             if not scene_gaps
             else "; ".join(scene_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the clock is a journey too ------------------------------------
+    #
+    # §7 観察 5-6 at round scale (C-1315): the templates with a course spend
+    # the brightness budget over distance, but the default template - the
+    # fishing round - has no distance at all. Its journey is §8's sixty
+    # seconds, so the sky must step with played time and keep the peak for
+    # the final stretch. Measured by playing the round out: a cast landed
+    # under the first sky and another under the last, acts read off the
+    # running page as the clock passes each third, and the break still
+    # called at sixty seconds - the arc decorates the round, it must not
+    # touch it.
+    round_scene_gaps: list[str] = []
+    for _rs_request in ("釣りゲームを作って", "難しい釣りゲームを作って"):
+        _rs_page = generate_game(_rs_request).html
+        _rs_script = _scene_re.search(r"<script>(.*?)</script>", _rs_page, _scene_re.S)
+        if _rs_script is None:
+            round_scene_gaps.append(f"{_rs_request}: no script")
+            continue
+        try:
+            _rs_run = _scene_sp.run(
+                ["node", "-"],
+                input=_fishing_scene_probe(_rs_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _rs_run.returncode != 0:
+                round_scene_gaps.append(f"{_rs_request}: {_rs_run.stderr.strip()[:80]}")
+                continue
+            _rs = json.loads(_rs_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            round_scene_gaps.append(f"{_rs_request}: probe unavailable ({type(exc).__name__})")
+            continue
+        acts = (_rs.get("sceneEarly"), _rs.get("sceneMid"), _rs.get("sceneLate"))
+        if acts != (0, 1, 2):
+            round_scene_gaps.append(f"{_rs_request}: the sky ignores the clock {acts}")
+        _rs_scenes = _rs.get("scenes") or []
+        if len(_rs_scenes) < 3 or max(
+            range(len(_rs_scenes)), key=lambda i: _rs_scenes[i]["lum"]
+        ) != len(_rs_scenes) - 1:
+            round_scene_gaps.append(f"{_rs_request}: the last sky is not the brightest")
+        if _rs.get("castEarly") != 1 or _rs.get("castLate") != 1:
+            round_scene_gaps.append(f"{_rs_request}: a cast in the band no longer lands")
+        if not _rs.get("done") or _rs.get("reason") != "time":
+            round_scene_gaps.append(f"{_rs_request}: the round no longer reaches its break")
+    c.add(
+        "creation_round_scene",
+        "時間の経過で空が変わる",
+        1.0 if not round_scene_gaps else 0.0,
+        detail=(
+            "fishing のラウンドを最後まで実プレイ: 幕 0→1→2 が実時間の 3 等分"
+            "で切り替わり、最終幕が最明、第 1 幕と最終幕の両方で帯内の合わせが"
+            "成立、60 秒の区切りは不変（§7 観察 5-6 のラウンド版）"
+            if not round_scene_gaps
+            else "; ".join(round_scene_gaps)
         ),
         kind=OUTCOME,
     )

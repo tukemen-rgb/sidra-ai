@@ -110,6 +110,19 @@ MARBLE_PALETTE: tuple[tuple[float, float, float], ...] = (
     (80.0, 1.05, 0.22),
 )
 
+#: Fishing, one entry per third of the sixty-second round: first light,
+#: full day, the golden last stretch.
+#:
+#: The other courses spend the brightness budget over distance; a timing
+#: game has no distance, so the round clock is the journey and the last
+#: twenty seconds get the peak - the cast you land as time runs out is
+#: the climax of the session (§7 観察 5-6 over §8's sixty seconds).
+FISHING_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (-40.0, 0.85, 0.02),
+    (30.0, 1.10, 0.10),
+    (80.0, 1.05, 0.22),
+)
+
 #: Installed before every template. Defines the transform and leaves the
 #: palette itself to the template, which calls ``setPal`` once at boot.
 SCENE_PREAMBLE = """
@@ -191,6 +204,7 @@ function sceneFacts(){const keep=SCENE,out=[];
 
 __all__ = [
     "ADVENTURE_PALETTE",
+    "FISHING_PALETTE",
     "KAIJU_PALETTE",
     "MARBLE_PALETTE",
     "PLATFORMER_PALETTE",

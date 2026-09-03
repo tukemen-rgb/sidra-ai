@@ -57,6 +57,7 @@ from sidra_ai.creation.marble import (
 )
 from sidra_ai.creation.scene import (
     ADVENTURE_PALETTE,
+    FISHING_PALETTE,
     MARBLE_PALETTE,
     KAIJU_PALETTE,
     RACING_PALETTE,
@@ -174,11 +175,18 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
 const SPOT=0.25+rand()*0.5;
 let pos=0,dir=1,score=0,casts=0,flash=0,msg='SPACE / クリックで合わせる';
 const zone=()=>[SPOT-BAND/2,SPOT+BAND/2];
-function step(){pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}draw();
+/* A timing game has no course, so the round clock is the journey: the
+   sixty seconds split into three skies, and the brightest one is the
+   last (§7 観察 5-6 over §8's round). ROUND_MS counts played time only,
+   so the title screen spends none of the day. */
+setPal(FISHING_PAL_TOKEN);
+function step(){setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
+  pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}draw();
   requestAnimationFrame(step)}
-function draw(){const w=cv.width,h=cv.height,now=performance.now();cx.fillStyle='SURFACE_TOKEN';
+function draw(){const w=cv.width,h=cv.height,now=performance.now();
+  cx.fillStyle=scenePaint('SURFACE_TOKEN');
   cx.fillRect(0,0,w,h);const [a,b]=zone();
-  cx.fillStyle='RAISED_TOKEN';cx.fillRect(40,h/2-26,w-80,52);
+  cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(40,h/2-26,w-80,52);
   cx.fillStyle='CYAN_TOKEN';cx.globalAlpha=0.28;
   cx.fillRect(40+(w-80)*a,h/2-26,(w-80)*(b-a),52);cx.globalAlpha=1;
   /* decorative: a four-frame bob on the target sprite. FRAME pins it to 0
@@ -197,10 +205,12 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();cx.fillStyle=
   cx.ellipse(fx+3,fy,13,8,0,0,6.284);cx.fill();
   cx.beginPath();cx.moveTo(fx-8,fy);cx.lineTo(fx-16,fy-7);cx.lineTo(fx-16,fy+7);
   cx.closePath();cx.fill();
-  cx.fillStyle='SURFACE_TOKEN';cx.fillRect(fx+9,fy-3,3,3);
+  cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(fx+9,fy-3,3,3);
   sprite('target',40+(w-80)*SPOT-16,h/2-16+bob,32,32,'');
   cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
+function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
+  casts:casts,scene:SCENE,ms:ROUND_MS}}
 function cast(){casts++;const [a,b]=zone();
   if(pos>=a&&pos<=b){score++;flash=1;msg='かかった。';sfx('catch');
     shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}
@@ -794,6 +804,7 @@ def generate_game(
         .replace("PLAT_PAL_TOKEN", json.dumps([list(p) for p in PLATFORMER_PALETTE]))
         .replace("SHOOTER_PAL_TOKEN", json.dumps([list(p) for p in SHOOTER_PALETTE]))
         .replace("MARBLE_PAL_TOKEN", json.dumps([list(p) for p in MARBLE_PALETTE]))
+        .replace("FISHING_PAL_TOKEN", json.dumps([list(p) for p in FISHING_PALETTE]))
         # Before SEED_TOKEN would matter and free of it as a substring: the
         # music's own seed, request-derived, so the same words are the same
         # song in every template - the seedless ones included (C-1304).
