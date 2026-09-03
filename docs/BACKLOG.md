@@ -3090,6 +3090,26 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [~] 作業中 2026-09-03 22:25 辛口ユーザー **C-1218: サーバーに繋がらないと画面に「失敗: Failed to fetch」——日本語 UI に英語のブラウザ文字列、対処も分からない。**
+      （辛口ユーザーループ起票・4 巡目 エラー文言・4/10）ask 画面で
+      質問中にローカルの sidra-api が落ちる／未起動だと、応答が返らず
+      fetch が拒否され、catch が `error.message` をそのまま表示して
+      「失敗: Failed to fetch」（ブラウザによっては "NetworkError…"
+      "Load failed"）。全編日本語の UI に英語の生文字列が出るうえ、
+      「何をすれば直るか」（サーバーを起動する・接続を確認する）が
+      一言も無い。C-1211 の `explain()` は HTTP ステータス専用で、
+      応答が 1 つも返らない fetch 拒否（TypeError）はそこを通らない。
+      5 つの catch すべて同じ（回答・一覧取得・ダウンロード×2）。
+      **再現手順**: ask 画面を開く → sidra-api を停止 → 質問送信 →
+      #status が「失敗: Failed to fetch」。Playwright 実測: 到達不能な
+      port への fetch の reject は `TypeError: Failed to fetch`。
+      **最小の解決**: `reason(error)` を追加し、fetch 拒否（TypeError）
+      は日本語の案内文（「サーバーに接続できません。ローカルの
+      sidra-api が起動しているか、接続を確認してください」）に、
+      自前の HTTP エラー（explain 由来・既に日本語）はそのまま通す。
+      5 つの catch を `error.message`→`reason(error)` に置換。
+      → 動かす数字: ui_network_error_guidance unmeasurable→10
+      （新設・TypeError を日本語化 × HTTP 文言は保持 × 5 catch 全適用）
 - [x] 完了 2026-09-03 21:5x UTC 辛口ユーザー（`creation_deck_bullet_sentences` unmeasurable→**10**、判定器 exit 0。5 通りの破壊で 10→7.1/8.6/7.1/8.6/8.6 に落ちることを確認。実コーパス再生成: 3 本中 2 本が「…分けている。」「…貼るだけ。」と文末で終わるように。3 本目は最後の文末が 50 字未満の位置のため C-1213 の断片保全規則で素通し＝設計どおり）**C-1217: スライドの箇条書きが 120 字でぶつ切り——「（components/UploadForm.ts」「revenue-model.md の」で終わる。**
       （辛口ユーザーループ起票・4 巡目 生成文書/スライド・3/10）実コーパスで
       「GAMEYARDの収益方針についてスライドを作って」→ 生成された deck の
