@@ -4848,3 +4848,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   計器は「最終幕に生きて到達していること」を前提条件にし、死んだ走行の数字では
   合否を出さない。破壊 2 通り（ACT_FALL 平坦／ACT_GAP 平坦）で 0 に落ちることを
   確認。pytest exit 0（2626 件）/ gate exit 0（MISS 0）。
+2026-09-03 07:09 ループA started Board=13
