@@ -210,7 +210,9 @@ function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
   /* The same number, banked a second way: the best is this round against
      the last one, the total is every round there has ever been (C-1109).
      Both stay on this device. */
-  try{skinBank(ROUND_FINAL)}catch(e){}}
+  try{skinBank(ROUND_FINAL)}catch(e){}
+  /* The trail that set this record, kept with the number (C-1401). */
+  try{ghostBank(ROUND_RECORD)}catch(e){}}
 /* One strip, drawn over whatever ended the round - the clock's banner or
    the template's own screen - so "how far off am I, and how do I go
    again" reads the same everywhere. */

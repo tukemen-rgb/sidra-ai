@@ -3851,6 +3851,112 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the best run, played back beside this one ----------------------
+    #
+    # C-1401, §11 事実 1. The personal best existed as a number on a strip
+    # (C-1106) and there was no way to play *with* the run that set it.
+    #
+    # Two real runs, and the second one gets what the first one saved. The
+    # interesting assertions are the two that say the ghost is a memory
+    # rather than a second car: with it switched off the page draws exactly
+    # what it drew before there was one, and with it on the race comes out
+    # the same - it is drawn, and it touches nothing.
+    from sidra_ai.creation.ghost import (
+        GHOST_PREAMBLE as _ghost_preamble,
+        GHOST_TEMPLATES as _ghost_templates,
+        PREAMBLE_NAMES as _ghost_names,
+    )
+
+    def _ghost_run(template, script, stored):
+        source = _board_probe(
+            script,
+            speed_expr=_board_binding[template],
+            frames=3800,
+            stored=stored,
+        ).replace(
+            "  writes: [...new Set(allWrites)].sort(),",
+            "  writes: [...new Set(allWrites)].sort(), ghost: ghostFacts(),"
+            f" trail: allStored['sidra.ghost.{template}']||null,",
+        )
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=300
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    ghost_gaps: list[str] = []
+    ghost_ok: list[str] = []
+    for key in _ghost_templates:
+        page = _tune_generate("レースゲームを作って", template=key).html
+        found = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if found is None:
+            ghost_gaps.append(f"{key}: no script")
+            continue
+        body = found.group(1)
+        base = {f"sidra.seen.{key}": "1"}
+        first, problem = _ghost_run(key, body, dict(base))
+        if problem:
+            ghost_gaps.append(problem)
+            continue
+        if first["ghost"]["had"] or first["ghost"]["drawn"]:
+            ghost_gaps.append(f"{key}: a ghost appeared before anyone had played")
+            continue
+        if not first["trail"] or first["ghost"]["saved"] < 1:
+            ghost_gaps.append(f"{key}: the run that set the record saved no trail")
+            continue
+        carried = {**base, f"sidra.ghost.{key}": first["trail"]}
+        second, problem = _ghost_run(key, body, dict(carried))
+        if problem:
+            ghost_gaps.append(problem)
+            continue
+        off, problem = _ghost_run(
+            key, body, {**carried, f"sidra.tune.{key}": {"ghost": False}}
+        )
+        if problem:
+            ghost_gaps.append(problem)
+            continue
+        if not second["ghost"]["had"] or second["ghost"]["drawn"] < 1:
+            ghost_gaps.append(f"{key}: the second run did not replay the first")
+        elif second["geometry"] == first["geometry"]:
+            ghost_gaps.append(f"{key}: the ghost was never drawn on screen")
+        # Drawn, and nothing else. A past run that changed this one would be
+        # a second car rather than a memory.
+        # The car's own path, not the lap count: a ghost that quietly drags
+        # the car keeps the lap count and changes the race, which is what a
+        # deliberate break showed before this compared the right thing.
+        elif second["ghost"]["runHash"] != off["ghost"]["runHash"]:
+            ghost_gaps.append(f"{key}: the ghost changed how the race went")
+        elif off["ghost"]["drawn"]:
+            ghost_gaps.append(f"{key}: the switch does not put the ghost away")
+        elif off["geometry"] != first["geometry"]:
+            ghost_gaps.append(f"{key}: with the ghost off the page still drew differently")
+        else:
+            ghost_ok.append(key)
+    for banned in ("fetch(", "XMLHttpRequest", "://", "sendBeacon", "WebSocket"):
+        if banned in _ghost_preamble:
+            ghost_gaps.append(f"the ghost reaches out: {banned!r}")
+    for name in _ghost_names:
+        if any(f"function {name}(" in spec.script for spec in _tune_templates.values()):
+            ghost_gaps.append(f"a template shadows {name}")
+    c.add(
+        "creation_ghost_replay",
+        "過去の自分と走れる型",
+        float(len(ghost_ok)) if not ghost_gaps else 0.0,
+        detail=(
+            "実走行 2 回。1 回目はゴースト無しで走って軌跡を保存し、2 回目に"
+            "だけ半透明のゴーストが現れる（描画差で確認）。コース位置で索引"
+            "するので速い走行でもずれない。当たり判定なし——2 回目のスコアは"
+            "1 回目と同じで、パネルで切ると描画は 1 回目と完全一致。通信は 0"
+            if not ghost_gaps
+            else "; ".join(ghost_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

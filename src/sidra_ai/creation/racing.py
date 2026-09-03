@@ -104,6 +104,8 @@ function step(){
     const target=onRoad()?PACE:PACE*0.45;
     spd+=(target-spd)*(spd>target?0.08:0.03);
     dist+=spd;
+    /* Where we were, at this point on the course. */
+    ghostSample(dist,car.x);
     if(grace>0)grace--;
     while(nextObs<dist+CARY+30){
       obs.push({d:nextObs,x:roadAt(nextObs)+(rand()-0.5)*(ROADW-76)});
@@ -140,6 +142,13 @@ function draw(){
     cx.strokeStyle='#05070f';cx.lineWidth=3;
     cx.beginPath();cx.moveTo(o.x-6,y-6);cx.lineTo(o.x+6,y+6);
     cx.moveTo(o.x+6,y-6);cx.lineTo(o.x-6,y+6);cx.stroke()});
+  /* The past self, behind the car and through it: drawn and nothing
+     else - no collision, no score, no sound (C-1401). */
+  const gx=ghostAt(dist);
+  if(gx!==null){cx.save();cx.globalAlpha=0.32;
+    cx.fillStyle=TUNE_ACCENT;cx.fillRect(gx-11,CARY-16,22,32);
+    cx.globalAlpha=0.6;cx.strokeStyle=TUNE_ACCENT;cx.lineWidth=1;
+    cx.strokeRect(gx-11,CARY-16,22,32);cx.restore()}
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(car.x-11,CARY-16,22,32);
   cx.fillStyle='#05070f';cx.fillRect(car.x-6,CARY-8,12,9);
   if(grace>0){cx.strokeStyle='#dfe7f5';cx.lineWidth=2;

@@ -228,10 +228,22 @@ def test_every_write_stays_in_its_own_templates_namespace(template: str) -> None
 
 
 def test_the_declared_keys_say_who_owns_each_one() -> None:
-    """A sixth feature picking an existing prefix should fail the sweep, not
-    silently overwrite whichever feature got there first."""
+    """A feature picking an existing key should fail the sweep, not silently
+    overwrite whichever feature got there first.
 
-    assert len(STORAGE_PREFIXES) == 6
+    This pinned the *number* of prefixes at first, which broke twice in one
+    hour for two different loops adding a key they were entitled to add.
+    The count was never the property worth holding: what matters is that
+    each prefix is namespaced, says which item owns it, and cannot swallow
+    another one. Whether the table has six entries or nine is not a fact
+    about the product.
+    """
+
+    assert STORAGE_PREFIXES, "the contract cannot be empty"
     for prefix, owner in STORAGE_PREFIXES.items():
         assert prefix.startswith("sidra.") and prefix.endswith(".")
-        assert "C-1" in owner
+        assert "C-1" in owner, f"{prefix} does not say which item owns it"
+        others = [other for other in STORAGE_PREFIXES if other != prefix]
+        assert not [
+            other for other in others if other.startswith(prefix) or prefix.startswith(other)
+        ], f"{prefix} overlaps another declared key"

@@ -43,6 +43,7 @@ from sidra_ai.creation.adventure import (
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
+from sidra_ai.creation.ghost import preamble_for as ghost_preamble_for
 from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.music import MUSIC_PREAMBLE
 from sidra_ai.creation.remap import preamble_for as remap_preamble_for
@@ -700,6 +701,9 @@ def generate_game(
             # After the round: the line it writes is about a round that is
             # over, and it reads the clock's own verdict to know (C-1110).
             + share_preamble_for(key)
+            # The past self (C-1401): reads the panel switch, banked by the
+            # round clock, drawn by whichever template has a course.
+            + ghost_preamble_for(key)
             # The shared mechanics, such as they are (C-1114). Needs
             # nothing but addEventListener, and is read by two templates.
             + PARTS_PREAMBLE

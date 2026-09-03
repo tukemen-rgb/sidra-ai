@@ -119,6 +119,7 @@ def panel_schema(
     if isinstance(given.get("accent"), str):
         accent = given["accent"]
     daily_default = bool(given.get("daily", False))
+    ghost_default = bool(given.get("ghost", True))
     brief_default = bool(given.get("brief", False))
     return {
         "template": template,
@@ -149,6 +150,9 @@ def panel_schema(
             # standing between a returning player and the game. On, for
             # somebody who wants to re-read the three lines every time.
             {"key": "brief", "label": "毎回ブリーフィングを見る", "type": "flag", "default": brief_default},
+            # C-1401. On by default: a past self that has to be switched on
+            # is a past self nobody meets.
+            {"key": "ghost", "label": "自己ベストのゴースト", "type": "flag", "default": ghost_default},
         ],
     }
 
