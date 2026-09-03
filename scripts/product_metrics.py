@@ -3447,6 +3447,167 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- how many of the page's own dials a sentence can turn -----------
+    #
+    # C-1117. C-1112 gave the revision loop three axes (difficulty, theme,
+    # title) while C-1113 put six adjustable parameters in every page. The
+    # gap was the interesting part: a person could move a slider the words
+    # could not reach, which is the "ask again and get something different"
+    # trap §9 records, one level down.
+    #
+    # Counted by running the real detector and the real reviser and then
+    # reading the rebuilt artifact - the schema the page embeds, its
+    # palette, its title. A vocabulary that parses and changes nothing
+    # would score zero here.
+    import tempfile as _axis_tf
+
+    from sidra_ai.creation.games import save_game as _axis_save
+    from sidra_ai.creation.revise import (
+        build_game_reviser as _axis_reviser,
+        detect_revision_intent as _axis_detect,
+        save_meta as _axis_meta,
+    )
+
+    #: One sentence per axis, and what has to be different afterwards. Both
+    #: band directions are here because a judge that only ever narrowed
+    #: would not notice the widening words being deleted.
+    _AXIS_CASES = (
+        ("difficulty", "さっきのゲームを難しくして"),
+        ("band", "さっきのゲームの敵を減らして"),
+        ("band_up", "さっきのゲームの敵を増やして"),
+        ("accent", "さっきのゲームを赤にして"),
+        ("daily", "さっきのゲームを日替わりにして"),
+        ("brief", "さっきのゲームのブリーフィングを毎回出して"),
+        ("theme", "さっきのゲームを紙のテーマにして"),
+        ("title", "さっきのゲームのタイトルを「海」にして"),
+    )
+
+    def _axis_body(path):
+        """What the *game* got, not what the panel declares it got."""
+
+        text = Path(path).read_text(encoding="utf-8")
+        script = _scene_re.search(r"<script>(.*?)</script>", text, _scene_re.S)
+        if script is None:
+            return None, None, text
+        body = script.group(1)
+        spec = _scene_re.search(r"const TUNE_SPEC=(\{.*?\});", body, _scene_re.S)
+        if spec is None:
+            return None, None, text
+        return (
+            {f["key"]: f["default"] for f in json.loads(spec.group(1))["fields"]},
+            body,
+            text,
+        )
+
+    def _axis_running(body, *, flag):
+        """Drive the page and ask it, rather than reading the declaration.
+
+        The declaration was not enough: a schema default that never reached
+        ``dailyOn`` still looked like a change. Same lesson as C-1119 -
+        a value nothing reads is not a fact about the product.
+        """
+
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_board_probe(
+                    body,
+                    speed_expr="0",
+                    frames=6,
+                    quiet=True,
+                    reduced=True,
+                    stored={"sidra.seen.adventure": "1"},
+                ),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if probe.returncode != 0:
+                return None
+            seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError, KeyError):
+            return None
+        if flag == "daily":
+            return bool(seen["atLoad"]["round"]["daily"])
+        # The briefing is asked for: a page that has been read before opens
+        # straight into play unless this switch says otherwise.
+        return not bool(seen["atLoad"]["gate"]["skipped"])
+
+    axis_gaps: list[str] = []
+    axis_ok: list[str] = []
+    for axis, sentence in _AXIS_CASES:
+        with _axis_tf.TemporaryDirectory() as home:
+            built = _tune_generate("冒険ゲームを作って", template="adventure")
+            page = _axis_save(built, home)
+            _axis_meta(
+                page,
+                request="冒険ゲームを作って",
+                template="adventure",
+                difficulty=built.difficulty,
+                theme="",
+                title=built.title,
+                panel={},
+            )
+            before, before_body, before_text = _axis_body(page)
+            intent = _axis_detect(sentence)
+            if not intent.is_revision:
+                axis_gaps.append(f"{axis}: 「{sentence}」 was not read as a revision")
+                continue
+            outcome = _axis_reviser(home)(sentence, intent)
+            if not outcome.artifact_path:
+                axis_gaps.append(f"{axis}: the revision produced no page")
+                continue
+            after, after_body, after_text = _axis_body(outcome.artifact_path)
+            if before is None or after is None:
+                axis_gaps.append(f"{axis}: the page carries no panel schema")
+                continue
+            if axis == "title":
+                moved = "海" in after_text and "海" not in before_text
+            elif axis == "theme":
+                moved = after["accent"] != before["accent"] and after_text != before_text
+            elif axis in ("daily", "brief"):
+                was = _axis_running(before_body, flag=axis)
+                now = _axis_running(after_body, flag=axis)
+                moved = was is False and now is True
+            elif axis == "band_up":
+                moved = after["band"] > before["band"]
+            elif axis == "band":
+                moved = after["band"] < before["band"]
+            else:
+                moved = after.get(axis) != before.get(axis)
+            if not moved:
+                axis_gaps.append(f"{axis}: 「{sentence}」 changed nothing in the page")
+                continue
+            # A second sentence must build on the first. Without the panel in
+            # the sidecar the rebuild goes back to the ladder and quietly
+            # undoes whatever the first sentence turned - which is the
+            # failure this whole item exists to avoid.
+            if axis in ("band", "band_up", "accent", "daily", "brief"):
+                follow = "さっきのゲームのタイトルを「続き」にして"
+                chained = _axis_reviser(home)(follow, _axis_detect(follow))
+                kept, _, _ = _axis_body(chained.artifact_path or "")
+                if kept is None or kept.get(axis if axis != "band_up" else "band") != after.get(
+                    axis if axis != "band_up" else "band"
+                ):
+                    axis_gaps.append(f"{axis}: a later sentence undid it")
+                    continue
+            axis_ok.append(axis)
+    c.add(
+        "creation_revision_axes",
+        "言葉で回せるページの軸",
+        float(len(axis_ok)) if not axis_gaps else 0.0,
+        detail=(
+            "本物の検出器と修正器を通し、組み上がったページを読んで確認。"
+            "今日の挑戦とブリーフィングは実際にページを走らせて聞く"
+            "（宣言された既定値では、どこにも届いていなくても変わって見える）。"
+            "帯は増減の両方向。どの軸も、次の一文のあとも残っていることを確認。"
+            f"{len(axis_ok)} 軸。速さは難易度ラダーが持つので別軸にしない"
+            if not axis_gaps
+            else "; ".join(axis_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- "make it harder" edits the game instead of replacing it -------
     #
     # §9's chronic market failure, measured as a roundtrip through the real

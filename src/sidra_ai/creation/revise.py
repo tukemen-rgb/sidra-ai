@@ -30,6 +30,7 @@ from pathlib import Path
 
 from sidra_ai.creation.games import (
     TEMPLATES,
+    _DIFFICULTY,
     detect_genre,
     generate_game,
     save_game,
@@ -39,6 +40,7 @@ from sidra_ai.creation.intent import _MAKE_VERBS, _QUESTION_MARKERS, fold_kana
 from sidra_ai.creation.router import CreationOutcome
 from sidra_ai.creation.intent import CreationKind
 from sidra_ai.creation.themes import DEFAULT_THEME, select_theme
+from sidra_ai.creation.tuning import AXIS_LABELS
 
 #: The one difficulty ladder the whole project uses, in climbing order.
 #: Derived nowhere else: `_DIFFICULTY` in games.py keys per-template speeds
@@ -68,6 +70,35 @@ _BACK_REFERENCES: tuple[str, ...] = (
 _HARDER: tuple[str, ...] = ("難しく", "むずかしく", "ハードに", "速く", "はやく", "歯ごたえ")
 _EASIER: tuple[str, ...] = ("簡単に", "かんたんに", "やさしく", "易しく", "遅く", "おそく", "ゆっくりに")
 
+#: The panel's second axis, in words (C-1117). Deliberately *not* mapped
+#: onto easier/harder: what the axis means differs per template - more
+#: enemies in the adventure, a wider hit window in the fishing - and only
+#: the panel's own label knows which. So the words move the number, and
+#: the page says what the number is for.
+_BAND_UP: tuple[str, ...] = ("広く", "ひろく", "増やして", "ふやして", "多く", "おおく")
+_BAND_DOWN: tuple[str, ...] = ("狭く", "せまく", "減らして", "へらして", "少なく", "すくなく")
+
+#: The accent, in words. Eight colours people actually ask for, and no
+#: more: a colour vocabulary that guesses is a colour vocabulary that gets
+#: it wrong silently. Themes still own the whole palette; this is the one
+#: colour the templates paint their own things with.
+_ACCENT_WORDS: dict[str, str] = {
+    "赤": "#ff5a5a",
+    "青": "#4aa8ff",
+    "緑": "#5ad67d",
+    "黄": "#ffd23f",
+    "紫": "#b98cff",
+    "橙": "#ff9f43",
+    "桃": "#ff7ac0",
+    "白": "#e8eef7",
+}
+
+#: The two switches. Each needs a direction, and the "off" words are
+#: checked first so 「日替わりをやめて」 does not read as 「日替わりにして」.
+_DAILY_WORDS: tuple[str, ...] = ("日替わり", "ひがわり", "今日の挑戦")
+_BRIEF_WORDS: tuple[str, ...] = ("ブリーフィング", "説明画面", "作戦説明")
+_OFF_WORDS: tuple[str, ...] = ("やめて", "止めて", "解除", "オフ", "off", "無し", "なしで", "飛ばして", "スキップ")
+
 #: 「タイトルを「◯◯」にして」/「名前を◯◯に変えて」. The quoted form wins
 #: when both appear; the unquoted form stops at the particle.
 _TITLE_QUOTED = re.compile(r"(?:タイトル|名前|題名)を?[「『\"']([^」』\"']{1,24})[」』\"']")
@@ -76,7 +107,23 @@ _TITLE_PLAIN = re.compile(r"(?:タイトル|名前|題名)を([^\s「『にへ�
 #: Change verbs. 作り直して is deliberately here and not in the creation
 #: verbs: "remake it" names an existing thing, and routing it to a fresh
 #: generation is exactly the competitor failure §9 records.
-_CHANGE_VERBS: tuple[str, ...] = ("して", "にして", "変えて", "かえて", "直して", "なおして")
+#: 「やめて」/「止めて」 are here for the switches C-1117 added: turning one
+#: off is an instruction with no して in it, and without them
+#: 「日替わりをやめて」 was vetoed as not-an-instruction. An adjustment still
+#: has to be recognised afterwards, so widening this does not widen what
+#: counts as a revision on its own.
+_CHANGE_VERBS: tuple[str, ...] = (
+    "して",
+    "にして",
+    "変えて",
+    "かえて",
+    "直して",
+    "なおして",
+    "やめて",
+    "止めて",
+    "戻して",
+    "もどして",
+)
 
 
 @dataclass(frozen=True)
@@ -132,6 +179,30 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         adjustments["theme"] = theme.key
         evidence.append(f"theme:{theme.key}")
 
+    # The panel's own axes (C-1117). Difficulty is applied first and these
+    # land on top, which is the order the words arrive in: 「難しくして、
+    # でも敵は減らして」 means both, in that order.
+    if any(fold_kana(word) in text for word in _BAND_UP):
+        adjustments["band"] = "+1"
+        evidence.append("band+1")
+    elif any(fold_kana(word) in text for word in _BAND_DOWN):
+        adjustments["band"] = "-1"
+        evidence.append("band-1")
+
+    for word, colour in _ACCENT_WORDS.items():
+        if word in message:
+            adjustments["accent"] = colour
+            evidence.append(f"accent:{word}")
+            break
+
+    turned_off = any(fold_kana(word.casefold()) in text for word in _OFF_WORDS)
+    if any(fold_kana(word) in text for word in _DAILY_WORDS):
+        adjustments["daily"] = "off" if turned_off else "on"
+        evidence.append(f"daily:{adjustments['daily']}")
+    if any(fold_kana(word) in text for word in _BRIEF_WORDS):
+        adjustments["brief"] = "off" if turned_off else "on"
+        evidence.append(f"brief:{adjustments['brief']}")
+
     match = _TITLE_QUOTED.search(message) or _TITLE_PLAIN.search(message)
     if match:
         adjustments["title"] = match.group(1)
@@ -161,6 +232,7 @@ def save_meta(
     difficulty: str,
     theme: str,
     title: str,
+    panel: dict | None = None,
 ) -> Path:
     """Record the parameters a page was built from, next to the page.
 
@@ -178,6 +250,10 @@ def save_meta(
                 "difficulty": difficulty,
                 "theme": theme,
                 "title": title,
+                # C-1117: what the panel opens with. Without it a second
+                # sentence would rebuild from the ladder and quietly undo
+                # what the first one turned.
+                "panel": panel or {},
             },
             ensure_ascii=False,
             indent=2,
@@ -244,6 +320,43 @@ def _step_difficulty(current: str, delta: str) -> str:
     return _LADDER[max(0, min(index, len(_LADDER) - 1))]
 
 
+def _step_band(template: str, current, delta: str):
+    """One notch along the band values the author actually shipped.
+
+    The steps are the template's own three, not an arbitrary percentage: a
+    request to widen something should land on a value the author chose,
+    and cannot walk off the end of the span the panel allows.
+    """
+
+    steps = sorted({pair[1] for pair in _DIFFICULTY[template].values()})
+    if not steps:
+        return current
+    if current is None:
+        current = steps[len(steps) // 2]
+    nearest = min(range(len(steps)), key=lambda i: abs(steps[i] - float(current)))
+    nearest += 1 if delta == "+1" else -1
+    return steps[max(0, min(nearest, len(steps) - 1))]
+
+
+def _panel_after(template: str, panel: dict, adjustments: dict) -> dict:
+    """The page's opening values, after the sentence.
+
+    Difficulty is applied by the caller (it moves both axes through the
+    ladder); these land on top of it, because that is the order the words
+    were said in.
+    """
+
+    after = dict(panel)
+    if "band" in adjustments:
+        after["band"] = _step_band(template, panel.get("band"), adjustments["band"])
+    if "accent" in adjustments:
+        after["accent"] = adjustments["accent"]
+    for flag in ("daily", "brief"):
+        if flag in adjustments:
+            after[flag] = adjustments[flag] == "on"
+    return after
+
+
 def build_game_reviser(data_dir: str | Path):
     """The revision handler the API calls; mirrors a generator's shape."""
 
@@ -268,6 +381,13 @@ def build_game_reviser(data_dir: str | Path):
             difficulty = _step_difficulty(difficulty, intent.adjustments["difficulty"])
         theme = intent.adjustments.get("theme", meta.get("theme", ""))
         title = intent.adjustments.get("title", meta.get("title", ""))
+        before_panel = meta.get("panel") if isinstance(meta.get("panel"), dict) else {}
+        # A changed difficulty re-reads both axes off the ladder, so a band
+        # the previous sentence set is not carried over it - the newer
+        # instruction wins, and the two never disagree about this page.
+        if "difficulty" in intent.adjustments:
+            before_panel = {k: v for k, v in before_panel.items() if k != "band"}
+        panel = _panel_after(meta["template"], before_panel, intent.adjustments)
 
         game = generate_game(
             meta["request"],
@@ -275,6 +395,7 @@ def build_game_reviser(data_dir: str | Path):
             difficulty=difficulty,
             theme_name=theme,
             title_override=title,
+            panel=panel,
         )
         verdict = validate_game_html(game.html)
         path = save_game(game, data_dir)
@@ -285,6 +406,7 @@ def build_game_reviser(data_dir: str | Path):
             difficulty=game.difficulty,
             theme=theme,
             title=game.title,
+            panel=panel,
         )
 
         changed: list[str] = []
@@ -294,6 +416,14 @@ def build_game_reviser(data_dir: str | Path):
             changed.append(f"配色 {theme}")
         if title and title != meta.get("title", ""):
             changed.append(f"タイトル「{game.title}」")
+        labels = dict(zip(("speed", "band"), AXIS_LABELS.get(game.template, ("速さ", "広さ"))))
+        if panel.get("band") != before_panel.get("band"):
+            changed.append(f"{labels['band']} {panel['band']}")
+        if panel.get("accent") != before_panel.get("accent") and "accent" in panel:
+            changed.append("差し色")
+        for flag, name in (("daily", "今日の挑戦"), ("brief", "ブリーフィング")):
+            if flag in panel and panel.get(flag) != before_panel.get(flag, False):
+                changed.append(f"{name} {'入' if panel[flag] else '切'}")
         if not changed:
             # Recognised adjustments that all landed on their current
             # values (already at max difficulty, same theme). Saying "done"

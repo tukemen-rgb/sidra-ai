@@ -81,7 +81,22 @@ def _axis(values: tuple[float, ...]) -> dict:
     return {"min": low, "max": high, "step": step, "integer": False}
 
 
-def panel_schema(template: str, ladder: dict[str, tuple[float, float]], *, difficulty: str, accent: str) -> dict:
+def _clamp_axis(value: float, values: tuple[float, ...]) -> float:
+    """An overridden axis still lands inside the author's own span."""
+
+    low, high = min(values), max(values)
+    inside = min(high, max(low, float(value)))
+    return int(round(inside)) if all(float(v).is_integer() for v in values) else inside
+
+
+def panel_schema(
+    template: str,
+    ladder: dict[str, tuple[float, float]],
+    *,
+    difficulty: str,
+    accent: str,
+    overrides: dict | None = None,
+) -> dict:
     """The JSON schema of one page's adjustable parameters.
 
     ``ladder`` is the template's row out of ``games._DIFFICULTY``: the
@@ -94,6 +109,17 @@ def panel_schema(template: str, ladder: dict[str, tuple[float, float]], *, diffi
     names = AXIS_LABELS.get(template, _DEFAULT_LABELS)
     chosen = difficulty if difficulty in ladder else "normal"
     speed, band = ladder[chosen]
+    # C-1117: a sentence can turn any of these, and what it turns is the
+    # page's *default* - the value it opens with, and the one the panel
+    # snaps back to. The difficulty preset is applied first and an explicit
+    # axis lands on top of it, which is the order the words come in.
+    given = overrides or {}
+    if "band" in given:
+        band = _clamp_axis(given["band"], bands)
+    if isinstance(given.get("accent"), str):
+        accent = given["accent"]
+    daily_default = bool(given.get("daily", False))
+    brief_default = bool(given.get("brief", False))
     return {
         "template": template,
         "fields": [
@@ -117,12 +143,12 @@ def panel_schema(template: str, ladder: dict[str, tuple[float, float]], *, diffi
             # C-1107. Off by default: the request-derived seed is what makes
             # a generated game *that person's* game, and a revision rebuilt
             # from the same request expects the same world back.
-            {"key": "daily", "label": "今日の挑戦", "type": "flag", "default": False},
+            {"key": "daily", "label": "今日の挑戦", "type": "flag", "default": daily_default},
             # C-1111. Off by default: the briefing is shown on the first
             # visit whatever this says, and after that it is the thing
             # standing between a returning player and the game. On, for
             # somebody who wants to re-read the three lines every time.
-            {"key": "brief", "label": "毎回ブリーフィングを見る", "type": "flag", "default": False},
+            {"key": "brief", "label": "毎回ブリーフィングを見る", "type": "flag", "default": brief_default},
         ],
     }
 
@@ -170,9 +196,14 @@ function tuneText(key,fallback){const f=tuneField(key);if(!f)return fallback;
 function tuneChoice(key,fallback){const f=tuneField(key);if(!f)return fallback;
   const v=TUNE[key];
   return (f.choices.indexOf(v)>=0)?v:fallback}
+/* Stored value first, then the *schema's* default, then the caller's.
+   The schema is what the generator decided for this page (C-1117 lets a
+   sentence decide it), so a hardcoded fallback in a preamble must not
+   outrank it - it did, which is why 「日替わりにして」 had nowhere to land. */
 function tuneFlag(key,fallback){const f=tuneField(key);if(!f)return fallback;
   const v=TUNE[key];
-  return (typeof v==='boolean')?v:fallback}
+  if(typeof v==='boolean')return v;
+  return (typeof f.default==='boolean')?f.default:fallback}
 function tuneValues(){const o={};TUNE_SPEC.fields.forEach(function(f){
   o[f.key]=f.type==='colour'?tuneText(f.key,f.default)
     :(f.type==='choice'?tuneChoice(f.key,f.default)

@@ -604,6 +604,7 @@ def generate_game(
     difficulty: str = "",
     theme_name: str = "",
     title_override: str = "",
+    panel: dict | None = None,
 ) -> GeneratedGame:
     """Build a playable page from the request alone. Never raises on wording.
 
@@ -633,9 +634,22 @@ def generate_game(
     if difficulty not in _DIFFICULTY[key]:
         difficulty = choose_difficulty(request)
     speed, band = _DIFFICULTY[key][difficulty]
+    # C-1117: a sentence can turn any panel axis, and what it turns is the
+    # value the page opens with. The difficulty preset lands first and an
+    # explicit axis on top, so 「難しくして、でも帯は広めに」 does both in
+    # the order it was said. Speed is deliberately not among them: the
+    # ladder *is* the speed axis, and a second one would let the two
+    # disagree about what 「速く」 means.
     schema = panel_schema(
-        key, _DIFFICULTY[key], difficulty=difficulty, accent=theme.tokens["accent"]
+        key,
+        _DIFFICULTY[key],
+        difficulty=difficulty,
+        accent=theme.tokens["accent"],
+        overrides=panel,
     )
+    fields = {f["key"]: f for f in schema["fields"]}
+    band = fields["band"]["default"]
+    accent = fields["accent"]["default"]
     script = with_animation(
         # Sound before sprites before the game: sfx() has to exist by the
         # time any input handler in the template body can fire. The pad and
@@ -691,6 +705,8 @@ def generate_game(
         # Which template's briefing has been read, per template.
         .replace("GATE_NAME_TOKEN", json.dumps(key))
         .replace("SPEED_TOKEN", f"tuneNum('speed',{speed})")
+        # Read off the schema rather than the ladder, so the panel and the
+        # game body cannot disagree about what this page's band is.
         .replace("BAND_TOKEN", f"tuneNum('band',{band})")
         # Quoted first: the accent every template paints with becomes one
         # identifier, so a stored colour repaints all of its uses. Any
@@ -698,7 +714,7 @@ def generate_game(
         .replace("'CYAN_TOKEN'", "TUNE_ACCENT")
         .replace("SURFACE_TOKEN", theme.tokens["surface"])
         .replace("RAISED_TOKEN", theme.tokens["raised"])
-        .replace("CYAN_TOKEN", theme.tokens["accent"])
+        .replace("CYAN_TOKEN", accent)
         .replace("MAGENTA_TOKEN", theme.tokens["alert"])
         .replace("ACCENT_JUICE", theme.tokens["accent"])
         .replace("ALERT_JUICE", theme.tokens["alert"])
