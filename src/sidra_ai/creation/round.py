@@ -75,7 +75,9 @@ ROUND_SCORE: dict[str, tuple[str, str]] = {
     "platformer": ("me.gems", "宝石"),
     "puzzle": ("score", "得点"),
     "racing": ("times.length", "完了ラップ"),
-    "shooter": ("score", "撃墜"),
+    # Kills plus what the graze runs paid (C-1406). An expression
+    # rather than a rename, so 撃墜 stays the count it always was.
+    "shooter": ("score+grazeFacts().paid", "得点"),
 }
 
 #: Names the preamble introduces, held to by a test like the other

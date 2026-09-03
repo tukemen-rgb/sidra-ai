@@ -2674,6 +2674,116 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a danger the player is allowed to decline ---------------------
+    #
+    # §13 事実 1: every hazard in the product is simply to be avoided, so
+    # no risk is ever optional. C-1406 puts a graze band just outside the
+    # shooter's kill radius: brushing a hull pays, three brushes in a row
+    # make a point, and a hit takes the run. Four checks, flown on the real
+    # page. The band check reads the *page's own* record of the gap it
+    # judged each brush at - measuring that from outside the frame reads
+    # the hulls before they move and reports grazes that never happened.
+    from sidra_ai.creation.graze import GRAZE_BAND, GRAZE_RUN
+    from sidra_ai.creation.graze import probe_source as _graze_probe
+
+    graze_gaps: list[str] = []
+    graze_page = generate_game("シューティングゲームを作って").html
+    graze_script = _scene_re.search(r"<script>(.*?)</script>", graze_page, _scene_re.S)
+    if graze_script is None:
+        graze_gaps.append("no script on the page")
+    else:
+        def _graze_run(**kwargs):
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_graze_probe(graze_script.group(1), **kwargs),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            return json.loads(run.stdout.strip().splitlines()[-1])
+
+        try:
+            hug = _graze_run(mode="hug")
+            crash = _graze_run(mode="crash")
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            graze_gaps.append(f"probe unavailable ({exc})")
+            hug = crash = None
+
+        if hug is not None:
+            # 1. brushing pays, and it reaches the round's own score.
+            if hug["graze"]["paid"] <= 0:
+                graze_gaps.append(f"a hugging flight earned nothing ({hug['graze']})")
+            elif hug["roundScore"] <= hug["score"]:
+                graze_gaps.append(
+                    f"the graze points never reach the score "
+                    f"({hug['roundScore']} vs {hug['score']} kills)"
+                )
+            # 2. distance earns nothing: every brush the page took was
+            #    inside the band, and outside the radius that kills.
+            outside = [
+                pair
+                for pair in hug["graze"]["at"]
+                if not (pair[1] < pair[0] <= pair[1] + GRAZE_BAND)
+            ]
+            if not hug["graze"]["at"]:
+                graze_gaps.append("the page recorded no brushes to check")
+            elif outside:
+                graze_gaps.append(f"paid outside the band: {outside[:3]}")
+            # 3. it pays on a run, not per brush.
+            if hug["graze"]["seen"] < hug["graze"]["paid"] * GRAZE_RUN:
+                graze_gaps.append(
+                    f"paid more often than the run allows "
+                    f"({hug['graze']['seen']} brushes, {hug['graze']['paid']} points)"
+                )
+
+        if crash is not None:
+            # 4. the hull still kills, and a hit takes the run.
+            if crash["hp"] > 0:
+                graze_gaps.append("flying into a hull no longer costs anything")
+            hits = [row for row in crash["timeline"] if row.get("hit")]
+            if not hits:
+                graze_gaps.append("the crashing flight never lost a hull")
+            elif any(row["run"] != 0 for row in hits):
+                kept = [row["run"] for row in hits if row["run"] != 0]
+                graze_gaps.append(f"a hit did not take the run (left {kept[:3]})")
+            if crash["graze"]["paid"] > 0:
+                graze_gaps.append("a flight that kept crashing still banked points")
+            # ...and the radius it kills at has not moved. Asked of the
+            # gap each hull actually landed from, because a page reports
+            # its kill radius from a number recomputed beside the check -
+            # shrinking the real one by a band's width passed a judge that
+            # read the reported figure.
+            struck = crash["graze"]["struck"]
+            if not struck:
+                graze_gaps.append("no hull landed, so the radius is unmeasured")
+            else:
+                inside = [pair for pair in struck if pair[0] >= pair[1]]
+                if inside:
+                    graze_gaps.append(f"a hull landed from outside its radius: {inside[:2]}")
+                # Hulls close by a couple of pixels a frame, so the widest
+                # landing sits just under the radius unless it moved.
+                reach = max(pair[1] - pair[0] for pair in struck)
+                if reach > 4:
+                    graze_gaps.append(
+                        f"the kill radius moved: the widest landing was {reach:.1f}px inside it"
+                    )
+    c.add(
+        "creation_shooter_graze",
+        "避けなくてよい危険がある",
+        0.0 if graze_gaps else 1.0,
+        detail=(
+            "; ".join(graze_gaps)
+            if graze_gaps
+            else f"shooter を実走行: 撃墜半径の外側 {GRAZE_BAND}px の帯を"
+            f"かすると加点、{GRAZE_RUN} 連続で 1 点、被弾で連続数 0。"
+            "帯の内側だったことはページ自身の記録で確認（機体は"
+            "フレーム内で動くので外からは測れない）。当たり判定は不変"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

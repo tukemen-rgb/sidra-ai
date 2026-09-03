@@ -75,7 +75,7 @@ const W=cv.width,H=cv.height,SHIP=22;
 let ship,shots,foes,stars,score,wave,t,state,fire,spawnIn,actSpawn,actVy;
 function reset(){ship={x:W/2,y:H-34,hp:3,cool:0};shots=[];foes=[];score=0;wave=0;
   t=0;state='play';fire=false;rs=(SEED>>>0)||1;
-  spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];
+  spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];grazeReset();
   stars=[];for(let i=0;i<48;i++){stars.push({x:rand()*W,y:rand()*H,s:0.4+rand()*1.4})}}
 /* A formation, not a scatter: rows read as a wave the player can answer. */
 function spawn(){wave++;const a=actOf(),n=3+Math.floor(rand()*4),gap=W/(n+1),
@@ -111,10 +111,17 @@ function step(){const now=performance.now();
     shots.forEach(s=>{foes.forEach(f=>{
       if(f.hp>0&&Math.hypot(f.x-s.x,f.y-s.y)<f.r+4){
         f.hp=0;s.y=-99;score++;sfx('hurt');shake(4);burst(f.x,f.y,12,'ACCENT_JUICE')}})});
-    foes.forEach(f=>{if(f.hp>0&&Math.hypot(f.x-ship.x,f.y-ship.y)<f.r+SHIP*0.6){
+    foes.forEach(f=>{if(f.hp<=0)return;
+      /* One distance, one radius, two answers (C-1406). The kill radius is
+         unchanged and the band sits strictly outside it, so brushing a hull
+         is harder than keeping away from it - never easier. */
+      const gd=Math.hypot(f.x-ship.x,f.y-ship.y),gk=f.r+SHIP*0.6;
+      if(gd<gk){
       f.hp=0;ship.hp--;sfx('clash');shake(11);hitstop(5);
+      grazeStruck(gd,gk);grazeLost();
       burst(ship.x,ship.y,18,'ALERT_JUICE');
-      if(ship.hp<=0){state='over';failBeat(ship.x,ship.y)}}});
+      if(ship.hp<=0){state='over';failBeat(ship.x,ship.y)}}
+      else{grazeNear(f,gk,gd,(f.x+ship.x)/2,(f.y+ship.y)/2)}});
     foes=foes.filter(f=>f.hp>0&&f.y<H+30);
     shots=shots.filter(s=>s.y>-10);
     stars.forEach(s=>{s.y+=REDUCED?0:s.s;if(s.y>H){s.y=0;s.x=rand()*W}})}
@@ -146,7 +153,11 @@ function draw(now){
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<ship.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
+  /* The graze run is on screen while it is worth something: a risk the
+     player cannot see the state of is a gamble, not a decision. */
+  const gz=grazeFacts();
   cx.fillText('撃墜 '+score+'  第 '+wave+' 波',W-170,19);
+  cx.fillText('かすり '+gz.paid+'  '+'・'.repeat(gz.run)+'－'.repeat(gz.need-gz.run),W-170,37);
   if(state==='over'){cx.fillStyle='#05070fd0';cx.fillRect(0,0,W,H);
     cx.fillStyle='#dfe7f5';cx.font='20px ui-monospace,monospace';
     const a='撃墜 '+score+' 機。';cx.fillText(a,W/2-a.length*10,H/2-8);
@@ -157,6 +168,7 @@ function draw(now){
 function shooterFacts(){const incoming=[];
   foes.forEach(f=>{if(f.hp>0&&f.y>ship.y-170){incoming.push([f.x,f.y])}});
   return {t:t,wave:wave,scene:SCENE,hp:ship.hp,state:state,score:score,
+    graze:grazeFacts(),kill:foes.length?foes[0].r+SHIP*0.6:null,
     x:ship.x,w:W,incoming:incoming,act:actOf(),
     actSpawn:actSpawn.slice(),actVy:actVy.slice()}}
 reset();step();

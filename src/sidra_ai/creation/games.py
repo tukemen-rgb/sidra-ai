@@ -43,6 +43,7 @@ from sidra_ai.creation.adventure import (
 from sidra_ai.creation.adapt import preamble_for as adapt_preamble_for
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.combo import preamble_for as combo_preamble_for
+from sidra_ai.creation.graze import preamble_for as graze_preamble_for
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.ghost import preamble_for as ghost_preamble_for
@@ -749,6 +750,10 @@ def generate_game(
             # whose shake and burst it celebrates a rise with, and before
             # the template body, which is the only thing that calls it.
             + combo_preamble_for(key)
+            # A danger the player may decline (C-1406). Beside the combo
+            # for the same reason: it needs the juice kit above it and is
+            # called only by the template body below.
+            + graze_preamble_for(key)
             # The shared mechanics, such as they are (C-1114). Needs
             # nothing but addEventListener, and is read by two templates.
             + PARTS_PREAMBLE
