@@ -519,6 +519,23 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1205: a subject request that fell to the default template used to be
+    # announced as satisfied (「「猫」を作りました」 about a fishing page with
+    # no cat). Five shapes through the real router: the fallback admitted,
+    # three satisfied shapes uncaveated, the genre message intact.
+    from sidra_ai.evals.subject_honesty import evaluate_subject_honesty
+
+    subject = evaluate_subject_honesty()
+    c.add(
+        "creation_subject_honesty",
+        "unbuildable subjects are admitted, not renamed",
+        10.0 * subject.checks_passed / subject.checks_total,
+        detail=f"{subject.checks_passed}/{subject.checks_total} shapes; "
+               "src/sidra_ai/evals/subject_honesty.py"
+               + ("" if subject.passed else "; " + "; ".join(subject.failures)),
+        kind=OUTCOME,
+    )
+
     honesty = evaluate_qa_honesty()
     c.add(
         "qa_offtopic_honesty",

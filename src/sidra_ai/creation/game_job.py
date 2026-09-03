@@ -93,6 +93,24 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
                 f"（難易度 {game.difficulty}）。"
                 "ブラウザで開けばそのまま遊べます。"
             )
+        elif (
+            verdict["playable"]
+            and requested is None
+            and game.title != TEMPLATES[game.template].default_title
+        ):
+            # The subject-side twin of the genre caveat above (C-1205):
+            # 「猫のゲームを作って」 named no genre and no template word
+            # (every template word is also a genre word, so `requested is
+            # None` covers both), got the default fishing page, and the
+            # summary then said 「「猫」を作りました」 about a page with no
+            # cat in it. Said only when the title is request-derived - a
+            # caveat on a request we did satisfy is its own dishonesty.
+            summary = (
+                f"「{game.title}」の題材を描く型はまだ無いため、いちばん近い"
+                f"「{TEMPLATES[game.template].default_title}」型で作りました"
+                f"（題は「{game.title}」のまま・難易度 {game.difficulty}）。"
+                "ブラウザで開けばそのまま遊べます。"
+            )
         elif verdict["playable"]:
             summary = (
                 f"「{game.title}」を作りました（難易度 {game.difficulty}）。"
