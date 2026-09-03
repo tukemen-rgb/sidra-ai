@@ -1428,6 +1428,26 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- control-panel buttons are tappable on a phone -----------------
+    #
+    # C-1219: the pad made the game playable on a phone, but the HTML panel
+    # around it (skins, copy-result, remap, reset) kept 24-32px buttons -
+    # under the 48dp minimum the knowledge base cites. One coarse-pointer
+    # rule in the shell raises them all; the 48px live proof (desktop
+    # unchanged) ran at fix time, recorded in the loop log.
+    from sidra_ai.evals.touch_targets import evaluate_touch_targets
+
+    touch = evaluate_touch_targets()
+    c.add(
+        "creation_touch_targets",
+        "スマホで操作パネルのボタンが指で押せる大きさ（48dp 以上）",
+        10.0 * touch.checks_passed / touch.checks_total,
+        detail=f"{touch.checks_passed}/{touch.checks_total} checks; "
+               "src/sidra_ai/evals/touch_targets.py"
+               + ("" if touch.passed else "; " + "; ".join(touch.failures)),
+        kind=OUTCOME,
+    )
+
     # --- the fishing target is actually drawn ---------------------------
     #
     # C-1206: the default template's target was `sprite('target',...,'')` -

@@ -627,6 +627,13 @@ footer{{margin-top:28px;border-top:1px solid {t["border"]};padding-top:14px;
  font-size:12px;color:{t["muted"]}}}
 footer ul{{margin:6px 0 0;padding-left:18px}}
 a{{color:{t["accent"]}}}
+/* On a phone the control panel's buttons - skin picker, copy-result, key
+ * remap, reset - were 24-32px tall, under the 48dp minimum the knowledge
+ * base itself sets (game-design-notes.md #4) and the touch pad already
+ * honours (C-1219). No panel sets a button height inline, so one rule
+ * scoped to a coarse pointer raises every one of them; desktop keeps its
+ * compact controls, and the pad draws in the canvas so it is untouched. */
+@media (pointer:coarse){{button{{min-height:48px}}}}
 </style></head>
 <body><main>
 <h1>{escape(title)}</h1>

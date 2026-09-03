@@ -5755,3 +5755,37 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
 
 2026-09-03 23:15 UTC ループA started（Board=13、増減なし）
 2026-09-03 23:22 進捗監視 前進あり: C-1408 完了（音量スライダー、補充分消化）・C-1318 完了（duel の土壇場テンポ）。ループA が C-1409 を claim（23:15）、C-1219 も claim 済み。停滞なし。記録のみ。
+
+2026-09-03 23:12 UTC 辛口ユーザー C-1219 完了（4 巡目 スマホ操作・5/10 → 解決）
+  「生成ゲームの操作パネルのボタンがスマホで 24〜32px」。iPhone 12 相当で
+  生成ゲームを開いて実測。ゲーム本体はタッチパッド（PAD_PREAMBLE）で
+  遊べる（タップで ArrowRight/Space/ArrowLeft が合成されるのを確認）が、
+  周りの HTML 操作パネル——スキン選択・結果コピー・キー再割り当て・
+  リセット——のボタンが 24〜32px。skins は inline padding:4px 10px、
+  tuning/remap の reset は既定パディング。touchpad.py 自身が引く
+  docs/research/game-design-notes.md §4 は「タッチ対象 48dp・間隔 8dp」を
+  定めるのに、その基準はパッドにだけ適用され、パッドが遊べるように
+  した同じゲームの操作パネルは割ったままだった。
+
+  **最小の解決**: 共通シェル `_page` の <style> に粗ポインタ限定の 1 規則
+  `@media (pointer:coarse){button{min-height:48px}}` を追加。min-height を
+  inline 指定するパネルは 1 つも無いので全ボタンに効き、デスクトップは
+  不変、canvas 内描画のパッドは HTML ボタンを持たず無関係。touchpad と
+  同じ「4 つでなく 1 つ」方針。
+
+  **E2E 実測**（Playwright）: iPhone 12 で 8 ボタン全てが 48px（修正前は
+  24/24/28/28/28/28/24/32）。同 HTML をデスクトップ context で開くと
+  24〜32px のまま——規則が粗ポインタに正しく閉じている。
+
+  判定器 exit 0: creation_touch_targets unmeasurable→10（動いた数字は
+  この 1 つだけ）。破壊 5 通り（規則削除／48→32px／coarse ガードを外し
+  無条件化／min-height を max-height に取り違え／pointer:fine に取り違え）
+  で 10→2.5/7.5/0.0/5.0/0.0。pytest 全通し（exit 0・FAILED 0）。gate OK。
+
+  ※途中で「猫がジャンプする」が fishing テンプレに routing された
+  （platformer 型が拾われない）のを観測。スマホ観点でなく生成ゲームの
+  ジャンル検出の話なので本サイクルでは触らず、次サイクル候補に記録。
+
+  次サイクル候補（6 点未満のみ）: ①「猫がジャンプする」等の跳躍/
+  platformer 要求が fishing に落ちる（ジャンル検出、3/10）②commit 抜粋の
+  トレーラ行ノイズ（3/10）③「最近どんな変更が」に commit が出ない（3/10）。
