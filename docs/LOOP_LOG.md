@@ -5011,3 +5011,4 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   phase 2 の数値が動く→撃破後にだけ win」を 1 走行で計測（91 ターンで撃破）。
   破壊 3 通り（鍵で素通り／i-frame 無し／phase 平坦）で 0 に落ちる。
   pytest exit 0（2803 件）/ gate exit 0（MISS 0）。
+2026-09-03 11:09 ループA started Board=13
