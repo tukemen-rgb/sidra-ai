@@ -2949,6 +2949,27 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-04 23:43 辛口クリエイター **C-1331: 既定テンプレの釣りだけ、上手い合わせと臆病な合わせの得点が同じ（§13 の学びの残り 1 型）。**
+      （辛口クリエイターループ起票・観点=§13 リスクリワード。前回=§11）
+      §13 学び「点は 1 個 1 点の線形で、上手いプレイと臆病なプレイの得点が
+      同じ」への対応は catch（C-1405 コンボ）・shooter（C-1406 グレイズ）・
+      racing（C-1325 スリップ）・marble（ホットゲート）と進んだが、**無指定
+      リクエスト全部が落ちる既定の fishing が手つかず**——帯に入れば 1 点、
+      どこで合わせても同じで、§13 事実 1 の「取らなくてよい危険」が無い。
+      実装: 帯の中央 35%（CRIT=0.35・帯と同色の濃い内帯として可視化＝
+      倍率は見せる house rule）で合わせたら**会心 2 点**＋重い juice
+      （shake 6・hitstop 3・粒 22・sfx gem）、通常の帯は従来 1 点。真ん中
+      を待つほどマーカーが帯を抜けるリスク＝任意の危険。C-1405 の前例
+      どおり**点と匹数を分けて両方表示**（得点 X / 釣果 Y / 会心 Z、
+      ROUND_SCORE の label は 釣果→得点）、ブリーフィング文も更新。
+      既存の空 probe の castInBand は score 差分を返しており会心で 2 に
+      なって壊れるため hits 差分に変更（「合わせが成立したか」の意味は
+      不変）。新設 PRECISION_PROBE: 実プレイで「中央で押すと +2/crits+1・
+      帯の端（0.6〜0.95 半幅）で押すと +1/crits 不変・帯の外は +0」を
+      normal と hard の両方で実測。破壊 2 通り〔会心も 1 点に平坦化→
+      『a perfect cast pays no more than a cautious one』／CRIT=1.0 で
+      帯全体を会心に→『caution and precision are the same throw』〕。
+      → 動かす数字: creation_cast_precision unmeasurable→1
 - [x] 完了 2026-09-04 23:02 UTC 辛口クリエイター（`creation_ghost_replay` **2→3**、判定器 exit 0。GHOST_TEMPLATES に platformer（UNWIRED の「第 2 の軸が要る」保留を解消——進行軸=コース x・保存値=高さ y・描画は今の自機と同じ画面 x に記録高度の半透明過去自機、自機より先に描くので現在が隠れない）。play 中に ghostSample(me.x, me.y)（リスポーン処理の後＝穴でなく灯籠を記録）、draw に racing/marble と同じ TUNE_ACCENT シルエット。汎用計器が 3 本目を自動検査: 実測で 1 回目は幽霊なし（had=false, drawn=0）・軌跡保存（saved=1）、2 回目だけ drawn=3602 で描画差あり、パネル off で drawn=0・runHash 一致・描画が 1 回目と完全一致＝触れていない証明。demo 汚染は C-1414 の ghostForget が共通吸収。専用テスト test_creation_platformer_ghost.py 追加。破壊 2 通り〔描画ブロック削除→『the second run did not replay the first』で 0／me.y=gy で自機を引きずる→『the ghost changed how the race went』で 0〕。「速い走行でもずれない」は従来どおり creation_marble_ghost の持ち場。pytest exit 0（3293 passed / 3 skip）・gate MISS 0）**C-1330: platformer だけ過去の自分に会えない（§11・コース型 3 本のうち幽霊が 2 本にしか居ない）。**
       （辛口クリエイターループ起票・観点=§11 自分と競わせる。前回=§4）
       §11 事実 1（自分のゴーストと走ると努力・楽しさ・自己効力感が上がる）
