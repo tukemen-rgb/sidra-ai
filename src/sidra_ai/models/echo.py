@@ -112,11 +112,28 @@ class EchoModelAdapter(LocalModelAdapter):
             )
             footer = "Cited sources: "
 
+        # Two files often carry the identical passage (a TODO copied into a
+        # cycle report), so retrieval hands back two blocks with the same text
+        # and the answer printed the paragraph twice - the reader reads it
+        # again and it looks like two independent findings (C-1241). The full
+        # excerpt is shown once; a later block with the same text points back
+        # to where it was shown. The footer still lists every source, because
+        # "both files say this" is a true and useful fact - only the re-reading
+        # is dropped.
+        same_note = "（{} と同じ内容）" if _is_japanese(request.user_message) else "(same text as {})"
         lines = [preamble, ""]
+        shown: dict[str, str] = {}
         for match in blocks:
+            label = match.group("label")
             excerpt = self._lead(match.group("content"))
-            lines.append(f"[{match.group('label')}] {match.group('citation')}")
-            lines.append(f"    {excerpt}")
+            lines.append(f"[{label}] {match.group('citation')}")
+            prior = shown.get(excerpt) if excerpt else None
+            if prior is not None:
+                lines.append(f"    {same_note.format(prior)}")
+            else:
+                lines.append(f"    {excerpt}")
+                if excerpt:
+                    shown[excerpt] = label
             lines.append("")
 
         lines.append(

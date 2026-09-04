@@ -809,6 +809,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1241: two files that carry the identical passage produced two blocks
+    # with the same text, and the answer printed the paragraph under [S1] and
+    # again under [S2] - the reader re-reads it and it looks like two findings.
+    # The echo answer now shows the excerpt once and points a later duplicate
+    # back to it; the footer still lists every source. (C-1232/C-1237 twin.)
+    from sidra_ai.evals.answer_dedupes_identical_excerpts import (
+        evaluate_answer_dedupes_identical_excerpts,
+    )
+
+    dedupe = evaluate_answer_dedupes_identical_excerpts()
+    c.add(
+        "answer_dedupes_identical_excerpts",
+        "回答で同一の抜粋を繰り返さない（同文は 1 回＋注記、出典一覧は保つ）",
+        10.0 * dedupe.checks_passed / dedupe.checks_total,
+        detail=f"{dedupe.checks_passed}/{dedupe.checks_total} checks; "
+               "src/sidra_ai/evals/answer_dedupes_identical_excerpts.py"
+               + ("" if dedupe.passed else "; " + "; ".join(dedupe.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1216: the top citation for a real revenue question was 26 characters
     # of raw Markdown cut mid-checkbox (「## D-CY4. … - [ ] **A.」). The lead
     # extractor now flattens markup (C-1212's plain_text) and label fragments
