@@ -40,6 +40,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "particleCount",
     "failBeat",
     "failBeats",
+    "failBeatsReset",
     "winBeat",
     "winBeats",
     "flashGate",
@@ -88,6 +89,12 @@ function failBeat(x,y){FAIL_BEATS++;
   burst(x===undefined?0:x,y===undefined?0:y,%(parts)d,'ALERT_JUICE');
   try{sfx('lose')}catch(e){}}
 function failBeats(){return FAIL_BEATS}
+/* Per round, not per page (C-1122). The counter used to run for the life
+   of the tab, so in a template that restarts in place - the duel's R,
+   kaiju's tap - every round after the first loss was recorded as a loss
+   too: 29 straight wins were measured as a streak of 30 defeats, which is
+   the difficulty easing for somebody who is winning. */
+function failBeatsReset(){FAIL_BEATS=0}
 /* The moment a round is WON, as one call (C-1316). The mirror of the
    failure beat, one step heavier: §6 spends the biggest moment on the
    takedown, and before this every template's victory was lighter than its

@@ -86,6 +86,7 @@ ROUND_SCORE: dict[str, tuple[str, str]] = {
 PREAMBLE_NAMES: tuple[str, ...] = (
     "roundLive",
     "roundEnded",
+    "roundLost",
     "roundFacts",
     "roundScore",
     "roundBest",
@@ -135,6 +136,12 @@ function roundLive(){
   if(typeof state==='undefined')return true;
   return ROUND_LIVE.indexOf(state)>=0}
 function roundEnded(){return ROUND_LIVE.length>0&&!roundLive()}
+/* Lost, as opposed to simply over. A template with no losing state cannot
+   lose: its round ends on the clock every single time, so treating that as
+   a defeat would make the signal meaningless. */
+function roundLost(){
+  if(!ROUND_LIVE.length)return false;
+  try{return failBeats()>0}catch(e){return false}}
 function roundTick(t){
   const now=(typeof t==='number'&&isFinite(t))?t:ROUND_MS+16;
   if(ROUND_T0===null){ROUND_T0=now}
@@ -146,7 +153,10 @@ function roundTick(t){
      round the bank has already been closed for. Without this the second
      go's strip - and the line C-1110 copies - would still be reporting the
      first one's score. */
-  if(ROUND_BANKED&&!ROUND_DONE){ROUND_BANKED=false;ROUND_FINAL=null;ROUND_RECORD=false}
+  if(ROUND_BANKED&&!ROUND_DONE){ROUND_BANKED=false;ROUND_FINAL=null;ROUND_RECORD=false;
+    /* ...and the round's own failure count with it (C-1122). Without this
+       the next go inherits the last one's defeat. */
+    try{failBeatsReset()}catch(e){}}
   /* Once the clock has fired, only an explicit restart clears it. An
      earlier version cleared it as soon as the template looked "live"
      again - but the clock fires precisely when the template has *not*
@@ -216,9 +226,16 @@ function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
   try{skinBank(ROUND_FINAL)}catch(e){}
   /* The trail that set this record, kept with the number (C-1401). */
   try{ghostBank(ROUND_RECORD)}catch(e){}
-  /* Won or lost, for the run after this one (C-1402). A round that
-     fired the shared failure beat is a round that was lost. */
-  try{adaptRecord(failBeats()>0)}catch(e){}}
+  /* Won or lost, for the run after this one (C-1402), and it has to be a
+     real defeat (C-1122). "Any failure beat fired" was the wrong question
+     twice over: the count ran for the life of the page, and the clock's
+     own beat made every fishing and catch round a defeat - those two have
+     no losing state at all, so the buzzer is how a go ends, not how it is
+     lost. Counting it would ease the difficulty for every player after
+     three rounds, which is precisely the help-for-people-who-don't-need-it
+     §11 事実 3 warns about. The beat itself is untouched: an ending should
+     still land (C-1105). */
+  try{adaptRecord(roundLost())}catch(e){}}
 /* One strip, drawn over whatever ended the round - the clock's banner or
    the template's own screen - so "how far off am I, and how do I go
    again" reads the same everywhere. */

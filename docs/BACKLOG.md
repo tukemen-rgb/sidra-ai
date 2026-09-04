@@ -2690,7 +2690,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       requested_genre にはユーザーが実際に書いた語を記録し、ページ表題が
       未対応ジャンル名を自称しないこと（断り時は既定題）。
       → 動かす数字: creation_genre_honest の対象に 対戦格闘 の語順違いを追加
-- [~] 作業中 2026-09-04 03:07 ループA **C-1122: FAIL_BEATS をラウンド境界でリセットする。**（批評 #3・#11）
+- [x] 完了 2026-09-04 04:0x UTC ループA（`creation_dda_streak_honest` unmeasurable→**10**、判定器 exit 0・他の数字は動かず。起票時の想定は 9 だったが実測 10 型すべてが通った。4 通りの破壊で 0 に落ちることを確認。**修正したのは「ビート」ではなく「記録の述語」**: `failBeat` は 10 型すべてで従来どおり鳴らし（`creation_fail_beat` 10 を維持）、DDA に渡す判定だけを `failBeats()>0`（ページ生存中の累積）から `roundLost()`（このラウンドの、負け状態を持つ型の敗北）に変えた）**C-1122: FAIL_BEATS をラウンド境界でリセットする。**（批評 #3・#11）
       全勝でも streak が増える実測（duel 29 全勝→streak30）。roundTick の
       rebank 分岐で 0 に戻し、fishing/catch の時間切れは敗北でなく通常終了に
       分類。「自己ベスト」と敗北記録が同一ラウンドに並存しないことまで計器で。

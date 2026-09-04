@@ -116,4 +116,82 @@ def preamble_for(template: str, speeds: tuple[float, ...]) -> str:
     )
 
 
-__all__ = ["ADAPT_AFTER", "ADAPT_PREAMBLE", "PREAMBLE_NAMES", "preamble_for"]
+
+
+#: The streak, measured on a page that plays several rounds in a row.
+#:
+#: C-1122: the counter behind it was ``failBeats() > 0`` over the life of
+#: the tab, which was wrong twice. It never reset, so in a template that
+#: restarts in place every round after the first loss was a loss too - 29
+#: straight wins measured as a streak of 30. And the round clock's own beat
+#: made every fishing and catch round a defeat, because those two have no
+#: losing state and end on the buzzer every time; three rounds of either
+#: and the game quietly eased itself for a player who had lost nothing.
+STREAK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let clock = 0;
+globalThis.performance = { now: () => clock };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+const store = STORED_INPUT;
+globalThis.localStorage = {
+  getItem: (k) => (k in store ? store[k] : null),
+  setItem: (k, v) => { store[k] = String(v) },
+  removeItem: (k) => { delete store[k] } };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+globalThis.location = { reload: () => {} };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) {
+  const fn = queued; queued = null; clock += 50 / 3; fn(clock) } }
+function press(k){ (handlers['keydown'] || []).forEach(fn => fn({ key: k,
+  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+run(2); press(' '); run(2);
+const rounds = [];
+let seenRound = false;
+for (let r = 0; r < ROUNDS_INPUT; r++) {
+  for (let i = 0; i < 5000 && !roundEnded() && !ROUND_DONE; i++) { run(1) }
+  run(8);
+  /* Whether this really was a new go. A template that ends on the clock
+     restarts by re-running the page, which a probe cannot do - so without
+     this the same finished round is read four times and mistaken for four
+     of them. Found by measuring: the adventure's streak "stalled" at 3
+     across four reads because there was only ever one round. */
+  rounds.push({ beats: failBeats(), lost: roundLost(), record: ROUND_RECORD,
+    fresh: !seenRound, done: ROUND_DONE,
+    stored: Number(store[ADAPT_KEY] === undefined ? 0 : store[ADAPT_KEY]) });
+  seenRound = true;
+  press('r'); run(6);
+  /* The bank reopening is the page saying "this is a new round". */
+  if (!ROUND_BANKED) { seenRound = false }
+}
+console.log(JSON.stringify({ rounds: rounds, canLose: ROUND_LIVE.length > 0,
+  key: ADAPT_KEY }));
+"""
+
+
+def streak_probe_source(
+    script: str, *, rounds: int = 4, stored: dict[str, object] | None = None
+) -> str:
+    """Play ``rounds`` rounds back to back and report the streak each time."""
+
+    payload = {key: str(value) for key, value in (stored or {}).items()}
+    return (
+        STREAK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("ROUNDS_INPUT", str(int(rounds)))
+        .replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
+    )
+
+
+__all__ = ["ADAPT_AFTER", "ADAPT_PREAMBLE", "PREAMBLE_NAMES", "preamble_for",
+    "STREAK_PROBE",
+    "streak_probe_source",
+]

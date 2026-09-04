@@ -3311,6 +3311,121 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the losing streak counts real defeats --------------------------
+    #
+    # C-1122: the difficulty eases after three losses (C-1402), and it was
+    # being fed 「did any failure beat ever fire?」 over the life of the
+    # page. Two defects in one predicate: the count never reset, so in a
+    # template that restarts in place every round after the first loss was
+    # also a loss (29 straight duel wins measured as a streak of 30); and
+    # the round clock's own beat made every fishing and catch round a
+    # defeat, though neither has a losing state - the buzzer is how those
+    # end, not how they are lost. Three rounds of either and the game
+    # quietly eased itself for somebody who had lost nothing.
+    from sidra_ai.creation.adapt import streak_probe_source as _streak_probe
+    from sidra_ai.creation.games import TEMPLATES as _streak_templates
+
+    streak_gaps: list[str] = []
+    streak_ok: list[str] = []
+    _streak_asks = {
+        "adventure": "冒険ゲームを作って",
+        "catch": "キャッチゲームを作って",
+        "duel": "対戦ゲームを作って",
+        "fishing": "釣りゲームを作って",
+        "kaiju": "怪獣と戦うゲームを作って",
+        "marble": "3D のゲームを作って",
+        "platformer": "ジャンプアクションを作って",
+        "puzzle": "パズルゲームを作って",
+        "racing": "レースゲームを作って",
+        "shooter": "シューティングゲームを作って",
+    }
+    for key in sorted(_streak_templates):
+        found = _scene_re.search(
+            r"<script>(.*?)</script>",
+            generate_game(_streak_asks[key]).html,
+            _scene_re.S,
+        )
+        if found is None:
+            streak_gaps.append(f"{key}: no script on the page")
+            continue
+        try:
+            # Seeded at two, so both directions show in one run: a losing
+            # round must reach three, and a winning one must clear it.
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_streak_probe(
+                    found.group(1), rounds=4, stored={f"sidra.streak.{key}": "2"}
+                ),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            seen = json.loads(run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            streak_gaps.append(f"{key}: probe unavailable ({exc})")
+            continue
+        # Only the rounds that really were rounds: a clock-ended template
+        # restarts by re-running the page, so the probe reads the same
+        # finished round again rather than playing a new one.
+        rounds = [row for row in seen["rounds"] if row.get("fresh")]
+        if not rounds:
+            streak_gaps.append(f"{key}: no round completed")
+            continue
+        # 1. the count is per round, never cumulative.
+        runaway = [row["beats"] for row in rounds if row["beats"] > 1]
+        if runaway:
+            streak_gaps.append(f"{key}: the failure count carried over ({runaway[:3]})")
+            continue
+        # 2. a template with no losing state never records a defeat...
+        if not seen["canLose"]:
+            if any(row["lost"] for row in rounds):
+                streak_gaps.append(f"{key}: the clock was recorded as a defeat")
+                continue
+            if any(row["stored"] for row in rounds):
+                streak_gaps.append(f"{key}: a streak was banked for a game with no loss")
+                continue
+        else:
+            # A round that fired the failure beat *was* a defeat. Checked
+            # against the beat rather than against the same predicate that
+            # decides the record, or a page where nothing is ever a loss
+            # would agree with itself: everything reads "won", the streak
+            # sits at zero, and the judge sees no contradiction.
+            unfelt = [row for row in rounds if row["beats"] > 0 and not row["lost"]]
+            if unfelt:
+                streak_gaps.append(
+                    f"{key}: a round that fired the failure beat was recorded as a win"
+                )
+                continue
+            # ...and one that can lose counts exactly the rounds it lost,
+            # starting from the two it was seeded with.
+            expected, wrong = 2, []
+            for row in rounds:
+                expected = expected + 1 if row["lost"] else 0
+                if row["stored"] != expected:
+                    wrong.append((row["lost"], row["stored"], expected))
+            if wrong:
+                streak_gaps.append(f"{key}: the streak does not follow the losses {wrong[:2]}")
+                continue
+            if not any(row["lost"] for row in rounds) and rounds[0]["stored"] != 0:
+                streak_gaps.append(f"{key}: a won round left the streak at {rounds[0]['stored']}")
+                continue
+        streak_ok.append(key)
+    c.add(
+        "creation_dda_streak_honest",
+        "連敗記録が本当の負けだけを数える",
+        float(len(streak_ok)) if not streak_gaps else 0.0,
+        detail=(
+            "; ".join(streak_gaps)
+            if streak_gaps
+            else f"{len(streak_ok)} 型を実走行（連敗 2 を仕込んで、実際に始まった回だけ数える）: "
+            "失敗数はラウンドごとに戻り、負けた回だけ連敗が伸び、勝てば 0 に戻る。"
+            "負け状態を持たない型は時間切れを敗北として記録しない"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all
