@@ -116,3 +116,39 @@ def test_the_hit_is_noise_and_the_melody_is_a_tone() -> None:
     assert len(set(freqs)) >= 4, "the repeat is a machine again"
     assert all(500 * 0.92 <= f <= 500 * 1.08 for f in freqs), freqs
     assert heard["mutedFreqs"] == 0
+
+
+def test_the_victory_is_a_rising_phrase_and_the_mute_still_wins() -> None:
+    """§2 (C-1326): the heaviest beat gets the powerUp shape - a rising
+    major arpeggio, every note on the gain books, silent under M."""
+
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.audio import PROBE
+    from sidra_ai.creation.games import generate_game
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = generate_game("シューティングゲームを作って").html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=PROBE.replace("SCRIPT_PLACEHOLDER", script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    heard = _json.loads(probe.stdout.strip().splitlines()[-1])
+
+    freqs = heard["winFreqs"]
+    assert len(freqs) >= 3, "a phrase, not a beep"
+    assert all(freqs[i] < freqs[i + 1] for i in range(len(freqs) - 1))
+    assert heard["winGains"] == len(freqs), "every note on the loudness books"
+    assert heard["winMutedFreqs"] == 0

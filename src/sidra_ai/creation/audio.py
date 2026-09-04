@@ -122,6 +122,12 @@ const SFX_TABLE={
    第 3 形). Math.random, not the game's rand(): the board's seed must not
    be consumed by a sound. */
 const SFX_JITTER=0.04;
+/* The victory phrase (§2, C-1326): the win is the round's heaviest beat
+   (C-1316), and one sweep undersold it. A rising major arpeggio - the
+   sfxr powerUp shape - in plain C: no melody borrowed from anywhere,
+   four notes a chord owns. One jitter factor for the whole phrase, so
+   the fanfare stays in tune with itself. */
+const WIN_NOTES=[523,659,784,1046];
 function sfx(name){
   /* Zero is silence, not a very quiet sound. Scheduling one would hand
      exponentialRampToValueAtTime a start value of 0, which has no defined
@@ -134,6 +140,19 @@ function sfx(name){
     const t0=AC.currentTime,[wave,rawF0,rawF1,dur]=spec,vol=sfxGain(name);
     const jit=1+(Math.random()*2-1)*SFX_JITTER;
     const f0=rawF0*jit,f1=rawF1*jit;
+    if(name==='win'){
+      /* Each note passes through the same gain contract as any effect:
+         the combat step, the ceiling, the master dial and M, per note. */
+      WIN_NOTES.forEach((f,i)=>{
+        const t1=t0+i*0.11,last=i===WIN_NOTES.length-1;
+        const g=AC.createGain();
+        g.gain.setValueAtTime(vol,t1);
+        g.gain.exponentialRampToValueAtTime(0.001,t1+(last?0.34:0.16));
+        g.connect(AC.destination);
+        const osc=AC.createOscillator();osc.type='triangle';
+        osc.frequency.setValueAtTime(f*jit,t1);
+        osc.connect(g);osc.start(t1);osc.stop(t1+(last?0.4:0.22))});
+      return}
     /* The gain first: it carries the volume the loudness judge reads, and
        it must be on the books whatever the source turns out to be. */
     const gain=AC.createGain();
@@ -263,6 +282,14 @@ const catchFreqs = freqs.slice();
 keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
 freqs.length = 0; sfx('catch'); const mutedFreqs = freqs.length;
 keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
+/* The victory phrase (§2, C-1326): a rising arpeggio, every note on the
+   books, and silent under the mute like everything else. */
+freqs.length = 0; played.length = 0;
+sfx('win');
+const winFreqs = freqs.slice(), winGains = played.length;
+keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
+freqs.length = 0; sfx('win'); const winMutedFreqs = freqs.length;
+keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
 console.log(JSON.stringify({
   calm: calm[0] ?? null, loud: loud[0] ?? null,
   mutedPlayed: muted.length, backToCalm: backToCalm[0] ?? null,
@@ -270,6 +297,7 @@ console.log(JSON.stringify({
   combatDuringPlay: combatDuringPlay, nearEnemy: nearEnemy,
   hurtNodes: hurtNodes, gemNodes: gemNodes,
   catchFreqs: catchFreqs, mutedFreqs: mutedFreqs,
+  winFreqs: winFreqs, winGains: winGains, winMutedFreqs: winMutedFreqs,
 }));
 """
 

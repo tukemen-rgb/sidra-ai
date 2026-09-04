@@ -2922,7 +2922,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
-- [~] 作業中 2026-09-04 06:42 辛口クリエイター **C-1326: 勝利の音が 1 音しかない（§2 の powerUp 系が最重ビートに不在）。**
+- [x] 完了 2026-09-04 07:06 UTC 辛口クリエイター（`creation_win_fanfare` unmeasurable→**1**、判定器 exit 0。WIN_NOTES=[523,659,784,1046]（C-E-G-C・商標フリーの長三和音）を 0.11s 刻みでスケジュールする勝利フレーズを sfx('win') に実装。各音は sfxGain('win') 経由で戦闘音圧段・上限・音量軸・M ミュートの契約を 1 音ずつ維持、§14 のジッタはフレーズ全体に 1 係数（ファンファーレ内は調律を保つ）。Recorder 実測: 4 音・厳密上昇（534→1069）・gain 4 本・M で 0 音。破壊 2 通り〔1 音化→『1 note(s), not a phrase』で 0 ／ 下降列→『the phrase does not rise』で 0〕。pytest exit 0（3123 passed / 3 skip）・gate MISS 0）**C-1326: 勝利の音が 1 音しかない（§2 の powerUp 系が最重ビートに不在）。**
       （辛口クリエイターループ起票・観点=§2 効果音。前回=§13）
       C-1316 で勝利は全ラウンド最重のビート（揺れ 16・粒子 26）になったのに
       sfx('win') は 0.5 秒の単音スイープのまま——§2 の sfxr プリセットで

@@ -4212,6 +4212,45 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the victory has a phrase, not a beep --------------------------
+    #
+    # §2 (C-1326): the win became the round's heaviest beat (C-1316) while
+    # its sound stayed a single half-second sweep - less to hear than the
+    # defeat's noise burst. sfx('win') is now a rising major arpeggio (the
+    # sfxr powerUp shape, plain C - no melody borrowed from anywhere),
+    # every note through the same gain contract, all of it silent under M.
+    # Read off the same driven page as the texture above.
+    fanfare_gaps: list[str] = []
+    if timbre is None:
+        fanfare_gaps.append("probe unavailable (shared with texture)")
+    else:
+        _wf = timbre.get("winFreqs") or []
+        if len(_wf) < 3:
+            fanfare_gaps.append(f"the victory is {len(_wf)} note(s), not a phrase")
+        elif any(_wf[i] >= _wf[i + 1] for i in range(len(_wf) - 1)):
+            fanfare_gaps.append(f"the phrase does not rise ({[round(f) for f in _wf]})")
+        if timbre.get("winGains") != len(_wf):
+            fanfare_gaps.append(
+                f"{timbre.get('winGains')} gain(s) for {len(_wf)} note(s) - "
+                "a note off the loudness books"
+            )
+        if timbre.get("winMutedFreqs") != 0:
+            fanfare_gaps.append("the fanfare plays under the mute")
+    c.add(
+        "creation_win_fanfare",
+        "勝利がフレーズで鳴る",
+        0.0 if fanfare_gaps else 1.0,
+        detail=(
+            "; ".join(fanfare_gaps)
+            if fanfare_gaps
+            else "実走行の AudioContext で確認: sfx('win') は 4 音の上昇"
+            "アルペジオ（C-E-G-C・フレーズ全体に 1 ジッタで調律を保つ）、"
+            "全音が gain 経由（戦闘段・上限・音量軸・M の契約は 1 音ずつ）、"
+            "M ミュートで 0 音（§2 の powerUp 系を最重ビートに）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the telegraph tells you where, not only when ------------------
     #
     # The duel's own rule is "dodge by reading the aura" (C-1022), but the
