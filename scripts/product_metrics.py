@@ -4033,6 +4033,117 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- an empty frame is not a document ------------------------------
+    #
+    # C-1128: with nothing retrieved, both paper generators printed a
+    # skeleton and announced it. 「「進捗報告」を 4 枚で作りました」 and
+    # 「レポートを作りました（根拠 0 件、社長が埋める欄 3 箇所）」 are the
+    # sentences of a delivered thing; what was delivered was a frame. The
+    # file may still be written - the owner can fill it - but the summary
+    # now leads with what did not happen, and names which of the two
+    # indistinguishable causes it was: nothing in the index, or evidence
+    # that fit no section. Driven through the callables the router holds,
+    # both directions: an empty request must carry the notice and a request
+    # with usable evidence must not.
+    from sidra_ai.creation.deck_job import build_deck_generator as _empty_deck
+    from sidra_ai.creation.document_job import build_document_generator as _empty_doc
+    from sidra_ai.creation.empty import EMPTY_HEADLINE as _EMPTY_HEAD
+    from sidra_ai.creation.empty import EMPTY_INDEX as _EMPTY_INDEX
+    from sidra_ai.creation.evidence import Fact as _EmptyFact
+    from sidra_ai.creation.intent import detect_creation_intent as _empty_intent
+
+    empty_gaps: list[str] = []
+    _empty_dir = _scene_tempfile.mkdtemp(prefix="empty-honest-")
+    _empty_make = {
+        "deck": _empty_deck(_empty_dir),
+        "document": _empty_doc(_empty_dir),
+    }
+    _empty_ask = {
+        "deck": "進捗をまとめたデッキを作って",
+        "document": "進捗レポートを作って",
+    }
+    # Evidence that lands in a section, and evidence that lands in none.
+    # The second is the whole reason the cause is reported rather than
+    # assumed: it produces the identical blank artifact.
+    _empty_fits = [
+        _EmptyFact(text="いま出来ることは索引の全文検索です。", source="README.md"),
+        _EmptyFact(text="進捗は 3 件です。", source="PR-1.md"),
+    ]
+    _empty_stray = [_EmptyFact(text="ジャムの煮沸はよく混ぜる。", source="jam.md")]
+
+    def _empty_run(kind, facts):
+        ask = _empty_ask[kind]
+        return _empty_make[kind](ask, _empty_intent(ask), facts)
+
+    _empty_scored = {}
+    for _e_kind in ("deck", "document"):
+        _e_bad: list[str] = []
+        # 1. Nothing retrieved: the notice, the cause, and no claim of a
+        #    made thing anywhere in the sentence.
+        out = _empty_run(_e_kind, [])
+        # startswith, not "in": the item asks for the notice *first*, and a
+        # summary that announces a deck and mentions the trouble afterwards
+        # is the sentence this was filed about.
+        if not out.summary.startswith(_EMPTY_HEAD):
+            _e_bad.append(f"{_e_kind}: 空でも冒頭で「作れませんでした」と言わない")
+        if _EMPTY_INDEX not in out.summary:
+            _e_bad.append(f"{_e_kind}: 索引が空という原因を言わない")
+        if "作りました" in out.summary:
+            _e_bad.append(f"{_e_kind}: 空額縁を「作りました」と呼んでいる")
+        if not out.details.get("empty"):
+            _e_bad.append(f"{_e_kind}: 空なのに details['empty'] が偽")
+        # The file is still there to fill - the item allows the artifact,
+        # it forbids the sentence.
+        if not out.artifact_path:
+            _e_bad.append(f"{_e_kind}: 下書きごと捨てている（保存してあると言った）")
+        # 2. Evidence that fills a section: the notice must be gone and the
+        #    ordinary summary back. Without this the metric is satisfied by
+        #    a generator that never claims anything.
+        out = _empty_run(_e_kind, _empty_fits)
+        if _EMPTY_HEAD in out.summary:
+            _e_bad.append(f"{_e_kind}: 中身があるのに「作れませんでした」")
+        if "作りました" not in out.summary:
+            _e_bad.append(f"{_e_kind}: 中身があるのに作ったと言わない")
+        if out.details.get("empty"):
+            _e_bad.append(f"{_e_kind}: 中身があるのに details['empty'] が真")
+        _empty_scored[_e_kind] = not _e_bad
+        empty_gaps += _e_bad
+
+    # 3. The cause is measured, not worded. Evidence arrived and no section
+    #    took it: the artifact is byte-for-byte as blank as case 1, and the
+    #    owner's next step is different, so the line has to differ too.
+    #    Deck only - a document has no per-section matching, so there is no
+    #    such case to reach and claiming one would be the invention this
+    #    whole judge is about.
+    out = _empty_run("deck", _empty_stray)
+    _e_cause: list[str] = []
+    if not out.details.get("empty"):
+        _e_cause.append("deck: どの欄にも当たらない根拠で欄が埋まった（前提が崩れた）")
+    else:
+        if not out.summary.startswith(_EMPTY_HEAD):
+            _e_cause.append("deck: 全欄が空でも冒頭で「作れませんでした」と言わない")
+        if _EMPTY_INDEX in out.summary:
+            _e_cause.append("deck: 根拠が届いていたのに「索引が空」と言った")
+        if "1 件" not in out.summary:
+            _e_cause.append("deck: 届いた根拠の件数を言わない")
+    if _e_cause:
+        _empty_scored["deck"] = False
+        empty_gaps += _e_cause
+    c.add(
+        "creation_empty_honest",
+        "全欄が空の資料を成果と呼ばない",
+        float(sum(1 for ok in _empty_scored.values() if ok)),
+        detail=(
+            "; ".join(empty_gaps)
+            if empty_gaps
+            else "デッキ/レポートを実際に生成して確認: 全欄が空なら冒頭で「中身の"
+            "ある資料を作れませんでした」と言い、下書きは残す。1 欄でも埋まれば"
+            "元の通り「作りました」。原因の言い分け（索引が空 / 届いたがどの欄にも"
+            "当たらない）は、後者に到達できるデッキ側だけで検査している"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

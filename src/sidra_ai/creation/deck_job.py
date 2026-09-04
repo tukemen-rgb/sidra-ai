@@ -17,6 +17,7 @@ from pathlib import Path
 
 from sidra_ai.creation.copy_writer import CopyWriter, copy_metadata
 from sidra_ai.creation.decks import Fact, generate_deck, save_deck, save_pptx, validate_deck
+from sidra_ai.creation.empty import empty_notice
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
 
@@ -86,7 +87,14 @@ def build_deck_generator(
         wrote_pptx, why = save_pptx(deck, pptx_path)
 
         blanks = len(deck.unfilled)
-        summary = (
+        # C-1128: every slide blank is not a four-slide deck, it is a frame.
+        # A slide is wholly blank or wholly filled - `_bullets_for` returns
+        # either real bullets or exactly one BLANK - so the count is the
+        # whole story and no partial slide is being written off here.
+        notice = empty_notice(
+            blank=blanks, total=len(deck.slides), facts_available=len(available)
+        )
+        summary = notice or (
             f"「{deck.title}」を {len(deck.slides)} 枚で作りました。"
             + (
                 f"根拠が見つからなかった {blanks} 枚は空欄のままです"
@@ -104,6 +112,10 @@ def build_deck_generator(
                 "outline": deck.outline,
                 "slides": len(deck.slides),
                 "unfilled": list(deck.unfilled),
+                # True when not one section could be filled. Carried so a
+                # caller can tell an empty frame from a deck without
+                # re-deriving the rule from the summary wording.
+                "empty": bool(notice),
                 # How much evidence reached the deck. An operator seeing
                 # blanks needs to tell "nothing was retrieved" apart from
                 # "plenty was retrieved and none of it fit a section".

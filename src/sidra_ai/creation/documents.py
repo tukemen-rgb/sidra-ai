@@ -35,6 +35,11 @@ BLANK = "〔社長が埋める欄〕"
 #: a document nobody can find their way around twice.
 SECTIONS: tuple[str, ...] = ("概要", "わかっていること", "まだ埋まっていないこと", "出典")
 
+#: The sections evidence can actually fill. 「まだ埋まっていないこと」 is blank
+#: by construction and 「出典」 is not a slot the owner writes into, so neither
+#: says anything about whether the report has content in it (C-1128).
+CONTENT_SECTIONS: tuple[str, ...] = ("概要", "わかっていること")
+
 
 @dataclass(frozen=True)
 class GeneratedDocument:
@@ -166,6 +171,7 @@ def validate_document(
 
 __all__ = [
     "BLANK",
+    "CONTENT_SECTIONS",
     "GeneratedDocument",
     "SECTIONS",
     "generate_document",

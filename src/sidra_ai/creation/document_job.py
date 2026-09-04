@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sidra_ai.creation.documents import generate_document, save_document, validate_document
+from sidra_ai.creation.documents import (
+    CONTENT_SECTIONS,
+    generate_document,
+    save_document,
+    validate_document,
+)
+from sidra_ai.creation.empty import empty_notice
 from sidra_ai.creation.evidence import Fact, on_topic
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
@@ -31,7 +37,20 @@ def build_document_generator(data_dir: str | Path):
         document = generate_document(message, facts=facts)
         verdict = validate_document(document, facts)
         path = save_document(document, data_dir)
-        if verdict["usable"]:
+        # C-1128: 「レポートを作りました（根拠 0 件、社長が埋める欄 3 箇所）」
+        # was the sentence beside a file with no sentence in it. Counted over
+        # the two sections evidence fills, because 「まだ埋まっていないこと」
+        # is blank in every report ever generated and would make all of them
+        # read as empty.
+        hollow = [name for name in document.unfilled if name in CONTENT_SECTIONS]
+        notice = empty_notice(
+            blank=len(hollow),
+            total=len(CONTENT_SECTIONS),
+            facts_available=len(facts),
+        )
+        if verdict["usable"] and notice:
+            summary = notice
+        elif verdict["usable"]:
             blanks = len(verdict["unfilled"])
             # Said out loud: a document quietly shorter than the evidence
             # behind it is its own kind of dishonesty, and the operator is
@@ -62,6 +81,9 @@ def build_document_generator(data_dir: str | Path):
                 "unfilled": verdict["unfilled"],
                 "sources": verdict["sources"],
                 "off_topic_facts": len(aside),
+                # True when no section evidence fills came out with anything
+                # in it - the file exists and has nothing to read (C-1128).
+                "empty": bool(notice),
             },
         )
 

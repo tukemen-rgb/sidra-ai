@@ -149,17 +149,30 @@ def test_pptx_is_optional_and_says_which_it_was(tmp_path: Path, facts: list[Fact
 
 
 def test_the_generator_reports_what_it_left_blank(tmp_path: Path) -> None:
-    """The summary an operator reads must name the gaps, not hide them."""
+    """The summary an operator reads must name the gaps, not hide them.
+
+    Driven with one fact, not none. C-1128 gave the *all* blank deck its own
+    sentence - it is a frame, not a four-slide deck, and saying 「4 枚で
+    作りました」 about it was the defect. This test is about the case that
+    remains a deck: something landed, the rest did not, and the count of
+    what did not has to be in the sentence rather than only in the file.
+    """
 
     generate = build_deck_generator(tmp_path)
+    ask = "デッキを作って"
 
-    outcome = generate("デッキを作って", detect_creation_intent("デッキを作って"))
+    outcome = generate(
+        ask,
+        detect_creation_intent(ask),
+        [Fact("課題: 索引した文書を読み切れない", "owner/repo docs/BACKLOG.md")],
+    )
 
     assert outcome.handled
     assert outcome.kind is CreationKind.DECK
     assert "空欄" in outcome.summary
     assert Path(outcome.artifact_path).exists()
     assert outcome.details["unfilled"]
+    assert outcome.details["empty"] is False
 
 
 def test_evidence_reaches_the_slides_through_the_router(tmp_path: Path) -> None:
