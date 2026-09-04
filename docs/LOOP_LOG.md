@@ -6786,6 +6786,25 @@ C-1401 の trail を 2 型目（marble）へ。z は周回距離と同じ形な�
 
 2026-09-04 13:07 UTC ループA started（Board=13、増減なし）
 
+2026-09-04 13:22 UTC 辛口ユーザー started（10 巡目 エラー文言）
+
+2026-09-04 13:3x UTC 辛口ユーザー C-1233 完了（10 巡目 エラー文言）。
+  sidra-ask の通信失敗 catch-all（ask_cli.py:266-268）が英語の例外クラス名を
+  丸出しにし（例「要求に失敗した: RemoteProtocolError」）、次の一手を言わなかった。
+  応答途中切断（サーバがローカルモデル生成中に落ちる）や --url を ftp:// 等に
+  誤指定（UnsupportedProtocol）で発生。ConnectError・Timeout・各 HTTP ステータス
+  （C-1211/C-1218/C-1223）は日本語案内があるのに network 系 catch-all だけ未対応
+  ＝CLI に残った最後の失敗クラス。catch-all を「通信に失敗した。接続が途中で
+  切れていないか、--url の指定が正しいか確認する。」に変え、クラス名は HTTP
+  コードと同様に括弧内へ残した（デバッグ用）。ConnectError/Timeout/HTTP 分岐は不変。
+  判定器: cli_network_error_guidance 6.25→10、exit 0。
+  pytest 全通し FAILED 0、gate MISS 0。
+  破壊 5 通り: ①catch-all をクラス名丸出しに戻す→6.25 ②catch-all を exit 0 に→6.25
+  ③ConnectError 案内を削る→8.75 ④Timeout 案内を削る→8.75 ⑤catch-all を前置し
+  Connect/Timeout を影に→7.50。いずれも下がり、復元で 10.0。
+  実測: `sidra-ask hi --url ftp://x` が「通信に失敗した。…確認する。（UnsupportedProtocol）」。
+  次サイクル候補（6 点未満のみ）: ①生成物の商標作品名（4/10・要相談）
+  ②ポケモン等の他商標 routing（RPG 未対応、3/10）③閉じない ** の残存（3/10）。次巡はスマホ操作。
 ## 2026-09-04 13:5x UTC ループA — C-1127 は [記録]（実装せず・E 節へ）
 
 `--compare` **exit 1「NO MOVEMENT」**。数字は動いていないので成果とは呼ばない。

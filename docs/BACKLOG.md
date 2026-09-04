@@ -3280,6 +3280,23 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [x] 完了 2026-09-04 13:3x UTC 辛口ユーザー（`cli_network_error_guidance` 6.25→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→6.25/6.25/8.75/8.75/7.50 に落ち、復元で 10.0。実測: `--url ftp://x` が「通信に失敗した。…確認する。（UnsupportedProtocol）」に）**C-1233: sidra-ask の通信失敗の catch-all が英語の例外クラス名を丸出しにし次の一手を言わない（例「要求に失敗した: RemoteProtocolError」）。**
+      （辛口ユーザーループ起票・10 巡目 エラー文言・1/10）CLI で応答が途中で
+      切れる（サーバがローカルモデル生成中に落ちる／接続リセット）と
+      `httpx.RemoteProtocolError` が飛び、ask_cli.py:266-268 の catch-all が
+      `要求に失敗した: RemoteProtocolError` と英語のクラス名をそのまま表示する。
+      `--url` を誤って `ftp://…` にした場合も `要求に失敗した: UnsupportedProtocol`。
+      ConnectError（接続できない）・TimeoutException（応答が無い）・各 HTTP
+      ステータス（C-1211/C-1218/C-1223）は日本語の次の一手を示すのに、network 系の
+      catch-all だけが日本語ガイダンス無しでクラス名を丸出し＝CLI に残った最後の
+      未対応の失敗クラス。**再現手順**: `sidra-ask hi --url http://127.0.0.1:9999`
+      は接続案内が出る一方、応答途中切断（RemoteProtocolError）や `--url ftp://x`
+      （UnsupportedProtocol）は `要求に失敗した: <英語クラス名>` のみ。**最小の
+      解決**: catch-all を「通信に失敗した。接続が途中で切れていないか、--url の
+      指定が正しいか確認する。」に変え、クラス名は HTTP コードと同様に括弧内へ
+      残す（デバッグ用）。ConnectError/Timeout/HTTP 分岐は不変。→ 動かす数字:
+      cli_network_error_guidance unmeasurable→10（新設・network 失敗に日本語の
+      次の一手 × 終了コード非0 × ConnectError/Timeout の固有案内は不変）
 - [x] 完了 2026-09-04 12:3x UTC 辛口ユーザー（`document_overview_no_duplicate` 7→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→7.0/8.0/9.0/9.0/7.0 に落ち、復元で 10.0。実測: 生成 .md の概要が枠組み文になり、先頭根拠は「わかっていること」に 1 回だけ出る。C-1222 の list-marker 判定は根拠 prose の移動先=わかっていることを見るよう更新）**C-1232: 生成レポートの「概要」が最初の根拠を丸写しし、同じ段落が「わかっていること」の 1 個目にも出て 2 回続く（重複）。**
       （辛口ユーザーループ起票・9 巡目 生成文書/スライド・1/10）「リトライ方針の
       ドキュメントを作って」等でレポートを生成すると、「## 概要」が

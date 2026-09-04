@@ -861,6 +861,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1233: the CLI mapped HTTP statuses (C-1223) and refused/timeout
+    # connections to Japanese guidance, but the transport catch-all printed a
+    # bare 「要求に失敗した: RemoteProtocolError」 - an English class name, no
+    # next step - for a mid-answer disconnect or a bad --url. The catch-all now
+    # gives actionable Japanese guidance with the class kept in parentheses for
+    # debugging, and the ConnectError/timeout branches keep their own advice.
+    from sidra_ai.evals.cli_network_error_guidance import (
+        evaluate_cli_network_error_guidance,
+    )
+
+    cli_network = evaluate_cli_network_error_guidance()
+    c.add(
+        "cli_network_error_guidance",
+        "CLI が通信失敗時にも次の一手を日本語で示す",
+        10.0 * cli_network.checks_passed / cli_network.checks_total,
+        detail=f"{cli_network.checks_passed}/{cli_network.checks_total} checks; "
+               "src/sidra_ai/evals/cli_network_error_guidance.py"
+               + ("" if cli_network.passed else "; " + "; ".join(cli_network.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1210: the server carried chat history; the browser page never sent
     # it, so every follow-up question abstained. Mechanics pinned on the
     # page source; the end-to-end run lives in the loop log.

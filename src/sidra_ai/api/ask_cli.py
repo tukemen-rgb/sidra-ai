@@ -264,7 +264,18 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
             )
             return 1
         except httpx.HTTPError as exc:
-            print(f"要求に失敗した: {type(exc).__name__}", file=sys.stderr)
+            # Every other transport failure: a peer that closed mid-answer
+            # (RemoteProtocolError), a bad --url scheme (UnsupportedProtocol),
+            # a lower-level protocol error. A bare English class name told a
+            # terminal user nothing to do (C-1233), so the guidance is
+            # Japanese and the class stays in parentheses for debugging - the
+            # same shape the HTTP-status branches use with their code.
+            print(
+                "通信に失敗した。接続が途中で切れていないか、"
+                "--url の指定が正しいか確認する。"
+                f"（{type(exc).__name__}）",
+                file=sys.stderr,
+            )
             return 1
     finally:
         if owned:
