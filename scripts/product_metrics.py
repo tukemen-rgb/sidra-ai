@@ -1404,6 +1404,27 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1235: 「むずかしいゲームを作って」 read the difficulty (hard) correctly,
+    # then turned the same word into a subject - titling the page 「むずかしい」
+    # and claiming 「『むずかしい』の題材を描く型はまだ無い」. A word consumed as
+    # the difficulty cannot also be an undrawn subject; _title_from now falls
+    # back to the template title when only a difficulty modifier is left, so no
+    # false caveat is raised. A real subject and a named genre are untouched.
+    from sidra_ai.evals.game_difficulty_only_no_false_subject import (
+        evaluate_game_difficulty_only_no_false_subject,
+    )
+
+    diff_only = evaluate_game_difficulty_only_no_false_subject()
+    c.add(
+        "game_difficulty_only_no_false_subject",
+        "難易度だけの依頼を「題材が描けない」と偽らず既定題で作る",
+        10.0 * diff_only.checks_passed / diff_only.checks_total,
+        detail=f"{diff_only.checks_passed}/{diff_only.checks_total} checks; "
+               "src/sidra_ai/evals/game_difficulty_only_no_false_subject.py"
+               + ("" if diff_only.passed else "; " + "; ".join(diff_only.failures)),
+        kind=OUTCOME,
+    )
+
     # Asking for a genre we cannot build gets a playable page either way, so
     # playability cannot tell "we made a shooter" from "we made a fishing game
     # and called it a shooter". This number asks the generator both questions:

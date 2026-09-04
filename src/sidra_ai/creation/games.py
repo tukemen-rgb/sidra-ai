@@ -586,6 +586,28 @@ def trademark_in(title: str) -> str:
     return next((mark for mark in _TRADEMARKS if mark.lower() in title.lower()), "")
 
 
+#: Stems already consumed by ``choose_difficulty`` plus their okurigana and the
+#: 「向け」 an audience phrasing adds (「初心者向け」). Used to tell a request that
+#: named *only* a difficulty from one that named a subject: 「むずかしい」 is the
+#: difficulty, not a thing the page fails to draw (C-1235).
+_DIFFICULTY_ONLY = re.compile(
+    "(?:" + "|".join(re.escape(stem) for stem in _HARD + _EASY) + r")[いくめさそうきなの向け]*",
+    re.IGNORECASE,
+)
+
+
+def _is_only_difficulty(text: str) -> bool:
+    """True when nothing but a difficulty modifier remains after the genre strip.
+
+    「むずかしい」 and 「簡単な」 and 「初心者向け」 are already read as the
+    difficulty, so a title built from them - and the 「その題材は描けない」 caveat
+    that follows - says the same word is both understood and not.
+    """
+
+    left = _DIFFICULTY_ONLY.sub("", text)
+    return left.strip("「」\"' 　・のなをがはでゲームgame") == ""
+
+
 def _title_from(request: str, fallback: str) -> str:
     """Use the operator's own words when they named the thing.
 
@@ -594,6 +616,12 @@ def _title_from(request: str, fallback: str) -> str:
     """
 
     stripped = _STRIP.sub("", request.strip()).strip("「」\"' 　")
+    # A request that named only a difficulty has no subject: titling the page
+    # 「むずかしい」 and then claiming its subject cannot be drawn is one word
+    # playing both roles (C-1235). Fall back to the template's own title, the
+    # same page the bare 「ゲームを作って」 gets.
+    if _is_only_difficulty(stripped):
+        return fallback
     if 1 <= len(stripped) <= 24:
         return stripped
     return fallback
