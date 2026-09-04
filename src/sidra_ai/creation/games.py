@@ -60,6 +60,7 @@ from sidra_ai.creation.marble import (
 from sidra_ai.creation.scene import (
     ADVENTURE_PALETTE,
     CATCH_PALETTE,
+    DUEL_PALETTE,
     FISHING_PALETTE,
     MARBLE_PALETTE,
     KAIJU_PALETTE,
@@ -839,6 +840,7 @@ def generate_game(
         .replace("MARBLE_PAL_TOKEN", json.dumps([list(p) for p in MARBLE_PALETTE]))
         .replace("FISHING_PAL_TOKEN", json.dumps([list(p) for p in FISHING_PALETTE]))
         .replace("CATCH_PAL_TOKEN", json.dumps([list(p) for p in CATCH_PALETTE]))
+        .replace("DUEL_PAL_TOKEN", json.dumps([list(p) for p in DUEL_PALETTE]))
         # Before SEED_TOKEN would matter and free of it as a substring: the
         # music's own seed, request-derived, so the same words are the same
         # song in every template - the seedless ones included (C-1304).

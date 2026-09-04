@@ -220,3 +220,19 @@ def test_the_flash_never_strobes_past_three_per_second():
 
     assert seen["worstWindow"] <= 3, "no second holds a fourth full-screen flash"
     assert seen["onsets"] >= 5, "the gate limits the strobe, it does not kill the flash"
+
+
+def test_the_arena_heats_with_the_match():
+    """§7 x C-1318 (C-1321): the sky the tempo knows - match point is the
+    brightest scene, and the acts actually paint it."""
+
+    paced = _paced()
+
+    assert paced["opening"]["scene"] == 0
+    assert paced["middle"]["scene"] == 1
+    assert paced["clutch"]["scene"] == 2
+    scenes = paced["scenes"]
+    assert len(scenes) == 3
+    assert len({s["floor"] for s in scenes}) == 3
+    assert scenes[2]["lum"] > scenes[0]["lum"]
+    assert scenes[2]["lum"] >= scenes[1]["lum"]

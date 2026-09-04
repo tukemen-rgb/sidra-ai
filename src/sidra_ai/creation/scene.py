@@ -136,6 +136,20 @@ CATCH_PALETTE: tuple[tuple[float, float, float], ...] = (
     (80.0, 1.05, 0.22),
 )
 
+#: Duel, one entry per act of the match: opening bell, first blood, match
+#: point.
+#:
+#: The one template whose scene is neither time nor distance but *tension*
+#: - the act C-1318 already computes from how close either fighter is to
+#: losing. A cold opening, heat as first blood lands, and the brightness
+#: budget spent on match point: the exchange that decides the match is
+#: fought under the brightest sky (§7 観察 5-6, the drama-state edition).
+DUEL_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (-34.0, 0.88, 0.02),
+    (26.0, 1.12, 0.09),
+    (80.0, 1.05, 0.22),
+)
+
 #: Installed before every template. Defines the transform and leaves the
 #: palette itself to the template, which calls ``setPal`` once at boot.
 SCENE_PREAMBLE = """
@@ -218,6 +232,7 @@ function sceneFacts(){const keep=SCENE,out=[];
 __all__ = [
     "ADVENTURE_PALETTE",
     "CATCH_PALETTE",
+    "DUEL_PALETTE",
     "FISHING_PALETTE",
     "KAIJU_PALETTE",
     "MARBLE_PALETTE",

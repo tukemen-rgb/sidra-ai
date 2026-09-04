@@ -2289,6 +2289,7 @@ def measure_creation(c: Collector) -> None:
     import subprocess as _scene_sp
 
     from sidra_ai.creation.adventure import world_probe as _adv_probe
+    from sidra_ai.creation.duel import pace_probe as _duel_pace_for_scenes
     from sidra_ai.creation.catchgame import probe_source as _catch_scene_probe
     from sidra_ai.creation.fishing import probe_source as _fishing_scene_probe
     from sidra_ai.creation.kaiju import probe_source as _kaiju_scene_probe
@@ -2300,8 +2301,10 @@ def measure_creation(c: Collector) -> None:
     #: more than one scene to tell apart, and only those: rooms for the
     #: adventure, phases for the kaiju, acts of the round for the shooter
     #: (C-1301), thirds of the corridor for the marble (C-1307), thirds of
-    #: the round clock for the fishing and the catch (C-1315, C-1319). A
-    #: single-scene template would inflate the count.
+    #: the round clock for the fishing and the catch (C-1315, C-1319), and
+    #: match tension for the duel (C-1321) - its pace probe visits all
+    #: three acts, so it reports the painted scenes too. A single-scene
+    #: template would inflate the count.
     _scene_targets = (
         ("迷宮を冒険するゲームを作って", "adventure", _adv_probe),
         ("巨大怪獣と戦うゲームを作って", "kaiju", _kaiju_scene_probe),
@@ -2309,6 +2312,7 @@ def measure_creation(c: Collector) -> None:
         ("玉転がしゲームを作って", "marble", _marble_scene_probe),
         ("釣りゲームを作って", "fishing", _fishing_scene_probe),
         ("キャッチゲームを作って", "catch", _catch_scene_probe),
+        ("ビームで撃ち合うゲームを作って", "duel", _duel_pace_for_scenes),
     )
     #: One request per theme, so the default is measured alongside the three
     #: named ones. The default is the empty suffix.
@@ -2383,8 +2387,8 @@ def measure_creation(c: Collector) -> None:
         else 0.0,
         detail=(
             "adventure の部屋間・kaiju の phase 間・shooter の幕間・marble の"
-            "コース 3 分割・fishing / catch のラウンド 3 等分で実際の描画色が"
-            "変わり、"
+            "コース 3 分割・fishing / catch のラウンド 3 等分・duel の試合"
+            "緊迫度で実際の描画色が変わり、"
             "最も明るい場面が最終部にある。4 テーマすべてで確認、壁と床の"
             "明度差はテーマ既定値のまま"
             if not scene_gaps
@@ -3487,6 +3491,9 @@ def measure_creation(c: Collector) -> None:
             )
         if _pace.get("state") != "play":
             pace_gaps.append(f"{_pace_req}: the measured match ended by itself")
+        _pace_scenes = tuple(a.get("scene") for a in _acts)
+        if _pace_scenes != (0, 1, 2):
+            pace_gaps.append(f"{_pace_req}: the sky ignores the act {_pace_scenes}")
     # --- the flash never becomes a strobe -----------------------------
     #
     # §15 (WCAG 2.3.1, C-1320): a full-screen flash may switch on at most
@@ -3557,7 +3564,8 @@ def measure_creation(c: Collector) -> None:
             if pace_gaps
             else "完全回避で各幕 12 ボレーを実測: 敵のチャージ充填率が幕ごとに"
             "×1.15/×1.3 と上がり、土壇場は開幕より実測で速く、ロック→発射の"
-            "予兆は全幕 15f 以上のまま（§6 の後半変化・公正予兆 C-1309 と両立）"
+            "予兆は全幕 15f 以上のまま（§6 の後半変化・公正予兆 C-1309 と両立）。"
+            "空も同じ幕を塗る（C-1321: 幕 0→1→2 でアリーナの基調色が変わる）"
         ),
         kind=OUTCOME,
     )

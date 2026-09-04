@@ -85,6 +85,9 @@ const AIM_LOCK=18;
    the aim-lock offset scales WITH the rate so the locked telegraph is
    exactly AIM_LOCK frames of wall-clock warning in every act (C-1309). */
 const TENSE=[1,1.15,1.3];
+/* The same act paints the arena (§7, C-1321): the sky the tempo already
+   knows. Lanes, auras and beams keep their information colours (§4). */
+setPal(DUEL_PAL_TOKEN);
 function duelAct(){if(!p||!e)return 0;
   const low=Math.min(p.hp,e.hp);
   return low<=1?2:(p.hp<3||e.hp<3)?1:0}
@@ -159,6 +162,7 @@ function hit(who){who.hp--;if(flashGate())flash=1;sfx('hurt');
     else{winner='敗北。もう一度。';failBeat(PX,LANES[p.lane])}}}
 function step(){const now=performance.now();
   combat(state==='play'&&gateState()==='playing');
+  setScene(duelAct());
   if(state==='play'){
     if(p.stun>0){p.stun--}
     if(p.hold&&p.stun<=0){p.charge=Math.min(100,p.charge+1.4);
@@ -198,8 +202,8 @@ function beamDraw(f,from,dir,c,now){
     cx.fillStyle='#f5f7ff';cx.beginPath();
     cx.arc(cv.width/2+spark*3,y,10+j,0,6.28318);cx.fill()}}
 function draw(now){
-  cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,cv.width,cv.height);
-  cx.fillStyle='RAISED_TOKEN';cx.fillRect(0,cv.height-24,cv.width,24);
+  cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,cv.width,cv.height);
+  cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(0,cv.height-24,cv.width,24);
   if(flash>0){cx.globalAlpha=0.5*ease(flash);cx.fillStyle='#f5f7ff';
     cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1;flash-=0.05}
   aura(PX,LANES[p.lane],26+p.charge*0.2,'CYAN_TOKEN',now);
@@ -407,6 +411,7 @@ function paceOf(hp, volleys){
   }
   const mean = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null;
   return { act: duelFacts().act, mean: mean, n: gaps.length, rate: chargeRate,
+    scene: SCENE,
     minLock: locks.length ? Math.min.apply(null, locks) : null };
 }
 const opening = paceOf(3, 12);
@@ -414,6 +419,7 @@ const middle = paceOf(2, 12);
 const clutch = paceOf(1, 12);
 console.log(JSON.stringify({ style: duelFacts().style, tense: duelFacts().tense,
   opening: opening, middle: middle, clutch: clutch,
+  scenes: sceneFacts().scenes,
   state: state, pHp: p.hp }));
 """
 
