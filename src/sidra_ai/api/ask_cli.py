@@ -175,6 +175,12 @@ def _print_citations(payload: dict[str, Any], clean: _Stripped) -> None:
         marks = []
         if citation.get("redacted"):
             marks.append("一部秘匿")
+        # A whole-excerpt block at answer time (C-1236). Distinct from the
+        # ingestion-time 「一部秘匿」 above: the service keeps them apart so a
+        # reader can, and a citation whose excerpt was withheld reading exactly
+        # like a plain one is the distinction going to waste.
+        if citation.get("excerpt_withheld"):
+            marks.append("抜粋を秘匿")
         trust = clean(citation.get("trust_level", ""))
         if trust and trust != "internal_repo":
             marks.append(trust)

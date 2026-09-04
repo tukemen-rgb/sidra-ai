@@ -790,6 +790,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1236: an ingestion-time redaction shows as 「一部秘匿」/「（伏せ字あり）」,
+    # but when the output guard blocks a whole excerpt at answer time the service
+    # sets excerpt_withheld so a reader can tell that apart - and both the CLI and
+    # the web page dropped the distinction, showing the withheld citation like any
+    # other. Both now surface a withheld mark beside the redacted one.
+    from sidra_ai.evals.citation_withheld_flagged import (
+        evaluate_citation_withheld_flagged,
+    )
+
+    withheld = evaluate_citation_withheld_flagged()
+    c.add(
+        "citation_withheld_flagged",
+        "抜粋が丸ごと伏せられた引用を CLI と UI が印で示す",
+        10.0 * withheld.checks_passed / withheld.checks_total,
+        detail=f"{withheld.checks_passed}/{withheld.checks_total} checks; "
+               "src/sidra_ai/evals/citation_withheld_flagged.py"
+               + ("" if withheld.passed else "; " + "; ".join(withheld.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1211: failures surfaced as bare HTTP codes; the page now maps the
     # reachable classes to Japanese guidance while the error body stays
     # hidden and the code stays printed.

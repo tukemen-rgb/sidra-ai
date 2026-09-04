@@ -178,6 +178,16 @@ ASK_PAGE = """<!doctype html>
         flag.textContent = " \uff08\u4f0f\u305b\u5b57\u3042\u308a\uff09";
         item.appendChild(flag);
       }
+      // A whole-excerpt block at answer time (C-1236): the service marks it
+      // excerpt_withheld so this can be told apart from an ordinary citation,
+      // which the page dropped. Shown beside the redacted flag, not instead of
+      // it - a source can be both redacted at ingestion and withheld here.
+      if (c.excerpt_withheld) {
+        var held = document.createElement("span");
+        held.className = "note";
+        held.textContent = " \uff08\u629c\u7c8b\u3092\u79d8\u533f\uff09";
+        item.appendChild(held);
+      }
       list.appendChild(item);
     });
     sources.appendChild(list);
