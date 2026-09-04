@@ -676,7 +676,14 @@ a{{color:{t["accent"]}}}
  * honours (C-1219). No panel sets a button height inline, so one rule
  * scoped to a coarse pointer raises every one of them; desktop keeps its
  * compact controls, and the pad draws in the canvas so it is untouched. */
-@media (pointer:coarse){{button{{min-height:48px}}}}
+/* The tuning panel's non-button controls - difficulty select, sliders, colour
+ * picker, checkboxes - stayed 13-27px and rendered at a 13.3px font: too small
+ * to tap and small enough to make iOS zoom the page on focus. A 16px font floor
+ * stops the zoom (the ask page's C-1225 rule, one level along) and a taller box
+ * clears a fingertip; the checkbox is enlarged directly (C-1234). Kept on one
+ * line with the button rule first so the C-1219 checks still read it, and all
+ * inside the coarse-pointer query so the desktop panel is left unchanged. */
+@media (pointer:coarse){{button{{min-height:48px}}select,input{{font-size:16px}}select,input[type=number],input[type=text],input[type=color],input[type=range]{{min-height:44px}}input[type=checkbox]{{width:24px;height:24px}}}}
 /* The how-to and the start briefing name keyboard keys (「← →」), which a
  * phone does not have; the on-screen pad appears only once play starts, so
  * before that a touch visitor is told to press keys they cannot (C-1229).

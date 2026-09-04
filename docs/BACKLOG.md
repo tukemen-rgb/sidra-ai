@@ -3280,6 +3280,20 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [x] 完了 2026-09-04 14:3x UTC 辛口ユーザー（`creation_touch_form_controls` 4.29→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→8.57/7.14/8.57/8.57/2.86 に落ち、復元で 10.0。iPhone 12 実測: select/range/color が font 16px・高さ 44px、checkbox 24px、coarse=true・desktop 不変）**C-1234: 生成ゲームの調整パネル（難易度 select・スライダー・色・チェックボックス）がスマホで極小＝タップ困難＋13.3px フォントで iOS がフォーカス時にズームする。**
+      （辛口ユーザーループ起票・11 巡目 スマホ操作・1/10）iPhone 12 相当で生成
+      ゲームを開くと、canvas 下の調整パネルの select（63×19）・range/color/number
+      input（〜129×16, 50×27）・checkbox（13×13）がいずれも 44px 未満で指で押しにくい。
+      さらに全コントロールが 13.3px フォントのため iOS Safari がフォーカス時に
+      自動ズームする（C-1225 で ask ページの入力は 16px にして解決済みだが生成
+      ゲーム殻は未対応）。C-1219 の coarse-pointer ルールは `button` だけを 48px に
+      していて form コントロールを含んでいない。**再現手順**: iPhone 12 emulation で
+      生成ゲームを開く → Playwright で select/input の高さ 13〜27px・font-size 13.3px。
+      **最小の解決**: games.py の _page 殻の coarse-pointer メディアクエリに
+      select/input を追加（min-height 44px・font-size:16px、checkbox は 24px）。
+      button/desktop/canvas パッドは不変。→ 動かす数字: touch_form_controls
+      unmeasurable→10（新設・coarse で select/input が 16px × min-height 指定 ×
+      checkbox 拡大 × desktop 不変）
 - [x] 完了 2026-09-04 13:3x UTC 辛口ユーザー（`cli_network_error_guidance` 6.25→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→6.25/6.25/8.75/8.75/7.50 に落ち、復元で 10.0。実測: `--url ftp://x` が「通信に失敗した。…確認する。（UnsupportedProtocol）」に）**C-1233: sidra-ask の通信失敗の catch-all が英語の例外クラス名を丸出しにし次の一手を言わない（例「要求に失敗した: RemoteProtocolError」）。**
       （辛口ユーザーループ起票・10 巡目 エラー文言・1/10）CLI で応答が途中で
       切れる（サーバがローカルモデル生成中に落ちる／接続リセット）と

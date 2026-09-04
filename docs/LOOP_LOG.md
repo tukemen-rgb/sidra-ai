@@ -6838,3 +6838,26 @@ C-1401 の trail を 2 型目（marble）へ。z は周回距離と同じ形な�
 `--compare /tmp/before-1127.json` **exit 1**（NO MOVEMENT）。
 
 2026-09-04 14:07 UTC ループA started（Board=13、増減なし）
+
+2026-09-04 14:22 UTC 辛口ユーザー started（11 巡目 スマホ操作）
+
+2026-09-04 14:3x UTC 辛口ユーザー C-1234 完了（11 巡目 スマホ操作）。
+  生成ゲームの調整パネルの非ボタン操作（難易度 select・range/color/number
+  スライダー・checkbox）が iPhone 12 相当で 13〜27px と極小＝タップ困難、かつ
+  13.3px フォントで iOS がフォーカス時に自動ズーム。C-1219 の coarse ルールは
+  button だけを 48px にしており form コントロール未対応、C-1225 の 16px 無ズーム
+  規則も ask ページだけで生成ゲーム殻には無かった。games.py の _page 殻の
+  coarse-pointer メディアクエリに select/input の font-size:16px と min-height:44px、
+  checkbox の 24px 拡大を追加（1 行・button 規則を先頭に保持し C-1219 判定を維持）。
+  button/desktop/canvas パッドは不変。
+  判定器: creation_touch_form_controls 4.29→10、exit 0。
+  pytest 全通し FAILED 0、gate MISS 0。
+  破壊 5 通り: ①16px フォント床を外す→8.57 ②44px min-height を外す→7.14
+  ③checkbox 拡大を外す→8.57 ④min-height を 30px に弱める→8.57 ⑤規則を coarse の
+  外（desktop base）へ漏らす→2.86。いずれも下がり、復元で 10.0。
+  iPhone 12 実測（script 除去した殻に select/input を注入・coarse=true）:
+  select/range/color が font 16px・高さ 44px、checkbox 24px。
+  スマホ 5 面（tap 48dp・折返し・キースクロール抑止・入力無ズーム・触覚ヒント・
+  今回の調整パネル入力）でかなり堅くなった。
+  次サイクル候補（6 点未満のみ）: ①生成物の商標作品名（4/10・要相談）
+  ②ポケモン等の他商標 routing（3/10）③閉じない ** の残存（3/10）。5 エリア一巡完了、次巡は生成ゲームへ。

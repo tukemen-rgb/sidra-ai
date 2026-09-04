@@ -1774,6 +1774,25 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1234: C-1219 raised the panel's buttons to 48dp, but the tuning panel's
+    # select/sliders/colour/checkboxes stayed 13-27px and rendered at 13.3px -
+    # too small to tap and small enough to make iOS zoom on focus (the ask page
+    # fixed that with a 16px floor, C-1225). The shell now floors select/input
+    # at 16px and 44px min-height for a coarse pointer and enlarges checkboxes;
+    # button/desktop/canvas pad are unchanged.
+    from sidra_ai.evals.touch_form_controls import evaluate_touch_form_controls
+
+    touch_form = evaluate_touch_form_controls()
+    c.add(
+        "creation_touch_form_controls",
+        "スマホで調整パネルの入力（select/スライダー/色/チェック）が押せて拡大しない",
+        10.0 * touch_form.checks_passed / touch_form.checks_total,
+        detail=f"{touch_form.checks_passed}/{touch_form.checks_total} checks; "
+               "src/sidra_ai/evals/touch_form_controls.py"
+               + ("" if touch_form.passed else "; " + "; ".join(touch_form.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1229: the how-to named only keyboard keys, which a phone lacks, and the
     # on-screen pad appears only once play starts. A coarse-pointer hint now
     # names the pad before then; desktop keeps its keyboard story.
