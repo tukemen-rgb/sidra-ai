@@ -34,6 +34,8 @@ a template written after it.
 
 from __future__ import annotations
 
+import json
+
 MARBLE_TITLE = "転がる玉のコース"
 MARBLE_HOW = "← → で玉を寄せる。ゲートを抜けると加点、ブロックに当たると転倒。"
 
@@ -112,6 +114,9 @@ function step(){
        pixels: the part does not care which space it is moving in. */
     partsSteerX(ball,3.4,-LANE+14,LANE-14);
     ball.z+=rollNow();
+    /* Where we were, at this point down the corridor (C-1412). z is the
+       course, so a faster roll stays in step with the trail. */
+    ghostSample(ball.z,ball.x);
     /* Roll: the marble bobs a little so the depth reads as motion. */
     ball.y=8+Math.sin(t*0.18)*1.6;
     things.forEach(o=>{if(o.done)return;
@@ -176,6 +181,18 @@ function step(){
       cx.fillRect(p.x-w,p.y-h,w*2,h);
       cx.fillStyle=shade('MAGENTA_TOKEN',k*0.6);
       cx.fillRect(p.x-w,p.y-h,w*2,4)}});
+  /* The past self, at this point down the corridor: drawn and nothing
+     else - no collision, no score, no sound (C-1401's contract, wired to
+     its second template by C-1412). Placed at the marble's own depth so
+     the two are compared where the player is looking, and under it so the
+     present is never hidden by the past. */
+  const gx=ghostAt(ball.z);
+  if(gx!==null){const gp=proj(gx,8,NEAR+34),gr=13*gp.s;
+    cx.save();cx.globalAlpha=0.32;
+    cx.fillStyle=shade(TUNE_ACCENT,0.55);cx.beginPath();
+    cx.arc(gp.x,gp.y,gr,0,6.2832);cx.fill();
+    cx.globalAlpha=0.6;cx.strokeStyle=shade(TUNE_ACCENT,1);cx.lineWidth=1;
+    cx.beginPath();cx.arc(gp.x,gp.y,gr,0,6.2832);cx.stroke();cx.restore()}
   /* The marble last: it is the nearest thing there is. */
   const bp=proj(ball.x,ball.y,NEAR+34),br=13*bp.s;
   cx.fillStyle='#00000044';cx.beginPath();
@@ -203,6 +220,7 @@ function marbleFacts(){let next=null;
   things.forEach(o=>{if(o.done||next)return;
     if(o.z-ball.z>0)next={kind:o.kind,x:o.x,dz:o.z-ball.z}});
   return {state:state,z:ball.z,x:ball.x,spd:rollNow(),gates:gates,score:score,
+    ghost:ghostFacts(),
     hotTotal:hotTotal,hotTaken:hotTaken,scene:SCENE,
     course:COURSE,next:next}}
 step();
@@ -276,11 +294,93 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The ghost probe (C-1412). The scene probe above rolls one course; this
+#: one rolls two, with a browser that remembers between them, and records
+#: where the marble went and where the ghost was drawn. ``roll`` overrides
+#: the speed the way the panel does, because the claim worth checking is
+#: the one the shared judge cannot make: the trail is indexed by z down
+#: the corridor, so a *faster* run still meets its past self at the same
+#: place on the course rather than at the same frame.
+GHOST_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+const store = STORED_INPUT;
+globalThis.localStorage = {
+  getItem: (k) => (k in store ? store[k] : null),
+  setItem: (k, v) => { store[k] = String(v) },
+  removeItem: (k) => { delete store[k] } };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e)) }
+key('keydown', ' '); key('keyup', ' ');
+run(2);
+/* Where the marble went, and where the ghost was drawn, frame by frame. */
+const path = [], seen = [];
+let frames = 0;
+while (marbleFacts().state === 'roll' && frames++ < 6000) {
+  const f = marbleFacts();
+  path.push([Math.round(f.z), Math.round(f.x)]);
+  if (f.ghost.last) seen.push([f.ghost.last[0], f.ghost.last[1]]);
+  key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
+  let aim = null;
+  if (f.next) {
+    aim = f.next.kind === 'block'
+      ? (f.next.x >= f.x ? f.next.x - 60 : f.next.x + 60)
+      : f.next.x }
+  if (aim !== null && aim < f.x - 3) key('keydown', 'ArrowLeft');
+  else if (aim !== null && aim > f.x + 3) key('keydown', 'ArrowRight');
+  run(1) }
+/* Past the end of the round, so roundBank has a chance to write. */
+run(240);
+const end = marbleFacts();
+console.log(JSON.stringify({ path: path, seen: seen, frames: frames,
+  ghost: end.ghost, z: end.z, score: end.score, state: end.state,
+  spd: end.spd, trail: store['sidra.ghost.marble'] || null }));
+"""
+
+
+def ghost_probe_source(
+    script: str, *, stored: dict | None = None, roll: float | None = None
+) -> str:
+    """Roll the corridor with a browser that remembers, at a chosen speed."""
+
+    seeded = dict(stored or {})
+    if roll is not None:
+        tune = dict(seeded.get("sidra.tune.marble") or {})
+        tune["speed"] = roll
+        seeded["sidra.tune.marble"] = tune
+    packed = {
+        key: (value if isinstance(value, str) else json.dumps(value))
+        for key, value in seeded.items()
+    }
+    return GHOST_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "STORED_INPUT", json.dumps(packed)
+    )
+
+
 __all__ = [
     "MARBLE_HOW",
     "MARBLE_SCRIPT",
     "MARBLE_TITLE",
     "MARBLE_WORDS",
     "PROBE",
+    "GHOST_PROBE",
+    "ghost_probe_source",
     "probe_source",
 ]

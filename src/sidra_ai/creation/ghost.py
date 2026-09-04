@@ -24,6 +24,13 @@ Wired to the racing template first, as the item allows: its progress is a
 single number along a course, which is the shape this needs. Templates
 whose progress is a position in a room need a different trail, and that
 is written down rather than half-built.
+
+``marble`` is the second (C-1412), and it needed nothing new: z down the
+corridor is the same shape as distance around a lap, so the same trail,
+the same key and the same switch carry over. The only marble-specific
+decision is where the past self is drawn - at the present marble's own
+depth, so the two are compared where the player is looking, and under it,
+so the present is never hidden by the past.
 """
 
 from __future__ import annotations
@@ -34,14 +41,13 @@ import json
 #: progress-indexed trail needs. The others are listed with the reason
 #: they are not here, so a later item starts from the fact rather than
 #: from an empty function.
-GHOST_TEMPLATES: tuple[str, ...] = ("racing",)
+GHOST_TEMPLATES: tuple[str, ...] = ("racing", "marble")
 
 #: Why each of the others is not wired yet. A template with no progress
 #: axis has nothing to index a trail by.
 GHOST_UNWIRED: dict[str, str] = {
     "platformer": "progress is x within a level, but the level scrolls by camera; needs a second axis",
     "shooter": "the ship holds station; the course is the wave number, not a distance",
-    "marble": "progress is z along the corridor - the closest of the rest, and the next one to wire",
     "adventure": "progress is which room, not a position on a line",
     "kaiju": "the fight is a cycle count, not a course",
     "catch": "no progress axis at all: the basket is where you left it",
@@ -68,7 +74,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
 GHOST_PREAMBLE = """
 /* --- the best run, played back beside this one (§11 事実 1) ----------- */
 const GHOST_KEY='sidra.ghost.'+GHOST_NAME_TOKEN,GHOST_STEP=GHOST_STEP_TOKEN;
-let GHOST_TRAIL=null,GHOST_RUN=[],GHOST_DRAWN=0,GHOST_SAVED=0;
+let GHOST_TRAIL=null,GHOST_RUN=[],GHOST_DRAWN=0,GHOST_SAVED=0,GHOST_LAST=null;
 function ghostStore(){try{return (typeof localStorage!=='undefined')?localStorage:null}
   catch(e){return null}}
 /* On by default: a past self that has to be switched on is a past self
@@ -93,7 +99,11 @@ function ghostAt(progress){
   if(!ghostOn()||!GHOST_TRAIL)return null;
   const v=GHOST_TRAIL[ghostBucket(progress)];
   if(typeof v!=='number'||!isFinite(v))return null;
-  GHOST_DRAWN++;return v}
+  /* The bucket asked for and the value handed back, kept on the page.
+     A judge that wants to know the ghost is where the last run was has
+     to compare against *that* run; re-deriving the bucket out here would
+     only prove the arithmetic agrees with itself (C-1412). */
+  GHOST_DRAWN++;GHOST_LAST=[ghostBucket(progress),v];return v}
 /* Banked with the score it belongs to, through roundBank, so the trail and
    the number can never describe different runs. */
 function ghostBank(record){if(!record)return false;
@@ -115,6 +125,7 @@ function ghostRunHash(){let h=2166136261;
   return h}
 function ghostFacts(){return {on:ghostOn(),had:GHOST_TRAIL!==null,
   drawn:GHOST_DRAWN,saved:GHOST_SAVED,
+  last:GHOST_LAST?GHOST_LAST.slice():null,
   samples:GHOST_RUN.filter(function(v){return typeof v==='number'}).length,
   runHash:ghostRunHash(),
   stored:(ghostRead()||[]).length}}

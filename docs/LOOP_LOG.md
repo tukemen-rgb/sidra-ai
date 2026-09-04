@@ -6673,3 +6673,32 @@ C-1405 のはしごを 2 型目（shooter）へ。撃墜はすでに離散的な
 （`creation_shooter_combo` unmeasurable→1 のみ・他は不変）。新規テスト 10 件。
 
 2026-09-04 11:08 UTC ループA started（Board=13、増減なし）
+
+## 2026-09-04 11:5x UTC ループA — C-1412 完了（`creation_marble_ghost` 0→1・`creation_ghost_replay` 1→2）
+
+C-1401 の trail を 2 型目（marble）へ。z は周回距離と同じ形なので、trail も
+キーも スイッチもそのまま乗った。marble 側の判断は描画位置だけ——現在の玉と
+**同じ奥行き**に（見ている場所で比べられるように）、かつ**その下**に
+（現在が過去に隠れないように）。
+
+**新しい数字は既存判定器の焼き直しではない。** §11 が寄りかかっている性質は
+「軌跡は**進行度**で索引され、時計では索引されない」ことだが、
+`creation_ghost_replay` は各型を**同じ速度で自分と**比べるのでこれを見られない。
+実測: 索引を時間に壊すと `creation_ghost_replay` は **2 のまま通り**、
+`creation_marble_ghost` だけが 0 に落ちた（「1 回目の同じ z から 109px ずれた」）。
+そこで 2 回目は**わざと速度を上げて**走らせ（6.0→8.1・662→491 フレーム）、
+描かれたゴーストを「1 回目がその z に居たときの x」と突き合わせる。
+実測の最大ずれは 10px、許容は 24px（バケット 1 個ぶんの操舵）。
+
+比較はページ側の `ghostAt` が使ったバケットを読む（`ghostFacts().last` を新設）。
+バケットを判定器側で計算し直せば、検査は自分の算術に頷くだけになる。
+
+**既存判定器の detail が、検査していない主張を書いていた。**
+`creation_ghost_replay` の説明文にあった「コース位置で索引するので速い走行でも
+ずれない」は、そこでは一度も確かめられていない。破壊で実証できたので文面を
+直し、その主張は `creation_marble_ghost` が速度を変えて検査すると明記した。
+
+検証: `python -m pytest` **exit 0**（FAILED 0 件）、`verify_gate_recall.py`
+**PASSED**、`--compare /tmp/before-1412.json` **exit 0**
+（`creation_ghost_replay` 1→2・`creation_marble_ghost` unmeasurable→1・他は不変）。
+新規テスト 6 件。

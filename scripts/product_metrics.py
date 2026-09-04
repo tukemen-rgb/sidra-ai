@@ -6859,11 +6859,127 @@ def measure_creation(c: Collector) -> None:
         float(len(ghost_ok)) if not ghost_gaps else 0.0,
         detail=(
             "実走行 2 回。1 回目はゴースト無しで走って軌跡を保存し、2 回目に"
-            "だけ半透明のゴーストが現れる（描画差で確認）。コース位置で索引"
-            "するので速い走行でもずれない。当たり判定なし——2 回目のスコアは"
-            "1 回目と同じで、パネルで切ると描画は 1 回目と完全一致。通信は 0"
+            "だけ半透明のゴーストが現れる（描画差で確認）。当たり判定なし"
+            "——2 回目のスコアは 1 回目と同じで、パネルで切ると描画は 1 回目と"
+            "完全一致。通信は 0。**「コース位置で索引するので速い走行でも"
+            "ずれない」はここでは検査していない**——同じ速度で自分と比べる"
+            "限り時間索引でも辻褄が合う（実測: 時間索引に壊すとこの数字は 2 の"
+            "まま）。その主張は creation_marble_ghost が速度を変えて検査する"
             if not ghost_gaps
             else "; ".join(ghost_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the corridor's past self, met at the same place ----------------
+    #
+    # C-1412 wires C-1401's trail to its second template. z down the
+    # corridor is the same shape as distance around a lap, so the trail,
+    # the key and the switch all carried over and nothing new was needed.
+    #
+    # This number is not the shared one asked twice. ``creation_ghost_replay``
+    # runs each template against itself at one speed, which cannot see the
+    # property §11 leans on: the trail is indexed by *progress*, not by the
+    # clock. So the second run here is a deliberately faster one, and the
+    # ghost it draws is compared against where the first run actually was
+    # at that point on the course - a frame-keyed trail agrees with itself
+    # and lands in the wrong place, which is exactly what that comparison
+    # catches.
+    from sidra_ai.creation.ghost import GHOST_STEP as _mg_step
+    from sidra_ai.creation.marble import ghost_probe_source as _mg_probe
+
+    mg_gaps: list[str] = []
+    mg_page = _tune_generate("玉転がしを作って", template="marble").html
+    mg_script = _scene_re.search(r"<script>(.*?)</script>", mg_page, _scene_re.S)
+    mg_first = mg_fast = mg_off = None
+    mg_checked = mg_worst = 0
+    if mg_script is None:
+        mg_gaps.append("no script on the page")
+    else:
+        def _mg_roll(**kwargs):
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_mg_probe(mg_script.group(1), **kwargs),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                raise ValueError(out.stderr.strip()[:80])
+            return json.loads(out.stdout.strip().splitlines()[-1])
+
+        mg_base = {"sidra.seen.marble": "1"}
+        try:
+            mg_first = _mg_roll(stored=dict(mg_base))
+            if mg_first["trail"]:
+                mg_carry = {**mg_base, "sidra.ghost.marble": mg_first["trail"]}
+                mg_fast = _mg_roll(stored=dict(mg_carry), roll=9.0)
+                mg_off = _mg_roll(
+                    stored={**mg_carry, "sidra.tune.marble": {"ghost": False, "speed": 9.0}}
+                )
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            mg_gaps.append(f"probe unavailable ({exc})")
+
+    if mg_first is not None:
+        if mg_first["ghost"]["had"] or mg_first["ghost"]["drawn"]:
+            mg_gaps.append("a ghost rolled beside the very first run")
+        if not mg_first["trail"] or mg_first["ghost"]["saved"] < 1:
+            mg_gaps.append("the run that set the record saved no trail")
+    if mg_fast is not None and mg_first is not None:
+        # The second run is genuinely faster, or the whole point of the
+        # comparison is untested.
+        if mg_fast["spd"] <= mg_first["spd"] or mg_fast["frames"] >= mg_first["frames"]:
+            mg_gaps.append(
+                f"the second run was not faster ({mg_fast['spd']:.1f} in "
+                f"{mg_fast['frames']} vs {mg_first['spd']:.1f} in {mg_first['frames']})"
+            )
+        if not mg_fast["ghost"]["drawn"]:
+            mg_gaps.append("the faster run met no ghost")
+        else:
+            # Where the ghost was drawn, against where the first run was at
+            # that point on the course. The bucket is the page's own, so
+            # the course position is not recomputed out here.
+            mg_path = mg_first["path"]
+            for bucket, drew in mg_fast["seen"]:
+                target = bucket * _mg_step
+                near, gap = None, 1e9
+                for was_z, was_x in mg_path:
+                    d = abs(was_z - target)
+                    if d < gap:
+                        gap, near = d, was_x
+                if near is None or gap > _mg_step:
+                    continue
+                mg_checked += 1
+                mg_worst = max(mg_worst, abs(drew - near))
+            if mg_checked < 100:
+                mg_gaps.append(f"only {mg_checked} points of the course could be compared")
+            elif mg_worst > 24:
+                mg_gaps.append(
+                    f"the ghost drifted {mg_worst}px from where the run it came from was"
+                )
+    if mg_off is not None and mg_fast is not None:
+        if mg_off["ghost"]["drawn"]:
+            mg_gaps.append("the panel switch does not put the ghost away")
+        # Drawn, and nothing else: the same roll with and without it.
+        if mg_off["path"] != mg_fast["path"]:
+            mg_gaps.append("the ghost changed how the marble rolled")
+        if mg_off["ghost"]["runHash"] != mg_fast["ghost"]["runHash"]:
+            mg_gaps.append("the ghost changed the run it was drawn beside")
+    c.add(
+        "creation_marble_ghost",
+        "コースの位置で索引されたゴースト（速い走行でもずれない）",
+        0.0 if mg_gaps else 1.0,
+        detail=(
+            "; ".join(mg_gaps)
+            if mg_gaps
+            else f"marble を 3 回実走行: 1 回目はゴースト無しで軌跡を保存、"
+            f"2 回目は**速度を上げて**（{mg_first['spd']:.1f}→{mg_fast['spd']:.1f}・"
+            f"{mg_first['frames']}→{mg_fast['frames']} フレーム）走り、"
+            f"描かれたゴースト {mg_checked} 点すべてが 1 回目の同じ z 位置と"
+            f"最大 {mg_worst}px しか違わない（時間で索引していればここでずれる）。"
+            "パネルで切ると 1 点も描かれず、切っても切らなくても転がりは同一"
+            if mg_first and mg_fast
+            else ""
         ),
         kind=OUTCOME,
     )

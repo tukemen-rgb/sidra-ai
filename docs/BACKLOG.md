@@ -3801,7 +3801,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       C-1405 と同じ。→ 動かす数字: creation_shooter_combo unmeasurable→1
       （実走行で「連続キルで上がる・被弾で戻る・グレイズ点と独立・点に
       効く」を検査。破壊で 0）
-- [~] 作業中 2026-09-04 11:09 ループA **C-1412: marble にゴースト（2 型目の配線）。**（進捗監視起票
+- [x] 完了 2026-09-04 11:5x UTC ループA（`creation_marble_ghost` unmeasurable→**1** かつ `creation_ghost_replay` **1→2**・`--compare` exit 0・他の数字は動かず。**5 通りの破壊で 0 に落ちる**ことを確認: 軌跡を記録しない、ゴーストを描かない、**時間で索引する**、ゴーストが玉を押す、パネルのスイッチを無視する。**新しい数字は既存判定器の焼き直しではない**——「時間で索引する」破壊で `creation_ghost_replay` は **2 のまま通った**（同じ速度で自分と比べる限り時間索引でも辻褄が合う）のに対し、`creation_marble_ghost` は 0 に落ちた（「1 回目の同じ z から 109px ずれた」・許容 24px・実測の最大は 10px）。そのため 2 回目は**わざと速度を上げて**走らせ、描かれたゴーストを「1 回目がその位置に居たときの x」と突き合わせている。**既存判定器の detail が検査していない主張を書いていた**ので直した——`creation_ghost_replay` の「コース位置で索引するので速い走行でもずれない」はそこでは検査されていない。marble 側は z 以外に新しい部品を要さず（trail・キー・スイッチはそのまま）、描画位置だけが marble の判断（現在の玉と同じ奥行き・その下）)**C-1412: marble にゴースト（2 型目の配線）。**（進捗監視起票
       2026-09-04・根拠は ghost.py の GHOST_UNWIRED 自身の記述「progress is
       z along the corridor - the closest of the rest, and the next one to
       wire」）C-1401 の trail 部品を z 軸で索引して marble に配線する。
