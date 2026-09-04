@@ -2859,6 +2859,18 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
+- [~] 作業中 2026-09-04 00:52 辛口クリエイター **C-1320: 全画面フラッシュが 1 秒に 4 回点く（§4→§15・WCAG 2.3.1 超過の実測）。**
+      （辛口クリエイターループ起票・観点=§4 視認性。前回=§7。基準不足の
+      ため WCAG 2.3.1 を §15 に増築してから起票）
+      duel の発射×2 者＋被弾は各々全画面 α0.5 白の flash=1 で、実測
+      （連打射撃・土壇場テンポ・2 シード）で 1 秒窓に 4 onset＝WCAG
+      2.3.1 の「どの 1 秒にも 3 回まで」を超える。全画面なので面積免除
+      （視野 10 度の 25%＝約 341×256px）も使えない。fishing も同型。
+      実装: juice.py に flashGate()（60 フレーム窓で onset 3 回まで、
+      4 回目だけを拒む——演出は殺さない）を追加し、duel 3 箇所・
+      fishing 1 箇所の flash=1 を gate 経由に。probe は同じ連打シナリオで
+      「最悪 1 秒窓 ≤3・フラッシュ自体は生きている（15 秒で 5 回以上）」
+      を実測。→ 動かす数字: creation_flash_cap unmeasurable→1
 - [x] 完了 2026-09-04 00:10 UTC 辛口クリエイター（`creation_scene_palettes` 5→**6**、判定器 exit 0。CATCH_PALETTE（3 幕・最終幕 +0.22 で最明）を追加し、catch の step() が ROUND_MS の 3 等分で setScene・背景を scenePaint 経由に（落下物・受け皿・HUD は §4 のため不変）。新設 catchgame.py の probe は最下の落下物へ受け皿を寄せる実プレイで、幕 0→1→2 が 24s/45s に成立・第 1 幕と最終幕で受けが 1 点ずつ・輝度 0.025→0.094→0.225（紙テーマでも最終幕最明）・60s の time 区切り不変を確認。creation_round_scene も fishing+catch の 4 走行に拡張。破壊 2 通り〔setScene(0) 固定→専用計器 0（汎用は素通し）／最終幕を暗く→汎用 4 テーマ・専用とも 0〕。pytest exit 0（2966 passed / 1 skip）・gate MISS 0）**C-1319: catch の空が 60 秒間まったく変わらない（§7・fishing C-1315 と同じ穴の残り）。**
       （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§6）
       時計で区切られる 2 型のうち fishing は C-1315 で 3 幕の空を得たが、
