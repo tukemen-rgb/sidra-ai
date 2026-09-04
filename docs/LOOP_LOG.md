@@ -6719,3 +6719,5 @@ C-1401 の trail を 2 型目（marble）へ。z は周回距離と同じ形な�
 **PASSED**、`--compare /tmp/before-1412.json` **exit 0**
 （`creation_ghost_replay` 1→2・`creation_marble_ghost` unmeasurable→1・他は不変）。
 新規テスト 6 件。
+
+2026-09-04 12:07 UTC ループA started（Board=13、増減なし）
