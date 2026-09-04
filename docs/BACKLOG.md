@@ -2690,7 +2690,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       requested_genre にはユーザーが実際に書いた語を記録し、ページ表題が
       未対応ジャンル名を自称しないこと（断り時は既定題）。
       → 動かす数字: creation_genre_honest の対象に 対戦格闘 の語順違いを追加
-- [ ] **C-1122: FAIL_BEATS をラウンド境界でリセットする。**（批評 #3・#11）
+- [~] 作業中 2026-09-04 03:07 ループA **C-1122: FAIL_BEATS をラウンド境界でリセットする。**（批評 #3・#11）
       全勝でも streak が増える実測（duel 29 全勝→streak30）。roundTick の
       rebank 分岐で 0 に戻し、fishing/catch の時間切れは敗北でなく通常終了に
       分類。「自己ベスト」と敗北記録が同一ラウンドに並存しないことまで計器で。
