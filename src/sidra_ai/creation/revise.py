@@ -28,6 +28,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sidra_ai.creation.games import undepicted_subject
 from sidra_ai.creation.games import (
     TEMPLATES,
     _DIFFICULTY,
@@ -276,13 +277,54 @@ def _load_meta(path: Path) -> dict | None:
     return raw
 
 
+def _distinctive_name(meta: dict) -> str:
+    """The part of a page's title that names *it* and not its genre.
+
+    Reuses C-1125's rule, because it is the same question asked twice: what
+    did the operator name, beyond the kind of thing they wanted? A title
+    that is only its genre word ("パズル") comes back empty and is never
+    matched by name - it would otherwise swallow every message mentioning
+    puzzles, and a page titled 「ゲーム」 would swallow all of them.
+    """
+
+    title = str(meta.get("title") or "")
+    template = str(meta.get("template") or "")
+    if not title:
+        return ""
+    # A page the operator never named is not addressable by the name we
+    # gave it. Without this the default 「タイミング釣り」 yielded the
+    # "distinctive" name 「タイミング」, so 「タイミングを直して」 - or any
+    # message that happened to contain it - would have picked a page
+    # nobody had called anything.
+    spec = TEMPLATES.get(template)
+    if spec is not None and title == spec.default_title:
+        return ""
+    return undepicted_subject(str(meta.get("request") or title), template, title)
+
+
 def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | None:
     """Pick the game a revision message refers to.
 
-    Latest wins, unless the message names a genre we have a template for -
-    「レースのほうを難しくして」 should find the racing game even when a
-    puzzle was generated afterwards. Filenames sort by their timestamp
-    suffix, so "latest" needs no extra bookkeeping.
+    Three rules, most specific first.
+
+    **What it was called.** 「猫のほうを難しくして」 means the cat game, and
+    nothing else can be meant - but 猫 is not a genre word, so before
+    C-1126 the message fell through to "latest" and quietly adjusted
+    whatever had been made most recently. The name is matched on its
+    *distinctive* part, computed the same way C-1125 works out what a
+    request actually named: a page titled 「パズル」 has nothing left once
+    its genre word is removed, so it can never be picked this way and a
+    message mentioning パズル goes to the genre rule below, where it
+    belongs. Without that, one page called 「ゲーム」 would answer to every
+    revision message ever typed.
+
+    **What kind it is.** 「レースのほうを難しくして」 finds the racing game
+    even when a puzzle was generated afterwards.
+
+    **Otherwise the latest**, which is what a bare 「難しくして」 means.
+
+    Filenames sort by their timestamp suffix, so "latest" needs no extra
+    bookkeeping.
     """
 
     directory = Path(data_dir) / "artifacts"
@@ -303,6 +345,12 @@ def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | 
             candidates.append((path, meta))
     if not candidates:
         return None
+    # The name first: it can only mean one page, where a genre can mean
+    # several and 「latest」 means whichever happened to be last.
+    for path, meta in candidates:
+        named = _distinctive_name(meta)
+        if named and named in message:
+            return path, meta
     requested = detect_genre(message)
     if requested is not None and requested.supported:
         for path, meta in candidates:

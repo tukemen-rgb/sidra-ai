@@ -3942,6 +3942,90 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a revision finds the page it was talking about -----------------
+    #
+    # C-1126: 「猫のほうを難しくして」 can only mean the cat game, but 猫 is
+    # not a genre word, so the message fell through to "whatever was made
+    # last" and quietly adjusted the puzzle instead. The name is matched on
+    # its distinctive part - C-1125's rule, asked again - so a page titled
+    # 「パズル」 is never picked by name and a page titled 「ゲーム」 cannot
+    # answer to every message ever typed.
+    import time as _rev_time
+
+    from sidra_ai.creation.intent import detect_creation_intent as _rev_intent
+    from sidra_ai.creation.revise import find_target_meta as _rev_target
+    from sidra_ai.creation.router import build_default_router as _rev_router
+
+    rev_gaps: list[str] = []
+    _rev_dir = _scene_tempfile.mkdtemp(prefix="revision-target-")
+    _rev_maker = _rev_router(data_dir=_rev_dir)
+    # Made in this order, so "latest" is the puzzle and every wrong answer
+    # is the same wrong answer.
+    # 「ゲームを作って」 is titled 「ゲーム」 - a page whose name is nothing
+    # but the generic word. Made *after* the cat game on purpose: matching
+    # whole titles would let it answer to every message containing ゲーム,
+    # and the cat's own revision is the one it would steal.
+    for _rev_req in (
+        "猫のゲームを作って",
+        "ゲームを作って",
+        "レースゲームを作って",
+        "パズルゲームを作って",
+    ):
+        _rev_maker.route(_rev_req, _rev_intent(_rev_req), [])
+        # Second-resolution stamps; without this the order is not the order.
+        _rev_time.sleep(1.1)
+
+    def _rev_pick(message):
+        found = _rev_target(_rev_dir, message)
+        return (found[1].get("template"), found[1].get("title")) if found else (None, None)
+
+    _rev_cases = (
+        # By name, where no genre word appears at all: the defect itself.
+        ("猫のほうを難しくして", "fishing"),
+        ("猫のゲームをやさしくして", "fishing"),
+        # By genre, still.
+        ("レースのほうを難しくして", "racing"),
+        # A title that is only its genre word must not be matched by name -
+        # but the genre rule finds it anyway, which is the right answer for
+        # the right reason.
+        ("パズルを難しくして", "puzzle"),
+        # Nothing named: the latest, which is what a bare ask means.
+        ("難しくして", "puzzle"),
+        ("もっとやさしく", "puzzle"),
+    )
+    # The rule that stops one page answering to everything, checked
+    # directly: a title the operator never chose, and a title that is only
+    # its genre word, are both unaddressable by name. The driven cases
+    # above cannot separate this from whole-title matching - both give the
+    # same answers - so it is asserted where it lives.
+    from sidra_ai.creation.revise import _distinctive_name as _rev_name
+
+    for _rev_meta, _rev_why in (
+        ({"title": "タイミング釣り", "template": "fishing", "request": "ゲームを作って"},
+         "a page nobody named is addressable by the name we gave it"),
+        ({"title": "パズル", "template": "puzzle", "request": "パズルゲームを作って"},
+         "a title that is only its genre word is addressable by name"),
+    ):
+        if _rev_name(_rev_meta):
+            rev_gaps.append(_rev_why)
+    for message, want in _rev_cases:
+        got, title = _rev_pick(message)
+        if got != want:
+            rev_gaps.append(f"「{message}」 -> {got}（{title}）, wanted {want}")
+    c.add(
+        "creation_revision_targeting",
+        "直す対象が依頼文の指す一枚になる",
+        0.0 if rev_gaps else 1.0,
+        detail=(
+            "; ".join(rev_gaps)
+            if rev_gaps
+            else f"4 枚作って {len(_rev_cases)} 通りの言い方で確認: 題名で指せば"
+            "その一枚、ジャンルで指せばその型、何も指さなければ最新。"
+            "ジャンル語だけの題名は題名照合の対象にしない"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

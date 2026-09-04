@@ -2710,7 +2710,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       発火条件（title != default）を壊す。改名前の判定を保存して両立させる。
       3D 側にも同じ subject ルールを実装（魚を「ゲーム」と自称しない）。
       → 動かす数字: creation_subject_honest unmeasurable→(ゲーム+3D)
-- [~] 作業中 2026-09-04 07:10 ループA **C-1126: revise の対象選択が題名・依頼文を見ない。**（批評 #8）
+- [x] 完了 2026-09-04 08:0x UTC ループA（`creation_revision_targeting` unmeasurable→**1**、判定器 exit 0・他の数字は動かず。4 通りの破壊で 0。対象選択を「題名 → ジャンル → 最新」の 3 段にした。題名の照合は**題名の識別部分**（C-1125 の規則を再利用）で行い、**作者が名付けていない既定題**と**ジャンル語だけの題名**は照合対象にしない。**この作業中に自分の修正のバグを 1 つ見つけた**——既定題「タイミング釣り」から識別部分「タイミング」が出てしまい、誰も名付けていないページが名前で選べるようになっていた）**C-1126: revise の対象選択が題名・依頼文を見ない。**（批評 #8）
       find_target_meta に meta.title / meta.request との照合を追加し、
       「◯◯の（ゲーム）」の◯◯が題名に一致する候補を genre 一致より優先。
       → 動かす数字: creation_revision_targeting unmeasurable→1
