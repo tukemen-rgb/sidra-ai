@@ -43,6 +43,20 @@ _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
 #: applied before whitespace collapse, while line starts still exist (C-1216).
 _MD_LIST = re.compile(r"(?m)^[ \t]*[-*+][ \t]+(?:\[[ xX]\][ \t]+)?")
 
+#: Git/AI commit-message trailers. Commits are ~43% of the indexed corpus and
+#: every one carries these lines; the echo lead extractor pulled them in as
+#: content, so an answer about a commit ended 「…方針を維持。 Co-Authored-By:
+#: Claude … Claude-Session: https://…」 - git plumbing shown as substance
+#: (C-1221). An allowlist of the actual trailer tokens, not a general
+#: 「Word: value」 rule, so content lines like 「TODO:」「影響:」 are left alone.
+#: Line-anchored and applied before whitespace collapse, while lines still
+#: exist; the raw citation excerpt does not go through here, so review keeps
+#: the verbatim message.
+_TRAILER = re.compile(
+    r"(?im)^[ \t]*(?:co-authored-by|signed-off-by|claude-session|reviewed-by"
+    r"|acked-by|tested-by|helped-by|reported-by|suggested-by|cc)[ \t]*:.*$"
+)
+
 
 def plain_text(text: str) -> str:
     """Strip Markdown decoration from an excerpt, keeping every word.
@@ -51,8 +65,15 @@ def plain_text(text: str) -> str:
     markers become plain prose; anything ambiguous (list numbers, stray
     asterisks in code-like text) is left alone, because dropping a real
     character from quoted evidence is worse than showing one marker.
+
+    Known git/AI commit-message trailer lines (Co-Authored-By, Claude-Session
+    and the like) are dropped too: they are plumbing, not content, and the
+    corpus is nearly half commits (C-1221). The removal is an allowlist of
+    real trailer tokens, so a content line that happens to start 「TODO:」 or
+    「影響:」 survives.
     """
 
+    text = _TRAILER.sub("", text)
     text = _MD_LIST.sub("", text)
     text = _MD_HEADING.sub("", text)
     text = _MD_BOLD.sub(r"\1", text)

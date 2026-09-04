@@ -642,6 +642,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1221: commits are ~43% of the corpus and every one ends with git/AI
+    # trailers (Co-Authored-By, Claude-Session). The lead extractor pulled
+    # them into the answer body as content; plain_text now drops the known
+    # trailer lines, so the answer and generated artifacts are clean while the
+    # raw citation excerpt stays verbatim for review.
+    from sidra_ai.evals.answer_no_git_trailers import evaluate_answer_no_git_trailers
+
+    trailers = evaluate_answer_no_git_trailers()
+    c.add(
+        "qa_answer_no_git_trailers",
+        "回答本文に commit の git トレーラが混じらない",
+        10.0 * trailers.checks_passed / trailers.checks_total,
+        detail=f"{trailers.checks_passed}/{trailers.checks_total} checks; "
+               "src/sidra_ai/evals/answer_no_git_trailers.py"
+               + ("" if trailers.passed else "; " + "; ".join(trailers.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1216: the top citation for a real revenue question was 26 characters
     # of raw Markdown cut mid-checkbox (「## D-CY4. … - [ ] **A.」). The lead
     # extractor now flattens markup (C-1212's plain_text) and label fragments

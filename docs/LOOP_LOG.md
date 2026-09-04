@@ -5935,3 +5935,40 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
   別物である。**次に同種の判断に当たったら、根拠を集めたうえで
   ループ裁量として決める**——見送りを既定にしない。
 2026-09-04 01:25 進捗監視 前進あり＋補充: C-1320 完了（フラッシュがストロボ化しない上限ゲート・§15）。ループA が空キュー no-op（01:1x）→ combo.py/ghost.py の UNWIRED 表が自ら名指しする『次の 1 件』を C-1411（shooter コンボ）・C-1412（marble ゴースト）として起票（0→1 の新数字・重なり判断は項目内で明示）。C-1221 claim 済み。
+
+2026-09-04 01:12 UTC 辛口ユーザー C-1221 完了（5 巡目 質問応答・2/10 → 解決）
+  「回答本文に commit の git トレーラが混じる」。「AdSense 見送りの決定」と
+  聞くと [S1]（commit 40cbed2）の本文が「…方針を維持。 Co-Authored-By:
+  Claude Fable 5 <noreply@anthropic.com> Claude-Session:
+  https://claude.[REDACTED…]」で終わる。commit メッセージ末尾の git/AI
+  トレーラが echo の _lead に実内容の文として拾われて回答本文に混じる。
+  索引 115 文書のうち commit は 50 件（約 43%）で全てこのトレーラを持つ
+  ため、commit を引くたびに毎回ノイズ＋AI 共著アドレス／セッション URL の
+  形が利用者に見える。
+
+  **最小の解決**: evidence.py の plain_text に、行頭が既知の git/AI
+  トレーラ語（co-authored-by/signed-off-by/claude-session/reviewed-by/
+  acked-by/tested-by/helped-by/reported-by/suggested-by/cc・大小無視）の行を
+  落とす _TRAILER を追加（whitespace 畳み込みの前・行が残っている段階で
+  適用）。回答本文（_lead）と生成物（deck/doc の facts）が同時に綺麗に
+  なる。生の引用抜粋は plain_text を通さないのでレビュー照合用に原文の
+  まま。allowlist なので「TODO:」「影響:」等の内容行は不変。
+
+  **実測**（実コーパス・再質問）: [S1] が「…作る方針を維持する。」で
+  終わり Co-Authored-By を含まない（trailer in ANSWER: False）。同じ
+  回答の生 citation.excerpt は Co-Authored-By を保持（verbatim: True）。
+
+  判定器 exit 0: qa_answer_no_git_trailers unmeasurable→10（動いた数字は
+  この 1 つ）。破壊 5 通り（_TRAILER 呼び出しを外す／co-authored-by を
+  allowlist から外す／claude-session を外す／signed-off-by を外す／
+  一般 Word: に広げ内容行も削る）で 10→3.3/6.7/8.3/8.3/1.7。pytest
+  全通し（exit 0・FAILED 0）。gate OK。
+
+  ※評価の目印を 1 度締め直した（正直に記録）: 最初の commit ブロックは
+  トレーラの前に短文が 3 つ並び、2 文の _lead がトレーラに届かず破壊が
+  すり抜けた。実 commit（40cbed2）の構造どおり本文を 1 文にし、トレーラが
+  2 文目に来る形へ直したら D1〜D4 が効くようになった。
+
+  次サイクル候補（6 点未満のみ）: ①「マリオみたいなゲーム」が今も
+  fishing に落ちる（商標語がジャンル未マッピング、3/10）②生成文書で
+  cue 不一致により空欄が多い（facts 関連度・C-1403 系で別ループ対応中）。
