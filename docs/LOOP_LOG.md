@@ -7041,3 +7041,21 @@ C 節・D 節に未着手も作業中も無い。E 節の 4 件は社長判断�
 
 C 節・D 節に未着手も作業中も無い。E 節の 4 件は社長判断待ち、F 節は取らない節。
 **キューを埋めるための作業は作らない。**
+
+2026-09-04 19:20 UTC 辛口ユーザー started（16 巡目 スマホ操作）
+
+2026-09-04 19:3x UTC 辛口ユーザー C-1239 完了（16 巡目 スマホ操作）。
+  生成スライド（deck HTML）が iPhone 12 相当で横にはみ出していた（clientWidth
+  390 に対し scrollWidth 482）。原因は decks.py の _render 殻に overflow-wrap が
+  無く、出典行（tukemen-rgb/site@sha:docs/… を「 / 」連結）や本文の長いトークン
+  （file パス等）が折り返さず横幅を押し広げること。ask ページは overflow-wrap:
+  anywhere で解決済みだったが deck 殻は未対応。deck 殻 CSS の body に
+  overflow-wrap:anywhere を追加（継承プロパティなので本文・出典・脚注に効く）。
+  レイアウト・配色・max-width は不変。
+  判定器: deck_mobile_no_overflow 2→10、exit 0。pytest 全通し FAILED 0、gate MISS 0。
+  破壊 5 通り: ①規則削除→2.0 ②overflow-wrap:normal→4.0 ③メディアクエリに閉じ込め
+  →4.0 ④h1 だけに限定（本文に届かない）→8.0 ⑤word-break:keep-all（折り返さない）→4.0。
+  復元で 10.0。iPhone 12 実測: 修正前 scrollWidth 482 → 修正後 390（横スクロール解消）。
+  次サイクル候補（6 点未満のみ）: ①生成物の商標作品名（4/10・要相談）
+  ②他商標 routing・RPG 未対応（3/10）③閉じない ** の残存（3/10）
+  ④引用抜粋の 200 字ハードカットに切詰め印なし（API 消費者向け、4/10）。次巡は生成ゲーム。

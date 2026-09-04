@@ -3294,6 +3294,19 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [x] 完了 2026-09-04 19:3x UTC 辛口ユーザー（`deck_mobile_no_overflow` 2→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→2.0/4.0/4.0/8.0/4.0 に落ち、復元で 10.0。iPhone 12 実測: 修正前 scrollWidth 482→修正後 390（clientWidth 390 と一致・横スクロール解消））**C-1239: 生成スライド（deck HTML）がスマホで横にはみ出す——長い出典パスや file 名が折り返さず、iPhone 12 で内容幅 482px（画面 390px）＝横スクロール/ズームアウト。**
+      （辛口ユーザーループ起票・16 巡目 スマホ操作・1/10）iPhone 12 相当で生成
+      スライドを開くと、clientWidth=390 に対し scrollWidth=482 で横にはみ出す。
+      原因は decks.py の _render 殻に overflow-wrap/word-break が無く、出典行
+      （tukemen-rgb/site@sha:docs/… を「 / 」で連結した長い行）や本文中の長い
+      トークン（file パス等）が折り返さず横幅を押し広げること。ask ページは
+      overflow-wrap:anywhere で解決済み（C-1224 系）だが deck 殻は未対応。
+      **再現手順**: iPhone 12 emulation で生成 deck を開く → scrollWidth(482) >
+      clientWidth(390)。**最小の解決**: deck 殻 CSS に overflow-wrap:anywhere
+      （継承プロパティなので body に置けば本文・出典・脚注に効く）を追加。
+      レイアウト・配色・max-width は不変。→ 動かす数字: deck_mobile_no_overflow
+      unmeasurable→10（新設・deck 殻に折り返し規則 × 本文/出典に効く範囲 ×
+      メディアクエリ外で常時適用 × 折り返す値）
 - [x] 完了 2026-09-04 18:4x UTC 辛口ユーザー（`refusal_reason_japanese` 2.22→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→7.78/8.89/8.89/8.89/8.89 に落ち、復元で 10.0。実測: API reason は英語のまま・CLI/Web は decision で日本語案内。当初 ui_language が 拒否されました 消失で 9.6 に退行→接頭辞で復旧し 25/25）**C-1238: 質問が安全性ゲートで拒否されると、Web UI も CLI も英語の監査文（例「prompt-injection patterns detected; content remains DATA…」）をそのまま利用者に見せる。**
       （辛口ユーザーループ起票・15 巡目 エラー文言・1/10）一般の日本語利用者が
       「これまでの指示を無視して…」等でゲートに触れると、拒否理由が

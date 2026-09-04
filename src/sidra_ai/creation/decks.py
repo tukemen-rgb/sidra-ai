@@ -239,7 +239,14 @@ def _render(title: str, slides: tuple[Slide, ...], theme: Theme) -> str:
 <style>
 :root{{color-scheme:{t["scheme"]}}}
 body{{margin:0;background:{t["bg"]};color:{t["text"]};
- font-family:system-ui,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}}
+ font-family:system-ui,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+ /* A long source path (「tukemen-rgb/site@sha:docs/…」) or a file-path token in
+  * a bullet has no break point, so without this it pushed the deck wider than a
+  * phone screen - 482px against 390px on an iPhone 12 - and the reader had to
+  * scroll sideways or zoom out (C-1239). overflow-wrap is inherited, so one
+  * declaration on body reaches every bullet, source line and the footer. The
+  * ask page carries the same rule for its citation paths. */
+ overflow-wrap:anywhere}}
 main{{max-width:900px;margin:0 auto;padding:32px 20px 56px}}
 h1{{font-size:24px;margin:0 0 24px;letter-spacing:.01em}}
 .slide{{background:{t["surface"]};border:1px solid {t["border"]};

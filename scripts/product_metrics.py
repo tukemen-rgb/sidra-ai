@@ -595,6 +595,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1239: the deck shell had no overflow-wrap, so a long source path or a
+    # file-path token in a bullet did not wrap - on an iPhone 12 the content
+    # measured 482px against a 390px screen, forcing a horizontal scroll. The
+    # ask page fixed the same with overflow-wrap:anywhere; the deck shell now
+    # carries it too, so long tokens break instead of widening the page.
+    from sidra_ai.evals.deck_mobile_no_overflow import evaluate_deck_mobile_no_overflow
+
+    deck_wrap = evaluate_deck_mobile_no_overflow()
+    c.add(
+        "deck_mobile_no_overflow",
+        "スライドがスマホで横にはみ出さない（長い出典やパスが折り返す）",
+        10.0 * deck_wrap.checks_passed / deck_wrap.checks_total,
+        detail=f"{deck_wrap.checks_passed}/{deck_wrap.checks_total} checks; "
+               "src/sidra_ai/evals/deck_mobile_no_overflow.py"
+               + ("" if deck_wrap.passed else "; " + "; ".join(deck_wrap.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1205: a subject request that fell to the default template used to be
     # announced as satisfied (「「猫」を作りました」 about a fishing page with
     # no cat). Five shapes through the real router: the fallback admitted,
