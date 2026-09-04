@@ -474,15 +474,18 @@ def choose_template(request: str) -> str:
         return "racing"
     if any(fold_kana(word.lower()) in lowered for word in _DUEL_WORDS):
         return "duel"
-    # After the shooter, the adventure and the duel, agreeing with _GENRES:
-    # 「横スクロール」 is a modifier as often as a genre, and
-    # 「横スクロールシューティング」 names a shooter, not a platformer.
-    if any(fold_kana(word.lower()) in lowered for word in _PLATFORMER_WORDS):
-        return "platformer"
     if any(fold_kana(word) in lowered for word in _CATCH_WORDS):
         return "catch"
     if any(fold_kana(word) in lowered for word in _FISHING_WORDS):
         return "fishing"
+    # After the named genres, before the default: 「横スクロール」 is a modifier
+    # as often as a genre (「横スクロールシューティング」 is a shooter, matched
+    # far above), and the bare 「ジャンプ」/「跳」 added in C-1220 is a verb that
+    # names the platformer only when nothing else was named - 「魚が跳ねる釣り」
+    # said 釣り, so it stays fishing, per the same "the genre name outranks the
+    # verb" rule the earlier branches follow.
+    if any(fold_kana(word.lower()) in lowered for word in _PLATFORMER_WORDS):
+        return "platformer"
     return "fishing"
 
 
@@ -522,7 +525,6 @@ _GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "fighter",
         ("格闘", "fighting", "格ゲー"),
     ),
-    ("プラットフォーマー", "platformer", PLATFORMER_WORDS),
     (
         "シミュレーション",
         "simulation",
@@ -532,6 +534,10 @@ _GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("リズム", "rhythm", ("リズムゲーム", "音ゲー", "rhythm")),
     ("キャッチ", "catch", _CATCH_WORDS),
     ("釣り", "fishing", _FISHING_WORDS),
+    # Last, matching choose_template: the bare 「ジャンプ」/「跳」 cues (C-1220)
+    # name the platformer only when no genre above was named, so 「魚が跳ねる
+    # 釣り」 stays fishing while 「猫がジャンプする」 becomes the platformer.
+    ("プラットフォーマー", "platformer", PLATFORMER_WORDS),
 )
 
 

@@ -38,11 +38,22 @@ from __future__ import annotations
 #: Words that pick this template. 「横スクロール」 routes here only when no
 #: earlier genre claims the sentence: 「横スクロールシューティング」 is a
 #: shooter, and both the router and the honesty table say so.
+#:
+#: The bare 「ジャンプ」/「跳」/「飛び越え」 belong here too (C-1220): a jump
+#: is the one verb this template is *about*, yet the list only had the
+#: compound 「ジャンプアクション」, so 「猫がジャンプするゲーム」 detected no
+#: genre and fell to the default fishing template with no substitution notice.
+#: Platformer is matched after shooter/adventure/racing/duel, so a sentence
+#: that names one of those keeps it - 「ジャンプで撃つシューティング」 is still
+#: a shooter - and only a request whose sole genre cue is the jump lands here.
 PLATFORMER_WORDS: tuple[str, ...] = (
     "プラットフォーマー",
     "platformer",
     "横スクロール",
     "ジャンプアクション",
+    "ジャンプ",
+    "跳",
+    "飛び越え",
     "足場",
 )
 

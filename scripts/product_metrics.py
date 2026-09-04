@@ -1161,6 +1161,25 @@ def measure_creation(c: Collector) -> None:
         kind=GUARD,
     )
 
+    # C-1220: the platformer existed but 「ジャンプ」 alone did not route to it,
+    # so 「猫がジャンプするゲーム」 fell to the default fishing template with no
+    # substitution notice. The bare jump cues now reach the platformer while a
+    # shooter/puzzle that merely mentions a jump keeps its own route.
+    from sidra_ai.evals.jump_routes_to_platformer import (
+        evaluate_jump_routes_to_platformer,
+    )
+
+    jump = evaluate_jump_routes_to_platformer()
+    c.add(
+        "creation_jump_routes_to_platformer",
+        "跳ねるゲームの依頼が platformer に届く（釣りに落ちない）",
+        10.0 * jump.checks_passed / jump.checks_total,
+        detail=f"{jump.checks_passed}/{jump.checks_total} checks; "
+               "src/sidra_ai/evals/jump_routes_to_platformer.py"
+               + ("" if jump.passed else "; " + "; ".join(jump.failures)),
+        kind=OUTCOME,
+    )
+
     # Asking for a genre we cannot build gets a playable page either way, so
     # playability cannot tell "we made a shooter" from "we made a fishing game
     # and called it a shooter". This number asks the generator both questions:
