@@ -713,6 +713,23 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1227: a cited Markdown link leaked its brackets and URL - and a
+    # guard-redacted URL showed 「[REDACTED:high_entropy:…]」 in what was a
+    # relative path. plain_text now keeps the link text and drops the URL,
+    # including a window-cut link, while a bare 「[1]」 reference is left alone.
+    from sidra_ai.evals.answer_links_flattened import evaluate_answer_links_flattened
+
+    links = evaluate_answer_links_flattened()
+    c.add(
+        "qa_answer_links_flattened",
+        "生成物の Markdown リンクが text になる（括弧と URL が出ない）",
+        10.0 * links.checks_passed / links.checks_total,
+        detail=f"{links.checks_passed}/{links.checks_total} checks; "
+               "src/sidra_ai/evals/answer_links_flattened.py"
+               + ("" if links.passed else "; " + "; ".join(links.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1216: the top citation for a real revenue question was 26 characters
     # of raw Markdown cut mid-checkbox (「## D-CY4. … - [ ] **A.」). The lead
     # extractor now flattens markup (C-1212's plain_text) and label fragments

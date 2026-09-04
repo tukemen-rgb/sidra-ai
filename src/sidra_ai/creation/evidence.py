@@ -38,6 +38,15 @@ _MD_BOLD = re.compile(r"\*\*([^*]+)\*\*")
 _MD_EMPHASIS = re.compile(r"(?<![\w*])\*([^*\s][^*]*)\*(?![\w*])")
 _MD_CODE = re.compile(r"`([^`]+)`")
 _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
+#: A Markdown link. The corpus cross-references its own files, so an excerpt
+#: carries 「[SPEC.md](../SPEC.md)」 - and when the URL trips the output guard's
+#: entropy check it becomes 「[SPEC.md](../[REDACTED:high_entropy:…].md)」, an
+#: alarming placeholder in what is just a relative path (C-1227). Keep the link
+#: text (the words the reader needs); drop the brackets and the URL. The second
+#: pattern catches a link the excerpt window cut mid-URL (「[docs/x.md](..」).
+#: A bare 「[1]」 reference has no following 「(」 and is left alone.
+_MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_MD_LINK_OPEN = re.compile(r"\[([^\]]+)\]\([^)\n]*")
 #: A list marker at the start of a line: a bullet (with or without a task
 #: checkbox) or an ordered-list number (「2.」「3)」). Only line-anchored, so a
 #: mid-sentence dash (「令和 - 平成」) and an inline decimal (「3.5 倍」, whose
@@ -96,6 +105,10 @@ def plain_text(text: str) -> str:
     A Markdown table is flattened rather than shown as bars (C-1226): its
     separator row is dropped and each body row's cells are joined with 「 / 」,
     so a stats table reads as prose instead of 「| --- | --- |」.
+
+    A Markdown link keeps its text and loses its URL (C-1227): 「[SPEC.md](../
+    SPEC.md)」 becomes 「SPEC.md」, so the brackets and a possibly-redacted URL
+    do not reach the reader. A bare 「[1]」 with no 「(」 after it is untouched.
     """
 
     text = _TRAILER.sub("", text)
@@ -109,6 +122,8 @@ def plain_text(text: str) -> str:
     text = _MD_EMPHASIS.sub(r"\1", text)
     text = _MD_CODE.sub(r"\1", text)
     text = _MD_QUOTE.sub("", text)
+    text = _MD_LINK.sub(r"\1", text)
+    text = _MD_LINK_OPEN.sub(r"\1", text)
     return " ".join(text.split())
 
 
