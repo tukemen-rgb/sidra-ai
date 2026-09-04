@@ -66,6 +66,16 @@ COMBAT_GAIN = 2.0
 
 #: Nothing is ever played above this, whatever the multiplier does. A fight
 #: that clips is not loud, it is broken.
+#:
+#: C-1410 (a): today no sound reaches this ceiling - the loudest is hurt at
+#: 0.24, 0.48 in combat - so ``Math.min(MAX_GAIN, ...)`` is an identity for
+#: every shipped value. That is intentional headroom, not a bug: the levels
+#: were picked by the §2/§6 loudness work and three sound-focused review
+#: cycles (C-1304/C-1308/C-1317) never found them too quiet, while the
+#: ceiling stays armed against a future louder voice or stacked sources.
+#: Anyone changing gains toward the ceiling must keep the volume axis
+#: (C-1408) multiplying *after* it - its judge probes that order with a
+#: synthetic ceiling-reaching gain precisely because no real one exists.
 MAX_GAIN = 0.9
 
 #: Each effect is (wave, start Hz, end Hz, duration s, gain). The numbers
