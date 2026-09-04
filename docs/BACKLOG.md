@@ -3994,7 +3994,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       localStorage のみ、は racing と同一契約。→ 動かす数字:
       creation_marble_ghost unmeasurable→1（実走行 2 回で 2 回目にのみ
       ゴースト描画が現れること、OFF で消えることを検査。破壊で 0）
-- [ ] **C-1413: 被弾・確定が指に返る（Android の触覚 1 行）。**（進捗監視
+- [~] 作業中 2026-09-04 21:07 ループA **C-1413: 被弾・確定が指に返る（Android の触覚 1 行）。**（進捗監視
       起票 2026-09-04・根拠は docs/research/game-design-notes.md §16。
       出典 https://caniuse.com/vibration 2026-09-04 確認: 対応は Android
       Chrome のみ・iOS/デスクトップは無害な no-op）生成ゲームは
