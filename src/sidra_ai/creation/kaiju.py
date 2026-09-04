@@ -71,6 +71,15 @@ const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const CRACK=SPEED_TOKEN,LEGHP=BAND_TOKEN,SEED=SEED_TOKEN;
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const W=cv.width,H=cv.height,GROUND=H-46,BEAT=126;
+/* §6 観察 3, brought home (C-1324): the guardian quickens past half
+   health, the duel at match point, the shooter and marble by acts - and
+   the kaiju, §6's own template, played all three cycles identically.
+   The same multiplier table the siblings use, applied ONLY to how fast
+   a crack opens: the 126-frame attack beat (§6 定量, read by the judge)
+   and the 34-frame warning stay exactly as measured - the escalation
+   must not eat the telegraph (the C-1318 line). */
+const CYCLE_TENSE=[1,1.15,1.3];
+function cycleTense(){return CYCLE_TENSE[Math.min(2,cycles)]}
 let me,shots,boss,cracks,dust,t,state,cycles;
 function reset(){
   /* Under the leg, not across the field (§8 事実 5): the first shot a
@@ -122,7 +131,7 @@ function step(){t++;
         hitLeg();return false}
       return s.y>-20});
     cracks.forEach(c=>{if(c.warn>0){c.warn--;if(c.warn===0)sfx('clash')}
-      else c.open=Math.min(56,c.open+CRACK)});
+      else c.open=Math.min(56,c.open+CRACK*cycleTense())});
     cracks=cracks.filter(c=>{
       if(c.warn===0&&c.open>10&&Math.abs(c.x-me.x)<c.open*0.5+10){
         me.hp--;shake(6);sfx('hurt');hitstop(3);
@@ -137,6 +146,7 @@ addEventListener('keydown',e=>{keys[e.key]=true;
   if(e.key==='r'||e.key==='R')reset()});
 addEventListener('keyup',e=>{keys[e.key]=false});
 function bossFacts(){return{phase:boss.phase,cycles:cycles,shown:boss.shown,
+  tense:cycleTense(),growth:CRACK*cycleTense(),
   legHp:boss.legHp,beat:BEAT,state:state,hp:me.hp}}
 function draw(){const now=performance.now();
   /* 埃 -> 閃光 -> 最大明度: the phase picks the air the fight happens in, and
@@ -227,14 +237,52 @@ const afterMisses = bossFacts();
 /* Now fight it properly: put a shot where the leg is, every frame, and read
    what the rules do. Records whether the body was ever drawn while alive. */
 let bodyWhileAlive = false, sawOpen = false, cyclesAt = [];
-for (let i = 0; i < 3000 && bossFacts().state === 'fight'; i++) {
-  const f = bossFacts();
-  if (f.shown && f.state === 'fight') bodyWhileAlive = true;
-  if (f.phase === 'open') { sawOpen = true; shots.push({x: 0, y: 0, vy: 0}) }
-  const aim = f.phase === 'open' ? -160 : -70;
-  shots.push({x: Math.sin(i/90)*26 + 720*0.72, y: 320 - 46 + aim + 8, vy: 0});
-  run(1);
-  if (bossFacts().cycles !== f.cycles) cyclesAt.push(i);
+/* Per cycle: the fastest single-frame crack growth actually observed, and
+   the warning length every crack was born with (§6, C-1324). The warn is
+   decremented the same frame the crack appears, so a fresh crack reads 33
+   of its 34 frames - a constant, unless the telegraph is shortened. The
+   kill is so fast that no crack would ever spawn (the first arrives on
+   frame 126), so each cycle is WATCHED under dodging before it is won. */
+const cycleGrowth = [0, 0, 0], warnsSeen = [];
+function trackCracks(){
+  const cy = Math.min(2, bossFacts().cycles);
+  cracks.forEach(c => {
+    if (c._seen === undefined) { c._seen = true; warnsSeen.push(c.warn) }
+    if (c._po !== undefined && c.open > c._po) {
+      const g = c.open - c._po;
+      if (g > cycleGrowth[cy]) cycleGrowth[cy] = g;
+    }
+    c._po = c.open;
+  });
+}
+function watch(frames){
+  for (let i = 0; i < frames && bossFacts().state === 'fight'; i++) {
+    let danger = null;
+    cracks.forEach(c => { if (Math.abs(c.x - me.x) < c.open * 0.5 + 40) danger = c });
+    if (danger) { me.x = danger.x > 360 ? danger.x - 140 : danger.x + 140;
+      me.x = Math.max(30, Math.min(690, me.x)) }
+    run(1);
+    trackCracks();
+  }
+}
+let frame = 0;
+for (let guard = 0; guard < 40 && bossFacts().state === 'fight'
+     && bossFacts().cycles < 3; guard++) {
+  /* Live with this cycle's cracks long enough to measure two of them. */
+  watch(300);
+  /* Then win the cycle the way the old probe always did. */
+  const startCycle = bossFacts().cycles;
+  for (let i = 0; i < 400 && bossFacts().state === 'fight'
+       && bossFacts().cycles === startCycle; i++) {
+    const f = bossFacts();
+    if (f.shown && f.state === 'fight') bodyWhileAlive = true;
+    if (f.phase === 'open') { sawOpen = true; shots.push({x: 0, y: 0, vy: 0}) }
+    const aim = f.phase === 'open' ? -160 : -70;
+    shots.push({x: Math.sin(i/90)*26 + 720*0.72, y: 320 - 46 + aim + 8, vy: 0});
+    run(1); frame++;
+    trackCracks();
+  }
+  if (bossFacts().cycles !== startCycle) cyclesAt.push(frame);
 }
 const end = bossFacts();
 const palette = sceneFacts();
@@ -244,6 +292,9 @@ console.log(JSON.stringify({
   cyclesAfterMisses: afterMisses.cycles, legHpAfterMisses: afterMisses.legHp,
   sawOpen: sawOpen, bodyWhileAlive: bodyWhileAlive,
   cycles: end.cycles, shown: end.shown, state: end.state, kills: cyclesAt.length,
+  cycleGrowth: cycleGrowth,
+  warnMin: warnsSeen.length ? Math.min.apply(null, warnsSeen) : null,
+  warnMax: warnsSeen.length ? Math.max.apply(null, warnsSeen) : null,
   winBeats: winBeats(), failBeats: failBeats(),
 }));
 """

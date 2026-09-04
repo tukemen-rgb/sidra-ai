@@ -180,3 +180,41 @@ def test_a_press_during_the_cooldown_fires_when_the_cannon_is_ready():
     assert seen["keptQueue"] is True
     assert seen["coolAfterQueue"] > 0, "the queued shot re-armed the cooldown"
     assert seen["coolAfterSingle"] == 0 and seen["ghostQueue"] is False
+
+
+def test_each_cycle_opens_its_cracks_faster_and_the_warning_holds():
+    """§6 観察 3 brought home (C-1324): observed growth steps x1.15/x1.3,
+    the 34-frame telegraph and the 126-frame beat untouched, still won."""
+
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.games import generate_game as _generate
+    from sidra_ai.creation.kaiju import probe_source as _probe
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = _generate("巨大怪獣と戦うゲームを作って").html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    seen = _json.loads(probe.stdout.strip().splitlines()[-1])
+
+    growth = seen["cycleGrowth"]
+    assert len(growth) == 3 and min(growth) > 0, "every cycle's cracks were watched"
+    assert growth[0] < growth[1] < growth[2]
+    assert abs(growth[2] / growth[0] - 1.3) < 0.02
+    assert seen["warnMin"] == 33 and seen["warnMax"] == 33, "the telegraph holds"
+    assert seen["beat"] == 126, "the attack beat is untouched"
+    assert seen["state"] == "won", "the fiercer fight is still beatable"

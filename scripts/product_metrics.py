@@ -1756,6 +1756,78 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- each cycle of the takedown is fiercer than the last -----------
+    #
+    # §6 観察 3 brought home to §6's own template (C-1324): the guardian,
+    # the duel, the shooter and the marble all re-accelerate, but the
+    # kaiju's three cycles played identically. The cracks now open faster
+    # by the siblings' multiplier table while the 126-frame attack beat
+    # and the 34-frame warning stay exactly as measured - the probe above
+    # lives with each cycle's cracks under dodging before winning it, so
+    # the growth rates here are observed on the running page, not read
+    # off the table.
+    import re as _ck_re
+    import subprocess as _ck_sp
+
+    from sidra_ai.creation.kaiju import probe_source as _ck_probe
+
+    cycle_gaps: list[str] = []
+    _ck_runs = [("既定", kaiju_seen)]
+    _ck_hard_page = generate_game("難しい怪獣ゲームを作って").html
+    _ck_hard_script = _ck_re.search(r"<script>(.*?)</script>", _ck_hard_page, _ck_re.S)
+    if _ck_hard_script is not None:
+        try:
+            _ck_hard_run = _ck_sp.run(
+                ["node", "-"],
+                input=_ck_probe(_ck_hard_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _ck_hard_run.returncode == 0:
+                _ck_runs.append(
+                    ("hard", json.loads(_ck_hard_run.stdout.strip().splitlines()[-1]))
+                )
+            else:
+                cycle_gaps.append(f"hard: {_ck_hard_run.stderr.strip()[:60]}")
+        except (OSError, _ck_sp.SubprocessError, ValueError) as exc:
+            cycle_gaps.append(f"hard: probe unavailable ({type(exc).__name__})")
+    for _ck_label, _ck in _ck_runs:
+        if _ck is None:
+            cycle_gaps.append(f"{_ck_label}: the fight could not be played")
+            continue
+        _ck_growth = _ck.get("cycleGrowth") or []
+        if len(_ck_growth) != 3 or min(_ck_growth) <= 0:
+            cycle_gaps.append(f"{_ck_label}: a cycle's cracks were never watched")
+            continue
+        if not (_ck_growth[0] < _ck_growth[1] < _ck_growth[2]):
+            cycle_gaps.append(f"{_ck_label}: the cracks ignore the cycle ({_ck_growth})")
+        elif abs(_ck_growth[2] / _ck_growth[0] - 1.3) > 0.02:
+            cycle_gaps.append(
+                f"{_ck_label}: the last cycle opens x{_ck_growth[2] / _ck_growth[0]:.2f}, not x1.3"
+            )
+        if _ck.get("warnMin") != 33 or _ck.get("warnMax") != 33:
+            cycle_gaps.append(
+                f"{_ck_label}: the warning moved "
+                f"({_ck.get('warnMin')}-{_ck.get('warnMax')}, expected the constant 33)"
+            )
+        if _ck.get("state") != "won":
+            cycle_gaps.append(f"{_ck_label}: the fiercer fight is no longer beatable")
+    c.add(
+        "creation_kaiju_cycles",
+        "討伐が周回ごとに苛烈になる",
+        0.0 if cycle_gaps else 1.0,
+        detail=(
+            "; ".join(cycle_gaps)
+            if cycle_gaps
+            else "各周期の地割れと実際に暮らして計測: 開く速さが周期ごとに"
+            "×1.15/×1.3 と実測で上がり（既定 1.4→1.61→1.82）、126f の攻撃"
+            "ビートと 34f の予兆は不変、回避しながらの討伐は依然成立"
+            "（§6 観察 3 を本家に）"
+        ),
+        kind=OUTCOME,
+    )
+
     # C-1404 (b): easy's three laps outlasted the shared sixty-second clock,
     # so the gentlest rung was the one nobody finishes. The ladder's paces
     # stay and easy runs two laps; every rung is driven for real and counted
