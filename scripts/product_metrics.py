@@ -764,6 +764,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1228: explain() covered 401/403/413/422/429/5xx but not 404 - clicking
+    # 開く on a file removed since the list showed 「ダウンロードに失敗: HTTP
+    # 404」. 404 now maps to 「見つかりません。一覧を更新してください（…）」.
+    from sidra_ai.evals.ui_missing_artifact_guidance import (
+        evaluate_ui_missing_artifact_guidance,
+    )
+
+    missing = evaluate_ui_missing_artifact_guidance()
+    c.add(
+        "ui_missing_artifact_guidance",
+        "消えたファイルの 404 に次の一手を示す（一覧を更新）",
+        10.0 * missing.checks_passed / missing.checks_total,
+        detail=f"{missing.checks_passed}/{missing.checks_total} checks; "
+               "src/sidra_ai/evals/ui_missing_artifact_guidance.py"
+               + ("" if missing.passed else "; " + "; ".join(missing.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1218: C-1211 translated HTTP status codes, but a fetch that never
     # reached the server rejected with an English TypeError string shown
     # verbatim (「失敗: Failed to fetch」). reason() now maps the network
