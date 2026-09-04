@@ -7013,3 +7013,24 @@ F 節は取らない節。**キューを埋めるための作業は作らない�
 
 C 節・D 節に未着手も作業中も無い。E 節の 4 件は社長判断待ち、F 節は取らない節。
 **キューを埋めるための作業は作らない。**
+
+2026-09-04 18:20 UTC 辛口ユーザー started（15 巡目 エラー文言）
+
+2026-09-04 18:4x UTC 辛口ユーザー C-1238 完了（15 巡目 エラー文言）。
+  質問が安全性ゲートで拒否されると、service.py がゲートの英語監査文
+  （prompt-injection patterns detected; content remains DATA…）を reason に載せ、
+  Web UI「拒否されました: <英語>」/CLI「理由: <英語>」がそのまま表示していた。
+  日本語利用者に英語監査文＝rule 6 違反・次の一手も不明。API の reason は監査／
+  API 消費者向けに英語のまま残し、Web UI と CLI の拒否表示を security.decision
+  （quarantine/block か否か）で日本語案内に振り分け（ゲート拒否→言い換え案内、
+  その他→再試行案内）、生の英語 reason は表示しない。
+  判定器: refusal_reason_japanese 2.22→10、exit 0。pytest 全通し FAILED 0、gate MISS 0。
+  破壊 5 通り: ①CLI が英語 reason を出す→7.78 ②CLI ゲート文が言い換えを失う→8.89
+  ③Web が result.reason を出す→8.89 ④CLI が decision を誤キーで読む→8.89
+  ⑤CLI その他文が「もう一度」を失う→8.89。復元で 10.0。
+  実測: API reason=英語のまま・CLI/Web=decision で日本語。
+  途中経過: 当初 Web で「拒否されました」ラベルを消して ui_entry_japanese が
+  10→9.6 に退行→接頭辞として復活させ 25/25 に戻した（正直に記録）。
+  次サイクル候補（6 点未満のみ）: ①生成物の商標作品名（4/10・要相談）
+  ②他商標 routing・RPG 未対応（3/10）③閉じない ** の残存（3/10）
+  ④引用抜粋の 200 字ハードカットに切詰め印なし（API 消費者向け、4/10）。次巡はスマホ操作。

@@ -195,9 +195,20 @@ def render(payload: dict[str, Any]) -> int:
 
     if payload.get("refused"):
         print("回答を拒否した。")
-        reason = clean(payload.get("reason", ""))
-        if reason:
-            print(f"理由: {reason}")
+        # The API reason is the gate's English audit text ("prompt-injection
+        # patterns detected; …"); a terminal user reads Japanese and needs a
+        # next step, not the audit trail (C-1238). The message is chosen by the
+        # machine-readable security.decision - a gate refusal (quarantine/block)
+        # asks for a rephrase, any other refusal asks to retry. The full English
+        # reason is still in --json for anyone who needs it.
+        decision = (payload.get("security") or {}).get("decision")
+        if decision in ("quarantine", "block"):
+            print(
+                "入力が安全性チェックにかかった。指示の上書きや秘密情報を含む"
+                "表現を避け、言い換えてもう一度試す。"
+            )
+        else:
+            print("回答を出せなかった。少し時間をおいて、もう一度試す。")
         _print_citations(payload, clean)
         _report_stripped(clean)
         return 3

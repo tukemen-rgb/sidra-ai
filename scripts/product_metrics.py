@@ -921,6 +921,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1238: a gate refusal put the gate's English audit reason into the
+    # response, and both the web page and the CLI showed it verbatim -
+    # 「拒否されました: prompt-injection patterns detected…」. The API reason stays
+    # English for consumers and the audit trail; the two user-facing surfaces now
+    # show a Japanese message chosen by security.decision (rephrase for a gate
+    # refusal, retry for any other), and no longer print the raw English reason.
+    from sidra_ai.evals.refusal_reason_japanese import evaluate_refusal_reason_japanese
+
+    refusal_ja = evaluate_refusal_reason_japanese()
+    c.add(
+        "refusal_reason_japanese",
+        "拒否時に英語の監査文でなく日本語の案内を利用者に見せる",
+        10.0 * refusal_ja.checks_passed / refusal_ja.checks_total,
+        detail=f"{refusal_ja.checks_passed}/{refusal_ja.checks_total} checks; "
+               "src/sidra_ai/evals/refusal_reason_japanese.py"
+               + ("" if refusal_ja.passed else "; " + "; ".join(refusal_ja.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1210: the server carried chat history; the browser page never sent
     # it, so every follow-up question abstained. Mechanics pinned on the
     # page source; the end-to-end run lives in the loop log.

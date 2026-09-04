@@ -153,7 +153,16 @@ ASK_PAGE = """<!doctype html>
     // markup here, whatever a document happens to contain.
     answer.textContent = result.answer || "";
     if (result.refused) {
-      statusLine.textContent = "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f" + (result.reason ? ": " + result.reason : "");
+      // The API reason is the gate's English audit text; a Japanese user needs
+      // Japanese and a next step, not the audit trail (C-1238). Chosen by the
+      // machine-readable security.decision: a gate refusal (quarantine/block)
+      // asks for a rephrase, any other refusal asks to retry. The raw English
+      // reason is left in the API response for consumers, not shown here.
+      var decision = (result.security || {}).decision;
+      var refusalMsg = (decision === "quarantine" || decision === "block")
+        ? "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u5165\u529b\u304c\u5b89\u5168\u6027\u30c1\u30a7\u30c3\u30af\u306b\u304b\u304b\u308a\u307e\u3057\u305f\u3002\u6307\u793a\u306e\u4e0a\u66f8\u304d\u3084\u79d8\u5bc6\u60c5\u5831\u3092\u542b\u3080\u8868\u73fe\u3092\u907f\u3051\u3001\u8a00\u3044\u63db\u3048\u3066\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002"
+        : "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u56de\u7b54\u3092\u51fa\u305b\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u5c11\u3057\u6642\u9593\u3092\u304a\u3044\u3066\u3001\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002";
+      statusLine.textContent = refusalMsg;
     }
     clear(sources);
     var citations = result.citations || [];

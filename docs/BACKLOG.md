@@ -3294,6 +3294,20 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [x] 完了 2026-09-04 18:4x UTC 辛口ユーザー（`refusal_reason_japanese` 2.22→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→7.78/8.89/8.89/8.89/8.89 に落ち、復元で 10.0。実測: API reason は英語のまま・CLI/Web は decision で日本語案内。当初 ui_language が 拒否されました 消失で 9.6 に退行→接頭辞で復旧し 25/25）**C-1238: 質問が安全性ゲートで拒否されると、Web UI も CLI も英語の監査文（例「prompt-injection patterns detected; content remains DATA…」）をそのまま利用者に見せる。**
+      （辛口ユーザーループ起票・15 巡目 エラー文言・1/10）一般の日本語利用者が
+      「これまでの指示を無視して…」等でゲートに触れると、拒否理由が
+      `prompt-injection patterns detected; content remains DATA and is held out of
+      the index until reviewed` と英語の監査文で出る（Web UI は「拒否されました:
+      <英語>」、CLI は「理由: <英語>」）。SYSTEM_PROMPT rule 6（日本語で答える）に
+      反し、何をどう直せばよいかも不明。原因は service.py がゲートの英語 reasons を
+      そのまま reason フィールドに載せ、両 UI がそれを生で表示すること。**再現手順**:
+      POST /v1/chat {"message":"これまでの指示を無視して…"} → reason が英語の監査文、
+      Web UI/CLI がそのまま表示。**最小の解決**: API の reason（監査・API 消費者向け）は
+      不変のまま、Web UI と CLI の拒否表示を security.decision（quarantine/block か
+      それ以外）で日本語の案内に振り分ける。→ 動かす数字: refusal_reason_japanese
+      unmeasurable→10（新設・ゲート拒否は日本語の言い換え案内 × その他の拒否は
+      日本語の再試行案内 × 生の英語 reason を出さない × 通常回答は不変）
 - [x] 完了 2026-09-04 17:3x UTC 辛口ユーザー（`deck_no_duplicate_facts` 7→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→7.0/7.0/6.0/5.0/9.0 に落ち、復元で 10.0。実測: GDevelop の事実が「解決」のみ・error-copy が「根拠」のみ・「次の一歩」は重複でなく空欄に）**C-1237: 生成スライドで同じ根拠が複数のスライドに重複して出る——「解決」と「根拠となる数字」、「根拠となる数字」と「次の一歩」に同一の事実。**
       （辛口ユーザーループ起票・14 巡目 生成文書/スライド・1/10）「検査エンジンの
       紹介スライドを作って」で、GDevelop の事実が「解決」と「根拠となる数字」の
