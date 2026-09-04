@@ -6671,3 +6671,5 @@ C-1405 のはしごを 2 型目（shooter）へ。撃墜はすでに離散的な
 検証: `python -m pytest` **exit 0**（FAILED 0 件）、`verify_gate_recall.py`
 **PASSED**、`--compare /tmp/before-1411.json` **exit 0**
 （`creation_shooter_combo` unmeasurable→1 のみ・他は不変）。新規テスト 10 件。
+
+2026-09-04 11:08 UTC ループA started（Board=13、増減なし）
