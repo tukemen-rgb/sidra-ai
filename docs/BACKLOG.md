@@ -2705,7 +2705,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       再バンクも同基準）。duel/kaiju/adventure も余裕（残 hp・残時間・被弾数）
       を第 2 キーに。初回で飽和しない=2 回目に更新可能なことを計器で。
       → 動かす数字: creation_record_improvable unmeasurable→4
-- [ ] **C-1125: 商標依頼で subject 正直ノートが消える。**（批評 #6・#7）
+- [~] 作業中 2026-09-04 06:09 ループA **C-1125: 商標依頼で subject 正直ノートが消える。**（批評 #6・#7）
       「マリオみたいなゲーム」→無言で釣り。商標ガードの改名が正直ノートの
       発火条件（title != default）を壊す。改名前の判定を保存して両立させる。
       3D 側にも同じ subject ルールを実装（魚を「ゲーム」と自称しない）。
