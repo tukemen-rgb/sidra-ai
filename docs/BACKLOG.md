@@ -2710,7 +2710,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       発火条件（title != default）を壊す。改名前の判定を保存して両立させる。
       3D 側にも同じ subject ルールを実装（魚を「ゲーム」と自称しない）。
       → 動かす数字: creation_subject_honest unmeasurable→(ゲーム+3D)
-- [ ] **C-1126: revise の対象選択が題名・依頼文を見ない。**（批評 #8）
+- [~] 作業中 2026-09-04 07:10 ループA **C-1126: revise の対象選択が題名・依頼文を見ない。**（批評 #8）
       find_target_meta に meta.title / meta.request との照合を追加し、
       「◯◯の（ゲーム）」の◯◯が題名に一致する候補を genre 一致より優先。
       → 動かす数字: creation_revision_targeting unmeasurable→1
