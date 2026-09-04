@@ -2714,7 +2714,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       find_target_meta に meta.title / meta.request との照合を追加し、
       「◯◯の（ゲーム）」の◯◯が題名に一致する候補を genre 一致より優先。
       → 動かす数字: creation_revision_targeting unmeasurable→1
-- [ ] **C-1127: 60 秒区切りをジャンル特性に合わせる。**（批評 #10）puzzle は
+- [~] 作業中 2026-09-04 13:09 ループA **C-1127: 60 秒区切りをジャンル特性に合わせる。**（批評 #10）puzzle は
       手詰まりまで・adventure は達成条件までを本線にし、時間はソフト区切り
       （継続可・敗北扱いにしない）へ。§8 事実 1 の適用範囲をノートに明記。
       → 動かす数字: creation_round_within_60s の定義改訂（連続プレイ許可）
