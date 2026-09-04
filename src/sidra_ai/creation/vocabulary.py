@@ -56,15 +56,22 @@ GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     # one list routes and one list answers, so they cannot drift.
     ("レース", "racing", RACING_WORDS),
     ("RPG", "rpg", ("rpg", "ロールプレイング", "ロープレ")),
-    # Before 対戦格闘: a franchise-beam request is a duel we *can* build, and
-    # first-match order is what keeps it from falling into the fighting-game
-    # apology below.
-    ("ビーム対戦", "duel", DUEL_WORDS),
+    # Before ビーム対戦, and this order is the whole of C-1121. DUEL_WORDS
+    # carries bare 「対戦」, so 「対戦格闘ゲームを作って」 matched the duel
+    # first and got a beam fight with no caveat and a page titled 「対戦格闘」
+    # - the wrong template, no apology, and a name claiming a genre this
+    # product does not build. Naming the thing we must decline first costs
+    # nothing that was measured: 「格闘」 appears in no other genre's words,
+    # so only requests that say it move, and 「ビーム対戦」/「対戦ゲーム」
+    # still reach the duel. The alternative the item offered - dropping
+    # 「対戦」/「バトル」 from DUEL_WORDS - was measured too and is worse:
+    # 「対戦ゲームを作って」 then names no genre at all.
     (
         "対戦格闘",
         "fighter",
         ("格闘", "fighting", "格ゲー"),
     ),
+    ("ビーム対戦", "duel", DUEL_WORDS),
     (
         "シミュレーション",
         "simulation",

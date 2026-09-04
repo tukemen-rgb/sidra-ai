@@ -464,10 +464,26 @@ _STRIP = re.compile(
 )
 
 
+#: Where a request lands when it named nothing this product builds. Named
+#: once because the decline path and the fall-through have to be the same
+#: page, or 「作れないので代わりに既定の…」 would be describing something else.
+_DEFAULT_TEMPLATE = "fishing"
+
+
 def choose_template(request: str) -> str:
     """Pick by what the request names, defaulting to the fishing template."""
 
     lowered = fold_kana(request.lower())
+    # First, and by construction rather than by two lists agreeing: a
+    # request that names a genre this product does not build routes to the
+    # default, the way 「テトリス」 always has. C-1121 found the ladder below
+    # answering 「対戦格闘ゲームを作って」 with a beam duel, because
+    # DUEL_WORDS carries bare 「対戦」 and nothing here knew that the genre
+    # had already been declined. Keeping the two tables in step by hand is
+    # what let them drift; asking the honesty table is what stops it.
+    named = detect_genre(request)
+    if named is not None and not named.supported:
+        return _DEFAULT_TEMPLATE
     # Before the duel: "対戦シューティング" is a shooter, and _GENRES already
     # says so. Routing has to agree with the honesty table or the summary
     # would name a genre the page is not.
@@ -506,7 +522,7 @@ def choose_template(request: str) -> str:
     # verb" rule the earlier branches follow.
     if any(fold_kana(word.lower()) in lowered for word in _PLATFORMER_WORDS):
         return "platformer"
-    return "fishing"
+    return _DEFAULT_TEMPLATE
 
 
 #: Genre words an operator actually types, mapped to the template key that
@@ -883,6 +899,16 @@ def generate_game(
     title = title_override or _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"
     asked_title = title
+    # The third layer of C-1121's lie, and the one that outlives the answer:
+    # the summary says 「対戦格闘型はまだ作れない」 and the file it hands over
+    # is called 「対戦格闘」. The operator's own words are usually the better
+    # title and claim nothing - but when those words name a genre this
+    # product just declined, they are a claim, and the page keeps making it
+    # long after the sentence has scrolled away. Only for a decline: a
+    # buildable genre is still titled in the words that asked for it.
+    declined = detect_genre(request)
+    if not title_override and declined is not None and not declined.supported:
+        title = spec.default_title
     named = trademark_in(title)
     if named:
         # The genre is buildable; the name is someone's. Swap the title for

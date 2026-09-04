@@ -1395,55 +1395,134 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.intent import detect_creation_intent
 
     honesty_failures = []
-    unsupported = next(
-        (
-            text
-            # レース left this list when its template landed; 格闘 is still
-            # on the apology side of the table, so the wording keeps having
-            # a real gap to describe.
-            for text in ("シューティングゲームを作って", "パズルゲームを作って", "格闘ゲームを作って")
-            if (g := detect_genre(text)) is not None and not g.supported
-        ),
-        "",
-    )
-    supported = next(
-        (
-            text
-            for text in ("釣りゲームを作って", "キャッチゲームを作って")
-            if (g := detect_genre(text)) is not None and g.supported
-        ),
-        "",
-    )
-    if not unsupported:
+    # C-1121 turned this from "one phrasing is answered honestly" into
+    # "every way of naming a genre we do not build is". The old shape had a
+    # single unsupported case, and the case it happened to pick
+    # (「格闘ゲームを作って」) was the one that already worked - while
+    # 「対戦格闘ゲームを作って」 got a beam duel with no caveat and a page
+    # titled 「対戦格闘」. A binary that can be satisfied by its own easiest
+    # example is not a guard.
+    #
+    # The set is derived from the honesty table, so a genre that gains a
+    # template leaves this number by itself rather than by an edit, plus
+    # the word-order variants the item named.
+    from sidra_ai.creation.games import _title_from as _honest_words
+    from sidra_ai.creation.games import choose_template as _honest_route
+    from sidra_ai.creation.vocabulary import GENRES as _honest_genres
+
+    def _title_asked(text: str) -> str:
+        return _honest_words(text, _GAME_TEMPLATES[_honest_route(text)].default_title)
+
+    honest_asks: list[str] = []
+    for _h_genre, _h_key, _h_words in _honest_genres:
+        if _h_key in _GAME_TEMPLATES:
+            continue
+        _h_word = _h_words[0]
+        # 「ノベルゲーム」 already ends in it; asking for a 「ノベルゲーム
+        # ゲーム」 would be testing a sentence nobody types.
+        honest_asks.append(
+            f"{_h_word}を作って" if _h_word.endswith("ゲーム") else f"{_h_word}ゲームを作って"
+        )
+    # 対戦格闘 by its other names and in the other order: the bare 「対戦」 in
+    # DUEL_WORDS is what made these three different questions.
+    honest_asks += ["対戦格闘ゲームを作って", "格闘対戦を作って", "格ゲーを作って"]
+    honest_asks = list(dict.fromkeys(honest_asks))
+
+    #: The silent side. It must be a genre whose template is *not* the
+    #: default: 「釣りゲームを作って」 builds the fishing page either way, so
+    #: it cannot tell "this genre was built" from "everything falls to the
+    #: default" - a break that routed every named genre to the substitute
+    #: scored full marks against it.
+    supported = ""
+    if not honest_asks:
         # Every genre in the table has a template: the caveat has nothing left
         # to describe, which is a good state but not one this number can prove.
         honesty_failures.append("no unsupported genre left to test the wording on")
-    if not supported:
-        honesty_failures.append("no supported genre left to test the silence on")
-    if unsupported and supported:
+    honest_ok: list[str] = []
+    #: Where a request that names nothing lands. The decline path promises
+    #: this exact page, so it is read from the product rather than written
+    #: down here.
+    _honest_default = _honest_route("ゲームを作って")
+    if honest_asks:
+        supported = next(
+            (
+                text
+                for text in ("キャッチゲームを作って", "ビーム対戦を作って", "レースゲームを作って")
+                if (g := detect_genre(text)) is not None
+                and g.supported
+                and _honest_route(text) != _honest_default
+            ),
+            "",
+        )
+        if not supported:
+            honesty_failures.append(
+                "no supported genre builds anything but the default, so silence proves nothing"
+            )
+    if honest_asks and supported:
         with tempfile.TemporaryDirectory() as tmp:
             generate = build_game_generator(tmp)
-            missed = generate(unsupported, detect_creation_intent(unsupported))
-            named = detect_genre(unsupported)
-            if not missed.details.get("genre_substituted"):
-                honesty_failures.append(f"{unsupported}: substitution not recorded")
-            if named is not None and named.genre not in missed.summary:
-                honesty_failures.append(
-                    f"{unsupported}: the summary does not name the genre asked for"
-                )
-            built = str(missed.details.get("built_template", ""))
-            if built not in _GAME_TEMPLATES:
-                honesty_failures.append(f"{unsupported}: built_template={built!r}")
-            elif _GAME_TEMPLATES[built].default_title not in missed.summary:
-                honesty_failures.append(
-                    f"{unsupported}: the summary does not name what was built instead"
-                )
+            for ask in honest_asks:
+                named = detect_genre(ask)
+                if named is None or named.supported:
+                    honesty_failures.append(f"{ask}: no longer names a genre we decline")
+                    continue
+                missed = generate(ask, detect_creation_intent(ask))
+                built = str(missed.details.get("built_template", ""))
+                trouble = ""
+                if not missed.details.get("genre_substituted"):
+                    trouble = "substitution not recorded"
+                elif named.genre not in missed.summary:
+                    trouble = "the summary does not name the genre asked for"
+                elif built not in _GAME_TEMPLATES:
+                    trouble = f"built_template={built!r}"
+                elif _GAME_TEMPLATES[built].default_title not in missed.summary:
+                    trouble = "the summary does not name what was built instead"
+                elif _honest_route(ask) != built:
+                    trouble = f"routing says {_honest_route(ask)!r}, the page says {built!r}"
+                elif built != _honest_default:
+                    # The summary says 「代わりに**既定の**…型で作りました」,
+                    # and C-1230 chose that word over 「いちばん近い」 because
+                    # every declined genre was supposed to fall to the same
+                    # page. It was not true for 対戦格闘, which fell to the
+                    # duel on a bare 「対戦」 - so the sentence named the
+                    # wrong template *and* called it the default. Checked
+                    # rather than assumed, because the wording depends on it.
+                    trouble = (
+                        f"said 「既定の」 and built {built!r} (the default is "
+                        f"{_honest_default!r})"
+                    )
+                else:
+                    # The layer that outlives the sentence: the file is
+                    # handed over with a name, and that name must not be the
+                    # genre the summary just declined.
+                    page = generate_game(ask)
+                    if page.title != _GAME_TEMPLATES[built].default_title:
+                        trouble = f"the page calls itself {page.title!r}"
+                if trouble:
+                    honesty_failures.append(f"{ask}: {trouble}")
+                else:
+                    honest_ok.append(ask)
 
+            # The silent side gates the whole number rather than costing
+            # one case: a product that declined everything, or routed
+            # everything to the substitute, would otherwise score full marks
+            # for being consistently sorry.
             kept = generate(supported, detect_creation_intent(supported))
+            wanted = detect_genre(supported)
             if kept.details.get("genre_substituted"):
                 honesty_failures.append(f"{supported}: reported as a substitution")
             if "まだ作れない" in kept.summary:
                 honesty_failures.append(f"{supported}: apologised for a genre it built")
+            if kept.details.get("built_template") != wanted.template:
+                honesty_failures.append(
+                    f"{supported}: built {kept.details.get('built_template')!r}, "
+                    f"not its own {wanted.template!r}"
+                )
+            # ...and it keeps the words it was asked in. The title guard is
+            # for declines only; a genre we build is still named by the
+            # operator's own phrasing.
+            if generate_game(supported).title != _title_asked(supported):
+                honesty_failures.append(f"{supported}: lost the words it was asked in")
     # A page that opens on a phone and cannot be played there is the same
     # shape of quiet wrong as a fishing game called a shooter: nothing fails,
     # the artifact just is not what was claimed. Counted per template, and a
@@ -1487,12 +1566,16 @@ def measure_creation(c: Collector) -> None:
 
     c.add(
         "creation_genre_honest",
-        "作れない型を名乗らない",
-        0.0 if honesty_failures else 1.0,
+        "作れない型を名乗らない言い方",
+        0.0 if honesty_failures else float(len(honest_ok)),
         detail=(
             "; ".join(honesty_failures)
             if honesty_failures
-            else f"{unsupported} names the gap and the substitute; {supported} does not"
+            else f"{len(honest_ok)} 通りの言い方（{'・'.join(honest_ok)}）すべてで: "
+            f"断りに依頼のジャンル名と代わりに作った型が出る・ルーティングが"
+            f"その型と一致する・**ページ自身が断ったジャンルを名乗らない**"
+            f"（既定題になる）。作れる {supported} は断りを出さず、"
+            f"依頼の言葉のまま題になる"
         ),
         kind=OUTCOME,
     )
