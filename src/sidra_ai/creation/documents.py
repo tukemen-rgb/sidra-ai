@@ -99,10 +99,25 @@ def generate_document(
 
     lines += ["## わかっていること", ""]
     if retrieved:
+        # Two files often carry the identical passage (a policy line copied
+        # into another doc), so retrieval hands back facts with the same text
+        # and the report printed a bullet for each - the reader reads the same
+        # sentence twice (C-1242). Identical text is merged into one bullet
+        # whose 「出典」 names every file, so the passage is stated once while
+        # "both files say this" survives (the answer's C-1241 choice, here).
+        sources_by_text: dict[str, list[str]] = {}
+        order: list[str] = []
         for fact in retrieved:
             text = " ".join(fact.text.split())
             label = fact.source or "出典不明"
-            lines.append(f"- {text}（出典: {label}）")
+            if text not in sources_by_text:
+                sources_by_text[text] = []
+                order.append(text)
+            if label not in sources_by_text[text]:
+                sources_by_text[text].append(label)
+        for text in order:
+            labels = " / ".join(sources_by_text[text])
+            lines.append(f"- {text}（出典: {labels}）")
     else:
         lines.append(f"- {BLANK}")
         unfilled.append("わかっていること")

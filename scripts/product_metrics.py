@@ -554,6 +554,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1242: when the same passage lives in two files, generate_document emitted
+    # a bullet for each, so 「わかっていること」 showed the identical sentence twice
+    # with different sources. The report now merges identical-text facts into one
+    # bullet whose 「出典」 lists every file (the document twin of the answer's
+    # C-1241 dedupe); distinct facts and the empty case are unchanged.
+    from sidra_ai.evals.document_dedupes_identical_facts import (
+        evaluate_document_dedupes_identical_facts,
+    )
+
+    doc_dedupe = evaluate_document_dedupes_identical_facts()
+    c.add(
+        "document_dedupes_identical_facts",
+        "レポートで同一の根拠を 1 箇条書きにまとめ出典を連結する",
+        10.0 * doc_dedupe.checks_passed / doc_dedupe.checks_total,
+        detail=f"{doc_dedupe.checks_passed}/{doc_dedupe.checks_total} checks; "
+               "src/sidra_ai/evals/document_dedupes_identical_facts.py"
+               + ("" if doc_dedupe.passed else "; " + "; ".join(doc_dedupe.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
