@@ -62,6 +62,22 @@ _TRAILER = re.compile(
     r"|acked-by|tested-by|helped-by|reported-by|suggested-by|cc)[ \t]*:.*$"
 )
 
+#: A Markdown table's separator row (「| --- | --- |」, 「|:--|--:|」) - pure
+#: syntax, no content, so it is removed whole. The README stats, the FAQ
+#: verdict tables and the decision tables all carry one, and it used to land in
+#: an answer as 「| --- | --- |」 (C-1226). Only pipes, dashes, colons and
+#: spaces, with at least one run of dashes, so a real sentence never matches.
+_MD_TABLE_SEP = re.compile(r"(?m)^[ \t]*\|?[ \t:|]*-{2,}[ \t:|-]*$")
+#: A table body/header row: starts and ends with a pipe. Its cells become a
+#: 「 / 」-joined phrase so the row reads as prose instead of a wall of bars.
+#: Line-anchored on both ends, so a mid-sentence 「a|b」 is never touched.
+_MD_TABLE_ROW = re.compile(r"(?m)^[ \t]*\|(?P<cells>.+)\|[ \t]*$")
+
+
+def _flatten_table_row(match: "re.Match[str]") -> str:
+    cells = [cell.strip() for cell in match.group("cells").split("|")]
+    return " / ".join(cell for cell in cells if cell)
+
 
 def plain_text(text: str) -> str:
     """Strip Markdown decoration from an excerpt, keeping every word.
@@ -76,9 +92,17 @@ def plain_text(text: str) -> str:
     corpus is nearly half commits (C-1221). The removal is an allowlist of
     real trailer tokens, so a content line that happens to start 「TODO:」 or
     「影響:」 survives.
+
+    A Markdown table is flattened rather than shown as bars (C-1226): its
+    separator row is dropped and each body row's cells are joined with 「 / 」,
+    so a stats table reads as prose instead of 「| --- | --- |」.
     """
 
     text = _TRAILER.sub("", text)
+    # Tables before the list strip, so a separator row is gone before its
+    # dashes could read as a bullet, and while line boundaries still exist.
+    text = _MD_TABLE_SEP.sub("", text)
+    text = _MD_TABLE_ROW.sub(_flatten_table_row, text)
     text = _MD_LIST.sub("", text)
     text = _MD_HEADING.sub("", text)
     text = _MD_BOLD.sub(r"\1", text)

@@ -696,6 +696,23 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1226: a cited Markdown table surfaced as 「| 項目 | 値 | | --- | --- |」 -
+    # plain_text stripped headings/bold/lists/trailers but not table syntax,
+    # and the corpus is full of tables. The separator row is now dropped and
+    # cells joined with 「 / 」; a mid-sentence pipe is left alone.
+    from sidra_ai.evals.answer_table_flattened import evaluate_answer_table_flattened
+
+    table = evaluate_answer_table_flattened()
+    c.add(
+        "qa_answer_table_flattened",
+        "回答の表が読める文になる（縦棒と区切り行が出ない）",
+        10.0 * table.checks_passed / table.checks_total,
+        detail=f"{table.checks_passed}/{table.checks_total} checks; "
+               "src/sidra_ai/evals/answer_table_flattened.py"
+               + ("" if table.passed else "; " + "; ".join(table.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1216: the top citation for a real revenue question was 26 characters
     # of raw Markdown cut mid-checkbox (「## D-CY4. … - [ ] **A.」). The lead
     # extractor now flattens markup (C-1212's plain_text) and label fragments
