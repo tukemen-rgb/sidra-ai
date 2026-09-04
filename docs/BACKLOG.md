@@ -3774,7 +3774,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       → 動かす数字: creation_shooter_graze unmeasurable→1（実走行で
       「かすりで加点・遠距離では加点なし・被弾で連続数リセット・
       当たり判定そのものは不変」を検査）
-- [ ] **C-1411: shooter にコンボ倍率（2 型目の配線）。**（進捗監視起票
+- [~] 作業中 2026-09-04 10:08 ループA **C-1411: shooter にコンボ倍率（2 型目の配線）。**（進捗監視起票
       2026-09-04・根拠は combo.py の COMBO_UNWIRED 自身の記述「the obvious
       next one: kills are already discrete successes」）C-1405 の部品を
       使い、連続キル（被弾で途切れる）で倍率を積む。グレイズ（C-1406）とは
