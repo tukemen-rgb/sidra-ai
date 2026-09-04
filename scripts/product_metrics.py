@@ -1251,6 +1251,25 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1225: 「マリオみたいなゲーム」 fell to fishing with no notice - the
+    # platformer flagship was a guarded trademark but named no genre. It now
+    # routes to the platformer (title guard swaps the name), while マリオカート
+    # keeps racing, matched first.
+    from sidra_ai.evals.mario_routes_to_platformer import (
+        evaluate_mario_routes_to_platformer,
+    )
+
+    mario = evaluate_mario_routes_to_platformer()
+    c.add(
+        "creation_mario_routes_to_platformer",
+        "マリオ系の依頼が platformer に届く（商標は伏せる）",
+        10.0 * mario.checks_passed / mario.checks_total,
+        detail=f"{mario.checks_passed}/{mario.checks_total} checks; "
+               "src/sidra_ai/evals/mario_routes_to_platformer.py"
+               + ("" if mario.passed else "; " + "; ".join(mario.failures)),
+        kind=OUTCOME,
+    )
+
     # Asking for a genre we cannot build gets a playable page either way, so
     # playability cannot tell "we made a shooter" from "we made a fishing game
     # and called it a shooter". This number asks the generator both questions:

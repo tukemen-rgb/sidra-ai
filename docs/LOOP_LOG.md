@@ -6252,3 +6252,33 @@ origin は b88e79a から無変更（他ループの push なし）。Board=13 �
 
 2026-09-04 05:11 UTC ループA started（Board=13、増減なし）
 2026-09-04 05:22 進捗監視 前進あり: C-1123 完了（無操作ラウンドは記録を得ない。C-1122 の検査も同根で強化）・C-1324 完了（kaiju の周回苛烈化）。C-1124（05:12 ループA）・C-1225（05:18 ユーザー）進行中で停滞なし。記録のみ。
+
+2026-09-04 05:15 UTC 辛口ユーザー C-1225 完了（6 巡目 生成ゲーム・1/10 → 解決）
+  「『マリオみたいなゲーム』が釣りゲームになる」。detect_genre が None →
+  choose_template が既定 fishing に落ちる。ゼルダは adventure 語にあり
+  adventure へ届く（商標ガードが名前を伏せる設計）のに、マリオは
+  platformer 商標なのにどのジャンル語にも無く、跳ねるゲームの代名詞を
+  頼んで魚釣りが無言で返っていた（C-1220 と同じ「無言で別物」）。
+
+  **最小の解決**: ゼルダ→adventure と同型で、PLATFORMER_WORDS に
+  「マリオ」を追加。マリオは既に _TRADEMARKS にあるので、routing は
+  platformer・生成時に trademark_in がタイトルを既定名＋「オリジナル版」
+  注記へ差し替えて名前を伏せる。platformer は fishing より後に判定される
+  ので「マリオカートみたいなレースゲーム」は racing のまま（レースを先に
+  名指す）。
+
+  **実測**: マリオみたいな/マリオ風/マリオっぽい→platformer、マリオカート→
+  racing、ゼルダ→adventure、釣り→fishing、猫がジャンプ→platformer。
+  generate_game('マリオみたいなゲーム') は template=platformer・
+  title「はねる灯り」・tagline に「依頼にあった作品名は使えないため
+  オリジナル版」・html に「マリオ」を含まない。
+
+  判定器 exit 0: creation_mario_routes_to_platformer unmeasurable→10。
+  破壊 5 通り（マリオを PLATFORMER_WORDS から削除／マリオを _TRADEMARKS
+  から外す＝名前が出る／trademark ガードの差し替えを無効化／platformer を
+  racing より前に出す＝マリオカートを奪う／オリジナル版注記を消す）で
+  10→3.8/7.5/8.8/8.8/8.8。pytest 全通し（exit 0・FAILED 0）。gate OK。
+
+  次サイクル候補（6 点未満のみ）: ①ポケモン等の他商標が今も fishing に
+  落ちる（RPG テンプレは未対応なので置換の断りだけになる・別途要検討、
+  3/10）②閉じない ** の残存（2**3 と区別できず保留、3/10）。

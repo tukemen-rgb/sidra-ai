@@ -46,6 +46,13 @@ from __future__ import annotations
 #: Platformer is matched after shooter/adventure/racing/duel, so a sentence
 #: that names one of those keeps it - 「ジャンプで撃つシューティング」 is still
 #: a shooter - and only a request whose sole genre cue is the jump lands here.
+#:
+#: 「マリオ」 is here for the same reason 「ゼルダ」 is an adventure word
+#: (C-1225): the flagship of the genre names the genre, so a franchise request
+#: is one we *can* build - a jumping platformer - and routing it here lets the
+#: title guard (``trademark_in``) swap the name for an original one, instead of
+#: the request falling silently to fishing. Platformer is matched last, so
+#: 「マリオカートのレース」 still lands on racing, which is named first.
 PLATFORMER_WORDS: tuple[str, ...] = (
     "プラットフォーマー",
     "platformer",
@@ -55,6 +62,7 @@ PLATFORMER_WORDS: tuple[str, ...] = (
     "跳",
     "飛び越え",
     "足場",
+    "マリオ",
 )
 
 #: (gap multiplier, platform count). Wider gaps ask more of the jump, more
