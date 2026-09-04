@@ -2700,7 +2700,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       配置、catch: 受け皿直下スポーン抑制、kaiju: 静止標的への必中化）。
       「無操作 60 秒で record が付かない」ことを 9 型で計器に。
       → 動かす数字: creation_afk_no_record unmeasurable→9
-- [ ] **C-1124: 上限つき自己ベストをタイム/マージン記録に変える。**（批評 #5）
+- [~] 作業中 2026-09-04 05:12 ループA **C-1124: 上限つき自己ベストをタイム/マージン記録に変える。**（批評 #5）
       racing はブリーフィングの約束どおり times[] を保存・比較（ゴーストの
       再バンクも同基準）。duel/kaiju/adventure も余裕（残 hp・残時間・被弾数）
       を第 2 キーに。初回で飽和しない=2 回目に更新可能なことを計器で。
