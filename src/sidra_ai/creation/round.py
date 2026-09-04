@@ -80,6 +80,28 @@ ROUND_SCORE: dict[str, tuple[str, str]] = {
     "shooter": ("score+grazeFacts().paid", "得点"),
 }
 
+#: The second key, for the four templates whose score has a ceiling.
+#:
+#: C-1124: a race is scored by laps completed and there are three of them,
+#: so the first finish sets a best that no later run can beat - the strip
+#: says 自己ベスト更新 once and then nothing it offers is reachable again.
+#: The same shape in three others: damage dealt out of three, cycles out of
+#: three, gems out of however many the room holds. Each gets a tiebreak the
+#: player can still improve, compared only when the scores are level.
+#:
+#: ``better`` is 'more' or 'less'. The expression is evaluated on the page,
+#: like ``ROUND_SCORE``, so a renamed variable fails the judge rather than
+#: silently disabling the tiebreak.
+ROUND_TIE: dict[str, tuple[str, str, str]] = {
+    # The briefing promises lap times; this is what makes that true.
+    "racing": ("times.reduce((a,b)=>a+b,0)", "less", "合計タイム"),
+    # What was left of you when it ended. Winning 3-0 beats winning 3-2.
+    "duel": ("p.hp", "more", "残り体力"),
+    "kaiju": ("me.hp", "more", "残り体力"),
+    "adventure": ("hero.hp", "more", "残り体力"),
+}
+
+
 #: Names the preamble introduces, held to by a test like the other
 #: preambles': a template that happened to define ``roundFacts`` would
 #: break only in the generated page.
@@ -88,6 +110,8 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "roundEnded",
     "roundLost",
     "roundTouched",
+    "roundTieBeats",
+    "roundTieFacts",
     "roundFacts",
     "roundScore",
     "roundBest",
@@ -239,6 +263,28 @@ function roundBestRead(){try{if(typeof localStorage==='undefined')return null;
 function roundBestWrite(v){try{if(typeof localStorage!=='undefined'){
   localStorage.setItem(ROUND_KEY,String(v))}}catch(e){}}
 function roundBest(){return ROUND_BEST}
+/* --- the second key, for a score with a ceiling (C-1124) ------------- */
+const ROUND_TIE_KEY='sidra.tie.'+ROUND_NAME_TOKEN;
+const ROUND_TIE_BETTER=ROUND_TIE_BETTER_TOKEN,ROUND_TIE_LABEL=ROUND_TIE_LABEL_TOKEN;
+let ROUND_TIE=null,ROUND_TIE_BEST=null;
+/* Guarded like roundScore: a round that ends before the template built its
+   state must not throw on the way to the result screen. */
+function roundTieNow(){try{const v=ROUND_TIE_TOKEN;
+  return (typeof v==='number'&&isFinite(v))?v:null}catch(e){return null}}
+function roundTieRead(){try{if(typeof localStorage==='undefined')return null;
+  const raw=localStorage.getItem(ROUND_TIE_KEY);if(raw===null)return null;
+  const v=Number(raw);return isFinite(v)?v:null}catch(e){return null}}
+function roundTieWrite(v){try{if(typeof localStorage!=='undefined'){
+  localStorage.setItem(ROUND_TIE_KEY,String(v))}}catch(e){}}
+/* Only consulted when the scores are level - the score is still the
+   score. Without a tiebreak this returns false and nothing changes, which
+   is what the six templates that have no ceiling get. */
+function roundTieBeats(now,best){
+  if(!ROUND_TIE_BETTER||now===null)return false;
+  if(best===null)return true;
+  return ROUND_TIE_BETTER==='less'?now<best:now>best}
+function roundTieFacts(){return {now:ROUND_TIE,best:ROUND_TIE_BEST,
+  better:ROUND_TIE_BETTER,label:ROUND_TIE_LABEL}}
 /* Banked once per round, on the first frame it is over: reading the score
    every frame afterwards would keep overwriting the best with whatever the
    frozen page still holds. Kept on this device only - no URL, nothing
@@ -251,8 +297,16 @@ function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
      as a best, not counted toward a colour, not kept as a ghost, and not
      recorded as a win or a loss. */
   if(!ROUND_TOUCHED)return;
+  ROUND_TIE=roundTieNow();ROUND_TIE_BEST=roundTieRead();
   if(ROUND_BEST===null||ROUND_FINAL>ROUND_BEST){ROUND_RECORD=true;
-    roundBestWrite(ROUND_FINAL);ROUND_BEST=ROUND_FINAL}
+    roundBestWrite(ROUND_FINAL);ROUND_BEST=ROUND_FINAL;
+    if(ROUND_TIE!==null){roundTieWrite(ROUND_TIE);ROUND_TIE_BEST=ROUND_TIE}}
+  /* A score with a ceiling is reached and then never beaten, so the run
+     that reaches it faster - or with more left - is the better run
+     (C-1124). Only when the scores are level: this breaks ties, it does
+     not outrank the score. */
+  else if(ROUND_FINAL===ROUND_BEST&&roundTieBeats(ROUND_TIE,ROUND_TIE_BEST)){
+    ROUND_RECORD=true;roundTieWrite(ROUND_TIE);ROUND_TIE_BEST=ROUND_TIE}
   /* The same number, banked a second way: the best is this round against
      the last one, the total is every round there has ever been (C-1109).
      Both stay on this device. */
@@ -286,6 +340,11 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   if(ROUND_FINAL!==null){
     left=ROUND_LABEL+' '+ROUND_FINAL;
     if(ROUND_RECORD){left+=' / 自己ベスト更新'}
+    else if(ROUND_BEST!==null&&ROUND_FINAL===ROUND_BEST&&ROUND_TIE_BETTER
+      &&ROUND_TIE_BEST!==null){
+      /* The score is maxed out, so 「あと 1」 would be a target nobody can
+         reach. What is left to beat is the second key (C-1124). */
+      left+=' / '+ROUND_TIE_LABEL+' '+ROUND_TIE+'（自己ベスト '+ROUND_TIE_BEST+'）'}
     else if(ROUND_BEST!==null){left+=' / 自己ベスト '+ROUND_BEST
       +'（あと '+(ROUND_BEST-ROUND_FINAL+1)+'）'}}
   /* Whose board this was. Only when the switch is on: a line that always
@@ -312,6 +371,7 @@ function drawResultStrip(){if(!RCV)return;roundBank();
     c.fillText('新しい見た目「'+news+'」が開きました',W/2,H-62)}
   c.textAlign='left';c.restore()}
 function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
+  tie:roundTieFacts(),
   ended:roundEnded(),limit:ROUND_LIMIT_MS,
   score:ROUND_FINAL,best:ROUND_BEST,record:ROUND_RECORD,
   live:roundScore(),
@@ -476,6 +536,7 @@ def preamble_for(template: str) -> str:
     """The clock and the result strip, told about one template."""
 
     expression, label = ROUND_SCORE.get(template, ("null", "得点"))
+    tie_expression, better, tie_label = ROUND_TIE.get(template, ("null", "", ""))
     return (
         ROUND_PREAMBLE.replace(
             "ROUND_LIVE_TOKEN", json.dumps(list(ROUND_LIVE.get(template, ())))
@@ -484,6 +545,9 @@ def preamble_for(template: str) -> str:
         .replace("ROUND_NAME_TOKEN", json.dumps(template))
         .replace("ROUND_LABEL_TOKEN", json.dumps(label, ensure_ascii=False))
         .replace("ROUND_SCORE_TOKEN", expression)
+        .replace("ROUND_TIE_TOKEN", tie_expression)
+        .replace("ROUND_TIE_BETTER_TOKEN", json.dumps(better))
+        .replace("ROUND_TIE_LABEL_TOKEN", json.dumps(tie_label, ensure_ascii=False))
     )
 
 
@@ -492,6 +556,7 @@ __all__ = [
     "PROBE",
     "ROUND_LIVE",
     "ROUND_SCORE",
+    "ROUND_TIE",
     "ROUND_PREAMBLE",
     "ROUND_SECONDS",
     "live_gaps",

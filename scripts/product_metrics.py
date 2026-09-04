@@ -3646,6 +3646,119 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a best that can still be beaten --------------------------------
+    #
+    # C-1124: four templates score against a ceiling - laps out of three,
+    # damage out of three, cycles out of three, the gems a room holds. The
+    # first good run reaches it, the strip says 自己ベスト更新 once, and
+    # after that nothing it offers is reachable again: 「あと 1」 against a
+    # maximum is a target that does not exist. Each now carries a second
+    # key, consulted only when the scores are level - the race that took
+    # less time, the duel won with more left.
+    #
+    # Driven by seeding the store rather than by playing well: the run is
+    # given a best equal to what it will score and a second key that is
+    # deliberately worse, then deliberately better. A saturating record
+    # cannot pass both.
+    from sidra_ai.creation.round import ROUND_TIE as _tie_table
+    from sidra_ai.creation.adapt import streak_probe_source as _tie_probe
+
+    tie_gaps: list[str] = []
+    tie_ok: list[str] = []
+    _tie_asks = {
+        "racing": "レースゲームを作って",
+        "duel": "対戦ゲームを作って",
+        "kaiju": "怪獣と戦うゲームを作って",
+        "adventure": "冒険ゲームを作って",
+    }
+    _tie_extra = (
+        "    stored: Number(store[ADAPT_KEY] === undefined ? 0 : store[ADAPT_KEY]),\n"
+        "    score: ROUND_FINAL, tie: roundTieFacts() });"
+    )
+
+    def _tie_run(key, seed):
+        found = _scene_re.search(
+            r"<script>(.*?)</script>", generate_game(_tie_asks[key]).html, _scene_re.S
+        )
+        if found is None:
+            return None, f"{key}: no script on the page"
+        source = _tie_probe(found.group(1), rounds=1, hold="x", stored=seed).replace(
+            "    stored: Number(store[ADAPT_KEY] === undefined ? 0 : store[ADAPT_KEY]) });",
+            _tie_extra,
+        )
+        try:
+            run = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=240
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            return json.loads(run.stdout.strip().splitlines()[-1])["rounds"][0], None
+        except (OSError, _scene_sp.SubprocessError, ValueError, IndexError) as exc:
+            return None, f"{key}: probe unavailable ({exc})"
+
+    for key in sorted(_tie_table):
+        _expr, better, label = _tie_table[key]
+        # What the round scores and what its second key comes to, read off
+        # a plain run so the seeds below are about this template's reality.
+        plain, problem = _tie_run(key, {})
+        if problem:
+            tie_gaps.append(problem)
+            continue
+        if plain["score"] is None or plain["tie"]["now"] is None:
+            tie_gaps.append(f"{key}: the round produced no score or no second key")
+            continue
+        if plain["tie"]["better"] != better or not plain["tie"]["label"]:
+            tie_gaps.append(f"{key}: the page does not carry the second key")
+            continue
+        here, tie = plain["score"], plain["tie"]["now"]
+        worse = tie + 1000 if better == "less" else tie - 1
+        finer = tie - 1000 if better == "less" else tie + 1
+        # Same score as the stored best, but a better second key: a record.
+        beat, problem = _tie_run(
+            key, {f"sidra.best.{key}": here, f"sidra.tie.{key}": worse}
+        )
+        if problem:
+            tie_gaps.append(problem)
+            continue
+        if not beat["record"]:
+            tie_gaps.append(f"{key}: a level score with a better {label} set no record")
+            continue
+        # ...and the same score with a worse second key: no record.
+        held, problem = _tie_run(
+            key, {f"sidra.best.{key}": here, f"sidra.tie.{key}": finer}
+        )
+        if problem:
+            tie_gaps.append(problem)
+            continue
+        if held["record"]:
+            tie_gaps.append(f"{key}: a worse {label} still claimed a record")
+            continue
+        # ...and it never outranks the score itself: a run that scored less
+        # than the stored best sets no record however good its second key.
+        outranked, problem = _tie_run(
+            key, {f"sidra.best.{key}": here + 1, f"sidra.tie.{key}": worse}
+        )
+        if problem:
+            tie_gaps.append(problem)
+            continue
+        if outranked["record"]:
+            tie_gaps.append(f"{key}: a lower score claimed a record on its {label}")
+            continue
+        tie_ok.append(key)
+    c.add(
+        "creation_record_improvable",
+        "上限に当たった自己ベストがまだ更新できる",
+        float(len(tie_ok)) if not tie_gaps else 0.0,
+        detail=(
+            "; ".join(tie_gaps)
+            if tie_gaps
+            else f"上限つきの {len(tie_ok)} 型で実走行: 得点が並んだとき第 2 キー"
+            "（合計タイム・残り体力）が良ければ更新し、悪ければ更新しない。"
+            "得点そのものより優先されることはない"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

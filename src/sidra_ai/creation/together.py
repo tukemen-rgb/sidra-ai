@@ -44,6 +44,7 @@ STORAGE_PREFIXES: dict[str, str] = {
     "sidra.seen.": "C-1111 whether the briefing has been read",
     "sidra.ghost.": "C-1401 the trail of the run that set the best",
     "sidra.streak.": "C-1402 losses in a row, for the one step it buys",
+    "sidra.tie.": "C-1124 the second key, for a score that has a ceiling",
     "sidra.keys.": "C-1305 this device's key re-assignments",
 }
 
