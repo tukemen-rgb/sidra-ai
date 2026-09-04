@@ -38,10 +38,15 @@ _MD_BOLD = re.compile(r"\*\*([^*]+)\*\*")
 _MD_EMPHASIS = re.compile(r"(?<![\w*])\*([^*\s][^*]*)\*(?![\w*])")
 _MD_CODE = re.compile(r"`([^`]+)`")
 _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
-#: A bullet at the start of a line, with or without a task checkbox. Only
-#: line-anchored so a mid-sentence dash (「令和 - 平成」) is never touched;
-#: applied before whitespace collapse, while line starts still exist (C-1216).
-_MD_LIST = re.compile(r"(?m)^[ \t]*[-*+][ \t]+(?:\[[ xX]\][ \t]+)?")
+#: A list marker at the start of a line: a bullet (with or without a task
+#: checkbox) or an ordered-list number (「2.」「3)」). Only line-anchored, so a
+#: mid-sentence dash (「令和 - 平成」) and an inline decimal (「3.5 倍」, whose
+#: dot is followed by a digit, not a space) are never touched. When an excerpt
+#: window lands inside an ordered list, the numbers used to survive - a
+#: document's 概要 opened 「2. ブランドを分けるか」 with no 1 (C-1222) - because
+#: only bullets were stripped. Applied before whitespace collapse, while the
+#: line starts still exist (C-1216).
+_MD_LIST = re.compile(r"(?m)^[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?")
 
 #: Git/AI commit-message trailers. Commits are ~43% of the indexed corpus and
 #: every one carries these lines; the echo lead extractor pulled them in as

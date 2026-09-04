@@ -642,6 +642,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1222: a generated document's 概要 opened 「2. ブランドを分けるか」 - the
+    # excerpt landed mid ordered-list and plain_text stripped bullets but not
+    # ordered-list numbers, so the first line began with a 2 and no 1. The
+    # marker strip now covers ordered markers while inline decimals and years
+    # survive.
+    from sidra_ai.evals.document_list_markers import evaluate_document_list_markers
+
+    doc_markers = evaluate_document_list_markers()
+    c.add(
+        "creation_doc_no_list_markers",
+        "生成文書が番号付きリストの途中から始まらない",
+        10.0 * doc_markers.checks_passed / doc_markers.checks_total,
+        detail=f"{doc_markers.checks_passed}/{doc_markers.checks_total} checks; "
+               "src/sidra_ai/evals/document_list_markers.py"
+               + ("" if doc_markers.passed else "; " + "; ".join(doc_markers.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1221: commits are ~43% of the corpus and every one ends with git/AI
     # trailers (Co-Authored-By, Claude-Session). The lead extractor pulled
     # them into the answer body as content; plain_text now drops the known
