@@ -7196,3 +7196,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest exit 0（3266 passed / 3 skip）/ gate exit 0（MISS 0）。
   残り 7 型の HUD は盤・地形の上に載るため別測が要る——次候補として明記。
 
+
+2026-09-04 22:06 UTC ループA started（Board=13、増減なし）
