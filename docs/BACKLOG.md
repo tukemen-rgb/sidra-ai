@@ -3801,7 +3801,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       C-1405 と同じ。→ 動かす数字: creation_shooter_combo unmeasurable→1
       （実走行で「連続キルで上がる・被弾で戻る・グレイズ点と独立・点に
       効く」を検査。破壊で 0）
-- [ ] **C-1412: marble にゴースト（2 型目の配線）。**（進捗監視起票
+- [~] 作業中 2026-09-04 11:09 ループA **C-1412: marble にゴースト（2 型目の配線）。**（進捗監視起票
       2026-09-04・根拠は ghost.py の GHOST_UNWIRED 自身の記述「progress is
       z along the corridor - the closest of the rest, and the next one to
       wire」）C-1401 の trail 部品を z 軸で索引して marble に配線する。
