@@ -46,6 +46,12 @@ from sidra_ai.creation.combo import preamble_for as combo_preamble_for
 from sidra_ai.creation.graze import preamble_for as graze_preamble_for
 from sidra_ai.creation.recap import preamble_for as recap_preamble_for
 from sidra_ai.creation.intent import fold_kana
+from sidra_ai.creation.vocabulary import (
+    CATCH_WORDS,
+    FISHING_WORDS,
+    GENRES,
+    labels_for,
+)
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.ghost import preamble_for as ghost_preamble_for
 from sidra_ai.creation.juice import JUICE_PREAMBLE
@@ -390,8 +396,11 @@ _DIFFICULTY = {
 # quiet kind of wrong - the page still works, so nothing complains.
 _HARD = ("難し", "むずかし", "ハード", "hard", "難易度高")
 _EASY = ("簡単", "やさし", "かんたん", "easy", "初心者")
-_FISHING_WORDS = ("釣り", "つり", "fishing", "魚")
-_CATCH_WORDS = ("キャッチ", "catch", "受け", "落ちもの", "避け")
+# C-1120: the words and the genre table live in vocabulary.py now, so the
+# detector and the router read the same list. These aliases keep the local
+# spelling the rest of this module already uses.
+_FISHING_WORDS = FISHING_WORDS
+_CATCH_WORDS = CATCH_WORDS
 _ADVENTURE_WORDS = ADVENTURE_WORDS
 _DUEL_WORDS = DUEL_WORDS
 _SHOOTER_WORDS = SHOOTER_WORDS
@@ -495,51 +504,7 @@ def choose_template(request: str) -> str:
 #: :data:`TEMPLATES` - the table names the *promise*, not the inventory, so a
 #: template landing later flips the answer without anyone editing this list.
 #: Order is the tie-break: "対戦シューティング" is a shooter, not a versus game.
-_GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    # First of all: 3D names a dimension none of the other nine can
-    # draw, so it outranks every word describing what you do in it.
-    ("3D コース", "marble", MARBLE_WORDS),
-    # Then: a giant-boss request names the monster, and every other genre
-    # word in the sentence ("撃つ", "冒険") is describing what you do to it.
-    ("巨大ボス", "kaiju", KAIJU_WORDS),
-    (
-        "アドベンチャー",
-        "adventure",
-        ("アドベンチャー", "adventure", "ゼルダ", "冒険", "ダンジョン", "探索"),
-    ),
-    (
-        "シューティング",
-        "shooter",
-        ("シューティング", "shooting", "shooter", "stg", "弾幕", "シューター"),
-    ),
-    ("パズル", "puzzle", ("パズル", "puzzle")),
-    # The template module owns the vocabulary, as with kaiju and the duel:
-    # one list routes and one list answers, so they cannot drift.
-    ("レース", "racing", RACING_WORDS),
-    ("RPG", "rpg", ("rpg", "ロールプレイング", "ロープレ")),
-    # Before 対戦格闘: a franchise-beam request is a duel we *can* build, and
-    # first-match order is what keeps it from falling into the fighting-game
-    # apology below.
-    ("ビーム対戦", "duel", DUEL_WORDS),
-    (
-        "対戦格闘",
-        "fighter",
-        ("格闘", "fighting", "格ゲー"),
-    ),
-    (
-        "シミュレーション",
-        "simulation",
-        ("シミュレーション", "simulation", "経営ゲーム"),
-    ),
-    ("ノベル", "novel", ("ノベルゲーム", "ノベル", "visual novel", "サウンドノベル")),
-    ("リズム", "rhythm", ("リズムゲーム", "音ゲー", "rhythm")),
-    ("キャッチ", "catch", _CATCH_WORDS),
-    ("釣り", "fishing", _FISHING_WORDS),
-    # Last, matching choose_template: the bare 「ジャンプ」/「跳」 cues (C-1220)
-    # name the platformer only when no genre above was named, so 「魚が跳ねる
-    # 釣り」 stays fishing while 「猫がジャンプする」 becomes the platformer.
-    ("プラットフォーマー", "platformer", PLATFORMER_WORDS),
-)
+_GENRES = GENRES
 
 
 @dataclass(frozen=True)

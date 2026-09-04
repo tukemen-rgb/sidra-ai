@@ -2305,6 +2305,7 @@ def measure_creation(c: Collector) -> None:
     # all four themes rather than the default one.
     import re as _scene_re
     import subprocess as _scene_sp
+    import tempfile as _scene_tempfile
 
     from sidra_ai.creation.adventure import world_probe as _adv_probe
     from sidra_ai.creation.duel import pace_probe as _duel_pace_for_scenes
@@ -3161,6 +3162,68 @@ def measure_creation(c: Collector) -> None:
             else f"{len(LOSS_WIRED)} 型で実際に負けを作って確認: 帯の一言が"
             "その回のカウンタと一致し、勝ちでは何も言わず、0 のカウンタは"
             "名指ししない。未配線 5 型は理由つき（LOSS_UNWIRED）"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- a genre we cannot build is named, not approximated silently ---
+    #
+    # C-1120: the detector kept a third list of game words, so 「レースを
+    # 作って」 was not even a creation request - it got the retrieval
+    # boilerplate while choose_template knew to build a race. The words now
+    # come from the routing table itself. This checks the other half: a
+    # request for a genre with no template still reaches the generator, is
+    # named in the asker's own words, and is answered with what *can* be
+    # built rather than a bare claim that fishing was "nearest".
+    from sidra_ai.creation.games import TEMPLATES as _weak_templates
+    from sidra_ai.creation.games import detect_genre as _weak_genre
+    from sidra_ai.creation.intent import detect_creation_intent as _weak_intent
+    from sidra_ai.creation.router import build_default_router as _weak_router
+    from sidra_ai.creation.vocabulary import GENRES as _weak_genres
+    from sidra_ai.creation.vocabulary import labels_for as _weak_labels
+
+    weak_gaps: list[str] = []
+    # Every genre in the table, buildable or not, has to be a game request.
+    for label, template, words in _weak_genres:
+        probe = f"{words[0]}を作って"
+        if _weak_intent(probe).kind.value != "game":
+            weak_gaps.append(f"{label}: 「{probe}」 is not read as a game request")
+    unbuildable = [
+        (label, words[0])
+        for label, template, words in _weak_genres
+        if template not in _weak_templates
+    ]
+    if not unbuildable:
+        weak_gaps.append("no unbuildable genre is named, so nothing can be declined")
+    else:
+        _weak_dir = _scene_tempfile.mkdtemp(prefix="weak-intent-")
+        router = _weak_router(data_dir=_weak_dir)
+        expected = _weak_labels(_weak_templates)
+        for label, word in unbuildable:
+            probe = f"{word}を作って"
+            outcome = router.route(probe, _weak_intent(probe), [])
+            if not outcome.handled:
+                weak_gaps.append(f"{label}: the request was not handled at all")
+                continue
+            said = outcome.summary
+            if label not in said:
+                weak_gaps.append(f"{label}: the decline does not name the genre asked for")
+            # ...and it lists what is real, from TEMPLATES rather than prose.
+            missing = [name for name in expected if name not in said]
+            if missing:
+                weak_gaps.append(f"{label}: the reply omits buildable genres {missing[:3]}")
+            if any(name in said for name, _t, _w in _weak_genres if _t not in _weak_templates and name != label):
+                weak_gaps.append(f"{label}: the reply offers a genre that does not exist")
+    c.add(
+        "creation_weak_intent_reply",
+        "作れない型は名指しして、作れる型を出す",
+        0.0 if weak_gaps else 1.0,
+        detail=(
+            "; ".join(weak_gaps)
+            if weak_gaps
+            else f"語彙表の {len(_weak_genres)} ジャンル全部が制作依頼として届き、"
+            f"うち作れない {len(unbuildable)} 件は依頼者の語で名指しし、"
+            "作れる型を TEMPLATES から並べて返す（存在しない型は挙げない）"
         ),
         kind=OUTCOME,
     )
@@ -5749,6 +5812,19 @@ def measure_creation(c: Collector) -> None:
         ("じふつくって", "gif", None),
         ("あーとつくって", "art", None),
         ("でっきつくって", "deck", None),
+        # C-1120: the eight the self-test found at the front door. Four are
+        # buildable and must reach their template; four name genres this
+        # product has no template for and must still be recognised as game
+        # requests, so they can be declined in the asker's own words rather
+        # than answered with retrieval boilerplate.
+        ("横スクロールのジャンプアクションを作って", "game", "platformer"),
+        ("レースを作って", "game", "racing"),
+        ("ぷよぷよみたいなの作って", "game", "puzzle"),
+        ("さめがめを作って", "game", "puzzle"),
+        ("テトリスみたいなゲームを作って", "game", None),
+        ("RPG を作って", "game", None),
+        ("音ゲーを作って", "game", None),
+        ("タワーディフェンスを作って", "game", None),
     )
     kana_ok = 0
     kana_misses = []

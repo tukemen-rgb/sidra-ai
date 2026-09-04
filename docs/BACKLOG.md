@@ -2674,7 +2674,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
 **プレイヤー 4/10・プロ 4/10**、欠陥 14 件（全件再現手順つき）。以下は
 その全対応。**#順は批評の深刻度順**。起票は対話セッション（C-11xx 帯）。
 
-- [~] 作業中 2026-09-04 02:07 ループA **C-1120: intent の GAME 語彙を単一ソース化する。**（批評 #1・#9）
+- [x] 完了 2026-09-04 03:0x UTC ループA（`creation_intent_paraphrase` **12→20**・`creation_weak_intent_reply` unmeasurable→**1**、判定器 exit 0。5 通りの破壊で 0/11 に落ちることを確認。`creation/vocabulary.py` を新設してジャンル表を単一ソース化し、intent は**そこから導出**するようにした（循環回避: vocabulary はテンプレ各モジュールにしか依存しない）。**同じ漂流が表の中にもう 1 段あった**——adventure/shooter/puzzle はテンプレ側の語彙を使わず手書きしており、「ぷよぷよ」は puzzle へルーティングされるのに制作依頼として認識されなかった。**テトリスは puzzle に混ぜず「落ち物パズル」として断る**（この製品の puzzle は さめがめ 系の消しゲームで落ち物ではない））**C-1120: intent の GAME 語彙を単一ソース化する。**（批評 #1・#9）
       「横スクロールのジャンプアクション」「テトリス」「RPG」「レースを作って」
       等が門前払いされ RAG の定型文が返る。原因は intent._ARTIFACTS[GAME] が
       games._GENRES・各 *_WORDS と独立の第 3 の表であること。**循環 import に

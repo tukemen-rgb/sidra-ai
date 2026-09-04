@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.creation.vocabulary import labels_for
 from sidra_ai.creation.games import (
     TEMPLATES,
     detect_genre,
@@ -87,10 +88,17 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
         requested = detect_genre(message)
         substituted = requested is not None and not requested.supported
         if verdict["playable"] and substituted and requested is not None:
+            # ...and say what *can* be built (C-1120). Calling a fishing
+            # page "the nearest thing to an RPG" is true only in the sense
+            # that it was the fallback; a person who asked for one wants to
+            # know which genres are real here, and the list is derived from
+            # TEMPLATES so it cannot outlive the templates it names.
+            buildable = "・".join(labels_for(TEMPLATES))
             summary = (
                 f"{requested.genre}型はまだ作れないため、いちばん近い"
                 f"「{TEMPLATES[game.template].default_title}」型で作りました"
                 f"（難易度 {game.difficulty}）。"
+                f"いま作れるのは {buildable} です。"
                 "ブラウザで開けばそのまま遊べます。"
             )
         elif (

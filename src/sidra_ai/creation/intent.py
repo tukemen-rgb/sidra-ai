@@ -29,6 +29,8 @@ the number measured here would not be the number an operator gets.
 
 from __future__ import annotations
 
+from sidra_ai.creation.vocabulary import GAME_WORDS
+
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -139,29 +141,11 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "アセット",
         "制作記録",
     ),
-    CreationKind.GAME: (
-        "ゲーム",
-        "げーむ",
-        "ミニゲーム",
-        "釣りゲーム",
-        "game",
-        "minigame",
-        # Titles people ask for by name land on the game side even without
-        # the word ゲーム - 「ゼルダの伝説 不思議なぼうし作って」 names no
-        # artifact class at all. What happens to the trademark itself is the
-        # generator's title guard, not the detector's business.
-        "ゼルダ",
-        "冒険",
-        "アドベンチャー",
-        "ダンジョン",
-        "adventure",
-        "zelda",
-        "ドラゴンボール",
-        "対戦",
-        "バトル",
-        "シューティング",
-        "パズル",
-    ),
+    # C-1120: derived from the same table the router uses, so a genre can
+    # never be buildable and unrecognised at once. It used to be a third
+    # hand-written list, and 「レースを作って」 fell through it into the
+    # retrieval boilerplate while choose_template knew exactly what to make.
+    CreationKind.GAME: GAME_WORDS,
     CreationKind.DECK: (
         "デッキ",
         "スライド",
