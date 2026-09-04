@@ -7172,3 +7172,5 @@ C 節・D 節に未着手も作業中も無い。E 節の 4 件は社長判断�
 検証: `python -m pytest` **exit 0**（FAILED 0 件）、`verify_gate_recall.py` **PASSED**、
 `--compare /tmp/before-1413.json` **exit 0**（`creation_haptics_wired`
 unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
+
+2026-09-04 21:52 進捗監視 前進あり: C-1413 完了（creation_haptics_wired 0→1・補充分がその巡で消化）、C-1328 完了（catch 押しっぱなし移動）、C-1241 完了（同一抜粋の繰り返し防止）。C-1329（21:40 クリエイター claim）進行中で停滞なし。記録のみ。
