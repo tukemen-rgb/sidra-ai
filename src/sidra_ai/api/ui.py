@@ -54,6 +54,12 @@ ASK_PAGE = """<!doctype html>
   .row { margin-bottom: 1rem; }
   button { font: inherit; padding: .5rem 1.25rem; border-radius: .25rem; cursor: pointer; }
   button[disabled] { opacity: .5; cursor: progress; }
+  /* On a phone the 更新 and per-file 開く buttons came out 41-42px tall,
+     under the 48dp minimum a touch target needs - this is the page an author
+     opens on their phone to grab a generated file (C-1224). No button sets a
+     height, so one rule scoped to a coarse pointer lifts them all; the desktop
+     keeps its compact controls. Same fix the game shell already carries. */
+  @media (pointer: coarse) { button { min-height: 48px; } }
   /* overflow-wrap on the answer and status for the same reason .path has
      it: citation labels and error text carry long unbroken tokens, and on
      a phone one such token widens the document past the viewport - the

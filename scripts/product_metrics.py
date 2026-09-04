@@ -624,6 +624,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1224: on a phone the ask page's 更新 and per-file 開く buttons were
+    # 41-42px, under the 48dp tap minimum - the game shell got this fix
+    # (C-1219) but the product page it sits behind did not. One coarse-pointer
+    # rule lifts them all; the 48px live proof (desktop unchanged) is in the
+    # loop log.
+    from sidra_ai.evals.ui_touch_targets import evaluate_ui_touch_targets
+
+    ui_touch = evaluate_ui_touch_targets()
+    c.add(
+        "ui_touch_targets",
+        "ask ページのボタンがスマホで指で押せる（48dp 以上）",
+        10.0 * ui_touch.checks_passed / ui_touch.checks_total,
+        detail=f"{ui_touch.checks_passed}/{ui_touch.checks_total} checks; "
+               "src/sidra_ai/evals/ui_touch_targets.py"
+               + ("" if ui_touch.passed else "; " + "; ".join(ui_touch.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1217: the one filled slide of a requested revenue deck carried three
     # bullets, all ending mid-word - _bullets_for re-cut already-trimmed
     # facts at a hard 120 characters (the second cut site of C-1213's bug),
