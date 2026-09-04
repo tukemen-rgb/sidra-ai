@@ -7698,6 +7698,119 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the shared chrome wears the palette it was asked for ------------
+    #
+    # C-1130 (批評 #14). The round banner and the result strip painted
+    # themselves in the dark theme's own ink - '#05070f' behind, '#dfe7f5'
+    # on top - whatever palette the page had been generated in. On the
+    # paper theme that is a near-black slab across a white page: the one
+    # thing on screen that did not agree with the request.
+    #
+    # Counted per theme and read off a driven page, not off the source: the
+    # probe's canvas now keeps the colour each fill was made with, so this
+    # reports what the banner actually painted. A stub that threw fillStyle
+    # away could not have caught this, which is why it went unnoticed.
+    from sidra_ai.creation.round import probe_source as _chrome_probe
+    from sidra_ai.creation.themes import DEFAULT_THEME as _chrome_default
+    from sidra_ai.creation.themes import THEMES as _chrome_themes
+
+    #: What the shared chrome says. Both lines, so a theme that themed the
+    #: banner and left the retry line behind is not counted.
+    _chrome_says = ("ここまで", "R / タップでもう一度")
+
+    def _chrome_scrim(paint, theme):
+        """The colour of the veil drawn under the banner, if it is wrong.
+
+        Found by walking back from the words to the nearest rectangle -
+        the page paints the slab and then writes on it - so this reads the
+        drawing order rather than trusting a position in the source.
+        """
+
+        for index, entry in enumerate(paint):
+            if entry[0] != "text" or entry[2] != "ここまで":
+                continue
+            # The rectangle drawn *immediately* before the words, not the
+            # nearest one anywhere behind them: with the veil deleted the
+            # walk-back found whatever the game had painted last and was
+            # satisfied by it, so removing the veil entirely went unnoticed.
+            if index == 0 or paint[index - 1][0] != "rect":
+                return "(nothing was drawn behind it)"
+            veil = str(paint[index - 1][1] or "")
+            return None if veil.startswith(theme.tokens["bg"]) else veil
+        return None
+    chrome_gaps: list[str] = []
+    chrome_ok: list[str] = []
+    for _c_key, _c_theme in sorted(_chrome_themes.items()):
+        _c_page = generate_game(
+            f"{_c_theme.words[0]}のテーマでゲームを作って", template="catch"
+        ).html
+        _c_script = _scene_re.search(r"<script>(.*?)</script>", _c_page, _scene_re.S)
+        if _c_script is None:
+            chrome_gaps.append(f"{_c_key}: no script")
+            continue
+        try:
+            _c_run = _scene_sp.run(
+                ["node", "-"],
+                input=_chrome_probe(_c_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if _c_run.returncode != 0:
+                raise ValueError(_c_run.stderr.strip()[:70])
+            _c_seen = json.loads(_c_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            chrome_gaps.append(f"{_c_key}: probe unavailable ({exc})")
+            continue
+        if _c_seen.get("breakAt") is None:
+            chrome_gaps.append(f"{_c_key}: never reached the break, so nothing was drawn")
+            continue
+        _c_paint = _c_seen.get("paint") or []
+        _c_inks = sorted({p[1] for p in _c_paint if p[0] == "text" and p[2] in _chrome_says})
+        _c_drew = {p[2] for p in _c_paint if p[0] == "text"} & set(_chrome_says)
+        if len(_c_drew) < len(_chrome_says):
+            chrome_gaps.append(
+                f"{_c_key}: the chrome did not draw {sorted(set(_chrome_says) - _c_drew)}"
+            )
+        elif _c_inks != [_c_theme.tokens["text"]]:
+            chrome_gaps.append(
+                f"{_c_key}: painted {_c_inks}, not the theme's ink "
+                f"{_c_theme.tokens['text']!r}"
+            )
+        elif _chrome_scrim(_c_paint, _c_theme) is not None:
+            # The slab behind the words, not just the words. A break that
+            # hard-coded the scrim alone sailed through the ink check -
+            # which is half of what 批評 #14 named, and the visible half:
+            # a near-black band across a white page.
+            chrome_gaps.append(
+                f"{_c_key}: the veil is {_chrome_scrim(_c_paint, _c_theme)!r}, "
+                f"not the theme's ground {_c_theme.tokens['bg']!r}"
+            )
+        elif (
+            _c_key != _chrome_default.key
+            and _chrome_default.tokens["text"] in _c_inks
+        ):
+            # The other direction: a theme is not counted for merely being
+            # drawn in *some* colour - it must not be the default's ink.
+            chrome_gaps.append(f"{_c_key}: still wearing the default theme's ink")
+        else:
+            chrome_ok.append(_c_key)
+    c.add(
+        "creation_round_chrome_themed",
+        "共通の帯がページの配色で描かれる",
+        0.0 if chrome_gaps else float(len(chrome_ok)),
+        detail=(
+            "; ".join(chrome_gaps)
+            if chrome_gaps
+            else f"{len(chrome_ok)} テーマを実走行し、区切りまで回して帯が"
+            f"**実際に塗った色**を読んだ（{'・'.join(chrome_ok)}）。"
+            "「ここまで」もリトライ行もそのテーマの文字色で描かれ、"
+            "既定以外のテーマが既定の墨で描かれていないことも確認。"
+            "テンプレート側の固定色はまだ残っている（C-1131）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

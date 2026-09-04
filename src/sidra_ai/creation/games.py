@@ -872,6 +872,14 @@ def generate_game(
         .replace("ALERT_JUICE", theme.tokens["alert"])
         .replace("BORDER_TOKEN", theme.tokens["border"])
         .replace("BG_TOKEN", theme.tokens["bg"])
+        # C-1130: the shared chrome (the round banner, the result strip)
+        # used to paint itself in the dark theme's own ink whatever palette
+        # the page was in, so the paper theme got a near-black slab across a
+        # white page - the one thing on screen that did not agree with the
+        # request. INK is the theme's text colour and SCRIM its background,
+        # which is what a veil over the game should be made of.
+        .replace("INK_TOKEN", theme.tokens["text"])
+        .replace("SCRIM_TOKEN", theme.tokens["bg"])
         .replace("ADV_PAL_TOKEN", json.dumps([list(p) for p in ADVENTURE_PALETTE]))
         .replace("KAIJU_PAL_TOKEN", json.dumps([list(p) for p in KAIJU_PALETTE]))
         .replace("RACING_PAL_TOKEN", json.dumps([list(p) for p in RACING_PALETTE]))

@@ -236,8 +236,8 @@ function roundTick(t){
     try{failBeat(RCV?RCV.width/2:0,RCV?RCV.height/2:0)}catch(e){}}}
 function drawRoundEnd(){if(!RCV)return;
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
-  c.save();c.fillStyle='#05070fcc';c.fillRect(0,H/2-52,W,104);
-  c.fillStyle='#dfe7f5';c.textAlign='center';
+  c.save();c.fillStyle='SCRIM_TOKEN'+'cc';c.fillRect(0,H/2-52,W,104);
+  c.fillStyle='INK_TOKEN';c.textAlign='center';
   c.font='22px ui-monospace,monospace';c.fillText('ここまで',W/2,H/2-10);
   c.font='13px ui-monospace,monospace';
   c.fillText('R / タップでもう一度',W/2,H/2+22);
@@ -346,8 +346,8 @@ function drawResultStrip(){if(!RCV)return;roundBank();
      on it measured about 800px on a 720px canvas, and being centred it lost
      both ends - the daily stamp on the left and the copy hint on the right.
      Found by C-1118's sweep, which is the only run that had them all on. */
-  c.save();c.fillStyle='#05070fe6';c.fillRect(0,H-52,W,52);
-  c.fillStyle='#dfe7f5';c.textAlign='center';
+  c.save();c.fillStyle='SCRIM_TOKEN'+'e6';c.fillRect(0,H-52,W,52);
+  c.fillStyle='INK_TOKEN';c.textAlign='center';
   c.font='13px ui-monospace,monospace';
   let left='';
   if(ROUND_FINAL!==null){
@@ -374,12 +374,12 @@ function drawResultStrip(){if(!RCV)return;roundBank();
      score line so the order reads cause, result, next - and only when
      there is a counted reason to give. */
   let why='';try{why=recapLine()}catch(e){}
-  if(why){c.fillStyle='#05070fe6';c.fillRect(0,H-72,W,22);
-    c.fillStyle='#dfe7f5';c.fillText(why,W/2,H-56)}
+  if(why){c.fillStyle='SCRIM_TOKEN'+'e6';c.fillRect(0,H-72,W,22);
+    c.fillStyle='INK_TOKEN';c.fillText(why,W/2,H-56)}
   /* A colour that just opened is the reason to start the next round, so it
      is said on the screen that asks for one - and only when it happened. */
   let news=null;try{news=skinNews()}catch(e){}
-  if(news){c.fillStyle='#05070fe6';c.fillRect(0,H-82,W,30);
+  if(news){c.fillStyle='SCRIM_TOKEN'+'e6';c.fillRect(0,H-82,W,30);
     c.fillStyle=TUNE_ACCENT;
     c.fillText('新しい見た目「'+news+'」が開きました',W/2,H-62)}
   c.textAlign='left';c.restore()}
@@ -434,9 +434,16 @@ globalThis.document = { readyState: 'complete',
     addEventListener: (type, fn) => {
       if (type === 'pointerdown') roundPointers.push(fn) },
     getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-    getContext: () => new Proxy({ fillText: (t) => { roundText.push(String(t)) } }, {
+    /* C-1130: the colour every fill was made with, kept beside what it
+       drew. The shared chrome used to paint itself in the dark theme's own
+       ink whatever palette the page was in, and a stub that threw
+       fillStyle away could not have noticed. */
+    getContext: () => new Proxy({
+      fillText: (t) => { roundText.push(String(t)); roundPaint.push(['text', roundInk, String(t)]) },
+      fillRect: () => { roundPaint.push(['rect', roundInk, '']) } }, {
       get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : roundNothing)),
-      set: () => true }) }) };
+      set: (t, k, v) => { if (k === 'fillStyle') { roundInk = String(v) } return true } }) }) };
+let roundPaint = [], roundInk = null;
 let roundQueued = null;
 globalThis.requestAnimationFrame = (fn) => { roundQueued = fn; return 1 };
 SCRIPT_PLACEHOLDER
@@ -498,6 +505,9 @@ console.log(JSON.stringify({
   /* Only what was drawn after the break: the retry line has to be up
      within a second or two of losing, not somewhere in the whole run. */
   saidAfter: roundText.slice(0, 400),
+  /* The tail, not the head: the banner is drawn at the break, and the
+     game's own fills would fill a head-anchored window long before. */
+  paint: roundPaint.slice(-600),
   strip: roundStrip,
   score: end.score, best: end.best, record: end.record, liveScore: end.live,
   seed: end.seed, daily: end.daily, stamp: end.stamp,
