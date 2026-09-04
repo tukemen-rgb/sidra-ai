@@ -31,6 +31,15 @@ the same key and the same switch carry over. The only marble-specific
 decision is where the past self is drawn - at the present marble's own
 depth, so the two are compared where the player is looking, and under it,
 so the present is never hidden by the past.
+
+``platformer`` is the third (C-1330), and the "needs a second axis" note
+that parked it resolves the same way the marble did: the course x is the
+progress, the HEIGHT is the stored value, and the past self is drawn at
+the present hero's own screen x - at the height the record run had here,
+so "they were up on the ledge while I am in the pit" is read exactly
+where the player is looking. Backtracking overwrites a bucket with the
+later visit, which keeps the trail meaning "where you were, here, last
+time" even on a course that can be walked both ways.
 """
 
 from __future__ import annotations
@@ -41,12 +50,11 @@ import json
 #: progress-indexed trail needs. The others are listed with the reason
 #: they are not here, so a later item starts from the fact rather than
 #: from an empty function.
-GHOST_TEMPLATES: tuple[str, ...] = ("racing", "marble")
+GHOST_TEMPLATES: tuple[str, ...] = ("racing", "marble", "platformer")
 
 #: Why each of the others is not wired yet. A template with no progress
 #: axis has nothing to index a trail by.
 GHOST_UNWIRED: dict[str, str] = {
-    "platformer": "progress is x within a level, but the level scrolls by camera; needs a second axis",
     "shooter": "the ship holds station; the course is the wave number, not a distance",
     "adventure": "progress is which room, not a position on a line",
     "kaiju": "the fight is a cycle count, not a course",

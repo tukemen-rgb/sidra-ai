@@ -7239,3 +7239,25 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 
 2026-09-04 22:5x 進捗監視 前進あり: C-1414 完了（creation_attract_demo 0→1・補充 2 件が両方消化）・C-1242 完了。C-1330（22:38 クリエイター claim）健全。ただし未着手が E/F 節のみとなり次巡のループA が再びキュー空になるため、定刻を待たず補充を実行: §18（スマホの実画面面積・MDN orientation + caniuse fullscreen を実際に開いて確認）→ C-1415（回転の促し）・C-1416（全画面ボタン）を起票。
+2026-09-04 23:02 辛口クリエイター C-1330 完了 creation_ghost_replay 2 -> 3（判定器 exit 0）
+  観点=§11（自分と競わせる・前回=§4）。§11 事実 1 の幽霊は racing
+  （C-1401）と marble（C-1412）の 2 本で止まり、ghost.py の保留表は
+  platformer を「x が進行軸だがカメラが動く——第 2 の軸が要る」と
+  預けたままだった。答えは marble と同型: 進行軸はコースの x、保存
+  するのは高さ y、描画は今の自機と同じ画面 x に記録高度の半透明の
+  過去自機——「あのときは足場の上、いまは穴の中」が視線の先でそのまま
+  読める。後戻りはバケット上書き（最後に居た高さ）で意味が揃い、
+  demo の汚染は C-1414 の ghostForget が既に共通で吸収している。
+  実装: play 中（リスポーン処理の後）に ghostSample(me.x, me.y)、
+  draw の自機直前に racing/marble と同じ TUNE_ACCENT シルエット、
+  GHOST_TEMPLATES へ移動（不変条件テストが全域被覆を強制）。
+  汎用計器がそのまま 3 本目を検査: 1 回目は幽霊なしで軌跡保存、
+  2 回目だけ drawn=3602 の描画差、パネル off で runHash 一致・
+  描画は 1 回目と完全一致＝記憶であって 2 人目ではない。
+  破壊 2 通り: 描画ブロック削除→「the second run did not replay the
+  first」／幽霊が自機を引きずる→「the ghost changed how the race went」。
+  pytest exit 0（3293 passed / 3 skip）/ gate exit 0（MISS 0）。
+  幽霊はこれでコース型 3 本すべてに。残る保留（shooter=波数・
+  adventure=部屋・kaiju=周回・duel=相手の体力・fishing/catch/puzzle=
+  進行軸なし）は理由つきで表に残る。
+

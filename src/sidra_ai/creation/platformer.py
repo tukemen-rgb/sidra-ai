@@ -189,7 +189,13 @@ function step(){const now=performance.now();
        lantern (or the start), no game over. */
     if(me.y>H+40){respawns++;me.x=me.cpX;me.y=me.cpY-6;me.vy=0;me.coyote=0;
       sfx('hurt');shake(4);hitstop(4);
-      say(lamp.lit?'灯籠まで戻された。':'足場のはじめに戻された。')}}
+      say(lamp.lit?'灯籠まで戻された。':'足場のはじめに戻された。')}
+    /* The trail of the run that set the record (§11, C-1330): the course
+       x is the progress, the height is what is remembered there. Sampled
+       after the physics has settled the frame, so a respawn records the
+       lantern, not the pit. Walking back overwrites a bucket - the trail
+       means "where you were, here, last time". */
+    ghostSample(me.x,me.y)}
   draw(now);requestAnimationFrame(step)}
 function seg(){return me.x<LW*0.34?0:me.x<LW*0.72?1:2}
 function draw(now){
@@ -238,6 +244,16 @@ function draw(now){
     cx.moveTo(fx+2,flag.y-46);cx.lineTo(fx+26+wv,flag.y-38);
     cx.lineTo(fx+2,flag.y-30);cx.closePath();cx.fill()}
   const px=me.x-cam;
+  /* The past self, at this point of the course: drawn and nothing else -
+     no collision, no score, no sound (C-1401's contract, third template
+     by C-1330). At the hero's own screen x, at the height the record run
+     had here, and before the hero, so the present is never hidden. */
+  const gy=ghostAt(me.x);
+  if(gy!==null){cx.save();cx.globalAlpha=0.32;
+    cx.fillStyle=TUNE_ACCENT;cx.fillRect(px-7,gy-18,14,12);
+    cx.fillRect(px-3,gy-24,6,6);
+    cx.globalAlpha=0.6;cx.strokeStyle=TUNE_ACCENT;cx.lineWidth=1;
+    cx.strokeRect(px-7.5,gy-18.5,15,13);cx.restore()}
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(px-7,me.y-18,14,12);
   cx.fillRect(px-3,me.y-24,6,6);
   /* the gait is position-driven, so it only moves when the player does */
