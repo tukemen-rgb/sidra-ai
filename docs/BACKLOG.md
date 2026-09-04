@@ -3239,6 +3239,23 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [~] 作業中 2026-09-04 05:25 辛口ユーザー **C-1225: 「マリオみたいなゲーム」が釣りゲームになる——platformer 商標がジャンル未マッピングで、断りも無く既定に落ちる。**
+      （辛口ユーザーループ起票・6 巡目 生成ゲーム・1/10）detect_genre
+      ('マリオみたいなゲームを作って') が None → choose_template が既定の
+      fishing に落ちる。ゼルダは adventure 語にあり adventure へ届く（商標
+      ガードが名前を伏せる設計）のに、マリオは platformer 商標なのに
+      どのジャンル語にも無い。跳ねるゲームの代名詞を頼んで魚釣りが返り、
+      置換の断りも出ない（C-1220 と同じ「無言で別物」）。**再現手順**:
+      python3 -c "from sidra_ai.creation.games import detect_genre;
+      print(detect_genre('マリオみたいなゲームを作って'))" → None。
+      **最小の解決**: ゼルダ→adventure と同型で、PLATFORMER_WORDS に
+      「マリオ」を追加（マリオは既に _TRADEMARKS にあるので、routing は
+      platformer・生成時に trademark_in がタイトルを既定名＋「オリジナル
+      版」注記に差し替えて名前を伏せる）。platformer は fishing より後に
+      判定されるので、レース等を名指す「マリオカートのレース」は従来どおり
+      racing のまま。→ 動かす数字: creation_mario_routes_to_platformer
+      unmeasurable→10（新設・マリオ系が platformer に届く × 生成物の
+      タイトルに商標が出ない × レース名指しは奪わない）
 - [x] 完了 2026-09-04 04:5x UTC 辛口ユーザー（`ui_touch_targets` unmeasurable→**10**、判定器 exit 0。5 通りの破壊で 10→2.5/7.5/2.5/5.0/2.5 に落ちることを確認。Playwright 実測: iPhone 12 で全ボタンの最小高が 41→48px、デスクトップは 41/42px のまま不変）**C-1224: ask ページの「更新」「開く（ダウンロード）」ボタンがスマホで 41〜42px——本体ページなのに 48dp 未満で押しづらい。**
       （辛口ユーザーループ起票・5 巡目 スマホ操作・6/10）iPhone 12 相当で
       ask ページ（api/ui.py）を実測: 送信は 46px あるが、生成ファイル欄の
