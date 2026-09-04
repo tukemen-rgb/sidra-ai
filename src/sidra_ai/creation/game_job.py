@@ -93,14 +93,17 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
         # trademark guard left behind.
         undepicted = undepicted_subject(message, game.template, game.asked_title)
         if verdict["playable"] and substituted and requested is not None:
-            # ...and say what *can* be built (C-1120). Calling a fishing
-            # page "the nearest thing to an RPG" is true only in the sense
-            # that it was the fallback; a person who asked for one wants to
-            # know which genres are real here, and the list is derived from
-            # TEMPLATES so it cannot outlive the templates it names.
+            # ...and say what *can* be built (C-1120). The router does not
+            # compute nearness - every unsupported genre falls to the same
+            # default template - so the wording says 「代わりに既定の」 (the
+            # default, instead), not 「いちばん近い」 (the nearest): 格闘 and
+            # ノベル and 音ゲー all land on fishing, and calling fishing the
+            # nearest thing to a fighting game was a claim of a resemblance
+            # the code never measured (C-1230). The buildable list is derived
+            # from TEMPLATES so it cannot outlive the templates it names.
             buildable = "・".join(labels_for(TEMPLATES))
             summary = (
-                f"{requested.genre}型はまだ作れないため、いちばん近い"
+                f"{requested.genre}型はまだ作れないため、代わりに既定の"
                 f"「{TEMPLATES[game.template].default_title}」型で作りました"
                 f"（難易度 {game.difficulty}）。"
                 f"いま作れるのは {buildable} です。"
@@ -144,7 +147,7 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
                     else f"（題は「{game.title}」のまま・難易度 {game.difficulty}）。"
                 )
                 summary = (
-                    f"「{undepicted}」の題材を描く型はまだ無いため、いちばん近い"
+                    f"「{undepicted}」の題材を描く型はまだ無いため、代わりに既定の"
                     f"「{TEMPLATES[game.template].default_title}」型で作りました"
                     f"{kept}"
                     f"{renamed}"

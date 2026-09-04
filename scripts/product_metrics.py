@@ -1322,6 +1322,25 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1230: an unsupported-genre substitution said 「いちばん近い」 (the
+    # nearest), but every unsupported genre falls to the same default template
+    # - no nearness is measured. The wording now says 「代わりに既定の」 (the
+    # default), while still naming the genre asked for and the type built.
+    from sidra_ai.evals.substitution_names_default import (
+        evaluate_substitution_names_default,
+    )
+
+    subst = evaluate_substitution_names_default()
+    c.add(
+        "creation_substitution_names_default",
+        "作れないジャンルの代替を「既定」と言い「いちばん近い」と偽らない",
+        10.0 * subst.checks_passed / subst.checks_total,
+        detail=f"{subst.checks_passed}/{subst.checks_total} checks; "
+               "src/sidra_ai/evals/substitution_names_default.py"
+               + ("" if subst.passed else "; " + "; ".join(subst.failures)),
+        kind=OUTCOME,
+    )
+
     # Asking for a genre we cannot build gets a playable page either way, so
     # playability cannot tell "we made a shooter" from "we made a fishing game
     # and called it a shooter". This number asks the generator both questions:
