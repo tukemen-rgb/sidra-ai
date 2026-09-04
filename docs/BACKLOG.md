@@ -2949,6 +2949,28 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-04 22:46 辛口クリエイター **C-1330: platformer だけ過去の自分に会えない（§11・コース型 3 本のうち幽霊が 2 本にしか居ない）。**
+      （辛口クリエイターループ起票・観点=§11 自分と競わせる。前回=§4）
+      §11 事実 1（自分のゴーストと走ると努力・楽しさ・自己効力感が上がる）
+      の実装は racing（C-1401）と marble（C-1412）の 2 本で、ghost.py の
+      GHOST_UNWIRED は platformer を「x が進行軸だがカメラが動く——第 2 の
+      軸が要る」と保留にしている。答えは marble と同型: 進行軸 = コースの
+      x（ghostSample(me.x, me.y)）、保存値 = 高さ y、描画は**今の自機と
+      同じ画面 x**（ghostAt(me.x) の記録高度に半透明の過去自機。自機より
+      先に描くので現在が隠れない＝marble の「見ている場所で比べる」と
+      同じ判断）。後戻りでバケットは上書き（最後に居た高さ）＝racing の
+      単調進行と意味が揃う。demo 汚染は C-1414 の ghostForget が既に
+      共通で吸収。実装: GHOST_TEMPLATES に platformer（UNWIRED から削除・
+      不変条件テストが両集合の全域を強制）、platformer.py の play 中に
+      ghostSample、draw の自機直前に racing/marble と同じ TUNE_ACCENT の
+      半透明シルエット。計測: 汎用 creation_ghost_replay が GHOST_TEMPLATES
+      を回すので**自動で 3 本目を検査**（初回は幽霊なし・軌跡保存、2 回目
+      だけ描画差、当たり無し=runHash 不変、パネルで消すと初回と完全一致）。
+      「速い走行でもずれない」主張は従来どおり creation_marble_ghost の
+      持ち場（詳細欄に明記済み）。破壊 2 通り〔描画ブロック削除→『the
+      second run did not replay the first』／幽霊が自機を引きずる
+      （me.y=gy）→『the ghost changed how the race went』〕。
+      → 動かす数字: creation_ghost_replay 2→3
 - [x] 完了 2026-09-04 22:08 UTC 辛口クリエイター（`creation_hud_contrast` unmeasurable→**1**、判定器 exit 0。3 型に HUD_INK / HUD_PLATE / HUD_A=0.7 を導入し、文字の下に**未着色**テーマサーフェスの 0.7α 板を敷いた（ラウンド帯と同じ手法のテーマ準拠版・draw は必ずこの定数経由）。puzzle のカーソル枠は #dfe7f5→INK_TOKEN（C-1131 は文字だけを themed し枠が残っていた）。実測（板を α 合成した実背景 vs ink の WCAG 比・3 型×4 テーマ×3 幕=36 点）: 修正前の最悪 3.05→修正後の最悪 **10.28**、紙テーマのカーソル 1.02→13.7。既存の空 probe 3 本に hudFacts() を追加したので計測の追加 node 実行はゼロ。破壊 2 通り〔puzzle HUD_INK を旧 #dfe7f5 に→紙テーマ全幕『HUD sinks to 1.09〜1.16』＋『cursor sinks』で 0／fishing HUD_A=0→第 3 幕が修正前と同値の『3.07/3.22/3.50』で 0＝板が効いている証明〕。残り 7 型の HUD は盤・地形上に載るため対象外と明記（次候補）。pytest exit 0（3266 passed / 3 skip）・gate MISS 0）**C-1329: 空が明るくなった分だけ HUD が読めない（時計 3 型・最終幕 3.0:1／puzzle は光テーマで 1.0:1）。**
       （辛口クリエイターループ起票・観点=§4 視認性。前回=§12。基準不足の
       ため先に外部調査で §4 に WCAG 1.4.3 の定量を増築——通常テキスト
