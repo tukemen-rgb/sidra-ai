@@ -33,6 +33,8 @@ from __future__ import annotations
 import json
 import re
 
+from sidra_ai.creation.juice import HAPTIC_ROUND
+
 #: The bound itself. Sixty seconds is §8's number, not a guess of ours.
 ROUND_SECONDS = 60
 
@@ -310,6 +312,10 @@ function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
      as a best, not counted toward a colour, not kept as a ghost, and not
      recorded as a win or a loss. */
   if(!ROUND_TOUCHED)return;
+  /* The round confirming itself, in the third sense (C-1413, §16): two
+     short taps, after the guard above, so a round nobody played stays
+     silent in the hand as well as in the records. */
+  try{haptic(ROUND_HAPTIC_TOKEN)}catch(e){}
   ROUND_TIE=roundTieNow();ROUND_TIE_BEST=roundTieRead();
   if(ROUND_BEST===null||ROUND_FINAL>ROUND_BEST){ROUND_RECORD=true;
     roundBestWrite(ROUND_FINAL);ROUND_BEST=ROUND_FINAL;
@@ -565,6 +571,7 @@ def preamble_for(template: str) -> str:
             "ROUND_LIVE_TOKEN", json.dumps(list(ROUND_LIVE.get(template, ())))
         )
         .replace("ROUND_LIMIT_TOKEN", str(ROUND_SECONDS * 1000))
+        .replace("ROUND_HAPTIC_TOKEN", json.dumps(list(HAPTIC_ROUND)))
         .replace("ROUND_NAME_TOKEN", json.dumps(template))
         .replace("ROUND_LABEL_TOKEN", json.dumps(label, ensure_ascii=False))
         .replace("ROUND_SCORE_TOKEN", expression)

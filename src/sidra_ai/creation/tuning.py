@@ -168,6 +168,12 @@ def panel_schema(
             # C-1401. On by default: a past self that has to be switched on
             # is a past self nobody meets.
             {"key": "ghost", "label": "自己ベストのゴースト", "type": "flag", "default": ghost_default},
+            # C-1413. On by default and beside the volume dial, because it is
+            # the same kind of thing: a channel the page speaks through that
+            # a person may not want in this room. Reduced motion silences it
+            # whatever this says - a buzz is decoration, and nothing is told
+            # only this way (§16 事実 2: Android Chrome only).
+            {"key": "haptic", "label": "振動", "type": "flag", "default": True},
         ],
     }
 

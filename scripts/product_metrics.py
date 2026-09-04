@@ -8064,6 +8064,107 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the third sense, and only ever a third one ---------------------
+    #
+    # C-1413, §16. The generated pages never called `navigator.vibrate` at
+    # all, while the very devices played with a thumb are the ones with a
+    # vibrator in them. Two shared moments get it: the failure beat, which
+    # every template already fires at its losing moment, and a round
+    # confirming itself. `hitstop` was the other candidate and is wrong -
+    # a cleared puzzle and a hit on the boss call it too, so it is not
+    # "took a hit".
+    #
+    # Support is Android Chrome only (caniuse, checked 2026-09-04), so the
+    # rule that matters most is that nothing is *told* this way: both
+    # moments keep the sound and the picture they already had, and this is
+    # a third channel on top. What is checked here is the decision the page
+    # made - the call it placed - not whether a device buzzed.
+    from sidra_ai.creation.juice import HAPTIC_HIT, HAPTIC_MAX, HAPTIC_ROUND
+    from sidra_ai.creation.juice import page_probe_source as _hap_probe
+
+    hap_gaps: list[str] = []
+    hap_page = generate_game("シューティングゲームを作って").html
+    hap_script = _scene_re.search(r"<script>(.*?)</script>", hap_page, _scene_re.S)
+    hap_runs: dict[str, dict] = {}
+    if hap_script is None:
+        hap_gaps.append("no script on the page")
+    else:
+        def _hap_run(name, **kwargs):
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_hap_probe(hap_script.group(1), **kwargs),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                raise ValueError(f"{name}: {out.stderr.strip()[:70]}")
+            hap_runs[name] = json.loads(out.stdout.strip().splitlines()[-1])
+
+        try:
+            _hap_run("played")
+            _hap_run("untouched", play=False)
+            _hap_run("reduced", reduced=True)
+            _hap_run("off", stored={"sidra.tune.shooter": {"haptic": False}})
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            hap_gaps.append(f"probe unavailable ({exc})")
+
+    if len(hap_runs) == 4:
+        played = hap_runs["played"]
+        # 1. The hit lands in the hand, with the pattern the kit chose.
+        if not played["sent"]:
+            hap_gaps.append("a failure beat asked the device for nothing")
+        elif played["sent"][0] != HAPTIC_HIT:
+            hap_gaps.append(f"the first pulse was {played['sent'][0]!r}, not the hit's")
+        # 2. The window gate holds. Ten beats back to back is the case the
+        #    gate exists for, and the counter must stop at the cap rather
+        #    than merely slow down.
+        steps = played["burstSteps"]
+        if not steps or steps[-1] != HAPTIC_MAX:
+            hap_gaps.append(
+                f"ten beats in one window fired {steps[-1] if steps else 0}, not {HAPTIC_MAX}"
+            )
+        elif played["max"] != HAPTIC_MAX:
+            hap_gaps.append(f"the page reports a cap of {played['max']}, not {HAPTIC_MAX}")
+        # 3. A round that was played confirms itself, once, with the double.
+        doubles = [p for p in played["sent"] if isinstance(p, list)]
+        if doubles != [list(HAPTIC_ROUND)]:
+            hap_gaps.append(f"the round confirmed itself as {doubles!r}")
+        # 4. ...and a round nobody played stays silent in the hand too, the
+        #    same rule the records already follow (C-1123).
+        untouched = hap_runs["untouched"]
+        if [p for p in untouched["sent"] if isinstance(p, list)]:
+            hap_gaps.append("a round nobody played still buzzed its confirmation")
+        if untouched["banked"]:
+            hap_gaps.append("the untouched run banked a score, so it proves nothing")
+        # 5. Both switches. Reduced motion silences it like every other
+        #    decoration, and the panel switch is the person's own.
+        if hap_runs["reduced"]["sent"]:
+            hap_gaps.append("reduced motion still buzzed")
+        if hap_runs["off"]["on"] or hap_runs["off"]["sent"]:
+            hap_gaps.append("the panel switch does not turn it off")
+        # 6. Nothing is told only this way: the moments that buzz are the
+        #    ones that already had a sound and a picture, so the beats and
+        #    the banked score are unchanged with the vibration switched off.
+        if hap_runs["off"]["banked"] != played["banked"]:
+            hap_gaps.append("switching the vibration off changed what the round banked")
+    c.add(
+        "creation_haptics_wired",
+        "被弾と確定が指にも返る（切れる・鳴りっぱなしにならない）",
+        0.0 if hap_gaps else 1.0,
+        detail=(
+            "; ".join(hap_gaps)
+            if hap_gaps
+            else f"ページを 4 通り実走行し、`navigator.vibrate` に渡った値を読んだ: "
+            f"被弾は {HAPTIC_HIT}ms の 1 発、遊んだラウンドの確定は "
+            f"{list(HAPTIC_ROUND)} の 2 連が 1 回だけ。10 連打しても 60 フレーム窓で "
+            f"{HAPTIC_MAX} 発で止まる。reduced とパネルのスイッチでどちらも 0 発になり、"
+            "切っても積んだ点は変わらない（触覚でしか伝えない情報を作らない・§16 事実 2）。"
+            "触れなかったラウンドは手にも鳴らない"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

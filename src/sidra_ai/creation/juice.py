@@ -45,7 +45,23 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "winBeats",
     "flashGate",
     "flashCount",
+    "haptic",
+    "hapticOn",
+    "hapticFacts",
 )
+
+#: The third sense (§16). Milliseconds, and deliberately short: a buzz you
+#: notice is a buzz that is already too long on a phone held in one hand.
+#: A hit is one tap; a round confirming itself is two, which is the same
+#: "one event / one summary" shape the sound and the banner already use.
+HAPTIC_HIT = 18
+HAPTIC_ROUND = (12, 60, 12)
+
+#: How many pulses may fire inside one 60-frame window. The same number and
+#: the same window as the flash gate (§15, C-1320), for the same reason: a
+#: rattling phone is not feedback, and the fourth pulse in a second carries
+#: nothing the first three did not.
+HAPTIC_MAX = 3
 
 #: The failure beat's three numbers, in the units the effects above take.
 #: Deliberately heavier than any hit: §8 事実 2 is that losing a round felt
@@ -87,7 +103,11 @@ let FAIL_BEATS=0;
 function failBeat(x,y){FAIL_BEATS++;
   shake(%(shake)d);hitstop(%(hitstop)d);
   burst(x===undefined?0:x,y===undefined?0:y,%(parts)d,'ALERT_JUICE');
-  try{sfx('lose')}catch(e){}}
+  try{sfx('lose')}catch(e){}
+  /* The shared moment of impact, and the only one there is: `hitstop` is
+     called by successes too (a cleared puzzle, a hit on the boss), so it
+     is not "took a hit" and cannot carry this (C-1413). */
+  try{haptic(%(hapticHit)d)}catch(e){}}
 function failBeats(){return FAIL_BEATS}
 /* Per round, not per page (C-1122). The counter used to run for the life
    of the tab, so in a template that restarts in place - the duel's R,
@@ -122,6 +142,38 @@ function flashGate(){
   if(FLASH_TIMES.length>=3)return false;
   FLASH_TIMES.push(FLASH_FRAME);return true}
 function flashCount(){return FLASH_TIMES.length}
+/* --- the third sense (§16) -------------------------------------------
+   `navigator.vibrate` is one line and no dependency, and on a device that
+   does not have it the call is silently ignored by the spec rather than
+   throwing. That is the whole reason this can be added at all: it is
+   Android Chrome only (caniuse, 2026-09-04), so it may never be the only
+   way something is said. Everything here is *also* on screen and in the
+   sound already - this adds a third channel to moments that have two.
+
+   Three gates, in this order: reduced motion silences it like every other
+   decoration (C-1020 - information stays, decoration goes, and a buzz is
+   decoration by construction since nothing is told only this way); the
+   panel switch is next to the volume dial; and the window gate below
+   stops a run of hits from rattling the phone continuously. */
+let HAPTIC_TIMES=[],HAPTIC_FRAME=0,HAPTIC_N=0,HAPTIC_SENT=[];
+function hapticOn(){try{return tuneFlag('haptic',true)}catch(e){return true}}
+function hapticGate(){
+  HAPTIC_TIMES=HAPTIC_TIMES.filter(t=>HAPTIC_FRAME-t<60);
+  if(HAPTIC_TIMES.length>=%(hapticMax)d)return false;
+  HAPTIC_TIMES.push(HAPTIC_FRAME);return true}
+/* Returns whether it fired, so a caller can be judged on the decision
+   rather than on whether a phone was attached. */
+function haptic(pattern){
+  if(REDUCED)return false;
+  if(!hapticOn())return false;
+  if(!hapticGate())return false;
+  HAPTIC_N++;
+  if(HAPTIC_SENT.length<50){HAPTIC_SENT.push(pattern)}
+  try{if(typeof navigator!=='undefined'&&navigator&&
+    typeof navigator.vibrate==='function'){navigator.vibrate(pattern)}}catch(e){}
+  return true}
+function hapticFacts(){return {on:hapticOn(),fired:HAPTIC_N,
+  window:HAPTIC_TIMES.length,max:%(hapticMax)d,sent:HAPTIC_SENT.slice()}}
 function stepShake(){if(!JCV)return;
   if(SHAKE>0.05){SHAKE*=0.78;
     const dx=(Math.random()*2-1)*SHAKE,dy=(Math.random()*2-1)*SHAKE;
@@ -143,12 +195,14 @@ requestAnimationFrame=function(fn){
     /* Re-scheduled rather than skipped: dropping the callback would end the
        template's loop instead of pausing it. */
     if(HITSTOP>0){HITSTOP--;JUICE_RAF(tick);return}
-    FLASH_FRAME++;
+    FLASH_FRAME++;HAPTIC_FRAME++;
     fn(t);stepParticles();stepShake()})};
 """ % {
     "shake": FAIL_SHAKE,
     "hitstop": FAIL_HITSTOP,
     "parts": FAIL_PARTICLES,
+    "hapticHit": HAPTIC_HIT,
+    "hapticMax": HAPTIC_MAX,
     "wshake": WIN_SHAKE,
     "whitstop": WIN_HITSTOP,
     "wparts": WIN_PARTICLES,
@@ -196,6 +250,104 @@ def probe_source(*, reduced: bool) -> str:
     )
 
 
+#: The haptics probe (C-1413). The preamble probe above runs the kit on its
+#: own; this one drives a whole generated page, because the two moments
+#: being judged - a failure beat and a round confirming itself - are only
+#: reachable by playing. ``navigator.vibrate`` is recorded rather than
+#: stubbed away, so what the page asked the device for is what gets read.
+PAGE_PROBE = """
+const hNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : hNothing),
+  apply: () => hNothing, set: () => true });
+const hHandlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (hHandlers[type] = hHandlers[type] || []).push(fn) };
+globalThis.Image = function(){ return hNothing };
+const hStore = STORED_INPUT;
+globalThis.localStorage = {
+  getItem: (k) => (k in hStore ? hStore[k] : null),
+  setItem: (k, v) => { hStore[k] = String(v) },
+  removeItem: (k) => { delete hStore[k] } };
+/* What the page asked the device for, in order. A missing vibrate is the
+   normal case on most hardware; this records the call, not the buzz. */
+const hSent = [];
+Object.defineProperty(globalThis, 'navigator', { configurable: true, writable: true,
+  value: { vibrate: (pattern) => { hSent.push(pattern); return true } } });
+globalThis.document = { readyState: 'complete',
+  createElement: () => hNothing, querySelector: () => null,
+  getElementById: () => ({
+    width: 720, height: 320, style: {}, addEventListener: () => {},
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => hNothing }) };
+globalThis.location = { reload: () => {} };
+let hQueued = null;
+globalThis.requestAnimationFrame = (fn) => { hQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let hFrame = 0;
+function hRun(n){ for (let i = 0; i < n && hQueued; i++) {
+  const fn = hQueued; hQueued = null; hFrame += 1; fn(hFrame * (50 / 3)) } }
+function hKey(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (hHandlers[type] || []).forEach(fn => fn(e)) }
+hKey('keydown', ' '); hKey('keyup', ' ');
+hRun(4);
+const armed = hapticFacts();
+/* Ten failure beats back to back: the window gate is the whole reason this
+   is safe to ship, so it has to be pushed rather than described. */
+const burstSent = [];
+for (let i = 0; i < 10; i++) { failBeat(10, 10); burstSent.push(hSent.length) }
+const afterBurst = hapticFacts();
+/* ...and then the round, *played* out to its own confirmation. The keypress
+   that opens a round is not playing it (C-1123), so a probe that only
+   pressed Space would measure an untouched round - which banks nothing and
+   is meant to stay silent in the hand too. PLAY_INPUT holds a real control
+   down so the round is one somebody played. */
+if (PLAY_INPUT) { hKey('keydown', 'ArrowLeft') }
+hRun(FRAMES_INPUT);
+const end = hapticFacts();
+console.log(JSON.stringify({
+  reduced: REDUCED, on: armed.on, armedFired: armed.fired,
+  burstFired: afterBurst.fired, burstSteps: burstSent,
+  endFired: end.fired, max: end.max, sent: hSent,
+  patterns: end.sent,
+  roundDone: (function(){ try { return roundFacts().done } catch (e) { return null } })(),
+  banked: (function(){ try { return roundFacts().score } catch (e) { return null } })(),
+}));
+"""
+
+
+def page_probe_source(
+    script: str,
+    *,
+    reduced: bool = False,
+    stored: dict | None = None,
+    frames: int = 4200,
+    play: bool = True,
+) -> str:
+    """Drive a whole page with the vibrator recorded and the switch settable.
+
+    ``play`` holds a control down for the round, which is what makes the
+    round a played one; without it the round banks nothing and the
+    confirmation is correctly silent.
+    """
+
+    import json as _json
+
+    packed = {
+        key: (value if isinstance(value, str) else _json.dumps(value))
+        for key, value in (stored or {}).items()
+    }
+    return (
+        PAGE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("REDUCED_INPUT", "true" if reduced else "false")
+        .replace("FRAMES_INPUT", str(int(frames)))
+        .replace("PLAY_INPUT", "true" if play else "false")
+        .replace("STORED_INPUT", _json.dumps(packed))
+    )
+
+
 __all__ = [
     "FAIL_HITSTOP",
     "FAIL_PARTICLES",
@@ -203,8 +355,10 @@ __all__ = [
     "JUICE_PREAMBLE",
     "PREAMBLE_NAMES",
     "PROBE",
+    "PAGE_PROBE",
     "WIN_HITSTOP",
     "WIN_PARTICLES",
     "WIN_SHAKE",
+    "page_probe_source",
     "probe_source",
 ]
