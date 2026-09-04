@@ -226,7 +226,9 @@ function draw(now){
     cx.fillStyle=lamp.lit?'ALERT_JUICE':scenePaint('RAISED_TOKEN');
     cx.fillRect(lx-7,lamp.y-40,14,16);
     cx.strokeStyle='#dfe7f5';cx.strokeRect(lx-7.5,lamp.y-40.5,15,17);
-    if(!lamp.lit){cx.fillStyle='#dfe7f5';cx.font='11px ui-monospace,monospace';
+    /* A number written on the lamp, so it is ink like every other
+       word on the page - white on a light theme is not readable (C-1131). */
+    if(!lamp.lit){cx.fillStyle='INK_TOKEN';cx.font='11px ui-monospace,monospace';
       cx.fillText(String(LAMP_COST),lx-3,lamp.y-28)}}
   const fx=flag.x-cam;
   if(fx>-40&&fx<W+40){
@@ -244,13 +246,13 @@ function draw(now){
   cx.beginPath();cx.moveTo(px-3,me.y-6);cx.lineTo(px-3-g2,me.y);cx.stroke();
   cx.beginPath();cx.moveTo(px+3,me.y-6);cx.lineTo(px+3+g2,me.y);cx.stroke();
   cx.lineWidth=1;
-  cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
   cx.fillText('宝石 '+me.gems+' / '+LAMP_COST+(lamp.lit?'  灯籠 点':'')
     +'  落下 '+respawns,40,20);
-  if(msgT>0){msgT--;cx.fillStyle='#0a0f1cd9';cx.fillRect(20,H-34,W-40,26);
-    cx.fillStyle='#dfe7f5';cx.fillText(msg,30,H-16)}
-  if(state==='goal'){cx.fillStyle='#05070fd0';cx.fillRect(0,0,W,H);
-    cx.fillStyle='#dfe7f5';cx.font='20px ui-monospace,monospace';
+  if(msgT>0){msgT--;cx.fillStyle='SCRIM_TOKEN'+'d9';cx.fillRect(20,H-34,W-40,26);
+    cx.fillStyle='INK_TOKEN';cx.fillText(msg,30,H-16)}
+  if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
+    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
     const a='灯りは旗までとどいた。';
     cx.fillText(a,W/2-a.length*10,H/2-8);
     cx.font='13px ui-monospace,monospace';

@@ -206,10 +206,10 @@ function step(){
   cx.arc(bp.x,bp.y,br,0,6.2832);cx.fill();
   cx.fillStyle=shade(TUNE_ACCENT,1);cx.beginPath();
   cx.arc(bp.x-br*0.28,bp.y-br*0.3,br*0.62,0,6.2832);cx.fill();
-  cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
   cx.fillText('スコア '+score+'  ゲート '+gates+'  距離 '+Math.round(ball.z),40,30);
-  if(state!=='roll'){cx.fillStyle='#05070fcc';cx.fillRect(0,H/2-40,W,80);
-    cx.fillStyle='#dfe7f5';cx.textAlign='center';
+  if(state!=='roll'){cx.fillStyle='SCRIM_TOKEN'+'cc';cx.fillRect(0,H/2-40,W,80);
+    cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font='20px ui-monospace,monospace';cx.fillText(over,W/2,H/2-6);
     cx.font='13px ui-monospace,monospace';
     cx.fillText('R / タップでもう一度',W/2,H/2+24);cx.textAlign='left'}

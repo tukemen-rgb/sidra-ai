@@ -227,7 +227,7 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
   cx.closePath();cx.fill();
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(fx+9,fy-3,3,3);
   sprite('target',40+(w-80)*SPOT-16,h/2-16+bob,32,32,'');
-  cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
 function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
   casts:casts,scene:SCENE,ms:ROUND_MS}}
@@ -283,7 +283,7 @@ function step(){t++;if(t%FALL===0){
   const pulse=[0,1,2,1][FRAME(4,8,performance.now())];
   items.forEach(i=>{sprite('target',i.x*w-10,i.y*h,20,20,'CYAN_TOKEN')});
   sprite('marker',(shown-WIDE/2)*w,h-30-pulse,WIDE*w,20+pulse,'MAGENTA_TOKEN');
-  cx.fillStyle='#dfe7f5';cx.font='16px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font='16px ui-monospace,monospace';
   /* The multiplier is on screen at x1 as much as at x4, and the raw
      count stays beside the points so 「得点」 cannot be mistaken for it. */
   cx.fillText('得点 '+score+' '+comboLabel()+' / 受け '+caught+' / こぼし '+missed,40,34);

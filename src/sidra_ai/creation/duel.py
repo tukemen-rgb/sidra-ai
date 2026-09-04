@@ -243,9 +243,9 @@ function draw(now){
      cannot tell which one they got is guessing rather than deciding. */
   cx.fillStyle='#9fb0c8';cx.font='12px ui-monospace,monospace';
   cx.fillText('相手: '+(CPU_STYLE==='quick'?'早撃ち型':'溜め型'),cv.width/2-40,20)
-  cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
   if(p.beam>0&&e.beam>0&&p.beamLane===e.beamLane){
-    cx.fillStyle='#dfe7f5';
+    cx.fillStyle='INK_TOKEN';
     cx.fillText('押し合い。SPACE 連打で押し返す。',cv.width/2-110,44)
     /* The push was only legible as the meeting point drifting, which is the
        thing you are already too busy to watch. A bar says how close the
@@ -257,8 +257,8 @@ function draw(now){
     cx.fillStyle=at>=0?'CYAN_TOKEN':'MAGENTA_TOKEN';
     if(at>=0){cx.fillRect(gx+gw/2,gy,at*gw/2,8)}
     else{cx.fillRect(gx+gw/2+at*gw/2,gy,-at*gw/2,8)}}
-  if(state==='end'){cx.fillStyle='#05070fd0';cx.fillRect(0,0,cv.width,cv.height);
-    cx.fillStyle='#dfe7f5';cx.font='20px ui-monospace,monospace';
+  if(state==='end'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
+    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
     cx.fillText(winner,cv.width/2-winner.length*10,cv.height/2-6);
     cx.font='13px ui-monospace,monospace';
     cx.fillText('SPACE / タップでもう一度',cv.width/2-78,cv.height/2+20)}}

@@ -162,7 +162,7 @@ function draw(now){
   cx.fillRect(ship.x-3,ship.y+SHIP*0.7,6,6+flick*3);
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<ship.hp;i++){cx.fillRect(12+i*18,10,14,10)}
-  cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
   /* The graze run is on screen while it is worth something: a risk the
      player cannot see the state of is a gamble, not a decision. */
   const gz=grazeFacts();
@@ -171,8 +171,8 @@ function draw(now){
   cx.fillText('得点 '+score+' '+comboLabel()+'  第 '+wave+' 波',W-200,19);
   cx.fillText('撃墜 '+kills,W-200,55);
   cx.fillText('かすり '+gz.paid+'  '+'・'.repeat(gz.run)+'－'.repeat(gz.need-gz.run),W-170,37);
-  if(state==='over'){cx.fillStyle='#05070fd0';cx.fillRect(0,0,W,H);
-    cx.fillStyle='#dfe7f5';cx.font='20px ui-monospace,monospace';
+  if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
+    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
     const a='撃墜 '+kills+' 機・得点 '+score+'。';cx.fillText(a,W/2-a.length*10,H/2-8);
     cx.font='13px ui-monospace,monospace';
     const b='SPACE か R、タップでもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}

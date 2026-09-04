@@ -350,12 +350,12 @@ function draw(now){
   for(let i=0;i<hero.maxhp;i++){cx.strokeStyle='MAGENTA_TOKEN';
     cx.strokeRect(OX+i*18+0.5,2.5,13,9)}
   for(let i=0;i<hero.hp;i++){cx.fillRect(OX+i*18,2,14,10)}
-  cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
   cx.fillText('宝石 '+hero.gems+(hero.key?'  鍵あり':'')+(hero.charm?'  護符':''),
     OX+70,11);
   cx.fillText(NAMES[room],cv.width-OX-150,11);
-  if(msgT>0){msgT--;cx.fillStyle='#0a0f1cd9';
-    cx.fillRect(OX,cv.height-34,GW*TILE,26);cx.fillStyle='#dfe7f5';
+  if(msgT>0){msgT--;cx.fillStyle='SCRIM_TOKEN'+'d9';
+    cx.fillRect(OX,cv.height-34,GW*TILE,26);cx.fillStyle='INK_TOKEN';
     cx.fillText(msg,OX+10,cv.height-16)}
   if(state==='win'){shade('宝箱をあけた。冒険の勝利。',
     '宝石 '+hero.gems+' 個 / 護符 '+(hero.charm?'あり':'なし')+' / R か タップでもう一度')}
@@ -363,8 +363,8 @@ function draw(now){
 function glow(x,y,r,now){const g=cx.createRadialGradient(x,y,4,x,y,r);
   g.addColorStop(0,'#f5d89a55');g.addColorStop(1,'#00000000');
   cx.fillStyle=g;cx.fillRect(x-r,y-r,r*2,r*2)}
-function shade(a,b){cx.fillStyle='#05070fd0';cx.fillRect(0,0,cv.width,cv.height);
-  cx.fillStyle='#dfe7f5';cx.font='20px ui-monospace,monospace';
+function shade(a,b){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
+  cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
   cx.fillText(a,cv.width/2-a.length*10,cv.height/2-8);
   cx.font='13px ui-monospace,monospace';
   cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}

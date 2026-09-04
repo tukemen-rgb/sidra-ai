@@ -7795,6 +7795,76 @@ def measure_creation(c: Collector) -> None:
             chrome_gaps.append(f"{_c_key}: still wearing the default theme's ink")
         else:
             chrome_ok.append(_c_key)
+    # C-1131 widens this from the shared banner to every template's own
+    # HUD. The banner was one place; the score lines, the toasts and the
+    # end-screen messages were the same literal ink in ten more. Counted on
+    # the paper theme, which is the one a dark literal is visibly wrong on,
+    # and asked of the running page: no word anywhere may be written in the
+    # default theme's ink when a different palette was requested.
+    #
+    # Playfield objects are deliberately not in this: a guard's hit pips, a
+    # road's boundary marks, a boss's hurt flash carry information by shape
+    # and colour (§4) and repainting them is a readability decision rather
+    # than a theming one. They are listed in C-1131's record.
+    #
+    # What this cannot see, said out loud: only words the driven run
+    # actually wrote. An idle round draws the HUD and the end screen but
+    # never the lamp's price or a toast, which need play to appear -
+    # putting either back to the hard-coded ink leaves this number at full
+    # marks, which is how the limit was found rather than assumed.
+    hud_gaps: list[str] = []
+    hud_ok: list[str] = []
+    for _h_key in sorted(_GAME_TEMPLATES):
+        _h_page = generate_game("紙のテーマでゲームを作って", template=_h_key).html
+        _h_script = _scene_re.search(r"<script>(.*?)</script>", _h_page, _scene_re.S)
+        if _h_script is None:
+            hud_gaps.append(f"{_h_key}: no script")
+            continue
+        try:
+            _h_run = _scene_sp.run(
+                ["node", "-"],
+                input=_chrome_probe(_h_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if _h_run.returncode != 0:
+                raise ValueError(_h_run.stderr.strip()[:70])
+            _h_seen = json.loads(_h_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            hud_gaps.append(f"{_h_key}: probe unavailable ({exc})")
+            continue
+        _h_paint = _h_seen.get("paint") or []
+        _h_words = [p for p in _h_paint if p[0] == "text"]
+        if not _h_words:
+            hud_gaps.append(f"{_h_key}: wrote nothing, so nothing was proved")
+            continue
+        _h_dark = sorted({p[1] for p in _h_words if p[1] == _chrome_default.tokens["text"]})
+        if _h_dark:
+            _h_said = sorted({p[2] for p in _h_words if p[1] in _h_dark})[:3]
+            hud_gaps.append(
+                f"{_h_key}: wrote {_h_said} in the default theme's ink"
+            )
+        else:
+            hud_ok.append(_h_key)
+    c.add(
+        "creation_template_hud_themed",
+        "どの型の文字もページの配色で書かれる",
+        0.0 if hud_gaps else float(len(hud_ok)),
+        detail=(
+            "; ".join(hud_gaps)
+            if hud_gaps
+            else f"{len(hud_ok)} 型を紙テーマで実走行し、**書いた文字の色**を"
+            f"読んだ。既定テーマの墨で書かれた語はひとつも無い。"
+            "**見ているのは走らせて実際に出た語だけ**——HUD と終了画面は出るが、"
+            "遊ばないと出ない文字（ランプの数字・トースト）はこの走行に現れない"
+            "ので、直してはいても**この数字は証明していない**（破壊で確認済み）。"
+            "盤面の物（守衛の体力ピップ・路肩の標識・ボスの被弾点滅）は対象外"
+            "——形と色で情報を運ぶので、塗り替えは可読性の判断（C-1131）"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_round_chrome_themed",
         "共通の帯がページの配色で描かれる",

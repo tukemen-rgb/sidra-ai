@@ -182,13 +182,13 @@ function draw(now){
   cx.strokeStyle='#dfe7f5';cx.lineWidth=2+pulse;
   cx.strokeRect(OX+cur.x*CELL+0.5,OY+cur.y*CELL+0.5,CELL-1,CELL-1);
   cx.lineWidth=1;
-  cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
   cx.fillText('得点 '+score+'  つち ×'+hammers,OX,26);
   const left=group(cur.x,cur.y).length;
   cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,26);
-  if(state==='over'){cx.fillStyle='#05070fd0';
+  if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';
     cx.fillRect(0,0,cv.width,cv.height);
-    cx.fillStyle='#dfe7f5';cx.font='20px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
     const a=cleared?'全部消えた。':'もう消せる手がない。';
     cx.fillText(a,cv.width/2-a.length*10,cv.height/2-8);
     cx.font='13px ui-monospace,monospace';
