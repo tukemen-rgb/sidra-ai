@@ -2613,6 +2613,72 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- what a big clear buys ----------------------------------------
+    #
+    # §5 (C-1322): the squared score says "clear big" but points are
+    # vanity - they never touch the board's fate. Now a pop of five or
+    # more banks a hammer (capped) and a hammer breaks one lone tile:
+    # skill converted into survival, the tap/sink loop on the board
+    # itself. Played out greedily on the running page: the refusal at
+    # zero hammers, the earn on a big clear, and the spend - exactly one
+    # tile gone, one hammer gone, the score untouched.
+    from sidra_ai.creation.puzzle import hammer_probe as _puzzle_hammer_probe
+
+    economy_gaps: list[str] = []
+    for _ec_req in ("パズルゲームを作って", "難しいパズルゲームを作って"):
+        _ec_page = generate_game(_ec_req).html
+        _ec_script = _scene_re.search(r"<script>(.*?)</script>", _ec_page, _scene_re.S)
+        if _ec_script is None:
+            economy_gaps.append(f"{_ec_req}: no script")
+            continue
+        try:
+            _ec_run = _scene_sp.run(
+                ["node", "-"],
+                input=_puzzle_hammer_probe(_ec_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _ec_run.returncode != 0:
+                economy_gaps.append(f"{_ec_req}: {_ec_run.stderr.strip()[:60]}")
+                continue
+            _ec = json.loads(_ec_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            economy_gaps.append(f"{_ec_req}: probe unavailable ({type(exc).__name__})")
+            continue
+        _ec_refusal = _ec.get("refusal")
+        if not _ec_refusal or _ec_refusal["tilesAfter"] != _ec_refusal["tilesBefore"]:
+            economy_gaps.append(f"{_ec_req}: a broke player still broke a tile")
+        _ec_earn = _ec.get("earn")
+        if not _ec_earn:
+            economy_gaps.append(f"{_ec_req}: no big clear ever banked a hammer")
+        elif _ec_earn["size"] < 5:
+            economy_gaps.append(f"{_ec_req}: a {_ec_earn['size']}-clear paid a hammer")
+        _ec_spend = _ec.get("spend")
+        if not _ec_spend:
+            economy_gaps.append(f"{_ec_req}: the hammer was never spendable")
+        else:
+            if _ec_spend["tilesAfter"] != _ec_spend["tilesBefore"] - 1:
+                economy_gaps.append(f"{_ec_req}: the break did not remove exactly one tile")
+            if _ec_spend["hammersAfter"] != _ec_spend["hammersBefore"] - 1:
+                economy_gaps.append(f"{_ec_req}: the break did not cost a hammer")
+            if _ec_spend["scoreAfter"] != _ec_spend["scoreBefore"]:
+                economy_gaps.append(f"{_ec_req}: the tool paid points (it must not)")
+    c.add(
+        "creation_puzzle_economy",
+        "大消しが生存を買う",
+        0.0 if economy_gaps else 1.0,
+        detail=(
+            "; ".join(economy_gaps)
+            if economy_gaps
+            else "puzzle を貪欲プレイで実測: 5 個以上の同時消しが『つち』を"
+            "1 個ため（上限 3・HUD 表示）、つち 1 個で孤立 1 マスが砕ける"
+            "——タイル丁度 1 減・つち 1 減・得点は不動。つち 0 では同じ押しが"
+            "従来どおり拒まれる（§5 の tap→sink を盤上に）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the other half of 効果音と音楽 --------------------------------
     #
     # §1 names sound AND music; C-1017 shipped the sound and nothing

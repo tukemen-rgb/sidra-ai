@@ -2922,7 +2922,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
-- [~] 作業中 2026-09-04 02:44 辛口クリエイター **C-1322: puzzle は稼いだものに使い道が無い（§5 の tap→sink が盤上に無い）。**
+- [x] 完了 2026-09-04 03:10 UTC 辛口クリエイター（`creation_puzzle_economy` unmeasurable→**1**、判定器 exit 0。HAMMER_EARN=5/HAMMER_CAP=3 の『つち』を実装: 5 個以上の同時消しで 1 個獲得（sfx('key')・HUD『つち ×N』常時表示）、孤立 1 マスに SPACE で 1 個消費して砕く（得点は不動・collapse と手詰まり判定は通常経路・つち 0 では従来の clash 拒否）。facts に hammers/tiles/best/lone を追加し、貪欲プレイの probe で 3 難度とも「拒否→獲得（実測 7〜20 個消し）→支出（タイル丁度 -1・つち -1・得点 ±0）」を実測。破壊 2 通り〔獲得を削除→『no big clear ever banked』で 0 ／ 砕きを無料化→『the break did not cost a hammer』で 0〕。pytest exit 0（3007 passed / 1 skip）・gate MISS 0）**C-1322: puzzle は稼いだものに使い道が無い（§5 の tap→sink が盤上に無い）。**
       （辛口クリエイターループ起票・観点=§5 経済。前回=§7）
       SameGame の 2 乗得点は「大きく消せ」と言うが、得点は虚栄の数字で
       盤面の運命（手詰まり）には一切効かない——§5 の「収集要素には

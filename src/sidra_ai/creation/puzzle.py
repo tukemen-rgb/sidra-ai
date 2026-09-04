@@ -59,9 +59,14 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
 const ROWS=8,CELL=Math.min(30,Math.floor((cv.height-70)/ROWS));
 const OX=Math.round((cv.width-COLS*CELL)/2),OY=44;
 const PALETTE=['CYAN_TOKEN','MAGENTA_TOKEN','#e8c46a','#7fd18a','#9a8cf0'];
-let grid,cur,score,state,cleared,offY,offX;
+let grid,cur,score,state,cleared,offY,offX,hammers;
+/* The board's economy (§5, C-1322): a pop of HAMMER_EARN or more banks
+   one hammer, up to HAMMER_CAP; a hammer breaks one lone tile. Skill is
+   converted into survival - the squared score stays vanity, the hammer
+   is the currency with a purpose. */
+const HAMMER_EARN=5,HAMMER_CAP=3;
 function reset(){rs=(SEED>>>0)||1;grid=[];offY=[];offX=[];score=0;state='play';
-  cleared=false;cur={x:0,y:0};
+  cleared=false;cur={x:0,y:0};hammers=0;
   for(let y=0;y<ROWS;y++){const row=[],oy=[],ox=[];
     for(let x=0;x<COLS;x++){row.push(Math.floor(rand()*COLOURS));
       oy.push(0);ox.push(0)}grid.push(row);offY.push(oy);offX.push(ox)}}
@@ -107,7 +112,26 @@ function movesLeft(){for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
   if(grid[y][x]>=0&&group(x,y).length>1)return true}}return false}
 function pop(){if(state!=='play')return;
   const cells=group(cur.x,cur.y);
-  if(cells.length<2){sfx('clash');shake(1.5);return}
+  if(cells.length<2){
+    /* The sink: one hammer breaks one lone tile - the classic comeback
+       tool, bought with an earlier big clear. No points for it (a tool,
+       not a score), and at zero hammers the refusal is what it was. */
+    if(cells.length===1&&hammers>0){hammers--;
+      const [[bx,by]]=cells;
+      burst(OX+bx*CELL+CELL/2,OY+by*CELL+CELL/2,8,
+        PALETTE[grid[by][bx]]||'CYAN_TOKEN');
+      grid[by][bx]=-1;sfx('sword');shake(3);hitstop(2);
+      collapse();
+      if(!movesLeft()){state='over';
+        cleared=grid.every(r=>r.every(v=>v<0));
+        if(cleared){winBeat(cv.width/2,cv.height/2)}
+        else{failBeat(cv.width/2,cv.height/2)}}
+      return}
+    sfx('clash');shake(1.5);return}
+  /* The tap: a big clear pays in the currency that matters, capped so
+     hoarding cannot trivialise the endgame (§5 tap/sink balance). */
+  if(cells.length>=HAMMER_EARN){hammers=Math.min(HAMMER_CAP,hammers+1);
+    sfx('key')}
   /* Squared scoring: the reason to look for the big group instead of the
      nearest one. */
   score+=cells.length*cells.length;
@@ -152,7 +176,7 @@ function draw(now){
   cx.strokeRect(OX+cur.x*CELL+0.5,OY+cur.y*CELL+0.5,CELL-1,CELL-1);
   cx.lineWidth=1;
   cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
-  cx.fillText('得点 '+score,OX,26);
+  cx.fillText('得点 '+score+'  つち ×'+hammers,OX,26);
   const left=group(cur.x,cur.y).length;
   cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,26);
   if(state==='over'){cx.fillStyle='#05070fd0';
@@ -176,8 +200,18 @@ function puzzleFacts(){let mx=0;
     const k={};g.forEach(c=>{k[c[0]+','+c[1]]=1});
     for(const [gx,gy] of g){if(gy>0&&grid[gy-1][gx]>=0&&!k[gx+','+(gy-1)]){
       tx=x;ty=y;break outer}}}}
+  /* The economy, readable (C-1322): the biggest group on the board, one
+     lone tile if any, the live tile count and the hammer purse. */
+  let bx=-1,by=-1,bn=0,lx=-1,ly=-1,tiles=0;
+  for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
+    if(grid[y][x]<0)continue;tiles++;
+    const n=group(x,y).length;
+    if(n>bn){bn=n;bx=x;by=y}
+    if(n===1&&lx<0){lx=x;ly=y}}}
   return {state:state,score:score,moving:mx,
-    cur:{x:cur.x,y:cur.y},target:{x:tx,y:ty}}}
+    cur:{x:cur.x,y:cur.y},target:{x:tx,y:ty},
+    hammers:hammers,tiles:tiles,
+    best:{x:bx,y:by,n:bn},lone:{x:lx,y:ly}}}
 reset();step();
 """
 
@@ -236,6 +270,89 @@ console.log(JSON.stringify({
 """
 
 
+#: The board's economy, played out (§5, C-1322): greedy biggest-group play
+#: until a big clear banks a hammer, then one lone tile is broken with it.
+#: The refusal at zero hammers is measured first, on the same board.
+HAMMER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+function walkTo(x, y){
+  let guard = 0;
+  while (puzzleFacts().cur.x !== x && guard++ < 40) key(puzzleFacts().cur.x < x ? 'ArrowRight' : 'ArrowLeft');
+  while (puzzleFacts().cur.y !== y && guard++ < 80) key(puzzleFacts().cur.y < y ? 'ArrowDown' : 'ArrowUp');
+}
+key(' ');
+run(40);
+/* At zero hammers a lone tile refuses to break: same press, nothing owed. */
+let refusal = null;
+{ const f = puzzleFacts();
+  if (f.lone.x >= 0 && f.hammers === 0) {
+    walkTo(f.lone.x, f.lone.y);
+    const before = puzzleFacts().tiles;
+    key(' '); run(2);
+    refusal = { tilesBefore: before, tilesAfter: puzzleFacts().tiles,
+      hammers: puzzleFacts().hammers };
+  } }
+/* Greedy biggest-group play until a big clear banks a hammer. */
+let earn = null, guard = 0;
+while (puzzleFacts().state === 'play' && puzzleFacts().hammers === 0 && guard++ < 200) {
+  const f = puzzleFacts();
+  if (f.best.n < 2) break;
+  walkTo(f.best.x, f.best.y);
+  const size = f.best.n, purse = f.hammers;
+  key(' '); run(2);
+  if (puzzleFacts().hammers > purse) {
+    earn = { size: size, hammers: puzzleFacts().hammers };
+  }
+}
+/* Spend: break one lone tile - exactly one tile leaves, one hammer goes,
+   and the vanity score does not move. Keep playing until a lone exists. */
+let spend = null; guard = 0;
+while (spend === null && puzzleFacts().state === 'play' && guard++ < 200) {
+  const f = puzzleFacts();
+  if (f.hammers > 0 && f.lone.x >= 0) {
+    walkTo(f.lone.x, f.lone.y);
+    const before = puzzleFacts();
+    key(' '); run(2);
+    const after = puzzleFacts();
+    spend = { tilesBefore: before.tiles, tilesAfter: after.tiles,
+      hammersBefore: before.hammers, hammersAfter: after.hammers,
+      scoreBefore: before.score, scoreAfter: after.score };
+  } else if (f.best.n >= 2) { walkTo(f.best.x, f.best.y); key(' '); run(2) }
+  else break;
+}
+console.log(JSON.stringify({ refusal: refusal, earn: earn, spend: spend,
+  state: puzzleFacts().state, hammers: puzzleFacts().hammers }));
+"""
+
+
+def hammer_probe(script: str) -> str:
+    """The page's own script, wrapped so the economy can be played out."""
+
+    return HAMMER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def probe_source(script: str, *, reduced: bool = False) -> str:
     """The page's own script, wrapped so one pop can be watched in node."""
 
@@ -251,4 +368,6 @@ __all__ = [
     "PUZZLE_WORDS",
     "PROBE",
     "probe_source",
+    "HAMMER_PROBE",
+    "hammer_probe",
 ]

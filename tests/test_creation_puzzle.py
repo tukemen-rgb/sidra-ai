@@ -176,3 +176,55 @@ def test_reduced_motion_keeps_the_snap():
     assert facts["scoreAfter"] > facts["scoreBefore"], "the game itself still works"
     assert facts["movingAtPop"] == 0
     assert facts["movingMid"] == 0
+
+
+def _economy(request: str = "パズルゲームを作って") -> dict:
+    """Greedy play until a hammer is earned, then one lone tile broken."""
+
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.games import generate_game as _generate
+    from sidra_ai.creation.puzzle import hammer_probe
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = _generate(request).html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=hammer_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return _json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_a_big_clear_banks_a_hammer_and_a_hammer_breaks_one_tile():
+    """§5 (C-1322): the tap and the sink, played out on the running board."""
+
+    seen = _economy()
+
+    assert seen["earn"] is not None, "a five-or-more clear banks a hammer"
+    assert seen["earn"]["size"] >= 5
+    spend = seen["spend"]
+    assert spend is not None, "the hammer is spendable on a lone tile"
+    assert spend["tilesAfter"] == spend["tilesBefore"] - 1
+    assert spend["hammersAfter"] == spend["hammersBefore"] - 1
+    assert spend["scoreAfter"] == spend["scoreBefore"], "a tool, not points"
+
+
+def test_at_zero_hammers_a_lone_tile_refuses_to_break():
+    seen = _economy()
+
+    refusal = seen["refusal"]
+    assert refusal is not None
+    assert refusal["tilesAfter"] == refusal["tilesBefore"]
+    assert refusal["hammers"] == 0
