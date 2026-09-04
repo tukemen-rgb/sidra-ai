@@ -3293,6 +3293,155 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the same rule, flown rather than caught ------------------------
+    #
+    # C-1411 wires C-1405's ladder into the shooter, the second template
+    # to have it. A kill was already a discrete success and a hull already
+    # ended things, so the rule needed a place to add points and a place
+    # to drop them and nothing else. What has to be true is read off a
+    # flown page: the ladder rises on consecutive kills, a hull takes all
+    # of it, each kill pays exactly the multiplier standing at that
+    # moment, and graze (C-1406) is added beside it rather than multiplied
+    # into it - a risk taken and a run kept are two things a player should
+    # be paid for twice, not compounded.
+    from sidra_ai.creation.combo import shooter_probe_source as _sc_probe
+
+    sc_gaps: list[str] = []
+    sc_page = generate_game("シューティングゲームを作って").html
+    sc_script = _scene_re.search(r"<script>(.*?)</script>", sc_page, _scene_re.S)
+    sc_clean = sc_crash = sc_quiet = None
+    if sc_script is None:
+        sc_gaps.append("no script on the page")
+    else:
+        def _sc_fly(**kw):
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_sc_probe(sc_script.group(1), **kw),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                raise ValueError(out.stderr.strip()[:80])
+            return json.loads(out.stdout.strip().splitlines()[-1])
+
+        try:
+            sc_clean = _sc_fly(frames=1400)
+            sc_crash = _sc_fly(frames=1400, crash_at=400)
+            sc_quiet = _sc_fly(frames=700, reduced=True)
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            sc_gaps.append(f"probe unavailable ({exc})")
+
+    if sc_clean is not None:
+        kills = [e for e in sc_clean["timeline"] if not e["hit"]]
+        if not kills:
+            sc_gaps.append("a held trigger shot nothing down")
+        # 1. It rises, and it rises where the rule says.
+        if sc_clean["combo"]["mult"] != COMBO_MAX:
+            sc_gaps.append(
+                f"clean flight topped out at x{sc_clean['combo']['mult']}, not x{COMBO_MAX}"
+            )
+        for entry, before in zip(kills[1:], kills):
+            if entry["mult"] > before["mult"]:
+                if entry["run"] % COMBO_STEP:
+                    sc_gaps.append(
+                        f"a rung arrived at {entry['run']} kills, not a multiple of {COMBO_STEP}"
+                    )
+                    break
+        # 2. Each kill pays the rung standing at that moment - the whole
+        #    point of the exercise, and the thing a wired-but-unpaid
+        #    multiplier would fail while looking right on screen.
+        singles = [e for e in kills if e["took"] == 1]
+        if not singles:
+            sc_gaps.append("no frame landed exactly one kill")
+        for entry in singles:
+            if entry["gained"] != entry["mult"]:
+                sc_gaps.append(f"a kill at x{entry['mult']} paid {entry['gained']}")
+                break
+        # Two shots can meet two hulls on one frame, and a payout spanning
+        # a rung is the sum of two rungs rather than twice either. Bounded
+        # by the multiplier before the frame and the one after, because
+        # recomputing the ladder here would be the check agreeing with
+        # itself.
+        for entry in [e for e in kills if e["took"] > 1]:
+            if not (
+                entry["was"] <= entry["mult"]
+                and entry["took"] * entry["was"]
+                <= entry["gained"]
+                <= entry["took"] * entry["mult"]
+            ):
+                sc_gaps.append(
+                    f"{entry['took']} kills between x{entry['was']} and "
+                    f"x{entry['mult']} paid {entry['gained']}"
+                )
+                break
+        # 3. On screen the whole time, at x1 as much as at the top.
+        if kills and (kills[0]["hud"] or "").find("\u00d71") < 0:
+            sc_gaps.append(f"the first kill drew {kills[0]['hud']!r}, without x1")
+        top = [e for e in kills if e["mult"] == COMBO_MAX]
+        if top and (top[0]["hud"] or "").find(f"\u00d7{COMBO_MAX}") < 0:
+            sc_gaps.append(f"the top rung drew {top[0]['hud']!r}")
+        # 4. Graze is beside the points, never inside them. The round banks
+        #    the sum; a product would make one run worth the other's number.
+        banked, paid = sc_clean["roundScore"], sc_clean["graze"]["paid"]
+        if banked != sc_clean["score"] + paid:
+            sc_gaps.append(
+                f"the round banked {banked}, not {sc_clean['score']}+{paid}"
+            )
+        if not sc_clean["graze"]["seen"]:
+            sc_gaps.append("the flight never grazed, so nothing was proved about it")
+    if sc_crash is not None:
+        # 5. One hull takes all of it - checked at the hull, not at the end,
+        #    because a run that recovered by the last frame would look the
+        #    same from there.
+        hits = [e for e in sc_crash["timeline"] if e["hit"]]
+        if not hits:
+            sc_gaps.append("flying into hulls never cost a hit point")
+        else:
+            climbed = [e for e in sc_crash["timeline"] if e["mult"] > 1]
+            if not climbed:
+                sc_gaps.append("nothing was built before the crash")
+            elif climbed[0]["at"] > hits[0]["at"]:
+                sc_gaps.append("the crash came before any run existed")
+            if hits[0]["mult"] != 1 or hits[0]["run"] != 0:
+                sc_gaps.append(
+                    f"a hull left x{hits[0]['mult']} run {hits[0]['run']}"
+                )
+    if sc_quiet is not None and sc_clean is not None:
+        # 6. C-1020's rule, not a new one: the rise keeps its sound and
+        #    loses its particles. Compared against the same rung flown with
+        #    motion on, so "quieter" is measured rather than assumed.
+        loud = [e for e in sc_clean["timeline"] if "gem" in e["rang"]]
+        quiet = [e for e in sc_quiet["timeline"] if "gem" in e["rang"]]
+        if not quiet:
+            sc_gaps.append("reduced motion lost the sound of the rise")
+        elif not loud:
+            sc_gaps.append("no rung to compare the reduced run against")
+        elif quiet[0]["rose"] >= loud[0]["rose"]:
+            sc_gaps.append(
+                f"reduced motion still threw particles ({quiet[0]['rose']} vs {loud[0]['rose']})"
+            )
+        if quiet and (quiet[0]["hud"] or "").find("\u00d7") < 0:
+            sc_gaps.append("reduced motion dropped the number as well")
+    c.add(
+        "creation_shooter_combo",
+        "撃墜の連続が得点に効く",
+        0.0 if sc_gaps else 1.0,
+        detail=(
+            "; ".join(sc_gaps)
+            if sc_gaps
+            else f"shooter を 3 通り実走行: {COMBO_STEP} 連続撃墜ごとに 1 段・"
+            f"上限 x{COMBO_MAX}・1 回の被弾で x1 へ・1 撃はその瞬間の倍率ぶん"
+            f"入る・HUD に常時表示・かすり点は掛けずに足す"
+            f"（{sc_clean['kills']} 撃墜 {sc_clean['score']} 点＋かすり "
+            f"{sc_clean['graze']['paid']}＝{sc_clean['roundScore']}）。"
+            "reduced では上がる音は残り粒子だけ落ちる"
+            if sc_clean
+            else ""
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a danger the player is allowed to decline ---------------------
     #
     # §13 事実 1: every hazard in the product is simply to be avoided, so

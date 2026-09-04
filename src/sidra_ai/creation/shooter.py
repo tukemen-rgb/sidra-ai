@@ -50,8 +50,8 @@ SHOOTER_DIFFICULTY: dict[str, tuple[float, float]] = {
 
 SHOOTER_TITLE = "たてスクロール迎撃"
 SHOOTER_HOW = (
-    "← → で移動、SPACE で連射。敵の波を落とす。3 回ぶつかると終わり。"
-    "R でやり直し、M で消音。"
+    "← → で移動、SPACE で連射。敵の波を落とす。連続で落とすほど倍率が上がり、"
+    "ぶつかると 1 倍に戻る。3 回ぶつかると終わり。R でやり直し、M で消音。"
 )
 
 SHOOTER_SCRIPT = """
@@ -72,10 +72,13 @@ const ACT_FALL=[1,1.15,1.3],ACT_GAP=[1,0.85,0.7];
 function actOf(){return t>=ACT*2?2:t>=ACT?1:0}
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const W=cv.width,H=cv.height,SHIP=22;
-let ship,shots,foes,stars,score,wave,t,state,fire,spawnIn,actSpawn,actVy;
-function reset(){ship={x:W/2,y:H-34,hp:3,cool:0};shots=[];foes=[];score=0;wave=0;
+let ship,shots,foes,stars,score,kills,wave,t,state,fire,spawnIn,actSpawn,actVy;
+function reset(){ship={x:W/2,y:H-34,hp:3,cool:0};shots=[];foes=[];score=0;kills=0;wave=0;
   t=0;state='play';fire=false;rs=(SEED>>>0)||1;
   spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];grazeReset();
+  /* A new go starts at x1. Carrying a run across a restart would hand
+     the next round a head start nobody flew for (C-1411). */
+  comboMiss();
   stars=[];for(let i=0;i<48;i++){stars.push({x:rand()*W,y:rand()*H,s:0.4+rand()*1.4})}}
 /* A formation, not a scatter: rows read as a wave the player can answer. */
 function spawn(){wave++;const a=actOf(),n=3+Math.floor(rand()*4),gap=W/(n+1),
@@ -110,14 +113,21 @@ function step(){const now=performance.now();
        the same frame should not both kill and die. */
     shots.forEach(s=>{foes.forEach(f=>{
       if(f.hp>0&&Math.hypot(f.x-s.x,f.y-s.y)<f.r+4){
-        f.hp=0;s.y=-99;score++;sfx('hurt');shake(4);burst(f.x,f.y,12,'ACCENT_JUICE')}})});
+        /* The run is worth what it is worth at the moment it pays out
+           (C-1405's rule, C-1411's second template). Asked once, so the
+           points added and the number drawn cannot disagree. `kills` stays
+           the raw count because 「撃墜 N 機」 is a count. */
+        f.hp=0;s.y=-99;kills++;score+=comboHit();
+        sfx('hurt');shake(4);burst(f.x,f.y,12,'ACCENT_JUICE')}})});
     foes.forEach(f=>{if(f.hp<=0)return;
       /* One distance, one radius, two answers (C-1406). The kill radius is
          unchanged and the band sits strictly outside it, so brushing a hull
          is harder than keeping away from it - never easier. */
       const gd=Math.hypot(f.x-ship.x,f.y-ship.y),gk=f.r+SHIP*0.6;
       if(gd<gk){
-      f.hp=0;ship.hp--;sfx('clash');shake(11);hitstop(5);
+      /* One hull, two independent losses: the graze run and the kill
+         run both end, and neither is the other's number (C-1411). */
+      f.hp=0;ship.hp--;comboMiss();sfx('clash');shake(11);hitstop(5);
       grazeStruck(gd,gk);grazeLost();
       burst(ship.x,ship.y,18,'ALERT_JUICE');
       if(ship.hp<=0){state='over';failBeat(ship.x,ship.y)}}
@@ -156,11 +166,14 @@ function draw(now){
   /* The graze run is on screen while it is worth something: a risk the
      player cannot see the state of is a gamble, not a decision. */
   const gz=grazeFacts();
-  cx.fillText('撃墜 '+score+'  第 '+wave+' 波',W-170,19);
+  /* The multiplier is drawn at x1 as much as at x4, and the raw count
+     stays beside the points so 「得点」 and 「撃墜」 cannot be confused. */
+  cx.fillText('得点 '+score+' '+comboLabel()+'  第 '+wave+' 波',W-200,19);
+  cx.fillText('撃墜 '+kills,W-200,55);
   cx.fillText('かすり '+gz.paid+'  '+'・'.repeat(gz.run)+'－'.repeat(gz.need-gz.run),W-170,37);
   if(state==='over'){cx.fillStyle='#05070fd0';cx.fillRect(0,0,W,H);
     cx.fillStyle='#dfe7f5';cx.font='20px ui-monospace,monospace';
-    const a='撃墜 '+score+' 機。';cx.fillText(a,W/2-a.length*10,H/2-8);
+    const a='撃墜 '+kills+' 機・得点 '+score+'。';cx.fillText(a,W/2-a.length*10,H/2-8);
     cx.font='13px ui-monospace,monospace';
     const b='SPACE か R、タップでもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}
 /* Read back off the running page rather than grepped for: the act the sky
@@ -168,6 +181,7 @@ function draw(now){
 function shooterFacts(){const incoming=[];
   foes.forEach(f=>{if(f.hp>0&&f.y>ship.y-170){incoming.push([f.x,f.y])}});
   return {t:t,wave:wave,scene:SCENE,hp:ship.hp,state:state,score:score,
+    kills:kills,combo:comboFacts(),
     graze:grazeFacts(),kill:foes.length?foes[0].r+SHIP*0.6:null,
     x:ship.x,w:W,incoming:incoming,act:actOf(),
     actSpawn:actSpawn.slice(),actVy:actVy.slice()}}

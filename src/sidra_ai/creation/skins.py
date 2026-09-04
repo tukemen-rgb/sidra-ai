@@ -49,6 +49,13 @@ import json
 #: 23 -> 25 when C-1405 made its score points rather than catches - barely,
 #: because a masher breaks its own runs and so collects almost none of the
 #: multiplier, which is that feature working as intended.
+#:
+#: ``shooter`` 32 -> 90 when C-1411 gave it the same ladder. Unlike catch,
+#: a masher here keeps runs going by accident - a held trigger kills
+#: whatever drifts into the stream, and nothing but a hull breaks the run.
+#: The multiplier still tells careful play from long play, but it does it
+#: on rate rather than on reach: a flown round takes about 165 points in
+#: 1400 frames where the mash takes 90 in a whole 3600-frame round.
 SKIN_UNIT: dict[str, int] = {
     "adventure": 2,
     "catch": 25,
@@ -59,7 +66,7 @@ SKIN_UNIT: dict[str, int] = {
     "platformer": 1,
     "puzzle": 58,
     "racing": 3,
-    "shooter": 32,
+    "shooter": 90,
 }
 
 #: How many played-out rounds each skin costs. Nothing is free (a skin the

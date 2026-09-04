@@ -5,9 +5,9 @@ and a greedy one come out the same. Nothing in the product rewards playing
 *well* as opposed to playing *long*, which is the difference between a
 score worth chasing and a tally.
 
-The smallest honest version of the fix, wired into one template first
-(``catch``) so the rule can be measured on a running page before it is
-spread:
+The smallest honest version of the fix, wired one template at a time so
+each can be measured on a running page before the next inherits it
+(``catch`` first, then ``shooter``):
 
 * **The multiplier is a ladder, not a curve.** Three catches in a row buy
   one rung, capped at four. A curve would be untellable from the seat -
@@ -26,23 +26,31 @@ which is C-1020's rule: decoration goes, information stays. The number
 itself is information, so it is drawn either way.
 
 The score the round banks is the multiplied one, because that is the point
-of the exercise - which means ``SKIN_UNIT['catch']`` had to be re-measured
-rather than left as the count it used to be.
+of the exercise - which means ``SKIN_UNIT`` had to be re-measured for each
+template wired rather than left as the count it used to be.
+
+On ``shooter`` the multiplier rides the kills and nothing else. Graze
+(C-1406) pays its own points for flying close, and the two are added but
+never multiplied together: one is a risk taken, the other a run kept, and
+a player who does both should be paid for both rather than for the product
+of them. The raw kill count stays on screen beside the points, because
+「撃墜 N 機」 is a count and the score no longer is.
 """
 
 from __future__ import annotations
 
 import json
 
-#: Wired here first. One template, so the rule can be judged on a real page
-#: before nine of them inherit it.
-COMBO_TEMPLATES: tuple[str, ...] = ("catch",)
+#: Wired one template at a time, each judged on a running page before the
+#: next. ``catch`` first (C-1405), then ``shooter`` (C-1411): a kill is
+#: already a discrete success and a hull already ends a run, so the rule
+#: needed a place to add points and a place to drop them and nothing else.
+COMBO_TEMPLATES: tuple[str, ...] = ("catch", "shooter")
 
 #: Why each of the others is not wired yet. Written down because "not yet"
 #: and "not applicable" are different answers, and only the first is a
 #: backlog item.
 COMBO_UNWIRED: dict[str, str] = {
-    "shooter": "the obvious next one: kills are already discrete successes",
     "fishing": "a cast is a success or a miss; needs a rule for the idle sweep between casts",
     "puzzle": "clears already score by size, so a multiplier would compound an existing bonus",
     "marble": "gates are discrete, but C-1313 just made some of them worth double - two multipliers at once needs a decision",
@@ -224,9 +232,132 @@ def probe_source(script: str, *, frames: int = 2000, misses=(), reduced: bool = 
     )
 
 
+#: The shooter's probe (C-1411). The catch probe steers a basket; a fight
+#: needs a pilot, so this one reuses the shooter's own: hold the trigger,
+#: sidestep whatever is at the ship's altitude, and otherwise sit under the
+#: lowest hull so the field thins. After ``CRASH_AT`` it stops dodging and
+#: walks into the nearest hull on purpose, which is the only way to watch a
+#: run end. Every kill and every hull is recorded with the page's own
+#: ``comboFacts()``, score, graze count and HUD line.
+SHOOTER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let drawn = [];
+const ctx = new Proxy({ fillText: (t) => { drawn.push(String(t)) } },
+  { get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: () => true });
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => ctx }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+/* Wrapped after the page is built, so the celebration can be told from the
+   kill's own effects by when it fires. */
+let bursts = 0, sounds = [];
+const realBurst = burst, realSfx = sfx;
+burst = (...a) => { bursts++; return realBurst(...a) };
+sfx = (n) => { sounds.push(String(n)); return realSfx(n) };
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) {
+  const fn = queued; queued = null; fn((F++) * 16) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e)) }
+/* Past the briefing, then hold the trigger for the whole run. */
+key('keydown', ' '); key('keyup', ' ');
+run(2);
+key('keydown', ' ');
+function nearest(){ let best = null, bd = 1e9;
+  foes.forEach(f => { if (f.hp <= 0) return;
+    const d = Math.hypot(f.x - ship.x, f.y - ship.y);
+    if (d < bd) { bd = d; best = f } });
+  return best ? { foe: best, dist: bd } : null }
+const CRASH_AT = CRASH_AT_INPUT;
+const timeline = [];
+let lastKills = 0, lastHp = null, lastScore = 0;
+for (let f = 0; f < FRAMES_INPUT && shooterFacts().state === 'play'; f++) {
+  const now = shooterFacts();
+  key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
+  let goal = null;
+  if (f >= CRASH_AT) {
+    /* Stop flying and take the hull. Steering by key, so the ship moves
+       at the speed the template gives it. */
+    const near = nearest();
+    if (near) goal = near.foe.x;
+  } else {
+    const im = now.incoming.filter(([fx, fy]) => fy > 226 && fy < 330);
+    if (im.some(([fx]) => Math.abs(fx - now.x) < 40)) {
+      let bestClear = -1e9, bestSafe = null, best = now.x;
+      for (let x = 26; x <= now.w - 26; x += 8) {
+        let clear = 1e9;
+        im.forEach(([fx]) => { clear = Math.min(clear, Math.abs(x - fx)) });
+        const lo = Math.min(now.x, x), hi = Math.max(now.x, x);
+        const blocked = im.some(([fx]) => fx > lo - 28 && fx < hi + 28);
+        const sc = Math.min(clear, 120) - Math.abs(x - now.x) * 0.02;
+        if (sc > bestClear) { bestClear = sc; best = x }
+        if (!blocked && (bestSafe === null || sc > bestSafe[1])) bestSafe = [x, sc];
+      }
+      goal = bestSafe ? bestSafe[0] : best;
+    } else {
+      let ty = -1;
+      now.incoming.forEach(([fx, fy]) => { if (fy <= 226 && fy > ty) { ty = fy; goal = fx } });
+    }
+  }
+  if (goal !== null && goal < now.x - 4) key('keydown', 'ArrowLeft');
+  else if (goal !== null && goal > now.x + 4) key('keydown', 'ArrowRight');
+  /* Two shots can land on two hulls in one frame, so a frame is not a
+     kill. The multiplier standing *before* the frame is recorded with the
+     one standing after it, and the number of kills between them, because
+     a payout spanning a rung is the sum of two rungs rather than twice
+     either (C-1411). */
+  const before = { bursts, sounds: sounds.length, mult: now.combo.mult };
+  run(1);
+  const after = shooterFacts();
+  const hit = lastHp !== null && after.hp < lastHp;
+  if (after.kills !== lastKills || hit) {
+    timeline.push({ at: f, kills: after.kills, score: after.score,
+      gained: after.score - lastScore, took: after.kills - lastKills,
+      hit: hit, was: before.mult,
+      mult: after.combo.mult, run: after.combo.run, hp: after.hp,
+      paid: after.graze.paid, seen: after.graze.seen,
+      rose: bursts - before.bursts, rang: sounds.slice(before.sounds),
+      hud: drawn.filter(t => t.indexOf('\u5f97\u70b9') === 0)[0] || null });
+    lastKills = after.kills; lastScore = after.score }
+  lastHp = after.hp;
+  drawn = [] }
+const end = shooterFacts();
+console.log(JSON.stringify({ timeline, combo: end.combo, graze: end.graze,
+  score: end.score, kills: end.kills, hp: end.hp, t: end.t,
+  state: end.state, roundScore: roundScore(), step: COMBO_STEP, max: COMBO_MAX }));
+"""
+
+
+def shooter_probe_source(
+    script: str, *, frames: int = 1800, crash_at: int | None = None, reduced: bool = False
+) -> str:
+    """Fly the fight, optionally walking into a hull once a run is built."""
+
+    return (
+        SHOOTER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("FRAMES_INPUT", str(int(frames)))
+        .replace("CRASH_AT_INPUT", "1e9" if crash_at is None else str(int(crash_at)))
+        .replace("REDUCED_INPUT", "true" if reduced else "false")
+    )
+
+
 __all__ = [
     "COMBO_MAX",
     "PROBE",
+    "SHOOTER_PROBE",
     "COMBO_PREAMBLE",
     "COMBO_STEP",
     "COMBO_TEMPLATES",
@@ -234,4 +365,5 @@ __all__ = [
     "PREAMBLE_NAMES",
     "preamble_for",
     "probe_source",
+    "shooter_probe_source",
 ]
