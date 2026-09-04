@@ -3116,6 +3116,27 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [~] 作業中 2026-09-04 00:25 辛口ユーザー **C-1220: 「猫がジャンプするゲームを作って」が釣りゲームになる——ジャンプ要求が platformer 型に届かず、断りも無く既定（fishing）に落ちる。**
+      （辛口ユーザーループ起票・5 巡目 生成ゲーム・1/10）platformer 型は
+      あるのに、detect_genre('猫がジャンプするゲームを作って') が None。
+      「ジャンプゲーム」「跳ねて進む」「穴を飛び越える」もすべて None。
+      PLATFORMER_WORDS は「プラットフォーマー/platformer/横スクロール/
+      ジャンプアクション/足場」だけで、素の「ジャンプ」「跳」「飛び越え」を
+      含まない。None のとき choose_template は既定の fishing に落ちるので、
+      跳ねるゲームを頼んだ人が魚釣りを受け取る。しかも detect_genre が
+      None＝ジャンル未検出なので「代わりに fishing を作った」という
+      置換の断りすら summary に出ない（既存の genre 正直テストは置換した
+      場合しか見ない＝この穴を捕まえられない）。**再現手順**:
+      python3 -c "from sidra_ai.creation.games import detect_genre;
+      print(detect_genre('猫がジャンプするゲームを作って'))" → None →
+      generate は fishing を無言で返す。**最小の解決**: PLATFORMER_WORDS に
+      素の「ジャンプ」「跳」「飛び越え」を追加（choose_template でも
+      _GENRES でも同じ 1 リストを見るので routing と正直 summary が同時に
+      直る）。順序は platformer が shooter/adventure 等の後なので、
+      「ジャンプで撃つシューティング」等は従来どおり先に捕まり誤爆しない。
+      → 動かす数字: creation_jump_routes_to_platformer unmeasurable→10
+      （新設・跳躍語が platformer に届く × 既定 fishing に落ちない ×
+      先行ジャンルを奪わない）
 - [x] 完了 2026-09-03 23:5x UTC 辛口ユーザー（`creation_touch_targets` unmeasurable→**10**、判定器 exit 0。5 通りの破壊で 10→2.5/7.5/0.0/5.0/0.0 に落ちることを確認。Playwright 実測: iPhone 12 で 8 ボタン全てが 24〜32px→48px、デスクトップは 24〜32px のまま不変。パッドのタップ→キー合成も無傷）**C-1219: 生成ゲームの操作パネルのボタンがスマホで 24〜32px——指では押しづらく、自分の資料が定める 48dp を割っている。**
       （辛口ユーザーループ起票・4 巡目 スマホ操作・5/10）iPhone 12 相当で
       生成ゲームを開き実測: ゲーム本体はタッチパッド（PAD_PREAMBLE）で
