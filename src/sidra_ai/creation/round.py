@@ -193,6 +193,13 @@ function roundLost(){
   if(!ROUND_LIVE.length)return false;
   try{return failBeats()>0}catch(e){return false}}
 function roundTick(t){
+  /* The demo behind the title (C-1414) is the first thing that has ever
+     reached this function before play. The go has not started, so the
+     clock does not run: T0 re-anchors to the first playing frame, and a
+     title left alone for a minute cannot ring the buzzer over its own
+     demo. Guarded on 'title' alone - a paused game has started, and its
+     frames do not reach here at all. */
+  try{if(gateState()==='title'){ROUND_T0=null;return}}catch(e){}
   const now=(typeof t==='number'&&isFinite(t))?t:ROUND_MS+16;
   if(ROUND_T0===null){ROUND_T0=now}
   ROUND_MS=now-ROUND_T0;
@@ -304,7 +311,16 @@ function roundTieFacts(){return {now:ROUND_TIE,best:ROUND_TIE_BEST,
    every frame afterwards would keep overwriting the best with whatever the
    frozen page still holds. Kept on this device only - no URL, nothing
    sent, the same boundary the tuning panel and the index sit inside. */
-function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
+function roundBank(){if(ROUND_BANKED)return;
+  /* Behind the title there is no round to bank: what the demo did is the
+     demo's (C-1414). Checked before the flag is set and before the score is
+     read, because both of those outlive the frame - the untouched guard
+     below already refuses to *write* anything, but it comes after
+     ROUND_FINAL has been filled in, and a demo's lap count sitting in
+     ROUND_FINAL is the number the player's own first result strip would
+     print. */
+  try{if(gateState()==='title')return}catch(e){}
+  ROUND_BANKED=true;
   ROUND_FINAL=roundScore();ROUND_BEST=roundBestRead();
   if(ROUND_FINAL===null)return;
   /* Nobody played, so there is nothing to credit anybody with (C-1123).

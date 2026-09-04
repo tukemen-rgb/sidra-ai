@@ -33,6 +33,9 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "gateSeen",
     "gateGesture",
     "gateFacts",
+    "attractOn",
+    "attractRewind",
+    "attractFacts",
 )
 
 #: The three lines the title screen prints before anyone presses anything:
@@ -124,7 +127,33 @@ function gateRemember(){const s=gateStore();
    refuses and the player learns the game does not have. */
 function gateGesture(){if(GATE_GESTURE)return;GATE_GESTURE=true;
   try{sfx('step')}catch(e){}}
+/* --- the demo behind the title (§17, C-1414) -------------------------- */
+/* Wired per template, because a demo is a template that plays itself and
+   most of these do not: with no input the basket never moves and the hero
+   never walks, so the "demo" would be a still picture with a veil over it.
+   attract.ATTRACT_UNWIRED names every unwired one and why, one line each,
+   and this token is what that table decides. */
+const ATTRACT_WIRED=ATTRACT_WIRED_TOKEN;
+let ATTRACT_FRAMES=0,ATTRACT_LOOPS=0,ATTRACT_ASKED=false;
+function attractOn(){return ATTRACT_WIRED&&GATE==='title'}
+/* The demo's leftovers, cleared before the game is handed over - and
+   between demo goes. The template's own reset is the substituted call; the
+   shared parts are cleared here because the demo drove those too. A trail
+   nobody drove must not be banked as somebody's line (C-1401), and a
+   demo's failures are not the player's (C-1122). */
+function attractRewind(){if(!ATTRACT_WIRED)return;
+  try{ATTRACT_RESET_TOKEN}catch(e){}
+  try{ghostForget()}catch(e){}
+  try{failBeatsReset()}catch(e){}
+  try{grazeReset()}catch(e){}
+  try{comboMiss()}catch(e){}}
+function attractFacts(){return {wired:ATTRACT_WIRED,frames:ATTRACT_FRAMES,
+  loops:ATTRACT_LOOPS}}
 function gateStart(){if(GATE==='playing')return;
+  /* Whatever the demo did belongs to the demo (C-1414). Rewound before the
+     state flips, so the first frame a player is given is the first frame of
+     a go - not the middle of one they watched. */
+  attractRewind();
   GATE='playing';gateRemember();gateGesture()}
 function gateTogglePause(){if(GATE==='title')return;
   GATE=GATE==='paused'?'playing':'paused'}
@@ -161,7 +190,10 @@ function gateWrap(text,limit){const out=[];let line='';
 function drawGate(){if(!GCV||GATE==='playing')return;
   const c=GCV.getContext('2d'),W=GCV.width,H=GCV.height;
   c.save();
-  c.fillStyle=GATE==='title'?'SURFACE_TOKEN':'SCRIM_TOKEN'+'cc';
+  /* A demo running underneath is worth seeing, so the title veils it
+     rather than covering it (C-1414). With no demo there is nothing under
+     the panel and the opaque field is the more readable one. */
+  c.fillStyle=(GATE==='title'&&!ATTRACT_FRAMES)?'SURFACE_TOKEN':'SCRIM_TOKEN'+'cc';
   c.fillRect(0,0,W,H);
   c.fillStyle='INK_TOKEN';c.textAlign='center';
   c.font='22px ui-monospace,monospace';
@@ -193,10 +225,30 @@ function drawGate(){if(!GCV||GATE==='playing')return;
   c.textAlign='left';c.restore()}
 const GATE_RAF=requestAnimationFrame;
 requestAnimationFrame=function(fn){
+  /* Recorded on the way in: during a demo frame this is how the gate knows
+     the template asked for the next one itself. */
+  ATTRACT_ASKED=true;
   return GATE_RAF(function tick(t){
     /* Closed: the template never gets the frame, and the loop stays alive
        so one press can hand it back. */
-    if(GATE!=='playing'){drawGate();GATE_RAF(tick);return}
+    if(GATE!=='playing'){
+      /* ...except behind the title of a wired template, where the frame
+         *is* the demo (§17). The game runs and the veil goes over it.
+         Nothing it does is banked: the round clock does not start until
+         play does, and roundBank refuses to open behind the title at all
+         (the untouched guard alone was not enough - it comes after the
+         score has been read into ROUND_FINAL). The
+         loop is normally re-armed by the demo's own step() asking for its
+         next frame, which is why this branch does not arm it as well -
+         two arms per frame doubles the loop every frame. ATTRACT_ASKED is
+         the check: a template that asks for nothing still gets its title
+         redrawn rather than freezing the gate. */
+      if(attractOn()){ATTRACT_ASKED=false;ATTRACT_FRAMES++;fn(t);
+        /* The demo reached its own ending: another go, so the title is
+           never a frozen goal screen. */
+        try{if(roundEnded()){ATTRACT_LOOPS++;attractRewind()}}catch(e){}
+        drawGate();if(!ATTRACT_ASKED){GATE_RAF(tick)}return}
+      drawGate();GATE_RAF(tick);return}
     fn(t);GATE_RAN++})};
 """
 

@@ -67,6 +67,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "ghostSample",
     "ghostAt",
     "ghostBank",
+    "ghostForget",
     "ghostFacts",
     "ghostRunHash",
 )
@@ -104,6 +105,11 @@ function ghostAt(progress){
      to compare against *that* run; re-deriving the bucket out here would
      only prove the arithmetic agrees with itself (C-1412). */
   GHOST_DRAWN++;GHOST_LAST=[ghostBucket(progress),v];return v}
+/* The demo's line is nobody's (C-1414). The attract run samples the same
+   course buckets a player would, so without this a demo that got further
+   than the player leaves its own positions in the tail of the trail that
+   gets banked as theirs. */
+function ghostForget(){GHOST_RUN=[];GHOST_DRAWN=0;GHOST_LAST=null}
 /* Banked with the score it belongs to, through roundBank, so the trail and
    the number can never describe different runs. */
 function ghostBank(record){if(!record)return false;

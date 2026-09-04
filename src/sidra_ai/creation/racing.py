@@ -90,7 +90,12 @@ const W=cv.width,H=cv.height,CARY=H-56,LAP=1800,LAPS=LAPS_TOKEN,ROADW=190;
 const PH1=rand()*6.283,PH2=rand()*6.283;
 function roadAt(d){return W/2+Math.sin(d/380+PH1)*150+Math.sin(d/151+PH2)*62}
 let car,obs,dist,lap,lapT,times,state,grace,spd,nextObs,passed,slips;
-function reset(){car={x:roadAt(0)};obs=[];dist=0;lap=1;lapT=0;times=[];
+/* The stream the obstacles come out of, back to the top with everything
+   else (C-1414). Three other templates already reset their seed here; this
+   one did not, so a go that followed a demo - or an R restart - met a
+   different set of obstacles on the same course. 「同じ依頼は同じ世界」 is
+   the promise SEED makes, and it has to survive a restart. */
+function reset(){rs=(SEED>>>0)||1;car={x:roadAt(0)};obs=[];dist=0;lap=1;lapT=0;times=[];
   state='race';grace=0;spd=PACE;nextObs=320;passed=0;slips=0}
 setPal(RACING_PAL_TOKEN);
 function onRoad(){return Math.abs(car.x-roadAt(dist))<ROADW/2-8}

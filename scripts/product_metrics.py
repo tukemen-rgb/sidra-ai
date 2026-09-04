@@ -8268,6 +8268,199 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the title screen with a game running behind it (§17, C-1414) ----
+    #
+    # An attract mode is a demo playing itself behind the title: the machine
+    # shows what the game *is* before anybody commits to it. Three halves,
+    # each one driven rather than read. The demo runs and moves; it earns
+    # nobody anything; and the press hands over a go that starts at the top.
+    # The last is checked against the product's own control - the same page
+    # pressed at frame zero - so a rewind that missed something shows up as
+    # two snapshots that disagree, whatever the missed thing was.
+    #
+    # Wired per template, because a demo is a template that plays itself and
+    # most of these stand still with no input. ATTRACT_UNWIRED says why, one
+    # line each, and the unwired ones are measured too: their title must
+    # still be one still picture, which is the other direction of the claim.
+    from sidra_ai.creation.attract import (
+        ATTRACT_TEMPLATES as _attract_wired,
+        ATTRACT_UNWIRED as _attract_unwired,
+        probe_source as _attract_probe,
+    )
+
+    #: 70 seconds at 60fps. Past the round clock's own sixty-second limit -
+    #: so a demo that quietly ran the clock would have rung the buzzer over
+    #: its own title screen - and past a full racing demo, so the loop back
+    #: to another go is observed rather than assumed.
+    _ATTRACT_IDLE = 4200
+
+    #: Played frames after the press, in both runs. Ten seconds is long
+    #: enough for racing's first obstacles to be placed, which is where a
+    #: rewound world and a merely rewound *scoreboard* stop agreeing: the
+    #: instant of the press cannot tell them apart, because the obstacle
+    #: list is empty in both.
+    _ATTRACT_PLAY = 600
+
+    def _attract_veiled(paint):
+        """Is the last thing painted over the whole canvas see-through?
+
+        The gate draws last, so the final full-canvas fill of the frame is
+        its panel. An 8-digit colour carries an alpha channel and a 6-digit
+        one does not, which is the difference between a veil and a lid -
+        and the difference a player sees.
+        """
+
+        full = [
+            op for op in paint if op.startswith("r:") and op.endswith(":0,0,720,320")
+        ]
+        return bool(full) and len(full[-1].split(":")[1]) > 7
+
+    def _attract_drive(key, body, **kw):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_attract_probe(body, **kw),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                return None, f"{key}: {out.stderr.strip()[:70]}"
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: probe unavailable ({type(exc).__name__})"
+
+    attract_ok: list[str] = []
+    attract_gaps: list[str] = []
+    attract_still: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            attract_gaps.append(f"{key}: no script")
+            continue
+        body = script.group(1)
+        watched, problem = _attract_drive(
+            key, body, idle=_ATTRACT_IDLE, play=_ATTRACT_PLAY
+        )
+        if problem:
+            attract_gaps.append(problem)
+            continue
+        facts = watched["beforePress"]["attract"]
+        if key not in _attract_wired:
+            # Unwired: the gate is exactly what it was. One still picture,
+            # no frames given away, and a line in the table saying why.
+            hashes = {f["hash"] for f in watched["idle"]}
+            if facts["frames"]:
+                attract_gaps.append(f"{key}: unwired, yet it ran {facts['frames']} frames")
+            elif len(hashes) != 1:
+                attract_gaps.append(f"{key}: unwired, yet its title drew {len(hashes)} pictures")
+            elif key not in _attract_unwired:
+                attract_gaps.append(f"{key}: unwired and unexplained")
+            else:
+                attract_still.append(key)
+            continue
+        control, problem = _attract_drive(key, body, idle=0, play=_ATTRACT_PLAY)
+        if problem:
+            attract_gaps.append(problem)
+            continue
+        trouble = None
+        idle = watched["idle"]
+        moved = sum(1 for a, b in zip(idle, idle[1:]) if a["hash"] != b["hash"])
+        # Read *before* the press: everything here is a claim about what
+        # the demo did on its own, and the press itself writes (it is what
+        # remembers that the briefing has been read).
+        press = watched["beforePress"]
+        # 1. The demo got every frame, kept the loop alive to the end, and
+        #    drew a different picture nearly every one of them. A demo that
+        #    is merely "running" behind a still image is not a demo.
+        # One loop, still. A gate that armed the next frame itself as well
+        # as letting the demo arm it would schedule two callbacks, then
+        # four, then eight - a page that looks right in every screenshot
+        # and melts the phone it is running on. Asked first, because every
+        # other number here is read off a page that has to be sane.
+        if max(frame["calls"] for frame in idle) != 1:
+            trouble = (
+                f"{key}: {max(frame['calls'] for frame in idle)} callbacks fell due "
+                "in one frame, so the loop is multiplying"
+            )
+        elif len(idle) != _ATTRACT_IDLE or facts["frames"] != _ATTRACT_IDLE:
+            trouble = f"{key}: the demo got {facts['frames']} of {_ATTRACT_IDLE} frames"
+        elif moved < _ATTRACT_IDLE * 0.9:
+            trouble = f"{key}: the picture changed on {moved} of {_ATTRACT_IDLE - 1} frames"
+        elif not facts["loops"]:
+            # Asserted, not independently confirmed: on today's one wired
+            # template a demo that stops looping freezes on its own goal
+            # screen, and the motion check above catches that first. Kept
+            # because a template whose ending keeps animating would slip
+            # past motion, and because a demo that plays a game once is
+            # not an attract mode.
+            trouble = f"{key}: the demo never reached its own ending, so it never looped"
+        # 2. The veil is a veil. The demo's own paint is under it, and the
+        #    panel over it carries an alpha - a lid would score full marks
+        #    on everything above while showing the player nothing.
+        elif not _attract_veiled(watched["idlePaint"]):
+            trouble = f"{key}: the title covers the demo instead of veiling it"
+        elif idle[-1]["ops"] <= 12:
+            trouble = f"{key}: nothing but the title was drawn on the last idle frame"
+        # 3. Seventy seconds of demo earned nobody anything: the round clock
+        #    never started, so it never rang, and nothing was written down.
+        elif press["round"]["ms"] or press["round"]["done"] or press["touched"]:
+            trouble = (
+                f"{key}: the demo ran the round clock to {press['round']['ms']:.0f}ms"
+                f"{' and rang it' if press['round']['done'] else ''}"
+            )
+        elif press["round"]["best"] is not None or (press["skin"] or {}).get("total"):
+            trouble = f"{key}: the demo banked something"
+        elif sorted(press["store"]):
+            trouble = f"{key}: the demo wrote {sorted(press['store'])} to storage"
+        # 4. ...and the press hands over the same go the control was handed,
+        #    down to the last field of every facts function on the page.
+        else:
+            def _snap(run, at):
+                # The demo's own counters are the one thing that must
+                # differ, and the probe's wall clock is the probe's: the
+                # watched run has four thousand more frames of 50/3ms
+                # behind it, so its round clock lands a rounding away.
+                out = {k: v for k, v in run[at].items() if k != "attract"}
+                out["round"] = dict(out["round"], ms=round(out["round"]["ms"]))
+                return out
+
+            # At the press first, then after ten seconds of play: the
+            # instant of the press cannot see a world whose random stream
+            # was left where the demo dropped it, because nothing has been
+            # placed out of it yet.
+            for at in ("atPress", "afterPlay"):
+                watched_at, control_at = _snap(watched, at), _snap(control, at)
+                if watched_at != control_at:
+                    differ = sorted(
+                        k for k in watched_at if watched_at[k] != control_at.get(k)
+                    )
+                    when = "the go starts" if at == "atPress" else "ten seconds in it runs"
+                    trouble = f"{key}: after the demo {when} differently ({', '.join(differ)})"
+                    break
+        if trouble:
+            attract_gaps.append(trouble)
+        else:
+            attract_ok.append(key)
+    c.add(
+        "creation_attract_demo",
+        "タイトルの裏でゲームが自分で動いて見せる型",
+        float(len(attract_ok)) if not attract_gaps else 0.0,
+        detail=(
+            "; ".join(attract_gaps)
+            if attract_gaps
+            else f"{', '.join(attract_ok)}: 無操作 {_ATTRACT_IDLE} フレーム"
+            f"（約 {_ATTRACT_IDLE // 60} 秒）実走行し、毎フレーム別の絵が描かれ、"
+            "デモ自身の区切りで次の周回に入る。その 70 秒でラウンド時計は 0ms のまま"
+            "（60 秒の buzzer はタイトルの裏では鳴らない）、best も見た目の総計も"
+            "storage も一切動かない。押した瞬間の全 facts が「即座に押した対照ページ」"
+            f"と完全一致する。未配線 {len(attract_still)} 型（{', '.join(attract_still)}）"
+            "はタイトルが 1 枚の静止画のままで、理由は ATTRACT_UNWIRED に 1 行ずつ"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

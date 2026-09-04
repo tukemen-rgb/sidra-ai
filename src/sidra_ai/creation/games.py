@@ -42,6 +42,10 @@ from sidra_ai.creation.adventure import (
 )
 from sidra_ai.creation.adapt import preamble_for as adapt_preamble_for
 from sidra_ai.creation.animation import with_animation
+from sidra_ai.creation.attract import (
+    reset_call as attract_reset_call,
+    wired as attract_wired,
+)
 from sidra_ai.creation.combo import preamble_for as combo_preamble_for
 from sidra_ai.creation.graze import preamble_for as graze_preamble_for
 from sidra_ai.creation.recap import preamble_for as recap_preamble_for
@@ -898,6 +902,13 @@ def generate_game(
         .replace("TUNE_SPEC_TOKEN", json.dumps(schema, ensure_ascii=False))
         # Which template's briefing has been read, per template.
         .replace("GATE_NAME_TOKEN", json.dumps(key))
+        # C-1414: whether this template plays itself behind its own title,
+        # and the call that starts a fresh demo go. Both come from the one
+        # table in attract.py, so an unwired template cannot be half-wired:
+        # false here means the gate's demo branch is unreachable, and the
+        # substituted reset is empty.
+        .replace("ATTRACT_WIRED_TOKEN", "true" if attract_wired(key) else "false")
+        .replace("ATTRACT_RESET_TOKEN", attract_reset_call(key))
         # Read once, at load: nothing may shift under a player mid-round.
         .replace("SPEED_TOKEN", f"adaptSpeed(tuneNum('speed',{speed}))")
         # C-1404 (b): difficulty scales scope, not only speed - easy runs
