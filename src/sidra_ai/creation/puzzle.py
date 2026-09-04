@@ -65,6 +65,15 @@ const PALETTE=['CYAN_TOKEN','MAGENTA_TOKEN','#e8c46a','#7fd18a','#9a8cf0'];
    keep their colours (§4); only the backdrop breathes. ROUND_MS is
    played time, so the title screen spends none of it. */
 setPal(PUZZLE_PAL_TOKEN);
+/* The HUD's own contract (§4 WCAG 1.4.3, C-1329): ink and plate are these
+   constants and draw() paints through them, so what hudFacts() reports is
+   what the frame shows. The plate is the UNtinted theme surface at 0.7
+   over the sky - the same trick the round strips use, in the theme's own
+   colours - so the text keeps its designed contrast under the brightest
+   final act. The ink is the theme's, not a hardcoded near-white: on the
+   light themes that hardcode was 1.0:1, an invisible scoreboard. */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A,cursor:HUD_INK}}
 let grid,cur,score,state,cleared,offY,offX,hammers;
 /* The board's economy (§5, C-1322): a pop of HAMMER_EARN or more banks
    one hammer, up to HAMMER_CAP; a hammer breaks one lone tile. Skill is
@@ -179,10 +188,15 @@ function draw(now){
     cx.fillStyle='#05070f88';
     for(let i=0;i<=v;i++){cx.fillRect(px+4+i*5,py+CELL-7,3,3)}}}
   const pulse=REDUCED?0:FRAME(2,6,now);
-  cx.strokeStyle='#dfe7f5';cx.lineWidth=2+pulse;
+  /* The cursor is a component, not decoration: it inherits the theme's
+     ink like the text does (C-1131 themed the words but not this stroke,
+     and the old near-white was 1.0:1 on the light themes). */
+  cx.strokeStyle=HUD_INK;cx.lineWidth=2+pulse;
   cx.strokeRect(OX+cur.x*CELL+0.5,OY+cur.y*CELL+0.5,CELL-1,CELL-1);
   cx.lineWidth=1;
-  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(OX-8,10,336,22);cx.globalAlpha=1;
+  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
   cx.fillText('得点 '+score+'  つち ×'+hammers,OX,26);
   const left=group(cur.x,cur.y).length;
   cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,26);
@@ -428,6 +442,7 @@ console.log(JSON.stringify({
   score: puzzleFacts().score, state: puzzleFacts().state,
   done: end.done, reason: end.reason,
   scenes: sceneFacts().scenes,
+  hud: hudFacts(),
 }));
 """
 

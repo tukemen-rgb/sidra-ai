@@ -2940,6 +2940,10 @@ def measure_creation(c: Collector) -> None:
 
     scene_gaps: list[str] = []
     scene_ok: list[str] = []
+    #: label -> (hudFacts, scenes) for the templates whose probe reports a
+    #: HUD contract (the three whose HUD sits on the full-frame sky).
+    #: Collected here so the contrast check below costs no extra node runs.
+    scene_hud: dict[str, tuple[dict, list]] = {}
     for request, key, builder in _scene_targets:
         for suffix in _scene_themes:
             label = f"{key}/{suffix or 'default'}"
@@ -2964,6 +2968,8 @@ def measure_creation(c: Collector) -> None:
                 scene_gaps.append(f"{label}: probe unavailable ({type(exc).__name__})")
                 continue
             scenes = seen.get("scenes") or []
+            if isinstance(seen.get("hud"), dict):
+                scene_hud[label] = (seen["hud"], scenes)
             if len(scenes) < 3:
                 scene_gaps.append(f"{label}: {len(scenes)} scene(s) reported")
                 continue
@@ -3003,6 +3009,63 @@ def measure_creation(c: Collector) -> None:
             "明度差はテーマ既定値のまま"
             if not scene_gaps
             else "; ".join(scene_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the HUD survives the brightest sky ----------------------------
+    #
+    # §4's quantity (WCAG 1.4.3, C-1329): normal text needs 4.5:1 against
+    # its background, components 3:1 - measured in the worst scene, which
+    # since §7 is the brightest final act. The three clock-bound templates
+    # paint their HUD straight onto that sky, and the themed ink was
+    # sinking to ~3:1 there: theming cannot help when the tint climbs
+    # toward the ink's own luminance. The fix is a plate of the UNtinted
+    # theme surface under the text; the page reports its HUD contract
+    # (ink, plate, alpha - the constants draw() actually paints through)
+    # and this check blends the plate over every measured sky the same way
+    # the canvas does, in sRGB, then takes the WCAG ratio. The puzzle's
+    # cursor stroke is a component drawn plateless on the sky, held to the
+    # 3:1 floor - the old hardcoded near-white was 1.0:1 on light themes.
+    def _hud_blend(alpha: float, top: str, under: str) -> str:
+        t = [int(top.lstrip("#")[i : i + 2], 16) for i in (0, 2, 4)]
+        u = [int(under.lstrip("#")[i : i + 2], 16) for i in (0, 2, 4)]
+        return "#%02x%02x%02x" % tuple(
+            round(alpha * a + (1 - alpha) * b) for a, b in zip(t, u)
+        )
+
+    hud_gaps: list[str] = []
+    hud_seen: set[str] = set()
+    for label, (hud, hud_scenes) in sorted(scene_hud.items()):
+        hud_seen.add(label.split("/")[0])
+        try:
+            ink = _srgb_lum(hud["ink"])
+            for act, sky in enumerate(hud_scenes):
+                backed = _srgb_lum(_hud_blend(hud["alpha"], hud["plate"], sky["floor"]))
+                ratio = _wcag(ink, backed)
+                if ratio < 4.5:
+                    hud_gaps.append(f"{label}: act {act} HUD sinks to {ratio:.2f}")
+                if "cursor" in hud:
+                    stroke = _wcag(_srgb_lum(hud["cursor"]), _srgb_lum(sky["floor"]))
+                    if stroke < 3.0:
+                        hud_gaps.append(
+                            f"{label}: act {act} cursor sinks to {stroke:.2f}"
+                        )
+        except (KeyError, TypeError, ValueError):
+            hud_gaps.append(f"{label}: HUD contract unreadable")
+    for missing in {"fishing", "catch", "puzzle"} - hud_seen:
+        hud_gaps.append(f"{missing}: no HUD contract reported")
+    c.add(
+        "creation_hud_contrast",
+        "最明の空でも HUD が読める",
+        1.0 if not hud_gaps else 0.0,
+        detail=(
+            "fishing・catch・puzzle（全画面の空に HUD が載る 3 型）× 4 テーマ"
+            "× 全 3 幕で、未着色サーフェスの板を α 合成した実背景に対し文字 "
+            "4.5:1 以上・puzzle のカーソル枠 3:1 以上（§4 WCAG 1.4.3。"
+            "残り 7 型の HUD は盤・地形上に載るため別途）"
+            if not hud_gaps
+            else "; ".join(hud_gaps)
         ),
         kind=OUTCOME,
     )

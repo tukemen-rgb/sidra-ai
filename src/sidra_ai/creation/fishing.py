@@ -76,6 +76,7 @@ console.log(JSON.stringify({
   score: fishFacts().score,
   done: end.done, reason: end.reason,
   scenes: sceneFacts().scenes,
+  hud: hudFacts(),
 }));
 """
 

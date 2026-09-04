@@ -72,6 +72,7 @@ console.log(JSON.stringify({
   caught: catchFacts().caught, score: catchFacts().score,
   done: end.done, reason: end.reason,
   scenes: sceneFacts().scenes,
+  hud: hudFacts(),
 }));
 """
 

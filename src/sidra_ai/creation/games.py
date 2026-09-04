@@ -200,6 +200,12 @@ const zone=()=>[SPOT-BAND/2,SPOT+BAND/2];
    last (§7 観察 5-6 over §8's round). ROUND_MS counts played time only,
    so the title screen spends none of the day. */
 setPal(FISHING_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1329): draw() paints through these
+   constants, so hudFacts() reports what the frame shows. The plate is
+   the untinted theme surface at 0.7 over the sky: the brightest final
+   act was sinking the themed ink to ~3:1. */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 function step(){setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
   pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}draw();
   requestAnimationFrame(step)}
@@ -227,7 +233,9 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
   cx.closePath();cx.fill();
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(fx+9,fy-3,3,3);
   sprite('target',40+(w-80)*SPOT-16,h/2-16+bob,32,32,'');
-  cx.fillStyle='INK_TOKEN';cx.font='16px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(32,14,260,26);cx.fillRect(32,h-44,430,26);cx.globalAlpha=1;
+  cx.fillStyle=HUD_INK;cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
 function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
   casts:casts,scene:SCENE,ms:ROUND_MS}}
@@ -250,6 +258,11 @@ let px=0.5,shown=0.5,items=[],score=0,caught=0,missed=0,t=0,firstDrop=true;
    brightest sky is saved for the last stretch. ROUND_MS is played time,
    so the title screen spends none of the day. */
 setPal(CATCH_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1329): same plate as the fishing HUD -
+   the untinted theme surface at 0.7 under the text, because the round's
+   brightest sky was sinking the themed ink to ~3:1. */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 function catchFacts(){return {shown:shown,px:px,score:score,caught:caught,
   missed:missed,scene:SCENE,ms:ROUND_MS,
   items:items.map(i=>({x:i.x,y:i.y}))}}
@@ -295,7 +308,9 @@ function step(){t++;
   const pulse=[0,1,2,1][FRAME(4,8,performance.now())];
   items.forEach(i=>{sprite('target',i.x*w-10,i.y*h,20,20,'CYAN_TOKEN')});
   sprite('marker',(shown-WIDE/2)*w,h-30-pulse,WIDE*w,20+pulse,'MAGENTA_TOKEN');
-  cx.fillStyle='INK_TOKEN';cx.font='16px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(32,14,420,26);cx.fillRect(32,h-44,330,26);cx.globalAlpha=1;
+  cx.fillStyle=HUD_INK;cx.font='16px ui-monospace,monospace';
   /* The multiplier is on screen at x1 as much as at x4, and the raw
      count stays beside the points so 「得点」 cannot be mistaken for it. */
   cx.fillText('得点 '+score+' '+comboLabel()+' / 受け '+caught+' / こぼし '+missed,40,34);
