@@ -154,6 +154,9 @@ function gateStart(){if(GATE==='playing')return;
      state flips, so the first frame a player is given is the first frame of
      a go - not the middle of one they watched. */
   attractRewind();
+  /* ...and the line about how to hold the phone has had its moment
+     (C-1415): it belongs to the title screen, not to a running game. */
+  try{rotateHide()}catch(e){}
   GATE='playing';gateRemember();gateGesture()}
 function gateTogglePause(){if(GATE==='title')return;
   GATE=GATE==='paused'?'playing':'paused'}

@@ -8461,6 +8461,113 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the line that says a phone can be held the other way (§18) ------
+    #
+    # C-1415. The canvas keeps its 720:320 ratio at every page width, so the
+    # same phone plays at about half the size on each side upright that it
+    # gives lying down - and the page said nothing about it. One sentence
+    # under the canvas, on the title screen only, on a device that can
+    # actually be turned.
+    #
+    # Every part of that is a claim about a running page, and the probe can
+    # turn the screen: the media queries are answered from variables and the
+    # listeners are fired, so "it reacts to the phone moving" is measured
+    # rather than assumed. A page that read the queries once at load would
+    # pass every static check and sit there while the phone rotated.
+    from sidra_ai.creation.rotate import ROTATE_ID as _rot_id, ROTATE_TEXT as _rot_text
+    from sidra_ai.creation.rotate import probe_source as _rot_probe
+
+    def _rot_drive(key, body, **kw):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_rot_probe(body, **kw),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if out.returncode != 0:
+                return None, f"{key}: {out.stderr.strip()[:70]}"
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: probe unavailable ({type(exc).__name__})"
+
+    rot_gaps: list[str] = []
+    rot_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            rot_gaps.append(f"{key}: no script")
+            continue
+        body = script.group(1)
+        # It is in the page at all, and it is the sentence - not a class
+        # name the stylesheet knows about and nobody ever reads.
+        if page.count(f'id="{_rot_id}"') != 1 or _rot_text not in page:
+            rot_gaps.append(f"{key}: the page carries no rotate hint")
+            continue
+        phone, problem = _rot_drive(key, body, portrait=True, coarse=True, press=True)
+        if problem:
+            rot_gaps.append(problem)
+            continue
+        flat, problem = _rot_drive(key, body, portrait=False, coarse=True)
+        if problem:
+            rot_gaps.append(problem)
+            continue
+        mouse, problem = _rot_drive(key, body, portrait=True, coarse=False)
+        if problem:
+            rot_gaps.append(problem)
+            continue
+        trouble = None
+        # 1. Held upright on a phone, the title screen says so.
+        if not phone["atLoad"]["shown"]:
+            trouble = f"{key}: a phone held upright is told nothing"
+        # 2. Turned over, the line goes - without a reload, because the
+        #    listener is what makes this a hint rather than a leftover.
+        elif phone["afterTurn"]["shown"]:
+            trouble = f"{key}: the hint stayed up after the phone was turned"
+        elif not phone["turnedBack"]["shown"]:
+            trouble = f"{key}: turning back upright did not bring the hint back"
+        # 3. ...and the same page opened sideways starts without it.
+        elif flat["atLoad"]["shown"] or not flat["afterTurn"]["shown"]:
+            trouble = f"{key}: opened sideways, the hint does not follow the screen"
+        # 4. A tall desktop window is portrait too. Telling somebody to turn
+        #    their monitor is the page not knowing what it is running on.
+        elif mouse["atLoad"]["shown"] or mouse["afterTurn"]["shown"]:
+            trouble = f"{key}: a mouse-driven window was told to rotate"
+        # 5. It belongs to the title screen. Once play starts it is out of
+        #    the document, and turning the phone does not bring it back.
+        elif phone["inBody"]:
+            trouble = f"{key}: the hint was hidden rather than taken out"
+        elif phone["afterStart"]["present"] or phone["afterStart"]["shown"]:
+            trouble = f"{key}: the hint is still there once the game is running"
+        elif phone["afterStart"]["afterTurningBack"]["shown"]:
+            trouble = f"{key}: turning the phone during play brought the hint back"
+        # 6. It is a hint, not a gate: the press still started the game.
+        elif phone["gate"]["state"] != "playing" or phone["gate"]["frames"] < 1:
+            trouble = f"{key}: the game did not start with the hint on screen"
+        if trouble:
+            rot_gaps.append(trouble)
+        else:
+            rot_ok.append(key)
+    c.add(
+        "creation_rotate_hint",
+        "縦持ちの人にだけ「回すと広い」を一言伝える",
+        0.0 if rot_gaps else 1.0,
+        detail=(
+            "; ".join(rot_gaps)
+            if rot_gaps
+            else f"{len(rot_ok)} 型すべてを 3 通りの画面で実走行: 縦持ち"
+            "（粗いポインタ）のタイトル幕でだけ 1 行出る。走行中に画面を回すと"
+            "その場で消え、戻すとまた出る（media query の change を購読、"
+            "再読み込み不要）。横持ちで開けば最初から出ない。マウスの縦長窓"
+            "（pointer:fine）では縦でも横でも出ない——モニタを回せとは言わない。"
+            "ゲーム開始で DOM から取り除かれ、その後どう回しても戻らない。"
+            "遮断ではないので、1 行が出たまま押せばゲームは始まる"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

@@ -81,6 +81,11 @@ from sidra_ai.creation.scene import (
     SCENE_PREAMBLE,
 )
 from sidra_ai.creation.startscreen import BRIEFINGS, GATE_PREAMBLE
+from sidra_ai.creation.rotate import (
+    ROTATE_ID,
+    ROTATE_TEXT,
+    preamble as rotate_preamble,
+)
 from sidra_ai.creation.puzzle import (
     PUZZLE_DIFFICULTY,
     PUZZLE_HOW,
@@ -750,11 +755,19 @@ a{{color:{t["accent"]}}}
  * keyboard hint stays the whole story there. */
 .touchhint{{display:none;margin:8px 0 0;font-size:13px;color:{t["subtle"]}}}
 @media (pointer:coarse){{.touchhint{{display:block}}}}
+/* §18: the canvas keeps its 720:320 ratio at any width, so a phone held
+ * upright plays at about half the size on each side that the same phone
+ * gives lying down - and the page never mentioned it (C-1415). Hidden here
+ * and turned on by the script, which is the only place that also knows
+ * whether the game has started; a second rule in this sheet deciding the
+ * same element is how the two come to disagree. */
+.rotatehint{{display:none;margin:8px 0 0;font-size:13px;color:{t["subtle"]}}}
 </style></head>
 <body><main>
 <h1>{escape(title)}</h1>
 <p class="tag">{escape(tagline)}</p>
 <canvas id="stage" width="720" height="320"></canvas>
+<p class="rotatehint" id="{ROTATE_ID}">{escape(ROTATE_TEXT)}</p>
 <p class="how">{escape(how)}</p>
 <p class="touchhint">スマホでは画面のボタン（◀ ▶ / A）で操作できます。</p>
 <footer>SIDRA AI が生成。配色と禁止事項の出典:
@@ -848,6 +861,10 @@ def generate_game(
             # After the panel (it reads the switch) and before anything
             # that uses SEED_TOKEN, which is every template body.
             + DAILY_PREAMBLE
+            # Before the gate, which is what takes the line away: the
+            # element has to have been found by the time a press can
+            # happen, and gateStart is the only caller (C-1415).
+            + rotate_preamble()
             + GATE_PREAMBLE
             + SFX_PREAMBLE
             # Right after the effects: the music shares their AC, mute and
