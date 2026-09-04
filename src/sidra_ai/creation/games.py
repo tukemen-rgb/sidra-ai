@@ -215,7 +215,7 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
 function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
   casts:casts,scene:SCENE,ms:ROUND_MS}}
 function cast(){casts++;const [a,b]=zone();
-  if(pos>=a&&pos<=b){score++;flash=1;msg='かかった。';sfx('catch');
+  if(pos>=a&&pos<=b){score++;if(flashGate())flash=1;msg='かかった。';sfx('catch');
     shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}
   else{msg='逃げられた。';sfx('clash');shake(1.5)}}
 addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});

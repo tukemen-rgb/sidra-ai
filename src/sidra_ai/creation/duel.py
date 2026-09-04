@@ -117,7 +117,7 @@ cv.addEventListener('pointerdown',()=>{if(state!=='play'){reset();return}
   if(p.beam>0&&e.beam>0){mash+=3;sfx('clash')}else{if(!p.hold){sfx('charge')}p.hold=true}});
 cv.addEventListener('pointerup',()=>{fire(p)});
 function fire(f){if(state!=='play'||!f.hold||f.stun>0)return;f.hold=false;f.over=0;
-  if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;flash=1;sfx('fire');
+  if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;if(flashGate())flash=1;sfx('fire');
     /* the kick scales with the charge: a tap fires a thread, a long hold
        fires something that shoves the camera */
     shake(2+f.charge*0.08);burst(f.x,LANES[f.lane],10,'ACCENT_JUICE');
@@ -151,8 +151,8 @@ function cpu(){if(e.stun>0){e.stun--;return}
       e.beamLane=e.aim>=0?e.aim:e.lane;e.lane=e.beamLane;
       e.hitLock=(p.lane===e.beamLane);e.aim=-1;
       e.beam=e.charge;
-      e.charge=0;flash=1;sfx('fire')}}}
-function hit(who){who.hp--;flash=1;sfx('hurt');
+      e.charge=0;if(flashGate())flash=1;sfx('fire')}}}
+function hit(who){who.hp--;if(flashGate())flash=1;sfx('hurt');
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
     if(who===e){winner='勝利。ひかりが押し切った。';winBeat(EX,LANES[e.lane])}
@@ -418,6 +418,55 @@ console.log(JSON.stringify({ style: duelFacts().style, tense: duelFacts().tense,
 """
 
 
+#: Machine-gun fire at match-point tempo, watching the full-screen flash
+#: overlay: the worst one-second window must hold at most three onsets
+#: (§15, WCAG 2.3.1), while the flash itself stays alive.
+FLASH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function down(){ (handlers.keydown||[]).forEach(fn => fn({ key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} })) }
+function up(){ (handlers.keyup||[]).forEach(fn => fn({ key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} })) }
+down(); up();
+run(5);
+/* Match point, the fastest act; the player machine-guns minimum charges
+   and both fighters' pools are pinned so the barrage never ends early. */
+e.hp = 1;
+let prev = 0, onsets = [], frame = 0;
+for (let i = 0; i < 900; i++) {
+  if (i % 20 < 14) { down() } else if (i % 20 === 14) { up() }
+  p.hp = 3;
+  run(1); frame++;
+  if (flash > prev + 0.5) onsets.push(frame);
+  prev = flash;
+}
+let worst = 0;
+for (const t of onsets) { const w = onsets.filter(x => x > t - 60 && x <= t).length; if (w > worst) worst = w }
+console.log(JSON.stringify({ onsets: onsets.length, frames: frame,
+  worstWindow: worst, state: state }));
+"""
+
+
+def flash_probe(script: str) -> str:
+    """The page's own script, wrapped so the strobe rate can be counted."""
+
+    return FLASH_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def pace_probe(script: str) -> str:
     """The page's own script, wrapped so the match's tempo can be timed."""
 
@@ -433,6 +482,8 @@ __all__ = [
     "AIM_PROBE",
     "PACE_PROBE",
     "pace_probe",
+    "FLASH_PROBE",
+    "flash_probe",
     "PROBE",
     "aim_probe",
     "probe_source",

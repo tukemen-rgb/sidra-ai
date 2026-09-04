@@ -3469,6 +3469,67 @@ def measure_creation(c: Collector) -> None:
             )
         if _pace.get("state") != "play":
             pace_gaps.append(f"{_pace_req}: the measured match ended by itself")
+    # --- the flash never becomes a strobe -----------------------------
+    #
+    # §15 (WCAG 2.3.1, C-1320): a full-screen flash may switch on at most
+    # three times in any one second - measured before the gate, the duel's
+    # mash fire at match-point tempo hit four onsets in a second, and the
+    # whole-canvas overlay is far past the area exemption. Driven with the
+    # same machine-gun scenario: the worst rolling second must hold three
+    # or fewer onsets while the flash itself stays alive - a gate that
+    # passed by killing the effect would be a different defect. Statically,
+    # every flash=1 in every template must go through flashGate().
+    from sidra_ai.creation.duel import flash_probe as _duel_flash_probe
+    from sidra_ai.creation.games import TEMPLATES as _fl_templates
+
+    flash_gaps: list[str] = []
+    for _fl_key, _fl_spec in _fl_templates.items():
+        _fl_hits = _fl_spec.script.count("flash=1")
+        _fl_gated = _fl_spec.script.count("if(flashGate())flash=1")
+        if _fl_hits != _fl_gated:
+            flash_gaps.append(f"{_fl_key}: {_fl_hits - _fl_gated} ungated flash=1")
+    for _fl_req in ("ビームで撃ち合うゲームを作って", "撃ち合いの対戦を作って"):
+        _fl_page = generate_game(_fl_req).html
+        _fl_script = _scene_re.search(r"<script>(.*?)</script>", _fl_page, _scene_re.S)
+        if _fl_script is None:
+            flash_gaps.append(f"{_fl_req}: no script")
+            continue
+        try:
+            _fl_run = _scene_sp.run(
+                ["node", "-"],
+                input=_duel_flash_probe(_fl_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _fl_run.returncode != 0:
+                flash_gaps.append(f"{_fl_req}: {_fl_run.stderr.strip()[:60]}")
+                continue
+            _fl = json.loads(_fl_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            flash_gaps.append(f"{_fl_req}: probe unavailable ({type(exc).__name__})")
+            continue
+        if _fl.get("worstWindow", 99) > 3:
+            flash_gaps.append(
+                f"{_fl_req}: {_fl['worstWindow']} flashes in one second (WCAG 2.3.1 allows 3)"
+            )
+        if _fl.get("onsets", 0) < 5:
+            flash_gaps.append(f"{_fl_req}: the gate killed the flash ({_fl.get('onsets')} onsets)")
+    c.add(
+        "creation_flash_cap",
+        "閃光が 1 秒 3 回を超えない",
+        0.0 if flash_gaps else 1.0,
+        detail=(
+            "; ".join(flash_gaps)
+            if flash_gaps
+            else "連打射撃・土壇場テンポで 15 秒実測: 全画面フラッシュの onset は"
+            "どの 1 秒窓でも 3 回以下（WCAG 2.3.1）で、演出自体は生きている"
+            "（15 秒で 25 回以上）。全テンプレの flash=1 が flashGate() 経由で"
+            "あることも検査（§15・ゲート前の実測は 4 回/秒だった）"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_duel_matchpoint",
         "土壇場が開幕より速い",

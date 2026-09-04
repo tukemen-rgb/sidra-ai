@@ -42,6 +42,8 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "failBeats",
     "winBeat",
     "winBeats",
+    "flashGate",
+    "flashCount",
 )
 
 #: The failure beat's three numbers, in the units the effects above take.
@@ -99,6 +101,20 @@ function winBeat(x,y){WIN_BEATS++;
   burst(x===undefined?0:x,y===undefined?0:y,%(wparts)d,'ACCENT_JUICE');
   try{sfx('win')}catch(e){}}
 function winBeats(){return WIN_BEATS}
+/* The flash budget (§15, WCAG 2.3.1): a full-screen flash may switch ON
+   at most three times in any one second - measured, the duel's mash fire
+   at match-point tempo hit four. A template asks this gate before
+   re-arming its overlay; the fourth onset in a rolling 60-frame window
+   is refused, the first three - and the decay already on screen - are
+   untouched, so the effect survives and the strobe cannot. The area
+   exemption does not apply: the overlays cover the whole canvas, far
+   over the quarter-of-10-degrees rectangle (§15 事実 2). */
+let FLASH_TIMES=[],FLASH_FRAME=0;
+function flashGate(){
+  FLASH_TIMES=FLASH_TIMES.filter(t=>FLASH_FRAME-t<60);
+  if(FLASH_TIMES.length>=3)return false;
+  FLASH_TIMES.push(FLASH_FRAME);return true}
+function flashCount(){return FLASH_TIMES.length}
 function stepShake(){if(!JCV)return;
   if(SHAKE>0.05){SHAKE*=0.78;
     const dx=(Math.random()*2-1)*SHAKE,dy=(Math.random()*2-1)*SHAKE;
@@ -120,6 +136,7 @@ requestAnimationFrame=function(fn){
     /* Re-scheduled rather than skipped: dropping the callback would end the
        template's loop instead of pausing it. */
     if(HITSTOP>0){HITSTOP--;JUICE_RAF(tick);return}
+    FLASH_FRAME++;
     fn(t);stepParticles();stepShake()})};
 """ % {
     "shake": FAIL_SHAKE,

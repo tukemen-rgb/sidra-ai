@@ -194,3 +194,29 @@ def test_the_crescendo_never_eats_the_telegraph():
     for act in ("opening", "middle", "clutch"):
         assert paced[act]["minLock"] >= 15, (act, paced[act]["minLock"])
     assert paced["state"] == "play", "a perfect dodger is never hit"
+
+
+def test_the_flash_never_strobes_past_three_per_second():
+    """§15 (WCAG 2.3.1, C-1320): mash fire at match-point tempo, counted."""
+
+    import json as _json
+
+    from sidra_ai.creation.duel import flash_probe
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    page = generate_game("ビームで撃ち合うゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=flash_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    seen = _json.loads(probe.stdout.strip().splitlines()[-1])
+
+    assert seen["worstWindow"] <= 3, "no second holds a fourth full-screen flash"
+    assert seen["onsets"] >= 5, "the gate limits the strobe, it does not kill the flash"
