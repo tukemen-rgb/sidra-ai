@@ -1609,6 +1609,22 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1229: the how-to named only keyboard keys, which a phone lacks, and the
+    # on-screen pad appears only once play starts. A coarse-pointer hint now
+    # names the pad before then; desktop keeps its keyboard story.
+    from sidra_ai.evals.touch_hint import evaluate_touch_hint
+
+    touch_hint = evaluate_touch_hint()
+    c.add(
+        "creation_touch_hint",
+        "スマホで画面のボタンで遊べると本文が伝える",
+        10.0 * touch_hint.checks_passed / touch_hint.checks_total,
+        detail=f"{touch_hint.checks_passed}/{touch_hint.checks_total} checks; "
+               "src/sidra_ai/evals/touch_hint.py"
+               + ("" if touch_hint.passed else "; " + "; ".join(touch_hint.failures)),
+        kind=OUTCOME,
+    )
+
     # --- the fishing target is actually drawn ---------------------------
     #
     # C-1206: the default template's target was `sprite('target',...,'')` -

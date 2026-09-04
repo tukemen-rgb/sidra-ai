@@ -661,12 +661,20 @@ a{{color:{t["accent"]}}}
  * scoped to a coarse pointer raises every one of them; desktop keeps its
  * compact controls, and the pad draws in the canvas so it is untouched. */
 @media (pointer:coarse){{button{{min-height:48px}}}}
+/* The how-to and the start briefing name keyboard keys (「← →」), which a
+ * phone does not have; the on-screen pad appears only once play starts, so
+ * before that a touch visitor is told to press keys they cannot (C-1229).
+ * This line names the pad, shown only for a coarse pointer so the desktop
+ * keyboard hint stays the whole story there. */
+.touchhint{{display:none;margin:8px 0 0;font-size:13px;color:{t["subtle"]}}}
+@media (pointer:coarse){{.touchhint{{display:block}}}}
 </style></head>
 <body><main>
 <h1>{escape(title)}</h1>
 <p class="tag">{escape(tagline)}</p>
 <canvas id="stage" width="720" height="320"></canvas>
 <p class="how">{escape(how)}</p>
+<p class="touchhint">スマホでは画面のボタン（◀ ▶ / A）で操作できます。</p>
 <footer>SIDRA AI が生成。配色と禁止事項の出典:
 <ul>{sources}</ul></footer>
 </main>

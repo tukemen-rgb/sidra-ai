@@ -6598,3 +6598,30 @@ BGM の旋律は 10 個のペンタトニック音度上の乱歩で、末尾が
 **PASSED**（MUST CATCH に MISS 無し）、`--compare /tmp/before-1129.json`
 **exit 0**（`creation_music_variety` unmeasurable→1 のみ・他は不変）。
 新規テスト 7 件。
+2026-09-04 09:12 UTC 辛口ユーザー C-1229 完了（6 巡目 スマホ操作・7/10 → 解決）
+  「生成ゲームの操作説明がスマホでキーボードのみ」。iPhone 12 相当で開くと
+  canvas 下の常設 how-to と開始前ブリーフィングが「← → で玉を寄せる」等
+  キーのみを案内。実機にキーは無い。遊び始めればタッチパッド（◀▶/▼/A）が
+  canvas に描かれて操作できる（C-1219 実証・スクショで確認）が、開始前は
+  本文が「← →」しか言わず、画面のボタンで動かせることが文章に無い。
+
+  **最小の解決**: 共通シェル `_page` の how-to の下に粗ポインタ限定の 1 行
+  ヒント「スマホでは画面のボタン（◀ ▶ / A）で操作できます。」を追加。
+  `.touchhint{display:none}` 既定＋`@media (pointer:coarse){.touchhint
+  {display:block}}`。全テンプレに一律・デスクトップは不変（C-1219/C-1224 と
+  同型の粗ポインタ 1 規則）。
+
+  **E2E 実測**（Playwright）: iPhone 12 で .touchhint の display が block、
+  デスクトップ context では none。開始→タップで玉が動くこと（パッド）は
+  C-1219 で実証済み。
+
+  判定器 exit 0: creation_touch_hint unmeasurable→10（動いた数字はこの 1 つ）。
+  破壊 5 通り（要素削除／coarse 表示規則を外す／display:none 既定を外し
+  常時表示／文をキー名に取り違え／coarse を fine に取り違え）で
+  10→4.0/8.0/8.0/8.0/8.0。pytest 全通し（exit 0・FAILED 0）。gate OK。
+
+  ※スマホ面はかなり堅くなった（tap 48dp・折返し・キースクロール抑止・
+  入力 16px でズーム無し・viewport ズーム可・art/3D/deck 収まり・3D は
+  reduced-motion 尊重）。本サイクルはテキスト側の触覚ヒントを埋めた。
+  次サイクル候補（6 点未満のみ）: ①ポケモン等の他商標 routing（RPG 未対応、
+  3/10）②閉じない ** の残存（2**3 と区別できず保留、3/10）。
