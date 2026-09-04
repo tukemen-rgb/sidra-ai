@@ -157,8 +157,13 @@ function press(k){ (handlers['keydown'] || []).forEach(fn => fn({ key: k,
 run(2); press(' '); run(2);
 const rounds = [];
 let seenRound = false;
+/* HOLD_INPUT presses a key every frame, which is how a played round is
+   told from an abandoned one (C-1123). */
+const held = HOLD_INPUT;
 for (let r = 0; r < ROUNDS_INPUT; r++) {
-  for (let i = 0; i < 5000 && !roundEnded() && !ROUND_DONE; i++) { run(1) }
+  for (let i = 0; i < 5000 && !roundEnded() && !ROUND_DONE; i++) {
+    if (held) { press(held) }
+    run(1) }
   run(8);
   /* Whether this really was a new go. A template that ends on the clock
      restarts by re-running the page, which a probe cannot do - so without
@@ -179,7 +184,11 @@ console.log(JSON.stringify({ rounds: rounds, canLose: ROUND_LIVE.length > 0,
 
 
 def streak_probe_source(
-    script: str, *, rounds: int = 4, stored: dict[str, object] | None = None
+    script: str,
+    *,
+    rounds: int = 4,
+    stored: dict[str, object] | None = None,
+    hold: str | None = None,
 ) -> str:
     """Play ``rounds`` rounds back to back and report the streak each time."""
 
@@ -187,6 +196,7 @@ def streak_probe_source(
     return (
         STREAK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("ROUNDS_INPUT", str(int(rounds)))
+        .replace("HOLD_INPUT", json.dumps(hold))
         .replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
     )
 

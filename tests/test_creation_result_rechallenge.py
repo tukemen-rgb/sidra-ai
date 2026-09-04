@@ -41,8 +41,14 @@ from sidra_ai.creation.round import (  # noqa: E402
 KEYS = sorted(TEMPLATES)
 
 
-def _finish(template: str, *, best: int | None = None) -> dict:
-    """Play to the end of a round and read the result screen."""
+def _finish(template: str, *, best: int | None = None, hold: str | None = "ArrowRight") -> dict:
+    """Play to the end of a round and read the result screen.
+
+    A key is held for the whole go because since C-1123 that is what makes
+    it a round somebody *played*: an abandoned page still runs to the end,
+    but banks no best, no total and no streak, so the record checks below
+    would otherwise be asking about a round nobody had.
+    """
 
     if shutil.which("node") is None:  # pragma: no cover - environment guard
         pytest.skip("node is required to read the page's own result screen")
@@ -51,7 +57,9 @@ def _finish(template: str, *, best: int | None = None) -> dict:
     assert script is not None
     gentle = min(pair[0] for pair in _DIFFICULTY[template].values())
     source = probe_source(
-        script.group(1), stored={f"sidra.tune.{template}": {"speed": gentle}}
+        script.group(1),
+        stored={f"sidra.tune.{template}": {"speed": gentle}},
+        hold=hold,
     )
     if best is not None:
         source = source.replace(

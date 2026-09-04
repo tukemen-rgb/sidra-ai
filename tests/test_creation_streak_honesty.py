@@ -51,8 +51,18 @@ ASKS = {
 #: three, and a winning one must clear it.
 SEEDED = 2
 
+#: Pressed every frame, because since C-1123 a round nobody played banks
+#: nothing at all - including a defeat. A streak check on an abandoned
+#: round would be measuring that rule instead of this one.
+#:
+#: A key no template binds, deliberately: holding a *steering* key changes
+#: how each game goes - ArrowRight drives the race into a wall, so the one
+#: template that wins on its own started losing - and this check is about
+#: the streak, not about the driving.
+PLAYED = "x"
 
-def _play(template: str, rounds: int = 4) -> dict:
+
+def _play(template: str, rounds: int = 4, hold: str | None = PLAYED) -> dict:
     if shutil.which("node") is None:  # pragma: no cover - environment guard
         pytest.skip("node is required to play the rounds")
     found = re.search(
@@ -62,7 +72,10 @@ def _play(template: str, rounds: int = 4) -> dict:
     run = subprocess.run(
         ["node", "-"],
         input=streak_probe_source(
-            found.group(1), rounds=rounds, stored={f"sidra.streak.{template}": SEEDED}
+            found.group(1),
+            rounds=rounds,
+            stored={f"sidra.streak.{template}": SEEDED},
+            hold=hold,
         ),
         capture_output=True,
         text=True,

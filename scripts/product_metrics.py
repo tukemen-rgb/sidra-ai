@@ -3443,8 +3443,18 @@ def measure_creation(c: Collector) -> None:
             # round must reach three, and a winning one must clear it.
             run = _scene_sp.run(
                 ["node", "-"],
+                # A key is held for every frame: since C-1123 an
+                # abandoned round banks nothing at all, defeats included,
+                # so an untouched run would be measuring that rule rather
+                # than this one.
                 input=_streak_probe(
-                    found.group(1), rounds=4, stored={f"sidra.streak.{key}": "2"}
+                    found.group(1),
+                    rounds=4,
+                    stored={f"sidra.streak.{key}": "2"},
+                    # A key no template binds: holding a steering key
+                    # changes how each game goes (ArrowRight drives the
+                    # race into a wall), and this is about the streak.
+                    hold="x",
                 ),
                 capture_output=True,
                 text=True,
@@ -3512,6 +3522,107 @@ def measure_creation(c: Collector) -> None:
             else f"{len(streak_ok)} 型を実走行（連敗 2 を仕込んで、実際に始まった回だけ数える）: "
             "失敗数はラウンドごとに戻り、負けた回だけ連敗が伸び、勝てば 0 に戻る。"
             "負け状態を持たない型は時間切れを敗北として記録しない"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- an abandoned round earns nothing -------------------------------
+    #
+    # C-1123: a page left alone still plays. The race finishes, the basket
+    # catches whatever falls into it, and the result strip then banked a
+    # personal best and offered a line to paste about it - the product
+    # congratulating somebody for walking away. The fix is about the
+    # *record*, not about making the games unplayable without input: since
+    # C-1404 every racing rung is meant to finish untouched, and taking
+    # that back would undo a decision made on measurements. An untouched
+    # round still plays and still ends; it just does not claim the result
+    # was anybody's.
+    from sidra_ai.creation.adapt import streak_probe_source as _afk_probe
+    from sidra_ai.creation.games import TEMPLATES as _afk_templates
+
+    afk_gaps: list[str] = []
+    afk_ok: list[str] = []
+    _afk_asks = {
+        "adventure": "冒険ゲームを作って",
+        "catch": "キャッチゲームを作って",
+        "duel": "対戦ゲームを作って",
+        "fishing": "釣りゲームを作って",
+        "kaiju": "怪獣と戦うゲームを作って",
+        "marble": "3D のゲームを作って",
+        "platformer": "ジャンプアクションを作って",
+        "puzzle": "パズルゲームを作って",
+        "racing": "レースゲームを作って",
+        "shooter": "シューティングゲームを作って",
+    }
+    _afk_extra = (
+        "    stored: Number(store[ADAPT_KEY] === undefined ? 0 : store[ADAPT_KEY]),\n"
+        "    touched: roundTouched(), score: ROUND_FINAL,\n"
+        "    best: store['sidra.best.'+AFK_KEY_TOKEN] === undefined"
+        " ? null : store['sidra.best.'+AFK_KEY_TOKEN],\n"
+        "    total: store['sidra.total.'+AFK_KEY_TOKEN] === undefined"
+        " ? null : store['sidra.total.'+AFK_KEY_TOKEN] });"
+    )
+
+    def _afk_run(key, request, hold):
+        found = _scene_re.search(
+            r"<script>(.*?)</script>", generate_game(request).html, _scene_re.S
+        )
+        if found is None:
+            return None, f"{key}: no script on the page"
+        source = _afk_probe(found.group(1), rounds=1, hold=hold).replace(
+            "    stored: Number(store[ADAPT_KEY] === undefined ? 0 : store[ADAPT_KEY]) });",
+            _afk_extra.replace("AFK_KEY_TOKEN", json.dumps(key)),
+        )
+        try:
+            run = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=240
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            return json.loads(run.stdout.strip().splitlines()[-1])["rounds"][0], None
+        except (OSError, _scene_sp.SubprocessError, ValueError, IndexError) as exc:
+            return None, f"{key}: probe unavailable ({exc})"
+
+    for key in sorted(_afk_templates):
+        request = _afk_asks[key]
+        alone, problem = _afk_run(key, request, None)
+        if problem:
+            afk_gaps.append(problem)
+            continue
+        if alone["touched"]:
+            afk_gaps.append(f"{key}: an untouched round was counted as played")
+            continue
+        banked = [
+            name
+            for name in ("best", "total")
+            if alone[name] is not None
+        ]
+        if banked or alone["stored"]:
+            afk_gaps.append(f"{key}: an untouched round banked {banked or 'a streak'}")
+            continue
+        # The other direction, or this number could be had by never
+        # recording anything at all.
+        played, problem = _afk_run(key, request, "ArrowRight")
+        if problem:
+            afk_gaps.append(problem)
+            continue
+        if not played["touched"]:
+            afk_gaps.append(f"{key}: a played round was not counted as played")
+            continue
+        if played["best"] is None:
+            afk_gaps.append(f"{key}: a played round banked no best")
+            continue
+        afk_ok.append(key)
+    c.add(
+        "creation_afk_no_record",
+        "放置したラウンドは記録にならない",
+        float(len(afk_ok)) if not afk_gaps else 0.0,
+        detail=(
+            "; ".join(afk_gaps)
+            if afk_gaps
+            else f"{len(afk_ok)} 型で実走行: 無操作の 1 ラウンドは自己ベストも"
+            "累計もゴーストも連敗も残さず、キーを押した回は残す。"
+            "ゲーム自体は無操作でも従来どおり進む（C-1404 の決定を戻さない）"
         ),
         kind=OUTCOME,
     )
@@ -4787,8 +4898,15 @@ def measure_creation(c: Collector) -> None:
                 fresh_gaps.append(f"{key}: no script")
                 break
             gentle = min(pair[0] for pair in _tune_ladder[key].values())
+            # A key is pressed every frame, because since C-1123 a round
+            # nobody played banks no best - so an untouched run would be
+            # asking whether an abandoned page gets congratulated, which is
+            # a different question with the opposite right answer. A key no
+            # template binds, so how each game goes is unchanged.
             source = _fail_probe(
-                script.group(1), stored={f"sidra.tune.{key}": {"speed": gentle}}
+                script.group(1),
+                stored={f"sidra.tune.{key}": {"speed": gentle}},
+                hold="x",
             )
             if best is not None:
                 source = source.replace(

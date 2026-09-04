@@ -87,6 +87,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "roundLive",
     "roundEnded",
     "roundLost",
+    "roundTouched",
     "roundFacts",
     "roundScore",
     "roundBest",
@@ -139,6 +140,29 @@ function roundEnded(){return ROUND_LIVE.length>0&&!roundLive()}
 /* Lost, as opposed to simply over. A template with no losing state cannot
    lose: its round ends on the clock every single time, so treating that as
    a defeat would make the signal meaningless. */
+/* Did the player do anything this round? (C-1123)
+   A page left alone still plays: the race finishes, the basket catches
+   what falls into it, and the monster never swings. Banking a personal
+   best for that is the product congratulating somebody for walking away -
+   and C-1110 will then offer them a line to paste about it. So an
+   untouched round earns nothing: no best, no total toward a colour, no
+   ghost, no streak. It still *plays*, and it still ends properly; what it
+   does not do is claim the result was theirs.
+
+   Only input during play counts. The press that dismisses the briefing is
+   how you get to the game, not playing it. */
+let ROUND_TOUCHED=false,ROUND_PLAYED_A_FRAME=false;
+function roundTouched(){return ROUND_TOUCHED}
+/* Gated on a frame having been drawn in play, not on the gate's state at
+   the moment of the event: the gate's own listener is registered first and
+   flips the state inside the very keypress that opened it, so a listener
+   asking 「are we playing?」 sees 「yes」 for the press that asked to start.
+   A frame is unambiguous - the starting press happens before any. */
+function roundNote(){if(ROUND_PLAYED_A_FRAME){ROUND_TOUCHED=true}}
+addEventListener('keydown',roundNote);
+addEventListener('pointerdown',roundNote);
+if(RCV){RCV.addEventListener('pointerdown',roundNote);
+  RCV.addEventListener('pointermove',roundNote)}
 function roundLost(){
   if(!ROUND_LIVE.length)return false;
   try{return failBeats()>0}catch(e){return false}}
@@ -146,6 +170,7 @@ function roundTick(t){
   const now=(typeof t==='number'&&isFinite(t))?t:ROUND_MS+16;
   if(ROUND_T0===null){ROUND_T0=now}
   ROUND_MS=now-ROUND_T0;
+  try{if(gateState()==='playing'){ROUND_PLAYED_A_FRAME=true}}catch(e){}
   /* The template finished on its own: its screen is the break, and the
      clock has nothing to add. Reset so a restart gets a full go. */
   if(roundEnded()){ROUND_T0=now;ROUND_MS=0;ROUND_REASON='template';return}
@@ -156,7 +181,10 @@ function roundTick(t){
   if(ROUND_BANKED&&!ROUND_DONE){ROUND_BANKED=false;ROUND_FINAL=null;ROUND_RECORD=false;
     /* ...and the round's own failure count with it (C-1122). Without this
        the next go inherits the last one's defeat. */
-    try{failBeatsReset()}catch(e){}}
+    try{failBeatsReset()}catch(e){}
+    /* ...and whether anybody played it (C-1123). The keypress that asked
+       for this round is not playing it. */
+    ROUND_TOUCHED=false;ROUND_PLAYED_A_FRAME=false}
   /* Once the clock has fired, only an explicit restart clears it. An
      earlier version cleared it as soon as the template looked "live"
      again - but the clock fires precisely when the template has *not*
@@ -218,6 +246,11 @@ function roundBest(){return ROUND_BEST}
 function roundBank(){if(ROUND_BANKED)return;ROUND_BANKED=true;
   ROUND_FINAL=roundScore();ROUND_BEST=roundBestRead();
   if(ROUND_FINAL===null)return;
+  /* Nobody played, so there is nothing to credit anybody with (C-1123).
+     The score is still shown - it is what happened - but it is not banked
+     as a best, not counted toward a colour, not kept as a ghost, and not
+     recorded as a win or a loss. */
+  if(!ROUND_TOUCHED)return;
   if(ROUND_BEST===null||ROUND_FINAL>ROUND_BEST){ROUND_RECORD=true;
     roundBestWrite(ROUND_FINAL);ROUND_BEST=ROUND_FINAL}
   /* The same number, banked a second way: the best is this round against
@@ -351,7 +384,10 @@ const press = { key: ' ', code: 'Space',
   preventDefault(){}, stopImmediatePropagation(){} };
 roundKeys.forEach(fn => fn(press));
 let firstBreak = null;
+const roundHeld = HOLD_INPUT;
 for (let f = 0; f < FRAMES_INPUT; f++) {
+  if (roundHeld) { roundKeys.forEach(fn => fn({ key: roundHeld, code: roundHeld,
+    preventDefault(){}, stopImmediatePropagation(){} })) }
   roundRun(1);
   const now = roundFacts();
   /* Labelled here rather than read from ROUND_REASON: the clock writes that
@@ -411,11 +447,17 @@ def probe_source(
     reduced: bool = False,
     stored: dict[str, dict] | None = None,
     stamp: str = "2026-09-03",
+    hold: str | None = None,
 ) -> str:
     """The page's own script, started once and then left alone.
 
     ``warmup`` is how many frames sit on the title screen before the
     single press. Those frames have to cost the round nothing.
+
+    ``hold`` presses one key every frame, which since C-1123 is the
+    difference between a round somebody played and a round that merely
+    ran: an abandoned one banks no best, no total and no streak, so a
+    check about *records* has to hold a key to be about anything.
     """
 
     payload = {key: json.dumps(value, ensure_ascii=False) for key, value in (stored or {}).items()}
@@ -424,6 +466,7 @@ def probe_source(
         .replace("WARMUP_INPUT", str(int(warmup)))
         .replace("REDUCED_INPUT", "true" if reduced else "false")
         .replace("STAMP_INPUT", stamp)
+        .replace("HOLD_INPUT", json.dumps(hold))
         .replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("SCRIPT_PLACEHOLDER", script)
     )
