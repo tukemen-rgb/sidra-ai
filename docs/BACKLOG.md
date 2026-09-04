@@ -2684,7 +2684,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       作れる型: …（TEMPLATES から動的生成）」に差し替え、RAG 定型文と
       API 案内をやめる。→ 動かす数字: creation_intent_paraphrase 12→（批評の
       取りこぼし 8 文言を加えた全数）／creation_weak_intent_reply unmeasurable→1
-- [ ] **C-1121: 「対戦格闘」の三層の嘘を止める。**（批評 #2）_GENRES で
+- [~] 作業中 2026-09-04 12:08 ループA **C-1121: 「対戦格闘」の三層の嘘を止める。**（批評 #2）_GENRES で
       対戦格闘 を ビーム対戦 より先に評価する（か duel 語彙から裸の「対戦」
       「バトル」を外す。どちらが副作用最小か計測して選ぶ）。加えて
       requested_genre にはユーザーが実際に書いた語を記録し、ページ表題が
