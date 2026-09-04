@@ -60,11 +60,22 @@ function musicRand(){MUSIC_RS=(MUSIC_RS*48271)%2147483647;return MUSIC_RS/214748
    harmonic mistake (§10 事実 3). */
 const MUSIC_SCALE=[0,2,4,7,9,12,14,16,19,21];
 function musicHz(d){return 220*Math.pow(2,MUSIC_SCALE[d]/12)}
-const MUSIC_MEL=[],MUSIC_BASS=[];
+const MUSIC_MEL=[],MUSIC_BASS=[],MUSIC_WALK=[];
 (function(){let d=4;
   for(let i=0;i<MUSIC_STEPS;i++){
     if(musicRand()<0.25){MUSIC_MEL.push(-1)}
-    else{d=Math.max(0,Math.min(9,d+Math.floor(musicRand()*5)-2));
+    /* C-1129: bounce off the ends, do not clamp against them. Math.max/
+       Math.min turned every step that reached past an end into no step at
+       all, so a walk that kept pushing outward repeated one pitch for
+       bars - a drone, not a tune, and the seeds that did it are real.
+       Walking the other way instead keeps the size the draw asked for and
+       always lands inside: |s| <= 2, so an overshoot can only start from
+       d >= 8 (or d <= 1), and d - s is in range from there. The end can
+       no longer hold a note - only a drawn s === 0 repeats one, which is
+       the tune's own doing and happens anywhere on the scale. */
+    else{const p=d,s=Math.floor(musicRand()*5)-2,raw=p+s;
+      d=(raw<0||raw>9)?p-s:raw;
+      MUSIC_WALK.push([p,s,d]);
       MUSIC_MEL.push(d)}
     /* The bass walks on the beat, root or fifth, two octaves down - the
        "about 1:4" separation that keeps the low end clean (§10 事実 2). */
@@ -121,7 +132,11 @@ requestAnimationFrame=function(fn){
   return MUSIC_RAF(function(t){musicTick(t);fn(t)})};
 function musicFacts(){return {on:MUSIC_ON,muted:MUTED,scheduled:MUSIC_N,
   step:MUSIC_STEP,steps:MUSIC_STEPS,
-  mel:MUSIC_MEL.slice(),bass:MUSIC_BASS.slice()}}
+  mel:MUSIC_MEL.slice(),bass:MUSIC_BASS.slice(),
+  /* [from, drawn step, to] per sounded note. Recorded on the page rather
+     than re-derived by the probe: re-running the generator to check the
+     generator is the check agreeing with itself (C-1129). */
+  walk:MUSIC_WALK.map(function(w){return w.slice()})}}
 """
 
 #: The page driven in node, the same no-op browser the template probes
@@ -177,6 +192,7 @@ console.log(JSON.stringify({
   playingN: playing.scheduled, calmN: calmN, fightN: fightN,
   atMuteN: atMute, afterN: after.scheduled,
   mel: playing.mel, bass: playing.bass, steps: playing.steps,
+  walk: playing.walk,
 }));
 """
 

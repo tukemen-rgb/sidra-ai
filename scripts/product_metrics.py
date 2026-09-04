@@ -3040,6 +3040,123 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the tune is not allowed to lean on a wall ----------------------
+    #
+    # C-1129 (批評 #13). The melody is a random walk over ten pentatonic
+    # degrees, and it ended at `Math.max(0,Math.min(9,...))`. A clamp is
+    # not a boundary, it is an absorber: every step that reached past an
+    # end became no step at all, so a run of outward draws printed one
+    # pitch over and over. Real seeds did it - 「ゲームを作って」 alone
+    # sat on the top degree for bars. The walk now bounces (walk the other
+    # way by the size drawn), and the page keeps the log this is read
+    # from, because re-deriving the melody to check the melody is the
+    # check agreeing with itself.
+    #
+    # The claim is exact rather than statistical: a sounded note repeats
+    # the one before it only when the draw itself was 0, so the longest
+    # drone in the sample is exactly the longest chain of zero draws. A
+    # clamp breaks that on the first seed that leans.
+    from sidra_ai.creation.music import probe_source as _walk_probe
+
+    variety_gaps: list[str] = []
+    _walk_asks = (
+        "ゲームを作って",
+        "パズルゲームを作って",
+        "釣りゲームを作って",
+        "レースゲームを作って",
+        "シューティングゲームを作って",
+        "キャッチゲームを作って",
+        "迷路のゲームを作って",
+        "怪獣のゲームを作って",
+        "ジャンプアクションを作って",
+        "ビーム対戦を作って",
+    )
+    _walk_runs: list[tuple[str, dict]] = []
+    for _walk_ask in _walk_asks:
+        _walk_html = generate_game(_walk_ask).html
+        _walk_src = _scene_re.search(r"<script>(.*?)</script>", _walk_html, _scene_re.S)
+        if _walk_src is None:
+            variety_gaps.append(f"{_walk_ask}: no script on the page")
+            break
+        try:
+            _walk_out = _scene_sp.run(
+                ["node", "-"],
+                input=_walk_probe(_walk_src.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _walk_out.returncode != 0:
+                raise ValueError(_walk_out.stderr.strip()[:60])
+            _walk_runs.append(
+                (_walk_ask, json.loads(_walk_out.stdout.strip().splitlines()[-1]))
+            )
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            variety_gaps.append(f"probe unavailable ({exc})")
+            break
+
+    _walk_bounces = 0
+    _walk_worst = 0
+    for _walk_ask, _walk_heard in _walk_runs:
+        walk = [list(entry) for entry in _walk_heard.get("walk") or []]
+        mel = list(_walk_heard.get("mel") or [])
+        sounded = [note for note in mel if note >= 0]
+        if not walk:
+            variety_gaps.append(f"{_walk_ask}: the page kept no walk")
+            continue
+        # The log is the melody, not a story told beside it.
+        if [entry[2] for entry in walk] != sounded:
+            variety_gaps.append(f"{_walk_ask}: the log and the tune disagree")
+            continue
+        for index, (came, drawn, went) in enumerate(walk):
+            if not 0 <= went <= 9:
+                variety_gaps.append(f"{_walk_ask}: left the scale ({went})")
+                break
+            # The size the draw asked for is the size taken, at an end or
+            # anywhere else. A clamp shortens it; that is the defect.
+            if abs(went - came) != abs(drawn):
+                variety_gaps.append(
+                    f"{_walk_ask}: step {index} moved {abs(went - came)}, drew {abs(drawn)}"
+                )
+                break
+            if drawn != 0 and went == came:
+                variety_gaps.append(f"{_walk_ask}: an end held the note at {came}")
+                break
+            if came + drawn < 0 or came + drawn > 9:
+                _walk_bounces += 1
+        # Every drone in the tune is a chain of zero draws and nothing
+        # else: walk the sounded notes and the draws together.
+        run = best = 1
+        for index in range(1, len(walk)):
+            if walk[index][2] == walk[index - 1][2]:
+                if walk[index][1] != 0:
+                    variety_gaps.append(
+                        f"{_walk_ask}: repeated {walk[index][2]} on a non-zero draw"
+                    )
+                    break
+                run += 1
+                best = max(best, run)
+            else:
+                run = 1
+        _walk_worst = max(_walk_worst, best)
+    # A check that never reached an end proves nothing about ends.
+    if _walk_runs and not _walk_bounces:
+        variety_gaps.append("no seed in the sample ever reached an end")
+    c.add(
+        "creation_music_variety",
+        "BGM が端に張り付いてドローンにならない",
+        0.0 if variety_gaps else 1.0,
+        detail=(
+            "; ".join(variety_gaps)
+            if variety_gaps
+            else f"{len(_walk_runs)} 依頼を実走行し、ページ側の歩行ログで確認: "
+            f"端に当たった歩 {_walk_bounces} 回すべてが draw と同じ歩幅で"
+            f"跳ね返り、音が続くのは draw が 0 のときだけ（最長 {_walk_worst} 音）。"
+            "ログは実際に鳴った音列と一致"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- playing well pays more than playing long ----------------------
     #
     # §13 事実 2: every template scored one point per thing, so a careful
