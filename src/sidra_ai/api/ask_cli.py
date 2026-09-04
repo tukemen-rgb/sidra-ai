@@ -276,8 +276,34 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
             file=sys.stderr,
         )
         return 1
+    # The web page maps the reachable status classes to guidance (C-1211);
+    # the CLI only had 401 and 429, so a too-long question - the most common
+    # 422 a terminal user hits - printed a bare 「HTTP 422」 with no next step
+    # (C-1223). The response body stays unread either way: a detail the API
+    # kept private stays private, but the class of failure is not a secret,
+    # and the code is still printed for debugging.
+    if response.status_code == 403:
+        print(
+            "アクセスが拒否された。トークンと権限を確認する。（HTTP 403）",
+            file=sys.stderr,
+        )
+        return 1
+    if response.status_code in (413, 422):
+        print(
+            "入力が長すぎるか形式が不正。短くして再送する。"
+            f"（HTTP {response.status_code}）",
+            file=sys.stderr,
+        )
+        return 1
     if response.status_code == 429:
-        print("レート制限に当たった。少し待って再試行する。", file=sys.stderr)
+        print("レート制限に当たった。少し待って再試行する。（HTTP 429）", file=sys.stderr)
+        return 1
+    if response.status_code >= 500:
+        print(
+            "サーバ側で問題が起きた。時間をおいて再試行する。"
+            f"（HTTP {response.status_code}）",
+            file=sys.stderr,
+        )
         return 1
     if response.status_code >= 400:
         print(f"API がエラーを返した: HTTP {response.status_code}", file=sys.stderr)

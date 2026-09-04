@@ -732,6 +732,23 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1223: the ask CLI special-cased only 401 and 429, so a too-long
+    # question printed a bare 「HTTP 422」 with no next step - the web page's
+    # guidance (C-1211) never reached the terminal. The CLI now maps 403,
+    # 413/422 and 5xx too, with the code printed and the body unread.
+    from sidra_ai.evals.cli_error_guidance import evaluate_cli_error_guidance
+
+    cli_guidance = evaluate_cli_error_guidance()
+    c.add(
+        "cli_error_guidance",
+        "CLI が失敗時に次の一手を日本語で示す",
+        10.0 * cli_guidance.checks_passed / cli_guidance.checks_total,
+        detail=f"{cli_guidance.checks_passed}/{cli_guidance.checks_total} checks; "
+               "src/sidra_ai/evals/cli_error_guidance.py"
+               + ("" if cli_guidance.passed else "; " + "; ".join(cli_guidance.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1210: the server carried chat history; the browser page never sent
     # it, so every follow-up question abstained. Mechanics pinned on the
     # page source; the end-to-end run lives in the loop log.
