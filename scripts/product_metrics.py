@@ -1501,6 +1501,28 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1240: RPG/rhythm/tower-defense declined as unsupported genres (with the
+    # buildable list), but 「クイズゲーム」「麻雀ゲーム」 fell to the subject path
+    # (「『クイズ』の題材を描く型はまだ無い」) - treated like 「猫」, and the subject
+    # path never lists what can be built. They were missing from GENRES (which
+    # lists unsupported genres on purpose, to decline them). Added as unsupported
+    # genres so they decline with the list; real subjects and supported genres
+    # are unchanged.
+    from sidra_ai.evals.unsupported_genre_not_subject import (
+        evaluate_unsupported_genre_not_subject,
+    )
+
+    genre_not_subject = evaluate_unsupported_genre_not_subject()
+    c.add(
+        "unsupported_genre_not_subject",
+        "クイズ・麻雀等を未対応ジャンル（一覧つき）として断り題材と誤らない",
+        10.0 * genre_not_subject.checks_passed / genre_not_subject.checks_total,
+        detail=f"{genre_not_subject.checks_passed}/{genre_not_subject.checks_total} checks; "
+               "src/sidra_ai/evals/unsupported_genre_not_subject.py"
+               + ("" if genre_not_subject.passed else "; " + "; ".join(genre_not_subject.failures)),
+        kind=OUTCOME,
+    )
+
     # Asking for a genre we cannot build gets a playable page either way, so
     # playability cannot tell "we made a shooter" from "we made a fishing game
     # and called it a shooter". This number asks the generator both questions:

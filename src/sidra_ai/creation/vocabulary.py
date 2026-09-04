@@ -85,6 +85,18 @@ GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     # template below and must not be taken from it.
     ("落ち物パズル", "falling", ("テトリス", "tetris")),
     ("タワーディフェンス", "towerdefense", ("タワーディフェンス", "tower defense")),
+    # Quiz, mahjong and card/board games are genres this product does not
+    # build, but they were in no table, so detect_genre returned None and they
+    # fell to the *subject* path - 「『クイズ』の題材を描く型はまだ無い」, as if
+    # quiz were a thing to draw like 「猫」, and with no 「いま作れるのは …」 list
+    # to point the user somewhere buildable (C-1240). Named here, like the
+    # falling-block puzzle above, so they are declined as genres with the list.
+    # Their template keys are absent from TEMPLATES, so they are unsupported by
+    # construction.
+    ("クイズ", "quiz", ("クイズ", "quiz")),
+    ("麻雀", "mahjong", ("麻雀", "マージャン", "mahjong")),
+    ("カードゲーム", "cardgame", ("カードゲーム", "トランプ", "card game")),
+    ("ボードゲーム", "boardgame", ("ボードゲーム", "board game", "すごろく")),
     ("キャッチ", "catch", CATCH_WORDS),
     ("釣り", "fishing", FISHING_WORDS),
     # Last, matching choose_template: the bare 「ジャンプ」/「跳」 cues (C-1220)
