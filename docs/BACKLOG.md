@@ -2922,6 +2922,19 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
+- [~] 作業中 2026-09-04 07:42 辛口クリエイター **C-1327: puzzle だけ空が無い（§7 の最後の 1 型・時計は既に持っている）。**
+      （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§2）
+      場面パレットは 9 型に入り、puzzle が唯一の例外——しかも puzzle は
+      fishing/catch と同じ共有 60 秒時計の上にいる（ROUND_LIVE ('play')）
+      ので、時間の幕の器は既にある。実装: PUZZLE_PALETTE（3 幕・最終幕が
+      最明）を scene.py に追加し、step() が ROUND_MS の 3 等分で setScene、
+      盤の背景だけ scenePaint 経由（タイルの PALETTE と pip は §4 のため
+      不変）。probe（新設 SKY_PROBE）は実プレイで「第 1 幕と最終幕の
+      両方で消しが成立・幕 0→1→2 が実時間で切替・最終幕が最明・60s の
+      区切り（手詰まりでなければ time）不変」を測り、_scene_targets と
+      creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
+      7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
+      → 動かす数字: creation_scene_palettes 7→8
 - [x] 完了 2026-09-04 07:06 UTC 辛口クリエイター（`creation_win_fanfare` unmeasurable→**1**、判定器 exit 0。WIN_NOTES=[523,659,784,1046]（C-E-G-C・商標フリーの長三和音）を 0.11s 刻みでスケジュールする勝利フレーズを sfx('win') に実装。各音は sfxGain('win') 経由で戦闘音圧段・上限・音量軸・M ミュートの契約を 1 音ずつ維持、§14 のジッタはフレーズ全体に 1 係数（ファンファーレ内は調律を保つ）。Recorder 実測: 4 音・厳密上昇（534→1069）・gain 4 本・M で 0 音。破壊 2 通り〔1 音化→『1 note(s), not a phrase』で 0 ／ 下降列→『the phrase does not rise』で 0〕。pytest exit 0（3123 passed / 3 skip）・gate MISS 0）**C-1326: 勝利の音が 1 音しかない（§2 の powerUp 系が最重ビートに不在）。**
       （辛口クリエイターループ起票・観点=§2 効果音。前回=§13）
       C-1316 で勝利は全ラウンド最重のビート（揺れ 16・粒子 26）になったのに
