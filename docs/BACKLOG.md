@@ -2922,7 +2922,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
-- [~] 作業中 2026-09-04 05:42 辛口クリエイター **C-1325: racing の危険は罰だけで報いが無い（§13 事実 1・レースの空白）。**
+- [x] 完了 2026-09-04 06:08 UTC 辛口クリエイター（`creation_race_slipstream` unmeasurable→**1**、判定器 exit 0。通過枝で横 26〜46px（当たり判定 26 のすぐ外側）なら slips++ と一時加速spd=min(PACE×1.4, spd+PACE×0.3)——既存イージングが基準へ戻すので恒久ギアにならない。HUD に ニアミス 数。固定ジオメトリの probe 4 通り（34px/80px/0px/grace 中すり抜け）×2 シードで実測: 近い通過だけ 1 回・spd 3→3.9（×1.3）で跳ねて基準へ復帰・遠方 0・衝突 0（減速は従来）・**grace 中の無敵すり抜けも 0**。破壊 2 通り〔加速を外す→『paid no surge』で 0 ／ 帯を 46 未満全部に広げる→初版 probe は素通しだったため grace すり抜けシナリオを増設してから『an immune pass-through paid the slipstream』で 0（計器の穴を先に塞いだ）〕。無操作完走（C-1404）はブーストが正方向のため不変（同スイートで再確認）。pytest exit 0（3101 passed / 3 skip）・gate MISS 0）**C-1325: racing の危険は罰だけで報いが無い（§13 事実 1・レースの空白）。**
       （辛口クリエイターループ起票・観点=§13（§5 経済の拡張節・前回=§6）。
       C-1313 marble・C-1405 catch・C-1406 shooter と同族だが未着手の
       racing 版で、キュー項目とは非重複）

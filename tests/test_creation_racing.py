@@ -172,3 +172,39 @@ def test_difficulty_changes_the_race_not_the_wording() -> None:
 def test_the_words_that_route_here_include_the_ones_an_owner_types() -> None:
     for word in ("レース", "レーシング", "racing", "サーキット"):
         assert word in RACING_WORDS
+
+
+def test_a_near_miss_pays_a_surge_and_a_crash_never_does():
+    """§13 事実 1 (C-1325): the slipstream, shaved with pinned geometry."""
+
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.games import generate_game as _generate
+    from sidra_ai.creation.racing import slip_probe
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = _generate("周回レースを作って").html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"], input=slip_probe(script.group(1)),
+        capture_output=True, text=True, timeout=120,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    seen = _json.loads(probe.stdout.strip().splitlines()[-1])
+
+    assert seen["near"]["slips"] == 1
+    assert seen["near"]["maxSpd"] >= seen["base"] * 1.15, "the surge is real"
+    assert abs(seen["settledSpd"] - seen["base"]) <= seen["base"] * 0.05, (
+        "a surge, not a permanent gear"
+    )
+    assert seen["far"]["slips"] == 0, "distance pays nothing"
+    assert seen["hit"]["slips"] == 0, "a crash pays nothing"
+    assert seen["hit"]["minSpd"] <= seen["base"] * 0.6, "the hit still costs pace"
+    assert seen["graced"]["slips"] == 0, "an immune pass-through pays nothing"

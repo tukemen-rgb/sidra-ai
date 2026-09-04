@@ -1847,6 +1847,78 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- shaving past an obstacle pays, crashing never does ------------
+    #
+    # §13 事実 1, racing edition (C-1325): obstacles were pure punishment -
+    # a hit cut the pace and a daring near-pass paid nothing, in the genre
+    # whose own tradition (the slipstream) is the textbook risk-reward.
+    # Now a pass with 26-46px of daylight (the band starts exactly where
+    # the hitbox ends) pays a pace surge the existing easing decays back
+    # to base - a surge, not a permanent gear - and the HUD counts it.
+    # Shaved for real with pinned geometry on two seeds.
+    import re as _sl_re
+    import subprocess as _sl_sp
+
+    from sidra_ai.creation.racing import slip_probe as _slip_probe
+
+    slip_gaps: list[str] = []
+    for _sl_req in ("周回レースを作って", "難しいレースゲームを作って"):
+        _sl_page = generate_game(_sl_req).html
+        _sl_script = _sl_re.search(r"<script>(.*?)</script>", _sl_page, _sl_re.S)
+        if _sl_script is None:
+            slip_gaps.append(f"{_sl_req}: no script")
+            continue
+        try:
+            _sl_run = _sl_sp.run(
+                ["node", "-"],
+                input=_slip_probe(_sl_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _sl_run.returncode != 0:
+                slip_gaps.append(f"{_sl_req}: {_sl_run.stderr.strip()[:60]}")
+                continue
+            _sl = json.loads(_sl_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sl_sp.SubprocessError, ValueError) as exc:
+            slip_gaps.append(f"{_sl_req}: probe unavailable ({type(exc).__name__})")
+            continue
+        _sl_base = _sl.get("base") or 0
+        _sl_near, _sl_far, _sl_hit = _sl.get("near") or {}, _sl.get("far") or {}, _sl.get("hit") or {}
+        if _sl_near.get("slips") != 1:
+            slip_gaps.append(f"{_sl_req}: the near miss was not counted once")
+        elif _sl_near.get("maxSpd", 0) < _sl_base * 1.15:
+            slip_gaps.append(
+                f"{_sl_req}: the near miss paid no surge "
+                f"({_sl_near.get('maxSpd'):.2f} vs base {_sl_base})"
+            )
+        if abs(_sl.get("settledSpd", 0) - _sl_base) > _sl_base * 0.05:
+            slip_gaps.append(f"{_sl_req}: the surge became a permanent gear")
+        if _sl_far.get("slips") != 0:
+            slip_gaps.append(f"{_sl_req}: a distant pass paid the slipstream")
+        if _sl_hit.get("slips") != 0:
+            slip_gaps.append(f"{_sl_req}: a crash paid the slipstream")
+        if (_sl.get("graced") or {}).get("slips") != 0:
+            slip_gaps.append(f"{_sl_req}: an immune pass-through paid the slipstream")
+        if _sl_hit.get("minSpd", 99) > _sl_base * 0.6:
+            slip_gaps.append(f"{_sl_req}: the hit no longer costs pace")
+        if _sl.get("state") != "race":
+            slip_gaps.append(f"{_sl_req}: the measured run ended by itself")
+    c.add(
+        "creation_race_slipstream",
+        "すれすれの通過が報いる",
+        0.0 if slip_gaps else 1.0,
+        detail=(
+            "; ".join(slip_gaps)
+            if slip_gaps
+            else "障害物を横 34px（当たり判定 26 のすぐ外）・80px・0px に固定して"
+            "実走: 近い通過だけが 1 回数えられ、実測 spd が基準×1.3 に跳ねて"
+            "イージングで基準へ戻り、遠い通過と衝突は払われない（衝突は従来"
+            "どおり減速）。grace 中のすり抜けも払われない。§13 事実 1 のレース版＝スリップストリーム"
+        ),
+        kind=OUTCOME,
+    )
+
     # C-1404 (b): easy's three laps outlasted the shared sixty-second clock,
     # so the gentlest rung was the one nobody finishes. The ladder's paces
     # stay and easy runs two laps; every rung is driven for real and counted

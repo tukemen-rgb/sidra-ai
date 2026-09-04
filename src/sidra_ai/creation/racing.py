@@ -89,12 +89,13 @@ const W=cv.width,H=cv.height,CARY=H-56,LAP=1800,LAPS=LAPS_TOKEN,ROADW=190;
    so the road is always followable at every difficulty. */
 const PH1=rand()*6.283,PH2=rand()*6.283;
 function roadAt(d){return W/2+Math.sin(d/380+PH1)*150+Math.sin(d/151+PH2)*62}
-let car,obs,dist,lap,lapT,times,state,grace,spd,nextObs,passed;
+let car,obs,dist,lap,lapT,times,state,grace,spd,nextObs,passed,slips;
 function reset(){car={x:roadAt(0)};obs=[];dist=0;lap=1;lapT=0;times=[];
-  state='race';grace=0;spd=PACE;nextObs=320;passed=0}
+  state='race';grace=0;spd=PACE;nextObs=320;passed=0;slips=0}
 setPal(RACING_PAL_TOKEN);
 function onRoad(){return Math.abs(car.x-roadAt(dist))<ROADW/2-8}
 function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,passed:passed,
+  slips:slips,
   base:PACE,carX:car.x,road:roadAt(dist),roadW:ROADW,grace:grace,
   onRoad:onRoad(),times:times.slice(),lapT:lapT}}
 /* A hit is a cost, not an ending: the pace is cut, a short grace window
@@ -133,7 +134,18 @@ function step(){
         hitObstacle();return false}
       /* Counted as it goes by, so "I got past one" is a thing the page
          knows rather than a thing only the player felt. */
-      if(o.d<=dist-14){passed++;return false}
+      if(o.d<=dist-14){passed++;
+        /* The slipstream (§13, C-1325): shaving past pays a burst of
+           pace. The band starts exactly where the 26px hitbox ends, so
+           the reward begins where the risk was real - and a grace-window
+           pass-through (inside 26) never pays: an immune crash is not a
+           near miss. The existing easing pulls spd back to PACE, so the
+           boost is a surge, not a permanent gear. */
+        const near=Math.abs(o.x-car.x);
+        if(near>=26&&near<46){slips++;
+          spd=Math.min(PACE*1.4,spd+PACE*0.3);
+          sfx('catch');burst(car.x,CARY-8,8,'ACCENT_JUICE')}
+        return false}
       return o.d>dist-60});
     if(dist>=lap*LAP)crossLine()}
   draw();requestAnimationFrame(step)}
@@ -174,7 +186,8 @@ function draw(){
   if(grace>0){cx.strokeStyle='#dfe7f5';cx.lineWidth=2;
     cx.strokeRect(car.x-13,CARY-18,26,36)}
   cx.fillStyle='#dfe7f5';cx.font='13px ui-monospace,monospace';
-  cx.fillText('LAP '+Math.min(lap,LAPS)+'/'+LAPS+'  '+(lapT/60).toFixed(1)+'s',12,19);
+  cx.fillText('LAP '+Math.min(lap,LAPS)+'/'+LAPS+'  '+(lapT/60).toFixed(1)+'s'+
+    (slips>0?'  ニアミス '+slips:''),12,19);
   cx.strokeStyle='BORDER_TOKEN';cx.strokeRect(W-172,10,120,10);
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(W-172,10,120*Math.min(1,spd/PACE),10);
   cx.fillStyle='#dfe7f5';
@@ -261,6 +274,74 @@ console.log(JSON.stringify({
 """
 
 
+#: The slipstream, shaved for real (§13, C-1325): one obstacle pinned just
+#: outside the hitbox pays a surge that decays; one far off pays nothing;
+#: one dead centre still cuts the pace and pays nothing.
+SLIP_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+(handlers.keydown || []).forEach(fn => fn({ key: ' ', code: 'Space',
+  preventDefault(){}, stopImmediatePropagation(){} }));
+run(5);
+/* The course is emptied and natural spawns stopped, so each scenario is
+   exactly one obstacle. The car is held on the road's centre line and
+   the obstacle rides at a fixed lateral offset until it passes, so the
+   geometry at the pass is the offset itself, not luck. */
+obs.length = 0; nextObs = 1e9;
+function passOne(offset, gap){
+  const before = { slips: raceFacts().slips, passed: raceFacts().passed };
+  const o = { d: raceFacts().dist + (gap || 120), x: 0 };
+  obs.push(o);
+  let maxSpd = 0, minSpd = 99;
+  for (let i = 0; i < 300 && raceFacts().passed === before.passed
+       && obs.indexOf(o) >= 0; i++) {
+    car.x = raceFacts().road;
+    o.x = car.x + offset;
+    run(1);
+    const v = raceFacts().spd;
+    if (v > maxSpd) maxSpd = v;
+    if (v < minSpd) minSpd = v;
+  }
+  run(2);
+  return { slips: raceFacts().slips - before.slips,
+    maxSpd: maxSpd, minSpd: minSpd };
+}
+const near = passOne(34);
+/* The surge is a surge: the easing brings the pace back down. */
+for (let i = 0; i < 150; i++) { car.x = raceFacts().road; run(1) }
+const settledSpd = raceFacts().spd;
+const far = passOne(80);
+const hit = passOne(0);
+/* A second centred obstacle ridden through immediately, inside the grace
+   window: an immune crash is not a near miss and must pay nothing. */
+const graced = passOne(0, 26);
+console.log(JSON.stringify({ near: near, settledSpd: settledSpd,
+  far: far, hit: hit, graced: graced, graceLeft: raceFacts().grace,
+  base: raceFacts().base, state: raceFacts().state }));
+"""
+
+
+def slip_probe(script: str) -> str:
+    """The page's own script, wrapped so a near miss can be shaved."""
+
+    return SLIP_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the race can be driven in node."""
 
@@ -274,5 +355,7 @@ __all__ = [
     "RACING_TITLE",
     "RACING_WORDS",
     "PROBE",
+    "SLIP_PROBE",
+    "slip_probe",
     "probe_source",
 ]
