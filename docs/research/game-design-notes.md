@@ -487,6 +487,37 @@ URL はすべて 2026-09-03 に実際に開いて確認。
   途中から続いていても気づけなかったため（racing の reset が SEED を
   戻していなかった。他 3 型は元から戻していた）。
 
+## 18. スマホの実画面面積（外部調査 2026-09-04・進捗監視ループ）
+
+§4 は「読める画面」、C-1234 は「押せる大きさ」まで。**そもそもの
+遊び面の広さ**を扱った節が無かったための増築。canvas は 720:320 の
+横長比を保って縮むため、縦持ち 390px 幅の実プレイ面は 390×173 CSS px
+——回転すれば 2 倍強になるのに、ページは何も促さない。URL は
+2026-09-04 に実際に開いて確認。
+
+- 事実 1: **向きの検出は CSS だけでできる**——`@media (orientation:
+  portrait)` / `(orientation: landscape)` がレイアウト適応の推奨手段で、
+  JS 側には `screen.orientation` の change イベントもある。ゲームは
+  好みの向き（多くは landscape）へ `screen.orientation.lock()` で固定
+  できるが、lock は Promise を返し失敗し得る（実装依存）ので、失敗を
+  無害に飲む設計が前提。（出典:
+  https://developer.mozilla.org/en-US/docs/Web/API/CSS_Object_Model/Managing_screen_orientation）
+- 事実 2: **Fullscreen API（`element.requestFullscreen()`）は現行の
+  Android Chrome/Firefox とデスクトップで対応済み**。iOS Safari は
+  長らく部分対応（26.6 で全対応）なので、ボタンは対応検出つきの
+  進歩的付加として置き、非対応では出さないか無害に退く。（出典:
+  https://caniuse.com/fullscreen 2026-09-04 確認）
+- 学び: SIDRA の生成ゲームは orientation/fullscreen への言及が 0 件
+  （creation 配下 grep 0 件）。縦持ちで遊び始めた人に「回すと広い」を
+  一言も伝えず、URL バーと余白に画面の 4 割を渡したままにしている。
+  §17 のアトラクトモードで初見の 1 秒を作ったのだから、その 1 秒の
+  画面が最大である価値は上がっている。条件: 促しは**案内であって
+  遮断ではない**（縦のままでも遊べる・タップ主体の型では出さない判断も
+  あり）、fullscreen は**利用者の押下でのみ**入る（勝手に全画面化は
+  §4 の「読める画面」以前の礼儀違反）。
+- SIDRA での反映先: C-1415（縦持ちへの回転の促し）・C-1416（全画面
+  ボタン）
+
 ## 運用の決まり
 
 - 追記するときは必ず URL を実際に開いて確かめ、確認日を書く（推測で書かない）。

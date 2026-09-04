@@ -4096,6 +4096,32 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（ゲートが閉じたままフレームが進み絵が変わること、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
+- [ ] **C-1415: 縦持ちの人に「回すと広い」を一言伝える。**（進捗監視起票
+      2026-09-04・根拠は docs/research/game-design-notes.md §18。出典
+      MDN Managing screen orientation 2026-09-04 確認）canvas は 720:320
+      比で縮むため縦持ち 390px 幅の実プレイ面は 390×173px、回転で 2 倍強
+      になるのにページは promptしない（orientation への言及 grep 0 件）。
+      `@media (orientation: portrait)` でタイトル幕の 3 行の下に回転の
+      促し 1 行を足す。条件: ①案内であって遮断ではない（縦のままでも
+      そのまま遊べる）②タッチ非対応環境（デスクトップの縦長窓）では
+      出さない③ゲーム中には出さない（タイトル幕の間だけ）。→ 動かす
+      数字: creation_rotate_hint unmeasurable→1（縦比のとき促しが
+      DOM にあり、横比のとき無く、ゲーム開始後に消えることをページ
+      実走行で検査。破壊で 0）
+- [ ] **C-1416: 全画面ボタン（押した人だけが広くなる）。**（進捗監視
+      起票 2026-09-04・根拠は docs/research/game-design-notes.md §18。
+      出典 https://caniuse.com/fullscreen 2026-09-04 確認: Android
+      Chrome/Firefox・デスクトップは対応、iOS Safari は 26.6 まで部分
+      対応）スマホの URL バーと余白が画面の 4 割を占めるが、生成ゲームは
+      requestFullscreen を呼ばない（grep 0 件）。canvas を包む要素に
+      全画面ボタンを置き、押下でのみ requestFullscreen、全画面中は
+      戻るボタンに替える。条件: ①勝手に全画面化しない（利用者の押下
+      のみ）②対応検出つきの進歩的付加（`document.fullscreenEnabled`
+      が偽なら出さない）③失敗（Promise reject）は無害に飲む④全画面中
+      の任意の landscape lock は試みてよいが失敗を無視する（§18 事実 1）。
+      → 動かす数字: creation_fullscreen_button unmeasurable→1（対応環境
+      でボタンが在り押下で requestFullscreen が呼ばれること、非対応環境
+      でボタンが出ないこと、自動発火しないことを検査。破壊で 0）
       **結果**: racing 1 型を配線（残り 9 型は `ATTRACT_UNWIRED` に理由
       1 行ずつ）。実装中に既存側の欠陥を 2 つ見つけて直した——(1) roundBank
       の「触れていないラウンドは稼がない」判定は ROUND_FINAL を読んだ*後*に
