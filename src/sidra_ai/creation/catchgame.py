@@ -82,4 +82,65 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-__all__ = ["PROBE", "probe_source"]
+#: Held movement, measured the way the on-screen pad actually presses
+#: (§12 事実 3, C-1328): exactly one keydown, no synthetic repeats, one
+#: keyup at the end. The basket must nudge on the press, keep drifting
+#: every frame while held (an OS repeat must NOT be a second nudge), stop
+#: the frame the key is released, and never leave the field. Whether the
+#: catching underneath still works stays the scene probe's question - it
+#: steers and lands catches on this same template every run.
+HOLD_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function kd(k){ (handlers.keydown || []).forEach(fn => fn({ key: k,
+  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function ku(k){ (handlers.keyup || []).forEach(fn => fn({ key: k,
+  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+/* Past the briefing; the keyboard drives px, so the pointer-easing shown
+   is not read at all - px is the truth the keys write. */
+kd(' '); ku(' ');
+run(10);
+const px0 = catchFacts().px;
+kd('ArrowLeft');                    // one press, exactly like the pad
+const pxNudge = catchFacts().px;    // the tap step lands inside the event
+kd('ArrowLeft');                    // an OS auto-repeat while already held
+const pxRepeat = catchFacts().px;   // ...must not be a second step
+run(30);
+const pxHeld = catchFacts().px;     // the loop kept it moving
+ku('ArrowLeft');
+const pxStop1 = catchFacts().px;
+run(10);
+const pxStop2 = catchFacts().px;    // released means stopped
+kd('ArrowLeft');
+run(200);                           // long hold: the field edge holds
+const pxEdge = catchFacts().px;
+ku('ArrowLeft');
+console.log(JSON.stringify({
+  px0: px0, pxNudge: pxNudge, pxRepeat: pxRepeat, pxHeld: pxHeld,
+  pxStop1: pxStop1, pxStop2: pxStop2, pxEdge: pxEdge,
+}));
+"""
+
+
+def hold_probe(script: str) -> str:
+    """The page's own script, wrapped so a held key can be watched."""
+
+    return HOLD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+__all__ = ["HOLD_PROBE", "PROBE", "hold_probe", "probe_source"]

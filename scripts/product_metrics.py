@@ -3056,6 +3056,70 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a held key keeps moving --------------------------------------
+    #
+    # §12 事実 3 (C-1328): held movement belongs in the loop, read off
+    # pressed-state flags, not inside the keydown event. The on-screen pad
+    # synthesises no key repeat - one press is exactly one keydown - so the
+    # catch basket, the one template that moved only inside the event,
+    # stood still under a held ◀ on the pad's own audience: a phone. The
+    # probe presses the way the pad does (one keydown, one keyup) and reads
+    # the basket every step: the tap nudge still lands, an OS auto-repeat
+    # is not a second nudge, the drift continues while held, stops on
+    # release, and the field edge holds. Whether catches still land is the
+    # round-scene probe's question, asked of this same template every run.
+    import re as _hm_re
+    import subprocess as _hm_sp
+
+    from sidra_ai.creation.catchgame import hold_probe as _hm_probe
+
+    hold_gaps: list[str] = []
+    for _hm_request in ("キャッチゲームを作って", "難しいキャッチゲームを作って"):
+        _hm_page = generate_game(_hm_request).html
+        _hm_script = _hm_re.search(r"<script>(.*?)</script>", _hm_page, _hm_re.S)
+        if _hm_script is None:
+            hold_gaps.append(f"{_hm_request}: no script")
+            continue
+        try:
+            _hm_run = _hm_sp.run(
+                ["node", "-"],
+                input=_hm_probe(_hm_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _hm_run.returncode != 0:
+                hold_gaps.append(f"{_hm_request}: {_hm_run.stderr.strip()[:80]}")
+                continue
+            _hm = json.loads(_hm_run.stdout.strip().splitlines()[-1])
+        except (OSError, _hm_sp.SubprocessError, ValueError) as exc:
+            hold_gaps.append(f"{_hm_request}: probe unavailable ({type(exc).__name__})")
+            continue
+        if abs((_hm["px0"] - _hm["pxNudge"]) - 0.06) > 0.02:
+            hold_gaps.append(f"{_hm_request}: the first press lost its step")
+        if _hm["pxNudge"] - _hm["pxRepeat"] > 0.02:
+            hold_gaps.append(f"{_hm_request}: an OS auto-repeat is a second step")
+        if _hm["pxHeld"] > _hm["pxNudge"] - 0.25:
+            hold_gaps.append(f"{_hm_request}: a held key moves the basket once")
+        if abs(_hm["pxStop2"] - _hm["pxStop1"]) > 1e-6:
+            hold_gaps.append(f"{_hm_request}: the basket keeps moving after release")
+        if not (-1e-9 <= _hm["pxEdge"] <= 1e-9):
+            hold_gaps.append(f"{_hm_request}: the field edge does not hold")
+    c.add(
+        "creation_hold_to_move",
+        "押しっぱなしで動き続ける",
+        1.0 if not hold_gaps else 0.0,
+        detail=(
+            "catch をパッドと同じ押し方（keydown 1 回・リピート無し）で実測: "
+            "初回タップの 0.06 ナッジ・保持中 0.012/フレームの継続移動・"
+            "OS リピートで二重ナッジしない・keyup で停止・端で停まる"
+            "（§12 事実 3。10 型で唯一 keydown 内でしか動かなかった型）"
+            if not hold_gaps
+            else "; ".join(hold_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the crescendo is in the fight, not only in the paint ----------
     #
     # §6 観察 3: escalation has a shape - the same fight, re-accelerated.

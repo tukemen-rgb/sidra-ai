@@ -253,11 +253,23 @@ setPal(CATCH_PAL_TOKEN);
 function catchFacts(){return {shown:shown,px:px,score:score,caught:caught,
   missed:missed,scene:SCENE,ms:ROUND_MS,
   items:items.map(i=>({x:i.x,y:i.y}))}}
-addEventListener('keydown',e=>{if(e.code==='ArrowLeft'){px=Math.max(0,px-0.06)}
-  if(e.code==='ArrowRight'){px=Math.min(1,px+0.06)}});
+/* Held movement lives in the loop, not in the event (§12 事実 3, C-1328).
+   The on-screen pad synthesises no key repeat - one press is one keydown -
+   so a basket that only moved inside the event stood still under a held ◀.
+   The first press keeps its 0.06 nudge (tap play is unchanged; the flag
+   swallows OS repeats) and step() drifts 0.012/frame while held. */
+const KHELD={l:false,r:false};
+addEventListener('keydown',e=>{
+  if(e.code==='ArrowLeft'){if(!KHELD.l){px=Math.max(0,px-0.06)}KHELD.l=true}
+  if(e.code==='ArrowRight'){if(!KHELD.r){px=Math.min(1,px+0.06)}KHELD.r=true}});
+addEventListener('keyup',e=>{if(e.code==='ArrowLeft'){KHELD.l=false}
+  if(e.code==='ArrowRight'){KHELD.r=false}});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();
   px=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))});
-function step(){t++;if(t%FALL===0){
+function step(){t++;
+  if(KHELD.l){px=Math.max(0,px-0.012)}
+  if(KHELD.r){px=Math.min(1,px+0.012)}
+  if(t%FALL===0){
   /* The first one falls straight into the basket, wherever it is (§8 事実
      5). Everything after it is luck, as it should be - but the opening
      has to hand something over before it asks for anything. */

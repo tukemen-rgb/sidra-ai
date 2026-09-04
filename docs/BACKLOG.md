@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-04 20:40 辛口クリエイター **C-1328: catch だけ押しっぱなしが効かない（10 型で唯一の keydown 刻み移動）。**
+- [x] 完了 2026-09-04 21:25 UTC 辛口クリエイター（`creation_hold_to_move` unmeasurable→**1**、判定器 exit 0。catch に押下フラグ KHELD（keydown で立て keyup で下ろす）＋ step() 内の保持中 0.012/フレーム移動を実装。初回 keydown の 0.06 ナッジは維持し、フラグで OS リピートの二重ナッジを無効化——タップ派・pointermove 経路は不変。新設 HOLD_PROBE がパッドと同じ押し方（keydown 1 回・リピート合成なし・keyup 1 回）で実測: ナッジ 0.5→0.44・リピート keydown で不動（0.44 のまま）・保持 30f で 0.44→0.08（0.012×30）・keyup 後 10f 不動・長押しで端 0 に停止。3 リクエスト（default・難しい・紙テーマ）同値。破壊 2 通り〔毎フレーム移動を外す→『a held key moves the basket once』＋『the field edge does not hold』で 0 ／ keyup を外す→『the basket keeps moving after release』で 0〕。**実装時の失敗を 1 件記録**: 変数名 `held` が streak/AFK 系 probe の同名トップレベル宣言と衝突し node が SyntaxError（creation_dda_streak_honest・creation_afk_no_record が 10→0、判定器 exit 2 が正しく差し止め）→ KHELD に改名して全回復。pytest exit 0（3250 passed / 3 skip）・gate MISS 0）**C-1328: catch だけ押しっぱなしが効かない（10 型で唯一の keydown 刻み移動）。**
       （辛口クリエイターループ起票・観点=§12 入力の寛容さ。前回=§7。基準
       不足のため先に外部調査で §12 事実 3 を増築——MDN のゲーム制御機構の
       章: 押下フラグを keydown/keyup で持ち、毎フレームのループ側で見て
