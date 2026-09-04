@@ -3537,6 +3537,67 @@ def measure_creation(c: Collector) -> None:
                 boss_gaps.append("phase 2 does not re-accelerate")
             if fought["fallenAlive"] or fought["finalState"] != "win":
                 boss_gaps.append("the fall does not open the chest")
+    # --- the talisman finally guards -----------------------------------
+    #
+    # §3 (C-1323): the optional door's reward, the charm, healed once at
+    # pickup and then decorated the HUD - a protective talisman that never
+    # protected. Now one fatal hit shatters it in the hero's place: hp
+    # stays at one, the mercy frames outlast a normal hit's, and the
+    # failure beat does not fire for a death that did not happen. Once
+    # only - the second fatal hit is an ordinary death. Struck for real
+    # by the probe on two seeds.
+    from sidra_ai.creation.adventure import charm_probe as _charm_probe
+
+    charm_gaps: list[str] = []
+    for _ch_req in ("迷宮を冒険するゲームを作って", "難しい冒険ゲームを作って"):
+        _ch_page = generate_game(_ch_req).html
+        _ch_script = _scene_re.search(r"<script>(.*?)</script>", _ch_page, _scene_re.S)
+        if _ch_script is None:
+            charm_gaps.append(f"{_ch_req}: no script")
+            continue
+        try:
+            _ch_run = _scene_sp.run(
+                ["node", "-"],
+                input=_charm_probe(_ch_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _ch_run.returncode != 0:
+                charm_gaps.append(f"{_ch_req}: {_ch_run.stderr.strip()[:60]}")
+                continue
+            _ch = json.loads(_ch_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            charm_gaps.append(f"{_ch_req}: probe unavailable ({type(exc).__name__})")
+            continue
+        _ch_save, _ch_death = _ch.get("afterSave") or {}, _ch.get("afterDeath") or {}
+        if _ch_save.get("state") != "play" or _ch_save.get("hp") != 1:
+            charm_gaps.append(f"{_ch_req}: the charm did not take the fatal hit")
+            continue
+        if _ch_save.get("charm") is not False:
+            charm_gaps.append(f"{_ch_req}: the shield reforms - immortality wearing an amulet")
+        if _ch_save.get("inv", 0) <= 60:
+            charm_gaps.append(f"{_ch_req}: the mercy frames are no longer than a normal hit's")
+        if _ch_save.get("beats") != 0:
+            charm_gaps.append(f"{_ch_req}: a survived hit fired the failure beat")
+        if _ch_death.get("state") != "over" or _ch_death.get("beats") != 1:
+            charm_gaps.append(f"{_ch_req}: the second fatal hit is not an ordinary death")
+    c.add(
+        "creation_charm_shield",
+        "護符が一度だけ身代わりになる",
+        0.0 if charm_gaps else 1.0,
+        detail=(
+            "; ".join(charm_gaps)
+            if charm_gaps
+            else "護符持ちの hp1 に致死打を実際に当てて計測: 護符が砕けて"
+            "hp1 で生存（無敵 90f＝通常 60f より長い慈悲・failBeat は鳴らない）、"
+            "護符は消え、次の致死打は通常どおり敗北とビート。拾得文言も"
+            "「一度だけ身代わりになる」と規則を言う（§3 の任意報酬が名前どおり"
+            "守るように）"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_adventure_boss",
         "祭壇に番人がいる",

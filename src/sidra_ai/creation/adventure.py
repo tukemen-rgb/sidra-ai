@@ -190,10 +190,19 @@ function moveHero(){
   else if(t===6&&room>0){room--;hero.x=OX+(GW-2)*TILE+26;say(NAMES[room]);sfx('step');
     hero.inv=Math.max(hero.inv,45)}
   if(t===11){rooms[room][Math.floor((hero.y-OY)/TILE)][Math.floor((hero.x-OX)/TILE)]=0;
-    hero.charm=true;hero.hp=hero.maxhp;say('わき道の護符を見つけた。');sfx('key');
+    hero.charm=true;hero.hp=hero.maxhp;
+    say('護符を見つけた。一度だけ身代わりになる。');sfx('key');
     burst(hero.x,hero.y,20,'ALERT_JUICE')}
   if(keyDrop&&room===1&&Math.hypot(hero.x-keyDrop.x,hero.y-keyDrop.y)<20){
     hero.key=true;keyDrop=null;say('鍵を手に入れた。');sfx('key')}}
+/* The talisman finally guards (§3, C-1323): one fatal hit is taken by
+   the charm instead - it shatters, the hero stands at 1, and the mercy
+   frames outlast a normal hit's. Once only: a shield that reforms would
+   be immortality wearing an amulet. */
+function charmSave(){if(!hero.charm)return false;
+  hero.charm=false;hero.hp=1;hero.inv=90;
+  sfx('clash');shake(8);burst(hero.x,hero.y,18,'ACCENT_JUICE');
+  say('護符が砕けて、身代わりになった。');return true}
 function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   const d=Math.hypot(hero.x-en.x,hero.y-en.y);
   /* Exactly on top of the hero is d===0, and dividing by it makes this
@@ -212,7 +221,8 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   if(hero.inv<=0&&d<16){hero.hp--;hero.inv=60;sfx('hurt');
     shake(9);hitstop(4);burst(hero.x,hero.y,12,'ALERT_JUICE');
     hero.x-=en.dx*14;hero.y-=en.dy*14;
-    if(hero.hp<=0){state='over';failBeat(hero.x,hero.y)}else{say('いたい。')}}})}
+    if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
+    else{say('いたい。')}}})}
 /* The guardian's turn (§6): a slow stride whose weight is the step, a held
    wind-up - the flash beat - then a charge that ends in dust. Phase 2 is
    the same grammar faster. speed/wind are read off guardFacts by the probe
@@ -245,7 +255,8 @@ function moveGuard(){if(room!==2||!guard||!guard.alive)return;
     hero.hp--;hero.inv=60;sfx('hurt');shake(10);hitstop(5);
     burst(hero.x,hero.y,14,'ALERT_JUICE');
     hero.x+=(hero.x-guard.x)/d*20;hero.y+=(hero.y-guard.y)/d*20;
-    if(hero.hp<=0){state='over';failBeat(hero.x,hero.y)}else{say('重い一撃。')}}}
+    if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
+    else{say('重い一撃。')}}}
 function guardFacts(){return guard?{alive:guard.alive,hp:guard.hp,max:guard.max,
   mode:guard.mode,wind:guard.wind,x:guard.x,y:guard.y,inv:guard.inv,
   speed:guardSpeed(),windFrames:guardWind(),
@@ -470,6 +481,57 @@ def combo_probe(script: str) -> str:
 #: rule it reports comes off the running page: the chest that refuses a
 #: key while the guardian stands, the armour that turns mashing into one
 #: blow, the phase-2 re-acceleration, the win that only follows the fall.
+#: The talisman, hit for real (§3, C-1323): a fatal blow lands on a
+#: charm-bearing hero at 1 hp - once it is a save, twice it is a death.
+CHARM_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+/* A charm-bearer at one heart takes a fatal blow: the charm shatters in
+   the hero's place. The enemy is placed on the hero, the same way the
+   audio probe meets the combat clause. */
+hero.charm = true; hero.hp = 1; hero.inv = 0;
+(enemies[room] = enemies[room] || []).push(
+  { x: hero.x, y: hero.y, dx: 0, dy: 0, t: 999, alive: true });
+run(3);
+const afterSave = { hp: hero.hp, charm: hero.charm, inv: hero.inv,
+  state: state, beats: failBeats() };
+/* The same blow again, charm spent: an ordinary death, with its beat. */
+hero.inv = 0; hero.hp = 1;
+run(3);
+const afterDeath = { hp: hero.hp, charm: hero.charm, state: state,
+  beats: failBeats() };
+console.log(JSON.stringify({ afterSave: afterSave, afterDeath: afterDeath }));
+"""
+
+
+def charm_probe(script: str) -> str:
+    """The page's own script, wrapped so the talisman can be struck."""
+
+    return CHARM_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 GUARD_PROBE = """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
@@ -557,6 +619,8 @@ __all__ = [
     "ADVENTURE_TITLE",
     "ADVENTURE_WORDS",
     "COMBO_PROBE",
+    "CHARM_PROBE",
+    "charm_probe",
     "GUARD_PROBE",
     "combo_probe",
     "WORLD_PROBE",

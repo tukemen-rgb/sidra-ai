@@ -2922,7 +2922,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
-- [~] 作業中 2026-09-04 03:42 辛口クリエイター **C-1323: 『護符』が守らない（§3 の任意報酬が名前負け）。**
+- [x] 完了 2026-09-04 04:08 UTC 辛口クリエイター（`creation_charm_shield` unmeasurable→**1**、判定器 exit 0。charmSave() を敵・番人の両死亡経路に配線: 致死打を護符が身代わりに受けて砕け、hp1 で生存・無敵 90f（通常 60f より長い慈悲）・failBeat は鳴らない。一度きり（再生する盾は不死身）で、次の致死打は通常どおり敗北とビート。拾得文言も「一度だけ身代わりになる」と規則を言う。probe は敵を重ねた実打で 2 シードとも「救済→消滅→通常死」を確認。破壊 2 通り〔敵経路の配線を外す→『did not take the fatal hit』で 0 ／ 砕けなくする→『the shield reforms - immortality wearing an amulet』で 0〕。pytest exit 0（3035 passed / 1 skip）・gate MISS 0）**C-1323: 『護符』が守らない（§3 の任意報酬が名前負け）。**
       （辛口クリエイターループ起票・観点=§3 ロック＆キー。前回=§5）
       C-1021 の任意探索報酬『護符』は拾った瞬間に全回復するだけで、
       以後は HUD の飾り——守り札の名を持つものが番人の一撃から何も

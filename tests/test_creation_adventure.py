@@ -233,3 +233,51 @@ def test_a_press_during_the_swing_fires_when_the_arm_is_free():
     assert seen["keptQueue"] is True
     assert seen["secondSwing"] >= 8, "the queued blow fired at the swing's end"
     assert seen["afterSingle"] == 0 and seen["ghostQueue"] is False
+
+
+def _struck(request: str = "迷宮を冒険するゲームを作って") -> dict:
+    """A fatal blow on a charm-bearer at one heart, then another."""
+
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.adventure import charm_probe
+    from sidra_ai.creation.games import generate_game as _generate
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the page")
+    page = _generate(request).html
+    script = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert script is not None
+    probe = _subprocess.run(
+        ["node", "-"],
+        input=charm_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return _json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_charm_takes_one_fatal_hit_and_shatters():
+    """§3 (C-1323): the optional reward finally guards, exactly once."""
+
+    struck = _struck()
+    save = struck["afterSave"]
+
+    assert save["state"] == "play" and save["hp"] == 1
+    assert save["charm"] is False, "the shield does not reform"
+    assert save["inv"] > 60, "the mercy outlasts a normal hit's"
+    assert save["beats"] == 0, "no failure beat for a death that did not happen"
+
+
+def test_the_second_fatal_hit_is_an_ordinary_death():
+    struck = _struck()
+
+    assert struck["afterDeath"]["state"] == "over"
+    assert struck["afterDeath"]["beats"] == 1
