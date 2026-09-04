@@ -3848,6 +3848,83 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the subject is named even when the title was taken away --------
+    #
+    # C-1125: C-1205 taught the summary to admit that 「猫のゲーム」 becomes
+    # a fishing page with no cat in it. Its test for "they named a subject"
+    # was 「the title is not the template's default」, and two things broke
+    # that. The trademark guard *replaces* the title with the default, so a
+    # request for a named work looked exactly like a request that named
+    # nothing - the note vanished where it was most needed. And matching a
+    # genre counted as satisfying the request, so 「魚の 3D ゲーム」 got the
+    # 3D course it asked for, with no fish, and said nothing.
+    from sidra_ai.creation.games import undepicted_subject as _subject_left
+    from sidra_ai.creation.intent import detect_creation_intent as _subject_intent
+    from sidra_ai.creation.router import build_default_router as _subject_router
+
+    subject_gaps: list[str] = []
+    _subject_dir = _scene_tempfile.mkdtemp(prefix="subject-honest-")
+    _subject_router_instance = _subject_router(data_dir=_subject_dir)
+
+    def _subject_say(request):
+        outcome = _subject_router_instance.route(
+            request, _subject_intent(request), []
+        )
+        return outcome.summary if outcome.handled else ""
+
+    # Named work, no genre word: renamed *and* undepicted. Both have to be
+    # said, and the one about the title cannot claim it was kept.
+    said = _subject_say("ポケモンみたいなゲームを作って")
+    if "ポケモン" not in said:
+        subject_gaps.append("a trademarked request never names what it asked for")
+    elif "作品名" not in said:
+        subject_gaps.append("the title was replaced without saying so")
+    elif "のまま・難易度" in said:
+        # Matched on the whole clause: 「そのまま遊べます」 ends every
+        # summary and contains 「のまま」.
+        subject_gaps.append("a renamed page claimed its title was kept")
+    # A genre we can build, with a subject we cannot draw: the genre is
+    # honoured, so this must not be worded as a substitution.
+    said = _subject_say("魚の 3D ゲームを作って")
+    if "魚" not in said or "絵として出てきません" not in said:
+        subject_gaps.append("a matched genre hid an undepicted subject")
+    elif "いちばん近い" in said:
+        subject_gaps.append("an honoured genre was described as a substitution")
+    # A named work that *is* the genre it names: nothing was dropped, so
+    # only the renaming is worth saying.
+    said = _subject_say("マリオみたいなゲームを作って")
+    if "作品名" not in said:
+        subject_gaps.append("a renamed platformer said nothing about the name")
+    elif "絵として出てきません" in said or "まだ無いため" in said:
+        subject_gaps.append("a request we honoured was apologised for anyway")
+    # ...and a plain genre request carries no caveat at all.
+    for plain in ("レースを作って", "キャッチゲームを作って", "シューティングゲームを作って"):
+        said = _subject_say(plain)
+        if "絵として出てきません" in said or "まだ無いため" in said or "作品名" in said:
+            subject_gaps.append(f"{plain}: a satisfied request was apologised for")
+    # C-1205's own case still holds.
+    said = _subject_say("猫のゲームを作って")
+    if "猫" not in said or "まだ無いため" not in said:
+        subject_gaps.append("C-1205's subject note stopped firing")
+    # The rule itself: genre words cancel, a subject does not.
+    if _subject_left("レースを作って", "racing", "レース"):
+        subject_gaps.append("a bare genre word reads as an undepicted subject")
+    if not _subject_left("猫のゲームを作って", "fishing", "猫"):
+        subject_gaps.append("a named subject reads as nothing")
+    c.add(
+        "creation_subject_honest",
+        "描けない題材は、題名を奪われても名指しする",
+        0.0 if subject_gaps else 2.0,
+        detail=(
+            "; ".join(subject_gaps)
+            if subject_gaps
+            else "実 chat で確認: 商標で改名されても題材を名指しし（改名も言う・"
+            "「題はそのまま」と嘘をつかない）、ジャンルが通った 3D でも"
+            "「魚は絵として出てこない」と言う。満たした依頼には注釈を付けない"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the fifth §4 basic: controls can be re-assigned ---------------
     #
     # Contrast, shape-not-colour, touch targets and the flash budget all

@@ -155,6 +155,15 @@ class GeneratedGame:
     tagline: str
     difficulty: str
     html: str
+    #: What the request itself asked this to be called, before the
+    #: trademark guard had a say (C-1125). The guard swaps the title for
+    #: the template's own, which used to erase the evidence that the
+    #: operator had named a subject at all - and with it the honest note
+    #: saying the subject is not in the page. Empty when the request named
+    #: nothing and the default was used.
+    asked_title: str = ""
+    #: Whether the guard did the swapping.
+    renamed: bool = False
 
     def with_copy(self, *, title: str = "", tagline: str = "") -> "GeneratedGame":
         """Overlay model-written wording on a page that already works.
@@ -573,6 +582,40 @@ def _title_from(request: str, fallback: str) -> str:
     return fallback
 
 
+def undepicted_subject(request: str, template: str, asked_title: str) -> str:
+    """What the operator named that the page does not draw.
+
+    C-1205 said this for requests that named no genre at all: 「猫のゲームを
+    作って」 got the default fishing page and the summary called it 「猫」.
+    Its test for "they named a subject" was 「the title is not the
+    template's default」, which two things break.
+
+    The trademark guard replaces the title with the default, so a request
+    for a named work looked exactly like a request that named nothing -
+    the note vanished precisely where it was most needed. And matching a
+    *genre* was treated as satisfying the request, so 「魚の 3D ゲーム」 got
+    a marble course titled 「魚の 3D」 with no fish in it and no caveat: the
+    genre was honoured and the subject silently dropped.
+
+    So the subject is whatever the request called the thing once the words
+    that named the genre are taken out. Nothing left means nothing was
+    promised beyond the genre, and a caveat there would be its own
+    dishonesty.
+    """
+
+    if not asked_title:
+        return ""
+    left = asked_title
+    for _label, key, words in GENRES:
+        if key != template and key in TEMPLATES:
+            continue
+        for word in words:
+            left = re.sub(re.escape(word), "", left, flags=re.IGNORECASE)
+    for filler in ("みたいな", "みたいの", "っぽい", "風の", "風", "の", "な", "みたい"):
+        left = left.replace(filler, "")
+    return left.strip("「」\"' 　・")
+
+
 def _no_external_assets(html: str) -> bool:
     for match in re.finditer(r"""(?:src|href)\s*=\s*["']([^"']+)["']""", html):
         if match.group(1).strip().lower().startswith(("http://", "https://", "//")):
@@ -829,6 +872,7 @@ def generate_game(
     )
     title = title_override or _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"
+    asked_title = title
     named = trademark_in(title)
     if named:
         # The genre is buildable; the name is someone's. Swap the title for
@@ -839,7 +883,15 @@ def generate_game(
         # a disclaimer that prints the trademark still prints the trademark.
         tagline = "依頼にあった作品名は使えないためオリジナル版 / " + tagline
     html = _page(title, tagline, spec.how_to_play, script, list(evidence or [_SOURCE]), theme)
-    return GeneratedGame(key, title, tagline, difficulty, html)
+    return GeneratedGame(
+        key,
+        title,
+        tagline,
+        difficulty,
+        html,
+        asked_title=asked_title if asked_title != spec.default_title else "",
+        renamed=bool(named),
+    )
 
 
 def save_game(game: GeneratedGame, data_dir: str | Path, *, now: datetime | None = None) -> Path:

@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sidra_ai.creation.vocabulary import labels_for
+from sidra_ai.creation.games import undepicted_subject
 from sidra_ai.creation.games import (
     TEMPLATES,
     detect_genre,
@@ -87,6 +88,10 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
         # is one. A caveat on a request we did satisfy is its own dishonesty.
         requested = detect_genre(message)
         substituted = requested is not None and not requested.supported
+        # What the operator named that the page does not draw (C-1125).
+        # Read from the title the *request* asked for, not the one the
+        # trademark guard left behind.
+        undepicted = undepicted_subject(message, game.template, game.asked_title)
         if verdict["playable"] and substituted and requested is not None:
             # ...and say what *can* be built (C-1120). Calling a fishing
             # page "the nearest thing to an RPG" is true only in the sense
@@ -101,11 +106,7 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
                 f"いま作れるのは {buildable} です。"
                 "ブラウザで開けばそのまま遊べます。"
             )
-        elif (
-            verdict["playable"]
-            and requested is None
-            and game.title != TEMPLATES[game.template].default_title
-        ):
+        elif verdict["playable"] and undepicted:
             # The subject-side twin of the genre caveat above (C-1205):
             # 「猫のゲームを作って」 named no genre and no template word
             # (every template word is also a genre word, so `requested is
@@ -113,15 +114,56 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
             # summary then said 「「猫」を作りました」 about a page with no
             # cat in it. Said only when the title is request-derived - a
             # caveat on a request we did satisfy is its own dishonesty.
-            summary = (
-                f"「{game.title}」の題材を描く型はまだ無いため、いちばん近い"
-                f"「{TEMPLATES[game.template].default_title}」型で作りました"
-                f"（題は「{game.title}」のまま・難易度 {game.difficulty}）。"
-                "ブラウザで開けばそのまま遊べます。"
+            # The name the guard took away is said here too (C-1125).
+            # It was only ever in the tagline, which is inside the artifact
+            # - the operator reads this line.
+            renamed = (
+                "依頼にあった作品名は使えないので題は変えています。"
+                if game.renamed
+                else ""
             )
+            if requested is not None:
+                # The genre *was* honoured, so this is not a substitution
+                # and must not be worded as one. What is missing is the
+                # subject: 「魚の 3D ゲーム」 gets the 3D course it asked
+                # for, and there is no fish anywhere in it.
+                summary = (
+                    f"「{TEMPLATES[game.template].default_title}」型で作りました"
+                    f"（難易度 {game.difficulty}）。"
+                    f"ただし「{undepicted}」は絵として出てきません。"
+                    f"{renamed}"
+                    "ブラウザで開けばそのまま遊べます。"
+                )
+            else:
+                # 「題は…のまま」 is only true when the title survived. A
+                # renamed page saying its title is unchanged would be the
+                # same silent lie one layer along.
+                kept = (
+                    f"（難易度 {game.difficulty}）。"
+                    if game.renamed
+                    else f"（題は「{game.title}」のまま・難易度 {game.difficulty}）。"
+                )
+                summary = (
+                    f"「{undepicted}」の題材を描く型はまだ無いため、いちばん近い"
+                    f"「{TEMPLATES[game.template].default_title}」型で作りました"
+                    f"{kept}"
+                    f"{renamed}"
+                    "ブラウザで開けばそのまま遊べます。"
+                )
         elif verdict["playable"]:
+            # A genre we could build, a subject the page does draw - and
+            # possibly a name we were not free to use. The last of those
+            # was said only inside the artifact's tagline; an operator
+            # reading this line saw a title they never asked for and no
+            # reason for it (C-1125).
+            renamed = (
+                "依頼にあった作品名は使えないのでオリジナル版です。"
+                if game.renamed
+                else ""
+            )
             summary = (
                 f"「{game.title}」を作りました（難易度 {game.difficulty}）。"
+                f"{renamed}"
                 "ブラウザで開けばそのまま遊べます。"
             )
         else:
