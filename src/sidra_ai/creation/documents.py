@@ -36,8 +36,10 @@ BLANK = "〔社長が埋める欄〕"
 SECTIONS: tuple[str, ...] = ("概要", "わかっていること", "まだ埋まっていないこと", "出典")
 
 #: The sections evidence can actually fill. 「まだ埋まっていないこと」 is blank
-#: by construction and 「出典」 is not a slot the owner writes into, so neither
-#: says anything about whether the report has content in it (C-1128).
+#: in every report there has ever been and 「出典」 is not a slot the owner
+#: writes into, so a count taken over all of SECTIONS says nothing about
+#: whether the report has content in it - it says 3-of-4 for an empty one
+#: and would keep C-1128's notice from ever firing.
 CONTENT_SECTIONS: tuple[str, ...] = ("概要", "わかっていること")
 
 

@@ -14,7 +14,12 @@ import pytest
 
 from sidra_ai.creation.deck_job import build_deck_generator
 from sidra_ai.creation.document_job import build_document_generator
-from sidra_ai.creation.documents import BLANK, CONTENT_SECTIONS, SECTIONS
+from sidra_ai.creation.documents import (
+    BLANK,
+    CONTENT_SECTIONS,
+    SECTIONS,
+    generate_document,
+)
 from sidra_ai.creation.empty import (
     EMPTY_HEADLINE,
     EMPTY_INDEX,
@@ -122,14 +127,27 @@ def test_a_document_with_evidence_is_announced_as_before(documents):
     assert outcome.details["empty"] is False
 
 
-def test_the_always_blank_section_is_not_counted_as_content():
-    # 「まだ埋まっていないこと」 is written blank in every report there has
-    # ever been. Counting it would make a full report read as empty, which
-    # is the same lie pointing the other way.
+def test_measuring_against_every_section_would_silence_the_notice():
+    # Why CONTENT_SECTIONS exists, stated as arithmetic rather than as a
+    # comment. A report with nothing in it leaves three of its four
+    # sections blank - never the fourth, because 「出典」 always prints a
+    # line - so a count taken over SECTIONS is 3-of-4 and the notice never
+    # fires. Filtering the *blank* side alone would not have mattered:
+    # both ends move together and the comparison is unchanged.
     assert "まだ埋まっていないこと" in SECTIONS
     assert "まだ埋まっていないこと" not in CONTENT_SECTIONS
     assert "出典" not in CONTENT_SECTIONS
     assert set(CONTENT_SECTIONS) < set(SECTIONS)
+    empty = generate_document("進捗レポートを作って", facts=[])
+    assert len(empty.unfilled) < len(SECTIONS)
+    assert empty_notice(
+        blank=len(empty.unfilled), total=len(SECTIONS), facts_available=0
+    ) == ""
+    assert empty_notice(
+        blank=len([n for n in empty.unfilled if n in CONTENT_SECTIONS]),
+        total=len(CONTENT_SECTIONS),
+        facts_available=0,
+    ) != ""
 
 
 def test_a_filled_report_still_carries_its_blank_section(documents):

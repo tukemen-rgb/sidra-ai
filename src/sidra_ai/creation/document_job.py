@@ -39,9 +39,12 @@ def build_document_generator(data_dir: str | Path):
         path = save_document(document, data_dir)
         # C-1128: 「レポートを作りました（根拠 0 件、社長が埋める欄 3 箇所）」
         # was the sentence beside a file with no sentence in it. Counted over
-        # the two sections evidence fills, because 「まだ埋まっていないこと」
-        # is blank in every report ever generated and would make all of them
-        # read as empty.
+        # the sections evidence can fill, which is the load-bearing part: a
+        # report is *never* short of 「まだ埋まっていないこと」, so measuring
+        # against all four SECTIONS gives 3-of-4 for a report with nothing in
+        # it and the notice never fires. Filtering `hollow` alone would not
+        # have mattered - both ends move together - and saying so is the
+        # difference between a checked reason and a plausible one.
         hollow = [name for name in document.unfilled if name in CONTENT_SECTIONS]
         notice = empty_notice(
             blank=len(hollow),
