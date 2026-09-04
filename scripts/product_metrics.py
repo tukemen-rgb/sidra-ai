@@ -681,6 +681,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1237: build_slides filled every section from the whole fact list, so a
+    # fact matching two sections' cues (or a numeric fact carrying a prose cue)
+    # showed on several slides at once - a deck whose 解決 and 根拠 slides repeat
+    # the same paragraph, the deck twin of C-1232. Each fact is now claimed by
+    # the first section that takes it; section order, blanks and the number
+    # guard are unchanged.
+    from sidra_ai.evals.deck_no_duplicate_facts import evaluate_deck_no_duplicate_facts
+
+    deck_dup = evaluate_deck_no_duplicate_facts()
+    c.add(
+        "deck_no_duplicate_facts",
+        "スライドで同じ根拠が複数のスライドに重複しない",
+        10.0 * deck_dup.checks_passed / deck_dup.checks_total,
+        detail=f"{deck_dup.checks_passed}/{deck_dup.checks_total} checks; "
+               "src/sidra_ai/evals/deck_no_duplicate_facts.py"
+               + ("" if deck_dup.passed else "; " + "; ".join(deck_dup.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1222: a generated document's 概要 opened 「2. ブランドを分けるか」 - the
     # excerpt landed mid ordered-list and plain_text stripped bullets but not
     # ordered-list numbers, so the first line began with a 2 and no 1. The

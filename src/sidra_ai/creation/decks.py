@@ -168,28 +168,45 @@ def _matches(section: str, fact: Fact) -> bool:
     return any(cue.casefold() in text for cue in SECTION_CUES.get(section, ()))
 
 
-def _bullets_for(section: str, facts: list[Fact]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Fill one section from the facts that belong under it, or leave it blank."""
+def _bullets_for(
+    section: str, facts: list[Fact]
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[Fact, ...]]:
+    """Fill one section from the facts that belong under it, or leave it blank.
 
-    hits = [fact for fact in facts if _matches(section, fact)]
+    Also returns the facts it consumed so the caller can keep them off later
+    slides (C-1237).
+    """
+
+    hits = [fact for fact in facts if _matches(section, fact)][:3]
     if not hits:
-        return (f"{BLANK}",), ()
+        return (f"{BLANK}",), (), ()
     # The 120-character budget is a display cap, not a place a sentence may
     # end: a bullet cut there reads 「…（components/UploadForm.ts」 (C-1217).
     # whole_sentences only trims - a terminator-free fragment passes whole.
     bullets = tuple(
-        whole_sentences(" ".join(fact.text.split())[:120]) for fact in hits[:3]
+        whole_sentences(" ".join(fact.text.split())[:120]) for fact in hits
     )
-    sources = tuple(dict.fromkeys(fact.source for fact in hits[:3]))
-    return bullets, sources
+    sources = tuple(dict.fromkeys(fact.source for fact in hits))
+    return bullets, sources, tuple(hits)
 
 
 def build_slides(outline: DeckOutline, facts: list[Fact]) -> tuple[Slide, ...]:
-    """One slide per section. Sections with no evidence keep their blank."""
+    """One slide per section. Sections with no evidence keep their blank.
+
+    A fact is claimed by the first section that takes it and hidden from the
+    rest: filling every section from the whole list put a fact that matched two
+    sections' cues - or a numeric fact carrying a prose cue - on several slides
+    at once, so a deck's 解決 and 根拠 slides repeated the same paragraph
+    (C-1237). Section order is the priority; a later slide with nothing of its
+    own left keeps its honest blank rather than borrowing another's evidence.
+    """
 
     slides: list[Slide] = []
+    used: list[Fact] = []
     for section in outline.sections:
-        bullets, sources = _bullets_for(section, facts)
+        available = [fact for fact in facts if fact not in used]
+        bullets, sources, chosen = _bullets_for(section, available)
+        used.extend(chosen)
         slides.append(Slide(title=section, bullets=bullets, sources=sources))
     return tuple(slides)
 
