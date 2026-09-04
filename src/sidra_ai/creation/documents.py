@@ -19,7 +19,6 @@ places.
 from __future__ import annotations
 
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -81,8 +80,19 @@ def generate_document(
 
     lines += ["## 概要", ""]
     if retrieved:
-        summary = unicodedata.normalize("NFKC", retrieved[0].text).strip()
-        lines += [summary, ""]
+        # Not the first retrieved fact copied whole: that fact also opens
+        # 「わかっていること」 below, so copying it here printed the same
+        # paragraph twice, and a 「概要」 that is only the top BM25 hit is not
+        # a summary of anything - naming it one is the overclaim this project
+        # refuses elsewhere (C-1232). With no model to summarize, 概要 states
+        # what the document *is* instead. No digit reaches the line, so the
+        # fabrication validator has nothing to catch.
+        lines += [
+            f"この文書は「{title}」について、索引した資料から見つかった根拠を"
+            "出典つきで下に整理したものです。"
+            "確定していない点は〔社長が埋める欄〕として残しています。",
+            "",
+        ]
     else:
         lines += [BLANK, ""]
         unfilled.append("概要")

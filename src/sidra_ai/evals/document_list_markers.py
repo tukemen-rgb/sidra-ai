@@ -49,6 +49,10 @@ def evaluate_document_list_markers() -> DocumentListMarkersResult:
     )
     md = doc.markdown
     overview = md.split("## 概要", 1)[1].split("##", 1)[0].strip()
+    # C-1232 moved the fact's prose out of 概要 (which no longer copies the
+    # first fact) and into 「わかっていること」, so the surviving-words check
+    # reads it there now. The load-bearing check below is whole-document.
+    known = md.split("## わかっていること", 1)[1].split("\n## ", 1)[0]
 
     checks = 0
     failures: list[str] = []
@@ -65,7 +69,7 @@ def evaluate_document_list_markers() -> DocumentListMarkersResult:
         failures.append("a line still starts with an ordered-list marker")
 
     # The words survive - only the marker is removed.
-    if "ブランドを分けるか" in overview and "行動計測を入れるか" in overview:
+    if "ブランドを分けるか" in known and "行動計測を入れるか" in known:
         checks += 1
     else:
         failures.append("stripping the markers took the list's words with it")

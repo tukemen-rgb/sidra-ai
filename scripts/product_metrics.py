@@ -533,6 +533,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1232: 「## 概要」 copied the first retrieved fact whole, and that same
+    # fact opened 「## わかっていること」 - so a report began with the identical
+    # paragraph twice, and a 「概要」 that is only the top fact is not a summary.
+    # 概要 is now an honest framing line (no fact copy, no digit); every fact
+    # still lists under わかっていること with its source; the empty report keeps
+    # 概要 blank so the C-1128 notice fires; the fabrication validator stays green.
+    from sidra_ai.evals.document_overview_no_duplicate import (
+        evaluate_document_overview_no_duplicate,
+    )
+
+    overview = evaluate_document_overview_no_duplicate()
+    c.add(
+        "document_overview_no_duplicate",
+        "レポートの概要が先頭の根拠を丸写しせず段落が重複しない",
+        10.0 * overview.checks_passed / overview.checks_total,
+        detail=f"{overview.checks_passed}/{overview.checks_total} checks; "
+               "src/sidra_ai/evals/document_overview_no_duplicate.py"
+               + ("" if overview.passed else "; " + "; ".join(overview.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
