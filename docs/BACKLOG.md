@@ -3128,6 +3128,27 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [~] 作業中 2026-09-04 01:25 辛口ユーザー **C-1221: 回答本文に commit の「Co-Authored-By: …」「Claude-Session: …」が混じる——git のトレーラが答えの中身のように出る。**
+      （辛口ユーザーループ起票・5 巡目 質問応答・2/10）「AdSense 見送りの
+      決定」と聞くと [S1]（commit 40cbed2）の本文が
+      「…アフィリエイトで作る方針を維持。 Co-Authored-By: Claude Fable 5
+      <noreply@anthropic.com> Claude-Session: https://claude.[REDACTED…]」
+      で終わる。commit メッセージ末尾の git トレーラ（Co-Authored-By /
+      Claude-Session 等）が echo の `_lead` に実内容の文として拾われ、
+      回答本文に混じる。索引 115 文書のうち commit は 50 件（約 43%）で
+      すべてこのトレーラを持つため、commit を引くたびに毎回ノイズが出る。
+      利用者に AI 共著のメールアドレスと（伏字化済みだが）セッション URL の
+      形まで見せてしまう。**再現手順**: POST /v1/chat {"message":
+      "AdSense 見送りの決定"} → answer に "Co-Authored-By" が含まれる。
+      **最小の解決**: evidence.py の `plain_text` に、行頭が既知の git/AI
+      トレーラ語（Co-authored-by/Signed-off-by/Claude-Session/Reviewed-by
+      等の allowlist・大小無視）の行を落とす処理を追加。回答本文（_lead）と
+      生成物（deck/doc の facts）が同時に綺麗になる。生の引用抜粋は
+      レビュー照合用に plain_text を通さないので従来どおり原文のまま。
+      allowlist なので「TODO:」「影響:」等の内容行は触らない。
+      → 動かす数字: qa_answer_no_git_trailers unmeasurable→10
+      （新設・回答本文にトレーラが出ない × 内容の Key: 行は残す ×
+      生の引用は不変）
 - [x] 完了 2026-09-04 00:5x UTC 辛口ユーザー（`creation_jump_routes_to_platformer` unmeasurable→**10**、判定器 exit 0。5 通りの破壊で 10→4.4/6.7/7.8/8.9/8.9 に落ちることを確認。実測: 「猫がジャンプする」→platformer・「魚が跳ねる釣り」→fishing のまま・generate も built_template=platformer/置換なし）**C-1220: 「猫がジャンプするゲームを作って」が釣りゲームになる——ジャンプ要求が platformer 型に届かず、断りも無く既定（fishing）に落ちる。**
       （辛口ユーザーループ起票・5 巡目 生成ゲーム・1/10）platformer 型は
       あるのに、detect_genre('猫がジャンプするゲームを作って') が None。
