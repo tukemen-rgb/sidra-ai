@@ -216,10 +216,23 @@ function roundTick(t){
      frame. Found by driving the page rather than by reading it. */
   if(ROUND_DONE){return}
   if(ROUND_MS>=ROUND_LIMIT_MS){ROUND_DONE=true;ROUND_REASON='time';
-    /* Running out of time without finishing is a failed round, and it is
-       the only failure the four templates with no losing state have. The
-       beat is the shared one (C-1105), not a second thing that looks like
-       it. */
+    /* Running out of time without finishing fires the shared failure beat
+       (C-1105), on every template - the branch is only reached when the
+       round had *not* ended by itself, and nothing here asks which
+       template it is. The old comment beside this line said the beat was
+       "the only failure the four templates with no losing state have",
+       which is not what the code does and not a count any table here
+       supports: two templates have no ending of their own (catch and
+       fishing, the empty entries in ROUND_LIVE) and five have no losing
+       state (recap.LOSS_UNWIRED).
+       **Whether this should stay is an open question, not a settled
+       one.** 批評 #10 says a puzzle still being solved at 60 seconds has
+       not failed, and §8 事実 1 is about session pacing - a break inside
+       about a minute - rather than about declaring a loss. Changing it
+       would also redefine creation_fail_beat, whose probe deliberately
+       runs every template at its slowest pace so that the clock is what
+       ends the go; its 10 is measuring exactly this beat. Recorded in
+       BACKLOG E 節 (C-1127) for the owner rather than decided here. */
     try{failBeat(RCV?RCV.width/2:0,RCV?RCV.height/2:0)}catch(e){}}}
 function drawRoundEnd(){if(!RCV)return;
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
