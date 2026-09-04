@@ -730,6 +730,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1231: 「OutputGuard？」 (a Japanese user's question - Latin keyword,
+    # fullwidth 「？」, no kana/kanji) matched no evidence and got the *English*
+    # no-evidence reply, breaking SYSTEM_PROMPT rule 6. The language gate now
+    # counts Japanese punctuation/fullwidth forms too, so a symbol-only
+    # Japanese question is answered in Japanese, kana/kanji still are, and a
+    # plain English question stays English (both the abstention and preamble).
+    from sidra_ai.evals.answer_language_matches_question import (
+        evaluate_answer_language_matches_question,
+    )
+
+    lang = evaluate_answer_language_matches_question()
+    c.add(
+        "answer_language_matches_question",
+        "回答の言語が質問に合う（全角句読点だけの日本語質問にも日本語で答える）",
+        10.0 * lang.checks_passed / lang.checks_total,
+        detail=f"{lang.checks_passed}/{lang.checks_total} checks; "
+               "src/sidra_ai/evals/answer_language_matches_question.py"
+               + ("" if lang.passed else "; " + "; ".join(lang.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1216: the top citation for a real revenue question was 26 characters
     # of raw Markdown cut mid-checkbox (「## D-CY4. … - [ ] **A.」). The lead
     # extractor now flattens markup (C-1212's plain_text) and label fragments

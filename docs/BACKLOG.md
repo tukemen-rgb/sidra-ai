@@ -3280,6 +3280,25 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [x] 完了 2026-09-04 11:3x UTC 辛口ユーザー（`answer_language_matches_question` 6→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→7.0/9.0/6.0/7.0/9.0 に落ち、復元で 10.0。実測: 「OutputGuard？」→日本語の根拠なし応答・「あ」→日本語のまま・「what is OutputGuard」→英語のまま）**C-1231: 日本語の質問でも記号だけ（例「OutputGuard？」）だと根拠なし応答が英語で返る——全角句読点を日本語と見なしていない。**
+      （辛口ユーザーループ起票・8 巡目 質問応答・1/10）一般ユーザーが
+      「OutputGuard？」のように英字＋全角「？」で聞くと、索引に一致が無い
+      場合に `No indexed evidence matched this question. Run POST
+      /v1/github/analyze ... Question received: OutputGuard？` と**英語**で
+      返る。「あ」なら日本語で返るのに、仮名・漢字を 1 字も含まず全角句読点
+      だけの日本語入力は英語扱いになる。SYSTEM_PROMPT rule 6（日本語の質問には
+      日本語で答える／2026-08-27 事案・C-1202）に反する。原因は echo.py の
+      言語判定 `_CJK`（仮名・漢字のみ）が全角「？！」や「、。」等の日本語
+      punctuation を見ないこと。成功時の前置き文（preamble）も同じ `_CJK` で
+      分岐するため、英字＋全角句読点の質問は前置きも英語になりうる。
+      **再現手順**: POST /v1/chat {"message":"OutputGuard？"} → answer が
+      `No indexed evidence matched this question...`（英語）。対して
+      {"message":"あ"} は日本語。**最小の解決**: echo.py に日本語 punctuation／
+      全角形（U+3000–303F, U+FF00–FFEF）を含む判定 `_is_japanese()` を足し、
+      根拠なし応答・preamble の 2 か所の言語分岐をこれに切り替える。仮名・漢字
+      判定は従来どおり残す。→ 動かす数字: answer_language_matches_question
+      unmeasurable→10（新設・全角句読点だけの日本語質問に日本語で答える ×
+      仮名/漢字の従来判定は不変 × 英語質問は英語のまま）
 - [x] 完了 2026-09-04 10:5x UTC 辛口ユーザー（`creation_substitution_names_default` unmeasurable→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→4.0/9.0/7.0/7.0/6.0 に落ち、復元で 10.0 に戻ることを確認。実測: 格闘→対戦格闘・ノベル→ノベル・音ゲー→リズム・猫→題材代替、いずれも「代わりに既定の『タイミング釣り』型で作りました」で「いちばん近い」は消えた）**C-1230: 作れないジャンルの代替を「いちばん近い『タイミング釣り』型」と偽る——格闘もノベルも音ゲーも全部「釣り」で、近くはなく既定。**
       （辛口ユーザーループ起票・7 巡目 生成ゲーム・1/10）「格闘ゲームを
       作って」「ノベルゲームを作って」「音ゲーを作って」いずれも

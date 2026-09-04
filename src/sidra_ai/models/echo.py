@@ -26,6 +26,20 @@ from sidra_ai.models.base import (
 #: canned no-evidence reply. Same ranges as retrieval tokenization.
 _CJK = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
 
+#: Japanese punctuation and fullwidth/halfwidth forms - the CJK symbols block
+#: (、。「」…) and the fullwidth block (？！（）, fullwidth Latin/digits,
+#: halfwidth katakana). A question with no kana or kanji but written with
+#: these is still Japanese input: 「OutputGuard？」 is a Japanese user asking,
+#: and the old kana/kanji-only gate handed them an English reply, against
+#: SYSTEM_PROMPT rule 6 (C-1231). An ASCII keyboard produces none of these,
+#: so treating them as a Japanese signal does not pull English questions over.
+_JA_PUNCT = re.compile(r"[　-〿＀-￯]")
+
+
+def _is_japanese(text: str) -> bool:
+    """True when the text carries any Japanese script *or* punctuation."""
+    return bool(_CJK.search(text) or _JA_PUNCT.search(text))
+
 #: Below this many characters a "sentence" is a label or list-marker
 #: fragment (「D-CY4.」「A.」), not content a reader can act on.
 _MIN_INFORMATIVE = 12
@@ -55,7 +69,7 @@ class EchoModelAdapter(LocalModelAdapter):
 
         if not blocks:
             question = request.user_message.strip()
-            if _CJK.search(question):
+            if _is_japanese(question):
                 # SYSTEM_PROMPT rule 6 - born from the 2026-08-27 incident -
                 # says a Japanese question gets a Japanese answer, and this
                 # canned text was the one reply that ignored it (C-1202). It
@@ -85,7 +99,7 @@ class EchoModelAdapter(LocalModelAdapter):
         # answered Japanese question. The [S#] labels and excerpts between
         # them are untouched either way, so grounding's citation checks and
         # every excerpt-based judge read the same evidence.
-        if _CJK.search(request.user_message):
+        if _is_japanese(request.user_message):
             preamble = (
                 "索引済みリポジトリの DATA から回答します"
                 "（抜粋・ローカル生成・外部 API 不使用）。"

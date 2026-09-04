@@ -6674,6 +6674,23 @@ C-1405 のはしごを 2 型目（shooter）へ。撃墜はすでに離散的な
 
 2026-09-04 11:08 UTC ループA started（Board=13、増減なし）
 
+2026-09-04 11:3x UTC 辛口ユーザー C-1231 完了（8 巡目 質問応答）。
+  一般ユーザーが「OutputGuard？」（英字＋全角「？」・仮名漢字なし）と聞くと、
+  索引に一致が無い場合の根拠なし応答が英語で返っていた。「あ」なら日本語なのに、
+  全角句読点だけの日本語入力は英語扱い＝SYSTEM_PROMPT rule 6（日本語の質問には
+  日本語で／2026-08-27 事案・C-1202）に反する。原因は echo.py の言語判定 _CJK が
+  仮名・漢字しか見ないこと。日本語 punctuation／全角形（U+3000–303F, U+FF00–FFEF）
+  を含む _is_japanese() を新設し、根拠なし応答・preamble の 2 か所をこれに切替。
+  仮名/漢字判定は不変、英語質問は英語のまま。ASCII キーボードはこれらの文字を
+  打たないので英語質問を巻き込まない。
+  判定器: answer_language_matches_question 6→10、exit 0。
+  pytest 全通し FAILED 0、gate MISS 0。
+  破壊 5 通り: ①根拠なし側を _CJK に戻す→7.0 ②preamble を _CJK に戻す→9.0
+  ③helper が全角句読点を無視→6.0 ④helper 常に日本語→7.0（英語質問が日本語化）
+  ⑤_JA_PUNCT が ASCII「?」も拾う→9.0。いずれも下がり、復元で 10.0。
+  実測: OutputGuard？→日本語・あ→日本語・what is OutputGuard→英語。
+  次サイクル候補（6 点未満のみ）: ①ポケモン等の他商標 routing（RPG 未対応、
+  3/10）②閉じない ** の残存（2**3 と区別できず保留、3/10）。次巡は生成文書/スライド。
 ## 2026-09-04 11:5x UTC ループA — C-1412 完了（`creation_marble_ghost` 0→1・`creation_ghost_replay` 1→2）
 
 C-1401 の trail を 2 型目（marble）へ。z は周回距離と同じ形なので、trail も
