@@ -2695,7 +2695,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       rebank 分岐で 0 に戻し、fishing/catch の時間切れは敗北でなく通常終了に
       分類。「自己ベスト」と敗北記録が同一ラウンドに並存しないことまで計器で。
       → 動かす数字: creation_dda_streak_honest unmeasurable→9
-- [ ] **C-1123: 無入力でゲームが成立しない。**（批評 #4）racing 放置 3 周完走・
+- [~] 作業中 2026-09-04 04:07 ループA **C-1123: 無入力でゲームが成立しない。**（批評 #4）racing 放置 3 周完走・
       catch 放置 25 点・kaiju 放置 40 秒無傷を潰す（racing: 操舵必須の障害物
       配置、catch: 受け皿直下スポーン抑制、kaiju: 静止標的への必中化）。
       「無操作 60 秒で record が付かない」ことを 9 型で計器に。
