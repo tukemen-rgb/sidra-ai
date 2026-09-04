@@ -150,6 +150,20 @@ DUEL_PALETTE: tuple[tuple[float, float, float], ...] = (
     (80.0, 1.05, 0.22),
 )
 
+#: Puzzle, one entry per third of the sixty-second round: a quiet start,
+#: a warming middle, the bright last stretch.
+#:
+#: The last template to get a sky (C-1327): the board is the game, but the
+#: round clock is still the journey, and the air around the board saying
+#: "the last third has begun" is the same time-pressure the fishing and
+#: catch skies carry (§7 観察 5-6 over §8's round). Tiles and pips keep
+#: their information colours (§4); only the backdrop breathes.
+PUZZLE_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (-48.0, 0.86, 0.02),
+    (24.0, 1.10, 0.09),
+    (80.0, 1.05, 0.22),
+)
+
 #: Installed before every template. Defines the transform and leaves the
 #: palette itself to the template, which calls ``setPal`` once at boot.
 SCENE_PREAMBLE = """
@@ -237,6 +251,7 @@ __all__ = [
     "KAIJU_PALETTE",
     "MARBLE_PALETTE",
     "PLATFORMER_PALETTE",
+    "PUZZLE_PALETTE",
     "RACING_PALETTE",
     "SHOOTER_PALETTE",
     "SCENE_PREAMBLE",

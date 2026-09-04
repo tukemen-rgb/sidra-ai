@@ -2922,7 +2922,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       §6 音圧段のまま。probe で「combat(false) 300f と combat(true) 300f の
       予約数比が約 2 倍・M ミュートは依然勝つ」を実測。
       → 動かす数字: creation_music_combat_density unmeasurable→1
-- [~] 作業中 2026-09-04 07:42 辛口クリエイター **C-1327: puzzle だけ空が無い（§7 の最後の 1 型・時計は既に持っている）。**
+- [x] 完了 2026-09-04 07:57 UTC 辛口クリエイター（`creation_scene_palettes` 7→**8**、判定器 exit 0。PUZZLE_PALETTE（色相 -48°→+24°→+80°・明度 +0.02→+0.09→+0.22＝最終幕最明）を scene.py に追加し、draw() 冒頭で ROUND_MS の 3 等分により setScene、盤の背景のみ scenePaint('SURFACE_TOKEN')（タイル色と pip は §4 のため不変）。新設 SKY_PROBE で実プレイ 3 リクエスト（default・難しい・紙テーマ）: 幕 0→1→2 が 24000/45008ms で切替、輝度 0.025→0.094→0.225（紙は光鏡映で 0.738→0.810→0.928、どちらも最終幕最明）、第 1 幕と最終幕の両方で消しが成立（popEarly=popLate=1）、60s の time 区切り不変（state は play のまま＝2 消しでは手詰まりにならない）。破壊 2 通り〔setScene(0) 固定→creation_round_scene が『the sky ignores the clock (0, 0, 0)』で 0、汎用 creation_scene_palettes は 8 のまま＝パレット表しか読めない汎用の盲点が専用チェックの存在理由／最終幕を -0.30 に暗転→4 テーマ全てで『the brightest scene is #1, not last』＋専用も 0〕。_scene_targets に puzzle、creation_round_scene に puzzle 2 リクエスト（hit="pop"）追加。pytest exit 0（3141 passed / 3 skip）・gate MISS 0。全 10 型の空が完成）**C-1327: puzzle だけ空が無い（§7 の最後の 1 型・時計は既に持っている）。**
       （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§2）
       場面パレットは 9 型に入り、puzzle が唯一の例外——しかも puzzle は
       fishing/catch と同じ共有 60 秒時計の上にいる（ROUND_LIVE ('play')）

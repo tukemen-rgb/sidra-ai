@@ -59,6 +59,12 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
 const ROWS=8,CELL=Math.min(30,Math.floor((cv.height-70)/ROWS));
 const OX=Math.round((cv.width-COLS*CELL)/2),OY=44;
 const PALETTE=['CYAN_TOKEN','MAGENTA_TOKEN','#e8c46a','#7fd18a','#9a8cf0'];
+/* The last sky (§7, C-1327): the round clock is the journey, so the air
+   around the board steps once per third of the sixty seconds and the
+   final stretch is the brightest. Tiles and pips are information and
+   keep their colours (§4); only the backdrop breathes. ROUND_MS is
+   played time, so the title screen spends none of it. */
+setPal(PUZZLE_PAL_TOKEN);
 let grid,cur,score,state,cleared,offY,offX,hammers;
 /* The board's economy (§5, C-1322): a pop of HAMMER_EARN or more banks
    one hammer, up to HAMMER_CAP; a hammer breaks one lone tile. Skill is
@@ -161,7 +167,8 @@ cv.addEventListener('pointerdown',e=>{if(state!=='play'){reset();return}
   const y=Math.floor(((e.clientY-r.top)*(cv.height/r.height)-OY)/CELL);
   if(x>=0&&y>=0&&x<COLS&&y<ROWS){cur={x:x,y:y};pop()}});
 function draw(now){
-  cx.fillStyle='SURFACE_TOKEN';cx.fillRect(0,0,cv.width,cv.height);
+  setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
+  cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,cv.width,cv.height);
   for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){const v=grid[y][x];
     if(v<0)continue;
     const px=OX+x*CELL+offX[y][x],py=OY+y*CELL-offY[y][x];
@@ -208,7 +215,7 @@ function puzzleFacts(){let mx=0;
     const n=group(x,y).length;
     if(n>bn){bn=n;bx=x;by=y}
     if(n===1&&lx<0){lx=x;ly=y}}}
-  return {state:state,score:score,moving:mx,
+  return {state:state,score:score,moving:mx,scene:SCENE,ms:ROUND_MS,
     cur:{x:cur.x,y:cur.y},target:{x:tx,y:ty},
     hammers:hammers,tiles:tiles,
     best:{x:bx,y:by,n:bn},lone:{x:lx,y:ly}}}
@@ -353,6 +360,84 @@ def hammer_probe(script: str) -> str:
     return HAMMER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The round's sky, judged by playing the round out (§7, C-1327): a pop
+#: landed under the first sky, the clock carried into each later third, a
+#: pop landed under the last sky, and the sixty-second break untouched.
+#: Two pops leave the board far from a deadlock, so the round has to end
+#: on the clock - which is exactly the claim.
+SKY_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+function walkTo(x, y){
+  let guard = 0;
+  while (puzzleFacts().cur.x !== x && guard++ < 40) key(puzzleFacts().cur.x < x ? 'ArrowRight' : 'ArrowLeft');
+  while (puzzleFacts().cur.y !== y && guard++ < 80) key(puzzleFacts().cur.y < y ? 'ArrowDown' : 'ArrowUp');
+}
+/* Walks the cursor onto the biggest group and pops it. Arrow keys spend no
+   frames, so the sky the pop lands under is the sky that was read. */
+function popBest(){
+  const f = puzzleFacts();
+  if (f.best.n < 2) return 0;
+  walkTo(f.best.x, f.best.y);
+  const before = puzzleFacts().score;
+  key(' '); run(2);
+  return puzzleFacts().score > before ? 1 : 0;
+}
+/* The first press passes the briefing; played time starts here. */
+key(' ');
+run(40);
+const early = puzzleFacts();
+const popEarly = popBest();
+/* Let the round age into each later third. 24s and 45s sit well inside
+   acts 1 and 2 of the 60s round, clear of the 20s/40s boundaries. */
+let guard = 0;
+while (puzzleFacts().ms < 24000 && guard++ < 4000) run(1);
+const mid = puzzleFacts();
+while (puzzleFacts().ms < 45000 && guard++ < 8000) run(1);
+const late = puzzleFacts();
+const popLate = popBest();
+/* The sky must not have touched the break: the clock still ends the go -
+   two pops cannot deadlock the board, so 'time' is the only honest end. */
+while (!roundFacts().done && puzzleFacts().state === 'play' && guard++ < 12000) run(1);
+const end = roundFacts();
+console.log(JSON.stringify({
+  sceneEarly: early.scene, sceneMid: mid.scene, sceneLate: late.scene,
+  msEarly: early.ms, msMid: mid.ms, msLate: late.ms,
+  popEarly: popEarly, popLate: popLate,
+  score: puzzleFacts().score, state: puzzleFacts().state,
+  done: end.done, reason: end.reason,
+  scenes: sceneFacts().scenes,
+}));
+"""
+
+
+def sky_probe(script: str) -> str:
+    """The page's own script, wrapped so the round's sky can be watched."""
+
+    return SKY_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def probe_source(script: str, *, reduced: bool = False) -> str:
     """The page's own script, wrapped so one pop can be watched in node."""
 
@@ -370,4 +455,6 @@ __all__ = [
     "probe_source",
     "HAMMER_PROBE",
     "hammer_probe",
+    "SKY_PROBE",
+    "sky_probe",
 ]

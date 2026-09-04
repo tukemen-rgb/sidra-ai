@@ -2545,6 +2545,7 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.fishing import probe_source as _fishing_scene_probe
     from sidra_ai.creation.kaiju import probe_source as _kaiju_scene_probe
     from sidra_ai.creation.marble import probe_source as _marble_scene_probe
+    from sidra_ai.creation.puzzle import sky_probe as _puzzle_sky_probe
     from sidra_ai.creation.shooter import probe_source as _shooter_scene_probe
     from sidra_ai.creation.themes import select_theme as _scene_theme
 
@@ -2552,10 +2553,10 @@ def measure_creation(c: Collector) -> None:
     #: more than one scene to tell apart, and only those: rooms for the
     #: adventure, phases for the kaiju, acts of the round for the shooter
     #: (C-1301), thirds of the corridor for the marble (C-1307), thirds of
-    #: the round clock for the fishing and the catch (C-1315, C-1319), and
-    #: match tension for the duel (C-1321) - its pace probe visits all
-    #: three acts, so it reports the painted scenes too. A single-scene
-    #: template would inflate the count.
+    #: the round clock for the fishing, the catch and the puzzle (C-1315,
+    #: C-1319, C-1327), and match tension for the duel (C-1321) - its pace
+    #: probe visits all three acts, so it reports the painted scenes too.
+    #: A single-scene template would inflate the count.
     _scene_targets = (
         ("迷宮を冒険するゲームを作って", "adventure", _adv_probe),
         ("巨大怪獣と戦うゲームを作って", "kaiju", _kaiju_scene_probe),
@@ -2564,6 +2565,7 @@ def measure_creation(c: Collector) -> None:
         ("釣りゲームを作って", "fishing", _fishing_scene_probe),
         ("キャッチゲームを作って", "catch", _catch_scene_probe),
         ("ビームで撃ち合うゲームを作って", "duel", _duel_pace_for_scenes),
+        ("パズルゲームを作って", "puzzle", _puzzle_sky_probe),
     )
     #: One request per theme, so the default is measured alongside the three
     #: named ones. The default is the empty suffix.
@@ -2638,8 +2640,8 @@ def measure_creation(c: Collector) -> None:
         else 0.0,
         detail=(
             "adventure の部屋間・kaiju の phase 間・shooter の幕間・marble の"
-            "コース 3 分割・fishing / catch のラウンド 3 等分・duel の試合"
-            "緊迫度で実際の描画色が変わり、"
+            "コース 3 分割・fishing / catch / puzzle のラウンド 3 等分・duel "
+            "の試合緊迫度で実際の描画色が変わり、"
             "最も明るい場面が最終部にある。4 テーマすべてで確認、壁と床の"
             "明度差はテーマ既定値のまま"
             if not scene_gaps
@@ -2665,6 +2667,10 @@ def measure_creation(c: Collector) -> None:
         ("難しい釣りゲームを作って", _fishing_scene_probe, "cast"),
         ("キャッチゲームを作って", _catch_scene_probe, "caught"),
         ("難しいキャッチゲームを作って", _catch_scene_probe, "caught"),
+        # The puzzle joined the clock-bound skies with C-1327: its course
+        # is the sixty seconds too, and its "hit" is a scored pop.
+        ("パズルゲームを作って", _puzzle_sky_probe, "pop"),
+        ("難しいパズルゲームを作って", _puzzle_sky_probe, "pop"),
     ):
         _rs_page = generate_game(_rs_request).html
         _rs_script = _scene_re.search(r"<script>(.*?)</script>", _rs_page, _scene_re.S)
@@ -2703,9 +2709,10 @@ def measure_creation(c: Collector) -> None:
         "時間の経過で空が変わる",
         1.0 if not round_scene_gaps else 0.0,
         detail=(
-            "fishing と catch のラウンドを最後まで実プレイ: 幕 0→1→2 が実時間"
-            "の 3 等分で切り替わり、最終幕が最明、第 1 幕と最終幕の両方で合わせ"
-            "／受けが成立、60 秒の区切りは不変（§7 観察 5-6 のラウンド版）"
+            "fishing・catch・puzzle のラウンドを最後まで実プレイ: 幕 0→1→2 が"
+            "実時間の 3 等分で切り替わり、最終幕が最明、第 1 幕と最終幕の両方で"
+            "合わせ／受け／消しが成立、60 秒の区切りは不変（§7 観察 5-6 の"
+            "ラウンド版）"
             if not round_scene_gaps
             else "; ".join(round_scene_gaps)
         ),
