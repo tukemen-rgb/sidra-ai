@@ -979,6 +979,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1243: the CLI mapped every HTTP status, the network catch-all and the
+    # gate refusal to Japanese, but a config-safety failure still printed the
+    # English prefix 「refusing to ask: …」. The prefix is now Japanese with a
+    # next step; the exception detail (which names the config variable) stays in
+    # parentheses, the way the HTTP branches keep their code.
+    from sidra_ai.evals.cli_config_error_japanese import (
+        evaluate_cli_config_error_japanese,
+    )
+
+    cli_config = evaluate_cli_config_error_japanese()
+    c.add(
+        "cli_config_error_japanese",
+        "CLI の設定安全性エラーを英語でなく日本語の案内で示す",
+        10.0 * cli_config.checks_passed / cli_config.checks_total,
+        detail=f"{cli_config.checks_passed}/{cli_config.checks_total} checks; "
+               "src/sidra_ai/evals/cli_config_error_japanese.py"
+               + ("" if cli_config.passed else "; " + "; ".join(cli_config.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1238: a gate refusal put the gate's English audit reason into the
     # response, and both the web page and the CLI showed it verbatim -
     # 「拒否されました: prompt-injection patterns detected…」. The API reason stays

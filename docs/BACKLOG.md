@@ -3359,6 +3359,19 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [x] 完了 2026-09-04 23:3x UTC 辛口ユーザー（`cli_config_error_japanese` 6→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→6.0/8.0/8.0/8.0/8.0 に落ち、復元で 10.0。実測: `SIDRA_HOST=example.com … sidra-ask hi` が「設定が安全でないため実行を中止した。設定を見直して再実行する。（<詳細>）」に）**C-1243: sidra-ask の設定安全性エラーが英語の接頭辞「refusing to ask:」で出る——CLI で日本語化されていない最後のエラー文言。**
+      （辛口ユーザーループ起票・20 巡目 エラー文言・1/10）SIDRA_HOST を非ループ
+      バック等に誤設定して sidra-ask を実行すると `refusing to ask: refusing to
+      bind non-loopback host 'example.com': set SIDRA_ALLOW_PUBLIC_BIND=true ...`
+      と英語接頭辞で出る。CLI は 401/403/413/422/429/5xx/network/拒否理由まで
+      日本語化済み（C-1223/C-1233/C-1238）なのに、この設定安全性エラーだけ英語の
+      まま＝rule 6 の最後の穴。**再現手順**: `SIDRA_HOST=example.com
+      SIDRA_API_TOKEN=x sidra-ask hi` → 「refusing to ask: ...」。**最小の解決**:
+      ask_cli.py:255 の接頭辞を日本語の案内（設定を見直す旨）に変え、例外の詳細
+      （設定変数名を含む）は括弧内に残す（HTTP コードやクラス名と同じ扱い）。
+      settings.py の英語メッセージ本体・他分岐は不変。→ 動かす数字:
+      cli_config_error_japanese unmeasurable→10（新設・設定エラーが日本語の案内 ×
+      英語接頭辞を出さない × 例外詳細は保つ × exit 2 × 空質問等は不変）
 - [x] 完了 2026-09-04 22:3x UTC 辛口ユーザー（`document_dedupes_identical_facts` 8.75→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→8.75/7.5/7.5/6.25/2.5 に落ち、復元で 10.0。実測: 同一文の Fact 2 件が 1 箇条書き＋出典連結、異なる文は各自、空は空欄）**C-1242: 生成レポートの「わかっていること」が別ファイルの同一文を別々の箇条書きとして 2 回並べる。**
       （辛口ユーザーループ起票・19 巡目 生成文書/スライド・1/10）同じ方針文が
       2 つのファイルにある（TODO を別文書に転記した等）と、「わかっていること」に

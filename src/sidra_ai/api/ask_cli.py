@@ -252,7 +252,15 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
         url = base_url(settings, args.url)
         headers = authorization_header(url, settings)
     except UnsafeConfigurationError as exc:
-        print(f"refusing to ask: {exc}", file=sys.stderr)
+        # The CLI's other failures speak Japanese (C-1223/C-1233/C-1238); this
+        # config-safety refusal was the last English prefix (C-1243). The
+        # exception names the setting to fix, so it stays in parentheses the way
+        # the HTTP branches keep their code - a Japanese next step, English
+        # detail.
+        print(
+            f"設定が安全でないため実行を中止した。設定を見直して再実行する。（{exc}）",
+            file=sys.stderr,
+        )
         return 2
 
     payload: dict[str, Any] = {"message": args.question, "top_k": args.top_k}
