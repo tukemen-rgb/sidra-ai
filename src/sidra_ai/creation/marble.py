@@ -54,17 +54,9 @@ MARBLE_WORDS: tuple[str, ...] = (
     "マーブル",
 )
 
-#: What one gate pays before any multiplier. Named in Python so the
-#: instrument and the tests read the same number the page does, rather
-#: than a copy of it that can drift (C-1420).
-GATE_BASE = 1
-
 MARBLE_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const ROLL=SPEED_TOKEN,GATEW=BAND_TOKEN,SEED=SEED_TOKEN;
-/* What one gate is worth before any multiplier. The hot gate is this
-   again on top (C-1313's double), added outside the run's multiplier. */
-const GATE_BASE=GATE_BASE_TOKEN;
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const W=cv.width,H=cv.height;
 /* The whole camera: eye height, focal length, and how far ahead the world
@@ -141,32 +133,17 @@ function step(){
       if(dz<0&&dz>-rollNow()-6){o.done=true;
         if(o.kind==='gate'){
           if(Math.abs(o.x-ball.x)<GATEW){gates++;
-            /* The run's multiplier, asked once (C-1420). It rides the
-               gate's base value and nothing else: the hot gate's extra is
-               added *outside* it, so the top payment reads as
-               「base x mult + base」 rather than as base x 2 x mult. Two
-               multipliers stacked would make the best line on the course
-               the one nobody can work out from the seat, which is the
-               opposite of §13's readable risk. Same shape as C-1411's
-               choice to add the graze rather than multiply it. */
-            const pay=comboHit();
             /* The risk pays in points AND in feel: the hot gate rings a
                brighter bell and kicks the camera harder (§13: the reward
                has to change the play, not decorate it). */
-            if(o.hot){score+=scorePop(proj(o.x,10,NEAR+40).x,H*0.55,pay+GATE_BASE);
+            if(o.hot){score+=scorePop(proj(o.x,10,NEAR+40).x,H*0.55,2);
               hotTaken++;sfx('key');shake(4);
               burst(proj(o.x,10,NEAR+40).x,H*0.55,16,'ALERT_JUICE')}
-            else{score+=scorePop(proj(o.x,10,NEAR+40).x,H*0.55,pay);
+            else{score+=scorePop(proj(o.x,10,NEAR+40).x,H*0.55,1);
               sfx('catch');shake(2);
-              burst(proj(o.x,10,NEAR+40).x,H*0.55,10,'ACCENT_JUICE')}}
-          /* Through the posts or past them: a gate that went by outside
-             them is the miss this run is broken by. marble has no fall -
-             the entry said 「落下」 but the only way out of the corridor is
-             a block, which ends the go outright. A gate missed is what a
-             player can do wrong and keep playing. */
-          else{comboMiss()}}
+              burst(proj(o.x,10,NEAR+40).x,H*0.55,10,'ACCENT_JUICE')}}}
         else if(Math.abs(o.x-ball.x)<24){state='over';over='ブロックに当たった。';
-          comboMiss();failBeat(W/2,H*0.6)}}});
+          failBeat(W/2,H*0.6)}}});
     if(things.every(o=>o.done)){state='over';over='コースを走り切った。';
       winBeat(W/2,H*0.5)}}
   /* A straight corridor's scene is distance (§7 観察 5-6, C-1307): the sky,
@@ -249,8 +226,7 @@ function step(){
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(32,12,330,24);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
-  cx.fillText('スコア '+score+' '+comboLabel()+'  ゲート '+gates
-    +'  距離 '+Math.round(ball.z),40,30);
+  cx.fillText('スコア '+score+'  ゲート '+gates+'  距離 '+Math.round(ball.z),40,30);
   if(state!=='roll'){cx.fillStyle='SCRIM_TOKEN'+'cc';cx.fillRect(0,H/2-40,W,80);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font='20px ui-monospace,monospace';cx.fillText(over,W/2,H/2-6);
@@ -429,128 +405,3 @@ __all__ = [
     "ghost_probe_source",
     "probe_source",
 ]
-
-
-#: Rolls the real corridor two ways, so what the multiplier does is read
-#: off a page that played. ``run`` steers through every gate it can reach;
-#: ``skip`` deliberately swerves away from every third one, which is the
-#: only way to see a run break without ending the go.
-#:
-#: The marble is steered by pressing the arrow keys the template listens
-#: for - never by writing to ``ball.x`` - so the probe can only reach lines
-#: a person could drive.
-COMBO_PROBE = """
-const mbNothing = new Proxy(function(){}, {
-  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : mbNothing),
-  apply: () => mbNothing, set: () => true });
-const mbHandlers = {};
-globalThis.matchMedia = () => ({ matches: REDUCED_INPUT, addEventListener(){}, addListener(){} });
-let mbClock = 0;
-globalThis.performance = { now: () => mbClock };
-globalThis.addEventListener = (type, fn) => { (mbHandlers[type] = mbHandlers[type] || []).push(fn) };
-globalThis.Image = function(){ return mbNothing };
-const mbStore = {};
-globalThis.localStorage = { getItem: (k) => (k in mbStore ? mbStore[k] : null),
-  setItem: (k, v) => { mbStore[k] = String(v) }, removeItem: (k) => { delete mbStore[k] } };
-globalThis.location = { reload: () => {} };
-globalThis.KeyboardEvent = function(type, init){ return Object.assign({ type: type }, init) };
-globalThis.dispatchEvent = (ev) => { (mbHandlers[ev.type] || []).forEach(fn => fn(ev)); return true };
-/* A recorder, so 「the multiplier is on screen the whole time」 is a claim
-   about paint rather than about a function returning a string. */
-let mbPaint = [];
-globalThis.document = { readyState: 'complete', body: { children: [] },
-  createElement: () => mbNothing, querySelector: () => null,
-  getElementById: () => ({ width: 720, height: 320, style: {},
-    addEventListener: () => {},
-    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-    getContext: () => new Proxy({
-      fillText: (s) => { mbPaint.push(String(s)) }, fillRect: () => {} }, {
-      get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : mbNothing)),
-      set: () => true }) }) };
-let mbQueued = null;
-globalThis.requestAnimationFrame = (fn) => { mbQueued = fn; return 1 };
-SCRIPT_PLACEHOLDER
-const MODE = MODE_INPUT;
-let mbFrame = 0;
-function mbKey(type, k){ (mbHandlers[type] || []).forEach(fn => fn({ key: k, code: k,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
-mbKey('keydown', ' '); mbKey('keyup', ' ');
-function mbStep(){ if (!mbQueued) return false;
-  const fn = mbQueued; mbQueued = null; mbPaint = []; mbClock += 50 / 3;
-  fn(mbFrame++ * 16); return true }
-mbStep(); mbStep();
-/* Which gates this run intends to miss. Counted rather than chosen by
-   position, so the same gates are skipped whatever the course looks like. */
-let mbSeenGates = 0;
-/* The next of each kind, read off the page's own course. marbleFacts().next
-   is whatever comes first, gate or block - steering at that drives into the
-   blocks, which ends the go two gates in and measures nothing. */
-function mbAhead(kind, within){ let best = null;
-  things.forEach(o => { if (o.done || o.kind !== kind) return;
-    const dz = o.z - ball.z;
-    if (dz <= 0 || dz > within) return;
-    if (!best || dz < best.dz) best = { x: o.x, dz: dz } });
-  return best }
-function mbWant(){
-  /* A block close enough to matter comes first: no run is worth the go. */
-  const block = mbAhead('block', 150);
-  if (block && Math.abs(block.x - ball.x) < 46) {
-    return block.x + (block.x < 0 ? 90 : -90) }
-  const gate = mbAhead('gate', 900);
-  if (!gate) return null;
-  if (MODE === 'skip' && (mbSeenGates % 3) === 2) {
-    /* Far enough off the line to pass outside the posts, but still on the
-       course - a miss, not a crash. */
-    return gate.x + (gate.x < 0 ? 120 : -120) }
-  return gate.x }
-const events = [];
-let before = { score: 0, gates: 0, hot: 0, mult: 1, run: 0 };
-for (let f = 0; f < FRAMES_INPUT; f++) {
-  const want = mbWant();
-  if (want !== null) { const gap = want - marbleFacts().x;
-    if (gap < -1) { mbKey('keydown', 'ArrowLeft'); mbKey('keyup', 'ArrowRight') }
-    else if (gap > 1) { mbKey('keydown', 'ArrowRight'); mbKey('keyup', 'ArrowLeft') }
-    else { mbKey('keyup', 'ArrowLeft'); mbKey('keyup', 'ArrowRight') } }
-  const seenBefore = marbleFacts();
-  if (!mbStep()) break;
-  const now = marbleFacts(), combo = comboFacts();
-  /* A gate went by: either through the posts (the score moved) or past
-     them (the run was taken). Both are events this is about. */
-  const passed = now.gates !== seenBefore.gates;
-  /* A run that got shorter without a gate going through the posts is a
-     gate that went past them. Detected on the run rather than on the
-     multiplier: a miss at x1 resets a run of two to nothing and moves no
-     multiplier at all, and that is still the rule doing its job. */
-  const missed = !passed && combo.run < before.run;
-  if (passed || missed) {
-    if (passed) { mbSeenGates++ }
-    events.push({ f: f, kind: passed ? 'through' : 'past',
-      paid: now.score - before.score,
-      hot: now.hotTaken !== before.hot,
-      mult: combo.mult, run: combo.run,
-      /* What the HUD said on this very frame. */
-      hud: mbPaint.filter(s => s.indexOf('スコア') === 0)[0] || null });
-  }
-  before = { score: now.score, gates: now.gates, hot: now.hotTaken,
-    mult: combo.mult, run: combo.run };
-  if (now.state !== 'roll') break;
-}
-const facts = marbleFacts();
-console.log(JSON.stringify({ mode: MODE, events: events, combo: comboFacts(),
-  score: facts.score, gates: facts.gates, hotTaken: facts.hotTaken,
-  state: facts.state, frames: mbFrame,
-  hud: mbPaint.filter(s => s.indexOf('スコア') === 0)[0] || null }));
-"""
-
-
-def combo_probe_source(
-    script: str, *, mode: str = "run", frames: int = 4000, reduced: bool = False
-) -> str:
-    """The page's own script, wrapped so the corridor can be driven in node."""
-
-    return (
-        COMBO_PROBE.replace("SCRIPT_PLACEHOLDER", script)
-        .replace("MODE_INPUT", json.dumps(mode))
-        .replace("FRAMES_INPUT", str(int(frames)))
-        .replace("REDUCED_INPUT", "true" if reduced else "false")
-    )

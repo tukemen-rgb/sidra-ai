@@ -45,22 +45,7 @@ import json
 #: next. ``catch`` first (C-1405), then ``shooter`` (C-1411): a kill is
 #: already a discrete success and a hull already ends a run, so the rule
 #: needed a place to add points and a place to drop them and nothing else.
-#:
-#: ``marble`` third (C-1420). This table used to say it needed a decision
-#: first, because C-1313 had made some gates worth double and two
-#: multipliers at once is one too many. The decision: **the run multiplies
-#: the gate's base value, and the hot gate's extra is added outside it.**
-#: A hot gate on a x3 run pays 3 + 1, not 6. Stacking them would make the
-#: best line on the course the one a player cannot work out from the seat,
-#: which is exactly what §13's readable risk is against - and it is the
-#: same call C-1411 made when it added the graze to the kills rather than
-#: multiplying the two together.
-#:
-#: The run breaks on a gate passed outside the posts. The entry said
-#: 「落下」; there is no fall in that corridor. Hitting a block ends the go
-#: outright, so a missed gate is the only thing a player can do wrong and
-#: keep playing - which is what a run has to be breakable by.
-COMBO_TEMPLATES: tuple[str, ...] = ("catch", "shooter", "marble")
+COMBO_TEMPLATES: tuple[str, ...] = ("catch", "shooter")
 
 #: Why each of the others is not wired yet. Written down because "not yet"
 #: and "not applicable" are different answers, and only the first is a
@@ -68,6 +53,7 @@ COMBO_TEMPLATES: tuple[str, ...] = ("catch", "shooter", "marble")
 COMBO_UNWIRED: dict[str, str] = {
     "fishing": "a cast is a success or a miss; needs a rule for the idle sweep between casts",
     "puzzle": "clears already score by size, so a multiplier would compound an existing bonus",
+    "marble": "gates are discrete, but C-1313 just made some of them worth double - two multipliers at once needs a decision",
     "adventure": "gems are placed, not earned in a run; there is nothing to be consecutive about",
     "platformer": "same as adventure - the gems are level furniture",
     "kaiju": "the cycle is the unit and there is only one target",
