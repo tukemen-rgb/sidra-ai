@@ -795,6 +795,22 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1249 (deck twin of C-1246): 「…のスライドを作って」 titled the deck with
+    # the whole phrase, so the cover slide and <title> said 「スライド」 back. The
+    # cover is the subject alone now; a request with no kind word is untouched.
+    from sidra_ai.evals.deck_title_no_kind_echo import evaluate_deck_title_no_kind_echo
+
+    deck_title = evaluate_deck_title_no_kind_echo()
+    c.add(
+        "deck_title_no_kind_echo",
+        "スライドの表紙が「スライド」等の資料種名を二重に言わない",
+        10.0 * deck_title.checks_passed / deck_title.checks_total,
+        detail=f"{deck_title.checks_passed}/{deck_title.checks_total} checks; "
+               "src/sidra_ai/evals/deck_title_no_kind_echo.py"
+               + ("" if deck_title.passed else "; " + "; ".join(deck_title.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1222: a generated document's 概要 opened 「2. ブランドを分けるか」 - the
     # excerpt landed mid ordered-list and plain_text stripped bullets but not
     # ordered-list numbers, so the first line began with a 2 and no 1. The

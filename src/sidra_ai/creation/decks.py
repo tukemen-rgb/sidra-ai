@@ -120,16 +120,36 @@ def choose_outline(request: str) -> str:
     return "pitch"
 
 
+#: Slide-deck-kind nouns a cover title should not end with, since the artifact
+#: already is one: 「GAMEYARD の強みのスライド」→「GAMEYARD の強み」 (C-1249, the
+#: deck twin of the document C-1246). Longer forms are listed first so the
+#: whole word is stripped (スライドショー before スライド); an optional leading
+#: 「の」 goes with it. Applied once, and only when a subject remains in front -
+#: 「スライドを作って」 keeps the outline's default title.
+_TITLE_KIND_SUFFIX = re.compile(
+    r"の?(?:スライドショー|プレゼンテーション|ピッチデッキ|スライド|プレゼン|デッキ|ピッチ"
+    r"|slideshow|slides|slide|deck|pitch)$",
+    re.IGNORECASE,
+)
+
+
 def _title_from(request: str, fallback: str) -> str:
     """Use the operator's own words for the title when there are any.
 
-    Cut at the making-verb, because "営業用のデッキを作って" titles better as
-    "営業用のデッキ" than as the whole imperative.
+    Cut at the making-verb; the subject alone is the cover. A deck titled
+    「営業用のデッキ」 would print 「デッキ」 on the very slide that is a deck, so
+    a trailing slide-kind word is dropped (C-1249) - unless it is all there is,
+    in which case the outline's default title stands.
     """
 
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって)", request)[0].strip()
     stripped = " ".join(stripped.split())
-    return stripped[:60] or fallback
+    without_kind = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
+    if not without_kind:
+        # The words were only a kind ("スライドを作って") or nothing: the outline's
+        # default title is a better cover than 「スライド」 or a blank.
+        return fallback
+    return without_kind[:60]
 
 
 #: What a passage has to contain to belong under a section. Literal cues, no
