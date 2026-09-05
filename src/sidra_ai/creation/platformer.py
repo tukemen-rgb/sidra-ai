@@ -580,9 +580,12 @@ const nothing = new Proxy(function(){}, {
 const played = [], nodes = [], freqs = [];
 function Recorder(){ this.state='running'; this.currentTime=0; this.destination={};
   this.sampleRate=44100 }
+Recorder.prototype.createPeriodicWave = function(real, imag){
+  return { kind:'wave', imag: Array.from(imag || []) } };
 Recorder.prototype.createOscillator = function(){
   return { type:'', frequency:{kind:'frequency',
              setValueAtTime(v){ freqs.push(v) }, exponentialRampToValueAtTime(){}},
+           setPeriodicWave(){ nodes.push('pulse') },
            connect(){ nodes.push('oscillator') }, start(){}, stop(){} } };
 Recorder.prototype.createBuffer = function(ch, len){
   return { getChannelData: () => new Float32Array(len) } };

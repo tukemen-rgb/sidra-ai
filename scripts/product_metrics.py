@@ -6037,7 +6037,9 @@ def measure_creation(c: Collector) -> None:
                 texture_gaps.append(f"the hit is not noise through a low-pass ({hurt})")
             if "oscillator" in hurt or "noise->direct" in hurt:
                 texture_gaps.append(f"the hit's wiring is wrong ({hurt})")
-            if gem != ["oscillator"]:
+            # The gem is a pulse voice since C-1350: an oscillator still -
+            # never noise - but one carrying its own comb into the graph.
+            if gem != ["pulse", "oscillator"]:
                 texture_gaps.append(f"the melodic family changed texture ({gem})")
             if timbre.get("mutedPlayed") != 0 or not timbre.get("loud"):
                 texture_gaps.append("the loudness contract moved")
@@ -6051,6 +6053,81 @@ def measure_creation(c: Collector) -> None:
             else "実走行の AudioContext で確認: hurt/lose は白色雑音＋下降"
             "ローパス（§2 の explosion 系）、旋律系は従来の oscillator、"
             "戦闘音圧段とミュートは不変"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- three pulse voices, three widths (§2, C-1350) ------------------
+    #
+    # The last sfxr parameter the synth lacked: duty ratio. Web Audio has
+    # no pulse type, so a pulse voice hands createPeriodicWave its Fourier
+    # series - and the harmonics ARE the duty: harmonic n weighs
+    # sin(n*pi*d)/n, so the comb's first null sits at n = 1/d. The judge
+    # reads the ratio off that null in the wave the page actually built,
+    # then checks it against the width the table declares - so a table
+    # that says 12.5% while the wave plays square cannot pass. Harvested
+    # from the texture probe's run: no extra node execution.
+    duty_gaps: list[str] = []
+    if timbre is not None and texture_script is not None:
+        _duty_declared = {
+            name: float(width)
+            for name, width in _scene_re.findall(
+                r"(\w+):\['pulse',[^\]]*?,([0-9.]+)\]", texture_script.group(1)
+            )
+        }
+        _duty_read: dict[str, float] = {}
+        for voice, expect_duty in (("sword", 0.25), ("gem", 0.125)):
+            waves = timbre.get(f"{voice}Waves") or []
+            if len(waves) != 1 or len(waves[0]) != 32:
+                duty_gaps.append(f"{voice}: built {len(waves)} custom waves")
+                continue
+            imag = waves[0]
+            null = next(
+                (n for n in range(2, 32) if abs(imag[n]) < 1e-4 and abs(imag[n - 1]) > 1e-3),
+                None,
+            )
+            if null is None:
+                duty_gaps.append(f"{voice}: the spectrum has no comb, so no duty to read")
+                continue
+            _duty_read[voice] = 1.0 / null
+            import math as _duty_math
+
+            wrong = [
+                n
+                for n in range(1, 32)
+                if abs(imag[n] - 2 / (n * _duty_math.pi) * _duty_math.sin(n * _duty_math.pi / null))
+                > 1e-4
+            ]
+            if wrong:
+                duty_gaps.append(f"{voice}: harmonics {wrong[:3]} do not follow a pulse at 1/{null}")
+            elif abs(_duty_declared.get(voice, -1) - 1.0 / null) > 1e-6:
+                duty_gaps.append(
+                    f"{voice}: the table declares {_duty_declared.get(voice)} "
+                    f"but the wave plays {1.0 / null:.4f}"
+                )
+            elif abs(1.0 / null - expect_duty) > 1e-6:
+                duty_gaps.append(f"{voice}: duty {1.0 / null:.4f}, not the design's {expect_duty}")
+        if len(_duty_read) == 2 and len(set(_duty_read.values())) < 2:
+            duty_gaps.append("the two pulse voices share one width, so there is no family")
+        if timbre.get("clashWaves"):
+            duty_gaps.append("clash grew a custom wave: 50% is the square and keeps its name")
+        elif timbre.get("clashNodes") != ["oscillator"]:
+            duty_gaps.append(f"clash's wiring moved ({timbre.get('clashNodes')})")
+        if timbre.get("swordMutedWaves") != 0:
+            duty_gaps.append("the mute does not stop the pulse voice")
+    elif not texture_gaps:
+        duty_gaps.append("probe unavailable")
+    c.add(
+        "creation_sfx_duty",
+        "スペクトルから読めるデューティ比を持つパルス声部の数",
+        0.0 if duty_gaps or timbre is None else 2.0,
+        detail=(
+            "; ".join(duty_gaps or ["probe unavailable"])
+            if duty_gaps or timbre is None
+            else "実走行の AudioContext で確認: sword はくし形の節が第 4 倍音"
+            "（=duty 25%）・gem は第 8 倍音（=12.5%）で、全 31 倍音が"
+            "sin(nπd)/n のパルス列に一致し表の宣言値とも一致。clash は"
+            "50%=square のまま＝3 声 3 音色。ミュートでパルスも沈黙"
         ),
         kind=OUTCOME,
     )

@@ -102,10 +102,16 @@ function masterGain(){try{return Math.min(1,Math.max(0,tuneNum('volume',100)/100
   catch(e){return 1}}
 function sfxGain(name){const spec=SFX_TABLE[name];if(!spec)return 0;
   return Math.min(MAX_GAIN,spec[4]*(COMBAT?COMBAT_GAIN:1))*masterGain()}
+/* The duty axis (§2, C-1350): sfxr's last unimplemented parameter. A
+   'pulse' entry carries its duty ratio in spec[5] - the width of the
+   high half of the wave, the 8-bit palette's character dial. 12.5% is
+   the classic thin coin shimmer, 25% the biting hit, and 50% IS the
+   square, so clash keeps its name: three voices, three timbres, where
+   the table used to hold one square three times. */
 const SFX_TABLE={
-  sword:['square',420,180,0.09,0.18],
+  sword:['pulse',420,180,0.09,0.18,0.25],
   cut:['triangle',700,320,0.08,0.2],
-  gem:['square',660,1320,0.12,0.16],
+  gem:['pulse',660,1320,0.12,0.16,0.125],
   key:['triangle',520,1040,0.18,0.2],
   hurt:['noise',1800,180,0.22,0.24],
   fire:['sawtooth',900,140,0.3,0.2],
@@ -177,7 +183,16 @@ function sfx(name){
       src.start(t0);src.stop(t0+dur+0.02);
     }else{
       const osc=AC.createOscillator();
-      osc.type=wave==='vibrato'?'sawtooth':wave;
+      if(wave==='pulse'){
+        /* Web Audio has no pulse type, so the wave is its own Fourier
+           series: harmonic n of a pulse at duty d weighs sin(nPI*d)*2/(n*PI),
+           which is where the 12.5% shimmer parts from the 25% bite.
+           setPeriodicWave sets type to 'custom' itself - assigning type
+           here would throw the custom wave away. */
+        const duty=spec[5],real=new Float32Array(32),imag=new Float32Array(32);
+        for(let n=1;n<32;n++){imag[n]=2/(n*Math.PI)*Math.sin(n*Math.PI*duty)}
+        osc.setPeriodicWave(AC.createPeriodicWave(real,imag));
+      }else{osc.type=wave==='vibrato'?'sawtooth':wave}
       osc.frequency.setValueAtTime(f0,t0);
       osc.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
       if(wave==='vibrato'){
@@ -215,9 +230,17 @@ function Recorder(){ this.state='running'; this.currentTime=0; this.destination=
    same effect fired eight times must land on close-but-different pitches
    (§14, C-1317). */
 const freqs = [];
+/* The duty axis, as built (§2, C-1350): a pulse voice hands its Fourier
+   series to createPeriodicWave, and the harmonics ARE the duty - the
+   ratio is read back off the spectrum's comb, not off the table. */
+const dutyWaves = [];
+Recorder.prototype.createPeriodicWave = function(real, imag){
+  return { kind:'wave', imag: Array.from(imag || []) } };
 Recorder.prototype.createOscillator = function(){
   return { type:'', frequency:{kind:'frequency',
              setValueAtTime(v){ freqs.push(v) }, exponentialRampToValueAtTime(){}},
+           setPeriodicWave(w){ nodes.push('pulse');
+             if (w && w.kind === 'wave') dutyWaves.push(w.imag) },
            connect(){ nodes.push('oscillator') }, start(){}, stop(){} } };
 Recorder.prototype.createBuffer = function(ch, len){
   return { getChannelData: () => new Float32Array(len) } };
@@ -311,6 +334,15 @@ const catchFreqs = freqs.slice();
 keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
 freqs.length = 0; sfx('catch'); const mutedFreqs = freqs.length;
 keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
+/* The duty ratios, as heard (§2, C-1350): the two pulse voices carry
+   different combs, and the mute stops the wave with the sound. */
+dutyWaves.length = 0; sfx('sword'); const swordWaves = dutyWaves.slice();
+dutyWaves.length = 0; sfx('gem'); const gemWaves = dutyWaves.slice();
+dutyWaves.length = 0; nodes.length = 0; sfx('clash');
+const clashWaves = dutyWaves.length, clashNodes = nodes.slice();
+keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
+dutyWaves.length = 0; sfx('sword'); const swordMutedWaves = dutyWaves.length;
+keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
 /* The victory phrase (§2, C-1326): a rising arpeggio, every note on the
    books, and silent under the mute like everything else. */
 freqs.length = 0; played.length = 0;
@@ -329,6 +361,9 @@ console.log(JSON.stringify({
   powerupMutedNodes: powerupMutedNodes,
   catchFreqs: catchFreqs, mutedFreqs: mutedFreqs,
   winFreqs: winFreqs, winGains: winGains, winMutedFreqs: winMutedFreqs,
+  swordWaves: swordWaves, gemWaves: gemWaves,
+  clashWaves: clashWaves, clashNodes: clashNodes,
+  swordMutedWaves: swordMutedWaves,
 }));
 """
 

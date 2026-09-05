@@ -59,7 +59,7 @@ def test_the_cheer_rings_a_vibrato_and_the_gem_does_not(template: str) -> None:
     assert "lfo->frequency" not in heard["gemNodes"], (
         "the pickup grew a vibrato too, so the step-up is not distinct"
     )
-    assert heard["gemNodes"] == ["oscillator"]
+    assert heard["gemNodes"] == ["pulse", "oscillator"]
 
 
 def test_the_mute_silences_the_step_up_too() -> None:

@@ -104,7 +104,9 @@ def test_the_hit_is_noise_and_the_melody_is_a_tone() -> None:
     assert "lowpass->out" in heard["hurtNodes"]
     assert "oscillator" not in heard["hurtNodes"]
     assert "noise->direct" not in heard["hurtNodes"]
-    assert heard["gemNodes"] == ["oscillator"]
+    # A pulse voice since C-1350: still an oscillator, never noise, but
+    # one that hands its own comb to the graph first.
+    assert heard["gemNodes"] == ["pulse", "oscillator"]
     assert heard["mutedPlayed"] == 0
     assert heard["loud"] and heard["loud"] > heard["calm"]
 
