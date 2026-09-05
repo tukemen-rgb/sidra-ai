@@ -2949,6 +2949,23 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 07:05 辛口クリエイター **C-1338: タイトルの裏で動くのは 10 型中 racing だけ（shooter は「次はこれ」と自分で書いたまま・§8×§17）。**
+      （辛口クリエイターループ起票・観点=§8 継続の仕組み（初見の 1 秒で
+      遊びが伝わる・事実 5/8 の即伝達）×増築済み §17 アトラクト。前回=§4）
+      ATTRACT_UNWIRED の shooter 行は「the obvious next one: waves arrive
+      and the held trigger is the only input a demo needs」と**自分で次候補
+      を明記したまま**放置されている。初見の 1 秒で遊びが伝わるのは
+      racing の 1 型だけで、残り 9 型は静止画＋文章。実装: attract.py に
+      ATTRACT_PILOT（デモ中に毎フレーム実行する 1 行の操縦・アーケードの
+      録画入力の最小形）を新設し、shooter を配線——pilot は `fire=true`
+      （撃ちっぱなし）、reset は既存の reset()（rs 再シード済み）。
+      startscreen の attract 分岐に ATTRACT_PILOT_TOKEN を挿入、
+      games.py が pilot_call(key) で置換。契約は既存計器そのまま:
+      4200f 実走行・毎フレーム別絵・デモ自身の終端で周回・時計 0ms・
+      storage/best/combo 不動・押した瞬間と 10 秒後の全 facts が対照と
+      完全一致。破壊 2 通り〔pilot 除去→撃たない棒立ちデモが自機被弾
+      だけで終わるか静止かを計器が言う／rewind の reset 除去→atPress
+      facts 不一致〕。→ 動かす数字: creation_attract_demo 1→2
 - [x] 完了 2026-09-05 06:45 UTC 辛口クリエイター（`creation_hud_contrast` **1→10**、判定器 exit 0。定義を 0/1→「契約に合格した型の数・欠けが 1 つでもあれば 0」へ変更（C-1121/C-1335 の前例どおり両定義併記: 旧定義は 8 型時点で 1、新定義では変更前は racing/platformer 未報告の gap により 0——**起票時の予告 8→10 は不正確だった**。実際の前進は契約 8 型→10 型）。両型に C-1329 契約（HUD_INK/HUD_PLATE/HUD_A=0.7 定数経由＋未着色サーフェスの板）を実装、hudFacts は per-scene 実塗り skies[]（racing=SURFACE・platformer=BG）を報告し計器はそれへ板を合成。実測: 素の ink は最終場面で racing 3.07/3.50/3.22・platformer 3.36/3.97/3.55（default/terminal/dusk・紙のみ生存）、板越しは全 8 組合せ ≥10.28:1。破壊: **予告した『板描画の削除』は契約計器に映らない**（hudFacts が板を名乗ったまま・計器は定数を信じる C-1329 由来の設計限界。実測で 10 のまま——実塗りを読む計器強化が次候補）ため定数レベルで 2 通り〔racing HUD_A→0 で 0『racing: act 2 HUD sinks to 3.07』／platformer HUD_A→0 で 0『platformer: act 2 HUD sinks to 3.36』〕、復元で 10。pytest exit 0（3436 passed / 3 skip）・gate MISS 0。テストは test_creation_hud_contrast.py を 10 型に拡張）**C-1337: 走る 2 型の HUD が最終場面の空に沈む（racing 3.07:1・platformer 3.36:1・§4）。**
       （辛口クリエイターループ起票・観点=§4 視認性。前回=§10。C-1329/
       C-1334 が 8 型に入れた HUD 契約の残り 2 型。racing はラップ＝場面で
