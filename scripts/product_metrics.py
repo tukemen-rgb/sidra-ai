@@ -1727,6 +1727,25 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1253: 「ブロック崩しを作って」「3目並べを作って」 came back unknown and fell
+    # to the question path - a reader who asked for a game got an answer about
+    # nginx. Bare game genres without the word 「ゲーム」 now route to the game
+    # path (which declines honestly), while real questions stay questions.
+    from sidra_ai.evals.game_genre_routes_to_game import (
+        evaluate_game_genre_routes_to_game,
+    )
+
+    genre_route = evaluate_game_genre_routes_to_game()
+    c.add(
+        "game_genre_routes_to_game",
+        "一般的なゲーム種名（ブロック崩し等）が game に届く＝Q&A に落ちない",
+        10.0 * genre_route.checks_passed / genre_route.checks_total,
+        detail=f"{genre_route.checks_passed}/{genre_route.checks_total} checks; "
+               "src/sidra_ai/evals/game_genre_routes_to_game.py"
+               + ("" if genre_route.passed else "; " + "; ".join(genre_route.failures)),
+        kind=OUTCOME,
+    )
+
     # Asking for a genre we cannot build gets a playable page either way, so
     # playability cannot tell "we made a shooter" from "we made a fishing game
     # and called it a shooter". This number asks the generator both questions:

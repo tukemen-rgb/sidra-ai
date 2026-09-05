@@ -97,6 +97,15 @@ GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("麻雀", "mahjong", ("麻雀", "マージャン", "mahjong")),
     ("カードゲーム", "cardgame", ("カードゲーム", "トランプ", "card game")),
     ("ボードゲーム", "boardgame", ("ボードゲーム", "board game", "すごろく")),
+    # Same gap, a few common genres along (C-1253): a bare 「ブロック崩しを作って」
+    # or 「3目並べを作って」 carried no vocabulary word and no 「ゲーム」, so it came
+    # back unknown and fell to the *question* path - the reader got an answer
+    # about nginx, not a game. Named here so they route to the game path and are
+    # declined with the buildable list. Non-trademark genres only; a registered
+    # name (オセロ 等) is a business call and stays out (E 節).
+    ("ブロック崩し", "breakout", ("ブロック崩し", "breakout", "block breaker", "アルカノイド")),
+    ("三目並べ", "tictactoe", ("3目並べ", "三目並べ", "○×ゲーム", "まるばつ", "tic-tac-toe", "tictactoe")),
+    ("クリッカー", "clicker", ("クリッカー", "clicker", "放置ゲーム", "idle game")),
     ("キャッチ", "catch", CATCH_WORDS),
     ("釣り", "fishing", FISHING_WORDS),
     # Last, matching choose_template: the bare 「ジャンプ」/「跳」 cues (C-1220)
