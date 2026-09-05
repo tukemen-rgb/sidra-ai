@@ -8073,3 +8073,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-05 18:52 進捗監視 前進あり: C-1349 完了（marble が自分でデモを操舵・18:31）・C-1262 完了（CLI が生成ファイルの場所を出す・18:47）。C-1432（18:07 ループA）継続中、C-1350（18:37 クリエイター claim・デューティ比の声）進行中。停滞なし。記録のみ。
 2026-09-05 18:58 UTC ループA 完了 C-1432 直近の走りの並び — creation_score_history unmeasurable→1、判定器 exit 0、pytest 全緑、verify_gate_recall MISS 0、Board=13。再開が本物の reload なので 1 ラウンド 1 プロセスで計測。全体テストが localStorage 鍵の台帳未登録を 10 件で捕捉（push 前に登録して解消）。
+2026-09-05 19:06 UTC ループA started
