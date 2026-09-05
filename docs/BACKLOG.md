@@ -4487,6 +4487,25 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_marble_combo unmeasurable→1（連続通過で倍率が積まれ、落下
       で 1 に戻り、影の門の支払いが「基礎×倍率＋基礎」と実測一致する
       ことを検査。破壊で 0）
+- [ ] **C-1422: duel の敗因も一言（勝ち負けを hp で分けてから）。**
+      （進捗監視起票 2026-09-05・根拠は recap.py の LOSS_UNWIRED 自身の
+      記述「'end' covers winning and losing both; needs the hp comparison
+      split out first」）C-1409 の敗因帯を duel に配線する前提として、
+      'end' 状態を hp 比較で勝ち/負けに分ける（表示の分岐のみ・ダメージ
+      計算や AI の挙動は不変）。負けたときだけ敗因（例: 「ガードの外を
+      3 発」等、実カウンタから）を帯に一言。→ 動かす数字:
+      creation_duel_loss_recap unmeasurable→1（hp 劣勢で終えた走行に
+      敗因の一言があり、勝った走行には出ず、カウンタが生のページ状態と
+      一致することを検査。破壊で 0）
+- [ ] **C-1423: adventure の被弾を数えて敗因に生かす。**（進捗監視起票
+      2026-09-05・根拠は recap.py の LOSS_UNWIRED 自身の記述「'over'
+      exists but no counter survives it - the hero's damage is never
+      tallied」）hero の被弾を種類別に集計するカウンタを足し（挙動は
+      不変・数えるだけ）、'over' の帯が最多の被弾源を一言で言う。0 の
+      カウンタを名指ししない規則は C-1409 と同じ。→ 動かす数字:
+      creation_adventure_loss_recap unmeasurable→1（被弾して負けた走行に
+      最多被弾源の一言があり、集計が生のページ状態から独立に導いた値と
+      一致することを検査。破壊で 0）
       **結果: 差し戻し（exit 2）。** 実装・新判定器・破壊 8 通り・pytest 全通し
       までは通ったが、`--compare` で **creation_risk_reward 1→0** が出た。
       原因は C-1313 の判定器が持つ恒等式 `score == (gates-hotTaken)+2*hotTaken`
