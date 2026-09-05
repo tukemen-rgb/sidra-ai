@@ -7555,3 +7555,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   iPhone 12 実測: 怪獣が ◀▶＋A を表示（修正前 A＋R だけ）。
   教訓: C-1244 判定器は expected も drawn も keys_read 由来で循環し見落としを
   検出できず。今回は製品が見せる briefing を真実源に独立させた。
+
+2026-09-05 04:05 UTC ループA started（Board=13、増減なし）
