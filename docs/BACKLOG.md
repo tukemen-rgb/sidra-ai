@@ -4825,7 +4825,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       次: C-1423 の宿題は両方とも片づいた（運転器＝C-1424、敗因帯＝本項目）。
       残るは番人の節を**実戦で**通せる走行——room 2 まで生き残る運転が
       要るので、別項目にする価値がある。
-- [~] 作業中 2026-09-05 11:10 ループA **C-1426: fishing にコンボ（4 型目の配線）——合間の空振りは空振りでない。**
+- [x] 完了 2026-09-05 12:00 ループA（creation_fishing_combo unmeasurable→1、exit 0）**C-1426: fishing にコンボ（4 型目の配線）——合間の空振りは空振りでない。**
       （進捗監視起票 2026-09-05・根拠は combo.py の COMBO_UNWIRED 自身の
       記述「a cast is a success or a miss; needs a rule for the idle sweep
       between casts」。その rule をここで決める: **数えるのはキャストの
@@ -4839,6 +4839,41 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（連続成功で倍率が積まれ、失敗キャストで 1 に戻り、
       キャストの無い長い掃引では変わらず、会心の支払いが「基礎×倍率＋
       上乗せ」と実測一致することを検査。破壊で 0）
+      **結果 2026-09-05 12:00 ループA**（`creation_fishing_combo`
+      unmeasurable→1・判定器 exit 0・pytest 全緑・
+      verify_gate_recall MISS 0/誤検知 0）
+      **決めた規則**: 掃引は空振りではない。run を切るのは **band を外した
+      キャストだけ**。起票文のとおり、待っている間に倍率が減るなら
+      「待つ」が罰になり §13 の「リスクは選べる」に反する。
+      `COMBO_TEMPLATES` に fishing を追加し、`COMBO_UNWIRED` の
+      「合間の掃引の規則が要る」を削除。会心（C-1331）との同居は C-1420 と
+      同じ**和**: `FISH_BASE × 倍率 + FISH_CRIT`。x3 の会心は 6 ではなく **4**。
+      **実測**（1 回の走行で全部訊く判定器 `creation_fishing_combo`）:
+      慎重なキャストを続けると 1→2→3 と上がり、各回の得点が「基礎×倍率」と
+      一致（倍率は判定器側で `COMBO_STEP`/`COMBO_MAX` から導いた梯子と
+      照合しており、ページの自己申告とは独立）。**掃引 600 フレームで
+      run 7 / x3 / casts 8 が 1 つも動かない**——played time が進んだことを
+      `ms` で確認済み（「何も変わらない」は時間が経って初めて結果になる）。
+      会心は x3 の上で 4 点、band 外のキャストは 0 点で run を 0 / x1 に戻し、
+      そこから積み直す。倍率は x1 の時点から HUD に出ており（`×1`）、
+      reduced motion でも数字は残る。
+      **`SKIN_UNIT["fishing"]` を再測定: 144 → 186**（マッシャー 1 ラウンド・
+      3 回とも同値）。据え置くと解錠判定器の 25% 窓（±36）を 42 で
+      外れて落ちる。catch と shooter の中間の挙動で、マッシャーは掃引の
+      たびに自分の run を折るが、band が広いので偶然 2〜3 連は繋がる。
+      **+29% は偶然の連続であって上達ではない**ので、そう書いた。
+      破壊 6 通りすべてが 0 に落ちた: (1) 掃引で run を切る (2) 会心を
+      倍率の中に入れる（6 点にする）(3) band 外キャストで切らない
+      (4) run は数えるが支払わない (5) 倍率を HUD から消す
+      (6) x1 のときだけ HUD から隠す。
+      **全体テストが実バグを 1 件捕まえた（push 前）**:
+      `tests/test_creation_sfx_powerup.py` は `COMBO_TEMPLATES` で
+      parametrize しているのに自前の `_REQUESTS` 表に fishing が無く
+      KeyError。C-1422 と同じ型の取りこぼし。表に追加して解消（製品側の
+      変更は不要——共有の combo preamble が既に powerUp を鳴らしている）。
+      **もう 1 件、道具の読み違い**: background 実行のラッパーが
+      「exited with code 0」と表示する一方で pytest 自体は失敗していた。
+      以後 pytest の終了コードを明示的に取る（`echo $?`）。
 - [x] 完了 2026-09-05 06:0x ループA（creation_risk_reward 1→1 を保ったまま creation_marble_combo unmeasurable→1、exit 0）**C-1421: C-1313 の判定器の恒等式を、倍率のある世界の形に述べ直す。**
       （2026-09-05 ループA 起票・C-1420 の差し戻しで発見）
       `creation_risk_reward` は marble の得点を

@@ -10594,6 +10594,153 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the fourth template's run, and the sweep that does not break it -
+    #
+    # C-1426. ``COMBO_UNWIRED`` said fishing needed "a rule for the idle
+    # sweep between casts" before it could be wired, and the rule is: the
+    # sweep is not a miss. Only a cast breaks the run, because waiting for
+    # the marker to come back around is the thing the game asks a player to
+    # do, and a run that drained while they waited would make patience the
+    # punished move.
+    #
+    # Driven on the real page, one go: build a run of cautious casts, leave
+    # the marker sweeping for hundreds of frames with nothing pressed, land
+    # a perfect throw on whatever multiplier the run reached, whiff once,
+    # then build it again. Every number below is a score delta the page
+    # produced, checked against the ladder derived from COMBO_STEP and
+    # COMBO_MAX here rather than from the page's own claim.
+    from sidra_ai.creation.combo import COMBO_MAX as _fc_max
+    from sidra_ai.creation.combo import COMBO_STEP as _fc_step
+    from sidra_ai.creation.combo import COMBO_TEMPLATES as _fc_wired
+    from sidra_ai.creation.fishing import combo_probe_source as _fc_probe
+
+    def _fc_rung(run_len: int) -> int:
+        return min(_fc_max, 1 + run_len // _fc_step)
+
+    def _fc_run(*, reduced: bool = False):
+        page = generate_game("釣りゲームを作って").html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            return None, "no script on the fishing page"
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_fc_probe(script.group(1), reduced=reduced),
+                capture_output=True,
+                text=True,
+                timeout=420,
+            )
+            if probe.returncode != 0:
+                raise ValueError(probe.stderr.strip()[:80])
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"probe unavailable ({exc})"
+
+    fcombo_gaps: list[str] = []
+    fcombo_top = 1
+    seen, problem = _fc_run()
+    if problem:
+        fcombo_gaps.append(problem)
+    elif "fishing" not in _fc_wired:
+        fcombo_gaps.append("fishing is not in COMBO_TEMPLATES")
+    else:
+        clean = seen["timeline"]
+        idle_a, idle_b = seen["idleBefore"], seen["idleAfter"]
+        perfect, whiff = seen["perfect"], seen["whiff"]
+        fcombo_top = max([c["multAfter"] for c in clean] or [1])
+        # 1. Every cautious cast pays base x mult, with the ladder derived
+        #    here from the run length rather than read off the page.
+        for cast in clean:
+            want = _fc_rung(cast["runAfter"])
+            if cast["multAfter"] != want:
+                fcombo_gaps.append(
+                    f"a run of {cast['runAfter']} paid x{cast['multAfter']}, not x{want}"
+                )
+                break
+            if cast["gain"] != want:
+                fcombo_gaps.append(
+                    f"a cast on x{want} scored {cast['gain']}, not {want}"
+                )
+                break
+        if not fcombo_gaps and fcombo_top < 2:
+            # A ladder that never left the bottom rung proves nothing.
+            fcombo_gaps.append("the run never climbed past x1")
+        # 2. The idle sweep, which is the whole reason this was unwired.
+        if not fcombo_gaps:
+            if idle_b["ms"] <= idle_a["ms"]:
+                fcombo_gaps.append("no time passed during the idle sweep")
+            elif idle_b["casts"] != idle_a["casts"]:
+                fcombo_gaps.append("the idle sweep cast something")
+            elif (idle_b["run"], idle_b["mult"]) != (idle_a["run"], idle_a["mult"]):
+                fcombo_gaps.append(
+                    f"sweeping without casting moved the run "
+                    f"({idle_a['run']}/x{idle_a['mult']} -> "
+                    f"{idle_b['run']}/x{idle_b['mult']})"
+                )
+        # 3. The sum: the multiplier rides the base, the perfect throw's
+        #    extra is added outside it. On a x3 run that is 3 + 1, not 6.
+        if not fcombo_gaps:
+            want = _fc_rung(perfect["runAfter"]) + 1
+            if perfect["crits"] < 1:
+                fcombo_gaps.append("the perfect throw was not scored as one")
+            elif perfect["gain"] != want:
+                fcombo_gaps.append(
+                    f"a 会心 on x{_fc_rung(perfect['runAfter'])} paid "
+                    f"{perfect['gain']}, not {want} (base x mult + extra)"
+                )
+        # 4. ...and the only thing that breaks it does.
+        if not fcombo_gaps:
+            if whiff["multBefore"] < 2:
+                fcombo_gaps.append("the whiff was thrown away on x1, so it proves nothing")
+            elif whiff["multAfter"] != 1 or whiff["runAfter"] != 0:
+                fcombo_gaps.append(
+                    f"a cast outside the band left the run at "
+                    f"{whiff['runAfter']}/x{whiff['multAfter']}"
+                )
+            elif whiff["gain"] != 0:
+                fcombo_gaps.append(f"a missed cast still paid {whiff['gain']}")
+            elif not seen["rebuilt"] or seen["rebuilt"][0]["multAfter"] != 1:
+                fcombo_gaps.append("the run did not start again from x1")
+        # 5. On screen at x1 as much as at x4 - asked of the lines the page
+        #    actually drew, not of the source.
+        if not fcombo_gaps:
+            low = [c for c in clean if c["multAfter"] == 1]
+            high = [c for c in clean if c["multAfter"] == fcombo_top]
+            if not low or "\u00d71" not in (low[0]["hud"] or ""):
+                fcombo_gaps.append("the multiplier was not on the HUD at x1")
+            elif not high or f"\u00d7{fcombo_top}" not in (high[-1]["hud"] or ""):
+                fcombo_gaps.append(f"the multiplier was not on the HUD at x{fcombo_top}")
+    # 6. Reduced motion drops the decoration and keeps the information: the
+    #    number is information, so it is still drawn (C-1020).
+    if not fcombo_gaps:
+        quiet, problem = _fc_run(reduced=True)
+        if problem:
+            fcombo_gaps.append(f"reduced motion: {problem}")
+        else:
+            hud = [c["hud"] for c in quiet["timeline"] if c["hud"]]
+            if not hud or "\u00d7" not in hud[-1]:
+                fcombo_gaps.append("reduced motion took the multiplier off the HUD")
+    c.add(
+        "creation_fishing_combo",
+        "釣りの連続成功が積み上がる（合間の掃引では切れない）",
+        0.0 if fcombo_gaps else 1.0,
+        detail=(
+            "; ".join(fcombo_gaps)
+            if fcombo_gaps
+            else f"実ページを運転して計測: 慎重なキャストを続けると倍率が "
+            f"x{fcombo_top} まで上がり、各回の得点が「基礎×倍率」と一致する"
+            "（倍率は COMBO_STEP/COMBO_MAX から判定器側で導いた梯子と照合）。"
+            "**未配線だった理由がここで解ける**——キャストせずに数百フレーム"
+            "掃引しても run も倍率も動かない（played time は進んでいることを"
+            "確認済み）。待つことは罰ではない。会心は「基礎×倍率＋上乗せ」で、"
+            "x3 の会心は 6 ではなく 4（C-1420 と同じ和の規約）。band を外した"
+            "キャストだけが run を 0 に戻し、そこから x1 で積み直す。"
+            "倍率は x1 の時点から HUD に出ており、reduced motion でも"
+            "数字は残る（装飾だけが落ちる）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

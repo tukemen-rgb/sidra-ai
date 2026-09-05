@@ -218,6 +218,11 @@ let pos=0,dir=1,score=0,hits=0,crits=0,casts=0,flash=0,
    apart (C-1405's precedent), so the number drawn and the number banked
    can never disagree. */
 const CRIT=0.35;
+/* What a cast is worth, before and outside the run (C-1426). The
+   multiplier rides FISH_BASE only; the perfect throw's extra is added
+   after it, so a 会心 on a x3 run pays 3+1 rather than 6 - the same
+   sum C-1420 settled on for the marble's hot gates. */
+const FISH_BASE=1,FISH_CRIT=1;
 const zone=()=>[SPOT-BAND/2,SPOT+BAND/2];
 /* A timing game has no course, so the round clock is the journey: the
    sixty seconds split into three skies, and the brightest one is the
@@ -266,22 +271,28 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
   cx.fillRect(32,14,400,26);cx.fillRect(32,h-44,430,26);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font='16px ui-monospace,monospace';
   cx.fillText(msg,40,h-28);
-  cx.fillText('得点 '+score+' / 釣果 '+hits+'/'+casts+' / 会心 '+crits,40,34)}
+  cx.fillText('得点 '+score+' / 釣果 '+hits+'/'+casts+' / 会心 '+crits
+    +' / '+comboLabel(),40,34)}
 function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
   hits:hits,crits:crits,crit:CRIT,
   casts:casts,scene:SCENE,ms:ROUND_MS}}
 function cast(){casts++;const [a,b]=zone();
   if(pos>=a&&pos<=b){hits++;
+    /* Asked once, so the number paid and the number shown cannot
+       disagree: comboHit() returns the multiplier this cast earned. */
+    const pay=comboHit()*FISH_BASE;
     /* The perfect throw pays double and lands heavier (§1): the juice
        scales with the risk that was taken, not just with success. */
     if(Math.abs(pos-SPOT)<=(BAND/2)*CRIT){crits++;
-      score+=scorePop(cv.width/2,cv.height/2,2);
+      score+=scorePop(cv.width/2,cv.height/2,pay+FISH_CRIT);
       if(flashGate())flash=1;msg='ど真ん中。会心。';sfx('gem');
       shake(6);hitstop(3);burst(cv.width/2,cv.height/2,22,'ACCENT_JUICE')}
-    else{score+=scorePop(cv.width/2,cv.height/2,1);
+    else{score+=scorePop(cv.width/2,cv.height/2,pay);
       if(flashGate())flash=1;msg='かかった。';sfx('catch');
       shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}}
-  else{msg='逃げられた。';sfx('clash');shake(1.5)}}
+  /* Only a cast can break the run (C-1426). The sweep between casts is
+     what the game asks a player to wait through, so it costs nothing. */
+  else{comboMiss();msg='逃げられた。';sfx('clash');shake(1.5)}}
 addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});
 cv.addEventListener('pointerdown',cast);
 step();

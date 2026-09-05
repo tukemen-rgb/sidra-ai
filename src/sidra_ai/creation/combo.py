@@ -60,13 +60,23 @@ import json
 #: 「落下」; there is no fall in that corridor. Hitting a block ends the go
 #: outright, so a missed gate is the only thing a player can do wrong and
 #: keep playing - which is what a run has to be breakable by.
-COMBO_TEMPLATES: tuple[str, ...] = ("catch", "shooter", "marble")
+#: ``fishing`` fourth (C-1426). This table used to say it needed a rule
+#: for the idle sweep between casts, and that is the decision: **the sweep
+#: is not a miss.** Only a cast can break the run, because a player who is
+#: waiting for the marker to come back around is doing the thing the game
+#: asks for, and a run that drained while they waited would make patience
+#: the punished move - the opposite of §13's readable risk. So the run
+#: breaks on a cast that landed outside the band, and on nothing else.
+#:
+#: 会心 (C-1331) already pays double, so this is the same sum C-1420 chose
+#: for marble: the multiplier rides the cast's base value and the perfect
+#: throw's extra is added outside it. A 会心 on a x3 run pays 3 + 1, not 6.
+COMBO_TEMPLATES: tuple[str, ...] = ("catch", "shooter", "marble", "fishing")
 
 #: Why each of the others is not wired yet. Written down because "not yet"
 #: and "not applicable" are different answers, and only the first is a
 #: backlog item.
 COMBO_UNWIRED: dict[str, str] = {
-    "fishing": "a cast is a success or a miss; needs a rule for the idle sweep between casts",
     "puzzle": "clears already score by size, so a multiplier would compound an existing bonus",
     "adventure": "gems are placed, not earned in a run; there is nothing to be consecutive about",
     "platformer": "same as adventure - the gems are level furniture",

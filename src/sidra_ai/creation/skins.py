@@ -50,6 +50,13 @@ import json
 #: because a masher breaks its own runs and so collects almost none of the
 #: multiplier, which is that feature working as intended.
 #:
+#: ``fishing`` 144 -> 186 when C-1426 wired the ladder there (three runs,
+#: same number each time). It sits between catch's case and shooter's: a
+#: masher casts on every frame it can, so it breaks its own runs on every
+#: sweep past the band - but the band is wide enough that it also strings
+#: two or three landed casts together by accident, which catch's falling
+#: items never let it do. The 29% rise is the accidental runs, not skill.
+#:
 #: ``shooter`` 32 -> 90 when C-1411 gave it the same ladder. Unlike catch,
 #: a masher here keeps runs going by accident - a held trigger kills
 #: whatever drifts into the stream, and nothing but a hull breaks the run.
@@ -60,7 +67,7 @@ SKIN_UNIT: dict[str, int] = {
     "adventure": 2,
     "catch": 25,
     "duel": 3,
-    "fishing": 144,
+    "fishing": 186,
     "kaiju": 3,
     "marble": 2,
     "platformer": 1,
