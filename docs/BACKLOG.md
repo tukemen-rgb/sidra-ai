@@ -3535,7 +3535,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [x] 完了 2026-09-05 07:4x UTC 辛口ユーザー（`model3d_provenance_is_palette` 2.5→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・creation_3d_model_valid 等は非退行。5 通りの破壊で 10→2.5/2.5/5.0/2.5/5.0 に落ち、復元で 10.0。preview 実測: 脚注が「palette: tukemen-rgb/site docs/DESIGN.md」のみに、revenue-model.md は消えた）**C-1251: 生成 3D モデルのプレビュー脚注が、モデルと無関係の検索ヒットを「出典」として並べる。「魚の3Dモデルを作って」のプレビュー HTML 脚注が revenue-model.md / vision.md 等（BM25 の余波）を列挙。3D モデルはテンプレメッシュ＋DESIGN.md 配色で検索本文を一切使わないのに model3d_job が retrieved の source を evidence として渡していた。**
+- [~] 作業中 2026-09-05 08:2x UTC 辛口ユーザー（29 巡目・スマホ操作）**C-1252: 入口ページの生成ファイル一覧が全件（現状 200 件）を無制限に描画し、スマホでページ高が約 50,000px になる＝終わらないスクロール、下のプロジェクト欄も埋もれる。ui.py の loadArtifacts が `items.forEach` で全件描画（上限なし）。新しい順に上位数十件で十分なのに全部出す。再現: iPhone 12 で `GET /` を開くと document 高 ~50466px。** → 動かす数字: `ui_artifact_list_bounded`（新設・一覧は新しい順に上限件数だけ描画し、超過時は総数を注記）判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・creation_3d_model_valid 等は非退行。5 通りの破壊で 10→2.5/2.5/5.0/2.5/5.0 に落ち、復元で 10.0。preview 実測: 脚注が「palette: tukemen-rgb/site docs/DESIGN.md」のみに、revenue-model.md は消えた）**C-1251: 生成 3D モデルのプレビュー脚注が、モデルと無関係の検索ヒットを「出典」として並べる。「魚の3Dモデルを作って」のプレビュー HTML 脚注が revenue-model.md / vision.md 等（BM25 の余波）を列挙。3D モデルはテンプレメッシュ＋DESIGN.md 配色で検索本文を一切使わないのに model3d_job が retrieved の source を evidence として渡していた。**
       （辛口ユーザーループ起票・28 巡目 3D生成の出典・4/10）**最小の解決**は
       model3d_job が retrieved を evidence として渡すのをやめる＝
       generate_model3d の既定（DESIGN.md 配色）を使う。generate_model3d は
