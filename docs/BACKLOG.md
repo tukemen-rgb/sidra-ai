@@ -2949,6 +2949,23 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 20:15 UTC 辛口クリエイター **C-1350: square 3 声（sword・gem・clash）が全部同じ 50% 矩形——sfxr のパラメータ軸で唯一未実装のデューティ比が音色の家族分けを封じている（§2）。**
+      （辛口クリエイターループ起票・観点=§2 効果音の合成。前回=§8×§17）
+      §2 の sfxr パラメータ列挙〔波形・ADSR・周波数傾き・ビブラート・
+      **デューティ比**・LPF/HPF〕のうちデューティ比だけが未実装
+      （noise+LPF は C-1308、ビブラートは C-1339/C-1346 で実装済み）。
+      現状 SFX_TABLE の square 3 声は同一波形＝斬撃（sword）と拾得（gem）
+      と鍔迫り（clash）が同じ音色で、8bit パレットの性格軸（コイン=細い
+      12.5%・打撃=25%・50%=square）が使えていない。実装: 'pulse' 波形種を
+      追加し spec[5] に duty を持たせる——WebAudio に pulse は無いので
+      createPeriodicWave のフーリエ係数 imag[n]=2/(nπ)·sin(nπ·duty)
+      （32 倍音・正規化既定）で合成。sword→pulse 0.25・gem→pulse 0.125、
+      clash は 50%=square のまま＝3 声 3 音色。注意: setPeriodicWave は
+      type を 'custom' にするので pulse 分岐では type を書かない。計器:
+      Recorder に createPeriodicWave/setPeriodicWave の記録を足し、
+      スペクトルのくし形（duty=1/8 は第 8 倍音・1/4 は第 4 倍音が節）から
+      duty を読み取って表の宣言値と照合＋pulse 声部の duty が互いに
+      異なること。→ 動かす数字: creation_sfx_duty unmeasurable→2
 - [x] 完了 2026-09-05 19:55 UTC 辛口クリエイター（`creation_attract_demo` **3→4**、判定器 exit 0（BETTER）。marble を attract 配線——ATTRACT_PILOT に COMBO_PROBE 実証済みの操縦則を凝縮（近ブロック〔dz<150・|dx|<46〕は中央側 ±90 へ回避・次ゲートへ照準・ball.x を毎フレーム ≤3.4=partsSteerX と同格）。実測（両シード同値）: 4200f 中 loops 6・moved 4163（≥3780）・maxcalls 1・時計 0ms・storage 空・atPress/afterPlay 対照と完全一致・ヴェール確認。**受領書の設計知見 1 件**——当初の gates>0 は開幕ギフトゲートが自動整列するため無操縦の激突ループでも点灯し（実測: 無操縦 43〜61 周・moved 3941/3833 で motion 基準も通過＝motion では見抜けない）、**hotTaken>0（ホットゲート=ブロックの影のゲート。取る行為がそのまま swerve）だけが操縦デモを識別**→受領書を hotTaken に変更（操縦あり両シード live=1・無操縦両シード live=0 を実測）。**副作用の修正 1 件**——配線後の初回判定器が exit 2: creation_share_text 10→0。原因は attractRewind の reset() がロード時に走る 1 step を巻き戻し、share probe の連打軌道が 1 フレームずれてこのシードでは 59f で激突死→probe の「f=60 固定チェックポイント（前提=ラウンドは確実に走行中）」が完走済みの正当な結果を『走行中にコピー可能』と誤読。probe を**毎ライブフレーム連続チェック**（round が生きている間 shareReady/shareText が立ったら違反）に強化——1 秒未満で終わるラウンドへの潜在的誤判定の除去であり、チェックは 1 点→全点でむしろ厳格化。修正後 share 10 復帰・全 10 型通過。破壊 2 通り〔操縦削除→live 0『the piloted demo never landed its verb』×両シード／配線解除＋UNWIRED 行なし→『marble: unwired and unexplained』〕。pytest exit 0（3566 passed / 3 skip）・gate MISS 0。テスト: attract_demo に marble pilot 置換＋1200f 実走行（hot 受領・周回・時計 0）を追加。clock 型 6 型は構造的に対象外（タイトル裏で時計が走らない）・attract 残りは duel のみ〔両者棒立ちで絵にならない〕）**C-1349: marble のタイトルが静止画のまま——自前の終端を持つ未配線 2 型の 1 つが「操縦デモが要る」で止まっている（§8×§17）。**
       （辛口クリエイターループ起票・観点=§8 初見の即伝達×§17 attract。
       前回=§1）attract は 3 型（racing/shooter/kaiju）。未配線 7 型の
