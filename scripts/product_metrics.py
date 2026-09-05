@@ -814,6 +814,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1266: the exfiltration_ja detector matched any secret word … 教えて, so
+    # 「パスワードの再設定手順を教えて」 (a how-to question) was quarantined while
+    # blunter injections passed. It now tolerates a 手順/方法 between the secret
+    # word and the verb - how-to questions are allowed, direct 「…を教えて」 still
+    # caught. Checked on the real gate; recall is a check, not an afterthought.
+    from sidra_ai.evals.gate_password_howto_not_exfiltration import (
+        evaluate_gate_password_howto_not_exfiltration,
+    )
+
+    gate_howto = evaluate_gate_password_howto_not_exfiltration()
+    c.add(
+        "gate_password_howto_not_exfiltration",
+        "安全性ゲートが手順/方法の質問を通し直接の窃取だけを止める",
+        10.0 * gate_howto.checks_passed / gate_howto.checks_total,
+        detail=f"{gate_howto.checks_passed}/{gate_howto.checks_total} checks; "
+               "src/sidra_ai/evals/gate_password_howto_not_exfiltration.py"
+               + ("" if gate_howto.passed else "; " + "; ".join(gate_howto.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

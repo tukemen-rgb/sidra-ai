@@ -582,7 +582,16 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
     ),
     (
         "exfiltration_ja",
-        re.compile(r"(システムプロンプト|APIキー|秘密鍵|パスワード)[^。\n]{0,20}(教えて|出力|表示)"),
+        # A 手順/方法 between the secret word and the verb makes this a how-to
+        # question ("パスワードの再設定手順を教えて"), not a request for the secret
+        # value - a common, legitimate question the blunt gap flagged as
+        # exfiltration (C-1266). The tempered gap stops before those nouns, so a
+        # direct "パスワードを教えて" is still caught (no how-to noun in the gap)
+        # while the procedure question is let through.
+        re.compile(
+            r"(システムプロンプト|APIキー|秘密鍵|パスワード)"
+            r"(?:(?!手順|方法)[^。\n]){0,20}(教えて|出力|表示)"
+        ),
         Severity.CRITICAL,
         "attempts to exfiltrate secrets (Japanese)",
     ),
