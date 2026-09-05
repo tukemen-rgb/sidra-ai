@@ -36,7 +36,10 @@ def test_a_grounded_report_carries_facts_with_their_sources() -> None:
     assert verdict["usable"], verdict["failures"]
     assert "482" in document.markdown
     assert "docs/OUTCOMES.md" in document.markdown
-    assert document.markdown.startswith("# 進捗レポート")
+    # The trailing document-kind word is dropped from the title (C-1246): the
+    # file is a report, so 「進捗レポート」 would say 「レポート」 twice (heading,
+    # 概要 and confirmation). The subject alone titles it.
+    assert document.markdown.startswith("# 進捗\n")
 
 
 def test_an_empty_retrieval_produces_blanks_not_filler() -> None:

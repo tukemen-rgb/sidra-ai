@@ -51,9 +51,25 @@ class GeneratedDocument:
     evidence: tuple[str, ...] = field(default_factory=tuple)
 
 
+#: Document-kind nouns a title should not end with, since the artifact already
+#: is one: 「競合分析のレポート」→「競合分析」 (C-1246). Left as one alternation
+#: with an optional leading 「の」, applied once, and only when something is left
+#: in front - 「レポートを作って」 keeps its fallback rather than emptying out.
+_TITLE_KIND_SUFFIX = re.compile(
+    r"の?(?:レポート|ドキュメント|ペーパー|文書|資料|まとめ|report|document|doc)$",
+    re.IGNORECASE,
+)
+
+
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
+    # The subject alone: a report titled 「競合分析のレポート」 says 「レポート」
+    # in its heading, its 概要 and its confirmation, all beside a file that is a
+    # report. Dropped only when a subject remains in front (C-1246).
+    without_kind = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
+    if without_kind:
+        stripped = without_kind
     return stripped[:60] or "レポート"
 
 

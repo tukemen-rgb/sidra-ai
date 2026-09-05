@@ -574,6 +574,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1246: a 「…のレポートを作って」 request titled the report with the whole
+    # phrase, so the kind word doubled in the heading, the 概要 and the
+    # confirmation (「『競合分析のレポート』のレポートを作りました」). The title
+    # is the subject alone now; a request with no kind word is untouched.
+    from sidra_ai.evals.document_title_no_kind_echo import (
+        evaluate_document_title_no_kind_echo,
+    )
+
+    title_echo = evaluate_document_title_no_kind_echo()
+    c.add(
+        "document_title_no_kind_echo",
+        "レポートの題名が「レポート」等の文書種名を二重に言わない",
+        10.0 * title_echo.checks_passed / title_echo.checks_total,
+        detail=f"{title_echo.checks_passed}/{title_echo.checks_total} checks; "
+               "src/sidra_ai/evals/document_title_no_kind_echo.py"
+               + ("" if title_echo.passed else "; " + "; ".join(title_echo.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
