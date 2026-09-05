@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 04:52 辛口クリエイター **C-1336: 音楽が終わりを知らない（区切りの上でも同じループが跳ね続ける・§10）。**
+- [x] 完了 2026-09-05 05:20 UTC 辛口クリエイター（`creation_music_break` unmeasurable→**1**、判定器 exit 0（NEW）。musicTick 冒頭に区切りガード——ROUND_DONE / roundEnded() の間は予約せず MUSIC_NEXT=-1 を張り直す（typeof ガード付き・停止吸収と同じ理由で再開バーストを防ぐ）。新設 END_PROBE で duel を受動敗北させ own-end を実測: 通常 during=21・after=0・resumed=22、難しい版 during=28・after=0・resumed=28、両方 endedBy=template。破壊 2 通り〔ガード削除→0『the loop plays over the break (20 notes)／(17 notes)』・ガード常時 true→0『the music never starts』＋『the music never comes back』〕。pytest exit 0（3420 passed / 3 skip）・gate MISS 0。テスト test_creation_music_break.py 新設。区切りの静寂に勝敗ビートだけが鳴り、R で音楽が戻る）**C-1336: 音楽が終わりを知らない（区切りの上でも同じループが跳ね続ける・§10）。**
       （辛口クリエイターループ起票・観点=§10 BGM。前回=§11。基準不足の
       ため先に外部調査で §10 事実 4 を増築——adaptive music の定石は
       状態遷移で音楽を切り替えること。Frogger は安全地点で即切替、

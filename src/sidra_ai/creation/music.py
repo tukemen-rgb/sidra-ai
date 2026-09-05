@@ -108,6 +108,15 @@ function musicNote(freq,off,dur,vol,wave){
   }catch(err){/* no audio device is a machine, not a bug */}}
 function musicTick(tms){
   if(!MUSIC_ON||MUTED)return;
+  /* The break is quiet (§10 事実 4, C-1336): adaptive music's oldest rule
+     is that the tune answers the state, and the four bars must not keep
+     bouncing over 「ここまで」 or a template's own end screen - that
+     silence belongs to the win/fail beat alone. The reservation clock is
+     dropped so a restart resumes cleanly instead of pouring the paused
+     stretch out as one chord (the suspension guard's reason). typeof-
+     guarded so a page without the round preamble still hums. */
+  try{if((typeof ROUND_DONE!=='undefined'&&ROUND_DONE)||
+    (typeof roundEnded==='function'&&roundEnded())){MUSIC_NEXT=-1;return}}catch(e){}
   const now=tms/1000;
   /* First tick, and any long suspension, restart the reservation clock:
      catching up a paused tab in one burst would be a chord of the whole
@@ -203,4 +212,67 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-__all__ = ["MUSIC_PREAMBLE", "PREAMBLE_NAMES", "PROBE", "probe_source"]
+#: The break heard, not read (§10 事実 4, C-1336): a duel left alone loses
+#: on its own screen, and the reservations are counted in three windows -
+#: playing, over the end screen, and after R brings a new round. The tune
+#: must run, fall silent, and come back.
+END_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+/* The gate press arms the music the way any first input would. */
+key(' ');
+run(30);
+const n0 = MUSIC_N; run(300);
+const during = MUSIC_N - n0;
+/* Left alone, the duel is lost on its own screen well inside the clock. */
+let guard = 0;
+while (!(roundFacts().ended || roundFacts().done) && guard++ < 9000) run(1);
+const endedBy = roundFacts().done ? 'clock' : 'template';
+const n1 = MUSIC_N; run(300);
+const after = MUSIC_N - n1;
+/* R starts a new round in place; the tune belongs to it again. */
+key('r');
+run(10);
+const n2 = MUSIC_N; run(300);
+const resumed = MUSIC_N - n2;
+console.log(JSON.stringify({
+  during: during, after: after, resumed: resumed, endedBy: endedBy,
+}));
+"""
+
+
+def end_probe(script: str) -> str:
+    """The page's own script, wrapped so the break's silence can be heard."""
+
+    return END_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+__all__ = [
+    "END_PROBE",
+    "MUSIC_PREAMBLE",
+    "PREAMBLE_NAMES",
+    "PROBE",
+    "end_probe",
+    "probe_source",
+]

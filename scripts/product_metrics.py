@@ -3794,6 +3794,66 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the break is quiet ---------------------------------------------
+    #
+    # §10 事実 4 (C-1336): adaptive music's oldest rule is that the tune
+    # answers the state - Frogger switches the moment you are safe - and
+    # the four bars were bouncing over 「ここまで」 and every template's
+    # own end screen, painting over the very silence the win/fail beats
+    # ring in. Heard, not read: a duel left alone loses on its own screen,
+    # and the reservations are counted in three 300-frame windows -
+    # playing, over the end screen, after R brings a new round.
+    import re as _mb_re
+    import subprocess as _mb_sp
+
+    from sidra_ai.creation.music import end_probe as _mb_probe
+
+    music_break_gaps: list[str] = []
+    for _mb_request in ("ビームで撃ち合うゲームを作って", "難しいビームで撃ち合うゲームを作って"):
+        _mb_page = generate_game(_mb_request).html
+        _mb_script = _mb_re.search(r"<script>(.*?)</script>", _mb_page, _mb_re.S)
+        if _mb_script is None:
+            music_break_gaps.append(f"{_mb_request}: no script")
+            continue
+        try:
+            _mb_run = _mb_sp.run(
+                ["node", "-"],
+                input=_mb_probe(_mb_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if _mb_run.returncode != 0:
+                music_break_gaps.append(f"{_mb_request}: {_mb_run.stderr.strip()[:80]}")
+                continue
+            _mb = json.loads(_mb_run.stdout.strip().splitlines()[-1])
+        except (OSError, _mb_sp.SubprocessError, ValueError) as exc:
+            music_break_gaps.append(f"{_mb_request}: probe unavailable ({type(exc).__name__})")
+            continue
+        if _mb["endedBy"] != "template":
+            music_break_gaps.append(f"{_mb_request}: the duel never reached its own end")
+        if _mb["during"] <= 0:
+            music_break_gaps.append(f"{_mb_request}: the music never starts")
+        if _mb["after"] != 0:
+            music_break_gaps.append(
+                f"{_mb_request}: the loop plays over the break ({_mb['after']} notes)"
+            )
+        if _mb["resumed"] <= 0:
+            music_break_gaps.append(f"{_mb_request}: the music never comes back")
+    c.add(
+        "creation_music_break",
+        "区切りでは音楽も止まる",
+        1.0 if not music_break_gaps else 0.0,
+        detail=(
+            "duel を受動で敗北させ実測: プレイ中 300f は予約あり、終了画面の"
+            "上では 0、R の新ラウンドで再開（§10 事実 4 の adaptive music。"
+            "勝敗ビートの鳴る静寂を BGM が塗り潰さない）"
+            if not music_break_gaps
+            else "; ".join(music_break_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the tune is not allowed to lean on a wall ----------------------
     #
     # C-1129 (批評 #13). The melody is a random walk over ten pentatonic
