@@ -3599,6 +3599,92 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the HUD is painted, not declared (§4, C-1352) -----------------
+    #
+    # The contrast judge above blends hudFacts()'s DECLARED ink, plate
+    # and alpha - C-1337's destructions recorded the limit: delete the
+    # painting, keep the constants, and it still scores full marks. This
+    # judge closes that: a recording context reads the last frame's real
+    # fillRect/fillText calls off the running page and checks the
+    # declared plate colour was actually filled at the declared alpha,
+    # and the declared ink actually wrote text. Together the two judges
+    # say: the declaration is readable, AND the page really paints it.
+    from sidra_ai.creation.games import TEMPLATES as _hp_templates
+    from sidra_ai.creation.hudpaint import paint_probe as _hp_probe
+
+    hp_gaps: list[str] = []
+    for _hp_key in sorted(_hp_templates):
+        _hp_page = generate_game("ゲームを作って", template=_hp_key).html
+        _hp_script = _scene_re.search(r"<script>(.*?)</script>", _hp_page, _scene_re.S)
+        if _hp_script is None:
+            hp_gaps.append(f"{_hp_key}: no script")
+            continue
+        try:
+            _hp_run = _scene_sp.run(
+                ["node", "-"],
+                input=_hp_probe(_hp_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _hp_run.returncode != 0:
+                raise ValueError(_hp_run.stderr.strip()[:60])
+            _hp = json.loads(_hp_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            hp_gaps.append(f"{_hp_key}: probe unavailable ({exc})")
+            continue
+        _hp_hud, _hp_ops = _hp.get("hud") or {}, _hp.get("ops") or []
+        _hp_plate = [
+            o
+            for o in _hp_ops
+            if o["t"] == "r"
+            and o["s"].lower() == str(_hp_hud.get("plate", "")).lower()
+            and abs(o["a"] - float(_hp_hud.get("alpha", -1))) < 0.01
+        ]
+        _hp_ink = [
+            o
+            for o in _hp_ops
+            if o["t"] == "t" and o["s"].lower() == str(_hp_hud.get("ink", "")).lower()
+        ]
+        # The text has to sit ON the plate it was declared against - ink
+        # somewhere else on screen is a different sentence: the wrong-ink
+        # destruction slipped a colour-only check because marble's popup
+        # numbers also write in the theme ink.
+        _hp_pairs = [
+            (P, T)
+            for P in _hp_plate
+            for T in _hp_ink
+            if P["x"] - 6 <= T["x"] <= P["x"] + P["w"] + 6
+            and P["y"] - 6 <= T["y"] <= P["y"] + P["h"] + 6
+        ]
+        if not _hp_ops:
+            hp_gaps.append(f"{_hp_key}: the page painted nothing at all")
+        elif not _hp_plate:
+            hp_gaps.append(
+                f"{_hp_key}: the declared plate {_hp_hud.get('plate')} was never "
+                f"filled at alpha {_hp_hud.get('alpha')}"
+            )
+        elif not _hp_pairs:
+            hp_gaps.append(
+                f"{_hp_key}: no text in the declared ink {_hp_hud.get('ink')} "
+                "sits on the declared plate"
+            )
+    c.add(
+        "creation_hud_painted",
+        "宣言どおりに HUD を実際に塗っている型",
+        float(len(_hp_templates)) if not hp_gaps else 0.0,
+        detail=(
+            "; ".join(hp_gaps)
+            if hp_gaps
+            else "全 10 型を実走行し、最終フレームの実描画命令を記録型"
+            "コンテキストで読んだ: hudFacts() が宣言する plate 色が宣言 alpha "
+            "で実際に fillRect され、宣言 ink 色で実際に fillText されている"
+            "（C-1337 の記録限界「宣言だけ残して塗りを消しても満点」を閉じる"
+            "——上の contrast 判定器と併せて『読める宣言』かつ『本当に塗る』）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the road's edge survives every paint -------------------------
     #
     # §4 (C-1347): the roadside ticks and the start/finish band are the
