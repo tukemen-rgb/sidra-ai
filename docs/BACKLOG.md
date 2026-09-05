@@ -4689,6 +4689,17 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_adventure_losable unmeasurable→1（運転器の走行で hp が
       実際に減り 'over' に到達すること。破壊〔草を斬らない運転に戻す〕で
       0 に落ちること）
+- [ ] **C-1425: adventure の敗因一言（C-1423 の再挑戦・運転器あり）。**
+      （進捗監視起票 2026-09-05・根拠: C-1423 は「負けの道を運転できる
+      計器が無い」ことを実測して未完で閉じ、その計器は C-1424 で完成
+      （creation_adventure_losable 0→1）。前提が満たされたので本体を
+      新番号で再挑戦する）中身は C-1423 の起票文のとおり: hero の被弾を
+      種類別に集計（挙動不変・数えるだけ）し、'over' の帯が最多の
+      被弾源を一言。0 のカウンタを名指ししない規則は C-1409 と同じ。
+      検証は C-1424 の運転器で負けて行う。→ 動かす数字:
+      creation_adventure_loss_recap unmeasurable→1（運転器で負けた走行に
+      最多被弾源の一言があり、集計が生のページ状態から独立に導いた値と
+      一致することを検査。破壊で 0）
       **結果 2026-09-05 09:35 ループA**（`creation_adventure_losable`
       unmeasurable→1、判定器 exit 0・他の数字は動かず・pytest 全緑・
       verify_gate_recall MISS 0/誤検知 0）
