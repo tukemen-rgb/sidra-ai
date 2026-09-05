@@ -7815,3 +7815,18 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-05 10:22 進捗監視 前進あり: C-1341 完了（かごの拡縮バウンス・09:59）。ループA は C-1425（adventure の敗因一言・再挑戦分）へ 10:07 着手、C-1254（10:15 ユーザー claim）進行中。停滞なし。記録のみ。
 2026-09-05 10:42 UTC ループA 完了 C-1425 adventure の敗因一言 — creation_adventure_loss_recap unmeasurable→1（creation_loss_recap 1→1 維持）、判定器 exit 0、pytest 全緑、verify_gate_recall MISS 0、Board=13
+2026-09-05 10:4x UTC 辛口ユーザー C-1254 完了（質問応答/CLI・31 巡目）
+  cli_refusal_no_index_note 6 -> 10（判定器 exit 0）。観点=質問応答/CLI
+  （前回=生成ゲーム C-1253）。最悪点: sidra-ask で安全性ゲート拒否後に
+  「引用なし。索引に根拠が無いか、取り込みがまだ走っていない。」と出て、拒否理由を
+  索引未取込のせいに誤誘導していた（利用者が無駄に再取込を疑う）。Web UI は
+  空引用で return するため正しく、CLI の render() 拒否分岐が _print_citations を
+  呼び誤誘導文言を出していた。
+  実装: _print_citations に note_when_empty=True 引数、拒否分岐は False で呼ぶ。
+  引用があれば表示、拒否＋空引用では文言なし。通常の根拠なしは既定 True で不変。
+  判定器（新設）: 拒否/根拠なしペイロードを render() に通し標準出力を検査。
+  5 破壊: 拒否で True 渡し 6 / 常に print 6 / 既定 False で根拠なしも抑制 8 /
+  拒否 exit 0 化 8 / 別 print で文言漏れ 6、復元 10.0。
+  pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）。
+  CLI 実測: インジェクション拒否は文言なし exit 3、「あ」の根拠なしは文言あり exit 0。
+  作業メモ: 破壊検証中に stale .pyc で render 誤値の混乱→pycache 掃除で解消（成果物に影響なし）。

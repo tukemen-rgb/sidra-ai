@@ -1126,6 +1126,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1254: after a safety refusal the CLI still printed the no-evidence note
+    # 「索引に根拠が無いか、取り込みがまだ走っていない」, blaming ingestion for a
+    # refusal. The refusal path omits the index note now; a genuine no-evidence
+    # answer keeps it.
+    from sidra_ai.evals.cli_refusal_no_index_note import (
+        evaluate_cli_refusal_no_index_note,
+    )
+
+    cli_refusal = evaluate_cli_refusal_no_index_note()
+    c.add(
+        "cli_refusal_no_index_note",
+        "拒否時に索引未取込へ誤誘導する文言を出さない（通常の根拠なしでは出す）",
+        10.0 * cli_refusal.checks_passed / cli_refusal.checks_total,
+        detail=f"{cli_refusal.checks_passed}/{cli_refusal.checks_total} checks; "
+               "src/sidra_ai/evals/cli_refusal_no_index_note.py"
+               + ("" if cli_refusal.passed else "; " + "; ".join(cli_refusal.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1238: a gate refusal put the gate's English audit reason into the
     # response, and both the web page and the CLI showed it verbatim -
     # 「拒否されました: prompt-injection patterns detected…」. The API reason stays

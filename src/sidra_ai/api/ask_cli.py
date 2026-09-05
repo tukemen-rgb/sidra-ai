@@ -162,10 +162,18 @@ def authorization_header(url: str, settings: Settings) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _print_citations(payload: dict[str, Any], clean: _Stripped) -> None:
+def _print_citations(
+    payload: dict[str, Any], clean: _Stripped, note_when_empty: bool = True
+) -> None:
     citations = payload.get("citations") or []
     if not citations:
-        print("\n引用なし。索引に根拠が無いか、取り込みがまだ走っていない。")
+        # The "no evidence in the index" note explains an *answered* question
+        # that found nothing. After a safety refusal there are also no citations,
+        # but the reason is the gate, not the index - printing this note there
+        # sends the reader to re-run ingestion for a problem ingestion cannot
+        # fix (C-1254). The refusal path passes note_when_empty=False.
+        if note_when_empty:
+            print("\n引用なし。索引に根拠が無いか、取り込みがまだ走っていない。")
         return
 
     print("\n引用:")
@@ -209,7 +217,10 @@ def render(payload: dict[str, Any]) -> int:
             )
         else:
             print("回答を出せなかった。少し時間をおいて、もう一度試す。")
-        _print_citations(payload, clean)
+        # A refusal has no citations, and the "no evidence in the index" note
+        # would misread as an ingestion problem (C-1254). Show citations only if
+        # the gate somehow surfaced any; never the empty-index note.
+        _print_citations(payload, clean, note_when_empty=False)
         _report_stripped(clean)
         return 3
 
