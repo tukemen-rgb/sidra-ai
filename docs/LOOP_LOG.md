@@ -7475,3 +7475,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest exit 0（3369 passed / 3 skip）/ gate exit 0（MISS 0）。
   marble/platformer の 2 体目は次候補として記録。
 
+
+2026-09-05 02:5x 進捗監視 前進あり: C-1418 完了（creation_score_float 0→1）・C-1333 完了（2 体目のゴースト）。補充 8 件が全消化＝次巡ループA が空になるため補充: C-1419（kaiju グレイズ・GRAZE_UNWIRED が「the obvious next one」と自己申告）・C-1420（marble コンボ・COMBO_UNWIRED の「要決定」を §13 と C-1411 の和の前例で解いて起票——影の門の上乗せは倍率の外で足す）。C-1334（02:42 クリエイター）・C-1246（02:15 ユーザー）進行中。

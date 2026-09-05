@@ -4332,6 +4332,28 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_score_float unmeasurable→1（得点イベントのフレームに
       浮き文字が現れ、値が合計の増分と一致し、上限を超えず、reduced で
       出ないことを検査。破壊で 0）
+- [ ] **C-1419: kaiju にグレイズ（3 型目の配線）。**（進捗監視起票
+      2026-09-05・根拠は graze.py の GRAZE_UNWIRED 自身の記述「the obvious
+      next one: the fists have a reach and a near-miss is legible」）
+      C-1406 の帯部品を kaiju の拳に配線する: 拳の当たり判定の外側の帯を
+      無傷でかすめたサイクルが加点。当たり判定・拳のリーチ・難度は不変
+      （C-1406 と同じ契約）。reduced では粒子なし・点は入る。→ 動かす
+      数字: creation_kaiju_graze unmeasurable→1（帯内無傷通過のフレームで
+      加点され、被弾したサイクルでは入らず、判定半径が実測で不変である
+      ことをページ実走行で検査。破壊で 0）
+- [ ] **C-1420: marble にコンボ（3 型目の配線）——二重ボーナスは和で。**
+      （進捗監視起票 2026-09-05・根拠は combo.py の COMBO_UNWIRED 自身の
+      記述「gates are discrete, but C-1313 just made some of them worth
+      double - two multipliers at once needs a decision」。その decision を
+      ここで解く: **コンボ倍率は門の基礎値だけに掛け、C-1313 の影の門の
+      上乗せ分は倍率の外で足す（和）**。積にすると最上段の支払いが
+      基礎値×2×倍率と読めなくなり §13 の「リスクとリワードが読める」に
+      反する。段をまたぐ支払いを和とした C-1411 の前例とも同型。E 節
+      基準に非該当のループ裁量設計判断＝C-1404/C-1410 と同格）C-1405 の
+      部品で連続通過（落下で途切れる）の倍率を積む。→ 動かす数字:
+      creation_marble_combo unmeasurable→1（連続通過で倍率が積まれ、落下
+      で 1 に戻り、影の門の支払いが「基礎×倍率＋基礎」と実測一致する
+      ことを検査。破壊で 0）
       **結果**: 呼び出しは `score+=scorePop(x,y,n)`——浮かべる数を返すので
       描く数と入る数が同一の値になり、「別々に保つ 2 つ」にならない。
       **判定器づくりで製品の穴が 1 つ見つかった**: shooter の掠りボーナスは
