@@ -4938,21 +4938,6 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_puzzle_jam_recap unmeasurable→1（詰みで終えた走行に原因の
       一言があり、集計が生の盤面状態から独立に導いた値と一致することを
       検査。破壊で 0）
-- [ ] **C-1429: racing にグレイズ（4 型目の配線）——帯は障害物 1 個につき
-      1 回。**（進捗監視起票 2026-09-05・当初 C-1428 で起票したが同時刻に
-      ループA が C-1428〔puzzle のハンマー詰み〕を先に main へ載せていた
-      ため改番・根拠は graze.py の GRAZE_UNWIRED
-      自身の記述「the barriers are the hazard, but the car is steered along
-      them for whole seconds - a band would pay continuously」。その問いを
-      ここで解く: **支払いの単位は時間でなく障害物**——帯の内側で障害物を
-      1 個かわすごとに 1 回だけ払う（racing.py には既に `passed` の離散
-      カウンタがある）。連続支払いは「壁ぎわを走り続ける」だけの作業を
-      報酬にし、§13 の「リスクは選択」に反する。shooter が機体 1 機ごと
-      に払う C-1406 と同じ離散化）C-1406 の帯部品を racing の障害物すれ
-      違いに配線。当たり判定・速度・難度は不変（C-1406/C-1419 と同じ
-      契約）。→ 動かす数字: creation_racing_graze unmeasurable→1（帯内で
-      かわした障害物の数だけ加点され、同じ障害物で二重に払わず、被弾した
-      走行区間では入らず、判定半径が実測で不変であることを検査。破壊で 0）
       **結果 2026-09-05 14:45 ループA**（`creation_puzzle_jam_recap`
       unmeasurable→1・`creation_loss_recap` 1→1 維持・判定器 exit 0・
       pytest 全緑・verify_gate_recall MISS 0/誤検知 0）
@@ -5000,6 +4985,21 @@ C-12xx/13xx/14xx はループ用のまま）。
       KeyError 4 件。C-1422・C-1426 と同じ「並行する 2 つの表」問題なので、
       今回は **`set(ASKS) == set(LOSS_WIRED)` を検査するテストを追加**した。
       次に型を配線する人は 4 件の KeyError ではなく 1 文で気づく。
+- [~] 作業中 2026-09-05 14:10 ループA **C-1429: racing にグレイズ（4 型目の配線）——帯は障害物 1 個につき
+      1 回。**（進捗監視起票 2026-09-05・当初 C-1428 で起票したが同時刻に
+      ループA が C-1428〔puzzle のハンマー詰み〕を先に main へ載せていた
+      ため改番・根拠は graze.py の GRAZE_UNWIRED
+      自身の記述「the barriers are the hazard, but the car is steered along
+      them for whole seconds - a band would pay continuously」。その問いを
+      ここで解く: **支払いの単位は時間でなく障害物**——帯の内側で障害物を
+      1 個かわすごとに 1 回だけ払う（racing.py には既に `passed` の離散
+      カウンタがある）。連続支払いは「壁ぎわを走り続ける」だけの作業を
+      報酬にし、§13 の「リスクは選択」に反する。shooter が機体 1 機ごと
+      に払う C-1406 と同じ離散化）C-1406 の帯部品を racing の障害物すれ
+      違いに配線。当たり判定・速度・難度は不変（C-1406/C-1419 と同じ
+      契約）。→ 動かす数字: creation_racing_graze unmeasurable→1（帯内で
+      かわした障害物の数だけ加点され、同じ障害物で二重に払わず、被弾した
+      走行区間では入らず、判定半径が実測で不変であることを検査。破壊で 0）
 - [ ] **C-1428: puzzle はハンマーを持ったまま「詰み」と宣言する（C-1427 の実測で発見）。**
       （ループA 起票 2026-09-05・C-1427 の計測中に出た**製品側の欠陥**。
       起票者の想像ではなく実走行の数字）
