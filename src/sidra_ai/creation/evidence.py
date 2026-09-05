@@ -82,10 +82,20 @@ _MD_TABLE_SEP = re.compile(r"(?m)^[ \t]*\|?[ \t:|]*-{2,}[ \t:|-]*$")
 #: Line-anchored on both ends, so a mid-sentence 「a|b」 is never touched.
 _MD_TABLE_ROW = re.compile(r"(?m)^[ \t]*\|(?P<cells>.+)\|[ \t]*$")
 
+#: Ends a flattened row (C-1245). ``plain_text`` finishes with
+#: ``" ".join(text.split())``, which collapses the newlines between rows, so a
+#: multi-row table would run together and the 「 / 」 inside a row would be
+#: indistinguishable from the space between rows. A delimiter that is not
+#: whitespace survives the collapse, keeping 「項目 / 内容」 and 「運営歴 / 約20年」
+#: visibly two rows. Not a sentence terminator, so :func:`whole_sentences`
+#: does not treat a row boundary as the end of the excerpt.
+_TABLE_ROW_END = "；"
+
 
 def _flatten_table_row(match: "re.Match[str]") -> str:
     cells = [cell.strip() for cell in match.group("cells").split("|")]
-    return " / ".join(cell for cell in cells if cell)
+    joined = " / ".join(cell for cell in cells if cell)
+    return joined + _TABLE_ROW_END if joined else joined
 
 
 def plain_text(text: str) -> str:
@@ -104,7 +114,10 @@ def plain_text(text: str) -> str:
 
     A Markdown table is flattened rather than shown as bars (C-1226): its
     separator row is dropped and each body row's cells are joined with 「 / 」,
-    so a stats table reads as prose instead of 「| --- | --- |」.
+    so a stats table reads as prose instead of 「| --- | --- |」. Each row also
+    ends with 「；」 (C-1245), because the final whitespace collapse would
+    otherwise merge the rows into one run where 「 / 」 and the row break look
+    the same.
 
     A Markdown link keeps its text and loses its URL (C-1227): 「[SPEC.md](../
     SPEC.md)」 becomes 「SPEC.md」, so the brackets and a possibly-redacted URL

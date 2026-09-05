@@ -809,6 +809,23 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1245: C-1226 joined a table's cells with 「 / 」 but plain_text's final
+    # whitespace collapse merged the newlines between rows, so a multi-row table
+    # ran together (「項目 / 内容 運営歴 / 約20年 核 / …」) and could not be read
+    # as rows. Rows now carry a delimiter that survives the collapse.
+    from sidra_ai.evals.table_rows_readable import evaluate_table_rows_readable
+
+    table_rows = evaluate_table_rows_readable()
+    c.add(
+        "qa_table_rows_readable",
+        "引用の表が行ごとに区切れて読める（1 行に潰れない）",
+        10.0 * table_rows.checks_passed / table_rows.checks_total,
+        detail=f"{table_rows.checks_passed}/{table_rows.checks_total} checks; "
+               "src/sidra_ai/evals/table_rows_readable.py"
+               + ("" if table_rows.passed else "; " + "; ".join(table_rows.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1227: a cited Markdown link leaked its brackets and URL - and a
     # guard-redacted URL showed 「[REDACTED:high_entropy:…]」 in what was a
     # relative path. plain_text now keeps the link text and drops the URL,
