@@ -5247,18 +5247,6 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま x が進み場面が変わること、デモ中に
       点・best・履歴が動かないこと、押下後が初期状態であることを検査。
       破壊で 0）
-- [ ] **C-1434: duel の幕の裏で撃ち合いが見える（attract パイロット 4 例目）。**
-      （進捗監視起票 2026-09-05・根拠は attract.py の ATTRACT_UNWIRED
-      実読「duel: both fighters wait for a button; the screen would show
-      two idle poses」＋確立済みのパイロット前例: C-1338 shooter・
-      C-1349 marble・C-1433 platformer〔進行中〕。幕の裏では簡単な
-      タイマーで両者が交互にビームを撃ち合う——残る未配線の中で最も
-      「動けばゲームに見える」型。条件は §17 と同じ: デモ中は点も best も
-      履歴も一切積まない・押下で必ず初期状態から・パイロットは幕の裏
-      専用で本体入力系に触れない。→ 動かす数字: creation_duel_attract
-      unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
-      デモ中に点・best が動かないこと、押下後が初期状態であることを
-      検査。破壊で 0）
       **結果 2026-09-05 19:45 ループA**（`creation_score_history`
       unmeasurable→1・判定器 exit 0・pytest 全緑・
       verify_gate_recall MISS 0/誤検知 0）
@@ -5282,6 +5270,18 @@ C-12xx/13xx/14xx はループ用のまま）。
       選んだら黙って上書きせず sweep で落ちる」ための仕組み。
       `sidra.runs.` を登録せずに増やしたので 10 型すべてで落ちた——
       **仕組みが意図どおり働いた**。台帳に登録して解消。
+- [~] 作業中 2026-09-05 21:08 ループA **C-1434: duel の幕の裏で撃ち合いが見える（attract パイロット 4 例目）。**
+      （進捗監視起票 2026-09-05・根拠は attract.py の ATTRACT_UNWIRED
+      実読「duel: both fighters wait for a button; the screen would show
+      two idle poses」＋確立済みのパイロット前例: C-1338 shooter・
+      C-1349 marble・C-1433 platformer〔進行中〕。幕の裏では簡単な
+      タイマーで両者が交互にビームを撃ち合う——残る未配線の中で最も
+      「動けばゲームに見える」型。条件は §17 と同じ: デモ中は点も best も
+      履歴も一切積まない・押下で必ず初期状態から・パイロットは幕の裏
+      専用で本体入力系に触れない。→ 動かす数字: creation_duel_attract
+      unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
+      デモ中に点・best が動かないこと、押下後が初期状態であることを
+      検査。破壊で 0）
 - [記録] 未完 2026-09-05 15:15 ループA（実装せず・前提が実測と食い違ったため。判定器 exit 0 だが動いたのは他ループの数字で、`creation_racing_graze` は作っていない）**C-1429: racing にグレイズ（4 型目の配線）——帯は障害物 1 個につき
       1 回。**（進捗監視起票 2026-09-05・当初 C-1428 で起票したが同時刻に
       ループA が C-1428〔puzzle のハンマー詰み〕を先に main へ載せていた
