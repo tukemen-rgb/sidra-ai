@@ -195,6 +195,14 @@ function step(){
      its second template by C-1412). Placed at the marble's own depth so
      the two are compared where the player is looking, and under it so the
      present is never hidden by the past. */
+  /* The second ghost (§11, C-1335): the run before this one, an
+     outline at the marble's own depth, under the best so the record
+     stays on top - and one body when the last run IS the record. */
+  const glz=ghostAtLast(ball.z);
+  if(glz!==null){const lp=proj(glz,8,NEAR+34),lr=13*lp.s;
+    cx.save();cx.globalAlpha=0.35;
+    cx.strokeStyle=shade(TUNE_ACCENT,0.9);cx.lineWidth=1;
+    cx.beginPath();cx.arc(lp.x,lp.y,lr,0,6.2832);cx.stroke();cx.restore()}
   const gx=ghostAt(ball.z);
   if(gx!==null){const gp=proj(gx,8,NEAR+34),gr=13*gp.s;
     cx.save();cx.globalAlpha=0.32;

@@ -7650,15 +7650,88 @@ def measure_creation(c: Collector) -> None:
             sg_gaps.append("the switch does not put both ghosts away")
         if sg_off["ghost"]["runHash"] != sg_second["ghost"]["runHash"]:
             sg_gaps.append("the second ghost changed how the race went")
+    sg_courses = 1 if sg_first is not None and not sg_gaps else 0
+    # The other two courses (C-1335): same-speed second run, so the score
+    # ties the best exactly - neither has a tiebreak, so a tie is not a
+    # record and the best trail must sit still while both ghosts run. The
+    # "defeat updates the last key" half stays racing's, whose slowed run
+    # actually produces a different trail to see it with.
+    for _sg_t, _sg_req in (
+        ("marble", "玉転がしゲームを作って"),
+        ("platformer", "ジャンプアクションを作って"),
+    ):
+        _sg_page = _tune_generate(_sg_req, template=_sg_t).html
+        _sg_found = _scene_re.search(r"<script>(.*?)</script>", _sg_page, _scene_re.S)
+        if _sg_found is None:
+            sg_gaps.append(f"{_sg_t}: no script")
+            continue
+
+        def _sg_run_t(stored, _script=_sg_found.group(1), _t=_sg_t):
+            source = _board_probe(
+                _script,
+                speed_expr=_board_binding[_t],
+                frames=3800,
+                stored=stored,
+            ).replace(
+                "  writes: [...new Set(allWrites)].sort(),",
+                "  writes: [...new Set(allWrites)].sort(), ghost: ghostFacts(),"
+                f" trail: allStored['sidra.ghost.{_t}']||null,"
+                f" lastTrail: allStored['sidra.ghost.last.{_t}']||null,"
+                " score: roundFacts().score,",
+            )
+            out = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=300
+            )
+            if out.returncode != 0:
+                raise ValueError(out.stderr.strip()[:80])
+            return json.loads(out.stdout.strip().splitlines()[-1])
+
+        try:
+            _sg_b = {f"sidra.seen.{_sg_t}": "1"}
+            _sg_1 = _sg_run_t(dict(_sg_b))
+            if not _sg_1["lastTrail"]:
+                sg_gaps.append(f"{_sg_t}: the first finished run saved no last trail")
+                continue
+            _sg_c = {
+                **_sg_b,
+                f"sidra.ghost.{_sg_t}": _sg_1["trail"],
+                f"sidra.ghost.last.{_sg_t}": _sg_1["lastTrail"],
+                f"sidra.best.{_sg_t}": str(_sg_1["score"]),
+            }
+            _sg_2 = _sg_run_t(dict(_sg_c))
+            _sg_o = _sg_run_t({**_sg_c, f"sidra.tune.{_sg_t}": {"ghost": False}})
+        except (OSError, _scene_sp.SubprocessError, ValueError, KeyError, TypeError) as exc:
+            sg_gaps.append(f"{_sg_t}: probe unavailable ({exc})")
+            continue
+        ok = True
+        if not _sg_2["ghost"]["lastDrawn"]:
+            sg_gaps.append(f"{_sg_t}: the last run left no ghost")
+            ok = False
+        if not _sg_2["ghost"]["drawn"]:
+            sg_gaps.append(f"{_sg_t}: the best ghost vanished when the second arrived")
+            ok = False
+        if _sg_2["trail"] != _sg_1["trail"]:
+            sg_gaps.append(f"{_sg_t}: a tie overwrote the record's trail")
+            ok = False
+        if _sg_o["ghost"]["lastDrawn"] or _sg_o["ghost"]["drawn"]:
+            sg_gaps.append(f"{_sg_t}: the switch does not put both ghosts away")
+            ok = False
+        if _sg_o["ghost"]["runHash"] != _sg_2["ghost"]["runHash"]:
+            sg_gaps.append(f"{_sg_t}: the second ghost changed how the run went")
+            ok = False
+        if ok:
+            sg_courses += 1
     c.add(
         "creation_second_ghost",
         "直前の自分も隣を走る",
-        1.0 if not sg_gaps else 0.0,
+        float(sg_courses) if not sg_gaps else 0.0,
         detail=(
-            "racing を 3 走: 初回が両軌跡を保存、記録に届かない減速走行が"
-            "ベストと直前の両ゴーストに会い、その敗北は直前鍵だけを更新"
-            "（ベスト軌跡は不変＝壁は転倒で置き換わらない）、パネルで両方"
-            "消えて走りは不変（§11 事実 1: 複数ゴーストで効果 2 倍）"
+            "コース 3 型が三走契約に合格（C-1335 で定義を 0/1→合格コース数へ。"
+            "旧定義では racing のみで 1、実際の前進は 1→3）。racing は完全"
+            "契約: 記録に届かない減速走行が両ゴーストに会い、敗北は直前鍵"
+            "だけを更新しベスト軌跡は不変。marble/platformer は同速 2 走目"
+            "（同点＝記録でない）でベスト鍵不変・両ゴースト描画・パネルで"
+            "両方消えて走りは不変（§11 事実 1: 複数ゴーストで効果 2 倍）"
             if not sg_gaps
             else "; ".join(sg_gaps)
         ),

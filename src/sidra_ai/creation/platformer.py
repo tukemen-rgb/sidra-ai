@@ -257,6 +257,12 @@ function draw(now){
      no collision, no score, no sound (C-1401's contract, third template
      by C-1330). At the hero's own screen x, at the height the record run
      had here, and before the hero, so the present is never hidden. */
+  /* The second ghost (§11, C-1335): yesterday's height at this point
+     of the course, an outline under the best. */
+  const gly=ghostAtLast(me.x);
+  if(gly!==null){cx.save();cx.globalAlpha=0.35;
+    cx.strokeStyle=TUNE_ACCENT;cx.lineWidth=1;
+    cx.strokeRect(px-7.5,gly-18.5,15,13);cx.restore()}
   const gy=ghostAt(me.x);
   if(gy!==null){cx.save();cx.globalAlpha=0.32;
     cx.fillStyle=TUNE_ACCENT;cx.fillRect(px-7,gy-18,14,12);

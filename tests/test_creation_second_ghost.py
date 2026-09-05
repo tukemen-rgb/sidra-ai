@@ -38,6 +38,56 @@ def _run(script: str, stored: dict) -> dict:
     return json.loads(probe.stdout.strip().splitlines()[-1])
 
 
+@pytest.mark.parametrize(
+    ("template", "request_"),
+    [("marble", "玉転がしゲームを作って"), ("platformer", "ジャンプアクションを作って")],
+)
+def test_the_other_courses_run_both_ghosts_and_spare_the_record(
+    template: str, request_: str
+) -> None:
+    """C-1335: same-speed second run - a tie is not a record, so the best
+    trail must sit still while both ghosts run beside it."""
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive three runs")
+    page = generate_game(request_, template=template).html
+    found = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert found is not None
+    script = found.group(1)
+
+    def _run_t(stored: dict) -> dict:
+        source = probe_source(
+            script, speed_expr=SPEED_BINDING[template], frames=3800, stored=stored
+        ).replace(
+            "  writes: [...new Set(allWrites)].sort(),",
+            "  writes: [...new Set(allWrites)].sort(), ghost: ghostFacts(),"
+            f" trail: allStored['sidra.ghost.{template}']||null,"
+            f" lastTrail: allStored['sidra.ghost.last.{template}']||null,"
+            " score: roundFacts().score,",
+        )
+        probe = subprocess.run(
+            ["node", "-"], input=source, capture_output=True, text=True, timeout=300
+        )
+        assert probe.returncode == 0, probe.stderr[:400]
+        return json.loads(probe.stdout.strip().splitlines()[-1])
+
+    base = {f"sidra.seen.{template}": "1"}
+    first = _run_t(dict(base))
+    assert first["lastTrail"], "the first run saved no last trail"
+    carry = {
+        **base,
+        f"sidra.ghost.{template}": first["trail"],
+        f"sidra.ghost.last.{template}": first["lastTrail"],
+        f"sidra.best.{template}": str(first["score"]),
+    }
+    second = _run_t(dict(carry))
+    assert second["ghost"]["lastDrawn"] >= 1 and second["ghost"]["drawn"] >= 1
+    assert second["trail"] == first["trail"], "a tie overwrote the record's trail"
+    off = _run_t({**carry, f"sidra.tune.{template}": {"ghost": False}})
+    assert off["ghost"]["drawn"] == 0 and off["ghost"]["lastDrawn"] == 0
+    assert off["ghost"]["runHash"] == second["ghost"]["runHash"]
+
+
 def test_the_defeated_run_becomes_the_second_ghost_and_spares_the_record() -> None:
     if shutil.which("node") is None:  # pragma: no cover - environment guard
         pytest.skip("node is required to drive three runs")

@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 03:52 辛口クリエイター **C-1335: 2 体目のゴーストがコース 3 本のうち racing にしか居ない（C-1333 の次候補・§11）。**
+- [x] 完了 2026-09-05 04:25 UTC 辛口クリエイター（`creation_second_ghost` **1→3**、判定器 exit 0。定義を 0/1→「三走契約に合格したコース型の数」へ変更（C-1121 の前例どおり両定義併記: 旧定義では racing のみ検査で 1、新定義でも変更前は racing の 1、実際の前進は描画 1 型→3 型）。marble は直前ゴーストを自分の深度の輪郭円（stroke 0.35・ベストの下）、platformer は自機 x の記録高度に輪郭矩形で描画。実測: marble 同速 2 走目 lastDrawn=667・platformer lastDrawn=3602、両者ともベスト鍵不変（同点＝記録でない）・off で両方 0・runHash 一致。racing は C-1333 の完全契約のまま。破壊 2 通り〔marble の直前描画削除→『marble: the last run left no ghost』で 0／platformer 同様→『platformer: ...』で 0。**起票時の予告 3→2 は不正確だった**——計器は ghost_replay と同じく gap があれば 0 に落とす設計で、実測どおり 0 を確認〕。pytest exit 0（3413 passed / 3 skip）・gate MISS 0。コース 3 型すべてでベストと直前の 2 体が隣を走る）**C-1335: 2 体目のゴーストがコース 3 本のうち racing にしか居ない（C-1333 の次候補・§11）。**
       （辛口クリエイターループ起票・観点=§11 自分と競わせる。前回=§4）
       C-1333 の第 2 の軌跡（直前の走り）は ghost.py 共通機構に入ったが、
       描くのは racing だけ——marble/platformer は保存はするのに**誰も
