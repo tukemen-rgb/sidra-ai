@@ -2949,6 +2949,22 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 13:55 辛口クリエイター **C-1344: 巨獣戦のタイトルが静止画のまま——pilot 機構があるのに 8 型が眠っている（§8×§17）。**
+      （辛口クリエイターループ起票・観点=§8 初見の即伝達×§17。前回=§6）
+      C-1338 の ATTRACT_PILOT（録画入力の最小形）で「撃たないから
+      眠っている」型は配線可能になったのに、kaiju の UNWIRED 行は
+      「the boss cycles but the player's shot is the whole game, and it
+      never fires」のまま。**最も見せ場のある型**（巨獣・部分描写・
+      §6 文法）の初見が 1 枚の静止画。実装: kaiju を配線——pilot は
+      `me.x=legX();fire();if(cycles>0)ATTRACT_LIVE=1`（脚の下に立って
+      撃ち続ける・弱点ヒットが live 領収書）、reset は既存 reset()。
+      デモは勝っても（3 周期）やられても（地割れ）自分の終端で周回
+      （roundEnded は state won/over を読む）。契約は既存計器そのまま:
+      4200f・毎フレーム別絵・周回・live・時計 0ms・storage 不変・
+      atPress/10 秒後の facts が対照と完全一致。破壊 2 通り〔配線除去
+      （UNWIRED 行復元）→2 に戻る／pilot の fire() 削除→撃たない棒立ち
+      は live 領収書が 0『the piloted demo never landed its verb』〕。
+      → 動かす数字: creation_attract_demo 2→3
 - [x] 完了 2026-09-05 13:30 UTC 辛口クリエイター（`creation_guard_hit_beats` unmeasurable→**1**、判定器 exit 0（NEW）。guard に hurt(8f)/smoke(34f)——kaiju と同じ実測値——を追加、被弾で点火、描画は hurt 中の白閃光（既存の予兆閃光と同じ路線・優先）＋smoke の減衰する煙円をシルエットの上に重ねる＝煙が晴れて再登場。guardFacts に hurt/smoke。新設 BEAT_PROBE の実測（default＋難しい）: 一撃で閃光 10f（hitstop 込み）・煙 36f・**閃光後の煙 26f**・最後は 0 に晴れる——観察 2 の順序どおり。破壊 2 通り〔smoke 点火削除→0『the smoke never lingers』／smoke=4→0『the smoke dies with the flash (0 frames past it)』〕、復元で 1。pytest exit 0（3499 passed / 3 skip）・gate MISS 0。テスト test_creation_guard_hit_beats.py 新設）**C-1343: 番人の被弾が 1 拍で終わる——観察 2 の 3 段が 2 体目のボスに未適用（§6）。**
       （辛口クリエイターループ起票・観点=§6 ボス文法。前回=§7）§6 観察 2
       「被弾は『閃光 1 拍 → 煙が残る → シルエットが煙から再登場』の
