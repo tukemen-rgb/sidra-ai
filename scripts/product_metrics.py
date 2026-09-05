@@ -675,6 +675,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1259: every generated game's subtitle printed 「テンプレート <key>」 -
+    # the internal template key, in English, on a Japanese page. Now it reads
+    # 「ジャンル <日本語>」. Checked on the real generated HTML for all ten
+    # templates: the Japanese genre label is present and the English key leak
+    # is gone.
+    from sidra_ai.evals.game_tagline_genre_localized import (
+        evaluate_game_tagline_genre_localized,
+    )
+
+    tagline_genre = evaluate_game_tagline_genre_localized()
+    c.add(
+        "game_tagline_genre_localized",
+        "生成ゲームの副題がジャンルを日本語で示し内部鍵を露出しない",
+        10.0 * tagline_genre.checks_passed / tagline_genre.checks_total,
+        detail=f"{tagline_genre.checks_passed}/{tagline_genre.checks_total} checks; "
+               "src/sidra_ai/evals/game_tagline_genre_localized.py"
+               + ("" if tagline_genre.passed else "; " + "; ".join(tagline_genre.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

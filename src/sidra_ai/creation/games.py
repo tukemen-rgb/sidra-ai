@@ -194,8 +194,13 @@ class GeneratedGame:
         new_tagline = tagline.strip() or self.tagline
         if (new_title, new_tagline) == (self.title, self.tagline):
             return self
-        html = self.html.replace(escape(self.title), escape(new_title))
-        html = html.replace(escape(self.tagline), escape(new_tagline))
+        # Tagline before title: the subtitle names the genre (「ジャンル 釣り」,
+        # C-1259) and a 「釣りゲーム」 request titles the page 「釣り」 too, so the
+        # title string is a substring of the tagline. Replacing the title first
+        # would rewrite it *inside* the tagline, and the tagline replace would
+        # then fail to find its now-mutated target and drop the model's line.
+        html = self.html.replace(escape(self.tagline), escape(new_tagline))
+        html = html.replace(escape(self.title), escape(new_title))
         return replace(self, title=new_title, tagline=new_tagline, html=html)
 
 
@@ -1075,7 +1080,12 @@ def generate_game(
     # space - and prepended so PAD_ACTIVE exists before the first draw.
     script = pad_active_declaration(script) + script
     title = title_override or _title_from(request, spec.default_title)
-    tagline = f"難易度 {difficulty} / テンプレート {key}"
+    # The subtitle showed 「テンプレート {key}」 - the internal template key, in
+    # English, on a Japanese page (C-1259). The genre vocabulary already maps
+    # every buildable key to a Japanese label, so name the genre instead; the
+    # key falls through only if some template ever lacks a label.
+    genre_label = next((label for label, tkey, _words in GENRES if tkey == key), key)
+    tagline = f"難易度 {difficulty} / ジャンル {genre_label}"
     asked_title = title
     # The third layer of C-1121's lie, and the one that outlives the answer:
     # the summary says 「対戦格闘型はまだ作れない」 and the file it hands over
