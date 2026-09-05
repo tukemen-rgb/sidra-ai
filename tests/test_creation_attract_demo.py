@@ -140,7 +140,12 @@ def test_the_pilot_line_is_substituted_per_template() -> None:
     # ...and the rewind lets go of the arrow: platformer's reset() does
     # not touch ``keys``, so the release lives in the reset expression.
     assert "keys.ArrowRight=false;reset()" in _script("platformer")
-    for template in ("shooter", "racing", "kaiju", "marble", "platformer"):
+    # Duel's fighting hand (C-1434): dodge the telegraphed lane, charge,
+    # step into line and release. The receipt is a landed blow - an
+    # unpiloted duel is the CPU executing a statue.
+    assert "if(e.hp<3)ATTRACT_LIVE=1" in _script("duel")
+    assert "fire(p)" in _script("duel")
+    for template in ("shooter", "racing", "kaiju", "marble", "platformer", "duel"):
         assert "ATTRACT_PILOT_TOKEN" not in _script(template)
 
 
@@ -215,6 +220,35 @@ def test_the_platformer_demo_walks_to_the_flag_and_goes_again() -> None:
     assert facts["live"] == 1, "the demo never reached the goal stretch"
     assert seen["beforePress"]["round"]["ms"] == 0
     assert sorted(seen["beforePress"]["store"]) == []
+
+
+def test_the_duel_demo_lands_blows_and_the_meter_forgives_the_hitstop() -> None:
+    """C-1434 on top of C-1435: the fight hitstops on every landed blow,
+    so the motion bar must read only the frames the page did not hold
+    still itself - and on those, a real fight moves every single one.
+    """
+
+    seen = _watch("duel", idle=1200, play=30)
+    facts = seen["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 1200
+    assert facts["loops"] >= 1, "no fight ever ended"
+    assert facts["live"] == 1, "the demo never landed a blow"
+    idle = seen["idle"]
+    held = sum(f.get("held", 0) for f in idle)
+    assert held > 0, "a duel with landed blows must have hitstop frames"
+    advanced = [(a, b) for a, b in zip(idle, idle[1:]) if not b.get("held")]
+    moved = sum(1 for a, b in advanced if a["hash"] != b["hash"])
+    assert moved >= len(advanced) * 0.9, "the fight barely moved"
+    assert seen["beforePress"]["round"]["ms"] == 0
+    assert sorted(seen["beforePress"]["store"]) == []
+
+
+def test_every_idle_frame_reports_whether_the_page_held_it(demo: dict) -> None:
+    """C-1435: the probe distinguishes a frame the page held on purpose
+    (hitstop spends frames by design) from a demo that froze."""
+
+    assert all("held" in frame for frame in demo["idle"])
 
 
 def test_the_press_after_a_piloted_demo_matches_the_control(piloted: dict) -> None:

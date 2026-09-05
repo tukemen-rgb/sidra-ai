@@ -9914,7 +9914,18 @@ def measure_creation(c: Collector) -> None:
             continue
         trouble = None
         idle = watched["idle"]
-        moved = sum(1 for a, b in zip(idle, idle[1:]) if a["hash"] != b["hash"])
+        # The motion bar reads only frames the page did not hold itself
+        # (C-1435): hitstop spends frames by design - the juice wrapper
+        # returns without drawing - so counting them measured "how much
+        # hitstop does this template have", not "is the demo moving".
+        # duel's fights sat at 89.5% with stops counted and 97.3%
+        # without, and the bar is about the second number. A demo that
+        # spends too much of itself stopped is its own trouble below, so
+        # excluding held frames lowers no bar for a genuinely frozen page.
+        advanced = [
+            (a, b) for a, b in zip(idle, idle[1:]) if not b.get("held")
+        ]
+        moved = sum(1 for a, b in advanced if a["hash"] != b["hash"])
         # Read *before* the press: everything here is a claim about what
         # the demo did on its own, and the press itself writes (it is what
         # remembers that the briefing has been read).
@@ -9934,8 +9945,15 @@ def measure_creation(c: Collector) -> None:
             )
         elif len(idle) != _ATTRACT_IDLE or facts["frames"] != _ATTRACT_IDLE:
             trouble = f"{key}: the demo got {facts['frames']} of {_ATTRACT_IDLE} frames"
-        elif moved < _ATTRACT_IDLE * 0.9:
-            trouble = f"{key}: the picture changed on {moved} of {_ATTRACT_IDLE - 1} frames"
+        # A page that holds ITSELF still most of the time is not excused
+        # by the exclusion below - hitstop is a beat, not a lifestyle.
+        elif len(advanced) < _ATTRACT_IDLE * 0.75:
+            trouble = (
+                f"{key}: the page held {_ATTRACT_IDLE - 1 - len(advanced)} of "
+                f"{_ATTRACT_IDLE - 1} frames still itself"
+            )
+        elif moved < len(advanced) * 0.9:
+            trouble = f"{key}: the picture changed on {moved} of {len(advanced)} advanced frames"
         elif not facts["loops"]:
             # Asserted, not independently confirmed: on today's one wired
             # template a demo that stops looping freezes on its own goal

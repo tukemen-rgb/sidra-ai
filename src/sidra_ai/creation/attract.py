@@ -35,8 +35,11 @@ from __future__ import annotations
 #: pilot is the steering hand its unwired reason asked for. Platformer
 #: (C-1433) is the fifth: its unwired reason described a page with no
 #: input, and a walking hand is exactly what the pilot mechanism is.
+#: Duel (C-1434) is the sixth, unblocked by C-1435: its fights hitstop on
+#: every landed blow, and until the motion bar stopped counting frames
+#: the page held still itself, an honest duel demo could not pass it.
 ATTRACT_TEMPLATES: tuple[str, ...] = (
-    "racing", "shooter", "kaiju", "marble", "platformer")
+    "racing", "shooter", "kaiju", "marble", "platformer", "duel")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
@@ -48,7 +51,6 @@ ATTRACT_UNWIRED: dict[str, str] = {
     "fishing": "the marker sweeps for ever and nothing else happens: motion without a game in it",
     "puzzle": "a board that is never clicked is a still image",
     "adventure": "the hero does not walk on their own; the room would sit there",
-    "duel": "both fighters wait for a button; the screen would show two idle poses",
 }
 
 #: What to call to put the world back to its first frame. Every template
@@ -62,7 +64,10 @@ ATTRACT_RESET: dict[str, str] = {
     # reset() does not touch ``keys`` - unlike the shooter, whose reset
     # lets go of ``fire`` itself. Without this the player's first go
     # would start with the demo's hand still on the arrow.
-    "platformer": "keys.ArrowRight=false;reset()"}
+    "platformer": "keys.ArrowRight=false;reset()",
+    # Duel's reset rebuilds both fighters, so the pilot's held charge
+    # goes with them.
+    "duel": "reset()"}
 
 #: One line of piloting, run every demo frame before the template's step
 #: (C-1338). The arcade's attract mode is a recorded hand on the real
@@ -116,6 +121,18 @@ ATTRACT_PILOT: dict[str, str] = {
     "if(me.ground&&!plats.some(p=>me.x+30>p.x-6&&me.x+30<p.x+p.w+6"
     "&&p.y>=me.y-1&&p.y<me.y+60))tryJump();"
     "if(me.x>LW*0.72)ATTRACT_LIVE=1",
+    # Duel (C-1434, loop A's design): the CPU side fights on its own, so
+    # the hand only plays the player - step out of the telegraphed lane
+    # (e.aim holds it for AIM_LOCK frames), charge, step into the
+    # enemy's lane and release. The receipt is a landed blow: an
+    # unpiloted duel is the CPU executing a statue, and its own KO loops
+    # pass everything but this.
+    "duel": "if(p.stun<=0){"
+    "if(e.hold&&e.aim===p.lane)p.lane=e.aim===2?1:e.aim+1;"
+    "if(!p.hold&&p.beam<=0)p.hold=true;"
+    "if(p.hold&&p.charge>26&&!(e.hold&&e.aim===p.lane)){"
+    "if(e.lane!==p.lane)p.lane=e.lane;fire(p)}}"
+    "if(e.hp<3)ATTRACT_LIVE=1",
 }
 
 
@@ -198,11 +215,16 @@ function attractRun(frames){ const seen = [];
        count rather than running the frame: a few doublings more and the
        paint for one frame exhausts the heap, and a probe that dies is a
        probe that cannot say why. */
-    if (due.length > 8) { seen.push({ hash: 0, ops: 0, calls: due.length }); break }
+    if (due.length > 8) { seen.push({ hash: 0, ops: 0, calls: due.length, held: 0 }); break }
+    /* Whether the PAGE ITSELF is holding this frame still (C-1435): the
+       juice wrapper spends hitstop by returning without drawing, so an
+       unchanged picture here is the design working, not a demo frozen.
+       Read before the frame fires - firing is what spends the stop. */
+    const held = (typeof HITSTOP !== 'undefined' && HITSTOP > 0) ? 1 : 0;
     attractOps = []; attractClock += 50 / 3;
     for (const fn of due) { fn(attractClock) }
     seen.push({ hash: attractHash(attractOps), ops: attractOps.length,
-      calls: due.length }) }
+      calls: due.length, held: held }) }
   return seen }
 /* Everything a go is made of, read off the page. Compared between a run
    that watched the demo and one that pressed at once: if the demo left

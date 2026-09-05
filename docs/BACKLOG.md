@@ -5291,7 +5291,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       選んだら黙って上書きせず sweep で落ちる」ための仕組み。
       `sidra.runs.` を登録せずに増やしたので 10 型すべてで落ちた——
       **仕組みが意図どおり働いた**。台帳に登録して解消。
-- [~] 作業中 2026-09-05 22:55 UTC 辛口クリエイター（53 巡目・観点=§8×§17・前回=§1。C-1344 で kaiju のパイロットを 16f 間隔に**計器の都合で**ペーシングしたのはこの欠陥の回避だった——ループA の実測が原因を正しく特定した。完了後そのまま C-1434〔duel 配線・ループA の設計を使用〕を再開して 5→6 で測る） **C-1435: attract の「動いている」判定が、ページ自身が止めたフレームを数えている。**
+- [x] 完了 2026-09-05 23:40 UTC 辛口クリエイター（C-1434 と合わせて `creation_attract_demo` **5→6**・判定器 exit 0（BETTER）。probe の各フレームに held（フレーム発火**前**の HITSTOP>0——発火が stop を消費するので前で読む）を記録し、動き判定を「進んだフレームの 90%」へ。**棒は下げず床を足した**: 進んだフレームが全体の 75% 未満なら『the page held N frames still itself』で落ちる＝hitstop はビートであって生活ではない。実測で判定の性格が一変: 6 型すべて進んだフレームの **100.0%** で絵が変わる〔duel held 472/moved 3727/3727・kaiju held 444/3755/3755・racing 13・shooter 39・marble 42・platformer 35〕——旧判定の 91〜99% は全部 hitstop の会計だった（C-1344 で kaiju のパイロットを計器の都合でペーシングした負債の正体）。破壊 3 通り〔10f で凍結→frames 検査『got 10 of 4200』／毎フレーム hitstop(9)→床『held 4199 of 4199 frames still itself』／無操縦 duel→動き検査『changed on 1178 of 4058 advanced frames』(29%)＝**本当に固まったデモは今までどおり落ちる**〕。pytest exit 0（3600 passed / 3 skip）・gate MISS 0。ループA の実測起票（原因特定・duel 89.5%↔97.3%）がそのまま設計図になった） **C-1435: attract の「動いている」判定が、ページ自身が止めたフレームを数えている。**
       （ループA 起票 2026-09-05・C-1434 の実測で判明。**duel を配線できない
       原因はパイロットではなく計器の側**）
       `creation_attract_demo` の動き判定は
@@ -5316,7 +5316,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       → 動かす数字: creation_attract_demo N→N（**現在配線済みの型が
       1 つも落ちないこと**）＋ 破壊「本当に固まるデモ」で 0 に落ちること。
       これが済んで初めて C-1434（duel）が測れる。
-- [~] 作業中 2026-09-05 22:55 UTC 辛口クリエイター（C-1435 完了後に配線・ループA の [記録] 未完を再開）／[記録] 未完 2026-09-05 22:00 ループA（配線せず・**計器の側に原因**があり、そのまま入れると `creation_attract_demo` が 0 に落ちて exit 2 になる。前提条件を C-1435 として分割起票）**C-1434: duel の幕の裏で撃ち合いが見える（attract パイロット 4 例目）。**
+- [x] 完了 2026-09-05 23:40 UTC 辛口クリエイター（C-1435 の計器修正で解禁・`creation_attract_demo` **5→6** の 6 例目。パイロット=ループA の設計〔CPU 側は自走するので手は p だけ: e の照準（e.aim・AIM_LOCK 予告）レーンから退避→充填 p.hold=true→charge>26 で e のレーンへ踏み込んで fire(p)〕。受領書は if(e.hp<3)＝一撃当てること——無操縦 duel は CPU が彫像を処刑する画で、KO 周回も motion 29% も live 0 も全部それを言う。実測: 4200f 中 **21 KO 周回**・held 472 を除く進んだ 3727f の 100% で絵が変化・時計 0ms・storage 空・atPress/afterPlay 対照一致。attract は **6/10 型**——残る catch/fishing/puzzle/adventure は時計終端または無入力静止画で ATTRACT_UNWIRED に理由明記のまま）／[記録] 未完 2026-09-05 22:00 ループA（配線せず・**計器の側に原因**があり、そのまま入れると `creation_attract_demo` が 0 に落ちて exit 2 になる。前提条件を C-1435 として分割起票）**C-1434: duel の幕の裏で撃ち合いが見える（attract パイロット 4 例目）。**
       （進捗監視起票 2026-09-05・根拠は attract.py の ATTRACT_UNWIRED
       実読「duel: both fighters wait for a button; the screen would show
       two idle poses」＋確立済みのパイロット前例: C-1338 shooter・
