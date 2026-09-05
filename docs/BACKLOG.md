@@ -4928,8 +4928,10 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_puzzle_jam_recap unmeasurable→1（詰みで終えた走行に原因の
       一言があり、集計が生の盤面状態から独立に導いた値と一致することを
       検査。破壊で 0）
-- [ ] **C-1428: racing にグレイズ（4 型目の配線）——帯は障害物 1 個につき
-      1 回。**（進捗監視起票 2026-09-05・根拠は graze.py の GRAZE_UNWIRED
+- [ ] **C-1429: racing にグレイズ（4 型目の配線）——帯は障害物 1 個につき
+      1 回。**（進捗監視起票 2026-09-05・当初 C-1428 で起票したが同時刻に
+      ループA が C-1428〔puzzle のハンマー詰み〕を先に main へ載せていた
+      ため改番・根拠は graze.py の GRAZE_UNWIRED
       自身の記述「the barriers are the hazard, but the car is steered along
       them for whole seconds - a band would pay continuously」。その問いを
       ここで解く: **支払いの単位は時間でなく障害物**——帯の内側で障害物を
