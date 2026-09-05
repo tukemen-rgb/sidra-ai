@@ -94,6 +94,15 @@ const W=cv.width,H=cv.height;
    Coyote and buffer are the two halves of the same forgiveness. */
 const GRAV=0.42,JUMP=-7.2,CUT=-2.6,RUN=2.4,COYOTE=6,BUFFER=5,LAMP_COST=5;
 setPal(PLAT_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1337): draw() paints through these
+   constants, so hudFacts() reports what the frame shows. The progress-
+   stepped scene tints the sky and the goal stretch was sinking the
+   themed ink to ~3.4:1; the plate is the UNtinted theme surface at 0.7.
+   skies[] is the actual per-scene backdrop - BG here, not SURFACE. */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){const keep=SCENE,sk=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;sk.push(scenePaint('BG_TOKEN'))}
+  SCENE=keep;return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A,skies:sk}}
 /* seeded LCG: same request, same course - the regeneration promise. */
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 let plats,orbs,lamp,flag,LW,me,state,respawns,msg,msgT;
@@ -280,7 +289,9 @@ function draw(now){
   cx.beginPath();cx.moveTo(px-3,me.y-6);cx.lineTo(px-3-g2,me.y);cx.stroke();
   cx.beginPath();cx.moveTo(px+3,me.y-6);cx.lineTo(px+3+g2,me.y);cx.stroke();
   cx.lineWidth=1;
-  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(34,4,330,22);cx.globalAlpha=1;
+  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
   cx.fillText('宝石 '+me.gems+' / '+LAMP_COST+(lamp.lit?'  灯籠 点':'')
     +'  落下 '+respawns,40,20);
   if(msgT>0){msgT--;cx.fillStyle='SCRIM_TOKEN'+'d9';cx.fillRect(20,H-34,W-40,26);
@@ -457,6 +468,7 @@ const end = platFacts();
 const palette = sceneFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
+  hud: hudFacts(),
   window: settled.window, settledGround: settled.ground, groundY: settled.y,
   heldMin: heldMin, tapMin: tapMin,
   leftGround: leftGround, coyoteJump: coyoteJump, lateJumpRefused: lateJumpRefused,

@@ -98,6 +98,15 @@ let car,obs,dist,lap,lapT,times,state,grace,spd,nextObs,passed,slips;
 function reset(){rs=(SEED>>>0)||1;car={x:roadAt(0)};obs=[];dist=0;lap=1;lapT=0;times=[];
   state='race';grace=0;spd=PACE;nextObs=320;passed=0;slips=0}
 setPal(RACING_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1337): draw() paints through these
+   constants, so hudFacts() reports what the frame shows. A lap is a
+   scene, so the final lap tints the whole sky and was sinking the themed
+   ink to ~3.1:1; the plate is the UNtinted theme surface at 0.7. skies[]
+   is the actual per-scene backdrop the plate sits on. */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){const keep=SCENE,sk=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;sk.push(scenePaint('SURFACE_TOKEN'))}
+  SCENE=keep;return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A,skies:sk}}
 function onRoad(){return Math.abs(car.x-roadAt(dist))<ROADW/2-8}
 function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,passed:passed,
   slips:slips,
@@ -200,12 +209,14 @@ function draw(){
   cx.fillStyle='#05070f';cx.fillRect(car.x-6,CARY-8,12,9);
   if(grace>0){cx.strokeStyle='#dfe7f5';cx.lineWidth=2;
     cx.strokeRect(car.x-13,CARY-18,26,36)}
-  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(6,4,262,22);cx.fillRect(W-178,4,132,38);cx.globalAlpha=1;
+  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
   cx.fillText('LAP '+Math.min(lap,LAPS)+'/'+LAPS+'  '+(lapT/60).toFixed(1)+'s'+
     (slips>0?'  ニアミス '+slips:''),12,19);
   cx.strokeStyle='BORDER_TOKEN';cx.strokeRect(W-172,10,120,10);
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(W-172,10,120*Math.min(1,spd/PACE),10);
-  cx.fillStyle='INK_TOKEN';
+  cx.fillStyle=HUD_INK;
   cx.fillText(onRoad()?'走行':'コース外',W-172,34);
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
@@ -279,6 +290,7 @@ const end = raceFacts();
 const palette = sceneFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
+  hud: hudFacts(),
   stateStart: start.state, base: start.base,
   spdStart: start.spd, spdAfterHit: afterHit.spd, graceAfterHit: afterHit.grace,
   leftMoved: afterLeft.carX - centred.carX,

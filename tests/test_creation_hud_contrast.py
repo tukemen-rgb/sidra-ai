@@ -26,7 +26,9 @@ from sidra_ai.creation.fishing import probe_source as fishing_probe
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.kaiju import probe_source as kaiju_probe
 from sidra_ai.creation.marble import probe_source as marble_probe
+from sidra_ai.creation.platformer import probe_source as platformer_probe
 from sidra_ai.creation.puzzle import sky_probe
+from sidra_ai.creation.racing import probe_source as racing_probe
 from sidra_ai.creation.shooter import probe_source as shooter_probe
 
 _PROBES = {
@@ -40,6 +42,11 @@ _PROBES = {
     "shooter": ("シューティングゲームを作って", shooter_probe),
     "marble": ("玉転がしゲームを作って", marble_probe),
     "duel": ("ビームで撃ち合うゲームを作って", duel_probe),
+    # C-1337: the two RUNNING templates, whose scenes step by lap and by
+    # progress. Their contract reports skies[] - the actual per-scene
+    # backdrop, which for the platformer is the tinted BG, not the floor.
+    "racing": ("レースゲームを作って", racing_probe),
+    "platformer": ("ジャンプで進むゲームを作って", platformer_probe),
 }
 
 
@@ -84,8 +91,10 @@ def test_the_plated_hud_clears_wcag_in_every_act(template: str) -> None:
     seen = _played(template)
     hud = seen["hud"]
 
+    skies = hud.get("skies")
     for act, sky in enumerate(seen["scenes"]):
-        backed = _blend(hud["alpha"], hud["plate"], sky["floor"])
+        under = skies[act] if skies else sky["floor"]
+        backed = _blend(hud["alpha"], hud["plate"], under)
         ratio = _wcag(_lum(hud["ink"]), _lum(backed))
         assert ratio >= 4.5, f"act {act} HUD sinks to {ratio:.2f}"
 

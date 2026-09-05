@@ -3051,7 +3051,9 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.fishing import probe_source as _fishing_scene_probe
     from sidra_ai.creation.kaiju import probe_source as _kaiju_scene_probe
     from sidra_ai.creation.marble import probe_source as _marble_scene_probe
+    from sidra_ai.creation.platformer import probe_source as _plat_hud_probe
     from sidra_ai.creation.puzzle import sky_probe as _puzzle_sky_probe
+    from sidra_ai.creation.racing import probe_source as _racing_hud_probe
     from sidra_ai.creation.shooter import probe_source as _shooter_scene_probe
     from sidra_ai.creation.themes import select_theme as _scene_theme
 
@@ -3184,13 +3186,49 @@ def measure_creation(c: Collector) -> None:
         )
 
     hud_gaps: list[str] = []
+    # The two RUNNING templates live outside the scene loop above (their
+    # scenes step by lap / progress, not by clock), so their HUD contract
+    # is read off their own gameplay probes. Their backdrop is not always
+    # the scene floor - platformer's HUD sits on the tinted BG - so the
+    # contract also reports skies[], the actual per-scene paint under the
+    # plate, and the blend below prefers it when present.
+    for request, key, builder in (
+        ("レースゲームを作って", "racing", _racing_hud_probe),
+        ("ジャンプで進むゲームを作って", "platformer", _plat_hud_probe),
+    ):
+        for suffix in _scene_themes:
+            label = f"{key}/{suffix or 'default'}"
+            page = generate_game(f"{request} {suffix}".strip()).html
+            script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+            if script is None:
+                hud_gaps.append(f"{label}: no script")
+                continue
+            try:
+                probe = _scene_sp.run(
+                    ["node", "-"],
+                    input=builder(script.group(1)),
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    check=True,
+                )
+                seen = json.loads(probe.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                hud_gaps.append(f"{label}: probe unavailable ({type(exc).__name__})")
+                continue
+            if isinstance(seen.get("hud"), dict):
+                scene_hud[label] = (seen["hud"], seen.get("scenes") or [])
+            else:
+                hud_gaps.append(f"{label}: no HUD contract reported")
     hud_seen: set[str] = set()
     for label, (hud, hud_scenes) in sorted(scene_hud.items()):
         hud_seen.add(label.split("/")[0])
         try:
             ink = _srgb_lum(hud["ink"])
+            skies = hud.get("skies") if isinstance(hud.get("skies"), list) else None
             for act, sky in enumerate(hud_scenes):
-                backed = _srgb_lum(_hud_blend(hud["alpha"], hud["plate"], sky["floor"]))
+                under = skies[act] if skies else sky["floor"]
+                backed = _srgb_lum(_hud_blend(hud["alpha"], hud["plate"], under))
                 ratio = _wcag(ink, backed)
                 if ratio < 4.5:
                     hud_gaps.append(f"{label}: act {act} HUD sinks to {ratio:.2f}")
@@ -3202,7 +3240,7 @@ def measure_creation(c: Collector) -> None:
                         )
         except (KeyError, TypeError, ValueError):
             hud_gaps.append(f"{label}: HUD contract unreadable")
-    for missing in {
+    _hud_all = {
         "fishing",
         "catch",
         "puzzle",
@@ -3211,19 +3249,26 @@ def measure_creation(c: Collector) -> None:
         "shooter",
         "marble",
         "duel",
-    } - hud_seen:
+        "racing",
+        "platformer",
+    }
+    for missing in _hud_all - hud_seen:
         hud_gaps.append(f"{missing}: no HUD contract reported")
+    # C-1337 redefined the value from 0/1 to the NUMBER of templates whose
+    # contract holds - any gap anywhere still collapses it to 0, so this is
+    # the old bar with a wider roof, not a softer one (両定義: 旧 0/1 は
+    # 8 型時点で 1、新定義の変更前は racing/platformer 未報告により 0).
     c.add(
         "creation_hud_contrast",
-        "最明の空でも HUD が読める",
-        1.0 if not hud_gaps else 0.0,
+        "最明の空でも HUD が読める型",
+        float(len(_hud_all)) if not hud_gaps else 0.0,
         detail=(
-            "8 型（時計 3 型 C-1329 ＋ adventure/kaiju/shooter/marble/duel "
-            "C-1334）× 4 テーマ × 全 3 幕で、未着色サーフェスの板を α 合成"
-            "した実背景に対し文字 4.5:1 以上・puzzle のカーソル枠 3:1 以上"
-            "（§4 WCAG 1.4.3。duel の相手型ラベルはハードコード灰青 1.74:1 "
-            "だったものをテーマ ink＋板へ。racing/platformer は場面ループ外の"
-            "ため残る 2 型——各自の計器に hud を足すのが次候補）"
+            "10 型（時計 3 型 C-1329 ＋ adventure/kaiju/shooter/marble/duel "
+            "C-1334 ＋走る 2 型 C-1337）× 4 テーマ × 全 3 場面で、未着色"
+            "サーフェスの板を α 合成した実背景（racing/platformer は契約が"
+            "報告する per-scene の実塗り skies）に対し文字 4.5:1 以上・"
+            "puzzle のカーソル枠 3:1 以上（§4 WCAG 1.4.3。走る 2 型は"
+            "最終場面で素の ink が 3.07〜3.97:1 に沈んでいた）"
             if not hud_gaps
             else "; ".join(hud_gaps)
         ),
