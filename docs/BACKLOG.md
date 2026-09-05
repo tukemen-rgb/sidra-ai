@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 02:06 辛口クリエイター **C-1333: ゴーストが 1 体だけ（§11 事実 1 は「複数のゴースト」で効果 2 倍と言っている）。**
+- [x] 完了 2026-09-05 02:28 UTC 辛口クリエイター（`creation_second_ghost` unmeasurable→**1**、判定器 exit 0。ghost.py に第 2 の鍵 sidra.ghost.last.<型> を追加——ghostBank は**触れた完走なら毎回**直前軌跡を保存し、ベスト軌跡は record 時のみ（roundBank の touched ガード内なので放置走行は残らない）。ghostAtLast / lastHad / lastDrawn / lastStored を追加、ghostForget が両方を吸収、鍵は既存の sidra.ghost. 接頭辞内。racing の draw にベスト（塗り 0.32）より薄い輪郭だけの直前ゴースト（stroke 0.35）をベストの下に——記録と同一走なら重なって 1 体に見えるのが正直な形。実測 3 走: 初回が両軌跡を保存（best==last）、tune 減速 0.55× の 2 走目（2 周 < ベスト 3 周＝記録に届かない）が**両ゴーストに会い**（drawn 3596 / lastDrawn 3596）、その敗北はベスト鍵を**一切動かさず**直前鍵だけ更新、パネル off で両方 0・runHash 一致。**probe 設計の失敗 1 件を記録**: 初版は sidra.best.racing を持ち回らず、2 走目がベスト null で正当な記録扱いになりベスト軌跡が動いて見えた——製品でなく計測の穴。best を持ち回って解消し、計器にも継承。破壊 2 通り〔直前ゴースト描画削除→『the last run left no ghost』で 0／ベスト鍵を無条件書き込み→『a defeat overwrote the record's trail』で 0〕。marble/platformer への展開は次候補。pytest exit 0（3369 passed / 3 skip）・gate MISS 0）**C-1333: ゴーストが 1 体だけ（§11 事実 1 は「複数のゴースト」で効果 2 倍と言っている）。**
       （辛口クリエイターループ起票・観点=§11 自分と競わせる。前回=§1）
       §11 事実 1 の Bath 実験は**複数ゴースト**走で単独の 2 倍の伸び——
       「上達すると集団の先頭に立てる」が効く理由なのに、SIDRA の幽霊は

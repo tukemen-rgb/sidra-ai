@@ -7521,6 +7521,100 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the second ghost, and the wall it must not touch ---------------
+    #
+    # §11 事実 1 is about racing a GROUP - the Bath result doubled with
+    # multiple ghosts - and a group of one is not one (C-1333). The second
+    # ghost is the run before this one, saved on every finished run
+    # somebody played; the best trail still moves only on a record. Three
+    # real runs prove both halves: the first saves both trails, a second
+    # run slowed past the record meets the best AND the last ghost while
+    # its defeat updates only the last key - a defeat that overwrote the
+    # best trail would replace the wall with the stumble - and the panel
+    # switch silences both without touching how the race goes.
+    sg_gaps: list[str] = []
+    sg_first = sg_second = sg_off = None
+    sg_page = _tune_generate("レースゲームを作って", template="racing").html
+    sg_script = _scene_re.search(r"<script>(.*?)</script>", sg_page, _scene_re.S)
+    if sg_script is None:
+        sg_gaps.append("no script on the page")
+    else:
+        def _sg_run(stored):
+            source = _board_probe(
+                sg_script.group(1),
+                speed_expr=_board_binding["racing"],
+                frames=3800,
+                stored=stored,
+            ).replace(
+                "  writes: [...new Set(allWrites)].sort(),",
+                "  writes: [...new Set(allWrites)].sort(), ghost: ghostFacts(),"
+                " trail: allStored['sidra.ghost.racing']||null,"
+                " lastTrail: allStored['sidra.ghost.last.racing']||null,"
+                " score: roundFacts().score,",
+            )
+            out = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=300
+            )
+            if out.returncode != 0:
+                raise ValueError(out.stderr.strip()[:80])
+            return json.loads(out.stdout.strip().splitlines()[-1])
+
+        sg_base = {"sidra.seen.racing": "1"}
+        try:
+            sg_first = _sg_run(dict(sg_base))
+            sg_slow = round(sg_first["atLoad"]["speed"] * 0.55, 2)
+            sg_carry = {
+                **sg_base,
+                "sidra.ghost.racing": sg_first["trail"],
+                "sidra.ghost.last.racing": sg_first["lastTrail"],
+                "sidra.best.racing": str(sg_first["score"]),
+                "sidra.tune.racing": {"speed": sg_slow},
+            }
+            sg_second = _sg_run(dict(sg_carry))
+            sg_off = _sg_run(
+                {**sg_carry, "sidra.tune.racing": {"speed": sg_slow, "ghost": False}}
+            )
+        except (OSError, _scene_sp.SubprocessError, ValueError, KeyError, TypeError) as exc:
+            sg_gaps.append(f"probe unavailable ({exc})")
+            sg_first = sg_second = sg_off = None
+    if sg_first is not None:
+        if sg_first["ghost"]["lastHad"] or sg_first["ghost"]["lastDrawn"]:
+            sg_gaps.append("a second ghost stood beside the very first run")
+        if not sg_first["lastTrail"]:
+            sg_gaps.append("the first finished run saved no last trail")
+    if sg_second is not None and sg_first is not None:
+        if sg_second["score"] >= sg_first["score"]:
+            sg_gaps.append(
+                f"the slowed run was not slower ({sg_second['score']} vs {sg_first['score']})"
+            )
+        if not sg_second["ghost"]["lastDrawn"]:
+            sg_gaps.append("the last run left no ghost")
+        if not sg_second["ghost"]["drawn"]:
+            sg_gaps.append("the best ghost vanished when the second arrived")
+        if sg_second["trail"] != sg_first["trail"]:
+            sg_gaps.append("a defeat overwrote the record's trail")
+        if sg_second["lastTrail"] == sg_first["lastTrail"] or not sg_second["lastTrail"]:
+            sg_gaps.append("the defeat did not become tomorrow's second ghost")
+    if sg_off is not None and sg_second is not None:
+        if sg_off["ghost"]["lastDrawn"] or sg_off["ghost"]["drawn"]:
+            sg_gaps.append("the switch does not put both ghosts away")
+        if sg_off["ghost"]["runHash"] != sg_second["ghost"]["runHash"]:
+            sg_gaps.append("the second ghost changed how the race went")
+    c.add(
+        "creation_second_ghost",
+        "直前の自分も隣を走る",
+        1.0 if not sg_gaps else 0.0,
+        detail=(
+            "racing を 3 走: 初回が両軌跡を保存、記録に届かない減速走行が"
+            "ベストと直前の両ゴーストに会い、その敗北は直前鍵だけを更新"
+            "（ベスト軌跡は不変＝壁は転倒で置き換わらない）、パネルで両方"
+            "消えて走りは不変（§11 事実 1: 複数ゴーストで効果 2 倍）"
+            if not sg_gaps
+            else "; ".join(sg_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the corridor's past self, met at the same place ----------------
     #
     # C-1412 wires C-1401's trail to its second template. z down the

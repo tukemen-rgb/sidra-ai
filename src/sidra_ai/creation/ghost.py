@@ -74,6 +74,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "ghostOn",
     "ghostSample",
     "ghostAt",
+    "ghostAtLast",
     "ghostBank",
     "ghostForget",
     "ghostFacts",
@@ -83,18 +84,25 @@ PREAMBLE_NAMES: tuple[str, ...] = (
 GHOST_PREAMBLE = """
 /* --- the best run, played back beside this one (§11 事実 1) ----------- */
 const GHOST_KEY='sidra.ghost.'+GHOST_NAME_TOKEN,GHOST_STEP=GHOST_STEP_TOKEN;
-let GHOST_TRAIL=null,GHOST_RUN=[],GHOST_DRAWN=0,GHOST_SAVED=0,GHOST_LAST=null;
+/* The second ghost (§11 事実 1, C-1333): the Bath result is about racing
+   a GROUP, and a group of one is not one. The best run is the far wall;
+   the LAST run is today's self, and only a lap that beats both is the
+   front of the pack. Saved on every finished run somebody actually
+   played, where the best trail still moves only on a record. */
+const GHOST_LAST_KEY='sidra.ghost.last.'+GHOST_NAME_TOKEN;
+let GHOST_TRAIL=null,GHOST_PREV=null,GHOST_RUN=[],GHOST_DRAWN=0,
+  GHOST_PREV_DRAWN=0,GHOST_SAVED=0,GHOST_LAST=null;
 function ghostStore(){try{return (typeof localStorage!=='undefined')?localStorage:null}
   catch(e){return null}}
 /* On by default: a past self that has to be switched on is a past self
    nobody meets. The panel can put it away (C-1113). */
 function ghostOn(){try{return tuneFlag('ghost',true)}catch(e){return true}}
-function ghostRead(){const s=ghostStore();if(!s)return null;
-  try{const raw=s.getItem(GHOST_KEY);if(!raw)return null;
+function ghostRead(key){const s=ghostStore();if(!s)return null;
+  try{const raw=s.getItem(key);if(!raw)return null;
     const v=JSON.parse(raw);
     return (v&&Object.prototype.toString.call(v)==='[object Array]'&&v.length)?v:null}
   catch(e){return null}}
-GHOST_TRAIL=ghostRead();
+GHOST_TRAIL=ghostRead(GHOST_KEY);GHOST_PREV=ghostRead(GHOST_LAST_KEY);
 /* Indexed by where you are on the course, not by how long you have been
    playing: a faster run would slide out of step with a time-keyed trail,
    and the ghost would stop meaning anything. */
@@ -113,19 +121,32 @@ function ghostAt(progress){
      to compare against *that* run; re-deriving the bucket out here would
      only prove the arithmetic agrees with itself (C-1412). */
   GHOST_DRAWN++;GHOST_LAST=[ghostBucket(progress),v];return v}
+/* Where you were, here, LAST TIME - not the record, just the run before
+   this one. Null before there is one, and null when the switch is off,
+   exactly like the best trail. */
+function ghostAtLast(progress){
+  if(!ghostOn()||!GHOST_PREV)return null;
+  const v=GHOST_PREV[ghostBucket(progress)];
+  if(typeof v!=='number'||!isFinite(v))return null;
+  GHOST_PREV_DRAWN++;return v}
 /* The demo's line is nobody's (C-1414). The attract run samples the same
    course buckets a player would, so without this a demo that got further
    than the player leaves its own positions in the tail of the trail that
    gets banked as theirs. */
-function ghostForget(){GHOST_RUN=[];GHOST_DRAWN=0;GHOST_LAST=null}
+function ghostForget(){GHOST_RUN=[];GHOST_DRAWN=0;GHOST_PREV_DRAWN=0;GHOST_LAST=null}
 /* Banked with the score it belongs to, through roundBank, so the trail and
    the number can never describe different runs. */
-function ghostBank(record){if(!record)return false;
+function ghostBank(record){
   const trail=[];for(let i=0;i<GHOST_RUN.length;i++){
     trail.push(typeof GHOST_RUN[i]==='number'?GHOST_RUN[i]:null)}
   while(trail.length&&trail[trail.length-1]===null){trail.pop()}
   if(!trail.length)return false;
   const s=ghostStore();
+  /* Every played, finished run becomes tomorrow's second ghost; only a
+     record may touch the best trail - a defeat that overwrote it would
+     replace the wall with the stumble (C-1333). */
+  try{if(s){s.setItem(GHOST_LAST_KEY,JSON.stringify(trail))}}catch(e){}
+  if(!record)return false;
   try{if(s){s.setItem(GHOST_KEY,JSON.stringify(trail));GHOST_SAVED++}}catch(e){}
   return true}
 /* This run's own path, as one number. "The ghost touches nothing" is a
@@ -139,10 +160,12 @@ function ghostRunHash(){let h=2166136261;
   return h}
 function ghostFacts(){return {on:ghostOn(),had:GHOST_TRAIL!==null,
   drawn:GHOST_DRAWN,saved:GHOST_SAVED,
+  lastHad:GHOST_PREV!==null,lastDrawn:GHOST_PREV_DRAWN,
   last:GHOST_LAST?GHOST_LAST.slice():null,
   samples:GHOST_RUN.filter(function(v){return typeof v==='number'}).length,
   runHash:ghostRunHash(),
-  stored:(ghostRead()||[]).length}}
+  stored:(ghostRead(GHOST_KEY)||[]).length,
+  lastStored:(ghostRead(GHOST_LAST_KEY)||[]).length}}
 /* --- end ghost --- */
 """
 

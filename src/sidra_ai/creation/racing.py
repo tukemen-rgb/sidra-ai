@@ -179,6 +179,16 @@ function draw(){
     cx.strokeStyle='#05070f';cx.lineWidth=3;
     cx.beginPath();cx.moveTo(o.x-6,y-6);cx.lineTo(o.x+6,y+6);
     cx.moveTo(o.x+6,y-6);cx.lineTo(o.x-6,y+6);cx.stroke()});
+  /* The second ghost (§11 事実 1, C-1333): the run before this one, an
+     outline only and dimmer than the best, drawn first so the record
+     sits above it. When the last run IS the record the two coincide and
+     honestly read as one. */
+  const glx=ghostAtLast(dist);
+  if(glx!==null){cx.save();cx.globalAlpha=0.35;
+    cx.strokeStyle=TUNE_ACCENT;cx.lineWidth=1;
+    cx.strokeRect(glx-11,CARY-16,22,32);
+    cx.beginPath();cx.moveTo(glx-5,CARY-8);cx.lineTo(glx+5,CARY-8);
+    cx.stroke();cx.restore()}
   /* The past self, behind the car and through it: drawn and nothing
      else - no collision, no score, no sound (C-1401). */
   const gx=ghostAt(dist);
