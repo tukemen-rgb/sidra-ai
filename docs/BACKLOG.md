@@ -4342,7 +4342,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_score_float unmeasurable→1（得点イベントのフレームに
       浮き文字が現れ、値が合計の増分と一致し、上限を超えず、reduced で
       出ないことを検査。破壊で 0）
-- [ ] **C-1419: kaiju にグレイズ（3 型目の配線）。**（進捗監視起票
+- [~] 作業中 2026-09-05 03:10 ループA **C-1419: kaiju にグレイズ（3 型目の配線）。**（進捗監視起票
       2026-09-05・根拠は graze.py の GRAZE_UNWIRED 自身の記述「the obvious
       next one: the fists have a reach and a near-miss is legible」）
       C-1406 の帯部品を kaiju の拳に配線する: 拳の当たり判定の外側の帯を
