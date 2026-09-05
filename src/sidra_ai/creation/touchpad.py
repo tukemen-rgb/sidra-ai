@@ -130,14 +130,25 @@ const PAD_RAF=requestAnimationFrame;
 requestAnimationFrame=function(fn){return PAD_RAF(function(t){fn(t);drawPad()})};
 """ % {"button": BUTTON_CSS_PX, "gap": GAP_CSS_PX}
 
-#: How a template can name a key: ``e.code==='Space'``, ``ev.key==='ArrowUp'``
-#: and ``keys['arrowleft']`` are all in use today, and a template is free to
-#: pick any of them.
+#: How a template can name a key: ``e.code==='Space'``, ``ev.key==='ArrowUp'``,
+#: ``keys['arrowleft']`` and the ``K('ArrowLeft')`` helper (``K(k){return
+#: keys[k]}``) are all in use today, and a template is free to pick any of
+#: them. The ``K('…')`` form is a call - the definition ``K(k){…}`` has no
+#: quote after the paren, so it is not matched.
 _READS = (
     re.compile(r"""\.code\s*===\s*['"]([A-Za-z0-9]+)['"]"""),
     re.compile(r"""\.key\s*===\s*['"]([^'"]+)['"]"""),
     re.compile(r"""\bkeys\[\s*['"]([^'"]+)['"]\s*\]"""),
+    re.compile(r"""\bK\(\s*['"]([^'"]+)['"]\s*\)"""),
 )
+
+#: The shared steering helper (``parts.py``) reads its keys through
+#: ``partsHeld(['ArrowLeft'])`` inside the preamble, so no literal the patterns
+#: above can see appears in the template body. A template that *calls* it steers
+#: with ← →; the definition ``function partsSteerX(…)`` is excluded so its
+#: presence in every game (the preamble is always included) is not mistaken for
+#: a call. No template passes custom key lists today, so the defaults stand.
+_PARTS_STEER_CALL = re.compile(r"(?<!function )partsSteerX\(")
 
 #: ``KeyboardEvent.code`` spellings, back to the ``key`` the pad sends.
 _FROM_CODE = {"Space": " ", "KeyR": "r"}
@@ -168,6 +179,11 @@ def keys_read(script: str) -> set[str]:
     found: set[str] = set()
     for pattern in _READS:
         found.update(_normalise(match) for match in pattern.findall(script))
+    # A steering call reads ← → through the shared helper, invisibly to the
+    # literal patterns above (C-1247): without this the pad would drop the ◀▶
+    # a partsSteerX game needs on a phone.
+    if _PARTS_STEER_CALL.search(script):
+        found.update({"ArrowLeft", "ArrowRight"})
     return found
 
 

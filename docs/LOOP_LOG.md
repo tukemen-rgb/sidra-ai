@@ -7534,3 +7534,24 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 
 2026-09-05 03:52 進捗監視 前進あり: C-1419 完了（creation_kaiju_graze 0→1・怪獣戦にグレイズ）。C-1247（C-1244 回帰・03:22 ユーザー claim）・C-1335（03:36 クリエイター claim）進行中。次巡ループA には C-1420（marble コンボ）が待機。停滞なし。記録のみ。
+2026-09-05 03:4x UTC 辛口ユーザー C-1247 完了（生成ゲーム・24 巡目・C-1244 回帰修正）
+  pad_covers_briefing_controls 8 -> 10（判定器 exit 0）。観点=生成ゲーム
+  （前回=生成文書 C-1246）。最悪点: 自分の C-1244 の回帰。怪獣(kaiju)と
+  横スクロール(platformer)がスマホで ◀▶ を出さず歩けない/走れない＝遊べない。
+  原因: C-1244 は keys_read が返すキーだけをパッドに描くが、keys_read は
+  K('ArrowLeft')（platformer のヘルパ）と partsSteerX(…)（kaiju の共有ステア）で
+  読む方向キーを見落としていた（parts.py 自身が「テンプレは 3 通りでキーを
+  読む」と書いていたのに 1 通りしか拾えていなかった）。
+  実装: keys_read に K('…') 呼び出しパターン（定義はクォート無しで非マッチ）と
+  partsSteerX( 呼び出し検出（定義は (?<!function ) で除外、既定 ←→ を加える）を追加。
+  これで PAD_ACTIVE も unreachable_keys も正しくなる。
+  判定器（新設 pad_covers_briefing_controls）は keys_read 非依存: 各ジャンルの
+  briefing 操作行が見せる矢印/SPACE を PAD_ACTIVE が必ず含むか検査（marble は
+  英名が fishing に誤ルートするため「マーブル」で発注）。
+  5 破壊: partsSteerX検出除去 9 / K()パターン除去 9 / 片方向のみ加算 9・9 /
+  両方除去 8、復元 10.0。
+  pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）/ C-1244 の
+  creation_pad_only_used_buttons は 10 のまま非退行。
+  iPhone 12 実測: 怪獣が ◀▶＋A を表示（修正前 A＋R だけ）。
+  教訓: C-1244 判定器は expected も drawn も keys_read 由来で循環し見落としを
+  検出できず。今回は製品が見せる briefing を真実源に独立させた。

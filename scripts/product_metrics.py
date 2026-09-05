@@ -670,6 +670,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1247 (a C-1244 regression): the pad drew only what keys_read reports,
+    # and keys_read cannot see K('ArrowLeft') (platformer) or partsSteerX
+    # (kaiju), so those games lost their ◀▶ on a phone while the briefing still
+    # said 「← → で歩き／走り」. This check reads the promise: every arrow/SPACE
+    # the briefing names must be on the pad. Independent of keys_read.
+    from sidra_ai.evals.pad_covers_briefing_controls import (
+        evaluate_pad_covers_briefing_controls,
+    )
+
+    pad_cover = evaluate_pad_covers_briefing_controls()
+    c.add(
+        "pad_covers_briefing_controls",
+        "briefing が案内する操作キーを画面パッドが必ず備える（歩ける・走れる）",
+        10.0 * pad_cover.checks_passed / pad_cover.checks_total,
+        detail=f"{pad_cover.checks_passed}/{pad_cover.checks_total} genres; "
+               "src/sidra_ai/evals/pad_covers_briefing_controls.py"
+               + ("" if pad_cover.passed else "; " + "; ".join(pad_cover.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1205: a subject request that fell to the default template used to be
     # announced as satisfied (「「猫」を作りました」 about a fishing page with
     # no cat). Five shapes through the real router: the fallback admitted,
