@@ -32,7 +32,7 @@ from __future__ import annotations
 #: certainly produces a moving picture from no input at all. Shooter
 #: (C-1338) is the second: it needs one held input, which is what a pilot
 #: line is for.
-ATTRACT_TEMPLATES: tuple[str, ...] = ("racing", "shooter")
+ATTRACT_TEMPLATES: tuple[str, ...] = ("racing", "shooter", "kaiju")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
@@ -46,7 +46,6 @@ ATTRACT_UNWIRED: dict[str, str] = {
     "puzzle": "a board that is never clicked is a still image",
     "adventure": "the hero does not walk on their own; the room would sit there",
     "platformer": "same: no input means standing on the first platform until the clock",
-    "kaiju": "the boss cycles but the player's shot is the whole game, and it never fires",
     "duel": "both fighters wait for a button; the screen would show two idle poses",
 }
 
@@ -54,7 +53,8 @@ ATTRACT_UNWIRED: dict[str, str] = {
 #: that has one calls it ``reset``; the expression is written down rather
 #: than assumed so a template that renamed it fails the judge instead of
 #: quietly starting people mid-demo.
-ATTRACT_RESET: dict[str, str] = {"racing": "reset()", "shooter": "reset()"}
+ATTRACT_RESET: dict[str, str] = {
+    "racing": "reset()", "shooter": "reset()", "kaiju": "reset()"}
 
 #: One line of piloting, run every demo frame before the template's step
 #: (C-1338). The arcade's attract mode is a recorded hand on the real
@@ -66,7 +66,19 @@ ATTRACT_RESET: dict[str, str] = {"racing": "reset()", "shooter": "reset()"}
 #: ATTRACT_LIVE goes up the moment the game's core verb lands on screen
 #: (a kill, here), which is what the judge reads to tell a demo with a
 #: game in it from a moving screensaver.
-ATTRACT_PILOT: dict[str, str] = {"shooter": "fire=true;if(kills>0)ATTRACT_LIVE=1"}
+ATTRACT_PILOT: dict[str, str] = {
+    "shooter": "fire=true;if(kills>0)ATTRACT_LIVE=1",
+    # Kaiju (C-1344): pace under the leg and keep shooting - the whole
+    # game in one held stance, at a rate that leaves the picture moving
+    # between hitstops. The receipt is a weak-point cycle landed.
+    # NOTE the counter: a pilot line runs inside the gate's tick, whose
+    # own parameter is named ``t`` - it SHADOWS a template's global ``t``
+    # with the rAF timestamp (a float, so ``t%16===0`` almost never
+    # fired). ATTRACT_FRAMES is the gate's own frame count and nothing
+    # shadows it; pilots must not lean on template globals the tick hides.
+    "kaiju": "me.x=legX()+18*Math.sin(ATTRACT_FRAMES/25);"
+    "if(ATTRACT_FRAMES%16===0)fire();if(cycles>0)ATTRACT_LIVE=1",
+}
 
 
 def wired(template: str) -> bool:

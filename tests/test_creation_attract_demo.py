@@ -125,8 +125,11 @@ def test_the_pilot_line_is_substituted_per_template() -> None:
 
     assert "try{fire=true;if(kills>0)ATTRACT_LIVE=1}catch(e){}" in _script("shooter")
     assert "fire=true" not in _script("racing")
-    assert "ATTRACT_PILOT_TOKEN" not in _script("shooter")
-    assert "ATTRACT_PILOT_TOKEN" not in _script("racing")
+    # Kaiju's pilot counts on ATTRACT_FRAMES, never the template's ``t``:
+    # the gate tick's own parameter is named t and shadows it (C-1344).
+    assert "if(ATTRACT_FRAMES%16===0)fire()" in _script("kaiju")
+    for template in ("shooter", "racing", "kaiju"):
+        assert "ATTRACT_PILOT_TOKEN" not in _script(template)
 
 
 def test_the_piloted_demo_shoots_loses_and_goes_again(piloted: dict) -> None:
@@ -147,6 +150,19 @@ def test_the_piloted_demo_shoots_loses_and_goes_again(piloted: dict) -> None:
     assert piloted["beforePress"]["round"]["ms"] == 0
     assert piloted["beforePress"]["touched"] is False
     assert sorted(piloted["beforePress"]["store"]) == []
+
+
+def test_the_kaiju_demo_fells_the_monster_and_goes_again() -> None:
+    """The paced gunner under the leg (C-1344): cycles land, fights end."""
+
+    seen = _watch("kaiju", idle=900, play=30)
+    facts = seen["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 900
+    assert facts["loops"] >= 1, "the demo never reached an ending"
+    assert facts["live"] == 1, "the demo never landed a weak-point hit"
+    assert seen["beforePress"]["round"]["ms"] == 0
+    assert sorted(seen["beforePress"]["store"]) == []
 
 
 def test_the_press_after_a_piloted_demo_matches_the_control(piloted: dict) -> None:
