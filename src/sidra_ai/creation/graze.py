@@ -48,7 +48,18 @@ GRAZE_TEMPLATES: tuple[str, ...] = ("shooter", "kaiju")
 #: are different answers, and only the second is a backlog item.
 GRAZE_UNWIRED: dict[str, str] = {
     "duel": "a parry window already fills this role; two risk layers needs a decision",
-    "racing": "the barriers are the hazard, but the car is steered along them for whole seconds - a band would pay continuously",
+    # Measured, not reasoned about (C-1429). The worry this entry used
+    # to record - "a band would pay continuously" - is not what the
+    # page does: the pass is evaluated at the single instant an
+    # obstacle goes behind the car, and the obstacle is dropped from
+    # the list on that same frame, so one obstacle is worth exactly one
+    # evaluation however long the car rode alongside it. The band even
+    # starts where the hitbox ends (26-46px), which is this preamble's
+    # own rule. What racing lacks is not a band; it already has one
+    # under another name, and creation_race_slipstream already checks
+    # the four things a graze judge would.
+    "racing": "it already has this: the C-1325 slipstream pays once per obstacle shaved, "
+    "in pace rather than points - a second band would pay twice for one act",
     "marble": "the drop is the hazard and its edge is the course itself",
     "platformer": "the gaps do not move, so a near-miss is a fixed property of the level rather than a choice",
     "catch": "nothing there can hurt you; a missed item is a lost point, not a danger",
