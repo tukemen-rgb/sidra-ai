@@ -25,6 +25,7 @@ correct decoder-independent stream with no compression state to get wrong.
 
 from __future__ import annotations
 
+import re
 import struct
 import unicodedata
 import zlib
@@ -265,11 +266,25 @@ def _gif_bytes(frames: list[bytearray]) -> bytes:
 # ----------------------------------------------------------- generating
 
 
-def _title_from(request: str) -> str:
-    import re
+#: GIF-kind nouns a title should not end with, since the artifact already is
+#: one: 「猫のGIF」→「猫」, 「鳥のアニメGIF」→「鳥」 (C-1265, the GIF twin of the
+#: document C-1246 and deck C-1249). Longer spellings first so 「アニメGIF」 goes
+#: whole; optional leading 「の」; applied once and only when a subject remains.
+_TITLE_KIND_SUFFIX = re.compile(
+    r"の?(?:アニメーション|アニメ画像|アニメgif|アニメ|gif|animation)$", re.IGNORECASE
+)
 
+
+def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって|出力して)", request)[0]
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
+    # The subject alone: 「猫のGIF」 says GIF in its title and again in the summary
+    # 「…のアニメ GIF」 (C-1265). Dropped only when a subject remains, exposed
+    # particle cleaned after; a bare 「GIFを作って」 keeps its default title.
+    trimmed = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
+    trimmed = re.sub(r"[をのはがにで]+$", "", trimmed).strip()
+    if trimmed:
+        stripped = trimmed
     return stripped[:60] or "アニメ画像"
 
 

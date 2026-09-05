@@ -22,6 +22,7 @@ blank canvas.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 import zlib
 from dataclasses import dataclass, field
@@ -88,11 +89,25 @@ def choose_pattern(request: str) -> str:
     return named_pattern(request) or DEFAULT_PATTERN
 
 
-def _title_from(request: str) -> str:
-    import re
+#: Art-kind nouns a title should not end with, since the artifact already is
+#: one: 「螺旋のアート」→「螺旋」 (C-1265, the art twin of documents' C-1246 and
+#: decks' C-1249). Longer spellings first, optional leading 「の」, applied once
+#: and only when a subject remains - 「アートを作って」 keeps its default title.
+_TITLE_KIND_SUFFIX = re.compile(
+    r"の?(?:ジェネラティブアート|アート|generative art|art)$", re.IGNORECASE
+)
 
+
+def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって|描いて)", request)[0]
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
+    # The subject alone: a page titled 「螺旋のアート」 says アート in its title and
+    # again in the summary 「…のジェネラティブアート」 (C-1265). Dropped only when a
+    # subject is left in front, and the exposed particle cleaned after.
+    trimmed = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
+    trimmed = re.sub(r"[をのはがにで]+$", "", trimmed).strip()
+    if trimmed:
+        stripped = trimmed
     return stripped[:60] or "ジェネラティブアート"
 
 

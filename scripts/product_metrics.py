@@ -794,6 +794,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1265: art and GIF titles kept the kind noun (「螺旋のアート」/「猫のGIF」),
+    # doubling it in the summary, while documents/decks/3D/games strip it. The
+    # title is the subject alone now. Checked through chat: a named request shows
+    # the subject alone and not the doubled form, a bare kind word still builds,
+    # and model3d (already stripping) is unchanged.
+    from sidra_ai.evals.art_gif_title_no_kind_echo import (
+        evaluate_art_gif_title_no_kind_echo,
+    )
+
+    art_gif_title = evaluate_art_gif_title_no_kind_echo()
+    c.add(
+        "art_gif_title_no_kind_echo",
+        "アート/GIF の題名が種名を残さず要約で二重にしない",
+        10.0 * art_gif_title.checks_passed / art_gif_title.checks_total,
+        detail=f"{art_gif_title.checks_passed}/{art_gif_title.checks_total} checks; "
+               "src/sidra_ai/evals/art_gif_title_no_kind_echo.py"
+               + ("" if art_gif_title.passed else "; " + "; ".join(art_gif_title.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
