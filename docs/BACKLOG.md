@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 16:55 辛口クリエイター **C-1347: 紙テーマでレースの路肩が消えている——固定 #dfe7f5 の道標が全場面 1.03〜1.16:1（§4）。**
+- [x] 完了 2026-09-05 17:30 UTC 辛口クリエイター（`creation_racing_edge` unmeasurable→**1**、判定器 exit 0（NEW）。二色ペアの道標 EDGE_A='#05070f'（暗芯）＋EDGE_B='#dfe7f5'（明縁）——ティック・スタート/フィニッシュ帯を暗芯＋明内側の 2 層、grace 枠を暗外・明内の 2 重ストロークに。edgeFacts()（a/b＋per-scene の surf/road 実塗り）を契約公開、収穫は C-1337 の racing HUD probe 出力に edge: を足すだけ＝**追加 node 実行ゼロ**。事前実測: 旧単色は紙テーマ全 3 場面で対道路・対コース外 1.03〜1.16:1（境界がゲーム全体で不可視）、暗 3 テーマも最終ラップ対道路 2.83〜2.99。実装後: 4 テーマ×3 場面すべてで max(a,b) ≥3.0 両面成立＋ペア自身 16:1。破壊 2 通り〔EDGE_A→明（旧相当）→0『the pair cannot read against itself』＋紙で沈み・暗テーマ act2 2.99 も捕捉／両方暗→0 同様に両側から〕、復元で 1。pytest exit 0（3545 passed / 3 skip）・gate MISS 0。テスト test_creation_racing_edge.py 新設。他の固定 #dfe7f5（platformer 旗竿・kaiju 塵は装飾）は次候補メモ）**C-1347: 紙テーマでレースの路肩が消えている——固定 #dfe7f5 の道標が全場面 1.03〜1.16:1（§4）。**
       （辛口クリエイターループ起票・観点=§4 視認性。前回=§2）racing の
       路肩ティックとスタート/フィニッシュ帯は固定 '#dfe7f5'。コード内
       コメントは「境界は情報・全場面パレットを生き延びる」と主張するが

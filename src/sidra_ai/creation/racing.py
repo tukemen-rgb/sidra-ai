@@ -107,6 +107,17 @@ const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){const keep=SCENE,sk=[];
   for(let i=0;i<SPAL.length;i++){SCENE=i;sk.push(scenePaint('SURFACE_TOKEN'))}
   SCENE=keep;return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A,skies:sk}}
+/* The road's edge is information and has to survive every scene of every
+   theme (§4, C-1347). One light neutral did not: on the paper theme it
+   sat at ~1.05:1 against road AND roadside for the whole run. A TWO-TONE
+   mark - dark core, light rim - always has one half standing at 3:1
+   against any paint (a mid grey is the worst case, and both halves still
+   clear ~4:1 there), and the pair reads against itself. */
+const EDGE_A='#05070f',EDGE_B='#dfe7f5';
+function edgeFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({surf:scenePaint('SURFACE_TOKEN'),road:scenePaint('RAISED_TOKEN')})}
+  SCENE=keep;return {a:EDGE_A,b:EDGE_B,scenes:out}}
 function onRoad(){return Math.abs(car.x-roadAt(dist))<ROADW/2-8}
 function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,passed:passed,
   slips:slips,
@@ -177,12 +188,17 @@ function draw(){
   /* Edge ticks and the start/finish band are a light neutral, not an
      accent: the boundary is information and has to survive every scene
      palette (§4 - colour is never the only carrier). */
-  cx.fillStyle='#dfe7f5';
   for(let y=0;y<H;y+=4){const d=dist+(CARY-y),rx=roadAt(d);
     if(((d%110)+110)%110<12){
-      cx.fillRect(rx-ROADW/2,y,5,4);cx.fillRect(rx+ROADW/2-5,y,5,4)}
+      cx.fillStyle=EDGE_A;
+      cx.fillRect(rx-ROADW/2,y,5,4);cx.fillRect(rx+ROADW/2-5,y,5,4);
+      cx.fillStyle=EDGE_B;
+      cx.fillRect(rx-ROADW/2+1,y+1,3,2);cx.fillRect(rx+ROADW/2-4,y+1,3,2)}
     if(((d%LAP)+LAP)%LAP<10){
-      for(let i=0;i<8;i+=2)cx.fillRect(rx-ROADW/2+i*(ROADW/8),y,ROADW/8,4)}}
+      for(let i=0;i<8;i+=2){cx.fillStyle=EDGE_A;
+        cx.fillRect(rx-ROADW/2+i*(ROADW/8),y,ROADW/8,4);
+        cx.fillStyle=EDGE_B;
+        cx.fillRect(rx-ROADW/2+i*(ROADW/8)+1,y+1,ROADW/8-2,2)}}}
   obs.forEach(o=>{const y=CARY-(o.d-dist);if(y<-20||y>H+20)return;
     cx.fillStyle='MAGENTA_TOKEN';cx.fillRect(o.x-11,y-11,22,22);
     cx.strokeStyle='#05070f';cx.lineWidth=3;
@@ -207,8 +223,10 @@ function draw(){
     cx.strokeRect(gx-11,CARY-16,22,32);cx.restore()}
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(car.x-11,CARY-16,22,32);
   cx.fillStyle='#05070f';cx.fillRect(car.x-6,CARY-8,12,9);
-  if(grace>0){cx.strokeStyle='#dfe7f5';cx.lineWidth=2;
-    cx.strokeRect(car.x-13,CARY-18,26,36)}
+  if(grace>0){cx.strokeStyle=EDGE_A;cx.lineWidth=4;
+    cx.strokeRect(car.x-13,CARY-18,26,36);
+    cx.strokeStyle=EDGE_B;cx.lineWidth=2;
+    cx.strokeRect(car.x-13,CARY-18,26,36);cx.lineWidth=1}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(6,4,262,22);cx.fillRect(W-178,4,132,38);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
@@ -291,6 +309,7 @@ const palette = sceneFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
   hud: hudFacts(),
+  edge: edgeFacts(),
   stateStart: start.state, base: start.base,
   spdStart: start.spd, spdAfterHit: afterHit.spd, graceAfterHit: afterHit.grace,
   leftMoved: afterLeft.carX - centred.carX,

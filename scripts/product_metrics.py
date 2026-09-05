@@ -3367,6 +3367,8 @@ def measure_creation(c: Collector) -> None:
         )
 
     hud_gaps: list[str] = []
+    #: label -> edgeFacts() from the racing pages driven below (C-1347).
+    racing_edge: dict[str, dict] = {}
     # The two RUNNING templates live outside the scene loop above (their
     # scenes step by lap / progress, not by clock), so their HUD contract
     # is read off their own gameplay probes. Their backdrop is not always
@@ -3401,6 +3403,8 @@ def measure_creation(c: Collector) -> None:
                 scene_hud[label] = (seen["hud"], seen.get("scenes") or [])
             else:
                 hud_gaps.append(f"{label}: no HUD contract reported")
+            if key == "racing" and isinstance(seen.get("edge"), dict):
+                racing_edge[label] = seen["edge"]
     hud_seen: set[str] = set()
     for label, (hud, hud_scenes) in sorted(scene_hud.items()):
         hud_seen.add(label.split("/")[0])
@@ -3452,6 +3456,53 @@ def measure_creation(c: Collector) -> None:
             "最終場面で素の ink が 3.07〜3.97:1 に沈んでいた）"
             if not hud_gaps
             else "; ".join(hud_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the road's edge survives every paint -------------------------
+    #
+    # §4 (C-1347): the roadside ticks and the start/finish band are the
+    # boundary between "on the road" and "losing speed" - information,
+    # not decoration. One fixed light neutral sat at ~1.05:1 against
+    # everything on the paper theme, an invisible boundary for the whole
+    # run. The mark is now a TWO-TONE pair (dark core, light rim) and the
+    # page reports it: in every scene of every theme, ONE half must clear
+    # the 3:1 component floor against both the road and the roadside, and
+    # the pair must read against itself.
+    edge_gaps: list[str] = []
+    for label in sorted(racing_edge):
+        contract = racing_edge[label]
+        try:
+            lum_a = _srgb_lum(contract["a"])
+            lum_b = _srgb_lum(contract["b"])
+            if _wcag(lum_a, lum_b) < 3.0:
+                edge_gaps.append(f"{label}: the pair cannot read against itself")
+            for act, plane in enumerate(contract["scenes"]):
+                for side, name in (("surf", "the roadside"), ("road", "the road")):
+                    ground = _srgb_lum(plane[side])
+                    best = max(_wcag(lum_a, ground), _wcag(lum_b, ground))
+                    if best < 3.0:
+                        edge_gaps.append(
+                            f"{label}: act {act} the edge sinks into {name} ({best:.2f})"
+                        )
+        except (KeyError, TypeError, ValueError):
+            edge_gaps.append(f"{label}: edge contract unreadable")
+    for missing in {f"racing/{s or 'default'}" for s in _scene_themes} - set(
+        racing_edge
+    ):
+        edge_gaps.append(f"{missing}: no edge contract reported")
+    c.add(
+        "creation_racing_edge",
+        "路肩がどのテーマでも読める",
+        1.0 if not edge_gaps else 0.0,
+        detail=(
+            "racing × 4 テーマ × 全 3 場面で、二色ペアの道標（暗芯＋明縁）の"
+            "どちらか一方が道路とコース外の両方に ≥3.0:1 で立ち、ペア自身も"
+            "≥3.0:1。旧・単色 #dfe7f5 は紙テーマで全場面 1.03〜1.16:1＝境界"
+            "がゲーム全体で見えなかった（§4・境界は情報）"
+            if not edge_gaps
+            else "; ".join(edge_gaps)
         ),
         kind=OUTCOME,
     )
