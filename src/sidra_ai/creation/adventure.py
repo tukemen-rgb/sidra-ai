@@ -71,6 +71,19 @@ function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 /* seeded LCG: the layout is a promise (same request, same world), and the
    enemies keep drawing from it so a run is reproducible too */
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
+/* The knowledge key (§3, C-1340): a lock whose key is a fact, not an
+   item. The stone in the forest tells a seeded order; knocking the cave's
+   three marks in that order breaks the seal on the key without a single
+   fight - the soft route around the hard one (enemies still drop it the
+   regular way). Its own stream, so the layout every earlier seed promised
+   does not move by one rand() call. */
+let ks=((SEED^1234567)>>>0)||1;
+function krand(){ks=(ks*48271)%2147483647;return ks/2147483647}
+const KMARKS=['月','星','日'];
+const KORDER=(()=>{const o=[0,1,2];for(let i=2;i>0;i--){
+  const j=Math.floor(krand()*(i+1));const t=o[i];o[i]=o[j];o[j]=t}return o})();
+let kprog=0,ksolved=false;
+function knowFacts(){return {progress:kprog,solved:ksolved}}
 const NAMES=['森のはずれ','ひかり苔の洞窟','風の祭壇'];
 let rooms=[],enemies=[],room=0,msg='',msgT=0,guard=null;
 let hero={x:0,y:0,dir:2,hp:3,gems:0,key:false,swing:0,inv:0};
@@ -89,8 +102,13 @@ function build(){
   forest[4][3]=2;
   /* the sink: somewhere to spend gems, on the way out of the first room */
   forest[6][6]=9;
+  /* the stone that knows the order (§3, C-1340) */
+  forest[2][6]=12;
   const cave=empty();carve(cave,1,10);cave[0][6]=4;cave[0][13]=4;
   cave[4][0]=6;cave[4][GW-1]=5;
+  /* the three marks the stone speaks of, placed by hand so carve()
+     cannot bury one */
+  cave[6][4]=13;cave[6][9]=14;cave[6][14]=15;
   /* the branch (knowledge base §3): a door nobody has to open, and a
      reward that is only worth it if you spent gems on grass first. The
      alcove is walled by hand so carve() cannot open a way around it. */
@@ -119,6 +137,7 @@ function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
   ||Math.abs(x-1)+Math.abs(y-4)<5);
   return {x:OX+x*TILE+8,y:OY+y*TILE+8,dx:0,dy:0,t:0,alive:true}}
 function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRSTCUT=true;
+  kprog=0;ksolved=false;
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
     charm:false,swing:0,inv:0};
   say('ぼうしの勇者、めざめる。')}
@@ -126,7 +145,8 @@ function say(t){msg=t;msgT=140}
 function tileAt(px,py){const x=Math.floor((px-OX)/TILE),y=Math.floor((py-OY)/TILE);
   if(x<0||y<0||x>=GW||y>=GH)return 1;return rooms[room][y][x]}
 function solid(px,py){const t=tileAt(px,py);
-  return t===1||t===2||t===3||t===4||t===7||t===8||t===9||t===10}
+  return t===1||t===2||t===3||t===4||t===7||t===8||t===9||t===10||
+    t===12||t===13||t===14||t===15}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
   if(e.code==='Space'){e.preventDefault();swing()}
@@ -166,7 +186,13 @@ function swing(){if(state!=='play')return;
     /* The optional door (§3): the run is winnable without ever opening it. */
     if(t===10){if(hero.gems>=2){hero.gems-=2;rooms[room][ty][tx]=0;
         say('わき道が開いた。');sfx('key')}
-      else{say('宝石 2 個で開きそうだ（いま '+hero.gems+' 個）。');sfx('clash')}}}
+      else{say('宝石 2 個で開きそうだ（いま '+hero.gems+' 個）。');sfx('clash')}}
+    /* The knowledge key (§3, C-1340): the stone SAYS the order - the
+       knowledge lives in the world, not in a facts function - and the
+       marks answer to it. */
+    if(t===12){say('石碑「'+KORDER.map(i=>KMARKS[i]).join('→')+
+      ' の順に、洞窟の印を叩け」');sfx('step')}
+    if(t===13||t===14||t===15){knock(t-13,tx,ty)}}
   enemies[room].forEach(en=>{if(!en.alive)return;
     if(Math.hypot(en.x-fx,en.y-fy)<22){en.alive=false;sfx('hurt');
       shake(6);hitstop(3);burst(en.x,en.y,16,'ALERT_JUICE');
@@ -182,6 +208,22 @@ function swing(){if(state!=='play')return;
       burst(guard.x,guard.y,32,'ALERT_JUICE');
       say('番人は崩れ落ちた。祭壇が静まりかえる。')}
     else if(guard.hp===3){say('番人の足が速くなった。');sfx('charge')}}}
+/* One knock on one mark. The right next mark advances the seal; a wrong
+   one resets it (the struck mark still counts as a first step when it IS
+   the first - a player re-starting the phrase should not need a dead
+   knock). Solving with the key already loose or held breaks the seal and
+   nothing else: two keys would be a dungeon with a spare under the mat. */
+function knock(mark,tx,ty){if(state!=='play')return;
+  if(ksolved){say('印はもう静かだ。');sfx('step');return}
+  if(KORDER[kprog]===mark){kprog++;sfx('step');
+    burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,8,'ACCENT_JUICE');
+    if(kprog>=3){ksolved=true;sfx('powerup');
+      if(!hero.key&&!keyDrop){keyDrop={x:hero.x,y:hero.y};
+        say('封が解けて、鍵が転がり出た。')}
+      else{say('封が解けた。')}}
+    else{say('印が低く鳴った（'+kprog+'/3）。')}}
+  else{kprog=(KORDER[0]===mark)?1:0;
+    say('印は沈黙した。順が違う。');sfx('clash')}}
 function moveHero(){
   let vx=0,vy=0;const sp=2.2;
   if(keys['arrowleft']||keys['a']){vx=-sp;hero.dir=3}
@@ -306,7 +348,18 @@ function drawTile(t,x,y,now){
   if(t===10){cx.fillStyle='#5a4a2e';cx.fillRect(x+3,y+4,TILE-6,TILE-8);
     cx.strokeStyle='ALERT_JUICE';cx.lineWidth=2;diamond(x+TILE/2,y+TILE/2,6);
     cx.stroke();cx.lineWidth=1}
-  if(t===11){cx.fillStyle='ALERT_JUICE';diamond(x+TILE/2,y+TILE/2,8);cx.fill()}}
+  if(t===11){cx.fillStyle='ALERT_JUICE';diamond(x+TILE/2,y+TILE/2,8);cx.fill()}
+  /* The stone and the marks carry their names as glyphs (§4: form and
+     text, never colour alone). */
+  if(t===12){cx.fillStyle='RAISED_TOKEN';cx.fillRect(x+5,y+3,TILE-10,TILE-6);
+    cx.fillStyle='#00000055';cx.fillRect(x+5,y+TILE-7,TILE-10,4);
+    cx.fillStyle='INK_TOKEN';cx.font='11px ui-monospace,monospace';
+    cx.fillText('碑',x+10,y+18)}
+  if(t===13||t===14||t===15){cx.fillStyle='RAISED_TOKEN';
+    cx.fillRect(x+4,y+6,TILE-8,TILE-10);
+    cx.fillStyle='#ffffff2e';cx.fillRect(x+4,y+6,TILE-8,3);
+    cx.fillStyle='INK_TOKEN';cx.font='12px ui-monospace,monospace';
+    cx.fillText(KMARKS[t-13],x+10,y+21)}}
 function diamond(cxp,cyp,r){cx.beginPath();cx.moveTo(cxp,cyp-r);
   cx.lineTo(cxp+r,cyp);cx.lineTo(cxp,cyp+r);cx.lineTo(cxp-r,cyp);cx.closePath()}
 function draw(now){
@@ -615,6 +668,68 @@ def guard_probe(script: str) -> str:
     return GUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The knowledge key, driven (§3, C-1340). The probe learns the order the
+#: way a player does - by striking the stone and READING what it says -
+#: because the knowledge lives in the world, not in a facts function.
+#: Then it knocks wrong on purpose, knocks right, and watches the key
+#: fall with the cave's enemies still standing.
+KNOW_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.requestAnimationFrame = () => 0;
+globalThis.addEventListener = () => {};
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+SCRIPT_PLACEHOLDER
+function findTile(r, code){ let at = null;
+  rooms[r].forEach((row, y) => row.forEach((t, x) => { if (t === code) at = [x, y] }));
+  return at }
+function strike(r, tx, ty){ room = r;
+  hero.x = OX + tx * TILE + 16; hero.y = OY + (ty + 1) * TILE + 16;
+  hero.dir = 0; hero.swing = 0; hero.queued = false; swing() }
+/* Read the stone the way a player does. */
+const sign = findTile(0, 12);
+strike(0, sign[0], sign[1]);
+const signMsg = msg;
+const names = (signMsg.match(/「(.+) の順に/) || [null, ''])[1].split('→');
+const order = names.map(n => KMARKS.indexOf(n));
+/* A stone that does not speak is a finding, not a crash: report what it
+   said and stop, so the judge can name the silence. */
+if (order.length !== 3 || order.some(m => m < 0)) {
+  console.log(JSON.stringify({ signMsg: signMsg, order: [] }));
+} else {
+  const stones = [findTile(1, 13), findTile(1, 14), findTile(1, 15)];
+  /* Wrong on purpose: the second mark first must not advance a fresh seal. */
+  strike(1, stones[order[1]][0], stones[order[1]][1]);
+  const wrongProgress = knowFacts().progress, wrongDrop = !!keyDrop;
+  const aliveBefore = enemies[1].filter(e => e.alive).length;
+  /* Then right, and the key falls without a fight. */
+  order.forEach(m => strike(1, stones[m][0], stones[m][1]));
+  const solved = knowFacts().solved, dropped = !!keyDrop;
+  const aliveAtSolve = enemies[1].filter(e => e.alive).length;
+  moveHero();
+  console.log(JSON.stringify({
+    signMsg: signMsg, order: order,
+    wrongProgress: wrongProgress, wrongDrop: wrongDrop,
+    aliveBefore: aliveBefore, aliveAtSolve: aliveAtSolve,
+    solved: solved, dropped: dropped, keyGained: hero.key,
+  }));
+}
+"""
+
+
+def know_probe(script: str) -> str:
+    """The page's own script, wrapped so the stone can be read and knocked."""
+
+    return KNOW_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def world_probe(script: str, *, reduced: bool = False) -> str:
     """The page's own script, stubbed enough to run once, then reported."""
 
@@ -633,8 +748,10 @@ __all__ = [
     "CHARM_PROBE",
     "charm_probe",
     "GUARD_PROBE",
+    "KNOW_PROBE",
     "combo_probe",
     "WORLD_PROBE",
     "guard_probe",
+    "know_probe",
     "world_probe",
 ]

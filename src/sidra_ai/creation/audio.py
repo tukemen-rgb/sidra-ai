@@ -51,6 +51,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "charge",
     "clash",
     "catch",
+    "powerup",
     "win",
     "lose",
     "step",

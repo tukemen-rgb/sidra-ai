@@ -5657,6 +5657,66 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the key that is a fact, not an item ---------------------------
+    #
+    # §3 says keys come in kinds - items, tools, upgrades, KNOWLEDGE - and
+    # distinguishes hard locks (the regular way only) from soft ones a
+    # knowing player can route around (C-1340). The cave key was a hard
+    # lock with one edge: kill every enemy. Now the forest stone tells a
+    # seeded order and knocking the cave's three marks in that order
+    # breaks the key's seal without a fight. Driven, not grepped: the
+    # probe reads the order OFF THE STONE'S OWN MESSAGE - the knowledge
+    # lives in the world, not in a facts function - knocks wrong on
+    # purpose, then right, and watches the key fall with the enemies
+    # still standing.
+    from sidra_ai.creation.adventure import know_probe as _know_probe
+
+    know_gaps: list[str] = []
+    for _kn_req in ("迷宮を冒険するゲームを作って", "難しい迷宮を冒険するゲームを作って"):
+        _kn_label = "難しい" if "難しい" in _kn_req else "default"
+        _kn_page = generate_game(_kn_req).html
+        _kn_script = _scene_re.search(r"<script>(.*?)</script>", _kn_page, _scene_re.S)
+        if _kn_script is None:
+            know_gaps.append(f"{_kn_label}: no script")
+            continue
+        try:
+            _kn_run = _scene_sp.run(
+                ["node", "-"],
+                input=_know_probe(_kn_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _kn_run.returncode != 0:
+                raise ValueError(_kn_run.stderr.strip()[:60])
+            _kn = json.loads(_kn_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            know_gaps.append(f"{_kn_label}: probe unavailable ({exc})")
+            continue
+        order = _kn.get("order") or []
+        if len(order) != 3 or sorted(order) != [0, 1, 2]:
+            know_gaps.append(f"{_kn_label}: the sign keeps its secret ({_kn.get('signMsg')})")
+            continue
+        if _kn.get("wrongProgress") or _kn.get("wrongDrop"):
+            know_gaps.append(f"{_kn_label}: the seal opens to any order")
+        if not _kn.get("solved") or not _kn.get("keyGained"):
+            know_gaps.append(f"{_kn_label}: the knowledge never paid the key")
+        elif not _kn.get("aliveAtSolve"):
+            know_gaps.append(f"{_kn_label}: the soft route still cost the fight")
+    c.add(
+        "creation_knowledge_key",
+        "知識が鍵になる（§3 の soft lock）",
+        0.0 if know_gaps else 1.0,
+        detail=(
+            "; ".join(know_gaps)
+            if know_gaps
+            else "実ページ 2 依頼で石碑を叩き、そのメッセージから順を読んで"
+            "実行: 違う順では封が開かず、正しい順で敵が生きたまま鍵が転がり"
+            "出て拾える（戦闘の hard 経路は不変・順列は SEED 由来）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the repeat never lands on the same pitch twice ----------------
     #
     # §14 事実 1 (C-1317): frequently fired effects need a small random
