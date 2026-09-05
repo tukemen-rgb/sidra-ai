@@ -7366,3 +7366,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）。
   E2E: fresh 釣りページを iPhone 12 で開き A＋R だけ・D-pad 消失を確認。
   次候補: touchhint「◀▶ / A」が全ジャンル共通で釣りでは不正確（別件・低優先）。
+
+2026-09-05 01:05 UTC ループA started（Board=13、増減なし）
