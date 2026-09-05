@@ -63,6 +63,17 @@ _BACK_REFERENCES: tuple[str, ...] = (
     "生成した",
     "ゲーム",
     "げーむ",
+    # Demonstratives: right after making a game, 「その配色を紙にして」「これを
+    # 速くして」「それを難しくして」 is the most natural way to point at it, and
+    # without these the message fell to the question path and got the RAG
+    # "no evidence, ask an admin to ingest a repository" wall (C-1257). Safe
+    # here because the make-verb, question-marker and change-verb+adjustment
+    # vetoes still gate every one: 「それは何ですか」 keeps its question marker,
+    # 「これを作って」 keeps its make verb.
+    "それ",
+    "その",
+    "これ",
+    "この",
 )
 
 #: Adjustment vocabulary. Speed words map onto the difficulty ladder because

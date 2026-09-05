@@ -633,6 +633,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1257: right after making a game, demonstrative revisions (その/これ/
+    # それ/この …を直して) fell to the Q&A "no evidence, ask an admin to ingest
+    # a repository" wall because _BACK_REFERENCES had no demonstratives.
+    # Measured through the real chat path: a game is made, then each
+    # demonstrative revision must reach the reviser with its adjustment, while
+    # a question and a creation request stay off the reviser.
+    from sidra_ai.evals.revision_demonstrative_referent import (
+        evaluate_revision_demonstrative_referent,
+    )
+
+    revise_demo = evaluate_revision_demonstrative_referent()
+    c.add(
+        "revision_demonstrative_referent",
+        "直後の指示語（その/これ/それ）での修正が reviser に届く",
+        10.0 * revise_demo.checks_passed / revise_demo.checks_total,
+        detail=f"{revise_demo.checks_passed}/{revise_demo.checks_total} checks; "
+               "src/sidra_ai/evals/revision_demonstrative_referent.py"
+               + ("" if revise_demo.passed else "; " + "; ".join(revise_demo.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
