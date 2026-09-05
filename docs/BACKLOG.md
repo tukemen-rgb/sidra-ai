@@ -5195,6 +5195,20 @@ C-12xx/13xx/14xx はループ用のまま）。
       原則）。→ 動かす数字: creation_score_history unmeasurable→1
       （複数回走ると並びが走った順に現れ、値が各走行の実スコアと一致し、
       無操作ラウンドが混入しないことをページ実走行で検査。破壊で 0）
+- [ ] **C-1433: platformer の幕の裏も歩く（attract のパイロット 3 例目）。**
+      （進捗監視起票 2026-09-05・根拠は attract.py の ATTRACT_UNWIRED
+      実読「platformer: no input means standing on the first platform
+      until the clock」＋製品内の確立済み前例: shooter は C-1338 で
+      パイロット 1 行を得て幕の裏を飛び、marble は C-1349 で自分の
+      デモを操舵している。同じ仕組みを platformer に延ばす: 右へ歩き
+      続け、目前の欠落・段差でジャンプする最小のパイロット。条件は
+      §17 と同じ——デモ中は点も best も履歴（C-1432）も一切積まない・
+      ゲート押下で必ず初期状態から・reduced でも動く（動きが本体）。
+      パイロットは幕の裏専用でゲーム本体の入力系に触れない（C-1338/
+      C-1349 と同じ契約）。→ 動かす数字: creation_platformer_attract
+      unmeasurable→1（幕が閉じたまま x が進み場面が変わること、デモ中に
+      点・best・履歴が動かないこと、押下後が初期状態であることを検査。
+      破壊で 0）
       **結果 2026-09-05 19:45 ループA**（`creation_score_history`
       unmeasurable→1・判定器 exit 0・pytest 全緑・
       verify_gate_recall MISS 0/誤検知 0）
