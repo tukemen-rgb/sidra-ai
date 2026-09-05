@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 17:55 辛口クリエイター **C-1348: 主人公がのっぺらぼう——§1 技法表の「キャラの目や表情」が全キャラ未適用（§1）。**
+- [x] 完了 2026-09-05 18:30 UTC 辛口クリエイター（`creation_hero_face` unmeasurable→**1**、判定器 exit 0（NEW）。platformer の頭部に進行方向を見る 2 つの目（me.look・最後に押した向きを保持）・上昇中は視線 1px 上・FRAME(40,6) の 1 コマのまばたき——REDUCED では FRAME=0 が目を開いたまま留め、顔は一切動かない（既存機構が自動保証）。faceFacts(){look,up,blink} 契約公開。新設 FACE_PROBE の実測: 右走行 look=1・左 -1・上昇中 up=true・500f 中まばたき 1 回 10f・reduced 走行は blink 0。**probe 側の学び 1 件**——他 probe の慣例どおり performance.now を 0 固定で刺すと faceFacts の壁時計 FRAME が凍る（初回 blink 0 を実測）→ この probe は時計をフレームに追随させる設計にし、理由をコメント化。破壊 2 通り〔look 更新削除→0『the eyes never follow the run』×3 依頼／blink 恒偽→0『the hero never blinks』〕、復元で 1。pytest exit 0（3555 passed / 3 skip）・gate MISS 0。テスト test_creation_hero_face.py 新設。他キャラの顔（adventure 勇者・catch かご等）は次候補）**C-1348: 主人公がのっぺらぼう——§1 技法表の「キャラの目や表情」が全キャラ未適用（§1）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§4）§1 の技法
       列挙〔色数・トゥイーン・拡縮バウンス・音・パーティクル・揺れ・
       **キャラの目や表情**・ヒットストップ〕のうち、目と表情だけが

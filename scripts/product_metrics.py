@@ -3844,6 +3844,73 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the hero has a face -------------------------------------------
+    #
+    # §1's technique list ends with eyes and expressions - the talk the
+    # list comes from famously puts eyes on the blocks - and every SIDRA
+    # character was a blank rectangle (C-1348). The platformer hero now
+    # looks where the run goes, lifts its gaze while rising, and blinks
+    # for one beat every few seconds; under reduced motion FRAME pins the
+    # eyes open, so the face never animates there. Driven, not styled:
+    # the probe runs both ways, jumps, and counts the blink.
+    from sidra_ai.creation.platformer import face_probe as _face_probe
+
+    face_gaps: list[str] = []
+    for _fc_req, _fc_reduced in (
+        ("ジャンプで進むゲームを作って", False),
+        ("難しいジャンプで進むゲームを作って", False),
+        ("ジャンプで進むゲームを作って", True),
+    ):
+        _fc_label = f"{'難しい' if '難しい' in _fc_req else 'default'}" + (
+            "（reduced）" if _fc_reduced else ""
+        )
+        _fc_page = generate_game(_fc_req).html
+        _fc_script = _scene_re.search(r"<script>(.*?)</script>", _fc_page, _scene_re.S)
+        if _fc_script is None:
+            face_gaps.append(f"{_fc_label}: no script")
+            continue
+        try:
+            _fc_run = _scene_sp.run(
+                ["node", "-"],
+                input=_face_probe(_fc_script.group(1), reduced=_fc_reduced),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _fc_run.returncode != 0:
+                raise ValueError(_fc_run.stderr.strip()[:60])
+            _fc = json.loads(_fc_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            face_gaps.append(f"{_fc_label}: probe unavailable ({exc})")
+            continue
+        if _fc.get("lookRight") != 1 or _fc.get("lookLeft") != -1:
+            face_gaps.append(f"{_fc_label}: the eyes never follow the run")
+        if not _fc.get("upWhileRising"):
+            face_gaps.append(f"{_fc_label}: the rise never lifts the gaze")
+        if _fc_reduced:
+            if _fc.get("blinkFrames"):
+                face_gaps.append(f"{_fc_label}: reduced motion still blinks")
+        elif not _fc.get("blinkFrames"):
+            face_gaps.append(f"{_fc_label}: the hero never blinks")
+        elif _fc.get("longestBlink", 0) > 12:
+            face_gaps.append(
+                f"{_fc_label}: the eyes stay shut ({_fc.get('longestBlink')} frames)"
+            )
+    c.add(
+        "creation_hero_face",
+        "主人公の目が走りを追う",
+        0.0 if face_gaps else 1.0,
+        detail=(
+            "; ".join(face_gaps)
+            if face_gaps
+            else "platformer の実走行: 右へ走ると目が右（look=1）・左で -1・"
+            "上昇中は視線が上がり、数秒に一度 1 拍のまばたき（500f 中 10f）。"
+            "reduced-motion では FRAME が目を開いたまま留める＝顔は一切"
+            "動かない（§1 の技法表で最後まで残っていた「キャラの目や表情」）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a held key keeps moving --------------------------------------
     #
     # §12 事実 3 (C-1328): held movement belongs in the loop, read off

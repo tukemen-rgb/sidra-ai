@@ -133,9 +133,13 @@ function build(){
   orbs=orbs.filter(o=>Math.abs(o.x-lamp.x)>1)}
 function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;
   me={x:60,y:230,vy:0,ground:false,coyote:0,buffer:0,held:false,gems:0,
-    cpX:60,cpY:262,sq:1};
+    cpX:60,cpY:262,sq:1,look:1};
   say('足場を渡って、旗まで。')}
 function say(t){msg=t;msgT=150}
+/* The face, as a fact: which way the eyes point, whether they are lifted
+   by the rise, and whether this frame is the blink (§1, C-1348). */
+function faceFacts(){return {look:me.look,up:me.vy<-1,
+  blink:FRAME(40,6,performance.now())===1}}
 const keys={};
 function K(k){return keys[k]}
 function tryJump(){if(state!=='play')return;
@@ -161,8 +165,8 @@ cv.addEventListener('pointerdown',()=>{
 cv.addEventListener('pointerup',()=>{cutJump()});
 function step(){const now=performance.now();
   if(state==='play'){
-    if(K('ArrowLeft')){me.x=Math.max(10,me.x-RUN)}
-    if(K('ArrowRight')){me.x=Math.min(LW-10,me.x+RUN)}
+    if(K('ArrowLeft')){me.x=Math.max(10,me.x-RUN);me.look=-1}
+    if(K('ArrowRight')){me.x=Math.min(LW-10,me.x+RUN);me.look=1}
     const vBefore=me.vy;
     me.vy=Math.min(8,me.vy+GRAV);me.y+=me.vy;
     /* one-way platforms: solid only when the feet cross the top going down,
@@ -285,6 +289,15 @@ function draw(now){
   const sqh=12*me.sq,sqw=14*(2-me.sq),sqt=me.y-6-sqh;
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(px-sqw/2,sqt,sqw,sqh);
   cx.fillRect(px-3,sqt-6,6,6);
+  /* Eyes that look where the run goes (§1, C-1348): the last technique
+     on the juice list - a face is what makes a rectangle somebody. They
+     shift with me.look, lift while rising, and shut for one beat every
+     few seconds. Under reduced motion FRAME pins them open, so the face
+     never animates there - the machinery every frozen sparkle uses. */
+  if(!faceFacts().blink){cx.fillStyle='#05070f';
+    const ex=me.look*1.5,ey=me.vy<-1?-1:0;
+    cx.fillRect(px-2.5+ex,sqt-5+ey,1.5,2);
+    cx.fillRect(px+1+ex,sqt-5+ey,1.5,2)}
   /* the gait is position-driven, so it only moves when the player does */
   const g2=me.ground?Math.sin(me.x/5)*4:3;
   cx.strokeStyle='CYAN_TOKEN';cx.lineWidth=2;
@@ -619,10 +632,77 @@ def lamp_sfx_probe(script: str) -> str:
     return LAMP_SFX_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The face, driven (§1, C-1348): run right and the eyes look right, run
+#: left and they follow, jump and they lift, wait and they blink - once,
+#: briefly. The reduced-motion run is the other half: the blink never
+#: comes, because FRAME pins the face open.
+FACE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+/* The blink is a fact about the wall clock (faceFacts reads
+   performance.now itself), so this probe's clock ticks with the frames
+   instead of being pinned to zero. */
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(30);
+ev('keydown', 'ArrowRight'); run(20);
+const lookRight = faceFacts().look;
+ev('keyup', 'ArrowRight');
+ev('keydown', 'ArrowLeft'); run(20);
+const lookLeft = faceFacts().look;
+ev('keyup', 'ArrowLeft');
+/* The rise lifts the gaze: read the frame after a landed jump fires. */
+let upWhileRising = false;
+ev('keydown', 'ArrowUp');
+for (let i = 0; i < 12; i++) { run(1);
+  if (me.vy < -1 && faceFacts().up) { upWhileRising = true; break } }
+ev('keyup', 'ArrowUp');
+/* Then stand still and count the blink. */
+let blinkFrames = 0, longest = 0, streak = 0;
+for (let i = 0; i < 500; i++) { run(1);
+  if (faceFacts().blink) { blinkFrames++; streak++;
+    if (streak > longest) longest = streak } else { streak = 0 } }
+console.log(JSON.stringify({
+  lookRight: lookRight, lookLeft: lookLeft, upWhileRising: upWhileRising,
+  blinkFrames: blinkFrames, longestBlink: longest,
+}));
+"""
+
+
+def face_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the hero's face can be watched."""
+
+    return FACE_PROBE.replace("REDUCED_INPUT", "true" if reduced else "false").replace(
+        "SCRIPT_PLACEHOLDER", script
+    )
+
+
 __all__ = [
     "PLATFORMER_DIFFICULTY",
+    "FACE_PROBE",
     "LAMP_SFX_PROBE",
     "SQUASH_PROBE",
+    "face_probe",
     "lamp_sfx_probe",
     "squash_probe",
     "PLATFORMER_HOW",
