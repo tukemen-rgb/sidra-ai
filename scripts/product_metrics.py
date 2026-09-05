@@ -903,6 +903,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1248: C-1231 counted fullwidth forms as Japanese, but a question with no
+    # language at all (digits, symbols, emoji, empty) still fell to English -
+    # 「Run POST /v1/github/analyze」 to a Japanese reader. A non-Latin-script
+    # question now defaults to Japanese; a real English question stays English.
+    from sidra_ai.evals.answer_language_defaults_japanese import (
+        evaluate_answer_language_defaults_japanese,
+    )
+
+    lang_default = evaluate_answer_language_defaults_japanese()
+    c.add(
+        "answer_language_defaults_japanese",
+        "言語手がかりの無い質問は日本語で答える（数字・記号・絵文字・空でも英語にしない）",
+        10.0 * lang_default.checks_passed / lang_default.checks_total,
+        detail=f"{lang_default.checks_passed}/{lang_default.checks_total} checks; "
+               "src/sidra_ai/evals/answer_language_defaults_japanese.py"
+               + ("" if lang_default.passed else "; " + "; ".join(lang_default.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1241: two files that carry the identical passage produced two blocks
     # with the same text, and the answer printed the paragraph under [S1] and
     # again under [S2] - the reader re-reads it and it looks like two findings.

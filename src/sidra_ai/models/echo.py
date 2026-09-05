@@ -40,6 +40,24 @@ def _is_japanese(text: str) -> bool:
     """True when the text carries any Japanese script *or* punctuation."""
     return bool(_CJK.search(text) or _JA_PUNCT.search(text))
 
+
+#: A Latin letter - the mark of a question actually written in a Latin script.
+_LATIN = re.compile(r"[A-Za-z]")
+
+
+def _reply_in_japanese(text: str) -> bool:
+    """Which language a reply takes, for SYSTEM_PROMPT rule 6.
+
+    Japanese script or punctuation is Japanese. So is a question with no
+    language at all - digits, symbols, emoji, or nothing: ``_is_japanese`` is
+    false for it, but this product's readers are Japanese, and the English
+    branch would hand them 「Run POST /v1/github/analyze」 (C-1248). English is
+    reserved for a question actually written in a Latin script (one that has a
+    Latin letter), so a genuine English or romaji question still gets English.
+    """
+    return _is_japanese(text) or not _LATIN.search(text)
+
+
 #: Below this many characters a "sentence" is a label or list-marker
 #: fragment (「D-CY4.」「A.」), not content a reader can act on.
 _MIN_INFORMATIVE = 12
@@ -69,7 +87,7 @@ class EchoModelAdapter(LocalModelAdapter):
 
         if not blocks:
             question = request.user_message.strip()
-            if _is_japanese(question):
+            if _reply_in_japanese(question):
                 # SYSTEM_PROMPT rule 6 - born from the 2026-08-27 incident -
                 # says a Japanese question gets a Japanese answer, and this
                 # canned text was the one reply that ignored it (C-1202). It
@@ -99,7 +117,7 @@ class EchoModelAdapter(LocalModelAdapter):
         # answered Japanese question. The [S#] labels and excerpts between
         # them are untouched either way, so grounding's citation checks and
         # every excerpt-based judge read the same evidence.
-        if _is_japanese(request.user_message):
+        if _reply_in_japanese(request.user_message):
             preamble = (
                 "索引済みリポジトリの DATA から回答します"
                 "（抜粋・ローカル生成・外部 API 不使用）。"
@@ -120,7 +138,7 @@ class EchoModelAdapter(LocalModelAdapter):
         # to where it was shown. The footer still lists every source, because
         # "both files say this" is a true and useful fact - only the re-reading
         # is dropped.
-        same_note = "（{} と同じ内容）" if _is_japanese(request.user_message) else "(same text as {})"
+        same_note = "（{} と同じ内容）" if _reply_in_japanese(request.user_message) else "(same text as {})"
         lines = [preamble, ""]
         shown: dict[str, str] = {}
         for match in blocks:

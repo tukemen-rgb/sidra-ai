@@ -7577,3 +7577,23 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-05 04:2x UTC 辛口ユーザー started（25 巡目・エラー文言/エッジ・C-1248 claim）
 
 2026-09-05 04:22 進捗監視 前進あり: C-1247 完了（スマホの方向キー回帰修正・03:51）・C-1335 完了（両ゴースト全コース・03:57）。ループA は C-1420（marble コンボ）へ 04:08 着手、C-1248（04:16 ユーザー claim）進行中。停滞なし。記録のみ。
+2026-09-05 04:4x UTC 辛口ユーザー C-1248 完了（エラー文言/エッジ・25 巡目）
+  answer_language_defaults_japanese 2.86 -> 10（判定器 exit 0）。観点=エラー文言/
+  エッジ（前回=生成ゲーム C-1247）。最悪点: 言語手がかりの無い質問（数字だけ・
+  絵文字だけ・記号だけ・空白）が根拠なし応答で英語＋内部 API 用語になる。
+  「123456」「😀😀」→「No indexed evidence matched this question. Run POST
+  /v1/github/analyze…」。日本語主体の製品なのに CJK も Latin も無い質問を
+  英語に倒していた（_is_japanese False→英語）。
+  実装: echo.py に _reply_in_japanese(q)=_is_japanese(q) or Latin文字を含まない、を
+  足し、根拠なし応答・成功枠組み・C-1241 重複注記の 3 か所の言語判定を差替え。
+  Latin 文字を含む質問だけ英語、他は日本語既定。UI 空欄・CLI 空欄はもともと
+  弾かれるが、生 API と数字/絵文字/記号質問がこの経路に届く。
+  判定器（新設）は echo を data_block 無しで駆動し根拠なし経路の言語を検査。
+  過補正は「英語は英語のまま」チェックで検出。
+  5 破壊: helper を _is_japanese のみ 2.86 / 分岐を _is_japanese に戻す 2.86 /
+  常に英語 1.43 / 常に日本語 8.57 / Latin 正規表現を無効化 8.57、復元 10.0。
+  pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）/
+  answer_language_matches_question は 10 のまま非退行。
+  API 実測: 123456・😀😀→日本語、what is GAMEYARD revenue→英語のまま。
+  別記: HTTP 422 本文の汎用「request validation failed」はリクエスト値を
+  反射しない意図的セキュリティ設計なので触らない。
