@@ -593,6 +593,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1255: C-1246 dropped the kind word but the about phrase 「について」/
+    # 「に関する」 stayed, so 「広告方針についてのレポート」 titled 「広告方針に
+    # ついて」 and the 概要 said 「…について」について. The title is the subject
+    # alone now; a request with no about phrase is unchanged.
+    from sidra_ai.evals.document_title_no_about_echo import (
+        evaluate_document_title_no_about_echo,
+    )
+
+    about_echo = evaluate_document_title_no_about_echo()
+    c.add(
+        "document_title_no_about_echo",
+        "レポートの題名が「について/に関する」を残さず概要で二重にしない",
+        10.0 * about_echo.checks_passed / about_echo.checks_total,
+        detail=f"{about_echo.checks_passed}/{about_echo.checks_total} checks; "
+               "src/sidra_ai/evals/document_title_no_about_echo.py"
+               + ("" if about_echo.passed else "; " + "; ".join(about_echo.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

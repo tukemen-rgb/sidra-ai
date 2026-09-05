@@ -60,16 +60,26 @@ _TITLE_KIND_SUFFIX = re.compile(
     re.IGNORECASE,
 )
 
+#: The 「about X」 phrase a request uses to point at its subject: 「Xについての
+#: レポート」. Dropping the kind word leaves 「Xについて」, and the 概要 template
+#: 「この文書は「{title}」について」 then says について twice (C-1255). Anchored to
+#: the tail so a subject that merely contains 「について」 mid-phrase is untouched.
+_TITLE_ABOUT_SUFFIX = re.compile(r"(?:について(?:の)?|に関して(?:の)?|に関する)$")
+
 
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     # The subject alone: a report titled 「競合分析のレポート」 says 「レポート」
     # in its heading, its 概要 and its confirmation, all beside a file that is a
-    # report. Dropped only when a subject remains in front (C-1246).
-    without_kind = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
-    if without_kind:
-        stripped = without_kind
+    # report (C-1246). Then the 「について/に関する」 the request pointed with, so
+    # 「広告方針についてのレポート」 does not title 「広告方針について」 and double
+    # the について in the 概要 (C-1255). Both dropped only when a subject remains.
+    trimmed = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
+    trimmed = _TITLE_ABOUT_SUFFIX.sub("", trimmed).strip()
+    trimmed = re.sub(r"[をのはがにで]+$", "", trimmed).strip()
+    if trimmed:
+        stripped = trimmed
     return stripped[:60] or "レポート"
 
 
