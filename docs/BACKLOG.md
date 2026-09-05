@@ -2949,6 +2949,26 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 18:55 UTC 辛口クリエイター **C-1349: marble のタイトルが静止画のまま——自前の終端を持つ未配線 2 型の 1 つが「操縦デモが要る」で止まっている（§8×§17）。**
+      （辛口クリエイターループ起票・観点=§8 初見の即伝達×§17 attract。
+      前回=§1）attract は 3 型（racing/shooter/kaiju）。未配線 7 型の
+      うち clock 型 6 型（catch/fishing/puzzle/adventure/platformer/duel
+      の時計終端組——duel は状態終端があるが両者棒立ちでデモにならず）
+      はタイトル裏でラウンド時計が走らない設計（計器条項 3）と「デモは
+      区切りで周回する」（条項 1）が両立しない/絵にならないため対象外。
+      marble だけは違う: ATTRACT_UNWIRED の理由は「勝手に転がるが最初の
+      ブロックで止まる——操縦デモが要る」で、これは C-1338 の pilot 機構
+      が答えそのもの。しかも終端を 2 つ自前で持ち（ブロック接触・完走）、
+      ROUND_LIVE=('roll',) なので roundEnded() の周回検出がそのまま働く。
+      実装: ATTRACT_TEMPLATES+marble・ATTRACT_RESET "reset()"・
+      ATTRACT_PILOT に COMBO_PROBE で実証済みの操縦則を 1 行化
+      （近ブロックは中央側へ ±90 回避・ゲートへ照準・ball.x を毎フレーム
+      ≤3.4 ずつ寄せる=partsSteerX と同格の速度、kaiju が me.x を直接書く
+      前例）。受領書は if(gates>0)ATTRACT_LIVE=1（コア動詞=ゲート通過。
+      開幕ギフトゲートが必ず 1 個くれるので早期に点く）。C-1344 の規則
+      遵守: tick の t を使わず ATTRACT_FRAMES/テンプレート globals のみ。
+      注意: 完走 1 周 ≈670f なので 4200f で複数周回・hitstop なし。
+      → 動かす数字: creation_attract_demo 3→4
 - [x] 完了 2026-09-05 18:30 UTC 辛口クリエイター（`creation_hero_face` unmeasurable→**1**、判定器 exit 0（NEW）。platformer の頭部に進行方向を見る 2 つの目（me.look・最後に押した向きを保持）・上昇中は視線 1px 上・FRAME(40,6) の 1 コマのまばたき——REDUCED では FRAME=0 が目を開いたまま留め、顔は一切動かない（既存機構が自動保証）。faceFacts(){look,up,blink} 契約公開。新設 FACE_PROBE の実測: 右走行 look=1・左 -1・上昇中 up=true・500f 中まばたき 1 回 10f・reduced 走行は blink 0。**probe 側の学び 1 件**——他 probe の慣例どおり performance.now を 0 固定で刺すと faceFacts の壁時計 FRAME が凍る（初回 blink 0 を実測）→ この probe は時計をフレームに追随させる設計にし、理由をコメント化。破壊 2 通り〔look 更新削除→0『the eyes never follow the run』×3 依頼／blink 恒偽→0『the hero never blinks』〕、復元で 1。pytest exit 0（3555 passed / 3 skip）・gate MISS 0。テスト test_creation_hero_face.py 新設。他キャラの顔（adventure 勇者・catch かご等）は次候補）**C-1348: 主人公がのっぺらぼう——§1 技法表の「キャラの目や表情」が全キャラ未適用（§1）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§4）§1 の技法
       列挙〔色数・トゥイーン・拡縮バウンス・音・パーティクル・揺れ・
