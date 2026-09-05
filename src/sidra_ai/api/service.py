@@ -68,7 +68,12 @@ _KIND_LABELS: dict[str, str] = {
     "model3d": "3Dモデル",
     "gif": "GIF",
     "art": "アート",
-    "project": "企画一式",
+    # Not a generic 「企画一式」: PROJECT builds a game-production bundle
+    # (scenario/structure/features/assets/game.html/production-log). Labelling
+    # it 「企画一式」 made the unbuildable decline offer to make any 「企画」, so a
+    # business-plan request was declined while the same message invited it back
+    # (C-1263). The name now says what it makes.
+    "project": "ゲーム制作一式",
 }
 
 

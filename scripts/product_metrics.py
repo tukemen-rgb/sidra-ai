@@ -755,6 +755,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1263: C-1261's decline labelled the project kind 「企画一式」, but PROJECT
+    # makes a game-production bundle, so a business 「企画」 request was declined
+    # while the same message offered 「企画一式」 - a contradiction. The label is
+    # now 「ゲーム制作一式」. Measured through chat: the decline names project as
+    # game production, never a bare 「企画一式」, and a real project still builds.
+    from sidra_ai.evals.creation_project_label_game_specific import (
+        evaluate_creation_project_label_game_specific,
+    )
+
+    project_label = evaluate_creation_project_label_game_specific()
+    c.add(
+        "creation_project_label_game_specific",
+        "制作辞退が project 種別をゲーム制作と明示し裸の企画一式を勧めない",
+        10.0 * project_label.checks_passed / project_label.checks_total,
+        detail=f"{project_label.checks_passed}/{project_label.checks_total} checks; "
+               "src/sidra_ai/evals/creation_project_label_game_specific.py"
+               + ("" if project_label.passed else "; " + "; ".join(project_label.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
