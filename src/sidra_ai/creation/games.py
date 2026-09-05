@@ -352,6 +352,17 @@ function catchFacts(){return {shown:shown,px:px,score:score,caught:caught,
    budget, and it eases back to rest. Under reduced motion the silhouette
    never changes - C-1332's line, verbatim. */
 let BSQ=1;
+/* The face (§1, C-1353): the basket watches what it is about to catch.
+   The eyes lean toward the LOWEST item - the next one to arrive - with a
+   small deadzone so an item already over the basket reads as "looking
+   straight ahead". No items is a straight look too. The blink is one
+   FRAME beat, pinned open under reduced motion (C-1348's contract). */
+function faceLook(){let best=null;
+  items.forEach(i=>{if(!best||i.y>best.y)best=i});
+  if(!best)return 0;
+  return best.x>shown+0.03?1:best.x<shown-0.03?-1:0}
+function faceFacts(){return {look:faceLook(),
+  blink:FRAME(40,6,performance.now())===1}}
 /* Held movement lives in the loop, not in the event (§12 事実 3, C-1328).
    The on-screen pad synthesises no key repeat - one press is one keydown -
    so a basket that only moved inside the event stood still under a held ◀.
@@ -397,6 +408,13 @@ function step(){t++;
   BSQ+=(1-BSQ)*0.25;if(Math.abs(BSQ-1)<0.01)BSQ=1;
   const bh=(20+pulse)*BSQ,bw=WIDE*w*(2-BSQ);
   sprite('marker',shown*w-bw/2,h-10-bh,bw,bh,'MAGENTA_TOKEN');
+  /* Eyes on the rim (§1, C-1353), leaning at the next item to arrive.
+     Their height rides BSQ, so the catch squashes the eyes with the body
+     (C-1341's bounce, one silhouette). */
+  const fc=faceFacts();
+  if(!fc.blink){cx.fillStyle='#05070f';const ex=fc.look*3;
+    cx.fillRect(shown*w-6+ex,h-10-bh+3,3,4*BSQ);
+    cx.fillRect(shown*w+3+ex,h-10-bh+3,3,4*BSQ)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(32,14,420,26);cx.fillRect(32,h-44,330,26);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font='16px ui-monospace,monospace';

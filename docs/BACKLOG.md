@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-06 00:55 UTC 辛口クリエイター **C-1353: 3 人目の顔——catch の受け皿は落下物を「見て」いない（§1・C-1348 の残り候補）。**
+- [x] 完了 2026-09-06 01:40 UTC 辛口クリエイター（`creation_hero_face` **2→3**、判定器 exit 0（BETTER）。catch の受け皿の縁に 2 つの目——**最も低い（=次に届く）落下物の方向へ ±3px 傾く**（deadzone ±0.03・真上/無物は正面）、まばたき FRAME(40,6)・REDUCED 常時開眼（C-1348/C-1351 と同一契約）、**目の高さは BSQ 追随＝受けの瞬間は目も潰れる**（C-1341 の拡縮と一体のシルエット）。faceFacts(){look,blink} 公開。新設 CATCH_FACE_PROBE（catchgame.py・時計フレーム追随）実測: 左端駐機→右の落下で look=1・右端→-1・最下物に整列→0・blink 10f/500f（longest 10）・reduced 走行 blink 0。破壊 3 通り〔look 恒 0→0『the eyes never lean at the falling item』／blink 恒偽→0『the basket never blinks』／deadzone 削除→0『an item overhead still pulls the eyes sideways』〕、復元で 3。**ハーネスの学び 1 件**——catch 本体は games.py の _CATCH 文字列で TEMPLATES 構築時に焼き込まれるため、モジュール属性 _CATCH の書き換えでは破壊が届かず全部 clean を返した（無効な破壊実験を検出）→ TEMPLATES['catch'].script を直接パッチする方式に修正して 3 通りとも実測で捕捉。pytest exit 0（3619 passed / 3 skip）・gate MISS 0。テスト test_creation_hero_face.py に catch 2 本追加。顔の契約は 3 キャラ＝操作対象を持つ全ジャンル系統（走る・歩く・受ける）を網羅）**C-1353: 3 人目の顔——catch の受け皿は落下物を「見て」いない（§1・C-1348 の残り候補）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§4）
       C-1348（platformer）・C-1351（adventure）で主人公 2 人が目を得たが、
       catch の操作対象=受け皿はマゼンタの矩形のまま。Juice it or lose it の

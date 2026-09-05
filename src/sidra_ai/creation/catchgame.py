@@ -204,11 +204,81 @@ def bounce_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The face, as watched (§1, C-1353): park the basket at each edge and
+#: read where the eyes lean as items fall past; line it up under the
+#: lowest item and read the straight look; stand still and count the
+#: blink. The clock ticks with the frames (C-1348's lesson: a zero-pinned
+#: performance.now freezes the wall-clock FRAME and the blink never
+#: comes).
+CATCH_FACE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function key(k){
+  const e = { key: k, code: k, preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+/* An item to one side: park the basket on the left edge, wait for a
+   fall well to the right, and read the lean - then the mirror. */
+function lowest(){ let best = null;
+  items.forEach(i => { if (!best || i.y > best.y) best = i }); return best }
+function leanWith(edge, want){
+  px = edge;
+  for (let i = 0; i < 600; i++) { run(1);
+    const b = lowest();
+    if (b && (want > 0 ? b.x > shown + 0.05 : b.x < shown - 0.05)) {
+      return faceFacts().look } }
+  return null }
+const lookRight = leanWith(0, 1);
+const lookLeft = leanWith(1, -1);
+/* Straight ahead: sit exactly under the lowest item. */
+let lookCentred = null;
+for (let i = 0; i < 600 && lookCentred === null; i++) { run(1);
+  const b = lowest();
+  if (b) { px = b.x; shown = b.x; lookCentred = faceFacts().look } }
+/* Then count the blink. */
+let blinkFrames = 0, longest = 0, streak = 0;
+for (let i = 0; i < 500; i++) { run(1);
+  if (faceFacts().blink) { blinkFrames++; streak++;
+    if (streak > longest) longest = streak } else { streak = 0 } }
+console.log(JSON.stringify({
+  lookRight: lookRight, lookLeft: lookLeft, lookCentred: lookCentred,
+  blinkFrames: blinkFrames, longestBlink: longest,
+}));
+"""
+
+
+def catch_face_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the basket's face can be watched."""
+
+    return CATCH_FACE_PROBE.replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    ).replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "BOUNCE_PROBE",
+    "CATCH_FACE_PROBE",
     "HOLD_PROBE",
     "PROBE",
     "bounce_probe",
+    "catch_face_probe",
     "hold_probe",
     "probe_source",
 ]

@@ -16,6 +16,7 @@ import subprocess
 import pytest
 
 from sidra_ai.creation.adventure import adv_face_probe
+from sidra_ai.creation.catchgame import catch_face_probe
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.platformer import face_probe
 
@@ -97,4 +98,40 @@ def test_reduced_motion_keeps_the_adventure_eyes_open() -> None:
     seen = _walked(reduced=True)
 
     assert seen["right"]["dir"] == 1
+    assert seen["blinkFrames"] == 0, "reduced motion still blinks"
+
+
+def _caught(*, reduced: bool = False) -> dict:
+    """The catch basket (C-1353), parked and lined up under the falls."""
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    page = generate_game("落ちものキャッチを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=catch_face_probe(script.group(1), reduced=reduced),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_basket_watches_the_next_item_and_blinks() -> None:
+    seen = _caught()
+
+    assert seen["lookRight"] == 1, "an item to the right never pulls the eyes"
+    assert seen["lookLeft"] == -1, "an item to the left never pulls the eyes"
+    assert seen["lookCentred"] == 0, "an item overhead still pulls the eyes sideways"
+    assert seen["blinkFrames"] > 0, "the basket never blinks"
+    assert seen["longestBlink"] <= 12, "the eyes stay shut"
+
+
+def test_reduced_motion_keeps_the_basket_eyes_open() -> None:
+    seen = _caught(reduced=True)
+
+    assert seen["lookRight"] == 1
     assert seen["blinkFrames"] == 0, "reduced motion still blinks"
