@@ -2949,6 +2949,26 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 09:55 辛口クリエイター **C-1340: 鍵はまだ「知識」を知らない——ロックの種類が物理アイテムだけ（§3 の知識キーと soft lock 未反映）。**
+      （辛口クリエイターループ起票・観点=§3 ロック＆キー。前回=§2）§3 の
+      事実「キーは物理アイテムに限らず、道具・能力・**知識（パスワード）**・
+      イベントフラグ」「**hard（正規手段のみ）と soft（上手い人は迂回
+      できる）の区別**」のうち、adventure のロックは鍵（物理）・宝石
+      （通貨）・番人（戦闘）だけで**知識型が 1 つも無く**、洞窟の鍵は
+      「敵全滅」の hard 一本道。mission graph に並行辺が無い。実装:
+      森に石碑（tile 12・叩くと種で決まる 月/星/日 の順列を教える）、
+      洞窟に 3 つの印石（tile 13/14/15・形と文字で読み分け＝§4 色だけに
+      頼らない）。**石碑の順どおり**に印を叩くと封が解けて鍵が転がり
+      出る——敵と戦わずに済む soft 迂回路。順を間違えると進行リセット。
+      正規の hard 経路（敵全滅→ドロップ）は不変。順列は SEED から別
+      ストリーム（krand）で決め、既存レイアウトの乱数消費を動かさない。
+      新設 KNOW_PROBE: 実ページで石碑を叩いて**メッセージから順を読み**
+      （知識は世界の中にある——facts に順は出さない）、まず違う順で
+      叩いて封が開かないこと→正しい順で敵が生きたまま鍵が出ること→
+      拾って hero.key になることを実測。計器 creation_knowledge_key。
+      破壊 2 通り〔どの順でも進む→『the seal opens to any order』で 0／
+      石碑が順を教えない→『the sign keeps its secret』で 0〕。
+      → 動かす数字: creation_knowledge_key unmeasurable→1
 - [x] 完了 2026-09-05 09:35 UTC 辛口クリエイター（`creation_sfx_powerup` unmeasurable→**1**、判定器 exit 0（NEW）。SFX_TABLE に powerup（'vibrato'・440→880・0.3s）、sfx() に vibrato 経路〔主 osc の上昇スイープ＋LFO 6Hz→depth gain→osc.frequency へ**接続**・深さは .value 代入で音量帳簿を汚さない〕、comboCheer を sfx('powerup') へ。Recorder は接続を記録（osc.frequency に kind、depth gain の connect 先が frequency なら 'lfo->frequency'）。実測: combo 3 型の実ページで cheer=['oscillator','lfo->frequency','oscillator']・gem=['oscillator'] のまま＝節目が音で聞き分けられる・M で無音。破壊 2 通り〔dep.connect 削除→0『the vibrato is built but never wired in』＝C-1308 のすり抜けが再発しない実証／comboCheer を gem へ戻す→0『the step-up sounds like the 47th gem』〕、復元で 1。**1 回目の判定器は exit 2**——creation_combo_multiplier / creation_shooter_combo が昇段音を 'gem' で追跡したままで 1→0（テストと同じ改名追随を計器 4 か所にも適用して exit 0、C-1121 の「計器は改名に従う」）。pytest exit 0（3453 passed / 3 skip）・gate MISS 0。テスト test_creation_sfx_powerup.py 新設＋既存 2 テストの追随。灯籠・祠・護符の powerup 化とデューティ比は次候補）**C-1339: 昇段が 47 個目の宝石と同じ音（§2 の powerUp＝ビブラート欠落）。**
       （辛口クリエイターループ起票・観点=§2 効果音の合成。前回=§8）§2 の
       技法列挙〔波形・ADSR・周波数傾き・**ビブラート**・デューティ比・
