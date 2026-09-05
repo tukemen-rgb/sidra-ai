@@ -2949,6 +2949,20 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 14:55 辛口クリエイター **C-1345: 決闘の空も平面——観察 7 の 3 層が kaiju 1 型で止まっている（§7）。**
+      （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§8。C-1342
+      の次候補）duel の現物は SURFACE の空 1 枚＋床帯 24px——中景
+      （両ファイター）の後ろに奥が無く、緊迫度で空が変わっても平面の
+      まま。実装: kaiju と同じ契約（FAR_A=0.22・depthFacts()・BORDER の
+      実塗りを α 合成した固定形状スカイライン・rand() 消費ゼロ・アニメ
+      なし）を duel に。pace_probe 出力に depth: を追加——計器の
+      scene_depth 収穫は C-1342 で汎用に書いてあるので**追加 node 実行
+      ゼロ**で拾われる。計器 creation_depth_layers は **定義を 0/1→
+      「契約に合格した型の数・欠けがあれば 0」へ**（C-1121/C-1335 前例・
+      両定義併記: 旧=kaiju のみ検査で 1、新定義の変更前=duel 未報告
+      gap により 0、変更後=2）。破壊 2 通り〔duel FAR_A→0→0『the far
+      layer is invisible』／FAR_A→1→0『as near as the midground』〕。
+      → 動かす数字: creation_depth_layers 1→2（新定義）
 - [x] 完了 2026-09-05 14:40 UTC 辛口クリエイター（`creation_attract_demo` **2→3**、判定器 exit 0（BETTER）。kaiju を配線: pilot は「脚の下を往復しつつ 16f 毎に撃つ」`me.x=legX()+18*Math.sin(ATTRACT_FRAMES/25);if(ATTRACT_FRAMES%16===0)fire();if(cycles>0)ATTRACT_LIVE=1`。実測: 4200f・**14 周**（勝ちも地割れ負けも自分の終端で周回）・live=1・毎フレーム別絵 3841/4199・時計 0ms・storage 不変・atPress/10 秒後の全 facts 対照一致。**設計の穴を 1 つ発見・修正**——pilot 行は gate の tick 内で走り、tick の引数名が `t` のため**テンプレの global `t` が rAF タイムスタンプ（float）に隠される**。初案 `t%16===0` はほぼ成立せず撃たない demo になった（shots=0 を実測で特定）。pilot は影の無い ATTRACT_FRAMES を使う規約とし、attract.py に明記＋テストで固定。連射そのまま（11f）は hitstop の凍結フレームで motion 基準 90% を 34f 割る（3746/4199）ことも実測——16f 発射で 3841 に回復。破壊 2 通り〔配線除去→2 に戻る＝+1 は本配線由来／pilot の fire() 削除→0（撃たない歩哨は motion 検査 2709/4199 が先に落とし、live 領収書は後段の防波堤）〕、復元で 3。pytest exit 0（3514 passed / 3 skip）・gate MISS 0。タイトルの生きた型 3/10・残り 7 型は UNWIRED に理由つき）**C-1344: 巨獣戦のタイトルが静止画のまま——pilot 機構があるのに 8 型が眠っている（§8×§17）。**
       （辛口クリエイターループ起票・観点=§8 初見の即伝達×§17。前回=§6）
       C-1338 の ATTRACT_PILOT（録画入力の最小形）で「撃たないから
