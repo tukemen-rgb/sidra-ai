@@ -8657,6 +8657,155 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the button that makes it as big as the screen (§18 事実 2) ------
+    #
+    # C-1416. A phone gives about 40% of its screen to the URL bar and this
+    # page's own margins. Fullscreen takes it back - for somebody who asked,
+    # on a browser that will honour it, and never as a surprise.
+    #
+    # Four rules, four ways of driving the page: a browser that supports it
+    # and grants, one that supports it and refuses, one that does not
+    # support it at all, and one where even the orientation lock succeeds.
+    # The last is the control for the third rule - without a run where
+    # nothing is refused, "the refusals were caught" could be a counter
+    # that only ever goes up.
+    from sidra_ai.creation.fullscreen import (
+        BUTTON_ID as _fs_btn,
+        LABEL_ENTER as _fs_enter,
+        LABEL_EXIT as _fs_exit,
+        LOCK_TO as _fs_lock,
+        WRAP_ID as _fs_wrap,
+        probe_source as _fs_probe,
+    )
+
+    def _fs_drive(key, body, **kw):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_fs_probe(body, **kw),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if out.returncode != 0:
+                return None, f"{key}: {out.stderr.strip()[:70]}"
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: probe unavailable ({type(exc).__name__})"
+
+    fs_gaps: list[str] = []
+    fs_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            fs_gaps.append(f"{key}: no script")
+            continue
+        body = script.group(1)
+        # The probe supplies its own wrapper and button - it has to, since
+        # it is a stub DOM - so nothing it measures can tell whether the
+        # generated page carries them. Deleting the button from the page
+        # left every behavioural check below at full marks. This one fact
+        # is read off the page's own bytes because nothing else can see it.
+        if (
+            page.count(f'id="{_fs_wrap}"') != 1
+            or page.count(f'id="{_fs_btn}"') != 1
+            or _fs_enter not in page
+        ):
+            fs_gaps.append(f"{key}: the page carries no fullscreen button")
+            continue
+        runs, problem = {}, None
+        for name, kw in (
+            ("granted", {}),
+            ("refused", {"grant": False}),
+            ("absent", {"supported": False}),
+            ("locked", {"locks": True}),
+        ):
+            runs[name], problem = _fs_drive(key, body, **kw)
+            if problem:
+                break
+        if problem:
+            fs_gaps.append(problem)
+            continue
+        granted, refused = runs["granted"], runs["refused"]
+        absent, locked = runs["absent"], runs["locked"]
+        trouble = None
+        # 1. Offered where it works, and only there.
+        if not granted["atLoad"]["shown"] or granted["atLoad"]["label"] != _fs_enter:
+            trouble = f"{key}: a browser that supports fullscreen was offered no button"
+        # 2. Rule 1: nobody is put into fullscreen, and nothing else
+        #    happens to their screen either. Measured after the page
+        #    loaded, the gate was pressed, and thirty frames were played.
+        elif granted["callsBeforeAnyPress"] or granted["untouched"]["asked"]:
+            trouble = (
+                f"{key}: the page touched the screen without being pressed "
+                f"({granted['callsBeforeAnyPress']})"
+            )
+        elif absent["atLoad"]["shown"] or absent["calls"]:
+            trouble = f"{key}: a browser without fullscreen was offered it anyway"
+        # 3. One press, one request, on the wrapper - so there is a way back
+        #    on the screen once it is granted.
+        elif [c for c in granted["calls"] if c["call"] == "request"] != [
+            {"call": "request", "on": _fs_wrap}
+        ]:
+            trouble = f"{key}: the press asked for {granted['calls']!r}"
+        elif not granted["afterPress"]["active"] or granted["label"] != _fs_enter:
+            trouble = f"{key}: fullscreen was entered but the button did not change back"
+        elif granted["afterPress"]["label"] != _fs_exit:
+            trouble = f"{key}: in fullscreen the button still says {granted['afterPress']['label']!r}"
+        elif not [c for c in granted["calls"] if c["call"] == "exit"]:
+            trouble = f"{key}: there is no way back out"
+        elif granted["afterSecond"]["active"]:
+            trouble = f"{key}: pressing it again did not leave fullscreen"
+        # 4. Rule 3: a refusal is the browser declining, not a fault. The
+        #    page catches it - and nothing escapes to the runtime, which is
+        #    the half a written-but-bypassed .catch would fail.
+        elif any(run["escaped"] for run in runs.values()):
+            trouble = (
+                f"{key}: a refused promise went unhandled "
+                f"({next(r['escaped'] for r in runs.values() if r['escaped'])[:1]})"
+            )
+        elif refused["settled"]["refused"] != 2 or locked["settled"]["refused"] != 0:
+            trouble = (
+                f"{key}: refusals counted {refused['settled']['refused']} when refused "
+                f"and {locked['settled']['refused']} when nothing was"
+            )
+        elif refused["afterPress"]["active"] or refused["afterPress"]["label"] != _fs_enter:
+            trouble = f"{key}: a refused request left the page claiming to be fullscreen"
+        # 5. Rule 4: the lock is attempted once inside, and never before.
+        elif [c["on"] for c in granted["calls"] if c["call"] == "lock"] != [_fs_lock]:
+            trouble = f"{key}: the orientation lock was not attempted once inside"
+        elif refused["settled"]["locks"]:
+            trouble = f"{key}: the orientation was locked without fullscreen being entered"
+        # 6. SPACE is 「撃つ」 in four of these. A button that keeps focus
+        #    turns the fire key into a fullscreen toggle.
+        elif not granted["blurred"]:
+            trouble = f"{key}: the button kept keyboard focus after it was pressed"
+        if trouble:
+            fs_gaps.append(trouble)
+        else:
+            fs_ok.append(key)
+    c.add(
+        "creation_fullscreen_button",
+        "押した人だけが全画面になる（勝手にならない・出せない環境では出ない）",
+        0.0 if fs_gaps else 1.0,
+        detail=(
+            "; ".join(fs_gaps)
+            if fs_gaps
+            else f"{len(fs_ok)} 型すべてを 4 通りのブラウザで実走行: 対応環境では"
+            f"ボタンが出て、押すと `{_fs_wrap}` に対して requestFullscreen が 1 回だけ"
+            "呼ばれ、ラベルが戻るボタンに替わり、もう一度押すと exit する。"
+            "ロード・ゲート押下・30 フレームのプレイを通して無操作では 1 回も"
+            "呼ばれない。`fullscreenEnabled` が偽の環境ではボタンが出ず、押しても"
+            "何も呼ばない。拒否（reject）は握り潰され、node の unhandledRejection に"
+            "1 件も漏れない——拒否された走行で 2 件、何も拒否されない走行で 0 件を"
+            "数えており、常に増える定数ではないことも確認済み。向きの lock は"
+            "全画面に入った後だけ 1 回試み、失敗しても無視する。押下後にフォーカスは"
+            "手放す（SPACE は 4 型で「撃つ」なので、持ったままだと発射が全画面切替になる）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

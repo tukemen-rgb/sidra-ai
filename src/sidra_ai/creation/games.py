@@ -86,6 +86,12 @@ from sidra_ai.creation.rotate import (
     ROTATE_TEXT,
     preamble as rotate_preamble,
 )
+from sidra_ai.creation.fullscreen import (
+    BUTTON_ID as FULL_BUTTON_ID,
+    LABEL_ENTER as FULL_LABEL,
+    WRAP_ID as FULL_WRAP_ID,
+    preamble as fullscreen_preamble,
+)
 from sidra_ai.creation.puzzle import (
     PUZZLE_DIFFICULTY,
     PUZZLE_HOW,
@@ -782,11 +788,28 @@ a{{color:{t["accent"]}}}
  * whether the game has started; a second rule in this sheet deciding the
  * same element is how the two come to disagree. */
 .rotatehint{{display:none;margin:8px 0 0;font-size:13px;color:{t["subtle"]}}}
+/* §18 事実 2: the URL bar and this page's own margins take about 40% of a
+ * phone's screen, and fullscreen takes it back - but only for somebody who
+ * asked (C-1416). Hidden here and shown by the script, which is the only
+ * place that knows whether this browser will honour the request; a button
+ * that opens nothing is worse than no button. The wrapper is what goes
+ * fullscreen rather than the canvas, so the way back goes with it. */
+.stagewrap{{display:block}}
+.stagewrap:fullscreen{{display:flex;flex-direction:column;align-items:center;
+ justify-content:center;background:{t["bg"]}}}
+.stagewrap:fullscreen canvas{{width:100vw;max-width:100vw;max-height:88vh;
+ border:0;border-radius:0}}
+.fullbtn{{display:none;margin:8px 0 0;font-size:13px;padding:6px 12px;
+ color:{t["text"]};background:{t["raised"]};border:1px solid {t["border"]};
+ border-radius:{t["radius_tight"]};cursor:pointer}}
 </style></head>
 <body><main>
 <h1>{escape(title)}</h1>
 <p class="tag">{escape(tagline)}</p>
+<div class="stagewrap" id="{FULL_WRAP_ID}">
 <canvas id="stage" width="720" height="320"></canvas>
+<button class="fullbtn" id="{FULL_BUTTON_ID}" type="button">{escape(FULL_LABEL)}</button>
+</div>
 <p class="rotatehint" id="{ROTATE_ID}">{escape(ROTATE_TEXT)}</p>
 <p class="how">{escape(how)}</p>
 <p class="touchhint">スマホでは画面のボタン（◀ ▶ / A）で操作できます。</p>
@@ -885,6 +908,10 @@ def generate_game(
             # element has to have been found by the time a press can
             # happen, and gateStart is the only caller (C-1415).
             + rotate_preamble()
+            # Beside it and for the same reason (C-1416): both are page
+            # chrome around the canvas, both are shown only where they
+            # work, and neither may be reached before the elements exist.
+            + fullscreen_preamble()
             + GATE_PREAMBLE
             + SFX_PREAMBLE
             # Right after the effects: the music shares their AC, mute and
