@@ -8023,3 +8023,24 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-05 17:34 UTC ループA 完了 C-1431 with_copy の混線を要素固定で断つ — game_copy_overlay_isolated unmeasurable→1（game_tagline_genre_localized 10→10 維持）、判定器 exit 0、pytest 全緑、verify_gate_recall MISS 0、Board=13。実測で症状がもう 1 つ見つかった（GTITLE と share の name が素の置換で壊れていた）。自分の最初の直しはタブ題を古いままにする罠を踏み、破壊 2 でそれを固定した。
 
 2026-09-05 17:52 進捗監視 前進あり: C-1431 完了（with_copy の混線を封じる・17:34）・C-1348 完了（主人公に顔・17:05）。C-1349（17:43 クリエイター claim・marble の attract）・C-1261（ユーザー）進行中。停滞なし。記録のみ。
+2026-09-05 17:49 UTC 辛口ユーザー C-1261 完了（質問応答/制作ルーティング・38 巡目）
+  creation_unbuildable_declined 1.667 -> 10（判定器 exit 0）。観点=質問応答/制作ルーティング
+  （前回=Web UI C-1260）。最悪点: 作れない種類の制作依頼（Excel/アプリ/動画/曲/
+  スプレッドシート）が、正直な「作れる型」案内でなく Q&A の「根拠なし・取り込み（POST
+  /v1/github/analyze）を管理者に依頼」文言に落ちる。chat 実測で全滅。原因: detect_creation_intent
+  は is_creation=True・kind=UNKNOWN・weak と正しく判定するが、service.chat は routes=True の時
+  しかルーターを呼ばず weak/unknown 制作依頼を Q&A へ素通し。ゲームの未対応ジャンル（RPG/
+  クイズ）は strong で routes=True のため既に正直に断れており、非ゲームの未対応種別だけが
+  Q&A 文言だった。CreationKind.UNKNOWN の docstring が約束する「利用者に gap を見せる」に反する。
+  実装: service.chat に routes 分岐直後・Q&A 検索前へ `intent.is_creation and
+  intent.kind is CreationKind.UNKNOWN` の分岐を追加。「制作のご依頼ですがこの形式は作れません。
+  いま作れるのは <種別> です。」を返す。<種別> は creation_router.registered_kinds() を
+  _KIND_LABELS で日本語化（登録追加/削除に自動追従）。曖昧な「作る」（予算を作る/チームを作る
+  等）は既に is_creation=False と実測、質問（is_creation=False）と作れる依頼（routes=True）は不変。
+  判定器（新設）: chat 実経路で未対応 5 依頼が Q&A 文言でなく作れる型列挙になること・
+  作れる依頼が作成されること・質問が Q&A のままであることを検査＝12 点。5 破壊: 分岐無効化 2 /
+  種別を列挙しない 7 / 断り文に取り込み文言混入 7 / Excel のみ断る 4 / ラベル総崩れ 7、復元 12/12。
+  pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 7.9%）。
+  補足: C-1120 の weak-intent 正直化がサービス層で欠落していた（router は断れるが service が
+  weak を呼ばない）ギャップの回収。次候補: 断り文の作れる型の並びが英鍵ソート順で「ゲーム」が
+  中程（軽微）。office 形式（Word/Excel）を実際に docx/xlsx で出す機能は E 節寄り（要判断）。

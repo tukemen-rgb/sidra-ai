@@ -714,6 +714,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1261: an explicit make request for an unbuildable kind (Excel, an app,
+    # a video) fell to the Q&A "no evidence, ask an admin to ingest a repo"
+    # wall, because the service only routed strong intents. Now it is declined
+    # honestly with the list of buildable kinds. Measured through the real chat
+    # path: unbuildable requests get the list not the wall, while a buildable
+    # request still creates and a question still reaches the question path.
+    from sidra_ai.evals.creation_unbuildable_declined import (
+        evaluate_creation_unbuildable_declined,
+    )
+
+    unbuildable = evaluate_creation_unbuildable_declined()
+    c.add(
+        "creation_unbuildable_declined",
+        "作れない制作依頼を Q&A 文言でなく作れる型の案内で正直に断る",
+        10.0 * unbuildable.checks_passed / unbuildable.checks_total,
+        detail=f"{unbuildable.checks_passed}/{unbuildable.checks_total} checks; "
+               "src/sidra_ai/evals/creation_unbuildable_declined.py"
+               + ("" if unbuildable.passed else "; " + "; ".join(unbuildable.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

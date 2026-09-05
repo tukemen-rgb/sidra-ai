@@ -13,7 +13,7 @@ from sidra_ai.api.citations import citation_excerpt
 from sidra_ai.api.model_admission import build_runtime_model
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.creation.evidence import Fact, plain_text, whole_sentences
-from sidra_ai.creation.intent import detect_creation_intent
+from sidra_ai.creation.intent import CreationKind, detect_creation_intent
 from sidra_ai.creation.revise import build_game_reviser, detect_revision_intent
 from sidra_ai.creation.copy_writer import build_copy_writer
 from sidra_ai.creation.router import CreationRouter, build_default_router
@@ -55,6 +55,21 @@ the operator's language. This rule exists because of a real incident: the
 owner asked a Japanese question and received a confusing English reply
 (2026-08-27), and nothing in this prompt forbade it.
 """
+
+
+#: How each buildable kind is named to the operator, for the honest decline
+#: given when a creation request names something no generator builds (C-1261).
+#: Keyed by the router's own kind values (``registered_kinds()``), so a
+#: generator added or removed there changes the offered list with no edit here.
+_KIND_LABELS: dict[str, str] = {
+    "game": "ゲーム",
+    "deck": "スライド",
+    "document": "レポート",
+    "model3d": "3Dモデル",
+    "gif": "GIF",
+    "art": "アート",
+    "project": "企画一式",
+}
 
 
 class SidraService:
@@ -510,6 +525,41 @@ class SidraService:
             # Nothing can build it yet. Falling through to the question path
             # keeps the operator with an answer rather than an apology, and
             # `creation` reports what was recognised either way.
+
+        if intent.is_creation and intent.kind is CreationKind.UNKNOWN:
+            # An explicit 「…を作って」 whose kind no generator builds - Excel,
+            # an app, a video, a song. The detector already keeps ambiguous
+            # 「作る」 uses (「予算を作る必要がある」) off this path by reading them
+            # as non-creation, so what reaches here is a genuine make request
+            # for an unsupported kind. Answering it as a question sent the
+            # operator to repo ingestion for a make request (C-1261); instead
+            # name it as a creation ask and list what can be made - the same
+            # honesty a game-genre decline already gives, and what
+            # CreationKind.UNKNOWN's contract promises. Buildable game genres
+            # route (strong) and never reach here.
+            offered = [
+                _KIND_LABELS.get(kind, kind)
+                for kind in self.creation_router.registered_kinds()
+            ]
+            summary = (
+                "制作のご依頼と受け取りましたが、この形式は作れません。"
+                + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
+            ).strip()
+            guarded_summary = self.output_guard.scan(summary)
+            creation_metadata["outcome"] = {
+                "kind": intent.kind.value,
+                "handled": False,
+                "declined": True,
+                "offered": offered,
+            }
+            return {
+                "answer": guarded_summary.content,
+                "refused": False,
+                "reason": "",
+                "citations": [],
+                "security": gate_result.to_dict(),
+                "creation": creation_metadata,
+            }
 
         searched_query = query
         results: list[SearchResult] = self.retriever.search(
