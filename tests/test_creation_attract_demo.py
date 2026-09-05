@@ -128,7 +128,12 @@ def test_the_pilot_line_is_substituted_per_template() -> None:
     # Kaiju's pilot counts on ATTRACT_FRAMES, never the template's ``t``:
     # the gate tick's own parameter is named t and shadows it (C-1344).
     assert "if(ATTRACT_FRAMES%16===0)fire()" in _script("kaiju")
-    for template in ("shooter", "racing", "kaiju"):
+    # Marble's steering hand (C-1349): dodge the near block, aim at the
+    # next gate. The receipt is a HOT gate taken - the one verb an
+    # unsteered marble cannot land (the gift gate hands out plain ones).
+    assert "if(hotTaken>0)ATTRACT_LIVE=1" in _script("marble")
+    assert "ball.x+=Math.max(-3.4,Math.min(3.4," in _script("marble")
+    for template in ("shooter", "racing", "kaiju", "marble"):
         assert "ATTRACT_PILOT_TOKEN" not in _script(template)
 
 
@@ -161,6 +166,26 @@ def test_the_kaiju_demo_fells_the_monster_and_goes_again() -> None:
     assert facts["frames"] == 900
     assert facts["loops"] >= 1, "the demo never reached an ending"
     assert facts["live"] == 1, "the demo never landed a weak-point hit"
+    assert seen["beforePress"]["round"]["ms"] == 0
+    assert sorted(seen["beforePress"]["store"]) == []
+
+
+def test_the_marble_demo_steers_the_course_and_goes_again() -> None:
+    """The steering hand (C-1349): the reason marble was unwired, answered.
+
+    Twenty seconds is over one full course at normal roll (~670 frames),
+    so the loop through the marble's own ending is part of the claim. The
+    receipt lights on a hot gate taken: a crash-looping unsteered marble
+    passes the self-aligning gift gate and clears the motion bar too, so
+    the swerve-only verb is the one thing that tells the demos apart.
+    """
+
+    seen = _watch("marble", idle=1200, play=30)
+    facts = seen["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 1200
+    assert facts["loops"] >= 1, "the demo never reached either of marble's endings"
+    assert facts["live"] == 1, "the demo never took a hot gate"
     assert seen["beforePress"]["round"]["ms"] == 0
     assert sorted(seen["beforePress"]["store"]) == []
 

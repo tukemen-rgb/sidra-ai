@@ -289,7 +289,8 @@ function shareTap(){ sharePointers.forEach(fn => fn({ pointerType: 'touch', poin
   clientX: 340, clientY: 150, preventDefault(){}, stopImmediatePropagation(){} })) }
 shareRelease(sharePress(' ', 'Space'));
 const SHARE_DIRS = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
-let shareHeld = null, shareEarly = null, shareFrames = 0, shareEnded = false;
+let shareHeld = null, shareEarly = { ready: false, text: null },
+  shareFrames = 0, shareEnded = false;
 /* Play until the round ends, then stop touching anything. Several
    templates restart on the action key or on a tap, so a masher that kept
    going would be asking for the score of a round it began by accident -
@@ -305,11 +306,16 @@ for (let f = 0; f < FRAMES_INPUT && shareQueued && !shareEnded; f++) {
   shareClock += 50 / 3;
   fn(shareClock);
   shareFrames = f + 1;
-  /* One second in, with the round certainly running: pressing copy here
-     must produce nothing at all. A button that copied a result before
-     there was one would be sharing a number nobody scored. */
-  if (f === 60) { shareEarly = { ready: shareReady(), text: shareText() } }
+  /* While the round is live, pressing copy must produce nothing at all:
+     a button that answered mid-round would be sharing a number nobody
+     finished scoring. Checked on every live frame rather than at a fixed
+     one-second mark - that checkpoint assumed the round was "certainly
+     running", and a run that dies in under a second (a marble held into
+     the first block does) ends before it, so the checkpoint would read
+     the finished, legitimately copyable result as a mid-round leak. */
   const now = roundFacts();
+  if (!now.done && !now.ended && (shareReady() || shareText() !== null)) {
+    shareEarly = { ready: shareReady(), text: shareText() } }
   if (f > 60 && (now.done || now.ended)) { shareEnded = true }
 }
 /* Two more frames, untouched, so the result strip draws and the round is

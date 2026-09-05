@@ -31,8 +31,9 @@ from __future__ import annotations
 #: measured driving itself to the finish line, so it is the one that
 #: certainly produces a moving picture from no input at all. Shooter
 #: (C-1338) is the second: it needs one held input, which is what a pilot
-#: line is for.
-ATTRACT_TEMPLATES: tuple[str, ...] = ("racing", "shooter", "kaiju")
+#: line is for. Marble (C-1349) is the fourth: it rolls itself, and the
+#: pilot is the steering hand its unwired reason asked for.
+ATTRACT_TEMPLATES: tuple[str, ...] = ("racing", "shooter", "kaiju", "marble")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
@@ -40,7 +41,6 @@ ATTRACT_TEMPLATES: tuple[str, ...] = ("racing", "shooter", "kaiju")
 #: the template *does* with no input, which is the only thing that decides
 #: whether a demo of it is worth watching.
 ATTRACT_UNWIRED: dict[str, str] = {
-    "marble": "rolls itself down the corridor, but hits the first block and stops - needs a steering demo",
     "catch": "the basket never moves on its own, so the demo is items falling past a still bowl",
     "fishing": "the marker sweeps for ever and nothing else happens: motion without a game in it",
     "puzzle": "a board that is never clicked is a still image",
@@ -54,7 +54,8 @@ ATTRACT_UNWIRED: dict[str, str] = {
 #: than assumed so a template that renamed it fails the judge instead of
 #: quietly starting people mid-demo.
 ATTRACT_RESET: dict[str, str] = {
-    "racing": "reset()", "shooter": "reset()", "kaiju": "reset()"}
+    "racing": "reset()", "shooter": "reset()", "kaiju": "reset()",
+    "marble": "reset()"}
 
 #: One line of piloting, run every demo frame before the template's step
 #: (C-1338). The arcade's attract mode is a recorded hand on the real
@@ -78,6 +79,26 @@ ATTRACT_PILOT: dict[str, str] = {
     # shadows it; pilots must not lean on template globals the tick hides.
     "kaiju": "me.x=legX()+18*Math.sin(ATTRACT_FRAMES/25);"
     "if(ATTRACT_FRAMES%16===0)fire();if(cycles>0)ATTRACT_LIVE=1",
+    # Marble (C-1349): the steering demo its unwired reason asked for. The
+    # rule is COMBO_PROBE's, condensed: a block close ahead and close
+    # beside is dodged toward the centre line, otherwise the marble aims
+    # at the next gate - nudged at most 3.4/frame, the same speed
+    # partsSteerX gives a held arrow key (kaiju's pilot writing me.x is
+    # the precedent for the direct hand). The receipt is a HOT gate taken,
+    # not any gate: the opening gift gate lines itself up, so an unpiloted
+    # marble crash-looping off the first block still "passes a gate" - and
+    # still clears the motion bar (measured: 43 crash loops, 3941 moving
+    # frames). A hot gate stands in a block's shadow; taking one IS the
+    # swerve, so it is the one verb only a steered demo can land.
+    # ATTRACT_FRAMES is not needed here, but the C-1344 rule still binds:
+    # the tick's ``t`` shadows marble's own ``t``.
+    "marble": "let MB=null,MG=null;"
+    "things.forEach(o=>{const dz=o.z-ball.z;if(o.done||dz<=0)return;"
+    "if(o.kind==='block'&&dz<150&&!MB)MB=o;"
+    "if(o.kind==='gate'&&dz<900&&!MG)MG=o});"
+    "const MA=MB&&Math.abs(MB.x-ball.x)<46?MB.x+(MB.x<0?90:-90):MG?MG.x:null;"
+    "if(MA!==null)ball.x+=Math.max(-3.4,Math.min(3.4,MA-ball.x));"
+    "if(hotTaken>0)ATTRACT_LIVE=1",
 }
 
 
