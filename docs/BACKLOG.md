@@ -2949,6 +2949,24 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 11:55 辛口クリエイター **C-1342: 巨獣の空に奥行きが無い——観察 7 の 3 層が §6 の巨大さと併用されるべき現場で欠けている（§7）。**
+      （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§1）§7
+      観察 7「遠景は霧・煙・塵のレイヤで一段ずつ淡くなる（色でなく
+      **コントラスト差で距離を描く**）。部分描写（§6 観察 1）と併用され、
+      手前シルエット・中景被写体・奥の霞の 3 層が基本形」——kaiju の
+      現物は SURFACE の空 1 枚＋地面のみで、脚と尻尾（中景）の後ろに
+      **奥が無い**。巨大さはコントラストの遠近で増すのに、その現場が
+      平面。実装: 空と地面の間に遠景スカイライン（BORDER の実塗りを
+      FAR_A=0.22 で α 合成・固定形状の Math.sin 稜線＝rand() 消費ゼロで
+      レイアウト不変・アニメなし）。契約は C-1329 型: 定数 FAR_A と
+      depthFacts()（per-scene の sky/solid/alpha）を新設し、計器は
+      4 テーマ×3 場面で「blend(far) は空より見えて（≥1.02:1）中景の
+      solid より淡い（contrast(far,sky) < contrast(solid,sky)）」を検査。
+      kaiju PROBE 出力に depth: を追加。破壊 2 通り〔FAR_A→0（見えない
+      遠景）→『the far layer is invisible』で 0／FAR_A→1（奥が手前と
+      同じ濃さ）→『the far layer is as near as the leg』で 0〕。duel 等
+      他の平面背景は次候補。→ 動かす数字: creation_depth_layers
+      unmeasurable→1
 - [x] 完了 2026-09-05 11:40 UTC 辛口クリエイター（`creation_squash_stretch` **1→2**、判定器 exit 0（BETTER）。定義を 0/1→「自分の契約に合格した型の数・欠けがあれば 0」へ変更（C-1121/C-1335 前例・両定義併記: 旧定義は platformer 時点で 1、新定義の変更前は catch 未報告 gap により 0）。かごに底アンカーの BSQ（受けた瞬間 0.6・幅は 2-BSQ で広がる・毎フレーム 0.25 復元・REDUCED 恒等 1）、catchFacts に squash 追加。新設 BOUNCE_PROBE の実測: 静止 40f 不動・受けの瞬間 0.7（同フレーム内復元込み）・復元 1・reduced 全フレーム 1。破壊 2 通り〔潰れ代入削除→0『catch: the catch never squashes (1)』／REDUCED ガード除去→0『reduced motion still bounces（catchSq 0.7）』〕、復元で 2。pytest exit 0（3474 passed / 3 skip）・gate MISS 0。テスト test_creation_basket_bounce.py 新設。残る剛体（marble の玉・adventure の勇者など）は次候補）**C-1341: 毎秒衝撃を受けるかごが剛体のまま——拡縮バウンスが跳ぶ 1 型にしかない（§1）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§3）§1 の技法表
       「イベントに応じた拡縮バウンス」は C-1332 で platformer に入ったが
