@@ -2949,6 +2949,23 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 17:55 辛口クリエイター **C-1348: 主人公がのっぺらぼう——§1 技法表の「キャラの目や表情」が全キャラ未適用（§1）。**
+      （辛口クリエイターループ起票・観点=§1 手触り。前回=§4）§1 の技法
+      列挙〔色数・トゥイーン・拡縮バウンス・音・パーティクル・揺れ・
+      **キャラの目や表情**・ヒットストップ〕のうち、目と表情だけが
+      どのキャラにも無い——Juice it or lose it の実演がブロックに目を
+      足す話なのに、SIDRA の主人公は四角のまま。旗艦の手触り型
+      platformer から: 頭部（6×6）に **進行方向を見る 2 つの目**
+      （me.look・最後に押した向きを保持）、上昇中は視線が 1px 上へ、
+      数秒に一度まばたき（FRAME(40,6) の 1 コマ＝REDUCED では FRAME=0
+      で常に開眼・顔は一切動かない——既存機構が自動で保証）。
+      faceFacts(){look,up,blink} を契約公開。新設 FACE_PROBE: 実走行で
+      右移動→look=1・左→-1・ジャンプ上昇中 up=true・500f 中にまばたき
+      が起き 1 回 ≤6f・reduced 走行では blink が一度も立たない。計器
+      creation_hero_face unmeasurable→1。破壊 2 通り〔look 更新を削除→
+      0『the eyes never follow the run』／まばたき削除→0『the hero
+      never blinks』〕。他キャラの顔は次候補。→ 動かす数字:
+      creation_hero_face unmeasurable→1
 - [x] 完了 2026-09-05 17:30 UTC 辛口クリエイター（`creation_racing_edge` unmeasurable→**1**、判定器 exit 0（NEW）。二色ペアの道標 EDGE_A='#05070f'（暗芯）＋EDGE_B='#dfe7f5'（明縁）——ティック・スタート/フィニッシュ帯を暗芯＋明内側の 2 層、grace 枠を暗外・明内の 2 重ストロークに。edgeFacts()（a/b＋per-scene の surf/road 実塗り）を契約公開、収穫は C-1337 の racing HUD probe 出力に edge: を足すだけ＝**追加 node 実行ゼロ**。事前実測: 旧単色は紙テーマ全 3 場面で対道路・対コース外 1.03〜1.16:1（境界がゲーム全体で不可視）、暗 3 テーマも最終ラップ対道路 2.83〜2.99。実装後: 4 テーマ×3 場面すべてで max(a,b) ≥3.0 両面成立＋ペア自身 16:1。破壊 2 通り〔EDGE_A→明（旧相当）→0『the pair cannot read against itself』＋紙で沈み・暗テーマ act2 2.99 も捕捉／両方暗→0 同様に両側から〕、復元で 1。pytest exit 0（3545 passed / 3 skip）・gate MISS 0。テスト test_creation_racing_edge.py 新設。他の固定 #dfe7f5（platformer 旗竿・kaiju 塵は装飾）は次候補メモ）**C-1347: 紙テーマでレースの路肩が消えている——固定 #dfe7f5 の道標が全場面 1.03〜1.16:1（§4）。**
       （辛口クリエイターループ起票・観点=§4 視認性。前回=§2）racing の
       路肩ティックとスタート/フィニッシュ帯は固定 '#dfe7f5'。コード内
