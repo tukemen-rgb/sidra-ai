@@ -8890,6 +8890,7 @@ def measure_creation(c: Collector) -> None:
     # line each, and the unwired ones are measured too: their title must
     # still be one still picture, which is the other direction of the claim.
     from sidra_ai.creation.attract import (
+        ATTRACT_PILOT as _attract_pilot,
         ATTRACT_TEMPLATES as _attract_wired,
         ATTRACT_UNWIRED as _attract_unwired,
         probe_source as _attract_probe,
@@ -9003,6 +9004,12 @@ def measure_creation(c: Collector) -> None:
             # past motion, and because a demo that plays a game once is
             # not an attract mode.
             trouble = f"{key}: the demo never reached its own ending, so it never looped"
+        # 1b. A piloted demo has to land the game's core verb (C-1338): the
+        #     pilot line sets ATTRACT_LIVE when it does - the shooter's,
+        #     on a kill. Motion alone cannot tell a demo with a game in it
+        #     from a screensaver of one standing still and dying.
+        elif key in _attract_pilot and not facts.get("live"):
+            trouble = f"{key}: the piloted demo never landed its verb"
         # 2. The veil is a veil. The demo's own paint is under it, and the
         #    panel over it carries an alpha - a lid would score full marks
         #    on everything above while showing the player nothing.

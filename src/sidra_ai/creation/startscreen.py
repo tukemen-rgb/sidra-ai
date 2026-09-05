@@ -134,7 +134,12 @@ function gateGesture(){if(GATE_GESTURE)return;GATE_GESTURE=true;
    attract.ATTRACT_UNWIRED names every unwired one and why, one line each,
    and this token is what that table decides. */
 const ATTRACT_WIRED=ATTRACT_WIRED_TOKEN;
-let ATTRACT_FRAMES=0,ATTRACT_LOOPS=0,ATTRACT_ASKED=false;
+/* ATTRACT_LIVE is the pilot's receipt (C-1338): a piloted demo exists to
+   show the game's core verb, and the pilot line sets this the moment the
+   verb lands (the shooter's, when something is shot down). A demo that
+   held the trigger and hit nothing is a still worth doubting, and the
+   judge reads this instead of guessing from motion. */
+let ATTRACT_FRAMES=0,ATTRACT_LOOPS=0,ATTRACT_ASKED=false,ATTRACT_LIVE=0;
 function attractOn(){return ATTRACT_WIRED&&GATE==='title'}
 /* The demo's leftovers, cleared before the game is handed over - and
    between demo goes. The template's own reset is the substituted call; the
@@ -148,7 +153,7 @@ function attractRewind(){if(!ATTRACT_WIRED)return;
   try{grazeReset()}catch(e){}
   try{comboMiss()}catch(e){}}
 function attractFacts(){return {wired:ATTRACT_WIRED,frames:ATTRACT_FRAMES,
-  loops:ATTRACT_LOOPS}}
+  loops:ATTRACT_LOOPS,live:ATTRACT_LIVE}}
 function gateStart(){if(GATE==='playing')return;
   /* Whatever the demo did belongs to the demo (C-1414). Rewound before the
      state flips, so the first frame a player is given is the first frame of
@@ -246,7 +251,13 @@ requestAnimationFrame=function(fn){
          two arms per frame doubles the loop every frame. ATTRACT_ASKED is
          the check: a template that asks for nothing still gets its title
          redrawn rather than freezing the gate. */
-      if(attractOn()){ATTRACT_ASKED=false;ATTRACT_FRAMES++;fn(t);
+      if(attractOn()){ATTRACT_ASKED=false;ATTRACT_FRAMES++;
+        /* The demo's hand on the template's own controls (C-1338): one
+           substituted line per template, the arcade's recorded input in
+           its smallest form. It drives the same state a player would, so
+           the template's reset is all the handover needs to let go. */
+        try{ATTRACT_PILOT_TOKEN}catch(e){}
+        fn(t);
         /* The demo reached its own ending: another go, so the title is
            never a frozen goal screen. */
         try{if(roundEnded()){ATTRACT_LOOPS++;attractRewind()}}catch(e){}

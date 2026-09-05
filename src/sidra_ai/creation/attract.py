@@ -29,8 +29,10 @@ from __future__ import annotations
 
 #: Wired here first, as the item allows. Racing is the template C-1404
 #: measured driving itself to the finish line, so it is the one that
-#: certainly produces a moving picture from no input at all.
-ATTRACT_TEMPLATES: tuple[str, ...] = ("racing",)
+#: certainly produces a moving picture from no input at all. Shooter
+#: (C-1338) is the second: it needs one held input, which is what a pilot
+#: line is for.
+ATTRACT_TEMPLATES: tuple[str, ...] = ("racing", "shooter")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
@@ -38,7 +40,6 @@ ATTRACT_TEMPLATES: tuple[str, ...] = ("racing",)
 #: the template *does* with no input, which is the only thing that decides
 #: whether a demo of it is worth watching.
 ATTRACT_UNWIRED: dict[str, str] = {
-    "shooter": "the obvious next one: waves arrive and the held trigger is the only input a demo needs",
     "marble": "rolls itself down the corridor, but hits the first block and stops - needs a steering demo",
     "catch": "the basket never moves on its own, so the demo is items falling past a still bowl",
     "fishing": "the marker sweeps for ever and nothing else happens: motion without a game in it",
@@ -53,7 +54,19 @@ ATTRACT_UNWIRED: dict[str, str] = {
 #: that has one calls it ``reset``; the expression is written down rather
 #: than assumed so a template that renamed it fails the judge instead of
 #: quietly starting people mid-demo.
-ATTRACT_RESET: dict[str, str] = {"racing": "reset()"}
+ATTRACT_RESET: dict[str, str] = {"racing": "reset()", "shooter": "reset()"}
+
+#: One line of piloting, run every demo frame before the template's step
+#: (C-1338). The arcade's attract mode is a recorded hand on the real
+#: controls, and this is its smallest form: the shooter's hand holds the
+#: trigger, and nothing else. The line drives the template's OWN input
+#: state, so the handover needs no undoing beyond the template's reset -
+#: shooter's reset() already lets go of ``fire``. Racing needs no hand at
+#: all, which is why it has no entry. The second clause is the receipt:
+#: ATTRACT_LIVE goes up the moment the game's core verb lands on screen
+#: (a kill, here), which is what the judge reads to tell a demo with a
+#: game in it from a moving screensaver.
+ATTRACT_PILOT: dict[str, str] = {"shooter": "fire=true;if(kills>0)ATTRACT_LIVE=1"}
 
 
 def wired(template: str) -> bool:
@@ -66,6 +79,12 @@ def reset_call(template: str) -> str:
     """The template's own way back to frame one, or a no-op."""
 
     return ATTRACT_RESET.get(template, "")
+
+
+def pilot_call(template: str) -> str:
+    """The demo's hand on the template's own controls, or a no-op."""
+
+    return ATTRACT_PILOT.get(template, "")
 
 
 
@@ -188,10 +207,12 @@ def probe_source(script: str, *, idle: int = 240, press: bool = True, play: int 
 
 
 __all__ = [
+    "ATTRACT_PILOT",
     "ATTRACT_RESET",
     "ATTRACT_TEMPLATES",
     "ATTRACT_UNWIRED",
     "PROBE",
+    "pilot_call",
     "probe_source",
     "reset_call",
     "wired",

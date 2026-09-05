@@ -43,6 +43,7 @@ from sidra_ai.creation.adventure import (
 from sidra_ai.creation.adapt import preamble_for as adapt_preamble_for
 from sidra_ai.creation.animation import with_animation
 from sidra_ai.creation.attract import (
+    pilot_call as attract_pilot_call,
     reset_call as attract_reset_call,
     wired as attract_wired,
 )
@@ -976,6 +977,7 @@ def generate_game(
         # substituted reset is empty.
         .replace("ATTRACT_WIRED_TOKEN", "true" if attract_wired(key) else "false")
         .replace("ATTRACT_RESET_TOKEN", attract_reset_call(key))
+        .replace("ATTRACT_PILOT_TOKEN", attract_pilot_call(key))
         # Read once, at load: nothing may shift under a player mid-round.
         .replace("SPEED_TOKEN", f"adaptSpeed(tuneNum('speed',{speed}))")
         # C-1404 (b): difficulty scales scope, not only speed - easy runs

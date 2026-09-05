@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 07:05 辛口クリエイター **C-1338: タイトルの裏で動くのは 10 型中 racing だけ（shooter は「次はこれ」と自分で書いたまま・§8×§17）。**
+- [x] 完了 2026-09-05 08:15 UTC 辛口クリエイター（`creation_attract_demo` **1→2**、判定器 exit 0。ATTRACT_PILOT 新設（デモ中に毎フレーム実行する 1 行の操縦・startscreen の attract 分岐に ATTRACT_PILOT_TOKEN、games.py が pilot_call で置換）、shooter を配線: pilot は `fire=true;if(kills>0)ATTRACT_LIVE=1`——後半が**領収書**で、attractFacts の live として「デモが核の動詞（撃墜）を実演したか」を計器が読む。実測: 4200f 実走行で frames=4200・loops=4（1 周約 17 秒＝撃ちながら自機を失って次のデモへ）・毎フレーム別絵 4135/4199・時計 0ms・storage/best/combo 不動・atPress と 10 秒後の全 facts が対照ページと完全一致。破壊 2 通り〔配線除去（UNWIRED 行復元）→ 1 に戻る＝+1 はこの配線由来／pilot 空化→ 0『shooter: the piloted demo never landed its verb』——**この破壊は棒立ちでも動く・死ぬ・周回するため motion/loops 検査を全通過しており、live 領収書が無ければすり抜けていた**（領収書を先に設計した理由の実証）〕、復元で 2。pytest exit 0（3444 passed / 3 skip）・gate MISS 0。テスト test_creation_attract_demo.py に piloted 系 3 本追加・still の例を catch へ。残り 8 型は ATTRACT_UNWIRED に理由つきのまま）**C-1338: タイトルの裏で動くのは 10 型中 racing だけ（shooter は「次はこれ」と自分で書いたまま・§8×§17）。**
       （辛口クリエイターループ起票・観点=§8 継続の仕組み（初見の 1 秒で
       遊びが伝わる・事実 5/8 の即伝達）×増築済み §17 アトラクト。前回=§4）
       ATTRACT_UNWIRED の shooter 行は「the obvious next one: waves arrive

@@ -65,7 +65,19 @@ def demo() -> dict:
 def still() -> dict:
     """An unwired template, left alone for the same two seconds."""
 
-    return _watch("shooter", idle=120, play=30)
+    return _watch("catch", idle=120, play=30)
+
+
+@pytest.fixture(scope="module")
+def piloted() -> dict:
+    """Shooter (C-1338): the demo whose hand holds the trigger.
+
+    Forty seconds, because the shooter's demo ends by losing its own
+    ship - the first life lasts over twenty - and the loop back to
+    another go is part of the claim.
+    """
+
+    return _watch("shooter", idle=2400, play=30)
 
 
 # --- the table -------------------------------------------------------------
@@ -108,6 +120,49 @@ def test_the_wired_page_names_its_own_way_back() -> None:
     assert "try{reset()}catch(e){}" in _script("racing")
 
 
+def test_the_pilot_line_is_substituted_per_template() -> None:
+    """The shooter's page carries its one held input; racing carries none."""
+
+    assert "try{fire=true;if(kills>0)ATTRACT_LIVE=1}catch(e){}" in _script("shooter")
+    assert "fire=true" not in _script("racing")
+    assert "ATTRACT_PILOT_TOKEN" not in _script("shooter")
+    assert "ATTRACT_PILOT_TOKEN" not in _script("racing")
+
+
+def test_the_piloted_demo_shoots_loses_and_goes_again(piloted: dict) -> None:
+    """The held trigger makes a demo with a game in it (C-1338).
+
+    The picture moves, the demo reaches its own end at least once and
+    loops instead of freezing on the over screen, and none of it started
+    the round clock or wrote anything down.
+    """
+
+    facts = piloted["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 2400
+    assert facts["loops"] >= 1, "the demo never lost its own ship"
+    assert facts["live"] == 1, "the demo never shot anything down"
+    hashes = [frame["hash"] for frame in piloted["idle"]]
+    assert len(set(hashes)) > 2160, "the picture barely moved"
+    assert piloted["beforePress"]["round"]["ms"] == 0
+    assert piloted["beforePress"]["touched"] is False
+    assert sorted(piloted["beforePress"]["store"]) == []
+
+
+def test_the_press_after_a_piloted_demo_matches_the_control(piloted: dict) -> None:
+    """The handover lets go of the trigger: the go starts from the top."""
+
+    control = _watch("shooter", idle=0, play=30)
+
+    def _snap(run: dict, at: str) -> dict:
+        out = {k: v for k, v in run[at].items() if k != "attract"}
+        out["round"] = dict(out["round"], ms=round(out["round"]["ms"]))
+        return out
+
+    assert _snap(piloted, "atPress") == _snap(control, "atPress")
+    assert _snap(piloted, "afterPlay") == _snap(control, "afterPlay")
+
+
 # --- the demo itself -------------------------------------------------------
 
 
@@ -131,7 +186,8 @@ def test_the_loop_does_not_multiply(demo: dict) -> None:
 
 
 def test_an_unwired_title_is_one_still_picture(still: dict) -> None:
-    assert still["beforePress"]["attract"] == {"wired": False, "frames": 0, "loops": 0}
+    assert still["beforePress"]["attract"] == {
+        "wired": False, "frames": 0, "loops": 0, "live": 0}
     assert len({frame["hash"] for frame in still["idle"]}) == 1
 
 
