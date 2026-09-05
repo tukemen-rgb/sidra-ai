@@ -2949,6 +2949,21 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-06 00:55 UTC 辛口クリエイター **C-1353: 3 人目の顔——catch の受け皿は落下物を「見て」いない（§1・C-1348 の残り候補）。**
+      （辛口クリエイターループ起票・観点=§1 手触り。前回=§4）
+      C-1348（platformer）・C-1351（adventure）で主人公 2 人が目を得たが、
+      catch の操作対象=受け皿はマゼンタの矩形のまま。Juice it or lose it の
+      実演は**ブロックにすら**目を付ける話で、プレイヤーの分身が落下物を
+      目で追わないのはその真逆。実装: 皿の縁に 2 つの目——**最も低い
+      （=一番近い）落下物の方向を見る**（deadzone ±0.03 で -1/0/+1・
+      物が無ければ正面）、まばたきは FRAME(40,6) の 1 拍・REDUCED は
+      常に開眼（C-1348/C-1351 と同一契約）。目の高さは BSQ に追随＝
+      受けの瞬間は目も潰れる（C-1341 の拡縮と一体）。faceFacts(){look,
+      blink} 公開。新設 CATCH_FACE_PROBE（catchgame.py・時計フレーム
+      追随）: 皿を左端→右の物で look=1・右端→-1・最下物に整列→0・
+      500f まばたき計数・reduced で blink 0。計器 creation_hero_face
+      2→3（count 定義は C-1351 で導入済み・catch の 2 走行を追加）。
+      → 動かす数字: creation_hero_face 2→3
 - [x] 完了 2026-09-06 00:45 UTC 辛口クリエイター（`creation_hud_painted` unmeasurable→**10**、判定器 exit 0（NEW）。新モジュール creation/hudpaint.py の PAINT_PROBE——記録型 2D コンテキスト（fillStyle/globalAlpha 代入を追跡・fillRect/fillText を様式＋座標つきで記録）でゲート押下後 90f 走らせ最終フレームの実描画命令を hudFacts() と照合。検査 3 段: (1) 宣言 plate 色が宣言 alpha±0.01 で実際に fillRect、(2) 宣言 ink 色が実際に fillText、(3) **その ink 文字が plate 矩形の上（±6px）に載っている**——(3) は破壊で見つけた穴の修正: marble の scorePop 等が theme ink で別の場所に文字を書くため、色だけの照合では『HUD の ink を #888 に差し替え』がすり抜けた（実測で確認→座標ペア照合に強化）。全 10 型初回通過（plate 1〜2 枚・ink-on-plate ペア 1〜3 組）。破壊 3 通り〔**塗りだけ削除（C-1337 ですり抜けた本命）**→『the declared plate was never filled』——hudFacts は #0a0f1c@0.7/#dfe7f5 を宣言し続けたまま＝旧 contrast 判定器は盲目のまま新判定器が捕捉／alpha 1 で塗る→同上／ink 差し替え→『no text in the declared ink sits on the declared plate』〕、復元で 10。**実装の学び 1 件**——計器関数内の後方定義 _tune_templates を前方で参照して UnboundLocalError＝計器全体がクラッシュし判定器が『NO MOVEMENT』を返した（test_no_probe_crashed が捕捉）→ ブロック内 import に修正。pytest exit 0（3614 passed / 3 skip）・gate MISS 0。テスト test_creation_hud_painted.py 新設（10 型 parametrize）。contrast（読める宣言）×painted（本当に塗る）で §4 の実効性が両側から閉じた）**C-1352: HUD 判定器は宣言を信じている——描くのをやめても hudFacts() の定数が残れば 10/10 のまま（§4・C-1337 で記録した設計限界）。**
       （辛口クリエイターループ起票・観点=§4 視認性。前回=§8×§17）
       C-1337 の破壊実験で記録し、C-1348/C-1351 の顔契約でも同型の限界を
