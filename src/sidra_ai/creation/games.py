@@ -62,6 +62,7 @@ from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.music import MUSIC_PREAMBLE
 from sidra_ai.creation.remap import preamble_for as remap_preamble_for
 from sidra_ai.creation.marble import (
+    GATE_BASE as MARBLE_GATE_BASE,
     MARBLE_HOW,
     MARBLE_SCRIPT,
     MARBLE_TITLE,
@@ -983,6 +984,10 @@ def generate_game(
         # weak driving at gentler panel speeds. Only racing carries the
         # token; every other template is byte-for-byte unaffected.
         .replace("LAPS_TOKEN", str(RACING_LAPS.get(difficulty, 3)))
+        # C-1420: what one gate pays before the run's multiplier. Only
+        # marble carries the token, so every other template is
+        # byte-for-byte unaffected by the replace.
+        .replace("GATE_BASE_TOKEN", str(MARBLE_GATE_BASE))
         # C-1404 (b): difficulty scales scope, not only speed - easy runs
         # fewer laps so the gentlest rung can actually beat the sixty-second
         # clock while every rung keeps a losing path against the clock for

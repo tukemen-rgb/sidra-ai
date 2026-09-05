@@ -5885,11 +5885,27 @@ def measure_creation(c: Collector) -> None:
     #
     # §13 事実 1: reward the player who takes a risk the game never
     # demanded. The marble's hot gates (C-1313) stand in a block's shadow
-    # and pay double; the opening gift gate never does. Judged by rolling
-    # the course: hot gates exist, the pilot takes some, the score is
-    # exactly the plain gates plus twice the hot ones, and the run ends
-    # whether or not the hot ones were taken (the risk is optional).
-    from sidra_ai.creation.marble import probe_source as _marble_rr_probe
+    # and pay the base again; the opening gift gate never does. Judged by
+    # rolling the course: hot gates exist, the pilot takes some, the score
+    # is exactly explainable, and the run ends whether or not the hot ones
+    # were taken (the risk is optional).
+    #
+    # **The arithmetic was restated in C-1421.** It used to read
+    # ``(gates - hotTaken) + 2 * hotTaken`` - which quietly assumed no
+    # multiplier exists anywhere on the course, and so would have been
+    # broken by *any* run multiplier however it was written. The form below
+    # sums each gate at the multiplier that was live when it landed, and
+    # adds the hot gate's flat extra outside it. The two are the same
+    # statement whenever every multiplier is 1: sum(base) + base*hotTaken
+    # is gates + hotTaken is (gates - hotTaken) + 2*hotTaken. Checked that
+    # way before it was adopted, on a course with nothing wired - both read
+    # 23 against a score of 23.
+    #
+    # It is strictly the stronger of the two: every lie the old identity
+    # caught (a score that does not match the gates taken) still fails it,
+    # and a payment made at the wrong multiplier now fails it as well.
+    from sidra_ai.creation.marble import GATE_BASE as _rr_base
+    from sidra_ai.creation.marble import combo_probe_source as _marble_rr_probe
 
     rr_gaps: list[str] = []
     rr_page = generate_game("玉転がしゲームを作って").html
@@ -5900,10 +5916,10 @@ def measure_creation(c: Collector) -> None:
         try:
             rr_run = _scene_sp.run(
                 ["node", "-"],
-                input=_marble_rr_probe(rr_script.group(1)),
+                input=_marble_rr_probe(rr_script.group(1), mode="run"),
                 capture_output=True,
                 text=True,
-                timeout=180,
+                timeout=300,
             )
             if rr_run.returncode != 0:
                 raise ValueError(rr_run.stderr.strip()[:60])
@@ -5916,10 +5932,27 @@ def measure_creation(c: Collector) -> None:
                 rr_gaps.append(f"no danger on the course ({rolled.get('hotTotal')})")
             if rolled.get("hotTaken", 0) < 1:
                 rr_gaps.append("the risk was never worth taking")
-            expected = (rolled["gates"] - rolled["hotTaken"]) + 2 * rolled["hotTaken"]
-            if rolled.get("score") != expected:
+            through = [e for e in rolled.get("events", []) if e["kind"] == "through"]
+            expected = sum(
+                _rr_base * e["mult"] + (_rr_base if e["hot"] else 0) for e in through
+            )
+            if not through:
+                rr_gaps.append("the roll went through no gates")
+            elif rolled.get("score") != expected:
                 rr_gaps.append(
                     f"the score lies ({rolled.get('score')} != {expected})"
+                )
+            # ...and the hot gate's extra is flat, whatever the run was
+            # paying. That is C-1313's claim itself - 「この門は 1 点多い」
+            # has to stay true at x1 and at x4 alike - and it is the half
+            # that stops the extra from being quietly folded into a
+            # multiplier where a player could no longer see it.
+            elif {
+                e["paid"] - _rr_base * e["mult"] for e in through if e["hot"]
+            } not in ({_rr_base}, set()):
+                rr_gaps.append(
+                    "the hot gate's extra changes with the run "
+                    f"({sorted({e['paid'] - _rr_base * e['mult'] for e in through if e['hot']})})"
                 )
             if rolled.get("state") != "over":
                 rr_gaps.append("the course no longer completes")
@@ -9653,6 +9686,135 @@ def measure_creation(c: Collector) -> None:
             "reduced でも点は入る（粒子だけが消える）。"
             "起票と未配線表はどちらも「拳」と書いていたが、この怪獣に拳は無い——"
             "地面を割り、その半径は割れ目が広がるほど育つ。帯はその外に置いた"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the third template with a run, and the sum that keeps it legible
+    #
+    # C-1420. combo.py's own unwired table said marble needed a decision
+    # before it could be wired: C-1313 had made some gates worth double,
+    # and two multipliers at once is one too many. The decision taken here
+    # is that **the run multiplies the gate's base value and the hot gate's
+    # extra is added outside it** - a hot gate on a x3 run pays 3 + 1, not
+    # 6. Stacking them would make the best line on the course the one a
+    # player cannot work out from the seat, which is what §13's readable
+    # risk is against, and it is the same call C-1411 made when it added
+    # the graze to the kills rather than multiplying them.
+    #
+    # So the check that matters is arithmetic on a page that played: every
+    # payment against the multiplier that was live when it landed.
+    from sidra_ai.creation.combo import COMBO_MAX as _mc_max, COMBO_STEP as _mc_step
+    from sidra_ai.creation.marble import GATE_BASE as _mc_base
+    from sidra_ai.creation.marble import combo_probe_source as _mc_probe
+
+    mc_gaps: list[str] = []
+    mc_page = _tune_generate("玉転がしを作って", template="marble").html
+    mc_script = _scene_re.search(r"<script>(.*?)</script>", mc_page, _scene_re.S)
+    mc_runs: dict[str, dict] = {}
+    if mc_script is None:
+        mc_gaps.append("no script on the page")
+    else:
+        def _mc_roll(**kwargs):
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_mc_probe(mc_script.group(1), **kwargs),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                raise ValueError(out.stderr.strip()[:60])
+            return json.loads(out.stdout.strip().splitlines()[-1])
+
+        try:
+            mc_runs["run"] = _mc_roll(mode="run")
+            mc_runs["skip"] = _mc_roll(mode="skip")
+            mc_runs["quiet"] = _mc_roll(mode="run", reduced=True)
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            mc_gaps.append(f"probe unavailable ({exc})")
+
+    if len(mc_runs) == 3:
+        clean, skip, quiet = mc_runs["run"], mc_runs["skip"], mc_runs["quiet"]
+        through = [e for e in clean["events"] if e["kind"] == "through"]
+        # 1. Consecutive gates build the run, on the ladder's own step and
+        #    no further than its cap.
+        if not through:
+            mc_gaps.append("the roll never went through a gate")
+        elif max(e["mult"] for e in through) <= 1:
+            mc_gaps.append("a clean roll never built a multiplier")
+        elif max(e["mult"] for e in through) > _mc_max:
+            mc_gaps.append(f"the multiplier passed its cap ({max(e['mult'] for e in through)})")
+        elif any(e["mult"] != min(_mc_max, 1 + e["run"] // _mc_step) for e in through):
+            off = next(e for e in through if e["mult"] != min(_mc_max, 1 + e["run"] // _mc_step))
+            mc_gaps.append(f"a run of {off['run']} was worth x{off['mult']}")
+        # 2. The decision itself: base x mult for a plain gate, and the hot
+        #    gate's extra added *outside* the multiplier.
+        else:
+            wrong = [
+                e
+                for e in through
+                if e["paid"] != _mc_base * e["mult"] + (_mc_base if e["hot"] else 0)
+            ]
+            if wrong:
+                bad = wrong[0]
+                mc_gaps.append(
+                    f"a {'hot' if bad['hot'] else 'plain'} gate on x{bad['mult']} paid "
+                    f"{bad['paid']}, not "
+                    f"{_mc_base * bad['mult'] + (_mc_base if bad['hot'] else 0)}"
+                )
+            else:
+                # ...and specifically not the product, which is the answer
+                # the decision rules out. Only says anything where the two
+                # actually differ.
+                stacked = [
+                    e
+                    for e in through
+                    if e["hot"] and e["mult"] > 1 and e["paid"] == _mc_base * 2 * e["mult"]
+                ]
+                if stacked:
+                    mc_gaps.append(f"a hot gate paid the product: {stacked[0]}")
+                elif not [e for e in through if e["hot"] and e["mult"] > 1]:
+                    mc_gaps.append("no hot gate landed on a built run, so the sum is untested")
+        # 3. A gate that went past the posts takes the run - all of it.
+        missed = [e for e in skip["events"] if e["kind"] == "past"]
+        if not missed:
+            mc_gaps.append("the skipping roll never missed a gate")
+        elif any(e["run"] != 0 or e["mult"] != 1 for e in missed):
+            mc_gaps.append(f"a missed gate left {[(e['run'], e['mult']) for e in missed][:2]}")
+        elif max((e["mult"] for e in skip["events"]), default=1) <= 1:
+            mc_gaps.append("the skipping roll never built anything to lose")
+        # 4. It is on the screen the whole time, at x1 as much as at x4.
+        huds = [e["hud"] for e in through if e["hud"]]
+        if not huds:
+            mc_gaps.append("the HUD was never drawn on a scoring frame")
+        elif [h for h in huds if "×" not in h]:
+            mc_gaps.append(f"the multiplier is missing from the HUD: {huds[0]!r}")
+        elif not [h for h in huds if "×1" in h]:
+            mc_gaps.append("the HUD only shows the multiplier once it has risen")
+        # 5. Reduced motion drops the decoration and keeps the number
+        #    (combo.py's own contract, C-1020's rule).
+        if max((e["mult"] for e in quiet["events"]), default=1) <= 1:
+            mc_gaps.append("with reduced motion the multiplier stopped building")
+    c.add(
+        "creation_marble_combo",
+        "玉転がしの連続通過が積み上がる（二重ボーナスは積ではなく和）",
+        0.0 if mc_gaps else 1.0,
+        detail=(
+            "; ".join(mc_gaps)
+            if mc_gaps
+            else f"実コースを 2 通り走らせて計測。連続通過で倍率が {_mc_step} 門ごとに"
+            f"1 段上がり、×{_mc_max} で止まる。支払いは全て「基礎 {_mc_base}×倍率"
+            f"（＋影の門なら基礎 {_mc_base}）」と一致——**積ではなく和**。"
+            f"×4 の影の門は {_mc_base * 4 + _mc_base} 点であって "
+            f"{_mc_base * 2 * 4} 点ではない（この 2 つが実際に食い違う走行で確認）。"
+            "門を外せば連続も倍率も 0/×1 に戻る（この型に「落下」は無い——起票文は"
+            "そう書いていたが、コースを外れる唯一の道はブロックで、それは走行自体を"
+            "終わらせる。遊びながらやり直せる失敗は「門を外す」だけ）。倍率は ×1 の"
+            "ときも HUD に出ている（実際に描かれた文字列で確認）。reduced でも"
+            "積み上がる——飾りが消えるだけで数字は情報（C-1020）。"
+            "SKIN_UNIT は再測定して据え置き: マッシャーの 1 ラウンドは今も 2 点で、"
+            "この倍率が上げるのは上手に走った天井であって下限ではない"
         ),
         kind=OUTCOME,
     )
