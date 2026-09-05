@@ -5896,6 +5896,62 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a blow on the guardian reads in three beats -------------------
+    #
+    # §6 観察 2 (C-1343): a hit on a boss is flash, then smoke that stays,
+    # then the silhouette back out of it. The kaiju leg has carried this
+    # since C-1032; the guardian - the second boss built on the same
+    # grammar - took a blow in one beat. Driven: one real strike, then
+    # sixty frames of guardFacts, and the beats must stand in order.
+    from sidra_ai.creation.adventure import beat_probe as _beat_probe
+
+    beat_gaps: list[str] = []
+    for _bt_req in ("迷宮を冒険するゲームを作って", "難しい迷宮を冒険するゲームを作って"):
+        _bt_label = "難しい" if "難しい" in _bt_req else "default"
+        _bt_page = generate_game(_bt_req).html
+        _bt_script = _scene_re.search(r"<script>(.*?)</script>", _bt_page, _scene_re.S)
+        if _bt_script is None:
+            beat_gaps.append(f"{_bt_label}: no script")
+            continue
+        try:
+            _bt_run = _scene_sp.run(
+                ["node", "-"],
+                input=_beat_probe(_bt_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _bt_run.returncode != 0:
+                raise ValueError(_bt_run.stderr.strip()[:60])
+            _bt = json.loads(_bt_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            beat_gaps.append(f"{_bt_label}: probe unavailable ({exc})")
+            continue
+        if not _bt.get("hurtAtHit"):
+            beat_gaps.append(f"{_bt_label}: the blow never flashes")
+        if not _bt.get("smokeFrames"):
+            beat_gaps.append(f"{_bt_label}: the smoke never lingers")
+        elif _bt.get("smokeAfterFlash", 0) < 15:
+            beat_gaps.append(
+                f"{_bt_label}: the smoke dies with the flash "
+                f"({_bt.get('smokeAfterFlash')} frames past it)"
+            )
+        if _bt.get("smokeLeft"):
+            beat_gaps.append(f"{_bt_label}: the smoke never clears")
+    c.add(
+        "creation_guard_hit_beats",
+        "番人の被弾が 3 段で読める",
+        0.0 if beat_gaps else 1.0,
+        detail=(
+            "; ".join(beat_gaps)
+            if beat_gaps
+            else "実ページ 2 依頼で番人に一撃を当て 60f を読む: 閃光が立ち"
+            "（hurt 8f＋hitstop）、煙が閃光より長く残り（34f・閃光後 26f）、"
+            "煙も晴れてシルエットが再登場（§6 観察 2・kaiju と同じ実測値）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the repeat never lands on the same pitch twice ----------------
     #
     # §14 事実 1 (C-1317): frequently fired effects need a small random

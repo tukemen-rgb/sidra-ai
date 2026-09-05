@@ -130,7 +130,7 @@ function build(){
      (観察 2) - telegraphs with a held flash beat, then charges. Half
      health is phase 2: the same fight, re-accelerated (観察 3). */
   guard={x:OX+15*TILE,y:OY+4*TILE+16,hp:6,max:6,alive:true,
-    mode:'stride',wind:0,chg:0,dx:0,dy:0,inv:0,t:70,step:0};
+    mode:'stride',wind:0,chg:0,dx:0,dy:0,inv:0,t:70,step:0,hurt:0,smoke:0};
   enemies=[[],[],[]];
   for(let i=0;i<ECOUNT;i++){enemies[1].push(spawn(1))}
   for(let i=0;i<Math.max(1,ECOUNT-1);i++){enemies[2].push(spawn(2))}
@@ -206,7 +206,10 @@ function swing(){if(state!=='play')return;
      each hit, so mashing lands one blow, not six. Half health turns the
      page to phase 2 (§6 観察 3). */
   if(room===2&&guard&&guard.alive&&guard.inv<=0&&Math.hypot(guard.x-fx,guard.y-fy)<30){
-    guard.hp--;guard.inv=30;sfx('hurt');shake(8);hitstop(4);
+    /* A blow on a boss reads in three beats (§6 観察 2, C-1343): flash,
+       smoke that stays, silhouette back out of it - kaiju's own numbers. */
+    guard.hp--;guard.inv=30;guard.hurt=8;guard.smoke=34;
+    sfx('hurt');shake(8);hitstop(4);
     burst(guard.x,guard.y,16,'ALERT_JUICE');
     guard.x+=[0,12,0,-12][hero.dir];guard.y+=[-12,0,12,0][hero.dir];
     if(guard.hp<=0){guard.alive=false;sfx('win');shake(12);hitstop(6);
@@ -285,6 +288,8 @@ function guardSpeed(){return (guard.hp<=3?0.85:0.5)*Math.max(0.6,ESPEED)}
 function guardWind(){return guard.hp<=3?20:34}
 function moveGuard(){if(room!==2||!guard||!guard.alive)return;
   if(guard.inv>0)guard.inv--;
+  if(guard.hurt>0)guard.hurt--;
+  if(guard.smoke>0)guard.smoke--;
   const d=Math.hypot(hero.x-guard.x,hero.y-guard.y)||1;
   if(guard.mode==='stride'){
     const sp=guardSpeed();
@@ -316,6 +321,7 @@ function hurtFacts(){return {roam:hurtRoam,guard:hurtGuard,
 function guardFacts(){return guard?{alive:guard.alive,hp:guard.hp,max:guard.max,
   mode:guard.mode,wind:guard.wind,x:guard.x,y:guard.y,inv:guard.inv,
   speed:guardSpeed(),windFrames:guardWind(),
+  hurt:guard.hurt,smoke:guard.smoke,
   phase:guard.hp<=3?2:1}:null}
 const GROUND={0:'SURFACE_TOKEN',5:'SURFACE_TOKEN',6:'SURFACE_TOKEN'};
 /* Readability rules from the knowledge base (game-design-notes.md §4):
@@ -387,7 +393,10 @@ function draw(now){
        beat; under reduced motion the same warning is a steady outline. */
     const gb=[0,-1,0,1][FRAME(4,13,now)];
     const winding=guard.mode==='wind';
-    cx.fillStyle=(winding&&!REDUCED&&FRAME(2,4,now)===0)?'#dfe7f5':'MAGENTA_TOKEN';
+    /* The blow's first beat (§6 観察 2, C-1343): one flash, same as the
+       kaiju leg's, before the smoke takes over. */
+    cx.fillStyle=guard.hurt>0?'#dfe7f5':
+      (winding&&!REDUCED&&FRAME(2,4,now)===0)?'#dfe7f5':'MAGENTA_TOKEN';
     cx.fillRect(guard.x-20,guard.y-18+gb,40,36);
     cx.beginPath();cx.moveTo(guard.x-20,guard.y-18+gb);
     cx.lineTo(guard.x-12,guard.y-30+gb);cx.lineTo(guard.x-6,guard.y-18+gb);
@@ -398,6 +407,11 @@ function draw(now){
     cx.fillRect(guard.x-13,guard.y-8+gb,8,7);cx.fillRect(guard.x+5,guard.y-8+gb,8,7);
     if(winding&&REDUCED){cx.strokeStyle='#dfe7f5';cx.lineWidth=3;
       cx.strokeRect(guard.x-23,guard.y-21,46,42);cx.lineWidth=1}
+    /* Beats two and three: smoke that stays after the flash is gone, and
+       the silhouette re-emerging as it thins (観察 2). */
+    if(guard.smoke>0){cx.fillStyle='#dfe7f5';cx.globalAlpha=guard.smoke/70;
+      cx.beginPath();cx.arc(guard.x,guard.y-6+gb,30,0,6.283);cx.fill();
+      cx.globalAlpha=1}
     for(let i=0;i<guard.max;i++){cx.strokeStyle='#dfe7f5';
       cx.strokeRect(guard.x-19.5+i*6.5,guard.y-37.5,5,5)}
     cx.fillStyle='#dfe7f5';
@@ -675,6 +689,63 @@ def guard_probe(script: str) -> str:
     return GUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: One blow on the guardian, and the sixty frames after it (§6 観察 2,
+#: C-1343): the flash must stand, the smoke must outlive it, and the
+#: smoke must clear - three beats, read off guardFacts frame by frame.
+BEAT_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+room = 2; hero.hp = 99; hero.key = true;
+/* One blow, landed for real. */
+hero.x = guard.x - 26; hero.y = guard.y; hero.dir = 1; hero.swing = 0;
+key(' '); run(1);
+const atHit = { hurt: guardFacts().hurt, smoke: guardFacts().smoke };
+let hurtFrames = 0, smokeFrames = 0, smokeAfterFlash = 0;
+for (let i = 0; i < 60; i++) {
+  hero.hp = 99; hero.x = OX + 6 * TILE; hero.y = OY + 2 * TILE;
+  run(1);
+  const g = guardFacts();
+  if (g.hurt > 0) hurtFrames++;
+  if (g.smoke > 0) smokeFrames++;
+  if (g.smoke > 0 && g.hurt === 0) smokeAfterFlash++;
+}
+console.log(JSON.stringify({
+  hurtAtHit: atHit.hurt, smokeAtHit: atHit.smoke,
+  hurtFrames: hurtFrames, smokeFrames: smokeFrames,
+  smokeAfterFlash: smokeAfterFlash,
+  smokeLeft: guardFacts().smoke,
+}));
+"""
+
+
+def beat_probe(script: str) -> str:
+    """The page's own script, wrapped so a blow's three beats can be read."""
+
+    return BEAT_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 #: The knowledge key, driven (§3, C-1340). The probe learns the order the
 #: way a player does - by striking the stone and READING what it says -
 #: because the knowledge lives in the world, not in a facts function.
@@ -754,8 +825,10 @@ __all__ = [
     "COMBO_PROBE",
     "CHARM_PROBE",
     "charm_probe",
+    "BEAT_PROBE",
     "GUARD_PROBE",
     "KNOW_PROBE",
+    "beat_probe",
     "combo_probe",
     "WORLD_PROBE",
     "guard_probe",

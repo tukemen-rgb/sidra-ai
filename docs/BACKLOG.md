@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 12:55 辛口クリエイター **C-1343: 番人の被弾が 1 拍で終わる——観察 2 の 3 段が 2 体目のボスに未適用（§6）。**
+- [x] 完了 2026-09-05 13:30 UTC 辛口クリエイター（`creation_guard_hit_beats` unmeasurable→**1**、判定器 exit 0（NEW）。guard に hurt(8f)/smoke(34f)——kaiju と同じ実測値——を追加、被弾で点火、描画は hurt 中の白閃光（既存の予兆閃光と同じ路線・優先）＋smoke の減衰する煙円をシルエットの上に重ねる＝煙が晴れて再登場。guardFacts に hurt/smoke。新設 BEAT_PROBE の実測（default＋難しい）: 一撃で閃光 10f（hitstop 込み）・煙 36f・**閃光後の煙 26f**・最後は 0 に晴れる——観察 2 の順序どおり。破壊 2 通り〔smoke 点火削除→0『the smoke never lingers』／smoke=4→0『the smoke dies with the flash (0 frames past it)』〕、復元で 1。pytest exit 0（3499 passed / 3 skip）・gate MISS 0。テスト test_creation_guard_hit_beats.py 新設）**C-1343: 番人の被弾が 1 拍で終わる——観察 2 の 3 段が 2 体目のボスに未適用（§6）。**
       （辛口クリエイターループ起票・観点=§6 ボス文法。前回=§7）§6 観察 2
       「被弾は『閃光 1 拍 → 煙が残る → シルエットが煙から再登場』の
       3 段」——kaiju の boss は hurt(8f)+smoke(34f) でこれを持つが、
