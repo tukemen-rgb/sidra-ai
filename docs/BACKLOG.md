@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 14:55 辛口クリエイター **C-1345: 決闘の空も平面——観察 7 の 3 層が kaiju 1 型で止まっている（§7）。**
+- [x] 完了 2026-09-05 15:35 UTC 辛口クリエイター（`creation_depth_layers` **1→2**、判定器 exit 0（BETTER）。定義を 0/1→「契約に合格した型の数・欠けがあれば 0」へ変更（C-1121/C-1335 前例・両定義併記: 旧=kaiju のみ検査で 1、新定義の変更前=duel 未報告 gap により 0）。duel に kaiju と同じ契約（FAR_A=0.22・depthFacts・BORDER の実塗り α 合成の固定形状スカイライン・rand() 消費ゼロ・アニメなし）——両ファイターの後ろに霞んだ地平。pace_probe 出力に depth: を足すだけで C-1342 の汎用収穫が拾い**追加 node 実行ゼロ**。実測 4 テーマ×3 場面: 遠景/空 1.038〜1.127:1・中景/空 1.21〜1.66:1・順序 far<solid 全 12 組合せ成立。破壊 2 通り〔FAR_A→0→0『the far layer is invisible (1.00)』×12／FAR_A→1→0『as near as the midground』×12〕、復元で 2。pytest exit 0（3516 passed / 3 skip）・gate MISS 0。テストを kaiju/duel の 2 型に拡張。残る平面背景（shooter は星・marble は深度走行で各自の奥行きあり——本当に平面なのは残り僅か）**C-1345: 決闘の空も平面——観察 7 の 3 層が kaiju 1 型で止まっている（§7）。**
       （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§8。C-1342
       の次候補）duel の現物は SURFACE の空 1 枚＋床帯 24px——中景
       （両ファイター）の後ろに奥が無く、緊迫度で空が変わっても平面の

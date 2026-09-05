@@ -18,6 +18,7 @@ import subprocess
 import pytest
 
 from sidra_ai.creation.games import generate_game
+from sidra_ai.creation.duel import pace_probe as duel_probe
 from sidra_ai.creation.kaiju import probe_source
 
 
@@ -39,15 +40,23 @@ def _blend(alpha: float, top: str, under: str) -> str:
     return "#%02x%02x%02x" % tuple(round(alpha * a + (1 - alpha) * b) for a, b in zip(t, u))
 
 
-def _fought(suffix: str = "") -> dict:
+_REQUESTS = {
+    "kaiju": "巨大怪獣と戦うゲームを作って",
+    "duel": "ビームで撃ち合うゲームを作って",
+}
+
+_PROBES = {"kaiju": probe_source, "duel": duel_probe}
+
+
+def _fought(template: str = "kaiju", suffix: str = "") -> dict:
     if shutil.which("node") is None:  # pragma: no cover - environment guard
         pytest.skip("node is required to drive the page")
-    page = generate_game(f"巨大怪獣と戦うゲームを作って {suffix}".strip()).html
+    page = generate_game(f"{_REQUESTS[template]} {suffix}".strip()).html
     script = re.search(r"<script>(.*?)</script>", page, re.S)
     assert script is not None
     probe = subprocess.run(
         ["node", "-"],
-        input=probe_source(script.group(1)),
+        input=_PROBES[template](script.group(1)),
         capture_output=True,
         text=True,
         timeout=300,
@@ -56,9 +65,10 @@ def _fought(suffix: str = "") -> dict:
     return json.loads(probe.stdout.strip().splitlines()[-1])
 
 
+@pytest.mark.parametrize("template", ["kaiju", "duel"])
 @pytest.mark.parametrize("suffix", ["", "紙のテーマで"])
-def test_the_skyline_sits_between_sky_and_silhouette(suffix: str) -> None:
-    seen = _fought(suffix)
+def test_the_skyline_sits_between_sky_and_silhouette(template: str, suffix: str) -> None:
+    seen = _fought(template, suffix)
 
     depth = seen["depth"]
     assert len(depth) == 3, "three scenes, three skies"

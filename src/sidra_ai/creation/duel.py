@@ -97,6 +97,17 @@ setPal(DUEL_PAL_TOKEN);
    sinking the themed ink to ~3:1 here too (C-1329's fix, more templates). */
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
+/* The far layer (§7 観察 7, C-1345): distance is drawn by CONTRAST - a
+   skyline in the midground's own paint, faded toward the sky, behind the
+   two fighters. A fixed function of x (no rand(): the arena every seed
+   promised does not move), never animated. Same contract as the kaiju's:
+   draw() paints through FAR_A and depthFacts() reports the paints. */
+const FAR_A=0.22;
+function depthFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
+      alpha:FAR_A})}
+  SCENE=keep;return out}
 function duelAct(){if(!p||!e)return 0;
   const low=Math.min(p.hp,e.hp);
   return low<=1?2:(p.hp<3||e.hp<3)?1:0}
@@ -219,6 +230,12 @@ function beamDraw(f,from,dir,c,now){
     cx.arc(cv.width/2+spark*3,y,10+j,0,6.28318);cx.fill()}}
 function draw(now){
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,cv.width,cv.height);
+  /* The ruined skyline, one haze-step off the sky (観察 7). */
+  cx.globalAlpha=FAR_A;cx.fillStyle=scenePaint('BORDER_TOKEN');
+  for(let fx=0;fx<cv.width;fx+=48){
+    const fh=20+18*Math.abs(Math.sin(fx*0.11+5));
+    cx.fillRect(fx,cv.height-24-fh,34,fh)}
+  cx.globalAlpha=1;
   cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(0,cv.height-24,cv.width,24);
   if(flash>0){cx.globalAlpha=0.5*ease(flash);cx.fillStyle='#f5f7ff';
     cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1;flash-=0.05}
@@ -445,6 +462,7 @@ console.log(JSON.stringify({ style: duelFacts().style, tense: duelFacts().tense,
   opening: opening, middle: middle, clutch: clutch,
   scenes: sceneFacts().scenes,
   hud: hudFacts(),
+  depth: depthFacts(),
   state: state, pHp: p.hp }));
 """
 

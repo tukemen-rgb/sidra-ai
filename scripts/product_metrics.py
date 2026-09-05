@@ -3406,7 +3406,8 @@ def measure_creation(c: Collector) -> None:
     # visibly there (>=1.02:1 against the sky) yet fainter than the
     # midground silhouette in every scene of every theme.
     depth_gaps: list[str] = []
-    depth_seen = {label for label in scene_depth if label.startswith("kaiju/")}
+    _depth_all = ("kaiju", "duel")
+    depth_seen = {label for label in scene_depth}
     for label in sorted(depth_seen):
         for act, plane in enumerate(scene_depth[label]):
             try:
@@ -3424,19 +3425,25 @@ def measure_creation(c: Collector) -> None:
                 )
             elif _wcag(far, sky) >= _wcag(solid, sky):
                 depth_gaps.append(
-                    f"{label}: act {act} the far layer is as near as the leg"
+                    f"{label}: act {act} the far layer is as near as the midground"
                 )
-    for missing in {f"kaiju/{s or 'default'}" for s in _scene_themes} - depth_seen:
+    for missing in {
+        f"{key}/{s or 'default'}" for key in _depth_all for s in _scene_themes
+    } - depth_seen:
         depth_gaps.append(f"{missing}: no depth contract reported")
+    # C-1345 redefined the value from 0/1 to the NUMBER of templates whose
+    # far-layer contract holds - any gap anywhere still collapses it to 0
+    # (両定義: 旧 0/1 は kaiju 時点で 1、新定義の変更前は duel が未報告の
+    # ため 0).
     c.add(
         "creation_depth_layers",
-        "遠景は淡く近景は濃い",
-        1.0 if not depth_gaps else 0.0,
+        "遠景は淡く近景は濃い型",
+        float(len(_depth_all)) if not depth_gaps else 0.0,
         detail=(
-            "kaiju × 4 テーマ × 全 3 場面で、遠景スカイライン（中景と同じ"
-            "塗りを α 合成で霞ませたもの）が空より見えて（≥1.02:1）中景の"
-            "シルエットより淡いことを実測（§7 観察 7 の 3 層——手前・中景・"
-            "奥の霞。実測 遠景 1.04〜1.12:1・中景 1.21〜1.65:1）"
+            "kaiju・duel × 4 テーマ × 全 3 場面で、遠景スカイライン（中景と"
+            "同じ塗りを α 合成で霞ませたもの）が空より見えて（≥1.02:1）中景"
+            "のシルエットより淡いことを実測（§7 観察 7 の 3 層——手前・中景・"
+            "奥の霞。実測 遠景 1.04〜1.13:1・中景 1.21〜1.66:1）"
             if not depth_gaps
             else "; ".join(depth_gaps)
         ),
