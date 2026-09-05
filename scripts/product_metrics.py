@@ -5906,6 +5906,7 @@ def measure_creation(c: Collector) -> None:
     # and a payment made at the wrong multiplier now fails it as well.
     from sidra_ai.creation.marble import GATE_BASE as _rr_base
     from sidra_ai.creation.marble import combo_probe_source as _marble_rr_probe
+    from sidra_ai.creation.marble import probe_source as _marble_pace_probe
 
     rr_gaps: list[str] = []
     rr_page = generate_game("玉転がしゲームを作って").html
@@ -5986,7 +5987,7 @@ def measure_creation(c: Collector) -> None:
         try:
             ce_run = _scene_sp.run(
                 ["node", "-"],
-                input=_marble_rr_probe(ce_script.group(1)),
+                input=_marble_pace_probe(ce_script.group(1)),
                 capture_output=True,
                 text=True,
                 timeout=180,
