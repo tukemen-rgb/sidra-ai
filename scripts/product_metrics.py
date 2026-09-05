@@ -4707,6 +4707,7 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.recap import probe_source as _recap_probe
     from sidra_ai.evals.adventure_losable import FRAMES as _adv_frames
     from sidra_ai.evals.adventure_losable import recap_route as _adv_route
+    from sidra_ai.creation.puzzle import recap_route as _pz_route
 
     recap_gaps: list[str] = []
     if set(LOSS_WIRED) & set(LOSS_UNWIRED) or set(LOSS_WIRED) | set(
@@ -4739,6 +4740,11 @@ def measure_creation(c: Collector) -> None:
             "冒険ゲームを作って",
             {"frames": _adv_frames, "route": _adv_route()},
         ),
+        # Also steered, for a different reason: nothing falls and nothing
+        # spawns here, so a board left alone never jams. The drive is
+        # greedy-biggest-group, which never presses a lone tile and so
+        # never spends a hammer (C-1427).
+        "puzzle": ("パズルゲームを作って", {"route": _pz_route()}),
     }
     for key in sorted(LOSS_WIRED):
         request, drive = _recap_asks[key]
@@ -4786,6 +4792,15 @@ def measure_creation(c: Collector) -> None:
             "adventure": (
                 max(raw.get("hurtRoam") or 0, raw.get("hurtGuard") or 0)
                 if raw.get("hurtRoam") is not None
+                else None
+            ),
+            # The two halves of the stranded board, the larger one reported.
+            "puzzle": (
+                max(
+                    min(raw.get("jamHammers") or 0, raw.get("jamTiles") or 0),
+                    max(0, (raw.get("jamTiles") or 0) - (raw.get("jamHammers") or 0)),
+                )
+                if raw.get("jamTiles") is not None
                 else None
             ),
         }.get(key)
@@ -10793,6 +10808,148 @@ def measure_creation(c: Collector) -> None:
             "キャストだけが run を 0 に戻し、そこから x1 で積み直す。"
             "倍率は x1 の時点から HUD に出ており、reduced motion でも"
             "数字は残る（装飾だけが落ちる）"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- and the puzzle's own reason, interrogated (C-1427) --------------
+    #
+    # LOSS_UNWIRED said "'over' means the board jammed, but nothing counts
+    # *why*". The axis was measured before it was chosen, not guessed: at
+    # the jam, every tile still standing is a group of one. That is what
+    # "no moves" means in a game where nothing spawns and nothing falls in
+    # from above - the board only ever empties, so nothing fills up and
+    # there is no column to blame.
+    #
+    # The two causes are made commensurable on purpose - both count tiles,
+    # and together they are the whole stranded board - so "the largest
+    # cause" is a real comparison rather than two units being ranked
+    # against each other.
+    from sidra_ai.creation.puzzle import recap_probe_source as _pz_probe
+
+    pzjam_gaps: list[str] = []
+    pzjam_line = ""
+    pzjam_tail: dict = {}
+    pzjam_main: dict = {}
+    found = _scene_re.search(
+        r"<script>(.*?)</script>",
+        generate_game("パズルゲームを作って").html,
+        _scene_re.S,
+    )
+    if found is None:
+        pzjam_gaps.append("no script on the puzzle page")
+    else:
+        try:
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_pz_probe(found.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:80])
+            out = run.stdout.strip().splitlines()
+            pzjam_main = json.loads(out[-2])
+            pzjam_tail = json.loads(out[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError, IndexError) as exc:
+            pzjam_gaps.append(f"probe unavailable ({exc})")
+    if not pzjam_gaps:
+        end = pzjam_main.get("atEnd") or {}
+        pzjam_line = end.get("line") or ""
+        tiles = pzjam_tail.get("tiles")
+        purse = pzjam_tail.get("hammers")
+        recount = pzjam_tail.get("recount")
+        want = max(min(purse or 0, tiles or 0), max(0, (tiles or 0) - (purse or 0)))
+        if not end.get("lost"):
+            pzjam_gaps.append("the driven go did not jam")
+        elif not pzjam_line:
+            pzjam_gaps.append("a jam with counted causes said nothing")
+        elif not recount:
+            pzjam_gaps.append("the board was empty, which is a clear and not a jam")
+        elif tiles != recount:
+            # The snapshot against the board it claims to summarise.
+            pzjam_gaps.append(
+                f"the jam recorded {tiles} tiles but {recount} were on the board"
+            )
+        elif pzjam_tail.get("singles") != recount:
+            # ...and the definition of a jam, checked rather than assumed.
+            pzjam_gaps.append(
+                f"only {pzjam_tail.get('singles')} of {recount} stranded tiles "
+                "were alone, so the board was not actually out of moves"
+            )
+        elif purse != pzjam_tail.get("livePurse"):
+            # The snapshot's purse against the one the game still holds. A
+            # purse that is never recorded would otherwise agree with a line
+            # derived from it - the count and the claim share a source.
+            pzjam_gaps.append(
+                f"the jam recorded {purse} hammers but the game holds "
+                f"{pzjam_tail.get('livePurse')}"
+            )
+        elif pzjam_tail.get("jamColours") != pzjam_tail.get("colours"):
+            pzjam_gaps.append(
+                f"the jam recorded {pzjam_tail.get('jamColours')} colours but "
+                f"{pzjam_tail.get('colours')} were on the board"
+            )
+        elif str(want) not in pzjam_line:
+            pzjam_gaps.append(
+                f"the line's count is not the board's ({pzjam_line!r}, wanted {want})"
+            )
+        # A cause counted zero is not a cause: this go banked hammers and
+        # never spent them, so the purse clause is the smaller one - it must
+        # not be the one that spoke.
+        elif purse and purse >= (tiles or 0) and "ハンマー" not in pzjam_line:
+            pzjam_gaps.append(f"the purse was the larger cause and went unsaid ({pzjam_line!r})")
+        # ...and the comparison is real. No drive reaches a jam holding more
+        # hammers than tiles, so the only honest way to ask is to move the
+        # purse and re-read - and the count printed has to follow it.
+        elif "ハンマー" not in (pzjam_tail.get("saidPurse") or ""):
+            pzjam_gaps.append(
+                f"a purse larger than the board was still not named "
+                f"({pzjam_tail.get('saidPurse')!r})"
+            )
+        elif str(recount) not in (pzjam_tail.get("saidPurse") or ""):
+            pzjam_gaps.append(
+                f"the purse line's count did not follow the counter "
+                f"({pzjam_tail.get('saidPurse')!r}, wanted {recount})"
+            )
+        elif pzjam_tail.get("saidNothing"):
+            pzjam_gaps.append(
+                f"both causes at zero and it still spoke "
+                f"({pzjam_tail.get('saidNothing')!r})"
+            )
+        elif pzjam_line not in (pzjam_main.get("strip") or []):
+            pzjam_gaps.append("the line never reached the result strip")
+        # A cleared board is the win, and it ends in the same state a jam
+        # does - so the half of the predicate that tells them apart is the
+        # half most likely to be dropped. Asked of the same page.
+        elif (pzjam_main.get("afterWin") or {}).get("lost") or (
+            pzjam_main.get("afterWin") or {}
+        ).get("line"):
+            pzjam_gaps.append(
+                f"a cleared board was explained as a jam "
+                f"({(pzjam_main.get('afterWin') or {}).get('line')!r})"
+            )
+    c.add(
+        "creation_puzzle_jam_recap",
+        "パズルが詰んだ理由を一言で言う",
+        0.0 if pzjam_gaps else 1.0,
+        detail=(
+            "; ".join(pzjam_gaps)
+            if pzjam_gaps
+            else f"貪欲運転で実際に詰ませて計測: 帯は「{pzjam_line}」。"
+            "**軸は想像せず先に実測した**——詰んだ盤では残ったタイルが"
+            f"**全部 1 枚組**（{pzjam_tail.get('singles')}/{pzjam_tail.get('recount')} 枚）。"
+            "この型は湧きも落ちも無く盤は減る一方なので、起票文にあった"
+            "「どの列が先に埋まったか」という軸は**存在しない**。"
+            "2 つの原因はどちらも**タイル枚数**に揃えてあり、和が取り残された"
+            "盤そのものになる——だから「最多原因」が単位の違うもの同士の"
+            "比較にならない。集計は生の盤から数え直した値と照合しており"
+            f"（枚数・色数とも一致）、ハンマー {pzjam_tail.get('hammers')} 個は"
+            "この走行では少ないほうなので名指しされない。"
+            "**ハンマー側の節は運転では到達できない**ため、"
+            "カウンタを動かして同じページに訊き直す方式（動かした値に数が"
+            "追随することまで検査）。両方 0 なら何も言わない"
         ),
         kind=OUTCOME,
     )

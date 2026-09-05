@@ -7872,3 +7872,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-05 13:08 UTC ループA started
 
 2026-09-05 13:22 進捗監視 前進あり: C-1344 完了（kaiju も幕の裏で自走・13:02）。ループA は C-1427（puzzle の詰み理由）へ 13:08 着手。C-1256（ユーザー）進行中。停滞なし。記録のみ。
+2026-09-05 13:49 UTC ループA 完了 C-1427 puzzle の詰みに理由を — creation_puzzle_jam_recap unmeasurable→1（creation_loss_recap 1→1 維持）、判定器 exit 0、pytest 全緑、verify_gate_recall MISS 0、Board=13。実測中に製品欠陥を発見し C-1428 として起票（実装せず）。

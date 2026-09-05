@@ -75,6 +75,12 @@ setPal(PUZZLE_PAL_TOKEN);
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A,cursor:HUD_INK}}
 let grid,cur,score,state,cleared,offY,offX,hammers;
+/* The board as it stood when it jammed (C-1427). Snapshotted at the
+   moment the deadlock is declared rather than recomputed later, so the
+   result strip reports the board that ended the go and not whatever a
+   later frame happens to hold. Counting only - the game reads none of
+   these back. */
+let JAM_TILES=0,JAM_HAMMERS=0,JAM_COLOURS=0;
 /* The board's economy (§5, C-1322): a pop of HAMMER_EARN or more banks
    one hammer, up to HAMMER_CAP; a hammer breaks one lone tile. Skill is
    converted into survival - the squared score stays vanity, the hammer
@@ -82,6 +88,7 @@ let grid,cur,score,state,cleared,offY,offX,hammers;
 const HAMMER_EARN=5,HAMMER_CAP=3;
 function reset(){rs=(SEED>>>0)||1;grid=[];offY=[];offX=[];score=0;state='play';
   cleared=false;cur={x:0,y:0};hammers=0;
+  JAM_TILES=0;JAM_HAMMERS=0;JAM_COLOURS=0;
   for(let y=0;y<ROWS;y++){const row=[],oy=[],ox=[];
     for(let x=0;x<COLS;x++){row.push(Math.floor(rand()*COLOURS));
       oy.push(0);ox.push(0)}grid.push(row);offY.push(oy);offX.push(ox)}}
@@ -125,6 +132,17 @@ function settle(){for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
   offX[y][x]*=0.72;if(offX[y][x]<0.5)offX[y][x]=0}}}
 function movesLeft(){for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
   if(grid[y][x]>=0&&group(x,y).length>1)return true}}return false}
+/* What the board looked like at the deadlock. Measured, not assumed:
+   every tile still standing when moves run out is a group of one - that
+   is what "no moves" means here - so the counts worth keeping are how
+   many are stranded, in how many colours, and how much of the comeback
+   tool went unspent. */
+function jam(){let n=0;const seen={};
+  for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
+    if(grid[y][x]<0)continue;n++;seen[grid[y][x]]=1}}
+  JAM_TILES=n;JAM_HAMMERS=hammers;JAM_COLOURS=Object.keys(seen).length}
+function jamFacts(){return {tiles:JAM_TILES,hammers:JAM_HAMMERS,
+  colours:JAM_COLOURS,cleared:cleared,state:state}}
 function pop(){if(state!=='play')return;
   const cells=group(cur.x,cur.y);
   if(cells.length<2){
@@ -137,7 +155,7 @@ function pop(){if(state!=='play')return;
         PALETTE[grid[by][bx]]||'CYAN_TOKEN');
       grid[by][bx]=-1;sfx('sword');shake(3);hitstop(2);
       collapse();
-      if(!movesLeft()){state='over';
+      if(!movesLeft()){state='over';jam();
         cleared=grid.every(r=>r.every(v=>v<0));
         if(cleared){winBeat(cv.width/2,cv.height/2)}
         else{failBeat(cv.width/2,cv.height/2)}}
@@ -158,7 +176,7 @@ function pop(){if(state!=='play')return;
     PALETTE[grid[y][x]]||'CYAN_TOKEN');grid[y][x]=-1});
   sfx('gem');shake(Math.min(9,cells.length));hitstop(cells.length>4?3:1);
   collapse();
-  if(!movesLeft()){state='over';
+  if(!movesLeft()){state='over';jam();
     cleared=grid.every(r=>r.every(v=>v<0));
     /* Clearing the board is a win; running out of moves is the loss the
        beat is for. */
@@ -370,6 +388,86 @@ while (spend === null && puzzleFacts().state === 'play' && guard++ < 200) {
 console.log(JSON.stringify({ refusal: refusal, earn: earn, spend: spend,
   state: puzzleFacts().state, hammers: puzzleFacts().hammers }));
 """
+
+
+#: Greedy play, wired for the loss-recap probe (C-1427). A board does not
+#: jam on its own - nothing falls, nothing spawns, and a page left alone
+#: sits at its opening position forever - so the losing go has to be
+#: driven, the way the adventure's is. Always the biggest group, which is
+#: also why it never presses a lone tile: the hammers stay in the purse,
+#: and the jam that results is the one a player who saved them would meet.
+RECAP_SETUP = """
+function pzWalk(x, y){ let g = 0;
+  while (puzzleFacts().cur.x !== x && g++ < 40) {
+    press(puzzleFacts().cur.x < x ? 'ArrowRight' : 'ArrowLeft') }
+  while (puzzleFacts().cur.y !== y && g++ < 80) {
+    press(puzzleFacts().cur.y < y ? 'ArrowDown' : 'ArrowUp') } }
+function pzStep(){ if (state !== 'play') return;
+  const f = puzzleFacts();
+  /* Only ever the biggest group, never a lone tile - so no hammer is
+     spent and the purse at the jam is what was actually banked. */
+  if (f.best.n < 2) return;
+  pzWalk(f.best.x, f.best.y); press(' ') }
+"""
+
+#: One move, every third frame so the board is given time to fall.
+RECAP_STEP = "try{ if (f % 3 === 0) { pzStep() } }catch(e){}"
+
+
+def recap_route() -> tuple[str, str]:
+    """The greedy drive, as ``recap.probe_source`` wants it."""
+
+    return RECAP_SETUP, RECAP_STEP
+
+
+#: What the jam line has to survive, asked of the board that just jammed.
+#: Appended after ``recap.probe_source``'s own report, so the judge reads
+#: two JSON lines.
+#:
+#: The board is **recounted straight from the grid** rather than trusted to
+#: the snapshot, and the definition of a jam is checked rather than assumed:
+#: every tile still standing has to be a group of one. Then the comparison
+#: is interrogated the only way it can be - no drive reaches a jam with a
+#: purse bigger than the board - by moving the purse and re-reading.
+_RECAP_TAIL = """
+/* The win case above left the board flagged as cleared. Put it back: this
+   line only speaks about a jam. */
+state = 'over'; cleared = false;
+const pzSaid = recapLine();
+let pzRecount = 0, pzSingles = 0; const pzHues = {};
+for (let y = 0; y < ROWS; y++) { for (let x = 0; x < COLS; x++) {
+  if (grid[y][x] < 0) continue;
+  pzRecount++; pzHues[grid[y][x]] = 1;
+  if (group(x, y).length === 1) pzSingles++ } }
+const pzKeepT = JAM_TILES, pzKeepH = JAM_HAMMERS;
+/* A purse as big as the board: the other clause becomes the larger one. */
+JAM_HAMMERS = JAM_TILES;
+const pzSaidPurse = recapLine();
+JAM_TILES = 0; JAM_HAMMERS = 0;
+const pzSaidNothing = recapLine();
+JAM_TILES = pzKeepT; JAM_HAMMERS = pzKeepH;
+console.log(JSON.stringify({
+  said: pzSaid, saidPurse: pzSaidPurse, saidNothing: pzSaidNothing,
+  recount: pzRecount, singles: pzSingles, colours: Object.keys(pzHues).length,
+  /* The purse as the game still holds it. Nothing can spend a hammer once
+     the board is over, so this is what it was at the jam - and it is the
+     only independent check on the snapshot's own copy of it. Without it a
+     purse that is never recorded agrees with a line derived from it. */
+  livePurse: hammers,
+  tiles: JAM_TILES, hammers: JAM_HAMMERS, jamColours: JAM_COLOURS,
+}));
+"""
+
+
+def recap_probe_source(script: str, *, frames: int = 4200) -> str:
+    """The loss-recap probe, driven greedily to a jam and then questioned."""
+
+    from sidra_ai.creation.recap import probe_source
+
+    return (
+        probe_source(script, template="puzzle", frames=frames, route=recap_route())
+        + _RECAP_TAIL
+    )
 
 
 def hammer_probe(script: str) -> str:

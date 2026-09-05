@@ -101,6 +101,31 @@ LOSS_WIRED: dict[str, dict] = {
             ("hurtGuard", "'番人の一撃を '+n+' 回——溜めの光のあとに来る'"),
         ],
     },
+    # The board jams when no two tiles of a colour touch any more, so
+    # every tile still standing is a group of one - that is what "no moves"
+    # means in this game, and it was measured before anything was written
+    # (C-1427). The entry this replaces guessed at columns filling up;
+    # nothing fills here, the board only empties.
+    #
+    # Two causes, and they are made commensurable on purpose: both count
+    # *tiles*, and together they are the whole stranded board. The largest
+    # cause is then a real comparison rather than two different units being
+    # ranked against each other. Which one wins says something different:
+    # a purse of unspent hammers is a tool that was never used, and a
+    # remainder past it is a board nothing on hand could have opened.
+    "puzzle": {
+        "lost": "state==='over'&&!cleared",
+        "causes": [
+            (
+                "Math.min(JAM_HAMMERS,JAM_TILES)",
+                "'ハンマーを '+n+' 個残したまま——1 個で孤立した 1 枚を壊せる'",
+            ),
+            (
+                "Math.max(0,JAM_TILES-JAM_HAMMERS)",
+                "'ばらばらの '+n+' 枚が残った——同じ色が隣り合わなくなると詰む'",
+            ),
+        ],
+    },
     # Laps are the score here, so the shortfall is the reason.
     "racing": {
         "lost": "state!=='goal'",
@@ -115,7 +140,6 @@ LOSS_WIRED: dict[str, dict] = {
 LOSS_UNWIRED: dict[str, str] = {
     "catch": "no losing state at all - the clock ends every go and the score is the whole verdict",
     "fishing": "same as catch: nothing can end the round early",
-    "puzzle": "'over' means the board jammed, but nothing counts *why* it jammed yet",
 }
 
 #: Names the preamble introduces.
@@ -255,7 +279,10 @@ const counters = { hp: peek('ship&&ship.hp'), respawns: peek('respawns'),
   /* adventure's two damage sites, read off the page rather than through
      hurtFacts, so a facts function that lies disagrees with them. */
   hurtRoam: peek('hurtRoam'), hurtGuard: peek('hurtGuard'),
-  heroHp: peek('hero&&hero.hp') };
+  heroHp: peek('hero&&hero.hp'),
+  /* the puzzle's jam snapshot, and the flag that tells a jam from a clear */
+  jamTiles: peek('JAM_TILES'), jamHammers: peek('JAM_HAMMERS'),
+  jamColours: peek('JAM_COLOURS'), cleared: peek('cleared') };
 const atEnd = recapFacts();
 /* The strip as drawn, after the round is over. */
 drawn = [];
@@ -265,7 +292,7 @@ const strip = drawn.slice();
    the product rule, so it is the thing to interrogate - not a second
    implementation of it out here. */
 let afterWin = null;
-try { state = WIN_STATE_INPUT; afterWin = recapFacts() } catch (e) { afterWin = 'error: ' + e.message }
+try { state = WIN_STATE_INPUT; WIN_EXTRA_TOKEN; afterWin = recapFacts() } catch (e) { afterWin = 'error: ' + e.message }
 console.log(JSON.stringify({
   lost: lost, atEnd: atEnd, strip: strip, afterWin: afterWin,
   verdictWhileLive: verdictWhileLive, counters: counters,
@@ -285,7 +312,16 @@ WIN_STATE: dict[str, str] = {
     "kaiju": "won",
     "racing": "goal",
     "adventure": "win",
+    # Clearing the board is the win, and it is the *second* half of the
+    # predicate - the state alone is the same one a jam ends in.
+    "puzzle": "over",
 }
+
+
+#: What else a win needs, for a template whose winning state is also its
+#: losing one. Spliced in right after the state assignment, so the win case
+#: exercises the whole predicate rather than only the half a state can set.
+WIN_EXTRA: dict[str, str] = {"puzzle": "cleared = true"}
 
 
 def probe_source(
@@ -323,6 +359,7 @@ def probe_source(
         .replace("HOLD_INPUT", json.dumps(hold))
         .replace("STORED_INPUT", json.dumps(stored))
         .replace("WIN_STATE_INPUT", json.dumps(WIN_STATE.get(template, "play")))
+        .replace("WIN_EXTRA_TOKEN", WIN_EXTRA.get(template, ""))
     )
 
 
@@ -330,6 +367,7 @@ __all__ = [
     "LOSS_UNWIRED",
     "LOSS_WIRED",
     "PREAMBLE_NAMES",
+    "WIN_EXTRA",
     "WIN_STATE",
     "preamble_for",
     "probe_source",

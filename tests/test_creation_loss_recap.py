@@ -33,6 +33,7 @@ from sidra_ai.creation.recap import (  # noqa: E402
     probe_source,
 )
 from sidra_ai.evals.adventure_losable import FRAMES as ADVENTURE_FRAMES  # noqa: E402
+from sidra_ai.creation.puzzle import recap_route as puzzle_route  # noqa: E402
 from sidra_ai.evals.adventure_losable import recap_route  # noqa: E402
 
 #: One request per wired template, and how to make that template lose.
@@ -63,7 +64,21 @@ ASKS: dict[str, tuple[str, dict]] = {
         "冒険ゲームを作って",
         {"frames": ADVENTURE_FRAMES, "route": recap_route()},
     ),
+    # Also steered, for a different reason (C-1427): nothing spawns and
+    # nothing falls in from above, so a board left alone never jams. The
+    # drive is greedy-biggest-group, which never presses a lone tile and
+    # so never spends a hammer.
+    "puzzle": ("パズルゲームを作って", {"route": puzzle_route()}),
 }
+
+
+def test_every_wired_template_has_a_way_to_lose_it() -> None:
+    """This table and ``LOSS_WIRED`` are two lists that have to agree, and
+    three separate items have now wired a template without adding its entry
+    here - each time surfacing as a handful of KeyErrors in the full suite
+    rather than as one sentence. Said once, plainly."""
+
+    assert set(ASKS) == set(LOSS_WIRED)
 
 
 def _play(template: str, **override) -> dict:
