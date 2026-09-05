@@ -5103,6 +5103,17 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_puzzle_jam_recap unmeasurable→1（詰みで終えた走行に原因の
       一言があり、集計が生の盤面状態から独立に導いた値と一致することを
       検査。破壊で 0）
+- [ ] **C-1432: 直近の走りの並びが見える——best 未満の日の進歩も語る。**
+      （進捗監視起票 2026-09-05・根拠は docs/research/game-design-notes.md
+      §19〔出典 Wikipedia Score (video games) 2026-09-05 確認〕＋実読:
+      round.py が残すのは ROUND_KEY の best 1 個と §11 のゴーストのみで、
+      履歴は無い）結果帯に直近数回（例: 5 回）のスコアの並びを小さく
+      出す。条件: ①localStorage のみ・best と同じ持ち方 ②並びは事実の
+      まま（下がった走りも消さない） ③自己ベスト更新の行とは別で主役を
+      奪わない ④触れなかったラウンドは並びに積まない（round.py の既存
+      原則）。→ 動かす数字: creation_score_history unmeasurable→1
+      （複数回走ると並びが走った順に現れ、値が各走行の実スコアと一致し、
+      無操作ラウンドが混入しないことをページ実走行で検査。破壊で 0）
       **結果 2026-09-05 14:45 ループA**（`creation_puzzle_jam_recap`
       unmeasurable→1・`creation_loss_recap` 1→1 維持・判定器 exit 0・
       pytest 全緑・verify_gate_recall MISS 0/誤検知 0）
