@@ -7719,3 +7719,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   既定を別doc に 2.5 / 脚注 ul 削除 5.0、復元 10.0。
   pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）/ 3D 妥当性など非退行。
   preview 実測: 脚注「palette: tukemen-rgb/site docs/DESIGN.md」のみ。
+
+2026-09-05 07:52 進捗監視 前進あり: C-1338 完了（shooter が幕の裏で自走・07:10）・C-1251 完了（3D の出典は DESIGN.md のみ・07:49）。C-1422（07:09 ループA）継続中・C-1339（07:38 クリエイター claim・昇段音のビブラート）進行中。停滞なし。記録のみ。
