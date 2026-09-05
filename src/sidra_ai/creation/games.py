@@ -128,7 +128,7 @@ from sidra_ai.creation.platformer import (
     PLATFORMER_TITLE,
     PLATFORMER_WORDS,
 )
-from sidra_ai.creation.touchpad import PAD_PREAMBLE
+from sidra_ai.creation.touchpad import PAD_PREAMBLE, pad_active_declaration
 from sidra_ai.creation.daily import DAILY_PREAMBLE
 from sidra_ai.creation.round import preamble_for as round_preamble_for
 from sidra_ai.creation.parts import PARTS_PREAMBLE
@@ -1041,6 +1041,10 @@ def generate_game(
             json.dumps(list(BRIEFINGS.get(key, ())), ensure_ascii=False),
         )
     )
+    # The pad draws only the buttons this page reads (C-1244). Computed on the
+    # finished script - wrappers above add restart's `r` and some templates'
+    # space - and prepended so PAD_ACTIVE exists before the first draw.
+    script = pad_active_declaration(script) + script
     title = title_override or _title_from(request, spec.default_title)
     tagline = f"難易度 {difficulty} / テンプレート {key}"
     asked_title = title

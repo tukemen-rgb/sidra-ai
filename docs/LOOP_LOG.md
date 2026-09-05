@@ -7348,3 +7348,21 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 
 2026-09-05 00:5x 進捗監視 前進あり: C-1416 完了（creation_fullscreen_button 0→1・補充 4 件が全消化、§18 も閉栓済み）。C-1244（00:23 ユーザー）・C-1332（00:39 クリエイター）進行中。未着手が E/F 節のみ＝次巡ループA がキュー空になるため補充: C-1417（残り時間の終盤表示・実測で HUD 描画 0 件）・C-1418（得点の浮き文字・§1 同族）。C-1418 の外部記事 2 本は proxy 403 で開けず引用断念を正直に記録（C-1408/1409 と同じ製品実測型で起票）。
+2026-09-05 00:4x UTC 辛口ユーザー C-1244 完了（スマホ操作・21 巡目）
+  creation_pad_only_used_buttons 1.82 -> 10（判定器 exit 0）。観点=スマホ操作
+  （前回=エラー文言 C-1243）。最悪点: 生成ゲームの画面パッドがそのゲームの
+  使わないボタンまで全部（◀▶▲▼＋A＋R）描き、iPhone 12 の 352×158px の
+  遊び面を覆う。既定の釣りは SPACE 1 つしか使わないのに方向キー 4 個が
+  帯とマーカーの上に乗る死にボタンだった（kaiju/marble も 4 個、
+  catch/racing/duel/platformer/shooter も一部）。
+  実装: touchpad.padButtons が常に 6 ボタン全部を返していたのを、
+  keys_read(合成後 script) & PAD_KEYS の PAD_ACTIVE を先頭注入し
+  .filter(b=>PAD_ACTIVE.has(b.id)) で絞る。restart の r と一部の space は
+  wrapper 側で足るため素テンプレでなく完成 script から取る。
+  判定器（新設 pad_only_used_buttons）: フィルタの厳密一致（反転 ! を検出）＋
+  各ジャンルで描画集合＝使用キー集合、を静的検査。描画は offline 計算不能。
+  5 破壊: フィルタ除去 1.82 / PAD_ACTIVE=全キー 2.73 / 空 0.91 /
+  注入除去 1.82 / フィルタ反転 1.82、復元 10.0。
+  pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）。
+  E2E: fresh 釣りページを iPhone 12 で開き A＋R だけ・D-pad 消失を確認。
+  次候補: touchhint「◀▶ / A」が全ジャンル共通で釣りでは不正確（別件・低優先）。

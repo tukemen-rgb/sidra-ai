@@ -68,7 +68,11 @@ if(PADCV){PADCV.style.touchAction='none'}
 function padScale(){const r=PADCV.getBoundingClientRect();
   return r.width?PADCV.width/r.width:1}
 /* Laid out in canvas pixels from a CSS-pixel size, so the buttons stay
-   thumb-sized however the page is scaled down on a small screen. */
+   thumb-sized however the page is scaled down on a small screen. Only the
+   buttons this template actually reads are kept: a dead button does nothing
+   and, on a phone whose play field is a few hundred pixels wide, sits over
+   the game (C-1244). PAD_ACTIVE names the live keys; a template that reads
+   only SPACE shows A (and R) and leaves the D-pad's space to the game. */
 function padButtons(){const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,
   W=PADCV.width,H=PADCV.height,lx=g+b,ly=H-g-b*1.5;
   return [
@@ -77,7 +81,8 @@ function padButtons(){const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,
     {id:'ArrowUp',x:lx+g,y:ly-b/2-(b+g),w:b,h:b,g:'up'},
     {id:'ArrowDown',x:lx+g,y:ly-b/2+(b+g),w:b,h:b,g:'down'},
     {id:' ',x:W-g-b*1.4,y:ly-b/2,w:b*1.4,h:b,g:'A'},
-    {id:'r',x:W-g-b*1.4,y:ly-b/2-(b+g),w:b*1.4,h:b*0.7,g:'R'}]}
+    {id:'r',x:W-g-b*1.4,y:ly-b/2-(b+g),w:b*1.4,h:b*0.7,g:'R'}
+  ].filter(b=>PAD_ACTIVE.has(b.id))}
 function padAt(ev){const r=PADCV.getBoundingClientRect(),
   x=(ev.clientX-r.left)*(PADCV.width/r.width),
   y=(ev.clientY-r.top)*(PADCV.height/r.height);
@@ -166,6 +171,23 @@ def keys_read(script: str) -> set[str]:
     return found
 
 
+def pad_active_declaration(script: str) -> str:
+    """The ``PAD_ACTIVE`` set for a fully assembled game script.
+
+    ``padButtons`` draws a button only when its key is in ``PAD_ACTIVE``, so
+    this names the pad keys the running page actually reads - the template body
+    and every wrapper preamble folded in (restart's ``r`` and the shooter's
+    space arrive from wrappers, not the template). Computed on the final
+    script rather than the bare template so the pad matches what a press will
+    reach, and prepended so the constant exists before any draw.
+    """
+
+    import json
+
+    active = sorted(keys_read(script) & set(PAD_KEYS))
+    return "\nconst PAD_ACTIVE=new Set(" + json.dumps(active) + ");\n"
+
+
 def unreachable_keys(script: str) -> set[str]:
     """Keys this template needs that no pad button can send.
 
@@ -184,5 +206,6 @@ __all__ = [
     "PAD_KEYS",
     "PAD_PREAMBLE",
     "keys_read",
+    "pad_active_declaration",
     "unreachable_keys",
 ]

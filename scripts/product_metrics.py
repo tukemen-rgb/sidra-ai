@@ -633,6 +633,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1244: the on-screen touch pad drew all six buttons (◀▶▲▼ + A + R) on
+    # every game, so the default fishing page put four dead directional buttons
+    # over a 352×158px play field on a phone. The pad now draws only the keys
+    # the running page reads; checkable offline from the generated HTML (the
+    # PAD_ACTIVE filter, and per genre drawn == used).
+    from sidra_ai.evals.pad_only_used_buttons import evaluate_pad_only_used_buttons
+
+    pad_used = evaluate_pad_only_used_buttons()
+    c.add(
+        "creation_pad_only_used_buttons",
+        "スマホの画面ボタンはそのゲームが使うものだけ描く（死にボタンで遊び面を覆わない）",
+        10.0 * pad_used.checks_passed / pad_used.checks_total,
+        detail=f"{pad_used.checks_passed}/{pad_used.checks_total} checks; "
+               "src/sidra_ai/evals/pad_only_used_buttons.py"
+               + ("" if pad_used.passed else "; " + "; ".join(pad_used.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1205: a subject request that fell to the default template used to be
     # announced as satisfied (「「猫」を作りました」 about a fishing page with
     # no cat). Five shapes through the real router: the fallback admitted,
