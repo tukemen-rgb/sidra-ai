@@ -58,6 +58,13 @@ SHOOTER_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const FALL=SPEED_TOKEN,WAVE=BAND_TOKEN,SEED=SEED_TOKEN;
 setPal(SHOOTER_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1334): draw() paints the HUD through
+   these constants and hudFacts() reports them, so the metric can blend
+   the plate over every measured sky the way the canvas does. The plate
+   is the untinted theme surface at 0.7: the brightest final act was
+   sinking the themed ink to ~3:1 here too (C-1329's fix, template 4). */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 /* The 60-second round in three acts (game-design-notes.md §7 観察 5-6):
    the HUD already counts 第 N 波, so the sky agrees with it. ACT is a
    third of the round in frames; the final third is the brightest sky of
@@ -162,7 +169,9 @@ function draw(now){
   cx.fillRect(ship.x-3,ship.y+SHIP*0.7,6,6+flick*3);
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<ship.hp;i++){cx.fillRect(12+i*18,10,14,10)}
-  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(W-208,6,204,54);cx.globalAlpha=1;
+  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
   /* The graze run is on screen while it is worth something: a risk the
      player cannot see the state of is a gamble, not a decision. */
   const gz=grazeFacts();
@@ -260,8 +269,10 @@ while (shooterFacts().state === 'play' && shooterFacts().t < 3480) {
 }
 const end = shooterFacts();
 const palette = sceneFacts();
+const hud = hudFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
+  hud: hud,
   sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
   t: end.t, wave: end.wave, hp: end.hp, score: end.score, state: end.state,
   /* Escalation, as measured: waves counted per act at spawn time, and the

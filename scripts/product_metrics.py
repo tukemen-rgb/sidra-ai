@@ -3128,17 +3128,28 @@ def measure_creation(c: Collector) -> None:
                         )
         except (KeyError, TypeError, ValueError):
             hud_gaps.append(f"{label}: HUD contract unreadable")
-    for missing in {"fishing", "catch", "puzzle"} - hud_seen:
+    for missing in {
+        "fishing",
+        "catch",
+        "puzzle",
+        "adventure",
+        "kaiju",
+        "shooter",
+        "marble",
+        "duel",
+    } - hud_seen:
         hud_gaps.append(f"{missing}: no HUD contract reported")
     c.add(
         "creation_hud_contrast",
         "最明の空でも HUD が読める",
         1.0 if not hud_gaps else 0.0,
         detail=(
-            "fishing・catch・puzzle（全画面の空に HUD が載る 3 型）× 4 テーマ"
-            "× 全 3 幕で、未着色サーフェスの板を α 合成した実背景に対し文字 "
-            "4.5:1 以上・puzzle のカーソル枠 3:1 以上（§4 WCAG 1.4.3。"
-            "残り 7 型の HUD は盤・地形上に載るため別途）"
+            "8 型（時計 3 型 C-1329 ＋ adventure/kaiju/shooter/marble/duel "
+            "C-1334）× 4 テーマ × 全 3 幕で、未着色サーフェスの板を α 合成"
+            "した実背景に対し文字 4.5:1 以上・puzzle のカーソル枠 3:1 以上"
+            "（§4 WCAG 1.4.3。duel の相手型ラベルはハードコード灰青 1.74:1 "
+            "だったものをテーマ ink＋板へ。racing/platformer は場面ループ外の"
+            "ため残る 2 型——各自の計器に hud を足すのが次候補）"
             if not hud_gaps
             else "; ".join(hud_gaps)
         ),

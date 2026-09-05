@@ -71,6 +71,13 @@ const ACT_ROLL=[1,1.15,1.3];
 function actOf(){return ball.z>=COURSE*2/3?2:ball.z>=COURSE/3?1:0}
 function rollNow(){return ROLL*ACT_ROLL[actOf()]}
 setPal(MARBLE_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1334): draw() paints the HUD through
+   these constants and hudFacts() reports them, so the metric can blend
+   the plate over every measured sky the way the canvas does. The plate
+   is the untinted theme surface at 0.7: the brightest final act was
+   sinking the themed ink to ~3:1 here too (C-1329's fix, more templates). */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 let ball,things,gates,score,hotTaken,hotTotal,state,t,over,COURSE=1;
 /* World to screen. z is depth ahead of the camera; y is up. Everything
    drawn here goes through this one function, so "3D" is this line. */
@@ -208,7 +215,9 @@ function step(){
   cx.arc(bp.x,bp.y,br,0,6.2832);cx.fill();
   cx.fillStyle=shade(TUNE_ACCENT,1);cx.beginPath();
   cx.arc(bp.x-br*0.28,bp.y-br*0.3,br*0.62,0,6.2832);cx.fill();
-  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(32,12,330,24);cx.globalAlpha=1;
+  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
   cx.fillText('スコア '+score+'  ゲート '+gates+'  距離 '+Math.round(ball.z),40,30);
   if(state!=='roll'){cx.fillStyle='SCRIM_TOKEN'+'cc';cx.fillRect(0,H/2-40,W,80);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
@@ -279,8 +288,10 @@ while (marbleFacts().state === 'roll' && frames++ < 6000) {
 }
 const end = marbleFacts();
 const palette = sceneFacts();
+const hud = hudFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
+  hud: hud,
   sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
   state: end.state, z: end.z, course: end.course, gates: end.gates,
   score: end.score, hotTotal: end.hotTotal, hotTaken: end.hotTaken,

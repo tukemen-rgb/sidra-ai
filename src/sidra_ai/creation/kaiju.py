@@ -89,6 +89,13 @@ function reset(){
   shots=[];cracks=[];dust=[];t=0;cycles=0;state='fight';
   boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
 setPal(KAIJU_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1334): draw() paints the HUD through
+   these constants and hudFacts() reports them, so the metric can blend
+   the plate over every measured sky the way the canvas does. The plate
+   is the untinted theme surface at 0.7: the brightest final act was
+   sinking the themed ink to ~3:1 here too (C-1329's fix, more templates). */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 function legX(){return W*0.72+Math.sin(t/90)*26}
 function fire(){if(state!=='fight')return;
   /* A press during the cooldown is kept, not dropped (§12, C-1311): one
@@ -190,7 +197,9 @@ function draw(){const now=performance.now();
   shots.forEach(s=>{cx.fillStyle='ACCENT_JUICE';cx.fillRect(s.x-2,s.y-8,4,10)});
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<me.hp;i++){cx.fillRect(12+i*18,10,14,10)}
-  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(W-198,5,194,20);cx.globalAlpha=1;
+  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
   cx.fillText('周期 '+cycles+'/3  脚 '+Math.max(0,boss.legHp),W-190,19);
   if(state!=='fight'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
@@ -286,8 +295,10 @@ for (let guard = 0; guard < 40 && bossFacts().state === 'fight'
 }
 const end = bossFacts();
 const palette = sceneFacts();
+const hud = hudFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
+  hud: hud,
   beat: end.beat, phaseStart: before.phase, legHpStart: before.legHp,
   cyclesAfterMisses: afterMisses.cycles, legHpAfterMisses: afterMisses.legHp,
   sawOpen: sawOpen, bodyWhileAlive: bodyWhileAlive,

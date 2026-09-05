@@ -19,15 +19,27 @@ import subprocess
 
 import pytest
 
+from sidra_ai.creation.adventure import world_probe as adventure_probe
 from sidra_ai.creation.catchgame import probe_source as catch_probe
+from sidra_ai.creation.duel import pace_probe as duel_probe
 from sidra_ai.creation.fishing import probe_source as fishing_probe
 from sidra_ai.creation.games import generate_game
+from sidra_ai.creation.kaiju import probe_source as kaiju_probe
+from sidra_ai.creation.marble import probe_source as marble_probe
 from sidra_ai.creation.puzzle import sky_probe
+from sidra_ai.creation.shooter import probe_source as shooter_probe
 
 _PROBES = {
     "fishing": ("釣りゲームを作って", fishing_probe),
     "catch": ("キャッチゲームを作って", catch_probe),
     "puzzle": ("パズルゲームを作って", sky_probe),
+    # C-1334: the same final-act sink, measured on the five templates
+    # whose scene probes already play all three acts.
+    "adventure": ("迷宮を冒険するゲームを作って", adventure_probe),
+    "kaiju": ("巨大怪獣と戦うゲームを作って", kaiju_probe),
+    "shooter": ("シューティングゲームを作って", shooter_probe),
+    "marble": ("玉転がしゲームを作って", marble_probe),
+    "duel": ("ビームで撃ち合うゲームを作って", duel_probe),
 }
 
 

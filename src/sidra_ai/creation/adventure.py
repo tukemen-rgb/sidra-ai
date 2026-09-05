@@ -61,6 +61,13 @@ const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const ESPEED=SPEED_TOKEN,ECOUNT=BAND_TOKEN,SEED=SEED_TOKEN;
 const TILE=32,GW=20,GH=9,OX=40,OY=16;
 setPal(ADV_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1334): draw() paints the HUD through
+   these constants and hudFacts() reports them, so the metric can blend
+   the plate over every measured sky the way the canvas does. The plate
+   is the untinted theme surface at 0.7: the brightest final act was
+   sinking the themed ink to ~3:1 here too (C-1329's fix, more templates). */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 /* seeded LCG: the layout is a promise (same request, same world), and the
    enemies keep drawing from it so a run is reproducible too */
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
@@ -346,11 +353,13 @@ function draw(now){
     cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1;
     [[6,0],[13,0]].forEach(p=>{glow(OX+p[0]*TILE+16,OY+16,86,now)});
     glow(hero.x,hero.y,64,now)}
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(OX-4,0,GW*TILE+8,16);cx.globalAlpha=1;
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<hero.maxhp;i++){cx.strokeStyle='MAGENTA_TOKEN';
     cx.strokeRect(OX+i*18+0.5,2.5,13,9)}
   for(let i=0;i<hero.hp;i++){cx.fillRect(OX+i*18,2,14,10)}
-  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
   cx.fillText('宝石 '+hero.gems+(hero.key?'  鍵あり':'')+(hero.charm?'  護符':''),
     OX+70,11);
   cx.fillText(NAMES[room],cv.width-OX-150,11);
@@ -411,9 +420,11 @@ let around = [];
 rooms.forEach(m => m.forEach((r, y) => r.forEach((t, x) => { if (t === 11) {
   around = [[0,-1],[0,1],[-1,0],[1,0]].map(d => (m[y+d[1]]||[])[x+d[0]]) } })));
 const palette = sceneFacts();
+const hud = hudFacts();
 console.log(JSON.stringify({
   tiles: tally,
   scenes: palette.scenes,
+  hud: hud,
   charmNeighbours: around,
   hearts: hero.maxhp,
   charm: hero.charm,

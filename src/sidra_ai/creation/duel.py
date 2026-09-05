@@ -88,6 +88,13 @@ const TENSE=[1,1.15,1.3];
 /* The same act paints the arena (§7, C-1321): the sky the tempo already
    knows. Lanes, auras and beams keep their information colours (§4). */
 setPal(DUEL_PAL_TOKEN);
+/* HUD contract (§4 WCAG 1.4.3, C-1334): draw() paints the HUD through
+   these constants and hudFacts() reports them, so the metric can blend
+   the plate over every measured sky the way the canvas does. The plate
+   is the untinted theme surface at 0.7: the brightest final act was
+   sinking the themed ink to ~3:1 here too (C-1329's fix, more templates). */
+const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
+function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 function duelAct(){if(!p||!e)return 0;
   const low=Math.min(p.hp,e.hp);
   return low<=1?2:(p.hp<3||e.hp<3)?1:0}
@@ -241,11 +248,19 @@ function draw(now){
   /* Who you are fighting, said out loud: the counter-play to a quick draw
      is the opposite of the counter-play to a charger, and a player who
      cannot tell which one they got is guessing rather than deciding. */
-  cx.fillStyle='#9fb0c8';cx.font='12px ui-monospace,monospace';
+  cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+  cx.fillRect(cv.width/2-120,6,240,18);cx.globalAlpha=1;
+  /* The label was a hardcoded grey-blue: 1.74:1 against the final
+     act's floor, and 2.1:1 even on paper (C-1131's check only sees
+     the DEFAULT ink misused, so it sailed through). The theme's own
+     ink, on the plate, like every other word (C-1334). */
+  cx.fillStyle=HUD_INK;cx.font='12px ui-monospace,monospace';
   cx.fillText('相手: '+(CPU_STYLE==='quick'?'早撃ち型':'溜め型'),cv.width/2-40,20)
   cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
   if(p.beam>0&&e.beam>0&&p.beamLane===e.beamLane){
-    cx.fillStyle='INK_TOKEN';
+    cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
+    cx.fillRect(cv.width/2-116,30,232,18);cx.globalAlpha=1;
+    cx.fillStyle=HUD_INK;
     cx.fillText('押し合い。SPACE 連打で押し返す。',cv.width/2-110,44)
     /* The push was only legible as the meeting point drifting, which is the
        thing you are already too busy to watch. A bar says how close the
@@ -420,6 +435,7 @@ const clutch = paceOf(1, 12);
 console.log(JSON.stringify({ style: duelFacts().style, tense: duelFacts().tense,
   opening: opening, middle: middle, clutch: clutch,
   scenes: sceneFacts().scenes,
+  hud: hudFacts(),
   state: state, pHp: p.hp }));
 """
 

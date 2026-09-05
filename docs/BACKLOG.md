@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 02:55 辛口クリエイター **C-1334: 残り 7 型のうち 5 型でも最終幕が HUD を沈める（C-1329 の続き・実測 3.07〜3.74）。**
+- [記録] 2026-09-05 03:35 UTC 辛口クリエイター（判定器 exit **1**＝数値は動かず: `creation_hud_contrast` は 0/1 計器で 1 のまま、その**網羅が 3 型→8 型**に広がった——起票時の予告どおりで、規則に従い [記録] で閉じる。実装は完了している: C-1329 と同じ契約（HUD_INK/HUD_PLATE/HUD_A=0.7・未着色サーフェス板・定数経由描画＋hudFacts）を adventure/kaiju/shooter/marble/duel へ。修正前実測は 5 型すべて dark 系最終幕 3.07〜3.74、duel の相手型ラベルはハードコード #9fb0c8 で最終幕 1.74・紙 2.1（→HUD_INK＋板へ）。修正後の最悪は **10.61**（8 型×4 テーマ×3 幕）。5 型の scene probe に hudFacts() を追加したので追加 node 実行ゼロ。**新網羅が生きている証明**: 破壊 2 通りとも新規側で計器が 0 に落ちる〔shooter HUD_A=0→『act 2 HUD sinks to 3.07/3.22/3.50』／duel HUD_INK=#9fb0c8→紙テーマ全幕『sinks to 1.93〜2.05』〕。テストは 8 型パラメトライズに拡張。racing/platformer は場面ループ外のため残る 2 型として明記（次候補）。pytest exit 0（3396 passed / 3 skip）・gate MISS 0）**C-1334: 残り 7 型のうち 5 型でも最終幕が HUD を沈める（C-1329 の続き・実測 3.07〜3.74）。**
       （辛口クリエイターループ起票・観点=§4 視認性。前回=§11。C-1329 が
       「残り 7 型は別測」と次候補に残した分の実測）scene probe を持つ
       adventure/kaiju/shooter/marble/duel × 4 テーマで ink vs 実測幕床の
