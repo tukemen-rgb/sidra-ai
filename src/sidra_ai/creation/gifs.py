@@ -63,6 +63,10 @@ class GeneratedGif:
     motif: str
     seed: int
     data: bytes
+    #: False when the request named no motif word and the default was used.
+    #: The animation is identical either way; this lets the summary tell a
+    #: reader who asked for 「猫」 that they got the default (C-1258).
+    motif_named: bool = True
     evidence: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -153,13 +157,34 @@ _MOTIF_WORDS: dict[str, tuple[str, ...]] = {
     "fish": ("魚", "釣り", "さかな", "fish"),
 }
 
+#: The motif used when a request names none. Named here so the honest note and
+#: :func:`choose_motif` agree on which one that is.
+DEFAULT_MOTIF = "pulse"
 
-def choose_motif(request: str) -> str:
+#: How each motif is named to the operator. The summary never named the motif
+#: at all before C-1258; the reader saw 「アニメ GIF を作りました」 whether they
+#: got their fish or the abstract default.
+MOTIF_LABELS: dict[str, str] = {"fish": "魚", "pulse": "パルス（同心円）"}
+
+
+def named_motif(request: str) -> str | None:
+    """The motif a request explicitly asks for, or ``None`` if it names none.
+
+    ``choose_motif`` collapses 「no match」 into the default, which is right for
+    picking what to draw but hides the one fact the operator needs: that their
+    words matched no motif. This returns ``None`` in that case so the caller
+    can say so (C-1258).
+    """
+
     text = unicodedata.normalize("NFKC", request).casefold()
     for motif, words in _MOTIF_WORDS.items():
         if any(word in text for word in words):
             return motif
-    return "pulse"
+    return None
+
+
+def choose_motif(request: str) -> str:
+    return named_motif(request) or DEFAULT_MOTIF
 
 
 # ------------------------------------------------------------- encoding
@@ -257,7 +282,11 @@ def generate_gif(
 ) -> GeneratedGif:
     """Build one looping animation from the request, deterministically."""
 
-    chosen = motif or choose_motif(request)
+    # An explicit ``motif=`` is the caller naming it; a derived one is named
+    # only when a word in the request matched (C-1258).
+    derived = named_motif(request)
+    chosen = motif or derived or DEFAULT_MOTIF
+    named = motif is not None or derived is not None
     actual_seed = zlib.crc32(request.encode("utf-8")) if seed is None else seed
     rng = _Lcg(actual_seed)
 
@@ -273,6 +302,7 @@ def generate_gif(
         motif=chosen,
         seed=actual_seed,
         data=_gif_bytes(frames),
+        motif_named=named,
         evidence=tuple(evidence or ()),
     )
 
@@ -365,12 +395,15 @@ def validate_gif(gif: GeneratedGif) -> dict:
 
 
 __all__ = [
+    "DEFAULT_MOTIF",
     "DELAY_CS",
     "FRAMES",
     "GeneratedGif",
+    "MOTIF_LABELS",
     "PALETTE",
     "choose_motif",
     "generate_gif",
+    "named_motif",
     "parse_gif",
     "save_gif",
     "validate_gif",

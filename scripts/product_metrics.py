@@ -654,6 +654,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1258: the GIF summary named no motif and any request that matched no
+    # motif word silently became the default pulse - even more silent than art
+    # (C-1256), which at least printed 「パターン: flow」. Measured through the
+    # real chat path: every summary must name the motif, an unnamed request
+    # must say the default was used and name the requestable motif (魚), and a
+    # named motif stays silent.
+    from sidra_ai.evals.gif_motif_default_honest import (
+        evaluate_gif_motif_default_honest,
+    )
+
+    gif_default = evaluate_gif_motif_default_honest()
+    c.add(
+        "gif_motif_default_honest",
+        "GIF が絵柄を明記し、無指定で既定に落ちたことを正直に伝える",
+        10.0 * gif_default.checks_passed / gif_default.checks_total,
+        detail=f"{gif_default.checks_passed}/{gif_default.checks_total} checks; "
+               "src/sidra_ai/evals/gif_motif_default_honest.py"
+               + ("" if gif_default.passed else "; " + "; ".join(gif_default.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
