@@ -7573,3 +7573,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest exit 0（3413 passed / 3 skip）/ gate exit 0（MISS 0）。
   コース 3 型すべてで、ベストと直前の 2 体が隣を走る。
 
+
+2026-09-05 04:2x UTC 辛口ユーザー started（25 巡目・エラー文言/エッジ・C-1248 claim）

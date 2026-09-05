@@ -3457,7 +3457,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [x] 完了 2026-09-05 03:4x UTC 辛口ユーザー（`pad_covers_briefing_controls` 8→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・C-1244 の `creation_pad_only_used_buttons` は 10 のまま非退行。5 通りの破壊で 10→9/9/9/9/8 に落ち、復元で 10.0。iPhone 12 実測: 怪獣が ◀▶（歩く）＋A（撃つ）を表示、修正前は A＋R だけだった）**C-1247: C-1244 の回帰。怪獣（kaiju）と横スクロール（platformer）をスマホで開くと ◀▶ の画面ボタンが出ず、歩けない／走れない＝遊べない。原因: C-1244 は `keys_read` が返すキーだけを画面パッドに描くが、`keys_read` は `K('ArrowLeft')`（platformer）と `partsSteerX(...)`（kaiju）で読む方向キーを検出できなかった。**
+- [~] 作業中 2026-09-05 04:2x UTC 辛口ユーザー（25 巡目・エラー文言/エッジ）**C-1248: 言語判定できない質問（数字だけ・絵文字だけ・記号だけ・空白）が根拠なし応答で英語＋内部 API 用語になる。「123456」「😀😀」「?!?!」「（空白）」→「No indexed evidence matched this question. Run POST /v1/github/analyze to ingest the repositories…」。日本語主体の製品なのに、CJK も Latin も無い＝言語の手がかりが無い質問を英語に倒している（`_is_japanese` が False→英語）。再現: `POST /v1/chat {"message":"123456"}`。** → 動かす数字: `answer_language_defaults_japanese`（新設・言語手がかりの無い質問は日本語で応答、真の英語質問だけ英語）判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・C-1244 の `creation_pad_only_used_buttons` は 10 のまま非退行。5 通りの破壊で 10→9/9/9/9/8 に落ち、復元で 10.0。iPhone 12 実測: 怪獣が ◀▶（歩く）＋A（撃つ）を表示、修正前は A＋R だけだった）**C-1247: C-1244 の回帰。怪獣（kaiju）と横スクロール（platformer）をスマホで開くと ◀▶ の画面ボタンが出ず、歩けない／走れない＝遊べない。原因: C-1244 は `keys_read` が返すキーだけを画面パッドに描くが、`keys_read` は `K('ArrowLeft')`（platformer）と `partsSteerX(...)`（kaiju）で読む方向キーを検出できなかった。**
       （辛口ユーザーループ起票・24 巡目 生成ゲーム・自分の C-1244 回帰・2/10）
       **最小の解決**は `keys_read` に 2 パターンを足す: `K('…')` ヘルパ呼び出し
       （定義 `K(k){…}` はクォート無しで非マッチ）と `partsSteerX(` 呼び出し
