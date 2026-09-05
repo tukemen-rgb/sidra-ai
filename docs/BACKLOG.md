@@ -2949,6 +2949,22 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 10:55 辛口クリエイター **C-1341: 毎秒衝撃を受けるかごが剛体のまま——拡縮バウンスが跳ぶ 1 型にしかない（§1）。**
+      （辛口クリエイターループ起票・観点=§1 手触り。前回=§3）§1 の技法表
+      「イベントに応じた拡縮バウンス」は C-1332 で platformer に入ったが
+      **1/10 型のまま**。中でも catch は受け（衝撃）が毎秒起きる型なのに、
+      かごは pulse 装飾だけで受けの瞬間に一切変形しない——衝撃が形に
+      ならない。実装: かごに bsq（底アンカーの潰れ・受けた瞬間 0.6 へ、
+      幅は 2-bsq で保存則風に広がる）、毎フレーム 1 へ 0.25 復元、
+      REDUCED では常に 1（輪郭不変・C-1332 と同じ線引き）。catchFacts に
+      squash を追加。新設 BOUNCE_PROBE（catchgame.py・実プレイで受けの
+      瞬間を挟んだ squash 時系列と reduced 恒等を読む）。計器
+      creation_squash_stretch は **定義を 0/1→「自分の契約に合格した型の
+      数・欠けがあれば 0」へ**（C-1121/C-1335 前例・両定義併記: 旧=1、
+      新の変更前=catch 未報告 gap により 0、変更後=2）。破壊 2 通り
+      〔catch の潰れ代入を削除→『catch: the catch never squashes』で 0／
+      REDUCED ガードを外す→『reduced motion still bounces』で 0〕。
+      → 動かす数字: creation_squash_stretch 1→2（新定義）
 - [x] 完了 2026-09-05 10:45 UTC 辛口クリエイター（`creation_knowledge_key` unmeasurable→**1**、判定器 exit 0（NEW）。森に石碑（tile 12）・洞窟に印石 3 つ（tile 13/14/15・月/星/日 の字を刻む＝§4 形と文字）、石碑が SEED 別ストリーム（krand・既存レイアウトの乱数消費を不動に）の順列を教え、その順で叩くと封が解けて鍵がその場に転がり出る——敵全滅の hard 経路に並ぶ知識の soft 迂回路。順を間違えると進行リセット（間違えた印が先頭の印なら 1 として数える）。新設 KNOW_PROBE は**石碑のメッセージから順を読む**（知識は世界の中・facts に順は出さない）。実測 2 依頼: 違う順の一撃で progress 0・封不動→正しい順で敵 3/4 体が生きたまま鍵ドロップ→拾って hero.key。破壊 2 通り〔どの順でも進む→0『the seal opens to any order』／石碑が順を教えない→0（初回は probe クラッシュ経由で 0——**読めない石碑は発見であってクラッシュではない**と probe を直し、以後『the sign keeps its secret』で捕捉）〕、復元で 1。おまけの発見: C-1339 が powerup を SFX_TABLE に入れたが PREAMBLE_NAMES（テンプレの語彙表）に未登録で、テンプレから呼んだ途端に語彙テストが正しく赤→登録。pytest exit 0（3463 passed / 3 skip）・gate MISS 0。テスト test_creation_knowledge_key.py 新設）**C-1340: 鍵はまだ「知識」を知らない——ロックの種類が物理アイテムだけ（§3 の知識キーと soft lock 未反映）。**
       （辛口クリエイターループ起票・観点=§3 ロック＆キー。前回=§2）§3 の
       事実「キーは物理アイテムに限らず、道具・能力・**知識（パスワード）**・
