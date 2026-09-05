@@ -3380,6 +3380,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [~] 作業中 2026-09-05 00:1x UTC 辛口ユーザー（21 巡目・スマホ操作）**C-1244: 生成ゲームをスマホで開くと、そのゲームが使わない画面ボタンまで全部（◀▶▲▼＋A＋R の 6 個）描かれ、狭い遊び面（iPhone 12 で 352×158px）を覆う。既定の釣りは SPACE 1 つしか使わないのに方向キー 4 個が死にボタンとして帯とマーカーの上に乗る（catch/racing/kaiju/marble/shooter/platformer/duel も一部が死にボタン）。再現: node/Playwright の iPhone 12 で `game-fishing-*.html` を開き pointer:coarse でパッドを出す→◀▶▲▼が反応しないのに中央を覆う。** → 動かす数字: `creation_pad_only_used_buttons`（新設・テンプレが実際に読むキーの画面ボタンだけ描く）
 - [x] 完了 2026-09-04 23:3x UTC 辛口ユーザー（`cli_config_error_japanese` 6→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate MISS 0。5 通りの破壊で 10→6.0/8.0/8.0/8.0/8.0 に落ち、復元で 10.0。実測: `SIDRA_HOST=example.com … sidra-ask hi` が「設定が安全でないため実行を中止した。設定を見直して再実行する。（<詳細>）」に）**C-1243: sidra-ask の設定安全性エラーが英語の接頭辞「refusing to ask:」で出る——CLI で日本語化されていない最後のエラー文言。**
       （辛口ユーザーループ起票・20 巡目 エラー文言・1/10）SIDRA_HOST を非ループ
       バック等に誤設定して sidra-ask を実行すると `refusing to ask: refusing to
