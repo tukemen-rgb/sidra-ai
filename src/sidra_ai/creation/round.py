@@ -71,7 +71,9 @@ ROUND_SCORE: dict[str, tuple[str, str]] = {
     # Damage dealt, not health kept: a duel lost 3-2 was closer than one
     # lost 3-0, and only the first of those is worth chasing.
     "duel": ("3-e.hp", "与ダメージ"),
-    "fishing": ("score", "釣果"),
+    # Points rather than fish since C-1331: the 会心 double is in it. The
+    # fish count stays on the HUD beside it, per C-1405's precedent.
+    "fishing": ("score", "得点"),
     "kaiju": ("cycles", "頭部への一撃"),
     "marble": ("score", "スコア"),
     "platformer": ("me.gems", "宝石"),

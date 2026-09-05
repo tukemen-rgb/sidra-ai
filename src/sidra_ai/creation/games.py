@@ -202,7 +202,14 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
    so could not honestly join 今日の挑戦 (C-1118 found it claiming to).
    Kept off the edges so the band always fits on the line. */
 const SPOT=0.25+rand()*0.5;
-let pos=0,dir=1,score=0,casts=0,flash=0,msg='SPACE / クリックで合わせる';
+let pos=0,dir=1,score=0,hits=0,crits=0,casts=0,flash=0,
+  msg='SPACE / クリックで合わせる';
+/* The optional danger (§13 事実 1, C-1331): the middle 35% of the band is
+   the 会心 zone - waiting for it risks the marker leaving the band, and
+   a cautious edge press still pays its 1. Points and fish are counted
+   apart (C-1405's precedent), so the number drawn and the number banked
+   can never disagree. */
+const CRIT=0.35;
 const zone=()=>[SPOT-BAND/2,SPOT+BAND/2];
 /* A timing game has no course, so the round clock is the journey: the
    sixty seconds split into three skies, and the brightest one is the
@@ -223,7 +230,12 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
   cx.fillRect(0,0,w,h);const [a,b]=zone();
   cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(40,h/2-26,w-80,52);
   cx.fillStyle='CYAN_TOKEN';cx.globalAlpha=0.28;
-  cx.fillRect(40+(w-80)*a,h/2-26,(w-80)*(b-a),52);cx.globalAlpha=1;
+  cx.fillRect(40+(w-80)*a,h/2-26,(w-80)*(b-a),52);
+  /* The multiplier is shown, not hidden (§13 house rule): the 会心 zone
+     is the same hue, deeper - a visible reason to wait one more beat. */
+  cx.globalAlpha=0.5;
+  cx.fillRect(40+(w-80)*(SPOT-(BAND/2)*CRIT),h/2-26,(w-80)*BAND*CRIT,52);
+  cx.globalAlpha=1;
   /* decorative: a four-frame bob on the target sprite. FRAME pins it to 0
      under reduced motion, so it sits still while the game keeps running. */
   const bob=[0,-3,0,3][FRAME(4,6,now)];
@@ -243,14 +255,22 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(fx+9,fy-3,3,3);
   sprite('target',40+(w-80)*SPOT-16,h/2-16+bob,32,32,'');
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(32,14,260,26);cx.fillRect(32,h-44,430,26);cx.globalAlpha=1;
+  cx.fillRect(32,14,400,26);cx.fillRect(32,h-44,430,26);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font='16px ui-monospace,monospace';
-  cx.fillText(msg,40,h-28);cx.fillText('釣果 '+score+' / '+casts,40,34)}
+  cx.fillText(msg,40,h-28);
+  cx.fillText('得点 '+score+' / 釣果 '+hits+'/'+casts+' / 会心 '+crits,40,34)}
 function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
+  hits:hits,crits:crits,crit:CRIT,
   casts:casts,scene:SCENE,ms:ROUND_MS}}
 function cast(){casts++;const [a,b]=zone();
-  if(pos>=a&&pos<=b){score++;if(flashGate())flash=1;msg='かかった。';sfx('catch');
-    shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}
+  if(pos>=a&&pos<=b){hits++;
+    /* The perfect throw pays double and lands heavier (§1): the juice
+       scales with the risk that was taken, not just with success. */
+    if(Math.abs(pos-SPOT)<=(BAND/2)*CRIT){crits++;score+=2;
+      if(flashGate())flash=1;msg='ど真ん中。会心。';sfx('gem');
+      shake(6);hitstop(3);burst(cv.width/2,cv.height/2,22,'ACCENT_JUICE')}
+    else{score++;if(flashGate())flash=1;msg='かかった。';sfx('catch');
+      shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}}
   else{msg='逃げられた。';sfx('clash');shake(1.5)}}
 addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});
 cv.addEventListener('pointerdown',cast);

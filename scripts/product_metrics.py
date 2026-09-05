@@ -3179,6 +3179,75 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the perfect throw pays double ---------------------------------
+    #
+    # §13 事実 1 (C-1331): reward the player who takes a risk the game
+    # never demanded. The default template was the last one where a skilled
+    # press and a timid press scored the same point - the band paid 1
+    # wherever it was hit. Now the middle 35% is the 会心 zone, drawn
+    # deeper so the bargain is visible, and waiting for it risks the
+    # marker leaving the band entirely. Measured by pressing three real
+    # throws on the running page: dead centre pays 2 and counts a 会心,
+    # the cautious edge pays its old 1 and counts none, and the whiff
+    # outside pays 0 - so the risk is real in both directions.
+    import re as _cp_re
+    import subprocess as _cp_sp
+
+    from sidra_ai.creation.fishing import precision_probe as _cp_probe
+
+    cast_gaps: list[str] = []
+    for _cp_request in ("釣りゲームを作って", "難しい釣りゲームを作って"):
+        _cp_page = generate_game(_cp_request).html
+        _cp_script = _cp_re.search(r"<script>(.*?)</script>", _cp_page, _cp_re.S)
+        if _cp_script is None:
+            cast_gaps.append(f"{_cp_request}: no script")
+            continue
+        try:
+            _cp_run = _cp_sp.run(
+                ["node", "-"],
+                input=_cp_probe(_cp_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _cp_run.returncode != 0:
+                cast_gaps.append(f"{_cp_request}: {_cp_run.stderr.strip()[:80]}")
+                continue
+            _cp = json.loads(_cp_run.stdout.strip().splitlines()[-1])
+        except (OSError, _cp_sp.SubprocessError, ValueError) as exc:
+            cast_gaps.append(f"{_cp_request}: probe unavailable ({type(exc).__name__})")
+            continue
+        perfect, careful, wide = _cp["perfect"], _cp["careful"], _cp["wide"]
+        if perfect["gain"] <= careful["gain"]:
+            cast_gaps.append(
+                f"{_cp_request}: a perfect cast pays no more than a cautious one "
+                f"({perfect['gain']} vs {careful['gain']})"
+            )
+        if perfect["gain"] != 2 or perfect["crits"] != 1 or perfect["hits"] != 1:
+            cast_gaps.append(f"{_cp_request}: the centre press paid {perfect}")
+        if careful["crits"] != 0:
+            cast_gaps.append(f"{_cp_request}: caution and precision are the same throw")
+        if careful["gain"] != 1 or careful["hits"] != 1:
+            cast_gaps.append(f"{_cp_request}: the cautious press paid {careful}")
+        if wide["gain"] != 0 or wide["hits"] != 0 or wide["casts"] != 1:
+            cast_gaps.append(f"{_cp_request}: a miss was paid {wide}")
+        if not (0 < _cp["crit"] < 1):
+            cast_gaps.append(f"{_cp_request}: the 会心 zone is {_cp['crit']} of the band")
+    c.add(
+        "creation_cast_precision",
+        "ど真ん中の合わせは倍払う",
+        1.0 if not cast_gaps else 0.0,
+        detail=(
+            "fishing を normal と hard で実プレイし 3 投を値付け: 帯中央 35% の"
+            "会心は 2 点＋重い演出、帯の端は従来どおり 1 点、帯の外は 0 点。"
+            "点と釣果は分けて両方表示（§13 事実 1「取らなくてよい危険」・"
+            "C-1405 の前例）"
+            if not cast_gaps
+            else "; ".join(cast_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a held key keeps moving --------------------------------------
     #
     # §12 事実 3 (C-1328): held movement belongs in the loop, read off

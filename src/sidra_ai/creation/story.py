@@ -269,7 +269,7 @@ def features(title: str, evidence: tuple[str, ...], plan: ProductionPlan) -> str
         rows = f"| {BLANK} | {BLANK} | {BLANK} | {BLANK} |"
         legend = f"- {BLANK}"
     scoring = (
-        "帯の中で合わせられたら 釣果 +1、外したら記録のみ。失敗しても終了しません。"
+        "帯の中で合わせたら 得点 +1、濃い中央で合わせたら会心で +2。外したら記録のみ。失敗しても終了しません。"
         if plan.template == "fishing"
         else "受けられたら 受け +1、こぼしたら こぼし +1。どちらも画面に出続けます。"
     )

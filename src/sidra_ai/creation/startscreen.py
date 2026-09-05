@@ -54,7 +54,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
 #: drifts is the one nobody reads.
 BRIEFINGS: dict[str, tuple[str, str, str]] = {
     "fishing": (
-        "帯の中でタイミングを合わせ、釣果を伸ばす",
+        "帯の中で合わせて得点、濃い中央なら会心で 2 点",
         "SPACE / タップで合わせる",
         "帯は狭く、マーカーは休まない",
     ),

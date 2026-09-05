@@ -42,16 +42,18 @@ function key(k){
   (handlers.keyup || []).forEach(fn => fn(e));
 }
 /* Waits for the marker to be well inside the band, then casts once.
-   Returns how much the catch counter moved: 1 is a landed cast. */
+   Returns how many casts LANDED: 1 is a landed cast. Counted on hits,
+   not points - since C-1331 a centred press pays 2, and this probe asks
+   whether the throw connected, not what it was worth. */
 function castInBand(){
-  const before = fishFacts().score;
+  const before = fishFacts().hits;
   for (let i = 0; i < 800; i++) {
     const f = fishFacts();
     if (Math.abs(f.pos - f.spot) < (f.band / 2) * 0.6) { key(' '); break }
     run(1);
   }
   run(2);
-  return fishFacts().score - before;
+  return fishFacts().hits - before;
 }
 /* The first press passes the briefing; played time starts here. */
 key(' ');
@@ -87,4 +89,76 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-__all__ = ["PROBE", "probe_source"]
+#: The optional danger, priced (§13, C-1331): three real presses - one in
+#: the 会心 centre, one at the cautious edge of the band, one outside it -
+#: and the points each was worth. The edge window is wide enough that even
+#: the fastest marker cannot step across it between frames.
+PRECISION_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+/* Runs the marker until its offset from the spot, in band half-widths,
+   sits inside [lo, hi], then presses once and reports what it paid. */
+function pressAt(lo, hi){
+  let guard = 0;
+  while (guard++ < 4000) {
+    const f = fishFacts();
+    const off = Math.abs(f.pos - f.spot) / (f.band / 2);
+    if (off >= lo && off <= hi) { break }
+    run(1);
+  }
+  const before = fishFacts();
+  key(' ');
+  const after = fishFacts();
+  return { gain: after.score - before.score,
+    hits: after.hits - before.hits, crits: after.crits - before.crits,
+    casts: after.casts - before.casts };
+}
+key(' ');
+run(10);
+const crit = fishFacts().crit;
+/* Dead centre: inside the whole crit zone, so even the hard marker's
+   stride cannot step over the window. */
+const perfect = pressAt(0, crit);
+run(4);
+/* The cautious press: inside the band, clear of the crit zone. */
+const careful = pressAt(0.5, 0.99);
+run(4);
+/* And the whiff, so the risk is real in both directions. */
+const wide = pressAt(1.2, 3.0);
+console.log(JSON.stringify({
+  crit: crit,
+  perfect: perfect, careful: careful, wide: wide,
+  score: fishFacts().score, hits: fishFacts().hits,
+  crits: fishFacts().crits, casts: fishFacts().casts,
+}));
+"""
+
+
+def precision_probe(script: str) -> str:
+    """The page's own script, wrapped so three throws can be priced."""
+
+    return PRECISION_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+__all__ = ["PRECISION_PROBE", "PROBE", "precision_probe", "probe_source"]

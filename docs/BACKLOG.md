@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-04 23:43 辛口クリエイター **C-1331: 既定テンプレの釣りだけ、上手い合わせと臆病な合わせの得点が同じ（§13 の学びの残り 1 型）。**
+- [x] 完了 2026-09-05 00:05 UTC 辛口クリエイター（`creation_cast_precision` unmeasurable→**1**、判定器 exit 0。帯中央 35%（CRIT=0.35）を会心帯として同色の濃い内帯で可視化し、そこで合わせたら 2 点＋重い juice（shake 6・hitstop 3・粒 22・sfx gem・msg『ど真ん中。会心。』）、通常の帯は従来 1 点。C-1405 の前例どおり点と匹数を分離: HUD『得点 X / 釣果 Y/Z / 会心 N』（板 260→400 に拡幅）、ROUND_SCORE label 釣果→得点、ブリーフィング 2 か所更新。既存の空 probe の castInBand は score 差分→hits 差分に変更（会心 2 点で壊れる前に修正・意味は『合わせが成立したか』のまま）。新設 PRECISION_PROBE 実測（normal・hard・紙の 3 ページ同値）: 中央={gain 2, crits 1}・端 0.5〜0.99 半幅={gain 1, crits 0}・帯外={gain 0, hits 0}＝危険は両方向に実在。破壊 2 通り〔会心を 1 点に平坦化→『a perfect cast pays no more than a cautious one (1 vs 1)』で 0／CRIT=1.0→『caution and precision are the same throw』＋『the 会心 zone is 1 of the band』で 0〕。pytest exit 0（3320 passed / 3 skip）・gate MISS 0。これで §13 学びの『上手いと臆病が同点』は全 10 型から消えた）**C-1331: 既定テンプレの釣りだけ、上手い合わせと臆病な合わせの得点が同じ（§13 の学びの残り 1 型）。**
       （辛口クリエイターループ起票・観点=§13 リスクリワード。前回=§11）
       §13 学び「点は 1 個 1 点の線形で、上手いプレイと臆病なプレイの得点が
       同じ」への対応は catch（C-1405 コンボ）・shooter（C-1406 グレイズ）・
