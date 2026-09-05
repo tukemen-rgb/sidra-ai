@@ -333,6 +333,37 @@ function roundBestRead(){try{if(typeof localStorage==='undefined')return null;
 function roundBestWrite(v){try{if(typeof localStorage!=='undefined'){
   localStorage.setItem(ROUND_KEY,String(v))}}catch(e){}}
 function roundBest(){return ROUND_BEST}
+/* The last few runs, in the order they happened (C-1432). A best is one
+   number and it only moves upward, so a page that keeps nothing else can
+   say 「自己ベスト 24（あと 5）」 for an hour without ever telling a player
+   that they are getting closer. The sequence is what shows a day's
+   progress on the days the record does not move.
+   * Kept exactly the way the best is: this device's localStorage, nothing
+     sent, no URL - the boundary the panel and the index sit inside.
+   * Written as it happened. A run that went worse stays in the row: a
+     sequence that quietly dropped its bad days would be flattery, and
+     nobody could use it to tell whether they are improving.
+   * Only rounds somebody played. The untouched guard in roundBank() is
+     above this for the same reason it is above the best. */
+const ROUND_LOG_KEY='sidra.runs.'+ROUND_NAME_TOKEN,ROUND_LOG_MAX=5;
+let ROUND_LOG=[];
+function roundLogRead(){try{if(typeof localStorage==='undefined')return [];
+  const raw=localStorage.getItem(ROUND_LOG_KEY);if(raw===null)return [];
+  const list=JSON.parse(raw);
+  if(!Array.isArray(list))return [];
+  return list.filter(v=>typeof v==='number'&&isFinite(v)).slice(-ROUND_LOG_MAX)}
+  catch(e){return []}}
+function roundLogWrite(list){try{if(typeof localStorage!=='undefined'){
+  localStorage.setItem(ROUND_LOG_KEY,JSON.stringify(list))}}catch(e){}}
+/* Re-read before appending rather than trusting the copy in memory: two
+   tabs of the same page would otherwise each keep their own row and the
+   last one to finish would erase the other's. */
+function roundLogPush(v){const list=roundLogRead();list.push(v);
+  ROUND_LOG=list.slice(-ROUND_LOG_MAX);roundLogWrite(ROUND_LOG)}
+function roundLog(){return ROUND_LOG.slice()}
+function roundLogFacts(){return {runs:roundLog(),max:ROUND_LOG_MAX,
+  stored:roundLogRead()}}
+ROUND_LOG=roundLogRead();
 /* --- the second key, for a score with a ceiling (C-1124) ------------- */
 const ROUND_TIE_KEY='sidra.tie.'+ROUND_NAME_TOKEN;
 const ROUND_TIE_BETTER=ROUND_TIE_BETTER_TOKEN,ROUND_TIE_LABEL=ROUND_TIE_LABEL_TOKEN;
@@ -376,6 +407,9 @@ function roundBank(){if(ROUND_BANKED)return;
      as a best, not counted toward a colour, not kept as a ghost, and not
      recorded as a win or a loss. */
   if(!ROUND_TOUCHED)return;
+  /* Into the row before anything is judged: the sequence is what happened,
+     not what was good enough (C-1432). */
+  roundLogPush(ROUND_FINAL);
   /* The round confirming itself, in the third sense (C-1413, §16): two
      short taps, after the guard above, so a round nobody played stays
      silent in the hand as well as in the records. */
@@ -448,6 +482,14 @@ function drawResultStrip(){if(!RCV)return;roundBank();
     c.fillStyle='INK_TOKEN';c.fillText(why,W/2,H-56)}
   /* A colour that just opened is the reason to start the next round, so it
      is said on the screen that asks for one - and only when it happened. */
+  /* The last few runs, small and to one side (C-1432). Two is the fewest
+     that can be a sequence - a row of one is just the score again, said
+     twice - and it is drawn under the score rather than beside it so the
+     result keeps the line it had. */
+  let runs=[];try{runs=roundLog()}catch(e){}
+  if(runs.length>1){c.save();c.font='11px ui-monospace,monospace';
+    c.textAlign='left';c.globalAlpha=0.72;
+    c.fillText('直近 '+runs.join(' / '),16,H-42);c.restore()}
   let news=null;try{news=skinNews()}catch(e){}
   if(news){c.fillStyle='SCRIM_TOKEN'+'e6';c.fillRect(0,H-82,W,30);
     c.fillStyle=TUNE_ACCENT;
@@ -458,6 +500,7 @@ function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   ended:roundEnded(),limit:ROUND_LIMIT_MS,
   score:ROUND_FINAL,best:ROUND_BEST,record:ROUND_RECORD,
   live:roundScore(),
+  runs:(function(){try{return roundLog()}catch(e){return null}})(),
   seed:(typeof SEED==='undefined')?null:SEED,
   daily:(function(){try{return dailyOn()}catch(e){return null}})(),
   stamp:(function(){try{return dailyStamp()}catch(e){return null}})(),
@@ -682,6 +725,103 @@ __all__ = [
     "probe_source",
     "states_in",
 ]
+
+
+#: One round on one page load, against a store handed in from the last one
+#: (C-1432). Restarting is a real ``location.reload()``, so several rounds
+#: cannot share a page: each is its own process, and what carries between
+#: them is exactly what carries in a browser - the store.
+#:
+#: The other probes here stub ``setItem`` away, which is right for them:
+#: they ask what one round does. A row of recent runs is a claim about what
+#: survives *between* rounds, so it can only be measured against a store
+#: that remembers, and across loads that really are separate.
+HISTORY_PROBE = """
+const hNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : hNothing),
+  apply: () => hNothing, set: () => true });
+const hKeys = [];
+globalThis.matchMedia = () => ({ matches: false });
+let hClock = 0;
+globalThis.performance = { now: () => hClock };
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') hKeys.push(fn) };
+globalThis.Image = function(){ return hNothing };
+/* Seeded with whatever the previous load left behind, and it keeps what
+   this one writes. */
+const hStore = STORE_INPUT;
+globalThis.localStorage = {
+  getItem: (k) => (k in hStore ? hStore[k] : null),
+  setItem: (k, v) => { hStore[k] = String(v) },
+  removeItem: (k) => { delete hStore[k] } };
+const hDrawn = [];
+const hCtx = new Proxy({ fillText: (t) => { hDrawn.push(String(t)) } },
+  { get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : hNothing)),
+    set: () => true });
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => hNothing, querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {},
+    addEventListener: () => {},
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => hCtx }) };
+globalThis.location = { reload: () => {} };
+let hQueued = null;
+globalThis.requestAnimationFrame = (fn) => { hQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function hKey(k){ const e = { key: k, code: k === ' ' ? 'Space' : k,
+  preventDefault(){}, stopImmediatePropagation(){} };
+  hKeys.forEach(fn => fn(e)) }
+/* Bigger steps than a real frame, so a sixty-second round does not need
+   thirty-six hundred of them. The clock the round reads is this one. */
+function hStep(n, hold){ for (let i = 0; i < n && hQueued; i++) {
+  if (hold) { hKey(hold) }
+  const fn = hQueued; hQueued = null; hClock += STEP_INPUT; fn(hClock) } }
+const hHold = HOLD_INPUT;
+/* What the row looked like before this round, so the judge can see the
+   append rather than only the result. */
+const before = roundLogFacts();
+hKey(' ');
+hStep(2, null);
+let guard = 0;
+while (guard++ < 4000) {
+  hStep(1, hHold);
+  let done = false; try { done = roundEnded() } catch (e) { done = false }
+  if (done) break;
+}
+/* The strip is what banks the round, so let it draw. */
+hDrawn.length = 0;
+hStep(6, null);
+const facts = roundFacts();
+console.log(JSON.stringify({
+  score: facts.score, best: facts.best,
+  touched: (function(){ try { return roundTouched() } catch (e) { return null } })(),
+  before: before.runs, runs: roundLogFacts().runs,
+  stored: roundLogFacts().stored, max: roundLogFacts().max,
+  said: hDrawn.filter(t => t.indexOf('直近') === 0),
+  drawn: hDrawn.slice(0, 40),
+  store: hStore,
+}));
+"""
+
+
+def history_probe_source(
+    script: str,
+    *,
+    store: dict[str, str] | None = None,
+    hold: str | None = "ArrowRight",
+    step: int = 250,
+) -> str:
+    """One page load: play a round (or leave it alone) and read the row.
+
+    ``store`` is what the previous load left behind. ``hold`` of ``None`` is
+    the round nobody played - the fourth condition the item set.
+    """
+
+    return (
+        HISTORY_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("STORE_INPUT", json.dumps(store or {}, ensure_ascii=False))
+        .replace("HOLD_INPUT", json.dumps(hold))
+        .replace("STEP_INPUT", str(int(step)))
+    )
 
 
 #: Runs a generated page for a whole go and writes down, frame by frame,

@@ -34,8 +34,9 @@ import re
 
 #: Every ``localStorage`` key the generated page is allowed to touch, as a
 #: prefix that must be followed by the template's own name. Declared here so
-#: a sixth feature that picks an existing prefix fails the sweep instead of
-#: quietly overwriting whichever feature got there first.
+#: another feature that picks an existing prefix fails the sweep instead of
+#: quietly overwriting whichever feature got there first. The sweep caught
+#: C-1432 arriving unregistered, which is what it is for.
 STORAGE_PREFIXES: dict[str, str] = {
     "sidra.tune.": "C-1113 the tuning panel's values",
     "sidra.best.": "C-1106 the personal best",
@@ -46,6 +47,7 @@ STORAGE_PREFIXES: dict[str, str] = {
     "sidra.streak.": "C-1402 losses in a row, for the one step it buys",
     "sidra.tie.": "C-1124 the second key, for a score that has a ceiling",
     "sidra.keys.": "C-1305 this device's key re-assignments",
+    "sidra.runs.": "C-1432 the last few runs, in the order they happened",
 }
 
 #: The canvas the templates are drawn on, and the font the strip uses. Used

@@ -11484,6 +11484,141 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the last few runs, in the order they happened (C-1432) ---------
+    #
+    # A best is one number and it only moves upward, so a page that keeps
+    # nothing else says 「自己ベスト 24（あと 5）」 all afternoon without ever
+    # telling a player they are getting closer. The row is what shows a
+    # day's progress on the days the record does not move.
+    #
+    # Restarting is a real location.reload(), so rounds cannot share a page:
+    # each load is its own process here and what carries between them is
+    # exactly what carries in a browser - the store. One load in the middle
+    # is left completely alone, because "a round nobody played does not
+    # enter the row" is the condition most easily lost.
+    from sidra_ai.creation.round import history_probe_source as _hist_probe
+
+    hist_gaps: list[str] = []
+    hist_runs: list = []
+    # Six played loads against a cap of five, so the oldest actually
+    # falls off rather than the cap being asserted about a row that
+    # never reached it.
+    _hist_holds = (
+        "ArrowRight", "ArrowLeft", None, "ArrowRight",
+        "ArrowLeft", "ArrowRight", "ArrowLeft",
+    )
+    found = _scene_re.search(
+        r"<script>(.*?)</script>",
+        generate_game("キャッチゲームを作って").html,
+        _scene_re.S,
+    )
+    if found is None:
+        hist_gaps.append("no script on the catch page")
+    else:
+        store: dict = {}
+        for turn, hold in enumerate(_hist_holds):
+            try:
+                run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_hist_probe(found.group(1), store=store, hold=hold, step=25),
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+                if run.returncode != 0:
+                    raise ValueError(run.stderr.strip()[:80])
+                seen = json.loads(run.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError, IndexError) as exc:
+                hist_gaps.append(f"load {turn}: probe unavailable ({exc})")
+                break
+            store = seen["store"]
+            hist_runs.append({"hold": hold, **seen})
+    if not hist_gaps and hist_runs:
+        played = [r for r in hist_runs if r["hold"] is not None]
+        idle = [r for r in hist_runs if r["hold"] is None]
+        cap = hist_runs[0]["max"]
+        # The row has to be built out of runs that differ, or a page
+        # printing one constant would satisfy every check below.
+        if len({r["score"] for r in played}) < 2:
+            hist_gaps.append(
+                f"every played round scored the same ({[r['score'] for r in played]}), "
+                "so nothing here distinguishes a row from a repeated number"
+            )
+        # 1. Each played round appends its own score, in order, capped.
+        else:
+            wanted: list = []
+            for turn, r in enumerate(hist_runs):
+                if r["hold"] is not None:
+                    wanted.append(r["score"])
+                    wanted = wanted[-cap:]
+                if r["runs"] != wanted:
+                    hist_gaps.append(
+                        f"load {turn}: the row is {r['runs']}, expected {wanted}"
+                    )
+                    break
+        # 2. The round nobody played is not in it - and it really was a
+        #    round, with a score of its own that the row declined to take.
+        if not hist_gaps:
+            for r in idle:
+                if r["touched"]:
+                    hist_gaps.append("the idle load was counted as played")
+                elif r["runs"] != r["before"]:
+                    hist_gaps.append(
+                        f"an untouched round entered the row ({r['before']} -> {r['runs']})"
+                    )
+        # 3. It survives the reload, which is the whole point of a row.
+        if not hist_gaps and len(played) > 1:
+            if not hist_runs[1]["before"]:
+                hist_gaps.append("the second load started from an empty row")
+        # 4. A worse run stays in it. Flattery would be a row nobody could
+        #    use to tell whether they are improving.
+        if not hist_gaps:
+            last = hist_runs[-1]["runs"]
+            if len(last) > 1 and last != sorted(last):
+                pass  # a drop is present, which is what this wants
+            elif len({r["score"] for r in played}) > 1 and last == sorted(last):
+                hist_gaps.append(f"the row came out sorted ({last}), not as it happened")
+        # 5. ...and it reaches the screen, in that order.
+        if not hist_gaps:
+            shown = [r for r in hist_runs if r["said"]]
+            if not shown:
+                hist_gaps.append("the row was never drawn on the result strip")
+            else:
+                latest = shown[-1]
+                want = "直近 " + " / ".join(str(v) for v in latest["runs"])
+                if want not in latest["said"]:
+                    hist_gaps.append(
+                        f"the strip said {latest['said'][:1]}, not {want!r}"
+                    )
+        # 6. The cap holds.
+        if not hist_gaps:
+            if len(hist_runs[-1]["runs"]) > cap:
+                hist_gaps.append(f"the row grew past {cap} ({hist_runs[-1]['runs']})")
+            elif len(played) <= cap:
+                hist_gaps.append(
+                    f"only {len(played)} rounds were played against a cap of "
+                    f"{cap}, so the cap was never reached"
+                )
+    c.add(
+        "creation_score_history",
+        "直近の走りの並びが見える（best 未満の日も語る）",
+        0.0 if hist_gaps else 1.0,
+        detail=(
+            "; ".join(hist_gaps)
+            if hist_gaps
+            else f"ページを {len(hist_runs)} 回読み込んで実測（再開は本物の "
+            "`location.reload()` なので 1 ラウンド 1 プロセス・持ち越すのは"
+            "ブラウザと同じく store だけ）。走った回の得点が"
+            f"{[r['score'] for r in hist_runs if r['hold']]} と**互いに異なり**、"
+            f"並びはその順に積まれて最後は {hist_runs[-1]['runs']}、"
+            f"結果帯に「直近 {' / '.join(str(v) for v in hist_runs[-1]['runs'])}」と"
+            "出る。**触れなかった読み込みは得点を持ちながら並びに入らない**"
+            "（その回だけ hold なしで走らせて確認）。下がった走りも消えず、"
+            f"上限 {hist_runs[0]['max']} 件で古いほうから落ちる"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by
