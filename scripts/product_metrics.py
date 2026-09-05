@@ -10213,6 +10213,94 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the adventure can be lost, and something can lose it (C-1424) ----
+    #
+    # Out of C-1423's unfinished record: its loss line could not be measured
+    # because no drive that *loses* had ever been produced. A hands-off hero
+    # stands where it wakes, and four obvious autopilots all died in the
+    # first room. This is the instrument that was missing.
+    #
+    # The first room, measured rather than assumed: the hero wakes at tile
+    # (2, 4) and the way out is (19, 4) - the same row - but grass sits on
+    # that row and a pond spans columns 9-11 across rows 4 and 5. A pond
+    # cannot be cut, so the route out goes *around*, and no held direction
+    # finds it. The driver walks a breadth-first path over the room's own
+    # grid instead, with the page's own solid() deciding what is wall.
+    from sidra_ai.evals.adventure_losable import drive as _adv_drive
+
+    adv_gaps: list[str] = []
+    adv_runs: dict[str, object] = {}
+    try:
+        adv_runs["path"] = _adv_drive(mode="path")
+        adv_runs["naive"] = _adv_drive(mode="naive")
+        adv_runs["cutting"] = _adv_drive(mode="path", cut_grass=True)
+    except (OSError, ValueError) as exc:
+        adv_gaps.append(f"driver unavailable ({exc})")
+
+    if len(adv_runs) == 3 and all(adv_runs.values()):
+        lost, naive, cutting = (
+            adv_runs["path"], adv_runs["naive"], adv_runs["cutting"]
+        )
+        # 1. It loses - really loses, hearts gone and the page saying so.
+        if not lost.lost:
+            adv_gaps.append(
+                f"the driver did not lose (hp {lost.hp}, state {lost.state!r}, "
+                f"room {lost.room})"
+            )
+        elif len(lost.hits) < 3:
+            adv_gaps.append(f"only {len(lost.hits)} hearts were taken, not 3")
+        # 2. It got out of the first room to do it, which is the whole
+        #    difficulty - the room the hero wakes in has nobody in it.
+        elif lost.room < 1:
+            adv_gaps.append("the loss happened without ever leaving the first room")
+        # 3. The path is what did it. Walking straight at the target is what
+        #    this looked like before, and it is still stuck.
+        #
+        #    Not everything here is a confirmed detector, and it is worth
+        #    saying which. Making the driver ignore the enemies entirely
+        #    and walk only for the exit *still* loses - the roamers chase
+        #    anyone crossing their room, so simply being in room 1 is
+        #    enough. That is a fact about the product rather than a hole:
+        #    the rooms past the first are dangerous to cross at all. The
+        #    driver still aims at the enemies deliberately, because a
+        #    driver that seeks the loss keeps working if a later room is
+        #    laid out more gently.
+        elif naive.lost:
+            adv_gaps.append("walking straight at the target loses too, so the path proves nothing")
+        elif naive.room > 0:
+            adv_gaps.append(f"the naive drive left the first room ({naive.room}), so it is not the control")
+        # 4. ...and the sword is not what did it. Routing *through* grass
+        #    because the hero could in principle cut it is slower than
+        #    going around, and never gets out at all.
+        elif cutting.lost:
+            adv_gaps.append("cutting a way through also loses, so the route around is not the reason")
+    elif not adv_gaps:
+        adv_gaps.append(f"only {len(adv_runs)} of the 3 drives produced a result")
+    c.add(
+        "creation_adventure_losable",
+        "冒険は負けられる（負ける道を運転できる計器がある）",
+        0.0 if adv_gaps else 1.0,
+        detail=(
+            "; ".join(adv_gaps)
+            if adv_gaps
+            else f"実ページを運転して計測: 経路探索の運転器は "
+            f"{adv_runs['path'].frames} フレームで部屋 {adv_runs['path'].room} まで歩き、"
+            f"心を 3 つとも失って 'over' に到達する。対照 2 通りはどちらも部屋 0 から"
+            "出られない——(a) 目標へ直線的に歩く運転（C-1423 で 1 サイクル溶かした挙動）"
+            "(b) 草を斬って**突っ切る**経路。(b) が効かないのは意外だが実測どおりで、"
+            "斬撃には溜めと向きがあるため草を当てにした経路は固いタイルを押し続けて"
+            "止まる。**部屋 0 の実測**: 勇者は tile(2,4) で目覚め出口は (19,4) と同じ行、"
+            "しかし草が行 4 の列 3/5/7 に、池（斬れない）が列 9-11・行 4-5 に跨がる。"
+            "だから道は「回り込む」形にしかなく、方向キー長押しでは永久に見つからない。"
+            "壁かどうかはページ自身の solid() に訊いているので、判定が製品の当たり判定と"
+            "食い違うことはない。なお「敵を無視して出口だけ目指す」破壊は落ちない"
+            "——部屋 1 の敵は横切る者を追うので、居るだけで負けるため。穴ではなく"
+            "製品の性質だが、運転器は意図して敵を狙う（将来もっと穏やかな部屋が"
+            "来ても効くように）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by
