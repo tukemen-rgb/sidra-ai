@@ -2949,6 +2949,28 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 08:40 辛口クリエイター **C-1339: 昇段が 47 個目の宝石と同じ音（§2 の powerUp＝ビブラート欠落）。**
+      （辛口クリエイターループ起票・観点=§2 効果音の合成。前回=§8）§2 の
+      技法列挙〔波形・ADSR・周波数傾き・**ビブラート**・デューティ比・
+      LPF/HPF〕のうち、C-1308 が noise+LPF を入れた後も**ビブラートが
+      無い**。sfxr のプリセットで powerUp は pickupCoin と別枠の独立音で、
+      正体は「上昇音＋ビブラート」。SIDRA の昇段（comboCheer・倍率が
+      上がる稀で獲得的な瞬間）は sfx('gem')——47 個目の宝石の拾得と
+      同じ音で、音だけ聞くと節目が節目に聞こえない。実装: SFX_TABLE に
+      powerup（wave='vibrato'・440→880・0.3s）、sfx() に vibrato 経路
+      〔主 osc の上昇スイープ＋LFO 6Hz→depth gain→osc.frequency へ
+      **接続**（深さは .value 代入で音量帳簿を汚さない）〕、comboCheer を
+      sfx('powerup') へ。Recorder は C-1308 の教訓どおり**接続**を記録
+      （osc.frequency に kind を付け、depth gain の connect 先が
+      frequency なら 'lfo->frequency'）。計器 creation_sfx_powerup:
+      combo 3 型（catch/shooter/marble）の実ページで comboCheer() を
+      呼び lfo->frequency＋oscillator を確認・gem/hurt に lfo が無い
+      こと・M ミュートで無音。破壊 2 通り〔LFO を作るが接続しない→
+      『the vibrato is built but never wired in』で 0（C-1308 のすり抜け
+      再発防止の実証）／comboCheer を gem へ戻す→『the step-up sounds
+      like the 47th gem』で 0〕。灯籠点灯・祠・護符の powerup 化と
+      デューティ比は次候補。→ 動かす数字: creation_sfx_powerup
+      unmeasurable→1
 - [x] 完了 2026-09-05 08:15 UTC 辛口クリエイター（`creation_attract_demo` **1→2**、判定器 exit 0。ATTRACT_PILOT 新設（デモ中に毎フレーム実行する 1 行の操縦・startscreen の attract 分岐に ATTRACT_PILOT_TOKEN、games.py が pilot_call で置換）、shooter を配線: pilot は `fire=true;if(kills>0)ATTRACT_LIVE=1`——後半が**領収書**で、attractFacts の live として「デモが核の動詞（撃墜）を実演したか」を計器が読む。実測: 4200f 実走行で frames=4200・loops=4（1 周約 17 秒＝撃ちながら自機を失って次のデモへ）・毎フレーム別絵 4135/4199・時計 0ms・storage/best/combo 不動・atPress と 10 秒後の全 facts が対照ページと完全一致。破壊 2 通り〔配線除去（UNWIRED 行復元）→ 1 に戻る＝+1 はこの配線由来／pilot 空化→ 0『shooter: the piloted demo never landed its verb』——**この破壊は棒立ちでも動く・死ぬ・周回するため motion/loops 検査を全通過しており、live 領収書が無ければすり抜けていた**（領収書を先に設計した理由の実証）〕、復元で 2。pytest exit 0（3444 passed / 3 skip）・gate MISS 0。テスト test_creation_attract_demo.py に piloted 系 3 本追加・still の例を catch へ。残り 8 型は ATTRACT_UNWIRED に理由つきのまま）**C-1338: タイトルの裏で動くのは 10 型中 racing だけ（shooter は「次はこれ」と自分で書いたまま・§8×§17）。**
       （辛口クリエイターループ起票・観点=§8 継続の仕組み（初見の 1 秒で
       遊びが伝わる・事実 5/8 の即伝達）×増築済み §17 アトラクト。前回=§4）
