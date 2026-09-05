@@ -3689,6 +3689,18 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
+- [~] 作業中 2026-09-05 17:2x UTC 辛口ユーザー **C-1261: 作れない種類の制作依頼（Excel・アプリ・動画・曲・スプレッドシート等）が、正直な「作れる型」案内でなく Q&A の「根拠なし・取り込みを管理者に依頼」文言に落ちる。実測（chat）: 「Excelを作って」「アプリを作って」「動画を作って」→ すべて『現時点では十分な根拠がありません…取り込み（POST /v1/github/analyze）を管理者に依頼』。原因: detect_creation_intent はこれらを is_creation=True・kind=UNKNOWN・weak（routes=False）と正しく判定するが、service.chat は routes=True の時しかルーターを呼ばず、weak/unknown 制作依頼を素通しで Q&A へ流す。ゲームの未対応ジャンル（RPG/クイズ）は strong で routes=True のため正直に断れている（「RPG型はまだ作れない…いま作れるのは…」）のに、非ゲームの未対応種別だけ Q&A 文言。CreationKind.UNKNOWN の docstring が約束する「利用者に gap を見せる（黙って質問回答にしない）」に反する。C-1120 系の weak-intent 正直化の抜け。**
+      （辛口ユーザーループ起票・38 巡目 質問応答/制作ルーティング・自分の観察では実害大・3/10）
+      **最小の解決**は service.chat に、`intent.is_creation and intent.kind==UNKNOWN`
+      の分岐を（routes 分岐の直後・Q&A 検索の前に）足し、正直な一言
+      「『…』は制作のご依頼ですが、この形式は作れません。いま作れるのは <種別> です。」
+      を返す。<種別> は creation_router.registered_kinds() から日本語ラベルに写像
+      （game→ゲーム, deck→スライド, document→レポート, model3d→3Dモデル, gif→GIF,
+      art→アート, project→企画一式）＝登録追加/削除に自動追従。質問（is_creation=False）と
+      作れる依頼（routes=True）は不変。誤検出は既に低い（「予算を作る」「チームを作る」等の
+      曖昧文は is_creation=False と実測）。判定器は chat 実経路で未対応制作依頼が Q&A 文言でなく
+      作れる型の列挙になること・質問と作れる依頼が不変であることを検査。
+      → 動かす数字: creation_unbuildable_declined unmeasurable→1
 - [x] 完了 2026-09-05 16:54 UTC 辛口ユーザー（`ui_declares_inline_favicon` 0→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.0%）。5 通りの破壊で 3/3→0/1/0/2/2 に落ち、復元で 3/3。Playwright 実測（修正後）: ページ読込で console error 0・/favicon.ico 要求 0（ブラウザは宣言済みアイコンを使う）。修正前は毎回 GET /favicon.ico 404）**C-1260: Web UI（質問応答画面）を開くたびに /favicon.ico が 404 になり、開発コンソールにエラーが出てブラウザのタブが空アイコンになる。実測（Playwright で http://127.0.0.1 の画面を実操作）: ページ読込ごとに console.error「Failed to load resource: 404」＝ GET /favicon.ico 404。ページは自己完結（外部フェッチ禁止・CORS 無し）方針なので、favicon も外部参照でなくインラインで宣言すべき。社長がブラウザで開く画面のタブが無地アイコンなのは体裁の欠落。**（Web UI は総じて堅牢: pre-wrap で回答は改行保持・引用は構造化・回答は text node・token は password・スマホ 390px で横溢れ無し・空送信は握り。最悪点はこの favicon 404）
       （辛口ユーザーループ起票・37 巡目 Web UI 質問応答画面・自分の観察では 5/10）
       **最小の解決**は ui.py の ASK_PAGE の <head> に自己完結のインライン favicon
