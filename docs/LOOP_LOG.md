@@ -7321,3 +7321,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest exit 0（3320 passed / 3 skip）/ gate exit 0（MISS 0）。
   §13 の「上手いと臆病が同点」は、これで全 10 型から消えた。
 
+
+2026-09-05 00:05 UTC ループA started（Board=13、増減なし）
