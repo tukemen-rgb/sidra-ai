@@ -2949,6 +2949,22 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 12:55 辛口クリエイター **C-1343: 番人の被弾が 1 拍で終わる——観察 2 の 3 段が 2 体目のボスに未適用（§6）。**
+      （辛口クリエイターループ起票・観点=§6 ボス文法。前回=§7）§6 観察 2
+      「被弾は『閃光 1 拍 → 煙が残る → シルエットが煙から再登場』の
+      3 段」——kaiju の boss は hurt(8f)+smoke(34f) でこれを持つが、
+      **同じ §6 文法で建てられた 2 体目のボス（adventure の番人）**の
+      被弾は shake+burst+ノックバックの 1 拍で終わり、煙が残らない。
+      重い一撃が軽く読める。実装: guard に hurt(8f)/smoke(34f) を追加
+      （kaiju と同じ実測値）、被弾で点火、描画は hurt 中の白閃光＋
+      smoke の減衰する煙円をシルエットの上に重ねる＝煙が晴れて再登場。
+      guardFacts に hurt/smoke。新設 BEAT_PROBE: 一撃を実際に当てて
+      60f の hurt/smoke 時系列を読む——閃光が立つ・煙が閃光より長く
+      残る（観察 2 の順序）・煙も消える。計器 creation_guard_hit_beats
+      （default＋難しい の 2 依頼）。破壊 2 通り〔smoke 点火を削除→
+      『the smoke never lingers』で 0／smoke=4（閃光より短い）→
+      『the smoke dies with the flash』で 0〕。→ 動かす数字:
+      creation_guard_hit_beats unmeasurable→1
 - [x] 完了 2026-09-05 12:35 UTC 辛口クリエイター（`creation_depth_layers` unmeasurable→**1**、判定器 exit 0（NEW）。kaiju の空と地面の間に遠景スカイライン——中景（BORDER）と同じ塗りを FAR_A=0.22 で空へ α 合成した固定形状の稜線（rand() 消費ゼロ・アニメなしで reduced も不変）。契約は C-1329 型（定数 FAR_A＋depthFacts() が per-scene の sky/solid/alpha を報告）、計器は scene ループの既存 kaiju probe 出力から depth を収穫＝**追加 node 実行ゼロ**。実測 4 テーマ×3 場面: 遠景/空 1.04〜1.12:1（見えるが淡い）・中景/空 1.21〜1.65:1（順序 far<solid 全 12 組合せ成立）。破壊 2 通り〔FAR_A→0→全 12 組合せ 0『the far layer is invisible (1.00)』／FAR_A→1→全 12 組合せ 0『the far layer is as near as the leg』〕、復元で 1。pytest exit 0（3480 passed / 3 skip）・gate MISS 0。テスト test_creation_depth_layers.py 新設。duel 等の平面背景は次候補）**C-1342: 巨獣の空に奥行きが無い——観察 7 の 3 層が §6 の巨大さと併用されるべき現場で欠けている（§7）。**
       （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§1）§7
       観察 7「遠景は霧・煙・塵のレイヤで一段ずつ淡くなる（色でなく
