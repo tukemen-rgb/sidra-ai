@@ -124,7 +124,7 @@ function build(){
   orbs=orbs.filter(o=>Math.abs(o.x-lamp.x)>1)}
 function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;
   me={x:60,y:230,vy:0,ground:false,coyote:0,buffer:0,held:false,gems:0,
-    cpX:60,cpY:262};
+    cpX:60,cpY:262,sq:1};
   say('足場を渡って、旗まで。')}
 function say(t){msg=t;msgT=150}
 const keys={};
@@ -135,7 +135,10 @@ function tryJump(){if(state!=='play')return;
      so a late edge press lands and a mid-fall press does not - not right
      away. A press held while airborne is kept for BUFFER frames instead of
      dropped, and fires on the landing frame (§12). */
-  if(me.coyote>0){me.vy=JUMP;me.coyote=0;me.ground=false;sfx('catch')}
+  if(me.coyote>0){me.vy=JUMP;me.coyote=0;me.ground=false;sfx('catch');
+    /* Squash & stretch (§1, C-1332): the take-off stretches the body
+       tall; under reduced motion the silhouette never changes. */
+    if(!REDUCED)me.sq=1.25}
   else{me.buffer=BUFFER}}
 function cutJump(){me.held=false;me.buffer=0;if(me.vy<CUT)me.vy=CUT}
 addEventListener('keydown',e=>{keys[e.key]=true;
@@ -161,6 +164,9 @@ function step(){const now=performance.now();
         me.y=p.y;me.vy=0;on=true;break}}}
     if(on){
       if(!me.ground){sfx('step');
+        /* ...and the landing squashes it flat, in proportion to the
+           impact - a hop dents, a drop flattens (§1, C-1332). */
+        if(!REDUCED)me.sq=Math.max(0.55,1-vBefore*0.07);
         /* landing smoke, weight-proportional (§1): a hop puffs, a drop
            also kicks the camera a little */
         burst(me.x,me.y,Math.min(12,2+Math.round(vBefore)),'ACCENT_JUICE');
@@ -171,6 +177,9 @@ function step(){const now=performance.now();
       if(me.buffer>0&&me.held){me.buffer=0;tryJump()}}
     else{me.ground=false;if(me.coyote>0)me.coyote--}
     if(me.buffer>0)me.buffer--;
+    /* The bounce settles on its own: exponential ease back to rest,
+       snapped when the eye can no longer tell. */
+    me.sq+=(1-me.sq)*0.25;if(Math.abs(me.sq-1)<0.01)me.sq=1;
     orbs.forEach(o=>{if(!o.got&&Math.abs(o.x-me.x)<14&&Math.abs(o.y-(me.y-10))<18){
       o.got=true;me.gems++;sfx('gem');burst(o.x,o.y,10,'ACCENT_JUICE');
       say(me.gems>=LAMP_COST&&!lamp.lit
@@ -254,8 +263,11 @@ function draw(now){
     cx.fillRect(px-3,gy-24,6,6);
     cx.globalAlpha=0.6;cx.strokeStyle=TUNE_ACCENT;cx.lineWidth=1;
     cx.strokeRect(px-7.5,gy-18.5,15,13);cx.restore()}
-  cx.fillStyle='CYAN_TOKEN';cx.fillRect(px-7,me.y-18,14,12);
-  cx.fillRect(px-3,me.y-24,6,6);
+  /* Feet-anchored squash & stretch: height scales with sq, width the
+     other way, so the volume reads constant and the feet never float. */
+  const sqh=12*me.sq,sqw=14*(2-me.sq),sqt=me.y-6-sqh;
+  cx.fillStyle='CYAN_TOKEN';cx.fillRect(px-sqw/2,sqt,sqw,sqh);
+  cx.fillRect(px-3,sqt-6,6,6);
   /* the gait is position-driven, so it only moves when the player does */
   const g2=me.ground?Math.sin(me.x/5)*4:3;
   cx.strokeStyle='CYAN_TOKEN';cx.lineWidth=2;
@@ -275,6 +287,7 @@ function draw(now){
     const b='宝石 '+me.gems+' 個 / 落下 '+respawns+' 回 / R かタップでもう一度';
     cx.fillText(b,W/2-b.length*6.5,H/2+18)}}
 function platFacts(){return{x:me.x,y:me.y,vy:me.vy,ground:me.ground,
+  squash:me.sq,
   coyote:me.coyote,window:COYOTE,buffer:me.buffer,bufferWindow:BUFFER,
   gems:me.gems,respawns:respawns,
   lit:lamp.lit,cpX:me.cpX,state:state,lampX:lamp.x,lampY:lamp.y,
@@ -460,8 +473,73 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: Squash & stretch, watched frame by frame (§1, C-1332): one real jump.
+#: The body must stretch past 1 while rising, squash below 1 on the exact
+#: landing frame, settle back to rest within half a second - and under
+#: reduced motion every sampled frame must read exactly 1, because the
+#: silhouette is the one thing that run promises never changes.
+SQUASH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function kd(k){ (handlers.keydown || []).forEach(fn => fn({ key: k,
+  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function ku(k){ (handlers.keyup || []).forEach(fn => fn({ key: k,
+  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+kd(' '); ku(' ');
+run(10);
+const restSq = platFacts().squash;
+/* One full jump, held to the top, sampled every frame of the arc. */
+kd(' ');
+let riseMax = 0, guard = 0, landSq = null, wasAir = false;
+while (guard++ < 400) {
+  run(1);
+  const f = platFacts();
+  if (!f.ground) { wasAir = true; riseMax = Math.max(riseMax, f.squash) }
+  if (wasAir && f.ground) { landSq = f.squash; break }
+}
+ku(' ');
+/* Half a second later the body is a body again. */
+run(30);
+const settled = platFacts().squash;
+/* And the whole arc again with nothing pressed: standing still, the
+   silhouette must not breathe on its own. */
+let idleMax = 0;
+for (let i = 0; i < 40; i++) { run(1);
+  idleMax = Math.max(idleMax, Math.abs(platFacts().squash - 1)) }
+console.log(JSON.stringify({
+  restSq: restSq, riseMax: riseMax, landSq: landSq,
+  settled: settled, idleMax: idleMax,
+}));
+"""
+
+
+def squash_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so one jump's shape can be watched."""
+
+    return SQUASH_PROBE.replace("REDUCED_INPUT", "true" if reduced else "false").replace(
+        "SCRIPT_PLACEHOLDER", script
+    )
+
+
 __all__ = [
     "PLATFORMER_DIFFICULTY",
+    "SQUASH_PROBE",
+    "squash_probe",
     "PLATFORMER_HOW",
     "PLATFORMER_SCRIPT",
     "PLATFORMER_TITLE",

@@ -55,11 +55,24 @@ def _measured_keys(metrics) -> set[str]:
 
 
 def test_every_metric_the_backlog_names_exists(metrics) -> None:
-    """A backlog item cannot promise to move a number nobody measures."""
+    """A backlog item cannot promise to move a number nobody measures.
 
-    named = set(
-        re.findall(r"→ 動かす数字: `([a-z0-9_]+)`", BACKLOG.read_text(encoding="utf-8"))
-    )
+    An in-progress claim is the one exception (C-1332 found this red on a
+    sibling's open claim): the loop workflow pushes the claim first -
+    naming the brand-new number it intends to create - and lands the
+    metric in the same cycle's completion push, so between those two
+    pushes the name legitimately has no measurement yet. Only an item
+    that is not still marked ``[~]`` while naming a number nobody
+    measures is the drift this guards against.
+    """
+
+    named: set[str] = set()
+    in_progress = False
+    for line in BACKLOG.read_text(encoding="utf-8").splitlines():
+        if line.startswith("- ["):
+            in_progress = line.startswith("- [~]")
+        if not in_progress:
+            named.update(re.findall(r"→ 動かす数字: `([a-z0-9_]+)`", line))
     measured = _measured_keys(metrics)
     assert named, "the backlog no longer tags items with the number they move"
     assert named <= measured, sorted(named - measured)

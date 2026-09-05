@@ -3283,6 +3283,81 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the body of the jump ------------------------------------------
+    #
+    # §1's technique list (C-1332): tween, scale-bounce, particles, shake,
+    # hitstop, sound. Scale-bounce - squash & stretch, the first principle
+    # of animation - was the one item present nowhere, and the platformer
+    # is the template whose whole craft is the jump. Watched frame by
+    # frame on a real jump: the body stretches past 1 on the way up,
+    # squashes below 1 on the exact landing frame, settles back within
+    # half a second, and never breathes while standing still. The reduced-
+    # motion run is the other half of the claim: every sampled frame reads
+    # exactly 1, because that run promises the silhouette never changes.
+    import re as _sq_re
+    import subprocess as _sq_sp
+
+    from sidra_ai.creation.platformer import squash_probe as _sq_probe
+
+    squash_gaps: list[str] = []
+    for _sq_request, _sq_reduced in (
+        ("ジャンプアクションを作って", False),
+        ("難しいジャンプアクションを作って", False),
+        ("ジャンプアクションを作って", True),
+    ):
+        _sq_label = f"{_sq_request}{'（reduced）' if _sq_reduced else ''}"
+        _sq_page = generate_game(_sq_request).html
+        _sq_script = _sq_re.search(r"<script>(.*?)</script>", _sq_page, _sq_re.S)
+        if _sq_script is None:
+            squash_gaps.append(f"{_sq_label}: no script")
+            continue
+        try:
+            _sq_run = _sq_sp.run(
+                ["node", "-"],
+                input=_sq_probe(_sq_script.group(1), reduced=_sq_reduced),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _sq_run.returncode != 0:
+                squash_gaps.append(f"{_sq_label}: {_sq_run.stderr.strip()[:80]}")
+                continue
+            _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sq_sp.SubprocessError, ValueError) as exc:
+            squash_gaps.append(f"{_sq_label}: probe unavailable ({type(exc).__name__})")
+            continue
+        if _sq_reduced:
+            if (
+                _sq["riseMax"] not in (0, 1)
+                or (_sq["landSq"] or 1) != 1
+                or _sq["idleMax"] != 0
+                or _sq["restSq"] != 1
+            ):
+                squash_gaps.append(f"{_sq_label}: reduced motion still bounces {_sq}")
+            continue
+        if _sq["riseMax"] <= 1.1:
+            squash_gaps.append(f"{_sq_label}: the jump never stretches ({_sq['riseMax']})")
+        if _sq["landSq"] is None or _sq["landSq"] >= 0.9:
+            squash_gaps.append(f"{_sq_label}: the landing never squashes ({_sq['landSq']})")
+        if abs(_sq["settled"] - 1) > 0.02:
+            squash_gaps.append(f"{_sq_label}: the bounce never settles ({_sq['settled']})")
+        if _sq["idleMax"] != 0:
+            squash_gaps.append(f"{_sq_label}: the body breathes while standing still")
+    c.add(
+        "creation_squash_stretch",
+        "跳ぶ体が伸びて潰れる",
+        1.0 if not squash_gaps else 0.0,
+        detail=(
+            "platformer の実ジャンプを毎フレーム観測: 上昇中に縦へ伸び"
+            "（>1.1）、着地フレームで潰れ（<0.9・衝撃比例）、0.5 秒で静止形"
+            "に収束、立ち姿は揺れない。reduced-motion では全フレーム 1＝"
+            "輪郭は一切変わらない（§1 の技法表で唯一未実装だった拡縮バウンス）"
+            if not squash_gaps
+            else "; ".join(squash_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a held key keeps moving --------------------------------------
     #
     # §12 事実 3 (C-1328): held movement belongs in the loop, read off
