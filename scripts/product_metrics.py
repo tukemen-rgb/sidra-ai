@@ -5906,17 +5906,78 @@ def measure_creation(c: Collector) -> None:
             powerup_gaps.append(f"{_pu_key}: the pickup grew a vibrato too, so the step-up is not distinct")
         if _pu.get("powerupMutedNodes"):
             powerup_gaps.append(f"{_pu_key}: M does not silence the step-up")
+    # The other milestone voices (C-1346): the lantern, the shrine and the
+    # charm raise a POWER, and each is driven for real; the key on the
+    # ground is a LOCK's item and must stay plain - the judge holds both
+    # sides of the distinction.
+    from sidra_ai.creation.adventure import milestone_probe as _ms_probe
+    from sidra_ai.creation.platformer import lamp_sfx_probe as _lamp_probe
+
+    _pu_sites = 3 if not powerup_gaps else 0  # the three cheers above
+    for _pu_req, _pu_key, _pu_builder in (
+        ("迷宮を冒険するゲームを作って", "adventure", _ms_probe),
+        ("ジャンプで進むゲームを作って", "platformer", _lamp_probe),
+    ):
+        _pu_page = generate_game(_pu_req).html
+        _pu_script = _scene_re.search(r"<script>(.*?)</script>", _pu_page, _scene_re.S)
+        if _pu_script is None:
+            powerup_gaps.append(f"{_pu_key}: no script")
+            continue
+        try:
+            _pu_run = _scene_sp.run(
+                ["node", "-"],
+                input=_pu_builder(_pu_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _pu_run.returncode != 0:
+                raise ValueError(_pu_run.stderr.strip()[:60])
+            _pu = json.loads(_pu_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            powerup_gaps.append(f"{_pu_key}: probe unavailable ({exc})")
+            continue
+        if _pu_key == "adventure":
+            if not _pu.get("heartsAfter", 0) > 3 or "lfo->frequency" not in (
+                _pu.get("shrineNodes") or []
+            ):
+                powerup_gaps.append("adventure: the shrine still rings like a pickup")
+            else:
+                _pu_sites += 1
+            if not _pu.get("charmHeld") or "lfo->frequency" not in (
+                _pu.get("charmNodes") or []
+            ):
+                powerup_gaps.append("adventure: the charm still rings like a pickup")
+            else:
+                _pu_sites += 1
+            if not _pu.get("keyHeld"):
+                powerup_gaps.append("adventure: the control key was never picked up")
+            elif "lfo->frequency" in (_pu.get("keyNodes") or []):
+                powerup_gaps.append(
+                    "adventure: the lock's own key now shouts power-up"
+                )
+        else:
+            if not _pu.get("lampLit") or "lfo->frequency" not in (
+                _pu.get("lampNodes") or []
+            ):
+                powerup_gaps.append("platformer: the lantern still rings like a pickup")
+            else:
+                _pu_sites += 1
+    # C-1346 redefined the value from 0/1 to the NUMBER of milestone sites
+    # proven to ring the powerUp voice - any gap anywhere still collapses
+    # it to 0 (両定義: 旧 0/1 は cheer 3 site の時点で 1、新定義の変更前は
+    # 灯籠・祠・護符が鍵の音のままで 3).
     c.add(
         "creation_sfx_powerup",
-        "昇段が拾得と違う音で鳴る",
-        0.0 if powerup_gaps else 1.0,
+        "力の節目が拾得と違う音で鳴る",
+        float(_pu_sites) if not powerup_gaps else 0.0,
         detail=(
             "; ".join(powerup_gaps)
             if powerup_gaps
-            else "combo 3 型（catch/shooter/marble）の実ページで comboCheer() を"
-            "駆動: 昇段は上昇音＋ビブラート（LFO が osc.frequency へ実接続・"
-            "§2 の powerUp 系）、gem は従来の素の oscillator のまま＝節目が"
-            "音で聞き分けられる、M ミュートで無音"
+            else "6 つの節目を実駆動: combo 3 型の昇段＋灯籠点灯＋祠の最大"
+            "ハート＋護符——全部が上昇音＋ビブラート（LFO が osc.frequency へ"
+            "実接続・§2 の powerUp 系）。gem と地面の鍵は素の oscillator の"
+            "まま＝力の音と錠前の音が聞き分けられる、M ミュートで無音"
         ),
         kind=OUTCOME,
     )

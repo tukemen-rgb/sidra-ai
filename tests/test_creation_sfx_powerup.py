@@ -66,3 +66,35 @@ def test_the_mute_silences_the_step_up_too() -> None:
     heard = _heard(_REQUESTS["marble"])
 
     assert heard["powerupMutedNodes"] == 0
+
+
+def test_the_milestones_ring_power_and_the_key_stays_plain() -> None:
+    """C-1346: lantern, shrine and charm are powers; the key is a lock's."""
+
+    from sidra_ai.creation.adventure import milestone_probe
+    from sidra_ai.creation.platformer import lamp_sfx_probe
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+
+    page = generate_game("迷宮を冒険するゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    run = subprocess.run(
+        ["node", "-"], input=milestone_probe(script.group(1)),
+        capture_output=True, text=True, timeout=120,
+    )
+    assert run.returncode == 0, run.stderr[:400]
+    adv = json.loads(run.stdout.strip().splitlines()[-1])
+    assert adv["heartsAfter"] > 3 and "lfo->frequency" in adv["shrineNodes"]
+    assert adv["charmHeld"] and "lfo->frequency" in adv["charmNodes"]
+    assert adv["keyHeld"] and "lfo->frequency" not in adv["keyNodes"]
+
+    page = generate_game("ジャンプで進むゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    run = subprocess.run(
+        ["node", "-"], input=lamp_sfx_probe(script.group(1)),
+        capture_output=True, text=True, timeout=120,
+    )
+    assert run.returncode == 0, run.stderr[:400]
+    plat = json.loads(run.stdout.strip().splitlines()[-1])
+    assert plat["lampLit"] and "lfo->frequency" in plat["lampNodes"]

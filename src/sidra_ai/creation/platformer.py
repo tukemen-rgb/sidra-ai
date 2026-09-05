@@ -197,7 +197,9 @@ function step(){const now=performance.now();
        A collectible that buys insurance is a reason to detour for it. */
     if(!lamp.lit&&Math.abs(lamp.x-me.x)<18&&Math.abs(lamp.y-me.y)<26){
       if(me.gems>=LAMP_COST){me.gems-=LAMP_COST;lamp.lit=true;
-        me.cpX=lamp.x;me.cpY=lamp.y;sfx('key');
+        /* Lighting the lantern moves where you come back from - a power,
+           not a pickup, so it rings the powerUp voice (§2, C-1346). */
+        me.cpX=lamp.x;me.cpY=lamp.y;sfx('powerup');
         burst(lamp.x,lamp.y-18,16,'ALERT_JUICE');
         say('灯籠がともった。落ちてもここから。')}
       else if(msgT<=0){say('灯籠は宝石 '+LAMP_COST+' 個で点く（いま '+me.gems+' 個）。')}}
@@ -554,9 +556,74 @@ def squash_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The lantern's voice, as wired (§2, C-1346): lighting it moves the
+#: respawn point - a power, not a pickup - so the moment it lights must
+#: build the vibrato path. The AudioContext is the audio probe's Recorder:
+#: connections, not constructions.
+LAMP_SFX_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const played = [], nodes = [], freqs = [];
+function Recorder(){ this.state='running'; this.currentTime=0; this.destination={};
+  this.sampleRate=44100 }
+Recorder.prototype.createOscillator = function(){
+  return { type:'', frequency:{kind:'frequency',
+             setValueAtTime(v){ freqs.push(v) }, exponentialRampToValueAtTime(){}},
+           connect(){ nodes.push('oscillator') }, start(){}, stop(){} } };
+Recorder.prototype.createBuffer = function(ch, len){
+  return { getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){
+  return { buffer:null, start(){}, stop(){},
+    connect(t){ nodes.push(t && t.kind === 'lowpass' ? 'noise->lowpass' : 'noise->direct') } } };
+Recorder.prototype.createBiquadFilter = function(){
+  return { kind:'lowpass', type:'',
+    frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+    connect(){ nodes.push('lowpass->out') } } };
+Recorder.prototype.createGain = function(){
+  return { gain:{ setValueAtTime(v){ played.push(v) },
+                  exponentialRampToValueAtTime(){} },
+    connect(t){ if (t && t.kind === 'frequency') nodes.push('lfo->frequency') } } };
+globalThis.window = { AudioContext: Recorder };
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(30);
+/* Five gems, standing on the lantern's ledge: the light comes on. */
+me.gems = 5; me.x = lamp.x; me.y = lamp.y - 40; me.vy = 0;
+nodes.length = 0; run(30);
+console.log(JSON.stringify({ lampLit: lamp.lit, lampNodes: nodes.slice() }));
+"""
+
+
+def lamp_sfx_probe(script: str) -> str:
+    """The page's own script, wrapped so the lantern's voice can be heard."""
+
+    return LAMP_SFX_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "PLATFORMER_DIFFICULTY",
+    "LAMP_SFX_PROBE",
     "SQUASH_PROBE",
+    "lamp_sfx_probe",
     "squash_probe",
     "PLATFORMER_HOW",
     "PLATFORMER_SCRIPT",

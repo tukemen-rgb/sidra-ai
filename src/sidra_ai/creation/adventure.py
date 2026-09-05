@@ -185,7 +185,8 @@ function swing(){if(state!=='play')return;
        in a number. Three of them buy a heart, which is what makes the
        grass worth cutting. */
     if(t===9){if(hero.gems>=3){hero.gems-=3;hero.maxhp=Math.min(5,hero.maxhp+1);
-        hero.hp=hero.maxhp;say('祠が宝石を受け取った。ハートが増えた。');sfx('key');
+        /* A bigger heart is a power, not a pickup (§2, C-1346). */
+        hero.hp=hero.maxhp;say('祠が宝石を受け取った。ハートが増えた。');sfx('powerup');
         burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,18,'ALERT_JUICE')}
       else{say('祠は宝石を 3 個ほしがっている（いま '+hero.gems+' 個）。');sfx('clash')}}
     /* The optional door (§3): the run is winnable without ever opening it. */
@@ -248,7 +249,8 @@ function moveHero(){
     hero.inv=Math.max(hero.inv,45)}
   if(t===11){rooms[room][Math.floor((hero.y-OY)/TILE)][Math.floor((hero.x-OX)/TILE)]=0;
     hero.charm=true;hero.hp=hero.maxhp;
-    say('護符を見つけた。一度だけ身代わりになる。');sfx('key');
+    /* The charm is a one-time life - a power's voice, not a lock's. */
+    say('護符を見つけた。一度だけ身代わりになる。');sfx('powerup');
     burst(hero.x,hero.y,20,'ALERT_JUICE')}
   if(keyDrop&&room===1&&Math.hypot(hero.x-keyDrop.x,hero.y-keyDrop.y)<20){
     hero.key=true;keyDrop=null;say('鍵を手に入れた。');sfx('key')}}
@@ -746,6 +748,92 @@ def beat_probe(script: str) -> str:
     return BEAT_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The milestone voices, as wired (§2, C-1346): the shrine's bigger heart
+#: and the charm's one-time life are POWERS and must ring the vibrato
+#: voice; the key on the ground is a LOCK's item and must stay plain. The
+#: AudioContext is the Recorder from the audio probe - connections, not
+#: constructions - and each site is driven for real.
+MILESTONE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const played = [], nodes = [], freqs = [];
+function Recorder(){ this.state='running'; this.currentTime=0; this.destination={};
+  this.sampleRate=44100 }
+Recorder.prototype.createOscillator = function(){
+  return { type:'', frequency:{kind:'frequency',
+             setValueAtTime(v){ freqs.push(v) }, exponentialRampToValueAtTime(){}},
+           connect(){ nodes.push('oscillator') }, start(){}, stop(){} } };
+Recorder.prototype.createBuffer = function(ch, len){
+  return { getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){
+  return { buffer:null, start(){}, stop(){},
+    connect(t){ nodes.push(t && t.kind === 'lowpass' ? 'noise->lowpass' : 'noise->direct') } } };
+Recorder.prototype.createBiquadFilter = function(){
+  return { kind:'lowpass', type:'',
+    frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+    connect(){ nodes.push('lowpass->out') } } };
+Recorder.prototype.createGain = function(){
+  return { gain:{ setValueAtTime(v){ played.push(v) },
+                  exponentialRampToValueAtTime(){} },
+    connect(t){ if (t && t.kind === 'frequency') nodes.push('lfo->frequency') } } };
+globalThis.window = { AudioContext: Recorder };
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+function findTile(r, code){ let at = null;
+  rooms[r].forEach((row, y) => row.forEach((t, x) => { if (t === code) at = [x, y] }));
+  return at }
+function strike(r, tx, ty){ room = r;
+  hero.x = OX + tx * TILE + 16; hero.y = OY + (ty + 1) * TILE + 16;
+  hero.dir = 0; hero.swing = 0; hero.queued = false; swing() }
+/* The shrine, paid for real. */
+hero.gems = 3;
+const shrineAt = findTile(0, 9);
+nodes.length = 0; strike(0, shrineAt[0], shrineAt[1]);
+const shrineNodes = nodes.slice(), heartsAfter = hero.maxhp;
+/* The charm, walked onto. */
+const charmAt = findTile(1, 11);
+room = 1; hero.x = OX + charmAt[0] * TILE + 16; hero.y = OY + charmAt[1] * TILE + 16;
+nodes.length = 0; moveHero();
+const charmNodes = nodes.slice(), charmHeld = hero.charm;
+/* The key on the ground - a lock's item, the control. */
+keyDrop = { x: OX + 5 * TILE, y: OY + 5 * TILE };
+hero.x = keyDrop.x; hero.y = keyDrop.y;
+nodes.length = 0; moveHero();
+const keyNodes = nodes.slice(), keyHeld = hero.key;
+console.log(JSON.stringify({
+  shrineNodes: shrineNodes, heartsAfter: heartsAfter,
+  charmNodes: charmNodes, charmHeld: charmHeld,
+  keyNodes: keyNodes, keyHeld: keyHeld,
+}));
+"""
+
+
+def milestone_probe(script: str) -> str:
+    """The page's own script, wrapped so the milestone voices can be heard."""
+
+    return MILESTONE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 #: The knowledge key, driven (§3, C-1340). The probe learns the order the
 #: way a player does - by striking the stone and READING what it says -
 #: because the knowledge lives in the world, not in a facts function.
@@ -828,7 +916,9 @@ __all__ = [
     "BEAT_PROBE",
     "GUARD_PROBE",
     "KNOW_PROBE",
+    "MILESTONE_PROBE",
     "beat_probe",
+    "milestone_probe",
     "combo_probe",
     "WORLD_PROBE",
     "guard_probe",

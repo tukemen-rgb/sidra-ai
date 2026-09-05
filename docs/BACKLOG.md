@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 15:55 辛口クリエイター **C-1346: 力が上がる残り 3 つの節目がまだ鍵の音——灯籠・祠・護符が powerup で鳴らない（§2）。**
+- [x] 完了 2026-09-05 16:35 UTC 辛口クリエイター（`creation_sfx_powerup` **1→6**、判定器 exit 0（BETTER）。定義を 0/1→「powerup で鳴ると実証した節目の数・欠けがあれば 0」へ変更（C-1121/C-1335 前例・両定義併記: 旧=cheer 3 site 時点で 1、新定義の変更前=3〔灯籠・祠・護符が鍵の音のまま〕、変更後=6）。3 call site を sfx('powerup') へ——灯籠点灯（リスポーン前進）・祠（最大ハート+1）・護符（身代わり）。鍵の入手・わき道の解錠は錠前なので 'key' のまま＝**力の音と錠前の音の区別が主張**。新設 MILESTONE_PROBE（adventure・Recorder 文脈で祠 hearts 3→4・護符取得・対照の鍵拾得を実駆動）と LAMP_SFX_PROBE（platformer・灯籠 lit を実駆動）。実測: 3 site とも nodes に 'lfo->frequency'、鍵拾得は ['oscillator'] のまま。破壊 2 通り〔祠→'key' 戻し→0『the shrine still rings like a pickup』／鍵拾得→'powerup'→0『the lock's own key now shouts power-up』＝**区別の両側を計器が守る**〕、復元で 6。pytest exit 0（3535 passed / 3 skip）・gate MISS 0。デューティ比は次候補のまま）**C-1346: 力が上がる残り 3 つの節目がまだ鍵の音——灯籠・祠・護符が powerup で鳴らない（§2）。**
       （辛口クリエイターループ起票・観点=§2 効果音の合成。前回=§7。
       C-1339 の起票時に次候補と明記した 3 か所）C-1339 で昇段は powerUp
       （ビブラート）になったが、**能力が恒久的に上がる残り 3 つの節目**
