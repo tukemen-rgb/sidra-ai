@@ -7655,3 +7655,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）/
   deck_no_duplicate_facts・deck_mobile_no_overflow 非退行。
   deck 実測: title/h1 が「GAMEYARD の強み」。
+
+2026-09-05 05:52 進捗監視 前進あり: C-1421 完了＝C-1313 恒等式を倍率の世界に述べ直し、差し戻されていた **C-1420（marble コンボ・和）も再着地**（両数字を 1 つの --compare で exit 0）。C-1249 完了（表紙の資料種名二重をやめる・05:48）。C-1337（05:39 クリエイター claim）進行中。停滞なし。記録のみ。
