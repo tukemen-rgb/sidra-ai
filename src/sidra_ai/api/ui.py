@@ -204,6 +204,9 @@ ASK_PAGE = """<!doctype html>
 
   var artifactList = document.getElementById("artifact-list");
   var artifactStatus = document.getElementById("artifact-status");
+  // How many generated files the entry page lists at once (C-1252). The list is
+  // newest-first, so this is the recent handful; the rest is reported as a count.
+  var ARTIFACT_LIMIT = 20;
 
   function authHeaders() {
     var token = document.getElementById("token").value;
@@ -238,8 +241,21 @@ ASK_PAGE = """<!doctype html>
       }).then(function (result) {
         clear(artifactList);
         var items = result.artifacts || [];
-        artifactStatus.textContent = items.length ? "" : "まだありません。";
-        items.forEach(function (a) {
+        // The list arrives newest-first. Every generation adds one, so an
+        // uncapped list grew to hundreds of rows - on a phone the entry page
+        // became a ~50,000px scroll that buried the projects section (C-1252).
+        // Show a recent slice; the note reports the total so nothing is hidden
+        // without saying so.
+        var shown = items.slice(0, ARTIFACT_LIMIT);
+        if (!items.length) {
+          artifactStatus.textContent = "まだありません。";
+        } else if (items.length > ARTIFACT_LIMIT) {
+          artifactStatus.textContent =
+            "新しい順に " + ARTIFACT_LIMIT + " 件を表示（全 " + items.length + " 件）。";
+        } else {
+          artifactStatus.textContent = "";
+        }
+        shown.forEach(function (a) {
           // Name, size and time. The server sends nothing else, and the page
           // asks for nothing else.
           var item = document.createElement("li");

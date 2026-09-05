@@ -3555,7 +3555,17 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [~] 作業中 2026-09-05 08:2x UTC 辛口ユーザー（29 巡目・スマホ操作）**C-1252: 入口ページの生成ファイル一覧が全件（現状 200 件）を無制限に描画し、スマホでページ高が約 50,000px になる＝終わらないスクロール、下のプロジェクト欄も埋もれる。ui.py の loadArtifacts が `items.forEach` で全件描画（上限なし）。新しい順に上位数十件で十分なのに全部出す。再現: iPhone 12 で `GET /` を開くと document 高 ~50466px。** → 動かす数字: `ui_artifact_list_bounded`（新設・一覧は新しい順に上限件数だけ描画し、超過時は総数を注記）判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・creation_3d_model_valid 等は非退行。5 通りの破壊で 10→2.5/2.5/5.0/2.5/5.0 に落ち、復元で 10.0。preview 実測: 脚注が「palette: tukemen-rgb/site docs/DESIGN.md」のみに、revenue-model.md は消えた）**C-1251: 生成 3D モデルのプレビュー脚注が、モデルと無関係の検索ヒットを「出典」として並べる。「魚の3Dモデルを作って」のプレビュー HTML 脚注が revenue-model.md / vision.md 等（BM25 の余波）を列挙。3D モデルはテンプレメッシュ＋DESIGN.md 配色で検索本文を一切使わないのに model3d_job が retrieved の source を evidence として渡していた。**
+- [x] 完了 2026-09-05 08:4x UTC 辛口ユーザー（`ui_artifact_list_bounded` 0→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・ui_artifact_list_clean 等は非退行。5 通りの破壊で 10→7.5×5 に落ち、復元で 10.0。iPhone 12 実測: document 高 50466px→**2337px**、行数 200→20、注記「新しい順に 20 件を表示（全 200 件）。」）**C-1252: 入口ページの生成ファイル一覧が全件（現状 200 件）を無制限に描画し、スマホでページ高が約 50,000px になる＝終わらないスクロール、下のプロジェクト欄も埋もれる。ui.py の loadArtifacts が `items.forEach` で全件描画（上限なし）。**
+      （辛口ユーザーループ起票・29 巡目 スマホ操作・自分の観察では実害大・3/10）
+      **最小の解決**は loadArtifacts に `ARTIFACT_LIMIT=20` を置き、新しい順
+      （API は modified 降順）に `items.slice(0,LIMIT)` だけ描画、超過時は
+      artifactStatus に総数を注記（隠すのでなく件数を明示）。判定器は
+      ASK_PAGE 源に上限（≤50）・境界スライス描画・超過時の総数注記・
+      loadArtifacts 本体が items 全件を回さないことを静的に固定（レイアウト高は
+      offline 計算不能なため）。E2E は iPhone 12 で高さ・行数・注記を確認。
+      設計上の逸脱なし。**注記**: 古い分は一覧に出ないが「更新」で最新 20 件を
+      再取得（プロジェクト欄・名指しDLは従来どおり）。次候補: プロジェクト一覧
+      （loadProjects も items.forEach 全件）も同様に上限を検討。判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・creation_3d_model_valid 等は非退行。5 通りの破壊で 10→2.5/2.5/5.0/2.5/5.0 に落ち、復元で 10.0。preview 実測: 脚注が「palette: tukemen-rgb/site docs/DESIGN.md」のみに、revenue-model.md は消えた）**C-1251: 生成 3D モデルのプレビュー脚注が、モデルと無関係の検索ヒットを「出典」として並べる。「魚の3Dモデルを作って」のプレビュー HTML 脚注が revenue-model.md / vision.md 等（BM25 の余波）を列挙。3D モデルはテンプレメッシュ＋DESIGN.md 配色で検索本文を一切使わないのに model3d_job が retrieved の source を evidence として渡していた。**
       （辛口ユーザーループ起票・28 巡目 3D生成の出典・4/10）**最小の解決**は
       model3d_job が retrieved を evidence として渡すのをやめる＝
       generate_model3d の既定（DESIGN.md 配色）を使う。generate_model3d は

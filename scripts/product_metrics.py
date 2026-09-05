@@ -723,6 +723,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1252: loadArtifacts rendered every artifact (200 in the instance), so
+    # the entry page grew to ~50,000px on a phone. It now shows a bounded,
+    # newest-first slice and reports the total when there are more.
+    from sidra_ai.evals.ui_artifact_list_bounded import (
+        evaluate_ui_artifact_list_bounded,
+    )
+
+    list_bounded = evaluate_ui_artifact_list_bounded()
+    c.add(
+        "ui_artifact_list_bounded",
+        "生成ファイル一覧は新しい順に上限件数だけ描画（スマホで無限スクロールにしない）",
+        10.0 * list_bounded.checks_passed / list_bounded.checks_total,
+        detail=f"{list_bounded.checks_passed}/{list_bounded.checks_total} checks; "
+               "src/sidra_ai/evals/ui_artifact_list_bounded.py"
+               + ("" if list_bounded.passed else "; " + "; ".join(list_bounded.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1214: a long citation token widened the page past a phone viewport
     # and the browser shrank every glyph to fit. The wrap mechanics are
     # pinned on the page source; the E2E (scrollWidth == viewport after an
