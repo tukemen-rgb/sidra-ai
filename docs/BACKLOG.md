@@ -2949,6 +2949,29 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 02:06 辛口クリエイター **C-1333: ゴーストが 1 体だけ（§11 事実 1 は「複数のゴースト」で効果 2 倍と言っている）。**
+      （辛口クリエイターループ起票・観点=§11 自分と競わせる。前回=§1）
+      §11 事実 1 の Bath 実験は**複数ゴースト**走で単独の 2 倍の伸び——
+      「上達すると集団の先頭に立てる」が効く理由なのに、SIDRA の幽霊は
+      自己ベスト 1 体だけで「集団」が無い。2 体目は**直前の走り**: ベスト
+      は遠い日の壁、直前は今日の自分で、両方に勝てた周回だけが「先頭」。
+      実装（C-1401 の前例どおり racing から）: ghost.py に第 2 の鍵
+      sidra.ghost.last.<型> を追加し、ghostBank は record 時のみベスト
+      軌跡・**触れた完走なら毎回**直前軌跡を保存（roundBank の touched
+      ガードの内側なので放置走行は残らない）。ghostAtLast(progress) と
+      ghostFacts の lastHad/lastDrawn/lastStored を追加、demo 汚染は
+      既存 ghostForget が両方を吸収。racing の draw はベスト（塗り
+      0.32）より薄い**輪郭だけ**の直前ゴースト（stroke 0.35）をベストの
+      下に描く——記録と同一走のときは重なって 1 体に見えるのが正直な形。
+      **同時に守る性質**: 記録でない走りがベスト軌跡を上書きしないこと
+      （破壊 2 で検査）。probe: 3 走——1 走目（幽霊なし・両軌跡保存）→
+      2 走目を tune 減速で**記録に届かない走り**にし、ベスト幽霊と直前
+      幽霊の両方に会う＋ベスト鍵が 1 走目のまま不変＋直前鍵だけ 2 走目に
+      更新→パネル off で両方消え描画は素の走りと一致。破壊 2 通り
+      〔直前ゴーストの描画削除→『the last run left no ghost』／直前軌跡を
+      ベスト鍵に無条件で書く→『a defeat overwrote the record's trail』〕。
+      marble/platformer への展開は次候補として記録。
+      → 動かす数字: creation_second_ghost unmeasurable→1
 - [x] 完了 2026-09-05 01:30 UTC 辛口クリエイター（`creation_squash_stretch` unmeasurable→**1**、判定器 exit 0。me.sq を導入し、跳んだ瞬間 1.25・着地の瞬間 max(0.55, 1-落下速度×0.07)・毎フレーム 0.25 で 1 へ復帰＋0.01 未満はスナップ。描画は足元アンカーで高さ 12×sq・幅 14×(2-sq)（体積感維持）、頭は胴の上端に追従、ゴーストのシルエットは記憶なので不変。reduced-motion では一切書かない（決定性 probe 群・ゴーストの描画一致検査はビット一致のまま＝全 3350 テスト緑で確認）。新設 SQUASH_PROBE 実測（normal・hard 同値）: 上昇中 max 1.1875・着地フレーム 0.66・30f 後ちょうど 1・立ち姿の揺れ 0、REDUCED 走行は全フレーム 1。破壊 2 通り〔イベント書き込み削除→『the jump never stretches (1)』＋『the landing never squashes (1)』で 0／REDUCED ガード削除→専用 reduced 検査だけが『reduced motion still bounces』で 0＝通常 2 走行は素通し、reduced 走行の存在理由の証明〕。**巻き添えの計器修理 1 件**: 全通し検証で test_every_metric_the_backlog_names_exists が赤——原因は私でなく、兄弟ループの作業中 claim（C-1244）が新設予定の数字を名指ししていたこと。claim→完了 push の間はその名に実測が無いのが**ワークフローの設計どおり**なので、検査を「[~] でない項目だけが名指しした数字は実在すること」に絞った（基準緩和ではなく、検査が正直に主張できる範囲への限定。docstring に経緯を記載）。pytest exit 0（3350 passed / 3 skip）・gate MISS 0）**C-1332: ジャンプの体が棒のまま（§1 の技法表で唯一どこにも無い「拡縮バウンス」）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§13）§1 の技法
       リスト（トゥイーン・拡縮バウンス・粒子・揺れ・ヒットストップ・音）の
