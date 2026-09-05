@@ -33,6 +33,8 @@ juice preambles.
 
 from __future__ import annotations
 
+import json
+
 #: Words that pick this template. ``ゴジラ`` is here on purpose: the genre is
 #: buildable, so the request must *route*, and the title guard in
 #: ``games.generate_game`` is what keeps the name off the artifact.
@@ -140,9 +142,21 @@ function step(){t++;
     cracks.forEach(c=>{if(c.warn>0){c.warn--;if(c.warn===0)sfx('clash')}
       else c.open=Math.min(56,c.open+CRACK*cycleTense())});
     cracks=cracks.filter(c=>{
-      if(c.warn===0&&c.open>10&&Math.abs(c.x-me.x)<c.open*0.5+10){
+      /* The gap and the radius that would cost a heart, named once and
+         handed to both the collision and the graze (C-1419). The radius
+         is the expression it has always been - a crack half its own width
+         plus ten - so standing near one is exactly as dangerous as it
+         was; the band is what is new, and it sits strictly outside. */
+      const gk=c.open*0.5+10,gd=Math.abs(c.x-me.x);
+      const live=c.warn===0&&c.open>10;
+      if(live&&gd<gk){
+        /* One crack, two losses: the heart and the graze run. */
+        grazeStruck(gd,gk);grazeLost();
         me.hp--;shake(6);sfx('hurt');hitstop(3);
         if(me.hp<=0){state='lost';failBeat(me.x,GROUND-20)}return false}
+      /* Outside the radius that would have hurt, inside the ribbon: the
+         crack was stood beside rather than fled from. */
+      if(live){grazeNear(c,gk,gd,me.x,GROUND-30)}
       return c.open<56});
     dust.forEach(d=>{d.r+=0.6;d.a-=0.03});dust=dust.filter(d=>d.a>0);}
   draw();requestAnimationFrame(step)}
@@ -382,3 +396,127 @@ __all__ = [
     "PROBE",
     "probe_source",
 ]
+
+
+#: Fights the real generated boss three ways, so what the graze band does
+#: is read off a page that played rather than off this source. The player
+#: is steered by pressing the arrow keys the template listens for - not by
+#: writing to ``me.x`` - so the probe cannot reach a position the game
+#: would not let a person reach.
+#:
+#: ``mode``: ``hug`` stands at the outer edge of the ribbon around the
+#: nearest live crack, ``clear`` keeps to the far side of the arena, and
+#: ``crash`` walks into the crack on purpose.
+GRAZE_PROBE = """
+const kNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : kNothing),
+  apply: () => kNothing, set: () => true });
+const kHandlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT, addEventListener(){}, addListener(){} });
+let kClock = 0;
+globalThis.performance = { now: () => kClock };
+globalThis.addEventListener = (type, fn) => { (kHandlers[type] = kHandlers[type] || []).push(fn) };
+globalThis.Image = function(){ return kNothing };
+const kStore = {};
+globalThis.localStorage = { getItem: (k) => (k in kStore ? kStore[k] : null),
+  setItem: (k, v) => { kStore[k] = String(v) }, removeItem: (k) => { delete kStore[k] } };
+globalThis.location = { reload: () => {} };
+globalThis.KeyboardEvent = function(type, init){ return Object.assign({ type: type }, init) };
+globalThis.dispatchEvent = (ev) => { (kHandlers[ev.type] || []).forEach(fn => fn(ev)); return true };
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => kNothing, querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {},
+    addEventListener: () => {},
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => kNothing }) };
+let kQueued = null;
+globalThis.requestAnimationFrame = (fn) => { kQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+const MODE = MODE_INPUT;
+let kFrame = 0;
+function kRun(n){ for (let i = 0; i < n && kQueued; i++) {
+  const fn = kQueued; kQueued = null; kClock += 50 / 3; fn(kFrame++ * 16) } }
+function kKey(type, k){ (kHandlers[type] || []).forEach(fn => fn({ key: k, code: k,
+  preventDefault(){}, stopImmediatePropagation(){} })) }
+kKey('keydown', ' '); kKey('keyup', ' ');
+kRun(2);
+/* The crack the player would meet, and the radius that would cost a heart -
+   both read off the page's own state, using the page's own expression, so
+   the probe cannot drift from the collision the template runs. */
+function kNearest(){ let best = null, bd = 1e9;
+  cracks.forEach(c => { if (!(c.warn === 0 && c.open > 10)) return;
+    const d = Math.abs(c.x - me.x);
+    if (d < bd) { bd = d; best = c } });
+  return best ? { crack: best, dist: bd, kill: best.open * 0.5 + 10 } : null }
+/* What a given spot on the ground is worth, against every live crack at
+   once. Standing beside one crack is no good if it puts you inside
+   another, and the arena is narrow enough that this happens. */
+function kSpot(x){ let margin = 1e9, inBand = false, hurt = false;
+  cracks.forEach(c => { if (!(c.warn === 0 && c.open > 10)) return;
+    const kill = c.open * 0.5 + 10, d = Math.abs(c.x - x);
+    if (d < kill) { hurt = true; return }
+    if (d <= kill + BAND_INPUT) { inBand = true }
+    margin = Math.min(margin, d - kill) });
+  return { hurt: hurt, inBand: inBand, margin: margin } }
+/* Where this mode wants to stand, chosen by scanning the ground rather
+   than by stepping off one crack - hug wants the safest spot that is
+   still inside a ribbon, clear wants the safest spot there is, and crash
+   walks at the nearest crack. None of them writes to me.x: the arrow keys
+   are pressed and the template moves the player, so the probe can only
+   reach places a person could. */
+function kWant(){
+  if (MODE === 'crash') { const near = kNearest(); return near ? near.crack.x : null }
+  let best = null, bestValue = -1e9;
+  for (let x = 30; x <= 690; x += 4) {
+    const spot = kSpot(x);
+    if (spot.hurt) continue;
+    const reach = Math.abs(x - me.x) * 0.05;
+    const value = MODE === 'clear'
+      ? Math.min(spot.margin, 200) - reach
+      : (spot.inBand ? 1000 : 0) + Math.min(spot.margin, BAND_INPUT) - reach;
+    if (value > bestValue) { bestValue = value; best = x } }
+  return best }
+const timeline = [];
+let held = null;
+for (let f = 0; f < FRAMES_INPUT; f++) {
+  const want = kWant();
+  let press = null;
+  if (want !== null) { const gap = want - me.x;
+    if (gap < -1.5) press = 'ArrowLeft'; else if (gap > 1.5) press = 'ArrowRight' }
+  if (press !== held) {
+    if (held) kKey('keyup', held);
+    if (press) kKey('keydown', press);
+    held = press }
+  const before = grazeFacts();
+  kRun(1);
+  const after = grazeFacts();
+  if (after.seen !== before.seen || after.paid !== before.paid
+      || after.struck.length !== before.struck.length) {
+    timeline.push({ f: f, seen: after.seen, paid: after.paid, run: after.run,
+      hp: bossFacts().hp,
+      hit: after.struck.length !== before.struck.length });
+  }
+  if (bossFacts().state !== 'fight') break;
+}
+if (held) kKey('keyup', held);
+const facts = grazeFacts();
+console.log(JSON.stringify({ mode: MODE, graze: facts, timeline: timeline,
+  hp: bossFacts().hp, cycles: bossFacts().cycles, state: bossFacts().state,
+  roundScore: roundScore(), frames: kFrame }));
+"""
+
+
+def graze_probe_source(
+    script: str, *, mode: str = "hug", frames: int = 2000, reduced: bool = False
+) -> str:
+    """The page's own script, wrapped so the boss can be fought in node."""
+
+    from sidra_ai.creation.graze import GRAZE_BAND
+
+    return (
+        GRAZE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("MODE_INPUT", json.dumps(mode))
+        .replace("FRAMES_INPUT", str(int(frames)))
+        .replace("BAND_INPUT", str(GRAZE_BAND))
+        .replace("REDUCED_INPUT", "true" if reduced else "false")
+    )

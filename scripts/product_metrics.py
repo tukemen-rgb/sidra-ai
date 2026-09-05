@@ -9352,6 +9352,139 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the second template that pays for standing close (C-1419) -------
+    #
+    # C-1406 put a graze band outside the shooter's kill radius. This wires
+    # the same part to kaiju, and the entry that asked for it - like the
+    # unwired table's own note - said 「拳」. The boss has no fists. It
+    # opens cracks in the ground whose radius grows as they widen, and that
+    # is the hazard the band went outside of. The same correction the graze
+    # module already records for the shooter's 敵弾.
+    #
+    # Flown three ways on the real page, steered by pressing the arrow keys
+    # the template listens for rather than by writing to the player's
+    # position - so the probe can only reach places a person could.
+    from sidra_ai.creation.graze import GRAZE_BAND as _kg_band, GRAZE_RUN as _kg_run
+    from sidra_ai.creation.kaiju import graze_probe_source as _kg_probe
+
+    kg_gaps: list[str] = []
+    kg_page = _tune_generate("怪獣ゲームを作って", template="kaiju").html
+    kg_script = _scene_re.search(r"<script>(.*?)</script>", kg_page, _scene_re.S)
+    kg_runs: dict[str, dict] = {}
+    if kg_script is None:
+        kg_gaps.append("no script on the page")
+    else:
+        def _kg_fly(**kwargs):
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_kg_probe(kg_script.group(1), **kwargs),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                raise ValueError(out.stderr.strip()[:60])
+            return json.loads(out.stdout.strip().splitlines()[-1])
+
+        try:
+            kg_runs["hug"] = _kg_fly(mode="hug", frames=3000)
+            kg_runs["clear"] = _kg_fly(mode="clear", frames=3000)
+            kg_runs["crash"] = _kg_fly(mode="crash", frames=3000)
+            kg_runs["quiet"] = _kg_fly(mode="hug", frames=3000, reduced=True)
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            kg_gaps.append(f"probe unavailable ({exc})")
+
+    if len(kg_runs) == 4:
+        hug, clear = kg_runs["hug"], kg_runs["clear"]
+        crash, quiet = kg_runs["crash"], kg_runs["quiet"]
+        # 1. Standing beside a crack pays, and the points reach the round's
+        #    own score rather than sitting in a counter nobody reads.
+        if hug["graze"]["paid"] <= 0:
+            kg_gaps.append(f"a fight spent beside the cracks earned nothing ({hug['graze']})")
+        elif hug["roundScore"] <= hug["cycles"]:
+            kg_gaps.append(
+                f"the graze points never reach the score "
+                f"({hug['roundScore']} against {hug['cycles']} head hits)"
+            )
+        # 2. Every brush the page paid for was outside the radius that would
+        #    have cost a heart, and inside the ribbon. Read off the page's
+        #    own record of the gap it judged each brush at.
+        #
+        #    A guard rather than a confirmed detector, and worth saying so:
+        #    widening the band to reach *inside* the radius leaves this at
+        #    full marks, because it is unreachable - the collision branch
+        #    runs first and removes the crack, so grazeNear is never called
+        #    from inside the radius at all. What is confirmed is the other
+        #    direction: paying from anywhere is caught. The check earns its
+        #    place against a future reordering of those two branches.
+        outside = [
+            pair
+            for pair in hug["graze"]["at"]
+            if not (pair[1] < pair[0] <= pair[1] + _kg_band)
+        ]
+        if not hug["graze"]["at"]:
+            kg_gaps.append("the page recorded no brushes to check")
+        elif outside:
+            kg_gaps.append(f"paid outside the band: {outside[:3]}")
+        # 3. It pays on a run, not per brush.
+        if hug["graze"]["seen"] < hug["graze"]["paid"] * _kg_run:
+            kg_gaps.append(
+                f"paid more often than the run allows "
+                f"({hug['graze']['seen']} brushes, {hug['graze']['paid']} points)"
+            )
+        # 4. Keeping away earns nothing. Without this, "the band pays" could
+        #    be true of the whole arena.
+        if clear["graze"]["paid"] > 0:
+            kg_gaps.append(f"a fight spent at distance was paid {clear['graze']['paid']}")
+        # 5. The crack still costs a heart, a hit takes the run, and nothing
+        #    is banked for walking into them.
+        if crash["hp"] > 0:
+            kg_gaps.append("walking into the cracks no longer costs anything")
+        hits = [row for row in crash["timeline"] if row.get("hit")]
+        if not hits:
+            kg_gaps.append("the crashing fight never lost a heart")
+        elif any(row["run"] != 0 for row in hits):
+            kg_gaps.append(f"a hit did not take the run (left {[r['run'] for r in hits][:3]})")
+        if crash["graze"]["paid"] > 0:
+            kg_gaps.append("a fight that kept walking in still banked points")
+        # ...and the radius it hurts at has not moved: every heart lost was
+        # lost from inside the radius the page itself judged it by.
+        struck = crash["graze"]["struck"]
+        if not struck:
+            kg_gaps.append("no crack landed, so the radius is unmeasured")
+        elif [pair for pair in struck if pair[0] >= pair[1]]:
+            kg_gaps.append(
+                f"a heart was lost from outside the radius: "
+                f"{[p for p in struck if p[0] >= p[1]][:2]}"
+            )
+        # 6. Reduced motion drops the particles, not the points (C-1406's
+        #    contract: the reward is points and nothing else).
+        if quiet["graze"]["paid"] <= 0:
+            kg_gaps.append("with reduced motion the brushes stopped paying")
+    c.add(
+        "creation_kaiju_graze",
+        "怪獣戦でも「かすめる」が選べる（危険は増やさず、点だけ増える）",
+        0.0 if kg_gaps else 1.0,
+        detail=(
+            "; ".join(kg_gaps)
+            if kg_gaps
+            else f"実ページを 3 通り戦って計測。地割れの傍に立ち続けた戦いは "
+            f"{kg_runs['hug']['graze']['paid']} 点を稼ぎ、その点はラウンドの得点に"
+            f"届く（{kg_runs['hug']['roundScore']}）。支払われた接近は全て"
+            f"「心を失う半径の外・帯 {_kg_band}px の内」——ページ自身が判定に使った"
+            f"間合いの記録で確認。{_kg_run} 回続けて 1 点で、離れて戦えば 0 点。"
+            "割れ目に踏み込めば心は減り、そのたび連続は 0 に戻り、1 点も入らない。"
+            "心を失った間合いは全て半径の内側。**危険が増えていないこと自体も"
+            "実測した**——graze の配線を kaiju から丸ごと剥がすと、3 通りの戦いは"
+            "どれも同じフレームで同じ hp・同じ結末になる（hug 2818 / clear 2692 / "
+            "crash 1441 フレーム、いずれも一致）。点が増えるだけで戦いは動いていない。"
+            "reduced でも点は入る（粒子だけが消える）。"
+            "起票と未配線表はどちらも「拳」と書いていたが、この怪獣に拳は無い——"
+            "地面を割り、その半径は割れ目が広がるほど育つ。帯はその外に置いた"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

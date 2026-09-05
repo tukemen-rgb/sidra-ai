@@ -35,12 +35,18 @@ import json
 
 #: Wired here first, for the same reason the combo ladder was: one running
 #: page can be judged, nine cannot be judged at once.
-GRAZE_TEMPLATES: tuple[str, ...] = ("shooter",)
+#:
+#: kaiju is the second (C-1419), and the entry that asked for it was wrong
+#: about what it would be wired to - as this table's own note was. Both
+#: said 「拳」: the boss has no fists. It opens cracks in the ground, and
+#: what a player stands near is a crack whose radius grows as it widens.
+#: That is the hazard the band went outside of. The same correction the
+#: docstring above records for the shooter's 敵弾.
+GRAZE_TEMPLATES: tuple[str, ...] = ("shooter", "kaiju")
 
 #: Why each of the others is not wired. "Nothing to graze" and "not yet"
 #: are different answers, and only the second is a backlog item.
 GRAZE_UNWIRED: dict[str, str] = {
-    "kaiju": "the obvious next one: the fists have a reach and a near-miss is legible",
     "duel": "a parry window already fills this role; two risk layers needs a decision",
     "racing": "the barriers are the hazard, but the car is steered along them for whole seconds - a band would pay continuously",
     "marble": "the drop is the hazard and its edge is the course itself",

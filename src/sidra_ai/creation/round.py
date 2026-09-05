@@ -74,7 +74,10 @@ ROUND_SCORE: dict[str, tuple[str, str]] = {
     # Points rather than fish since C-1331: the 会心 double is in it. The
     # fish count stays on the HUD beside it, per C-1405's precedent.
     "fishing": ("score", "得点"),
-    "kaiju": ("cycles", "頭部への一撃"),
+    # Head hits plus what the graze runs paid (C-1419), the same shape
+    # the shooter took under C-1406: an expression rather than a rename,
+    # so 周期 stays the count it always was on the HUD.
+    "kaiju": ("cycles+grazeFacts().paid", "得点"),
     "marble": ("score", "スコア"),
     "platformer": ("me.gems", "宝石"),
     "puzzle": ("score", "得点"),
