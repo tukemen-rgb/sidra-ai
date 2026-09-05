@@ -2949,6 +2949,26 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 05:52 辛口クリエイター **C-1337: 走る 2 型の HUD が最終場面の空に沈む（racing 3.07:1・platformer 3.36:1・§4）。**
+      （辛口クリエイターループ起票・観点=§4 視認性。前回=§10。C-1329/
+      C-1334 が 8 型に入れた HUD 契約の残り 2 型。racing はラップ＝場面で
+      setScene し背景が scenePaint('SURFACE') に着色、platformer は進行
+      3 分割で scenePaint('BG') に着色するのに、両者とも LAP 表示・走行
+      状態・得点の文字を INK 直描き——最明の最終場面で実測: racing
+      default 3.07 / terminal 3.50 / dusk 3.22、platformer default 3.36 /
+      terminal 3.97 / dusk 3.55（WCAG 1.4.3 の 4.5:1 未満。紙テーマのみ
+      生存）。実装: C-1329 と同じ契約（HUD_INK/HUD_PLATE/HUD_A=0.7 の
+      定数経由＋未着色サーフェスの板を α 合成）を両型に。hudFacts は
+      実背景が SURFACE でない platformer のため per-scene の実塗り
+      skies[] も報告し、計器は skies があればそれへ板を合成して測る。
+      計器 creation_hud_contrast は **定義を 0/1→「契約に合格した型の
+      数」へ**（C-1121/C-1335 の前例どおり両定義を記す: 旧定義=1、新
+      定義の変更前=8、変更後=10）。probe は既存 PROBE の出力に hud: を
+      追加。破壊 2 通り〔racing の板描画を削除→『racing: act 2 HUD
+      sinks to 3.07』で 0／platformer の hudFacts から skies を偽装
+      （実背景でなく床を返す）→計器が沈みを見逃さないことを別破壊
+      （板 α を 0 へ）で確認〕。→ 動かす数字: creation_hud_contrast
+      8→10（新定義）
 - [x] 完了 2026-09-05 05:20 UTC 辛口クリエイター（`creation_music_break` unmeasurable→**1**、判定器 exit 0（NEW）。musicTick 冒頭に区切りガード——ROUND_DONE / roundEnded() の間は予約せず MUSIC_NEXT=-1 を張り直す（typeof ガード付き・停止吸収と同じ理由で再開バーストを防ぐ）。新設 END_PROBE で duel を受動敗北させ own-end を実測: 通常 during=21・after=0・resumed=22、難しい版 during=28・after=0・resumed=28、両方 endedBy=template。破壊 2 通り〔ガード削除→0『the loop plays over the break (20 notes)／(17 notes)』・ガード常時 true→0『the music never starts』＋『the music never comes back』〕。pytest exit 0（3420 passed / 3 skip）・gate MISS 0。テスト test_creation_music_break.py 新設。区切りの静寂に勝敗ビートだけが鳴り、R で音楽が戻る）**C-1336: 音楽が終わりを知らない（区切りの上でも同じループが跳ね続ける・§10）。**
       （辛口クリエイターループ起票・観点=§10 BGM。前回=§11。基準不足の
       ため先に外部調査で §10 事実 4 を増築——adaptive music の定石は
