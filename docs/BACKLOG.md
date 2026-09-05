@@ -2949,6 +2949,25 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 15:55 辛口クリエイター **C-1346: 力が上がる残り 3 つの節目がまだ鍵の音——灯籠・祠・護符が powerup で鳴らない（§2）。**
+      （辛口クリエイターループ起票・観点=§2 効果音の合成。前回=§7。
+      C-1339 の起票時に次候補と明記した 3 か所）C-1339 で昇段は powerUp
+      （ビブラート）になったが、**能力が恒久的に上がる残り 3 つの節目**
+      ——platformer の灯籠点灯（リスポーン前進）・adventure の祠（最大
+      ハート+1）・護符（一度だけの身代わり）——はまだ sfx('key')＝鍵の
+      拾得と同じ音。錠前の音と力の音が同じでは、鳴った瞬間に何が起きた
+      か聞き分けられない。実装: 3 call site を sfx('powerup') へ（鍵の
+      入手・わき道の解錠は「錠前」なので 'key' のまま＝区別が主張）。
+      計測: 新設 MILESTONE_PROBE（adventure・Recorder 文脈で祠と護符を
+      実駆動＋鍵拾得を対照）と LAMP_SFX_PROBE（platformer・灯籠を実駆動）
+      で各 site の nodes に 'lfo->frequency' が入ること・**鍵の拾得には
+      入らない**ことを読む。計器 creation_sfx_powerup は **定義を 0/1→
+      「powerup で鳴ると実証した節目の数」へ**（C-1121/C-1335 前例・
+      両定義併記: 旧=1、新定義の変更前=cheer 3 site の 3、変更後=6）。
+      破壊 2 通り〔祠を 'key' へ戻す→0『the shrine still rings like a
+      pickup』／鍵拾得を 'powerup' へ→0『the lock's own key now shouts
+      power-up』＝区別の両側を計器が守る実証〕。デューティ比は次候補の
+      まま。→ 動かす数字: creation_sfx_powerup 3→6（新定義）
 - [x] 完了 2026-09-05 15:35 UTC 辛口クリエイター（`creation_depth_layers` **1→2**、判定器 exit 0（BETTER）。定義を 0/1→「契約に合格した型の数・欠けがあれば 0」へ変更（C-1121/C-1335 前例・両定義併記: 旧=kaiju のみ検査で 1、新定義の変更前=duel 未報告 gap により 0）。duel に kaiju と同じ契約（FAR_A=0.22・depthFacts・BORDER の実塗り α 合成の固定形状スカイライン・rand() 消費ゼロ・アニメなし）——両ファイターの後ろに霞んだ地平。pace_probe 出力に depth: を足すだけで C-1342 の汎用収穫が拾い**追加 node 実行ゼロ**。実測 4 テーマ×3 場面: 遠景/空 1.038〜1.127:1・中景/空 1.21〜1.66:1・順序 far<solid 全 12 組合せ成立。破壊 2 通り〔FAR_A→0→0『the far layer is invisible (1.00)』×12／FAR_A→1→0『as near as the midground』×12〕、復元で 2。pytest exit 0（3516 passed / 3 skip）・gate MISS 0。テストを kaiju/duel の 2 型に拡張。残る平面背景（shooter は星・marble は深度走行で各自の奥行きあり——本当に平面なのは残り僅か）**C-1345: 決闘の空も平面——観察 7 の 3 層が kaiju 1 型で止まっている（§7）。**
       （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§8。C-1342
       の次候補）duel の現物は SURFACE の空 1 枚＋床帯 24px——中景
