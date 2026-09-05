@@ -98,6 +98,19 @@ setPal(KAIJU_PAL_TOKEN);
    sinking the themed ink to ~3:1 here too (C-1329's fix, more templates). */
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
+/* The far layer (§7 観察 7, C-1342): distance is drawn by CONTRAST, not
+   colour - a skyline in the midground's own paint, faded toward the sky,
+   sits behind the leg so the monster's scale has a horizon to dwarf. The
+   ridge is a fixed function of x (no rand(): the layout every seed
+   promised does not move), and it never animates, so reduced motion has
+   nothing to freeze. draw() paints through FAR_A and depthFacts() reports
+   the per-scene paints, the same contract shape as the HUD's. */
+const FAR_A=0.22;
+function depthFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
+      alpha:FAR_A})}
+  SCENE=keep;return out}
 function legX(){return W*0.72+Math.sin(t/90)*26}
 function fire(){if(state!=='fight')return;
   /* A press during the cooldown is kept, not dropped (§12, C-1311): one
@@ -175,6 +188,12 @@ function draw(){const now=performance.now();
      (§7 観察 5-6). Mood only - the leg and the head still read by shape. */
   setScene(boss.phase==='leg'?0:boss.phase==='open'?1:2);
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,W,H);
+  /* The ruined skyline, one haze-step off the sky (観察 7). */
+  cx.globalAlpha=FAR_A;cx.fillStyle=scenePaint('BORDER_TOKEN');
+  for(let fx=0;fx<W;fx+=48){
+    const fh=22+20*Math.abs(Math.sin(fx*0.13+2));
+    cx.fillRect(fx,GROUND-fh,34,fh)}
+  cx.globalAlpha=1;
   cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(0,GROUND,W,H-GROUND);
   cracks.forEach(c=>{
     if(c.warn>0){cx.strokeStyle='MAGENTA_TOKEN';cx.lineWidth=2;
@@ -313,6 +332,7 @@ const hud = hudFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
   hud: hud,
+  depth: depthFacts(),
   beat: end.beat, phaseStart: before.phase, legHpStart: before.legHp,
   cyclesAfterMisses: afterMisses.cycles, legHpAfterMisses: afterMisses.legHp,
   sawOpen: sawOpen, bodyWhileAlive: bodyWhileAlive,

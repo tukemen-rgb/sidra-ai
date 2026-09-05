@@ -3168,6 +3168,10 @@ def measure_creation(c: Collector) -> None:
     #: HUD contract (the three whose HUD sits on the full-frame sky).
     #: Collected here so the contrast check below costs no extra node runs.
     scene_hud: dict[str, tuple[dict, list]] = {}
+    #: label -> depthFacts() for the templates whose probe reports a far-
+    #: layer contract (§7 観察 7, C-1342). Harvested here so the depth
+    #: check below costs no extra node runs.
+    scene_depth: dict[str, list] = {}
     for request, key, builder in _scene_targets:
         for suffix in _scene_themes:
             label = f"{key}/{suffix or 'default'}"
@@ -3194,6 +3198,8 @@ def measure_creation(c: Collector) -> None:
             scenes = seen.get("scenes") or []
             if isinstance(seen.get("hud"), dict):
                 scene_hud[label] = (seen["hud"], scenes)
+            if isinstance(seen.get("depth"), list):
+                scene_depth[label] = seen["depth"]
             if len(scenes) < 3:
                 scene_gaps.append(f"{label}: {len(scenes)} scene(s) reported")
                 continue
@@ -3344,6 +3350,55 @@ def measure_creation(c: Collector) -> None:
             "最終場面で素の ink が 3.07〜3.97:1 に沈んでいた）"
             if not hud_gaps
             else "; ".join(hud_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the far layer is far -----------------------------------------
+    #
+    # §7 観察 7 (C-1342): distance is drawn by CONTRAST - a foreground
+    # silhouette, a midground subject, a faded far layer - and the film
+    # pairs it with §6's partial-view scale. The kaiju arena was a flat
+    # sky behind the one template whose whole subject is scale. Its page
+    # now reports a depth contract (the sky, the midground's solid paint,
+    # and the alpha the skyline is faded by), read off the same driven
+    # probes as the scene palettes above: the blended far layer must be
+    # visibly there (>=1.02:1 against the sky) yet fainter than the
+    # midground silhouette in every scene of every theme.
+    depth_gaps: list[str] = []
+    depth_seen = {label for label in scene_depth if label.startswith("kaiju/")}
+    for label in sorted(depth_seen):
+        for act, plane in enumerate(scene_depth[label]):
+            try:
+                far = _srgb_lum(
+                    _hud_blend(plane["alpha"], plane["solid"], plane["sky"])
+                )
+                sky = _srgb_lum(plane["sky"])
+                solid = _srgb_lum(plane["solid"])
+            except (KeyError, TypeError, ValueError):
+                depth_gaps.append(f"{label}: depth contract unreadable")
+                break
+            if _wcag(far, sky) < 1.02:
+                depth_gaps.append(
+                    f"{label}: act {act} the far layer is invisible ({_wcag(far, sky):.2f})"
+                )
+            elif _wcag(far, sky) >= _wcag(solid, sky):
+                depth_gaps.append(
+                    f"{label}: act {act} the far layer is as near as the leg"
+                )
+    for missing in {f"kaiju/{s or 'default'}" for s in _scene_themes} - depth_seen:
+        depth_gaps.append(f"{missing}: no depth contract reported")
+    c.add(
+        "creation_depth_layers",
+        "遠景は淡く近景は濃い",
+        1.0 if not depth_gaps else 0.0,
+        detail=(
+            "kaiju × 4 テーマ × 全 3 場面で、遠景スカイライン（中景と同じ"
+            "塗りを α 合成で霞ませたもの）が空より見えて（≥1.02:1）中景の"
+            "シルエットより淡いことを実測（§7 観察 7 の 3 層——手前・中景・"
+            "奥の霞。実測 遠景 1.04〜1.12:1・中景 1.21〜1.65:1）"
+            if not depth_gaps
+            else "; ".join(depth_gaps)
         ),
         kind=OUTCOME,
     )

@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 11:55 辛口クリエイター **C-1342: 巨獣の空に奥行きが無い——観察 7 の 3 層が §6 の巨大さと併用されるべき現場で欠けている（§7）。**
+- [x] 完了 2026-09-05 12:35 UTC 辛口クリエイター（`creation_depth_layers` unmeasurable→**1**、判定器 exit 0（NEW）。kaiju の空と地面の間に遠景スカイライン——中景（BORDER）と同じ塗りを FAR_A=0.22 で空へ α 合成した固定形状の稜線（rand() 消費ゼロ・アニメなしで reduced も不変）。契約は C-1329 型（定数 FAR_A＋depthFacts() が per-scene の sky/solid/alpha を報告）、計器は scene ループの既存 kaiju probe 出力から depth を収穫＝**追加 node 実行ゼロ**。実測 4 テーマ×3 場面: 遠景/空 1.04〜1.12:1（見えるが淡い）・中景/空 1.21〜1.65:1（順序 far<solid 全 12 組合せ成立）。破壊 2 通り〔FAR_A→0→全 12 組合せ 0『the far layer is invisible (1.00)』／FAR_A→1→全 12 組合せ 0『the far layer is as near as the leg』〕、復元で 1。pytest exit 0（3480 passed / 3 skip）・gate MISS 0。テスト test_creation_depth_layers.py 新設。duel 等の平面背景は次候補）**C-1342: 巨獣の空に奥行きが無い——観察 7 の 3 層が §6 の巨大さと併用されるべき現場で欠けている（§7）。**
       （辛口クリエイターループ起票・観点=§7 配色と構成。前回=§1）§7
       観察 7「遠景は霧・煙・塵のレイヤで一段ずつ淡くなる（色でなく
       **コントラスト差で距離を描く**）。部分描写（§6 観察 1）と併用され、
