@@ -2949,6 +2949,24 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 21:55 UTC 辛口クリエイター **C-1351: 顔があるのは主人公 1 人だけ——adventure の勇者は番人にすら目があるのにのっぺらぼう（§1）。**
+      （辛口クリエイターループ起票・観点=§1 手触り。前回=§8×§17）
+      C-1348 で platformer の主人公が目を得たが、他キャラは未着手のまま
+      「次候補」。現物の皮肉: adventure では**敵の番人に目が描いてある**
+      （draw の '#05070f' 2 連 fillRect）のに、操作する勇者はシアンの
+      矩形＋暗色の頭帯だけ。4 方向移動の型なので目は 3 状態が正しい:
+      右向き（dir=1）は右寄り・左向き（dir=3）は左寄り・正面（dir=2）は
+      中央、そして**上向き（dir=0）は後ろ姿＝目は描かない**（見えない
+      ものを描かないのが §4 とも整合）。まばたきは FRAME(40,6) の 1 拍
+      ＝REDUCED では常に開眼（既存機構が自動保証・C-1348 と同一契約）。
+      faceFacts(){dir,shown,blink} を公開し、新設 ADV_FACE_PROBE で
+      4 方向を実キー駆動（keys は e.key.toLowerCase() 系・押しっぱなしは
+      keydown のみ送る）＋500f のまばたき計数（C-1348 の教訓どおり
+      probe の時計はフレーム追随）＋reduced 走行で blink 0。計器
+      creation_hero_face は 0/1→「顔の契約が成立した主人公の数・欠けが
+      あれば 0」へ定義変更（C-1341/C-1121 前例・両定義併記: 旧=platformer
+      のみで 1、新定義の変更前=adventure 未実装のため 1 のまま→変更後 2）。
+      → 動かす数字: creation_hero_face 1→2
 - [x] 完了 2026-09-05 20:50 UTC 辛口クリエイター（`creation_sfx_duty` unmeasurable→**2**、判定器 exit 0（NEW）。'pulse' 波形種を追加——WebAudio に pulse は無いので createPeriodicWave のフーリエ級数 imag[n]=2/(nπ)·sin(nπ·duty)（32 倍音）で自作し、sword→duty 0.25・gem→0.125、clash は 50%=square のまま＝**同一波形だった 3 声が 3 音色に**。setPeriodicWave が type を 'custom' にするので pulse 分岐は type を書かない（書くと自作波が捨てられる）。計器は**スペクトルのくし形から duty を逆算**（第 1 節 n=1/d: sword は第 4 倍音・gem は第 8 倍音）し全 31 倍音の一致＋表の宣言値と照合＋2 声の相異＋clash 不変＋ミュート沈黙。texture 判定器の gem 期待値を ['pulse','oscillator'] へ追随（C-1121 前例・音色変更は設計）。Recorder 3 箇所（audio/adventure/platformer）に createPeriodicWave/setPeriodicWave スタブを追加——**無いと pulse が try/catch に飲まれて既存 nodes 記録が静かに欠ける**。破壊 3 通り〔gem→0.25（同幅）→0『share one width』／sword→square 戻し→0『built 0 custom waves』／表 0.25 のまま波を 0.5 で構築（嘘の表）→0『the table declares 0.25 but the wave plays 0.5』＝**表でなく実波形を読む主張の証明**〕、復元で 2。pytest exit 0（3575 passed / 3 skip）・gate MISS 0。テスト test_creation_sfx_duty.py 新設。これで §2 の sfxr 軸〔波形・ADSR・周波数傾き・ビブラート・duty・LPF〕が全部実装済み）**C-1350: square 3 声（sword・gem・clash）が全部同じ 50% 矩形——sfxr のパラメータ軸で唯一未実装のデューティ比が音色の家族分けを封じている（§2）。**
       （辛口クリエイターループ起票・観点=§2 効果音の合成。前回=§8×§17）
       §2 の sfxr パラメータ列挙〔波形・ADSR・周波数傾き・ビブラート・
