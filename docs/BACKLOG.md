@@ -2949,6 +2949,22 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
+- [~] 作業中 2026-09-05 23:55 UTC 辛口クリエイター **C-1352: HUD 判定器は宣言を信じている——描くのをやめても hudFacts() の定数が残れば 10/10 のまま（§4・C-1337 で記録した設計限界）。**
+      （辛口クリエイターループ起票・観点=§4 視認性。前回=§8×§17）
+      C-1337 の破壊実験で記録し、C-1348/C-1351 の顔契約でも同型の限界を
+      再記録した「facts は塗りを証明しない」問題の本丸。現状
+      creation_hud_contrast は hudFacts(){ink,plate,alpha} の**宣言値**を
+      実測の空とブレンドして WCAG を検査するが、テンプレートが HUD の
+      fillRect/fillText を**削除しても定数と facts が残れば 10/10 のまま**
+      ＝§4 の実効性がゼロでも計器は満点。実装: 新計器
+      creation_hud_painted——記録型 2D コンテキスト（fillStyle/globalAlpha
+      の代入を追跡し fillRect/fillText を様式つきで記録）でゲート押下後の
+      最終フレームの実描画命令を読み、**宣言した plate 色が宣言した
+      alpha で実際に塗られ、宣言した ink 色で実際に文字が描かれた**ことを
+      全 10 型で照合（count 10・欠けがあれば 0）。破壊の本命は C-1337 で
+      すり抜けた「塗りだけ削除」——旧計器が 10 のまま新計器が 0 に落ちる
+      ことを実測して初めて完了。新モジュール creation/hudpaint.py に
+      PAINT_PROBE。→ 動かす数字: creation_hud_painted unmeasurable→10
 - [x] 完了 2026-09-05 22:40 UTC 辛口クリエイター（`creation_hero_face` **1→2**、判定器 exit 0（BETTER）。定義を 0/1→「顔の契約が成立した主人公の数・欠けがあれば 0」へ変更（C-1341/C-1121 前例・両定義併記: 旧=platformer のみ 1、新定義でも変更前=1〔adventure 分は定義変更と同時実装〕、変更後=2）。adventure の勇者に帽子のつばの下の 2 つの目——4 方向の 3 状態〔右 dir=1 は右寄り +2.5px・左 dir=3 は左寄り・正面 dir=2 は中央〕＋**上向き dir=0 は後ろ姿＝目を描かない**（番人には目があるのに勇者がのっぺらぼうという現物の皮肉を解消）。まばたき FRAME(40,6) の 1 拍・REDUCED は常に開眼（C-1348 と同一契約・既存機構が自動保証）。faceFacts(){dir,shown,blink} 公開。新設 ADV_FACE_PROBE（実キー 4 方向駆動・時計はフレーム追随=C-1348 の教訓・500f まばたき計数）実測: 右 1/左 3/正面 2 で shown・上 0 で shown=false・blink 10f/500f（longest 10≤12）・reduced 走行 blink 0。破壊 3 通り〔shown 恒真→0『facing up shows eyes on the back of the head』／blink 恒偽→0『the hero never blinks』／dir 固定→0『walking right never turns the face』×3 方向〕、復元で 2。pytest exit 0（3594 passed / 3 skip）・gate MISS 0。テスト test_creation_hero_face.py に adventure 3 本追加。**運用の教訓 1 件**——事前計測の起動が cwd ずれ（/home/user）で空振りしていたのを判定器実行前に発見: HEAD（claim コミット・実装前と同一コード）の detached worktree で --save し直して正当な before を再構成（実装後の作業ツリーは汚さない）。catch のかご等の顔は次候補のまま）**C-1351: 顔があるのは主人公 1 人だけ——adventure の勇者は番人にすら目があるのにのっぺらぼう（§1）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§8×§17）
       C-1348 で platformer の主人公が目を得たが、他キャラは未着手のまま
