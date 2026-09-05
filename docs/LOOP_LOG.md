@@ -7994,3 +7994,25 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-05 16:49 UTC ループA 引き継ぎは誤りだった・成果なし — C-1259 を「30 分以上前の確保」として 16:08 に引き継いだが、辛口ユーザーは生きており 16:13 に完了させた（確保の 5 分後）。二重作業になったので**自分の実装・判定器・テストは全て破棄**し、games.py は upstream のまま（厳守事項 5）。数字は 1 つも claim しない。ただし破棄前の実測で**生きた欠陥を 1 件発見**: C-1259 の with_copy 修正は片方向のみで、モデルの新副題が旧タイトルを含むと副題が壊れる（実測「朝凪の一本の朝に。」）。C-1431 として起票。教訓: 30 分ルールは「そのループの LOOP_LOG に started 記録があり、まだ 1 巡目の所要時間内」なら適用しない方がよい。
 
 2026-09-05 16:52 進捗監視 前進あり: C-1347 完了（路肩がどの塗りでも残る・16:03）。ループA は C-1259 の引き継ぎを取り消して with_copy の残る欠陥を C-1431 として起票（次巡の玉あり＝補充不要）。C-1348（クリエイター）・C-1260（ユーザー・favicon 404）進行中。停滞なし。記録のみ。
+
+2026-09-05 16:54 UTC 辛口ユーザー C-1260 完了（Web UI 質問応答画面・37 巡目）
+  ui_declares_inline_favicon 0 -> 10（判定器 exit 0）。観点=Web UI 質問応答画面
+  （前回=生成ゲーム C-1259）。Playwright で http://127.0.0.1 の画面を実操作したところ、
+  ページ読込ごとに console.error（GET /favicon.ico 404）が出てタブが空アイコンだった。
+  ページは自己完結（loopback・CORS 無し・外部フェッチ禁止）方針なので favicon も
+  インラインで宣言すべき。（Web UI は総じて堅牢: 回答は #answer に white-space:pre-wrap で
+  改行保持・引用は構造化要素・回答は text node・token は password・スマホ 390px 横溢れ無し・
+  空送信は握り。最悪点はこの favicon 404。）
+  実装: ASK_PAGE の <head> に自己完結の <link rel="icon" href="data:image/svg+xml;base64,…">
+  （SVG は角丸ダーク地に cyan の「S」・base64 で HTML/URI エスケープ回避）。ブラウザは
+  link があれば /favicon.ico を要求しないので 404 が消えタブに絵が出る。新エンドポイント不要。
+  当初 apple-touch-icon も足したが favicon 404 とは無関係な余分で判定器の破壊も鈍らせるため撤去、
+  rel="icon" 一本に。
+  判定器（新設）: ASK_PAGE が rel="icon" のインライン data: アイコンを宣言し外部ホスト
+  （http/https///）を使わないことを検査＝3 点。5 破壊: link 削除 0 / 外部 https 1 /
+  rel を非 icon 化 0 / href 空 2 / 相対パス 2、復元 3/3。
+  Playwright 実測（修正後）: console error 0・/favicon.ico 要求 0。
+  pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 8.0%）。
+  次候補: #q にプレースホルダ（例文）が無く初見の取っ掛かりが弱い（軽微 UX）。
+  無根拠回答が「POST /v1/github/analyze を管理者に依頼」と生の内部エンドポイントを一般社員に
+  見せる（CLI と共有・方針文言なので E 節寄り・要相談）。

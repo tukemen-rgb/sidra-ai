@@ -36,6 +36,12 @@ ASK_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>SIDRA AI</title>
+<!-- Inline favicon: the page fetches nothing from another host (loopback,
+     no CORS), and a browser with no icon declared requests /favicon.ico and
+     logs a 404 on every load while the tab shows a blank icon (C-1260). A
+     data: URI is inline, so it honours that rule and stops the request. -->
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iIzA1MDcwZiIvPjx0ZXh0IHg9IjE2IiB5PSIyMyIgZm9udC1zaXplPSIyMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzJlZTZmZiIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iNzAwIj5TPC90ZXh0Pjwvc3ZnPg==">
+
 <style>
   :root { color-scheme: light dark; }
   body {

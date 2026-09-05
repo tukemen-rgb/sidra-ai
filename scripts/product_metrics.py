@@ -695,6 +695,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1260: opening the ask page 404'd on /favicon.ico every load (console
+    # error + blank tab icon). The page is self-contained, so it now declares
+    # an inline data: favicon. Checked on the served page string: an icon link
+    # is present, inline, and names no external host.
+    from sidra_ai.evals.ui_declares_inline_favicon import (
+        evaluate_ui_declares_inline_favicon,
+    )
+
+    favicon = evaluate_ui_declares_inline_favicon()
+    c.add(
+        "ui_declares_inline_favicon",
+        "質問応答画面がインライン favicon を宣言し /favicon.ico の 404 を出さない",
+        10.0 * favicon.checks_passed / favicon.checks_total,
+        detail=f"{favicon.checks_passed}/{favicon.checks_total} checks; "
+               "src/sidra_ai/evals/ui_declares_inline_favicon.py"
+               + ("" if favicon.passed else "; " + "; ".join(favicon.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

@@ -3689,7 +3689,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [~] 作業中 2026-09-05 16:2x UTC 辛口ユーザー **C-1260: Web UI（質問応答画面）を開くたびに /favicon.ico が 404 になり、開発コンソールにエラーが出てブラウザのタブが空アイコンになる。実測（Playwright で http://127.0.0.1 の画面を実操作）: ページ読込ごとに console.error「Failed to load resource: 404」＝ GET /favicon.ico 404。ページは自己完結（外部フェッチ禁止・CORS 無し）方針なので、favicon も外部参照でなくインラインで宣言すべき。社長がブラウザで開く画面のタブが無地アイコンなのは体裁の欠落。**（Web UI は総じて堅牢: pre-wrap で回答は改行保持・引用は構造化・回答は text node・token は password・スマホ 390px で横溢れ無し・空送信は握り。最悪点はこの favicon 404）
+- [x] 完了 2026-09-05 16:54 UTC 辛口ユーザー（`ui_declares_inline_favicon` 0→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.0%）。5 通りの破壊で 3/3→0/1/0/2/2 に落ち、復元で 3/3。Playwright 実測（修正後）: ページ読込で console error 0・/favicon.ico 要求 0（ブラウザは宣言済みアイコンを使う）。修正前は毎回 GET /favicon.ico 404）**C-1260: Web UI（質問応答画面）を開くたびに /favicon.ico が 404 になり、開発コンソールにエラーが出てブラウザのタブが空アイコンになる。実測（Playwright で http://127.0.0.1 の画面を実操作）: ページ読込ごとに console.error「Failed to load resource: 404」＝ GET /favicon.ico 404。ページは自己完結（外部フェッチ禁止・CORS 無し）方針なので、favicon も外部参照でなくインラインで宣言すべき。社長がブラウザで開く画面のタブが無地アイコンなのは体裁の欠落。**（Web UI は総じて堅牢: pre-wrap で回答は改行保持・引用は構造化・回答は text node・token は password・スマホ 390px で横溢れ無し・空送信は握り。最悪点はこの favicon 404）
       （辛口ユーザーループ起票・37 巡目 Web UI 質問応答画面・自分の観察では 5/10）
       **最小の解決**は ui.py の ASK_PAGE の <head> に自己完結のインライン favicon
       `<link rel="icon" href="data:image/svg+xml,...">`（外部ホスト参照なし・
