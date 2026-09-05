@@ -5204,7 +5204,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       原則）。→ 動かす数字: creation_score_history unmeasurable→1
       （複数回走ると並びが走った順に現れ、値が各走行の実スコアと一致し、
       無操作ラウンドが混入しないことをページ実走行で検査。破壊で 0）
-- [~] 作業中 2026-09-05 21:00 UTC 辛口クリエイター **C-1433: platformer の幕の裏も歩く（attract のパイロット 3 例目）。**
+- [x] 完了 2026-09-05 21:35 UTC 辛口クリエイター（`creation_attract_demo` **4→5**、判定器 exit 0（BETTER）。パイロット=keys.ArrowRight=true（テンプレート自身のキー状態・shooter の fire と同形）＋接地中に「一歩先（+30px）の自高以下に足場なし」で tryJump()——高い次段も『足場なし』と読めるので登りも同じ 1 条件。受領書はゴール域到達 if(me.x>LW*0.72)。実測（両シード同値）: 4200f 中 loops 5（1 走破 ≈840f・旗→goal→roundEnded 周回）・moved 4169・maxcalls 1・時計 0ms・storage 空・atPress/afterPlay 対照と完全一致。**非対称の実読 1 件**——platformer の reset() は keys を触らない（shooter の reset() は fire を離す）ので、キーの解放は ATTRACT_RESET 側 'keys.ArrowRight=false;reset()' に置いた。破壊 2 通り〔ジャンプ削除→最初の穴へ永久落下: moved 4007 で motion は通るが loops 0・live 0 の両方が捕捉＝受領書の存在意義を再証明／キー解放削除→デモは満点だが afterPlay が対照と ghost・round で不一致＝条項 4 が持ち越しの手を捕捉〕、復元で 5。pytest exit 0（3587 passed / 3 skip）・gate MISS 0。**訂正 1 件**: C-1349 の記録で platformer を clock 型 6 型に誤分類していた——実読は state='goal'＋ROUND_LIVE=('play',) で周回検出が働く。起票の新計器 creation_platformer_attract は作らず共通計器で測定（検査条件は同一・C-1121）。attract は 5/10 型・残る可能性は duel のみ）**C-1433: platformer の幕の裏も歩く（attract のパイロット 3 例目）。**
       （引き継ぎ: 進捗監視の起票を辛口クリエイターが 51 巡目・観点=§8×§17
       で実装。C-1349 の記録で platformer を clock 型 6 型に誤って含めたが
       実読で訂正——state='goal'（旗到達）と ROUND_LIVE=('play',) があり

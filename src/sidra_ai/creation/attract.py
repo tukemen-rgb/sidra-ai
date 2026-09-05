@@ -32,8 +32,11 @@ from __future__ import annotations
 #: certainly produces a moving picture from no input at all. Shooter
 #: (C-1338) is the second: it needs one held input, which is what a pilot
 #: line is for. Marble (C-1349) is the fourth: it rolls itself, and the
-#: pilot is the steering hand its unwired reason asked for.
-ATTRACT_TEMPLATES: tuple[str, ...] = ("racing", "shooter", "kaiju", "marble")
+#: pilot is the steering hand its unwired reason asked for. Platformer
+#: (C-1433) is the fifth: its unwired reason described a page with no
+#: input, and a walking hand is exactly what the pilot mechanism is.
+ATTRACT_TEMPLATES: tuple[str, ...] = (
+    "racing", "shooter", "kaiju", "marble", "platformer")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
@@ -45,7 +48,6 @@ ATTRACT_UNWIRED: dict[str, str] = {
     "fishing": "the marker sweeps for ever and nothing else happens: motion without a game in it",
     "puzzle": "a board that is never clicked is a still image",
     "adventure": "the hero does not walk on their own; the room would sit there",
-    "platformer": "same: no input means standing on the first platform until the clock",
     "duel": "both fighters wait for a button; the screen would show two idle poses",
 }
 
@@ -55,7 +57,12 @@ ATTRACT_UNWIRED: dict[str, str] = {
 #: quietly starting people mid-demo.
 ATTRACT_RESET: dict[str, str] = {
     "racing": "reset()", "shooter": "reset()", "kaiju": "reset()",
-    "marble": "reset()"}
+    "marble": "reset()",
+    # The pilot's held key is released HERE because platformer's own
+    # reset() does not touch ``keys`` - unlike the shooter, whose reset
+    # lets go of ``fire`` itself. Without this the player's first go
+    # would start with the demo's hand still on the arrow.
+    "platformer": "keys.ArrowRight=false;reset()"}
 
 #: One line of piloting, run every demo frame before the template's step
 #: (C-1338). The arcade's attract mode is a recorded hand on the real
@@ -99,6 +106,16 @@ ATTRACT_PILOT: dict[str, str] = {
     "const MA=MB&&Math.abs(MB.x-ball.x)<46?MB.x+(MB.x<0?90:-90):MG?MG.x:null;"
     "if(MA!==null)ball.x+=Math.max(-3.4,Math.min(3.4,MA-ball.x));"
     "if(hotTaken>0)ATTRACT_LIVE=1",
+    # Platformer (C-1433): walk right on the template's own key state and
+    # hop at a ledge's edge - jump when grounded with no floor within a
+    # step ahead at this height or below (a higher next ledge also reads
+    # as "no floor ahead", which is exactly when climbing needs a jump).
+    # The receipt is the goal stretch reached: a page with no pilot
+    # stands at x=60 for ever, so only a real walk lights it.
+    "platformer": "keys.ArrowRight=true;"
+    "if(me.ground&&!plats.some(p=>me.x+30>p.x-6&&me.x+30<p.x+p.w+6"
+    "&&p.y>=me.y-1&&p.y<me.y+60))tryJump();"
+    "if(me.x>LW*0.72)ATTRACT_LIVE=1",
 }
 
 

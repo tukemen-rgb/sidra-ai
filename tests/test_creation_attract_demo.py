@@ -133,7 +133,14 @@ def test_the_pilot_line_is_substituted_per_template() -> None:
     # unsteered marble cannot land (the gift gate hands out plain ones).
     assert "if(hotTaken>0)ATTRACT_LIVE=1" in _script("marble")
     assert "ball.x+=Math.max(-3.4,Math.min(3.4," in _script("marble")
-    for template in ("shooter", "racing", "kaiju", "marble"):
+    # Platformer's walking hand (C-1433): the template's own key state,
+    # a hop at a ledge's edge, and the receipt is the goal stretch.
+    assert "keys.ArrowRight=true" in _script("platformer")
+    assert "if(me.x>LW*0.72)ATTRACT_LIVE=1" in _script("platformer")
+    # ...and the rewind lets go of the arrow: platformer's reset() does
+    # not touch ``keys``, so the release lives in the reset expression.
+    assert "keys.ArrowRight=false;reset()" in _script("platformer")
+    for template in ("shooter", "racing", "kaiju", "marble", "platformer"):
         assert "ATTRACT_PILOT_TOKEN" not in _script(template)
 
 
@@ -186,6 +193,26 @@ def test_the_marble_demo_steers_the_course_and_goes_again() -> None:
     assert facts["frames"] == 1200
     assert facts["loops"] >= 1, "the demo never reached either of marble's endings"
     assert facts["live"] == 1, "the demo never took a hot gate"
+    assert seen["beforePress"]["round"]["ms"] == 0
+    assert sorted(seen["beforePress"]["store"]) == []
+
+
+def test_the_platformer_demo_walks_to_the_flag_and_goes_again() -> None:
+    """The walking hand (C-1433): hold right, hop at every ledge's edge.
+
+    Twenty seconds covers one full traversal (~840 frames measured), so
+    the goal - platformer's own ending - and the loop back are part of
+    the claim. A jump-less walk was measured falling into the first gap
+    for ever: motion still passes, and only the loop and the goal-stretch
+    receipt tell that demo from this one.
+    """
+
+    seen = _watch("platformer", idle=1200, play=30)
+    facts = seen["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 1200
+    assert facts["loops"] >= 1, "the demo never reached the flag"
+    assert facts["live"] == 1, "the demo never reached the goal stretch"
     assert seen["beforePress"]["round"]["ms"] == 0
     assert sorted(seen["beforePress"]["store"]) == []
 
