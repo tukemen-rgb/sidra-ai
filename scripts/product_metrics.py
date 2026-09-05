@@ -8395,6 +8395,26 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1251: the 3D preview footer listed whatever BM25 returned for the
+    # request (a fish model cited revenue-model.md), but a template mesh painted
+    # with the DESIGN.md palette is grounded in the palette, not the retrieval.
+    # The job stopped passing retrieved sources as evidence; the footer cites
+    # the palette. False provenance, the C-1203 problem one artifact along.
+    from sidra_ai.evals.model3d_provenance_is_palette import (
+        evaluate_model3d_provenance_is_palette,
+    )
+
+    m3d_prov = evaluate_model3d_provenance_is_palette()
+    c.add(
+        "model3d_provenance_is_palette",
+        "3D モデルの脚注は実際の出典（DESIGN.md 配色）だけ＝無関係の検索ヒットを載せない",
+        10.0 * m3d_prov.checks_passed / m3d_prov.checks_total,
+        detail=f"{m3d_prov.checks_passed}/{m3d_prov.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_provenance_is_palette.py"
+               + ("" if m3d_prov.passed else "; " + "; ".join(m3d_prov.failures)),
+        kind=OUTCOME,
+    )
+
     # --- the animated GIF, judged by parsing its actual bytes ----------
     #
     # The instrument is a real block-walker over the generated file, so a

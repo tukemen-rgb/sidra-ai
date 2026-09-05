@@ -22,8 +22,12 @@ def build_model3d_generator(data_dir: str | Path):
         intent: CreationIntent,
         retrieved: list[Fact] | None = None,
     ) -> CreationOutcome:
-        evidence = [fact.source for fact in (retrieved or []) if fact.source]
-        model = generate_model3d(message, evidence=evidence or None)
+        # C-1251: the model is a template mesh painted with the DESIGN.md
+        # palette; the retrieved documents inform neither its shape nor its
+        # colour, so listing them as 「出典」 in the preview is the false
+        # provenance C-1203 removed from documents. Let generate_model3d cite
+        # its real source (the palette) rather than whatever BM25 returned.
+        model = generate_model3d(message)
         verdict = validate_model3d(model)
         paths = save_model3d(model, data_dir)
         if verdict["valid"]:

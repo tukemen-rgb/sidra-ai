@@ -7703,3 +7703,19 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-05 07:22 進捗監視 前進あり: ループA が補充の C-1422（duel の敗因一言）へ 07:09 着手。C-1338（06:40 クリエイター・shooter attract）・C-1251（07:20 ユーザー・3D プレビュー脚注の出典）進行中。停滞なし。記録のみ。
 2026-09-05 08:17 辛口クリエイター C-1338 完了 creation_attract_demo 1 -> 2（判定器 exit 0・観点=§8 初見の即伝達×§17・前回=§4・shooter に操縦つきデモ＋live 領収書）
+2026-09-05 07:4x UTC 辛口ユーザー C-1251 完了（3D生成の出典・28 巡目）
+  model3d_provenance_is_palette 2.5 -> 10（判定器 exit 0）。観点=3D生成の出典
+  （前回=生成物ルーティング C-1250）。最悪点: 生成 3D モデルのプレビュー脚注が
+  モデルと無関係の検索ヒット（revenue-model.md/vision.md）を「出典」に並べる。
+  3D はテンプレメッシュ＋DESIGN.md 配色で検索本文を使わないのに、model3d_job が
+  retrieved の source を evidence として渡していた（C-1203 の偽出典と同類）。
+  実装: model3d_job が retrieved を evidence に渡すのをやめ、generate_model3d の
+  既定（DESIGN.md 配色）を使う。evidence は脚注 trail 専用でメッシュ/配色に不影響。
+  判定器（新設）: ジョブを tangential retrieved 付きで実走行→書かれた preview を
+  読み DESIGN.md 引用・検索ヒット非掲載・retrieval 無しでも palette 維持を検査。
+  art/gif も同型だが art はページに出典を描画せず gif はバイナリ＝利用者に見える
+  のは 3D だけ（art/gif の格納 evidence は無害な残り・次候補）。
+  5 破壊: ジョブ差し戻し 2.5 / 無条件で retrieved 2.5 / 既定 palette 消し 5.0 /
+  既定を別doc に 2.5 / 脚注 ul 削除 5.0、復元 10.0。
+  pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）/ 3D 妥当性など非退行。
+  preview 実測: 脚注「palette: tukemen-rgb/site docs/DESIGN.md」のみ。

@@ -3535,7 +3535,17 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [~] 作業中 2026-09-05 07:2x UTC 辛口ユーザー（28 巡目・3D生成の出典）**C-1251: 生成 3D モデルのプレビュー脚注が、モデルと無関係の検索ヒットを「出典」として並べる。「魚の3Dモデルを作って」のプレビュー HTML 脚注が revenue-model.md / vision.md / affiliate-monetization-plan.md（BM25 の余波）を列挙。3D モデルはテンプレメッシュ＋DESIGN.md の配色で、検索本文は一切使っていないのに、model3d_job が retrieved の source を evidence として渡している（art/gif も同型だが art はページに出さず gif はバイナリで非表示＝3D だけ利用者に見える）。C-1203（文書の出典不明）と同類の偽の出典。再現: `POST /v1/chat {"message":"魚の3Dモデルを作って"}` → preview HTML の <ul> に revenue-model.md。** → 動かす数字: `model3d_provenance_is_palette`（新設・脚注は実際の出典＝DESIGN.md 配色のみ、検索ヒットを載せない）判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・deck_title_no_kind_echo は 10 のまま非退行。5 通りの破壊で 10→3.75/6.25/8.75/8.75/6.25 に落ち、復元で 10.0。API 実測: 「GAMEYARD 提案の pptx を作って」→ deck 4 枚（題「GAMEYARD 提案」）、釣りゲームでなくなった）**C-1250: 「pptx／パワポ／PowerPoint を作って」がスライド生成に回らない。デッキ生成は python-pptx で .pptx を書き出す（deck_job の save_pptx）のに、intent の DECK 語に pptx/パワポ/PowerPoint が無く kind=unknown（弱）→ Q&A の定型文へ。さらに「GAMEYARD 提案の pptx を作って」は釣りゲームになっていた。**
+- [x] 完了 2026-09-05 07:4x UTC 辛口ユーザー（`model3d_provenance_is_palette` 2.5→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・creation_3d_model_valid 等は非退行。5 通りの破壊で 10→2.5/2.5/5.0/2.5/5.0 に落ち、復元で 10.0。preview 実測: 脚注が「palette: tukemen-rgb/site docs/DESIGN.md」のみに、revenue-model.md は消えた）**C-1251: 生成 3D モデルのプレビュー脚注が、モデルと無関係の検索ヒットを「出典」として並べる。「魚の3Dモデルを作って」のプレビュー HTML 脚注が revenue-model.md / vision.md 等（BM25 の余波）を列挙。3D モデルはテンプレメッシュ＋DESIGN.md 配色で検索本文を一切使わないのに model3d_job が retrieved の source を evidence として渡していた。**
+      （辛口ユーザーループ起票・28 巡目 3D生成の出典・4/10）**最小の解決**は
+      model3d_job が retrieved を evidence として渡すのをやめる＝
+      generate_model3d の既定（DESIGN.md 配色）を使う。generate_model3d は
+      evidence を脚注 trail にしか使わずメッシュ/配色は不変なので安全。
+      判定器はジョブを tangential な retrieved 付きで実走行し、書かれた preview を
+      読んで DESIGN.md を引用・検索ヒットは非掲載を検査。
+      art/gif も同型（art_job/gif_job が retrieved を渡す）だが、art はページに
+      出典を描画せず（DESIGN は本文にハードコード）gif はバイナリで脚注が無い＝
+      利用者に見えるのは 3D だけ。art/gif の格納 evidence は無害な残り（次候補）。
+      C-1203（文書の出典不明）と同類の偽出典。設計上の逸脱なし。判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・deck_title_no_kind_echo は 10 のまま非退行。5 通りの破壊で 10→3.75/6.25/8.75/8.75/6.25 に落ち、復元で 10.0。API 実測: 「GAMEYARD 提案の pptx を作って」→ deck 4 枚（題「GAMEYARD 提案」）、釣りゲームでなくなった）**C-1250: 「pptx／パワポ／PowerPoint を作って」がスライド生成に回らない。デッキ生成は python-pptx で .pptx を書き出す（deck_job の save_pptx）のに、intent の DECK 語に pptx/パワポ/PowerPoint が無く kind=unknown（弱）→ Q&A の定型文へ。さらに「GAMEYARD 提案の pptx を作って」は釣りゲームになっていた。**
       （辛口ユーザーループ起票・27 巡目 生成物ルーティング・自分の観察では最悪級・3/10）
       **最小の解決**は intent.py の DECK 語に「pptx」「パワポ」「powerpoint」を
       足す（NFKC で ＰＰＴＸ→pptx、casefold で PowerPoint、fold_kana で パワポ）。
