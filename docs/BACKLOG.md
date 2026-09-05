@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 21:55 UTC 辛口クリエイター **C-1351: 顔があるのは主人公 1 人だけ——adventure の勇者は番人にすら目があるのにのっぺらぼう（§1）。**
+- [x] 完了 2026-09-05 22:40 UTC 辛口クリエイター（`creation_hero_face` **1→2**、判定器 exit 0（BETTER）。定義を 0/1→「顔の契約が成立した主人公の数・欠けがあれば 0」へ変更（C-1341/C-1121 前例・両定義併記: 旧=platformer のみ 1、新定義でも変更前=1〔adventure 分は定義変更と同時実装〕、変更後=2）。adventure の勇者に帽子のつばの下の 2 つの目——4 方向の 3 状態〔右 dir=1 は右寄り +2.5px・左 dir=3 は左寄り・正面 dir=2 は中央〕＋**上向き dir=0 は後ろ姿＝目を描かない**（番人には目があるのに勇者がのっぺらぼうという現物の皮肉を解消）。まばたき FRAME(40,6) の 1 拍・REDUCED は常に開眼（C-1348 と同一契約・既存機構が自動保証）。faceFacts(){dir,shown,blink} 公開。新設 ADV_FACE_PROBE（実キー 4 方向駆動・時計はフレーム追随=C-1348 の教訓・500f まばたき計数）実測: 右 1/左 3/正面 2 で shown・上 0 で shown=false・blink 10f/500f（longest 10≤12）・reduced 走行 blink 0。破壊 3 通り〔shown 恒真→0『facing up shows eyes on the back of the head』／blink 恒偽→0『the hero never blinks』／dir 固定→0『walking right never turns the face』×3 方向〕、復元で 2。pytest exit 0（3594 passed / 3 skip）・gate MISS 0。テスト test_creation_hero_face.py に adventure 3 本追加。**運用の教訓 1 件**——事前計測の起動が cwd ずれ（/home/user）で空振りしていたのを判定器実行前に発見: HEAD（claim コミット・実装前と同一コード）の detached worktree で --save し直して正当な before を再構成（実装後の作業ツリーは汚さない）。catch のかご等の顔は次候補のまま）**C-1351: 顔があるのは主人公 1 人だけ——adventure の勇者は番人にすら目があるのにのっぺらぼう（§1）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§8×§17）
       C-1348 で platformer の主人公が目を得たが、他キャラは未着手のまま
       「次候補」。現物の皮肉: adventure では**敵の番人に目が描いてある**

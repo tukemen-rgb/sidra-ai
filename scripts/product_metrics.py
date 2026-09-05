@@ -3976,15 +3976,69 @@ def measure_creation(c: Collector) -> None:
             face_gaps.append(
                 f"{_fc_label}: the eyes stay shut ({_fc.get('longestBlink')} frames)"
             )
+    # The second face (§1, C-1351): the adventure hero, a four-way walker,
+    # so the contract has one more state - facing up is the back of the
+    # head and the eyes must be GONE, not centred. Driven on the
+    # template's own held keys, blink counted on a frame-tracking clock.
+    from sidra_ai.creation.adventure import adv_face_probe as _adv_face_probe
+
+    for _fc_reduced in (False, True):
+        _fc_label = "adventure" + ("（reduced）" if _fc_reduced else "")
+        _fc_page = generate_game("迷宮を冒険するゲームを作って").html
+        _fc_script = _scene_re.search(r"<script>(.*?)</script>", _fc_page, _scene_re.S)
+        if _fc_script is None:
+            face_gaps.append(f"{_fc_label}: no script")
+            continue
+        try:
+            _fc_run = _scene_sp.run(
+                ["node", "-"],
+                input=_adv_face_probe(_fc_script.group(1), reduced=_fc_reduced),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _fc_run.returncode != 0:
+                raise ValueError(_fc_run.stderr.strip()[:60])
+            _fc = json.loads(_fc_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            face_gaps.append(f"{_fc_label}: probe unavailable ({exc})")
+            continue
+        _fc_ways = (
+            ("right", 1, True), ("left", 3, True), ("down", 2, True), ("up", 0, False)
+        )
+        for _fc_way, _fc_dir, _fc_shown in _fc_ways:
+            _fc_seen = _fc.get(_fc_way) or {}
+            if _fc_seen.get("dir") != _fc_dir:
+                face_gaps.append(f"{_fc_label}: walking {_fc_way} never turns the face")
+            elif bool(_fc_seen.get("shown")) is not _fc_shown:
+                face_gaps.append(
+                    f"{_fc_label}: facing {_fc_way} "
+                    + ("hides the eyes" if _fc_shown else "shows eyes on the back of the head")
+                )
+        if _fc_reduced:
+            if _fc.get("blinkFrames"):
+                face_gaps.append(f"{_fc_label}: reduced motion still blinks")
+        elif not _fc.get("blinkFrames"):
+            face_gaps.append(f"{_fc_label}: the hero never blinks")
+        elif _fc.get("longestBlink", 0) > 12:
+            face_gaps.append(
+                f"{_fc_label}: the eyes stay shut ({_fc.get('longestBlink')} frames)"
+            )
+    # C-1351 redefined the value from 0/1 to the NUMBER of heroes whose
+    # face contract holds - any gap anywhere still collapses it to 0
+    # (両定義: 旧 0/1 は platformer 時点で 1、新定義の変更前も adventure
+    # 未実装のため 1、変更後 2).
     c.add(
         "creation_hero_face",
-        "主人公の目が走りを追う",
-        0.0 if face_gaps else 1.0,
+        "目が動きを追う主人公の数",
+        0.0 if face_gaps else 2.0,
         detail=(
             "; ".join(face_gaps)
             if face_gaps
             else "platformer の実走行: 右へ走ると目が右（look=1）・左で -1・"
             "上昇中は視線が上がり、数秒に一度 1 拍のまばたき（500f 中 10f）。"
+            "adventure の実歩行: 右 dir=1 で右寄り・左 dir=3・正面 dir=2 は"
+            "中央、上向き dir=0 は後ろ姿＝目は描かれない。両者とも"
             "reduced-motion では FRAME が目を開いたまま留める＝顔は一切"
             "動かない（§1 の技法表で最後まで残っていた「キャラの目や表情」）"
         ),

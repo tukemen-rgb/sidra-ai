@@ -147,6 +147,12 @@ function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRST
     charm:false,swing:0,inv:0};
   say('ぼうしの勇者、めざめる。')}
 function say(t){msg=t;msgT=140}
+/* The face, as a fact (§1, C-1351): which way the hero faces, whether the
+   eyes are visible at all - facing up is the back of the head, and a back
+   has no eyes to draw - and whether this frame is the blink. Under
+   reduced motion FRAME is pinned to 0, so the eyes never shut there. */
+function faceFacts(){return {dir:hero.dir,shown:hero.dir!==0,
+  blink:FRAME(40,6,performance.now())===1}}
 function tileAt(px,py){const x=Math.floor((px-OX)/TILE),y=Math.floor((py-OY)/TILE);
   if(x<0||y<0||x>=GW||y>=GH)return 1;return rooms[room][y][x]}
 function solid(px,py){const t=tileAt(px,py);
@@ -420,7 +426,17 @@ function draw(now){
     for(let i=0;i<guard.hp;i++){cx.fillRect(guard.x-19+i*6.5,guard.y-37,4,4)}}
   if(!(hero.inv>0&&FRAME(2,3,now)===1)){
     sprite('hero',hero.x-10,hero.y-8,20,18,'CYAN_TOKEN');
-    cx.fillStyle='#0a2a33';cx.fillRect(hero.x-11,hero.y-14,22,7)}
+    cx.fillStyle='#0a2a33';cx.fillRect(hero.x-11,hero.y-14,22,7);
+    /* Eyes under the hat brim (§1, C-1351): the guard above already has
+       them and the hero did not. Three states for a four-way walker -
+       right leans them right, left leans left, front is centred - and
+       facing up is the back of the head, so no eyes at all. The blink is
+       one FRAME beat, pinned open under reduced motion. */
+    const fc=faceFacts();
+    if(fc.shown&&!fc.blink){cx.fillStyle='#05070f';
+      const ex=[0,2.5,0,-2.5][hero.dir];
+      cx.fillRect(hero.x-5.5+ex,hero.y-6,2.5,3);
+      cx.fillRect(hero.x+3+ex,hero.y-6,2.5,3)}}
   if(hero.swing>0){const p=ease(hero.swing/10);cx.strokeStyle='#dfe7f5';
     cx.lineWidth=3;cx.beginPath();
     const ang=[[-2.2,-0.9],[-0.7,0.7],[0.9,2.2],[2.4,3.9]][hero.dir];
@@ -907,12 +923,72 @@ def world_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The face, as watched (§1, C-1351): walk each of the four ways on the
+#: template's own keys and read where the eyes went; face away and check
+#: they are gone; stand still and count the blink. The clock ticks with
+#: the frames (C-1348's lesson: a zero-pinned performance.now freezes the
+#: wall-clock FRAME and the blink never comes).
+ADV_FACE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(2);
+/* Each way in turn, on held arrows - the template reads lowercase key
+   state every frame, so a hold is one keydown and a later keyup. */
+function walk(k){ ev('keydown', k); run(6); const f = faceFacts(); ev('keyup', k); return f }
+const right = walk('ArrowRight');
+const left = walk('ArrowLeft');
+const down = walk('ArrowDown');
+const up = walk('ArrowUp');
+/* Then stand still and count the blink. */
+let blinkFrames = 0, longest = 0, streak = 0;
+for (let i = 0; i < 500; i++) { run(1);
+  if (faceFacts().blink) { blinkFrames++; streak++;
+    if (streak > longest) longest = streak } else { streak = 0 } }
+console.log(JSON.stringify({
+  right: right, left: left, down: down, up: up,
+  blinkFrames: blinkFrames, longestBlink: longest,
+}));
+"""
+
+
+def adv_face_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the hero's face can be watched."""
+
+    return ADV_FACE_PROBE.replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    ).replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "ADVENTURE_DIFFICULTY",
     "ADVENTURE_HOW",
     "ADVENTURE_SCRIPT",
     "ADVENTURE_TITLE",
     "ADVENTURE_WORDS",
+    "ADV_FACE_PROBE",
+    "adv_face_probe",
     "COMBO_PROBE",
     "CHARM_PROBE",
     "charm_probe",
