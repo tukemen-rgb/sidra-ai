@@ -28,6 +28,10 @@ from sidra_ai.creation.intent import detect_creation_intent
 from sidra_ai.creation.touchpad import unreachable_keys
 
 #: Take every legal move there is, in reading order, until none is left.
+#: Since C-1428 that includes the hammer: it breaks a lone tile, and the
+#: collapse after it can put two of a colour beside each other again, so a
+#: harness that only pops groups stops one move short of the end and the
+#: board it leaves behind is not a finished one.
 _PLAY_IT_OUT = """
 let moves = 0;
 while (state === 'play' && moves < 400) {
@@ -35,10 +39,16 @@ while (state === 'play' && moves < 400) {
   for (let y = 0; y < ROWS && !done; y++) { for (let x = 0; x < COLS && !done; x++) {
     if (grid[y][x] >= 0 && group(x, y).length > 1) { cur = {x: x, y: y}; pop(); moves++; done = true }
   } }
+  if (!done && hammers > 0) {
+    for (let y = 0; y < ROWS && !done; y++) { for (let x = 0; x < COLS && !done; x++) {
+      if (grid[y][x] >= 0) { cur = {x: x, y: y}; pop(); moves++; done = true }
+    } }
+  }
   if (!done) break;
 }
 console.log(JSON.stringify({ state: state, moves: moves, score: score,
-  cleared: cleared, leftover: grid.flat().filter(v => v >= 0).length }));
+  cleared: cleared, hammers: hammers,
+  leftover: grid.flat().filter(v => v >= 0).length }));
 """
 
 
@@ -92,6 +102,9 @@ def test_the_board_runs_out_of_moves_and_says_which_ending_it_was():
     assert result["moves"] > 0
     # Whatever happened, the flag has to match the board rather than the mood.
     assert result["cleared"] is (result["leftover"] == 0)
+    # ...and running out of moves means the purse is empty too (C-1428):
+    # while a hammer is held there is still something to do.
+    assert result["hammers"] == 0
 
 
 def test_bigger_groups_are_worth_more_than_the_same_cells_taken_apart():

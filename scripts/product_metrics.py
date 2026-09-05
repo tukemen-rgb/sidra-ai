@@ -4864,12 +4864,10 @@ def measure_creation(c: Collector) -> None:
                 if raw.get("hurtRoam") is not None
                 else None
             ),
-            # The two halves of the stranded board, the larger one reported.
+            # Tiles opened with the tool against tiles left standing, the
+            # larger one reported.
             "puzzle": (
-                max(
-                    min(raw.get("jamHammers") or 0, raw.get("jamTiles") or 0),
-                    max(0, (raw.get("jamTiles") or 0) - (raw.get("jamHammers") or 0)),
-                )
+                max(raw.get("jamBroken") or 0, raw.get("jamTiles") or 0)
                 if raw.get("jamTiles") is not None
                 else None
             ),
@@ -10990,8 +10988,9 @@ def measure_creation(c: Collector) -> None:
         pzjam_line = end.get("line") or ""
         tiles = pzjam_tail.get("tiles")
         purse = pzjam_tail.get("hammers")
+        broken = pzjam_tail.get("broken") or 0
         recount = pzjam_tail.get("recount")
-        want = max(min(purse or 0, tiles or 0), max(0, (tiles or 0) - (purse or 0)))
+        want = max(broken, tiles or 0)
         if not end.get("lost"):
             pzjam_gaps.append("the driven go did not jam")
         elif not pzjam_line:
@@ -11026,23 +11025,24 @@ def measure_creation(c: Collector) -> None:
             pzjam_gaps.append(
                 f"the line's count is not the board's ({pzjam_line!r}, wanted {want})"
             )
-        # A cause counted zero is not a cause: this go banked hammers and
-        # never spent them, so the purse clause is the smaller one - it must
-        # not be the one that spoke.
-        elif purse and purse >= (tiles or 0) and "ハンマー" not in pzjam_line:
-            pzjam_gaps.append(f"the purse was the larger cause and went unsaid ({pzjam_line!r})")
-        # ...and the comparison is real. No drive reaches a jam holding more
-        # hammers than tiles, so the only honest way to ask is to move the
-        # purse and re-read - and the count printed has to follow it.
+        # A cause counted zero is not a cause: this go opens a few tiles
+        # with the tool and strands many more, so the hammer clause is the
+        # smaller one and must not be the one that spoke.
+        elif broken >= (tiles or 0) and "ハンマー" not in pzjam_line:
+            pzjam_gaps.append(f"the hammer was the larger cause and went unsaid ({pzjam_line!r})")
+        # ...and the comparison is real. A go that opened more tiles than it
+        # stranded is not something a drive reaches, so the honest way to
+        # ask is to move the counter and re-read - and the count printed has
+        # to follow it.
         elif "ハンマー" not in (pzjam_tail.get("saidPurse") or ""):
             pzjam_gaps.append(
                 f"a purse larger than the board was still not named "
                 f"({pzjam_tail.get('saidPurse')!r})"
             )
-        elif str(recount) not in (pzjam_tail.get("saidPurse") or ""):
+        elif str((tiles or 0) + 5) not in (pzjam_tail.get("saidPurse") or ""):
             pzjam_gaps.append(
-                f"the purse line's count did not follow the counter "
-                f"({pzjam_tail.get('saidPurse')!r}, wanted {recount})"
+                f"the hammer line's count did not follow the counter "
+                f"({pzjam_tail.get('saidPurse')!r}, wanted {(tiles or 0) + 5})"
             )
         elif pzjam_tail.get("saidNothing"):
             pzjam_gaps.append(
@@ -11076,11 +11076,116 @@ def measure_creation(c: Collector) -> None:
             "2 つの原因はどちらも**タイル枚数**に揃えてあり、和が取り残された"
             "盤そのものになる——だから「最多原因」が単位の違うもの同士の"
             "比較にならない。集計は生の盤から数え直した値と照合しており"
-            f"（枚数・色数とも一致）、ハンマー {pzjam_tail.get('hammers')} 個は"
+            f"（枚数・色数とも一致）、ハンマーでこじ開けた {pzjam_tail.get('broken')} 枚は"
             "この走行では少ないほうなので名指しされない。"
-            "**ハンマー側の節は運転では到達できない**ため、"
+            "**「こじ開けたほうが多い」走行は運転では作れない**ため、"
             "カウンタを動かして同じページに訊き直す方式（動かした値に数が"
             "追随することまで検査）。両方 0 なら何も言わない"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the comeback tool is a move, so the go waits for it (C-1428) ----
+    #
+    # Found by measuring C-1427, not by reading: a greedy round stranded 17
+    # tiles while still holding 3 hammers. movesLeft() looked only for a
+    # group of two, but a hammer breaks a lone tile and the collapse that
+    # follows can put two of a colour beside each other again - so the go
+    # was ending while the tool the code itself calls "the classic comeback
+    # tool" sat unspent in the purse.
+    #
+    # Measured both ways on the same page, because "it no longer ends" is
+    # only a result if the other drive does end:
+    #
+    # * the hoarder clears groups and never touches a lone tile - it runs
+    #   out of pops while holding hammers, and the go stays live;
+    # * the spender does the same and then spends the purse - it opens more
+    #   tiles with the tool and only then jams, with an empty purse.
+    pzend_gaps: list[str] = []
+    pzend_hoard: dict = {}
+    pzend_spend: dict = {}
+    found = _scene_re.search(
+        r"<script>(.*?)</script>",
+        generate_game("パズルゲームを作って").html,
+        _scene_re.S,
+    )
+    if found is None:
+        pzend_gaps.append("no script on the puzzle page")
+    else:
+        for label, spend in (("hoard", False), ("spend", True)):
+            try:
+                run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_pz_probe(found.group(1), spend=spend),
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                )
+                if run.returncode != 0:
+                    raise ValueError(run.stderr.strip()[:80])
+                out = run.stdout.strip().splitlines()
+                seen = {"main": json.loads(out[-2]), "tail": json.loads(out[-1])}
+            except (OSError, _scene_sp.SubprocessError, ValueError, IndexError) as exc:
+                pzend_gaps.append(f"{label}: probe unavailable ({exc})")
+                break
+            if label == "hoard":
+                pzend_hoard = seen
+            else:
+                pzend_spend = seen
+    if not pzend_gaps:
+        hoard_end, hoard_tail = pzend_hoard["main"]["atEnd"], pzend_hoard["tail"]
+        spend_end, spend_tail = pzend_spend["main"]["atEnd"], pzend_spend["tail"]
+        # 1. The hoarder really did run out of pops - otherwise "still
+        #    playing" says nothing about the deadlock rule at all.
+        if hoard_tail.get("bestN", 9) >= 2:
+            pzend_gaps.append(
+                f"the hoarding drive still had a group of {hoard_tail.get('bestN')} "
+                "to clear, so it was never at the old deadlock"
+            )
+        elif not hoard_tail.get("livePurse"):
+            pzend_gaps.append("the hoarding drive banked no hammers, so it holds nothing")
+        # 2. ...and with hammers in hand the go is not over.
+        elif hoard_end.get("lost"):
+            pzend_gaps.append(
+                f"the board declared a jam while holding "
+                f"{hoard_tail.get('livePurse')} hammers"
+            )
+        # 3. The spender does end - so the round is still finishable, and
+        #    "not over" above is the purse and not a loop that never ends.
+        elif not spend_end.get("lost"):
+            pzend_gaps.append("spending the purse never ended the go either")
+        # 4. It ended with the tool used up, which is now the only way to
+        #    reach a jam at all.
+        elif spend_tail.get("livePurse"):
+            pzend_gaps.append(
+                f"the jam still held {spend_tail.get('livePurse')} hammers"
+            )
+        elif not spend_tail.get("broken"):
+            pzend_gaps.append("no tile was ever opened with a hammer")
+        # 5. The extra moves are real moves: spending opened tiles the
+        #    hoarder never got to, so the board it jams on is smaller.
+        elif spend_tail.get("recount", 0) >= hoard_tail.get("recount", 0):
+            pzend_gaps.append(
+                f"spending the purse opened nothing: {spend_tail.get('recount')} "
+                f"tiles left against the hoarder's {hoard_tail.get('recount')}"
+            )
+    c.add(
+        "creation_puzzle_hammer_endgame",
+        "ハンマーを持っている間は詰みにしない",
+        0.0 if pzend_gaps else 1.0,
+        detail=(
+            "; ".join(pzend_gaps)
+            if pzend_gaps
+            else f"同じページを 2 通りに運転して比較: **貯め込む運転**は"
+            f"消せる組が尽きても（best {pzend_hoard['tail'].get('bestN')}）"
+            f"ハンマー {pzend_hoard['tail'].get('livePurse')} 個を持ったまま"
+            "**詰みにならない**。**使う運転**は同じ盤からハンマーで"
+            f"{pzend_spend['tail'].get('broken')} 枚こじ開け、"
+            f"残り {pzend_spend['tail'].get('recount')} 枚（貯め込み側は"
+            f"{pzend_hoard['tail'].get('recount')} 枚）で財布が空になって"
+            "初めて 'over' になる。**両方向で測っている**——「終わらない」は"
+            "もう一方が終わって初めて結果になる。修正前は実測で 17 枚を"
+            "残したままハンマー 3 個が未使用だった"
         ),
         kind=OUTCOME,
     )

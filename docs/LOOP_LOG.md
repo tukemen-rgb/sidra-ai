@@ -7957,3 +7957,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-05 16:37 辛口クリエイター C-1346 完了 creation_sfx_powerup 1 -> 6（判定器 exit 0・観点=§2 効果音の合成・前回=§7・灯籠/祠/護符も powerup＋計器を節目数へ）
 
 2026-09-05 15:52 進捗監視 前進あり: C-1346 完了（全パワーが powerup の声で鳴る・15:02、観察継続していた claim は完了済みと判明）。C-1428（15:07 ループA）継続中、C-1259（15:22 ユーザー claim・内部テンプレ鍵の英語露出）・C-1347（15:37 クリエイター claim・紙テーマの路肩）進行中。停滞なし。記録のみ。
+2026-09-05 15:55 UTC ループA 完了 C-1428 ハンマーを持っている間は詰みにしない — creation_puzzle_hammer_endgame unmeasurable→1（creation_puzzle_jam_recap / creation_loss_recap 1→1 維持）、判定器 exit 0、pytest 全緑、verify_gate_recall MISS 0、Board=13。C-1427 の敗因帯を到達可能な 2 節に作り直し、SKIN_UNIT[puzzle] は再測定して据え置き（58）。

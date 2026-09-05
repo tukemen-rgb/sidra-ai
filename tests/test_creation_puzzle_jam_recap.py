@@ -85,26 +85,28 @@ def test_the_snapshot_matches_the_board_it_summarises(jammed) -> None:
     assert tail["tiles"] == tail["recount"]
     assert tail["jamColours"] == tail["colours"]
     # The purse against the one the game still holds - nothing can spend a
-    # hammer after the board is over. Without this, a purse that is never
-    # recorded agrees with a line derived from it.
+    # hammer after the board is over. Since C-1428 both are zero at a jam,
+    # because holding one means the go is not over; the equality is still
+    # what stops a snapshot that never records the purse from agreeing with
+    # a line derived from it.
     assert tail["hammers"] == tail["livePurse"]
 
 
 def test_the_line_reports_the_larger_half_and_reaches_the_strip(jammed) -> None:
     main, tail = jammed
-    tiles, purse = tail["tiles"], tail["hammers"]
-    want = max(min(purse, tiles), max(0, tiles - purse))
+    want = max(tail["broken"], tail["tiles"])
     assert str(want) in main["atEnd"]["line"]
     assert main["atEnd"]["line"] in main["strip"]
 
 
 def test_the_largest_cause_is_a_comparison(jammed) -> None:
-    """No drive reaches a jam holding more hammers than tiles, so the only
-    honest way to ask is to move the purse and read the same page again."""
+    """A go that opened more tiles than it stranded is not something a drive
+    reaches, so the honest way to ask is to move the counter and read the
+    same page again - and the count printed has to follow it."""
 
     _, tail = jammed
     assert "ハンマー" in tail["saidPurse"]
-    assert str(tail["recount"]) in tail["saidPurse"]
+    assert str(tail["tiles"] + 5) in tail["saidPurse"]
 
 
 def test_both_causes_at_zero_says_nothing(jammed) -> None:

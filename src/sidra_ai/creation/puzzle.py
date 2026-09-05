@@ -80,7 +80,7 @@ let grid,cur,score,state,cleared,offY,offX,hammers;
    result strip reports the board that ended the go and not whatever a
    later frame happens to hold. Counting only - the game reads none of
    these back. */
-let JAM_TILES=0,JAM_HAMMERS=0,JAM_COLOURS=0;
+let JAM_TILES=0,JAM_HAMMERS=0,JAM_COLOURS=0,JAM_BROKEN=0;
 /* The board's economy (§5, C-1322): a pop of HAMMER_EARN or more banks
    one hammer, up to HAMMER_CAP; a hammer breaks one lone tile. Skill is
    converted into survival - the squared score stays vanity, the hammer
@@ -88,7 +88,7 @@ let JAM_TILES=0,JAM_HAMMERS=0,JAM_COLOURS=0;
 const HAMMER_EARN=5,HAMMER_CAP=3;
 function reset(){rs=(SEED>>>0)||1;grid=[];offY=[];offX=[];score=0;state='play';
   cleared=false;cur={x:0,y:0};hammers=0;
-  JAM_TILES=0;JAM_HAMMERS=0;JAM_COLOURS=0;
+  JAM_TILES=0;JAM_HAMMERS=0;JAM_COLOURS=0;JAM_BROKEN=0;
   for(let y=0;y<ROWS;y++){const row=[],oy=[],ox=[];
     for(let x=0;x<COLS;x++){row.push(Math.floor(rand()*COLOURS));
       oy.push(0);ox.push(0)}grid.push(row);offY.push(oy);offX.push(ox)}}
@@ -130,8 +130,17 @@ function collapse(){
 function settle(){for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
   offY[y][x]*=0.72;if(offY[y][x]<0.5)offY[y][x]=0;
   offX[y][x]*=0.72;if(offX[y][x]<0.5)offX[y][x]=0}}}
-function movesLeft(){for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
-  if(grid[y][x]>=0&&group(x,y).length>1)return true}}return false}
+/* A move is a pop *or* a hammer (C-1428). The deadlock check used to
+   look only for a group of two, which ended the go while the comeback
+   tool was still in the purse - and a hammer is a real move: it breaks a
+   lone tile, and the collapse that follows can put two of a colour beside
+   each other again. Measured before the fix: a greedy round stranded 17
+   tiles while holding 3 unspent hammers. */
+function movesLeft(){let any=false;
+  for(let y=0;y<ROWS;y++){for(let x=0;x<COLS;x++){
+    if(grid[y][x]<0)continue;any=true;
+    if(group(x,y).length>1)return true}}
+  return any&&hammers>0}
 /* What the board looked like at the deadlock. Measured, not assumed:
    every tile still standing when moves run out is a group of one - that
    is what "no moves" means here - so the counts worth keeping are how
@@ -142,14 +151,14 @@ function jam(){let n=0;const seen={};
     if(grid[y][x]<0)continue;n++;seen[grid[y][x]]=1}}
   JAM_TILES=n;JAM_HAMMERS=hammers;JAM_COLOURS=Object.keys(seen).length}
 function jamFacts(){return {tiles:JAM_TILES,hammers:JAM_HAMMERS,
-  colours:JAM_COLOURS,cleared:cleared,state:state}}
+  colours:JAM_COLOURS,broken:JAM_BROKEN,cleared:cleared,state:state}}
 function pop(){if(state!=='play')return;
   const cells=group(cur.x,cur.y);
   if(cells.length<2){
     /* The sink: one hammer breaks one lone tile - the classic comeback
        tool, bought with an earlier big clear. No points for it (a tool,
        not a score), and at zero hammers the refusal is what it was. */
-    if(cells.length===1&&hammers>0){hammers--;
+    if(cells.length===1&&hammers>0){hammers--;JAM_BROKEN++;
       const [[bx,by]]=cells;
       burst(OX+bx*CELL+CELL/2,OY+by*CELL+CELL/2,8,
         PALETTE[grid[by][bx]]||'CYAN_TOKEN');
@@ -404,20 +413,29 @@ function pzWalk(x, y){ let g = 0;
     press(puzzleFacts().cur.y < y ? 'ArrowDown' : 'ArrowUp') } }
 function pzStep(){ if (state !== 'play') return;
   const f = puzzleFacts();
-  /* Only ever the biggest group, never a lone tile - so no hammer is
-     spent and the purse at the jam is what was actually banked. */
-  if (f.best.n < 2) return;
-  pzWalk(f.best.x, f.best.y); press(' ') }
+  if (f.best.n >= 2) { pzWalk(f.best.x, f.best.y); press(' '); return }
+  /* No group left. Since C-1428 the hammer is a move, so the go is not
+     over yet - spend the purse on a lone tile, which is what a player
+     holding one would do, and let the collapse decide whether the board
+     opens up again. */
+  if (PZ_SPEND && f.hammers > 0 && f.lone.x >= 0) {
+    pzWalk(f.lone.x, f.lone.y); press(' ') } }
 """
 
 #: One move, every third frame so the board is given time to fall.
 RECAP_STEP = "try{ if (f % 3 === 0) { pzStep() } }catch(e){}"
 
 
-def recap_route() -> tuple[str, str]:
-    """The greedy drive, as ``recap.probe_source`` wants it."""
+def recap_route(*, spend: bool = True) -> tuple[str, str]:
+    """The greedy drive, as ``recap.probe_source`` wants it.
 
-    return RECAP_SETUP, RECAP_STEP
+    ``spend=False`` is the hoarder: it clears groups but never touches a
+    lone tile, so the purse it banks is never used. Since C-1428 that drive
+    does not end the go at all - which is the whole point of the fix, and
+    the only way to see it is to compare the two.
+    """
+
+    return ("const PZ_SPEND = %s;\n" % ("true" if spend else "false")) + RECAP_SETUP, RECAP_STEP
 
 
 #: What the jam line has to survive, asked of the board that just jammed.
@@ -439,13 +457,14 @@ for (let y = 0; y < ROWS; y++) { for (let x = 0; x < COLS; x++) {
   if (grid[y][x] < 0) continue;
   pzRecount++; pzHues[grid[y][x]] = 1;
   if (group(x, y).length === 1) pzSingles++ } }
-const pzKeepT = JAM_TILES, pzKeepH = JAM_HAMMERS;
-/* A purse as big as the board: the other clause becomes the larger one. */
-JAM_HAMMERS = JAM_TILES;
+const pzKeepT = JAM_TILES, pzKeepB = JAM_BROKEN;
+/* More tiles opened than left standing: the other clause becomes the
+   larger one, and its count has to follow the counter that moved. */
+JAM_BROKEN = JAM_TILES + 5;
 const pzSaidPurse = recapLine();
-JAM_TILES = 0; JAM_HAMMERS = 0;
+JAM_TILES = 0; JAM_BROKEN = 0;
 const pzSaidNothing = recapLine();
-JAM_TILES = pzKeepT; JAM_HAMMERS = pzKeepH;
+JAM_TILES = pzKeepT; JAM_BROKEN = pzKeepB;
 console.log(JSON.stringify({
   said: pzSaid, saidPurse: pzSaidPurse, saidNothing: pzSaidNothing,
   recount: pzRecount, singles: pzSingles, colours: Object.keys(pzHues).length,
@@ -454,18 +473,24 @@ console.log(JSON.stringify({
      only independent check on the snapshot's own copy of it. Without it a
      purse that is never recorded agrees with a line derived from it. */
   livePurse: hammers,
+  /* The biggest group still on the board, read after the win block - which
+     only ever touched state and cleared, never the grid. Under 2 means
+     there is no pop available, which is exactly the condition that used to
+     end the go on its own (C-1428). */
+  bestN: puzzleFacts().best.n,
   tiles: JAM_TILES, hammers: JAM_HAMMERS, jamColours: JAM_COLOURS,
+  broken: JAM_BROKEN,
 }));
 """
 
 
-def recap_probe_source(script: str, *, frames: int = 4200) -> str:
+def recap_probe_source(script: str, *, frames: int = 4200, spend: bool = True) -> str:
     """The loss-recap probe, driven greedily to a jam and then questioned."""
 
     from sidra_ai.creation.recap import probe_source
 
     return (
-        probe_source(script, template="puzzle", frames=frames, route=recap_route())
+        probe_source(script, template="puzzle", frames=frames, route=recap_route(spend=spend))
         + _RECAP_TAIL
     )
 

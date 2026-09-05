@@ -108,20 +108,25 @@ LOSS_WIRED: dict[str, dict] = {
     # nothing fills here, the board only empties.
     #
     # Two causes, and they are made commensurable on purpose: both count
-    # *tiles*, and together they are the whole stranded board. The largest
-    # cause is then a real comparison rather than two different units being
-    # ranked against each other. Which one wins says something different:
-    # a purse of unspent hammers is a tool that was never used, and a
-    # remainder past it is a board nothing on hand could have opened.
+    # *tiles*. The largest cause is then a real comparison rather than two
+    # different units being ranked against each other. Which one wins says
+    # something different: tiles opened with the hammer are a comeback that
+    # was attempted and fell short, and the stranded remainder is a board
+    # that ran out of colours to match.
+    #
+    # These used to be "hammers left unspent" against "the rest", which
+    # C-1428 made unreachable: a hammer is a move now, so a jam can never
+    # hold one. Counting the tiles the tool *did* open keeps both halves in
+    # tiles and puts the first one back inside what play can reach.
     "puzzle": {
         "lost": "state==='over'&&!cleared",
         "causes": [
             (
-                "Math.min(JAM_HAMMERS,JAM_TILES)",
-                "'ハンマーを '+n+' 個残したまま——1 個で孤立した 1 枚を壊せる'",
+                "JAM_BROKEN",
+                "'ハンマーで '+n+' 枚こじ開けても届かなかった——大きく消すと 1 個たまる'",
             ),
             (
-                "Math.max(0,JAM_TILES-JAM_HAMMERS)",
+                "JAM_TILES",
                 "'ばらばらの '+n+' 枚が残った——同じ色が隣り合わなくなると詰む'",
             ),
         ],
@@ -282,7 +287,8 @@ const counters = { hp: peek('ship&&ship.hp'), respawns: peek('respawns'),
   heroHp: peek('hero&&hero.hp'),
   /* the puzzle's jam snapshot, and the flag that tells a jam from a clear */
   jamTiles: peek('JAM_TILES'), jamHammers: peek('JAM_HAMMERS'),
-  jamColours: peek('JAM_COLOURS'), cleared: peek('cleared') };
+  jamColours: peek('JAM_COLOURS'), jamBroken: peek('JAM_BROKEN'),
+  cleared: peek('cleared') };
 const atEnd = recapFacts();
 /* The strip as drawn, after the round is over. */
 drawn = [];
