@@ -4589,7 +4589,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       C-1121 で辞退するジャンルなので釣りページが返り、`wired:false`・カウンタ全 null で
       **何も測っていなかった**。「ビーム対戦」に変更。同じ抜けがテスト側の ASKS 表にも
       あり、pytest 全通しで duel の 4 件が落ちて発覚した（push 前に検出）。
-- [ ] **C-1423: adventure の被弾を数えて敗因に生かす。**（進捗監視起票
+- [~] 作業中 2026-09-05 08:09 ループA **C-1423: adventure の被弾を数えて敗因に生かす。**（進捗監視起票
       2026-09-05・根拠は recap.py の LOSS_UNWIRED 自身の記述「'over'
       exists but no counter survives it - the hero's damage is never
       tallied」）hero の被弾を種類別に集計するカウンタを足し（挙動は
