@@ -41,6 +41,12 @@ ASKS: dict[str, tuple[str, dict]] = {
     # walks off the ledges.
     "platformer": ("ジャンプアクションを作って", {"hold": "ArrowRight"}),
     "kaiju": ("怪獣と戦うゲームを作って", {}),
+    # Untouched it loses on its own: the CPU charges and fires while the
+    # player stands in whatever lane it aimed at (C-1422). The request has
+    # to be one this template answers - 「対戦格闘」 is a *declined* genre
+    # (C-1121) and would hand back a fishing page, which is wired for
+    # nothing and would make every check here vacuous.
+    "duel": ("ビーム対戦のゲームを作って", {}),
     # Since C-1404 every racing rung finishes untouched, so the loss comes
     # from the panel's slowest pace - the way C-1105 makes one.
     "racing": (
