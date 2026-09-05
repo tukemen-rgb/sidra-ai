@@ -9085,6 +9085,149 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the number said where it was earned (§1, C-1418) ----------------
+    #
+    # The score has only ever moved as a total in the corner, so which act
+    # paid what was arithmetic the player had to do in their head. A 「+N」
+    # at the place it happened says it once and gets out of the way.
+    #
+    # The whole risk in a decoration like this is that it lies. The call
+    # sites read `score+=scorePop(x,y,n)` - the float returns the number it
+    # shows, so the two are one value rather than two kept in step - and
+    # this checks it end to end anyway: everything floated over a whole go,
+    # summed, against the score the round reports.
+    from sidra_ai.creation.juice import POP_MAX as _pop_max, pop_probe_source as _pop_probe
+
+    def _pop_drive(key, body, **kw):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_pop_probe(body, **kw),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                return None, f"{key}: {out.stderr.strip()[:70]}"
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: probe unavailable ({type(exc).__name__})"
+
+    pop_gaps: list[str] = []
+    pop_ok: list[str] = []
+    pop_quiet: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            pop_gaps.append(f"{key}: no script")
+            continue
+        body = script.group(1)
+        run, problem = _pop_drive(key, body, frames=1800, stress=_pop_max + 3)
+        if problem:
+            pop_gaps.append(problem)
+            continue
+        frames, end, stress = run["frames"], run["end"], run["stress"]
+        if not end["shown"]:
+            # Nothing scored in an unattended go, so there is no payment to
+            # say anything about. Recorded as unmeasured, not as a pass.
+            pop_quiet.append(key)
+            continue
+        trouble = None
+        # 1. 条件③, end to end: everything floated, against the score the
+        #    round reports. This is the check that found the graze bonus -
+        #    a near miss pays through grazeFacts().paid rather than through
+        #    the template's own `score`, so the total moved and nothing on
+        #    the screen said why.
+        if end["total"] != frames[-1]["score"]:
+            trouble = (
+                f"{key}: floated {end['total']} in total but the round scored "
+                f"{frames[-1]['score']}"
+            )
+        # 2. What it is holding is what it puts on the glass - on every
+        #    frame that redrew. A frozen frame (the juice kit's hitstop)
+        #    paints nothing at all and keeps the previous picture, floats
+        #    included; measured, not assumed.
+        elif [
+            f
+            for f in frames
+            if f["all"] and sorted(f["painted"]) != sorted(f"+{n}" for n in f["said"])
+        ]:
+            off = next(
+                f
+                for f in frames
+                if f["all"] and sorted(f["painted"]) != sorted(f"+{n}" for n in f["said"])
+            )
+            trouble = f"{key}: holding {off['said']} but painted {off['painted']}"
+        # 3. 条件②: never more than the cap on screen at once, and the cap
+        #    is a thing that has been seen to engage rather than a constant
+        #    nobody ever reached.
+        elif max(f["live"] for f in frames) > _pop_max:
+            trouble = f"{key}: {max(f['live'] for f in frames)} floats at once, over the cap"
+        elif stress["after"]["live"] != _pop_max or stress["painted"] != _pop_max:
+            trouble = (
+                f"{key}: asked for {stress['asked']} at once and got "
+                f"{stress['after']['live']} live / {stress['painted']} painted"
+            )
+        elif stress["after"]["dropped"] - stress["before"]["dropped"] != (
+            stress["asked"] - _pop_max
+        ):
+            trouble = f"{key}: the cap dropped {stress['after']['dropped']} rather than counting"
+        if not trouble:
+            # 4. 条件①: reduced motion turns the decoration off - and the
+            #    game is unchanged underneath it, which is what makes it a
+            #    decoration rather than a mechanic.
+            quiet, problem = _pop_drive(key, body, frames=1800, reduced=True)
+            if problem:
+                trouble = problem
+            elif quiet["end"]["shown"] or any(f["painted"] for f in quiet["frames"]):
+                trouble = f"{key}: reduced motion still floated {quiet['end']['shown']}"
+            elif not quiet["frames"][-1]["score"]:
+                trouble = f"{key}: with the floats off, nothing scored at all"
+            # What is deliberately *not* checked here: that the reduced run
+            # scores the same as the normal one. It is the control this
+            # wanted, and it cannot be run - reduced motion switches off the
+            # juice kit's hitstop, which changes the timestamps the
+            # templates read, which changes the run. Measured rather than
+            # supposed: with scorePop disabled entirely in both modes,
+            # shooter still scored 49 against 45. Holding the *game* steps
+            # equal instead of the browser frames did not close it either.
+            # So the claim rests on the check above - everything floated,
+            # summed, equals what the round scored - which needs no control
+            # run at all.
+        if trouble:
+            pop_gaps.append(trouble)
+        else:
+            pop_ok.append(key)
+    c.add(
+        "creation_score_float",
+        "点が入った場所に「+N」が出る（合計の暗算をさせない）",
+        0.0 if (pop_gaps or not pop_ok) else 1.0,
+        detail=(
+            "; ".join(pop_gaps)
+            if pop_gaps
+            else f"{len(pop_ok)} 型（{', '.join(pop_ok)}）を実走行: 1 ゲームで浮かべた"
+            "数の合計が、ラウンドが報告する得点と完全一致する（条件③）。呼び出しは"
+            "`score+=scorePop(x,y,n)` の形で、浮かべる数と入る数が同一の値——別々に"
+            "保つ 2 つではない。描き直したフレームでは保持中の浮き文字がそのまま"
+            f"画面に出る。同時表示は上限 {_pop_max} 枚で、上限は実際に叩いて確認"
+            f"（{_pop_max + 3} 枚を一度に頼んで {_pop_max} 枚だけ生き残り、残りが"
+            "drop に計上される・条件②）。reduced motion では 1 枚も出ず、しかも"
+            "得点は入り続ける（条件①）。なお「reduced でも得点が同じ」は"
+            "**検査していない**——reduced は juice の hitstop を切り、それが"
+            "テンプレの読む時刻を変えて走行そのものを変える（scorePop を両モードで"
+            "完全に無効化しても shooter は 49 対 45 になる。ゲーム側の前進フレーム数を"
+            "揃えても解消しない）。飾りであることの根拠は上の「浮かべた合計＝入った点」"
+            "であって、対照走行ではない。"
+            f"残り {len(pop_quiet)} 型（{', '.join(pop_quiet) or 'なし'}）は無操作の"
+            "1 ゲームで 1 点も入らないため**未測定**（合格に数えていない）。"
+            "この判定器づくりで shooter の掠りボーナスが未配線だと分かった——"
+            "near miss は `score` ではなく grazeFacts().paid で払われるので、"
+            "合計だけが動いて画面は何も言っていなかった。配線して一致させた"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

@@ -272,10 +272,12 @@ function cast(){casts++;const [a,b]=zone();
   if(pos>=a&&pos<=b){hits++;
     /* The perfect throw pays double and lands heavier (§1): the juice
        scales with the risk that was taken, not just with success. */
-    if(Math.abs(pos-SPOT)<=(BAND/2)*CRIT){crits++;score+=2;
+    if(Math.abs(pos-SPOT)<=(BAND/2)*CRIT){crits++;
+      score+=scorePop(cv.width/2,cv.height/2,2);
       if(flashGate())flash=1;msg='ど真ん中。会心。';sfx('gem');
       shake(6);hitstop(3);burst(cv.width/2,cv.height/2,22,'ACCENT_JUICE')}
-    else{score++;if(flashGate())flash=1;msg='かかった。';sfx('catch');
+    else{score+=scorePop(cv.width/2,cv.height/2,1);
+      if(flashGate())flash=1;msg='かかった。';sfx('catch');
       shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}}
   else{msg='逃げられた。';sfx('clash');shake(1.5)}}
 addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});
@@ -332,7 +334,7 @@ function step(){t++;
       /* The run is worth what it is worth at the moment it pays out
          (C-1405). Asked once, so the points added and the number drawn
          cannot disagree. */
-      caught++;score+=comboHit();sfx('catch');
+      caught++;score+=scorePop(i.x*cv.width,cv.height-30,comboHit());sfx('catch');
       shake(2);burst(i.x*cv.width,cv.height-30,10,'ACCENT_JUICE')}
     else{comboMiss();missed++;sfx('clash');shake(5);hitstop(2)}return false});
   setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));

@@ -129,9 +129,11 @@ function step(){
             /* The risk pays in points AND in feel: the hot gate rings a
                brighter bell and kicks the camera harder (§13: the reward
                has to change the play, not decorate it). */
-            if(o.hot){score+=2;hotTaken++;sfx('key');shake(4);
+            if(o.hot){score+=scorePop(proj(o.x,10,NEAR+40).x,H*0.55,2);
+              hotTaken++;sfx('key');shake(4);
               burst(proj(o.x,10,NEAR+40).x,H*0.55,16,'ALERT_JUICE')}
-            else{score+=1;sfx('catch');shake(2);
+            else{score+=scorePop(proj(o.x,10,NEAR+40).x,H*0.55,1);
+              sfx('catch');shake(2);
               burst(proj(o.x,10,NEAR+40).x,H*0.55,10,'ACCENT_JUICE')}}}
         else if(Math.abs(o.x-ball.x)<24){state='over';over='ブロックに当たった。';
           failBeat(W/2,H*0.6)}}});

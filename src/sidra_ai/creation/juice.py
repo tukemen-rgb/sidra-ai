@@ -29,6 +29,8 @@ both ways so this is measured rather than asserted.
 
 from __future__ import annotations
 
+import json
+
 #: Names the preamble introduces. Held to by a test, as with the animation
 #: preamble: a template that happened to define ``shake`` would break only in
 #: the generated page.
@@ -48,6 +50,8 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "haptic",
     "hapticOn",
     "hapticFacts",
+    "scorePop",
+    "popFacts",
 )
 
 #: The third sense (§16). Milliseconds, and deliberately short: a buzz you
@@ -62,6 +66,19 @@ HAPTIC_ROUND = (12, 60, 12)
 #: rattling phone is not feedback, and the fourth pulse in a second carries
 #: nothing the first three did not.
 HAPTIC_MAX = 3
+
+#: How many 「+N」 can be on screen at once (C-1418 条件②). A shooter wave
+#: can pay four or five times inside a second, and a screen papered with
+#: numbers hides the game the numbers are about. Four is the most that fits
+#: without the play field becoming a scoreboard; past that the oldest is
+#: dropped, because it has already had its moment.
+POP_MAX = 4
+
+#: Frames a 「+N」 lasts, and how far it drifts up each one. Short: it is a
+#: receipt, not a label. 36 frames is about six tenths of a second, long
+#: enough to read a two-digit number and gone before the next one lands.
+POP_LIFE = 36
+POP_RISE = 0.55
 
 #: The failure beat's three numbers, in the units the effects above take.
 #: Deliberately heavier than any hit: §8 事実 2 is that losing a round felt
@@ -186,6 +203,44 @@ function stepParticles(){if(!PARTS.length||!JCV)return;
     c.globalAlpha=Math.max(0,p.life);c.fillStyle=p.c;
     c.fillRect(p.x-1.5,p.y-1.5,3,3);return true});
   c.restore()}
+/* --- 得点が入った場所に「+N」 (§1, C-1418) ----------------------------- */
+/* The score has only ever moved as a total in the corner, so which act
+   paid what was arithmetic the player had to do in their head. This says
+   it where it happened.
+
+   The number is *returned*, so a call site reads `score+=scorePop(x,y,n)`
+   and the float cannot disagree with the score: they are one value, not
+   two that have to be kept in step. A decoration that says 「+5」 while 3
+   goes in is worse than no decoration - it is the page lying about the
+   only thing the player is trying to learn. */
+let POPS=[],POP_SHOWN=0,POP_DROPPED=0,POP_TOTAL=0;
+const POP_MAX=%(popMax)d,POP_LIFE=%(popLife)d,POP_RISE=%(popRise)s;
+function scorePop(x,y,n){
+  if(typeof n!=='number'||!isFinite(n)||n<=0)return n;
+  /* Same rule as the particles: a decoration, and 条件① says decorations
+     go quiet for somebody who asked for less motion. The score itself is
+     unaffected - it is returned above and below this line alike. */
+  if(REDUCED)return n;
+  /* 条件②: a wave that scores eight times in one frame must not paper the
+     screen over the game being played. The oldest ones have had their
+     moment, so the newest wins the slot - and the drop is counted, so the
+     cap is a number the judge can read rather than a claim. */
+  if(POPS.length>=POP_MAX){POPS.shift();POP_DROPPED++}
+  POPS.push({x:x,y:y,n:n,life:1});POP_SHOWN++;POP_TOTAL+=n;
+  return n}
+function stepPops(){if(!POPS.length||!JCV)return;
+  const c=JCV.getContext('2d');
+  c.save();c.textAlign='center';c.font='13px ui-monospace,monospace';
+  POPS=POPS.filter(function(p){
+    p.life-=1/POP_LIFE;p.y-=POP_RISE;
+    if(p.life<=0)return false;
+    c.globalAlpha=Math.max(0,Math.min(1,p.life));
+    c.fillStyle='ACCENT_JUICE';c.fillText('+'+p.n,p.x,p.y);
+    return true});
+  c.restore()}
+function popFacts(){return {live:POPS.length,shown:POP_SHOWN,
+  dropped:POP_DROPPED,max:POP_MAX,reduced:REDUCED,total:POP_TOTAL,
+  said:POPS.map(function(p){return p.n})}}
 /* The loop wrapper does three jobs in one place: hold the frame during a
    hitstop, draw the particles over whatever the game drew, and move the
    canvas. Wrapped before the pad wraps it, so the pad stays on top. */
@@ -196,13 +251,16 @@ requestAnimationFrame=function(fn){
        template's loop instead of pausing it. */
     if(HITSTOP>0){HITSTOP--;JUICE_RAF(tick);return}
     FLASH_FRAME++;HAPTIC_FRAME++;
-    fn(t);stepParticles();stepShake()})};
+    fn(t);stepParticles();stepPops();stepShake()})};
 """ % {
     "shake": FAIL_SHAKE,
     "hitstop": FAIL_HITSTOP,
     "parts": FAIL_PARTICLES,
     "hapticHit": HAPTIC_HIT,
     "hapticMax": HAPTIC_MAX,
+    "popMax": POP_MAX,
+    "popLife": POP_LIFE,
+    "popRise": POP_RISE,
     "wshake": WIN_SHAKE,
     "whitstop": WIN_HITSTOP,
     "wparts": WIN_PARTICLES,
@@ -362,3 +420,114 @@ __all__ = [
     "page_probe_source",
     "probe_source",
 ]
+
+
+#: Runs a scoring template and writes down, frame by frame, what the score
+#: was and what was painted over the game. The two together are the whole
+#: claim: a 「+N」 that does not match what went in is the page lying about
+#: the one thing the player is trying to learn.
+POP_PROBE = """
+const popNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : popNothing),
+  apply: () => popNothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT,
+  addEventListener(){}, addListener(){} });
+let popClock = 0;
+globalThis.performance = { now: () => popClock };
+const popKeys = [], popPointers = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') popKeys.push(fn) };
+globalThis.Image = function(){ return popNothing };
+const popStore = {};
+globalThis.localStorage = {
+  getItem: (k) => (k in popStore ? popStore[k] : null),
+  setItem: (k, v) => { popStore[k] = String(v) }, removeItem: (k) => { delete popStore[k] } };
+globalThis.location = { reload: () => {} };
+globalThis.KeyboardEvent = function(type, init){ return Object.assign({ type: type }, init) };
+globalThis.dispatchEvent = (ev) => { if (ev && ev.type === 'keydown') {
+  popKeys.forEach(fn => fn(ev)) } return true };
+let popPaint = [];
+const popEl = { width: 720, height: 320, style: {}, textContent: '', attrs: {}, handlers: {},
+  addEventListener: (name, fn) => { if (name === 'pointerdown') popPointers.push(fn) },
+  setAttribute(){}, getAttribute(){ return null }, blur(){},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillText: (s, x, y) => { popPaint.push({ s: String(s),
+      x: Math.round(Number(x) || 0), y: Math.round(Number(y) || 0) }) },
+    fillRect: () => {} }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : popNothing)),
+    set: () => true }) };
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => popEl, querySelector: () => null, getElementById: () => popEl };
+let popQueued = null;
+globalThis.requestAnimationFrame = (fn) => { popQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+const popHold = HOLD_INPUT;
+function popStepFrame(){ if (!popQueued) return null;
+  const fn = popQueued; popQueued = null; popPaint = []; popClock += 50 / 3; fn(popClock);
+  /* Only the floats: 「+12」 and nothing else on the screen looks like it. */
+  return popPaint.filter(op => /^\\+[0-9]+$/.test(op.s)) }
+popStepFrame(); popStepFrame();
+popKeys.forEach(fn => fn({ key: ' ', code: 'Space',
+  preventDefault(){}, stopImmediatePropagation(){} }));
+const seen = [];
+/* Counted in frames the game actually advanced, not in frames handed to
+   the browser. The juice kit freezes the loop for a few frames on a hit,
+   and reduced motion switches that freeze off - so a fixed browser-frame
+   budget quietly gives the two settings different numbers of game steps
+   and different scores, with the decoration blamed for it. Measured: with
+   scorePop disabled entirely, shooter still scored 49 against 45 that
+   way. Holding the *game* steps equal is what makes the reduced run a
+   control rather than a second experiment. */
+let advanced = 0;
+for (let f = 0; f < FRAMES_INPUT * 4 && advanced < FRAMES_INPUT; f++) {
+  if (popHold) { popKeys.forEach(fn => fn({ key: popHold, code: popHold,
+    preventDefault(){}, stopImmediatePropagation(){} })) }
+  const painted = popStepFrame();
+  if (painted === null) break;
+  if (popPaint.length) { advanced++ }
+  const facts = popFacts();
+  let score = null;
+  try { score = roundFacts().live } catch (e) {}
+  seen.push({ score: score, live: facts.live, shown: facts.shown,
+    /* Every fill on the frame, not only the floats. The juice kit freezes
+       the whole loop on a hit, and a frozen frame paints nothing at all -
+       the canvas keeps the previous picture. That is a different thing
+       from a frame that redrew the game and left the floats off it. */
+    all: popPaint.length,
+    dropped: facts.dropped, total: facts.total,
+    /* What the page is holding, beside what it actually put on the glass. */
+    said: facts.said.slice(),
+    painted: painted.map(op => op.s), at: painted.map(op => [op.x, op.y]) });
+}
+const end = popFacts();
+/* No natural run scores fast enough to reach the cap, so it is asked
+   directly: the page's own function, called more times than it will hold.
+   Without this 条件② would be a number nobody had ever seen move. */
+const stressBefore = popFacts();
+for (let i = 0; i < STRESS_INPUT; i++) { scorePop(10, 10, 1) }
+const stressAfter = popFacts();
+const stressPainted = popStepFrame();
+console.log(JSON.stringify({ frames: seen, end: end,
+  max: end.max, reduced: end.reduced,
+  stress: { asked: STRESS_INPUT, before: stressBefore, after: stressAfter,
+    painted: (stressPainted || []).length } }));
+"""
+
+
+def pop_probe_source(
+    script: str,
+    *,
+    reduced: bool = False,
+    frames: int = 2400,
+    hold: str = "",
+    stress: int = 0,
+) -> str:
+    """The page's own script, wrapped so the scoring can be watched land."""
+
+    return (
+        POP_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("FRAMES_INPUT", str(int(frames)))
+        .replace("REDUCED_INPUT", "true" if reduced else "false")
+        .replace("HOLD_INPUT", json.dumps(hold))
+        .replace("STRESS_INPUT", str(int(stress)))
+    )

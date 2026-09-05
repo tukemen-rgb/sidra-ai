@@ -109,6 +109,12 @@ function grazeNear(hazard,kill,dist,x,y){
     Math.round(kill*100)/100])}
   try{if(typeof REDUCED==='undefined'||!REDUCED){burst(x,y,4,'ACCENT_JUICE')}}catch(e){}
   if(GRAZE_STREAK>=GRAZE_NEED){GRAZE_STREAK=0;GRAZE_PAID++;
+    /* The point is said where the risk was taken (C-1418). This one was
+       the most opaque payment on the page: a near miss pays through
+       grazeFacts().paid rather than through the template's own `score`,
+       so the total moved and nothing on the screen said why. Guarded
+       because only two templates carry the graze preamble at all. */
+    try{scorePop(x,y,1)}catch(e){}
     try{sfx('gem')}catch(e){}}
   return true}
 """

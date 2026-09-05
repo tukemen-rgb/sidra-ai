@@ -117,7 +117,7 @@ function step(){const now=performance.now();
            (C-1405's rule, C-1411's second template). Asked once, so the
            points added and the number drawn cannot disagree. `kills` stays
            the raw count because 「撃墜 N 機」 is a count. */
-        f.hp=0;s.y=-99;kills++;score+=comboHit();
+        f.hp=0;s.y=-99;kills++;score+=scorePop(f.x,f.y,comboHit());
         sfx('hurt');shake(4);burst(f.x,f.y,12,'ACCENT_JUICE')}})});
     foes.forEach(f=>{if(f.hp<=0)return;
       /* One distance, one radius, two answers (C-1406). The kill radius is

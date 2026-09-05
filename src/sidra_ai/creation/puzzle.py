@@ -149,7 +149,11 @@ function pop(){if(state!=='play')return;
     sfx('key')}
   /* Squared scoring: the reason to look for the big group instead of the
      nearest one. */
-  score+=cells.length*cells.length;
+  /* Over the middle of the group that was cleared, so a big clear's
+     number appears where the big clear was (C-1418). */
+  const popX=OX+CELL/2+CELL*cells.reduce(function(a,c){return a+c[0]},0)/cells.length,
+        popY=OY+CELL/2+CELL*cells.reduce(function(a,c){return a+c[1]},0)/cells.length;
+  score+=scorePop(popX,popY,cells.length*cells.length);
   cells.forEach(([x,y])=>{burst(OX+x*CELL+CELL/2,OY+y*CELL+CELL/2,4,
     PALETTE[grid[y][x]]||'CYAN_TOKEN');grid[y][x]=-1});
   sfx('gem');shake(Math.min(9,cells.length));hitstop(cells.length>4?3:1);
