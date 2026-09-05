@@ -4395,7 +4395,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       半径の内側から呼ばれることが無い。将来この 2 つの枝の順序を入れ替える改修に
       対する番人であって実証された検出器ではないことを計器に明記した（同じ性質が
       shooter 側の帯検査にもある）。
-- [ ] **C-1420: marble にコンボ（3 型目の配線）——二重ボーナスは和で。**
+- [~] 作業中 2026-09-05 04:08 ループA **C-1420: marble にコンボ（3 型目の配線）——二重ボーナスは和で。**
       （進捗監視起票 2026-09-05・根拠は combo.py の COMBO_UNWIRED 自身の
       記述「gates are discrete, but C-1313 just made some of them worth
       double - two multipliers at once needs a decision」。その decision を
