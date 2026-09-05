@@ -39,10 +39,20 @@ MAGENTA = "#ff5cc8"
 
 PATTERNS: tuple[str, ...] = ("flow", "orbits")
 
+#: The pattern used when a request names none. Named here so the honest note
+#: and ``choose_pattern`` agree on which one that is.
+DEFAULT_PATTERN = "flow"
+
 _PATTERN_WORDS: dict[str, tuple[str, ...]] = {
     "flow": ("フロー", "流れ", "flow", "風", "波"),
     "orbits": ("軌道", "円", "リング", "orbit", "ring", "惑星"),
 }
+
+#: How each pattern is named to the operator. English 「flow」 is what the
+#: detail line already shows; the note a person reads uses Japanese, and the
+#: honest note lists these so a reader who got the default knows their two
+#: choices (C-1256).
+PATTERN_LABELS: dict[str, str] = {"flow": "フロー", "orbits": "軌道"}
 
 
 @dataclass(frozen=True)
@@ -51,15 +61,31 @@ class GeneratedArt:
     pattern: str
     seed: int
     html: str
+    #: False when the request named no pattern word and the default was used.
+    #: The picture is identical either way; this is what lets the summary tell
+    #: a reader who asked for 「螺旋」 that they got the default (C-1256).
+    pattern_named: bool = True
     evidence: tuple[str, ...] = field(default_factory=tuple)
 
 
-def choose_pattern(request: str) -> str:
+def named_pattern(request: str) -> str | None:
+    """The pattern a request explicitly asks for, or ``None`` if it names none.
+
+    ``choose_pattern`` collapses 「no match」 into the default, which is right
+    for picking what to draw but hides the one fact the operator needs: that
+    their words matched neither pattern. This returns ``None`` in that case so
+    the caller can say so.
+    """
+
     text = unicodedata.normalize("NFKC", request).casefold()
     for pattern, words in _PATTERN_WORDS.items():
         if any(word.casefold() in text for word in words):
             return pattern
-    return "flow"
+    return None
+
+
+def choose_pattern(request: str) -> str:
+    return named_pattern(request) or DEFAULT_PATTERN
 
 
 def _title_from(request: str) -> str:
@@ -214,7 +240,11 @@ def generate_art(
     seed: int | None = None,
     evidence: list[str] | None = None,
 ) -> GeneratedArt:
-    chosen = pattern or choose_pattern(request)
+    # An explicit ``pattern=`` is the caller naming it (probes, revisions); a
+    # derived one is named only when a word in the request matched.
+    derived = named_pattern(request)
+    chosen = pattern or derived or DEFAULT_PATTERN
+    named = pattern is not None or derived is not None
     if chosen not in _BODIES:
         raise ValueError(f"unknown pattern: {chosen!r}")
     actual_seed = zlib.crc32(request.encode("utf-8")) if seed is None else seed
@@ -238,6 +268,7 @@ def generate_art(
         pattern=chosen,
         seed=actual_seed,
         html=html,
+        pattern_named=named,
         evidence=tuple(evidence or ()),
     )
 
@@ -291,11 +322,14 @@ def validate_art(art: GeneratedArt) -> dict:
 __all__ = [
     "BG",
     "CYAN",
+    "DEFAULT_PATTERN",
     "GeneratedArt",
     "MAGENTA",
     "PATTERNS",
+    "PATTERN_LABELS",
     "choose_pattern",
     "generate_art",
+    "named_pattern",
     "save_art",
     "validate_art",
 ]

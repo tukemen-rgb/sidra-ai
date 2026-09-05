@@ -9,7 +9,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sidra_ai.creation.art import generate_art, save_art, validate_art
+from sidra_ai.creation.art import (
+    DEFAULT_PATTERN,
+    PATTERN_LABELS,
+    PATTERNS,
+    generate_art,
+    save_art,
+    validate_art,
+)
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
@@ -31,6 +38,19 @@ def build_art_generator(data_dir: str | Path):
                 f"（パターン: {art.pattern}、seed {art.seed}）。"
                 "HTML をブラウザで開くとその場で描画され、同じ依頼なら同じ絵になります。"
             )
+            # The request named no pattern, so the default was used. Say so and
+            # name the choices - a reader who asked for 「螺旋」 got a flow field
+            # and would otherwise never learn there were two patterns to pick
+            # from (C-1256). Not a claim the subject can't be drawn: the two
+            # patterns are abstract, so the honest fact is just "you didn't
+            # pick, here is what you got and what you could pick".
+            if not art.pattern_named:
+                choices = " / ".join(PATTERN_LABELS[name] for name in PATTERNS)
+                summary += (
+                    f"依頼にパターン名が無かったので、既定の"
+                    f"「{PATTERN_LABELS[DEFAULT_PATTERN]}」で描きました。"
+                    f"指定できるパターンは {choices} です。"
+                )
         else:
             summary = (
                 f"「{art.title}」のアートを作りましたが、検証に落ちています: "

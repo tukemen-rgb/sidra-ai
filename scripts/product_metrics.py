@@ -612,6 +612,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1256: generative art has two patterns and any request that names
+    # neither silently became flow, with the summary saying only 「パターン:
+    # flow」. Games decline unsupported requests and list what they can make;
+    # art went quiet. Measured through the real chat path: a request with no
+    # pattern word must draw the default and say so and name the choices, while
+    # a named pattern (フロー/軌道) stays silent.
+    from sidra_ai.evals.art_pattern_default_honest import (
+        evaluate_art_pattern_default_honest,
+    )
+
+    art_default = evaluate_art_pattern_default_honest()
+    c.add(
+        "art_pattern_default_honest",
+        "アートが無指定で既定パターンに落ちたことを利用者に正直に伝える",
+        10.0 * art_default.checks_passed / art_default.checks_total,
+        detail=f"{art_default.checks_passed}/{art_default.checks_total} checks; "
+               "src/sidra_ai/evals/art_pattern_default_honest.py"
+               + ("" if art_default.passed else "; " + "; ".join(art_default.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
