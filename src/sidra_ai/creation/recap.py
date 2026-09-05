@@ -66,6 +66,25 @@ LOSS_WIRED: dict[str, dict] = {
             ("3-cycles", "'頭部にあと '+n+' 発——脚を崩した直後だけ頭が下がる'"),
         ],
     },
+    # 'end' is reached by winning and by losing alike, so the hp
+    # comparison is what tells them apart (C-1422): at the end one side is
+    # at zero, and it is the player's side that makes this a loss.
+    #
+    # Two causes rather than one, because duel has two genuinely different
+    # ways to lose a heart and they call for different things: a beam that
+    # landed was fired into the lane the player was standing in, and a lost
+    # clash was a shove that did not push hard enough. Both are stated as
+    # what happened - never as what to do instead.
+    "duel": {
+        "lost": "state==='end'&&p.hp<e.hp",
+        "causes": [
+            ("lostBeam", "'ビームを '+n+' 発——撃たれた瞬間に同じレーンに居た'"),
+            (
+                "lostClash",
+                "'つばぜり合いに '+n+' 回負けた——連打がひかりの溜めに届かなかった'",
+            ),
+        ],
+    },
     # Laps are the score here, so the shortfall is the reason.
     "racing": {
         "lost": "state!=='goal'",
@@ -81,7 +100,6 @@ LOSS_UNWIRED: dict[str, str] = {
     "catch": "no losing state at all - the clock ends every go and the score is the whole verdict",
     "fishing": "same as catch: nothing can end the round early",
     "puzzle": "'over' means the board jammed, but nothing counts *why* it jammed yet",
-    "duel": "'end' covers winning and losing both; needs the hp comparison split out first",
     "adventure": "'over' exists but no counter survives it - the hero's damage is never tallied",
 }
 
@@ -206,7 +224,10 @@ for (let f = 0; f < FRAMES_INPUT; f++) {
    counted disagrees with them. */
 function peek(name){ try { return eval(name) } catch (e) { return null } }
 const counters = { hp: peek('ship&&ship.hp'), respawns: peek('respawns'),
-  cycles: peek('cycles'), laps: peek('times&&times.length') };
+  cycles: peek('cycles'), laps: peek('times&&times.length'),
+  /* duel's two, and the hp comparison that says which side lost. */
+  lostBeam: peek('lostBeam'), lostClash: peek('lostClash'),
+  pHp: peek('p&&p.hp'), eHp: peek('e&&e.hp') };
 const atEnd = recapFacts();
 /* The strip as drawn, after the round is over. */
 drawn = [];
@@ -227,6 +248,10 @@ console.log(JSON.stringify({
 #: that asks whether the line stays quiet.
 WIN_STATE: dict[str, str] = {
     "shooter": "play",
+    # 'end' is both outcomes here, so a win is the same state with the hp
+    # comparison the other way round. The probe sets the state; the loss
+    # predicate is what has to stay quiet, and it reads p.hp against e.hp.
+    "duel": "play",
     "marble": "roll",
     "platformer": "goal",
     "kaiju": "won",

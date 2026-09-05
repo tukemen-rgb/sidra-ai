@@ -4539,6 +4539,11 @@ def measure_creation(c: Collector) -> None:
         # correctly says nothing; holding right walks it off the ledges.
         "platformer": ("ジャンプアクションを作って", {"hold": "ArrowRight"}),
         "kaiju": ("怪獣と戦うゲームを作って", {}),
+        # An untouched duel loses on its own: the CPU charges and fires
+        # while the player stands in whatever lane it aimed at (C-1422).
+        # 「対戦格闘」 is a *declined* genre (C-1121) and would hand back a
+        # fishing page - the request has to be one this template answers.
+        "duel": ("ビーム対戦のゲームを作って", {}),
         # Since C-1404 every racing rung finishes untouched, so its loss
         # comes from the panel's slowest pace - the way C-1105 makes one.
         "racing": (
@@ -4579,6 +4584,14 @@ def measure_creation(c: Collector) -> None:
             "shooter": (3 - raw["hp"]) if raw.get("hp") is not None else None,
             "platformer": raw.get("respawns"),
             "kaiju": (3 - raw["cycles"]) if raw.get("cycles") is not None else None,
+            # Whichever of duel's two causes was the larger - the same
+            # choice recapLine makes, derived here from the raw counters
+            # so a rewritten table disagrees with the page.
+            "duel": (
+                max(raw.get("lostBeam") or 0, raw.get("lostClash") or 0)
+                if raw.get("lostBeam") is not None
+                else None
+            ),
         }.get(key)
         if expected is not None and end.get("line"):
             if str(int(expected)) not in end["line"]:
@@ -9921,6 +9934,141 @@ def measure_creation(c: Collector) -> None:
             "積み上がる——飾りが消えるだけで数字は情報（C-1020）。"
             "SKIN_UNIT は再測定して据え置き: マッシャーの 1 ラウンドは今も 2 点で、"
             "この倍率が上げるのは上手に走った天井であって下限ではない"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- why the duel was lost, in one line (C-1422) ---------------------
+    #
+    # recap.py's unwired table said duel needed the hp comparison split out
+    # first: 'end' is reached by winning and by losing alike, so there was
+    # no predicate to hang a losing line on. That split is the whole of the
+    # product change here - the damage and the CPU are untouched, and two
+    # counters were added that only count.
+    #
+    # Two causes, because the duel has two genuinely different ways to lose
+    # a heart: a beam that landed was fired into the lane the player was
+    # standing in, and a lost clash was a shove that did not push hard
+    # enough. Driven twice on the real page so each is seen alone - which
+    # is also what makes 「the largest cause」 distinguishable from 「the
+    # first cause in the table」.
+    from sidra_ai.creation.duel import loss_probe_source as _dl_probe
+
+    dl_gaps: list[str] = []
+    dl_page = _tune_generate("ビーム対戦のゲームを作って").html
+    dl_script = _scene_re.search(r"<script>(.*?)</script>", dl_page, _scene_re.S)
+    dl_runs: dict[str, dict] = {}
+    if dl_script is None:
+        dl_gaps.append("no script on the page")
+    else:
+        for mode in ("beam", "clash", "mixed"):
+            try:
+                out = _scene_sp.run(
+                    ["node", "-"],
+                    input=_dl_probe(dl_script.group(1), mode=mode),
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+                if out.returncode != 0:
+                    raise ValueError(out.stderr.strip()[:60])
+                dl_runs[mode] = json.loads(out.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                dl_gaps.append(f"{mode}: probe unavailable ({exc})")
+
+    if len(dl_runs) == 3:
+        # The mixed run is the one that makes the count falsifiable. With a
+        # single cause at 3 in every run, a line that hard-codes 「3」 reads
+        # exactly like one that counts; mixed ends 2 and 1, so it does not.
+        mixed = dl_runs["mixed"]
+        if not (mixed["facts"]["lostBeam"] and mixed["facts"]["lostClash"]):
+            dl_gaps.append(
+                "the mixed go did not produce both causes, so the counts are "
+                f"not falsifiable ({mixed['facts']['lostBeam']}/{mixed['facts']['lostClash']})"
+            )
+        elif str(mixed["facts"]["lostBeam"]) not in (mixed["recap"] or {}).get("line", ""):
+            dl_gaps.append(
+                f"the mixed go's line is not its own count "
+                f"({(mixed['recap'] or {}).get('line')!r} against {mixed['facts']['lostBeam']})"
+            )
+        elif max(mixed["facts"]["lostBeam"], mixed["facts"]["lostClash"]) != mixed["facts"][
+            "lostBeam"
+        ]:
+            dl_gaps.append("the mixed go named the smaller cause")
+        for mode, wanted, other, phrase in (
+            ("beam", "lostBeam", "lostClash", "ビームを"),
+            ("clash", "lostClash", "lostBeam", "つばぜり合いに"),
+        ):
+            run = dl_runs[mode]
+            facts, recap = run["facts"], run["recap"] or {}
+            # 1. It was a loss, and it was a loss *by hp* - the comparison
+            #    this item exists to add.
+            if run["state"] != "end":
+                dl_gaps.append(f"{mode}: the go never finished")
+                continue
+            if not (facts["pHp"] < facts["eHp"]):
+                dl_gaps.append(f"{mode}: the go was not lost on hp ({facts['pHp']}/{facts['eHp']})")
+            elif not recap.get("lost"):
+                dl_gaps.append(f"{mode}: a go lost on hp was not counted as a loss")
+            # 2. The line names this cause, with this counter's number.
+            elif phrase not in recap.get("line", ""):
+                dl_gaps.append(f"{mode}: the line does not name the cause ({recap.get('line')!r})")
+            elif str(facts[wanted]) not in recap["line"]:
+                dl_gaps.append(
+                    f"{mode}: the line's count is not the counter's "
+                    f"({recap['line']!r} against {facts[wanted]})"
+                )
+            # 3. ...and the other cause was at zero, so this run also shows
+            #    that a cause counted zero is never named.
+            elif facts[other]:
+                dl_gaps.append(f"{mode}: the other cause was not zero ({facts[other]})")
+            # 4. Every heart is accounted for. A counter that only sees
+            #    some of the damage would still pass everything above.
+            elif facts["lostBeam"] + facts["lostClash"] != 3:
+                dl_gaps.append(
+                    f"{mode}: {facts['lostBeam'] + facts['lostClash']} hearts counted, not 3"
+                )
+            # 5. The same finished page, with the hp the other way round,
+            #    says nothing. A win that explains itself is second-guessing
+            #    somebody who has just succeeded.
+            elif (run.get("asWin") or {}).get("lost") is not False:
+                dl_gaps.append(f"{mode}: the same page called a win a loss ({run.get('asWin')})")
+            elif (run.get("asWin") or {}).get("line"):
+                dl_gaps.append(f"{mode}: a win was given a reason ({run['asWin']['line']!r})")
+        # 6. The two runs pick different lines, which is the only way to
+        #    tell 「the largest cause」 from 「the first one in the table」.
+        #
+        #    Two breaks are recorded here as *not* reachable, rather than
+        #    left to look covered. Making recapLine take the first cause
+        #    instead of the largest still passes: the zero guard above it
+        #    drops a cause counted zero before the comparison, so in a run
+        #    with one live cause the two rules agree, and no run this
+        #    template produces ends with a *later* cause larger than an
+        #    earlier one. Removing that zero guard also still passes,
+        #    because _CAUSE already blanks a zero cause's sentence - the
+        #    guard is belt-and-braces over a ternary that had it covered.
+        #    Both live in shared recap code that predates this item.
+        if not dl_gaps:
+            lines = {dl_runs[m]["recap"]["line"] for m in ("beam", "clash")}
+            del mixed
+            if len(lines) != 2:
+                dl_gaps.append("both runs gave the same line, so the choice is untested")
+    c.add(
+        "creation_duel_loss_recap",
+        "ビーム対戦の負けにも一言（勝ちには出ない）",
+        0.0 if dl_gaps else 1.0,
+        detail=(
+            "; ".join(dl_gaps)
+            if dl_gaps
+            else "実ページを 2 通り戦って計測。立ち尽くす走行は"
+            f"「{dl_runs['beam']['recap']['line']}」、相手のレーンに踏み込んで"
+            f"競り負ける走行は「{dl_runs['clash']['recap']['line']}」——"
+            "**別々の行が出る**ので「最大の原因」が「表の先頭」と区別できている。"
+            "どちらの走行でも数字はページの生カウンタと一致し、0 の原因は名指し"
+            "されず、失った心 3 つは 2 つのカウンタで過不足なく説明される。"
+            "同じ終局ページの hp を逆にして尋ねると何も言わない——'end' は勝ちも"
+            "負けも通るので、この hp 比較が C-1422 の中身そのもの。"
+            "ダメージ計算と CPU の挙動は不変（足したのは数えるだけの 2 変数）"
         ),
         kind=OUTCOME,
     )

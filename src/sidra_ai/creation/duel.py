@@ -22,6 +22,8 @@ duel itself keeps working.
 
 from __future__ import annotations
 
+import json
+
 #: Words that pick this template. The franchise names are detection-only -
 #: they route the request to the right genre and are never printed by the
 #: page; what happens to the *title* is the trademark guard's job.
@@ -100,6 +102,11 @@ function duelAct(){if(!p||!e)return 0;
   return low<=1?2:(p.hp<3||e.hp<3)?1:0}
 function tempo(){return TENSE[duelAct()]}
 let p,e,state,winner,flash,spark,mash;
+/* The two ways a heart is lost, counted apart (C-1422). They are different
+   mistakes: a beam that lands was fired into the lane the player was
+   standing in, and a lost clash was a shove that did not push hard enough.
+   Counting only - the damage and the CPU are untouched by these lines. */
+let lostBeam,lostClash;
 function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,
   think:0,hitLock:false,over:0,stun:0,aim:-1,fireAt:0}}
 function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
@@ -108,10 +115,12 @@ function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
   aim:e?e.aim:-1,aimLock:AIM_LOCK,enemyHold:e?e.hold:false,
   enemyCharge:e?e.charge:0,enemyFireAt:e?e.fireAt:0,
   enemyBeam:e?e.beam:0,enemyBeamLane:e?e.beamLane:-1,
-  pLane:p?p.lane:-1,pHp:p?p.hp:0,eHp:e?e.hp:0}}
+  pLane:p?p.lane:-1,pHp:p?p.hp:0,eHp:e?e.hp:0,
+  lostBeam:lostBeam||0,lostClash:lostClash||0}}
 function overload(f){f.stun=STUN_FRAMES;f.hold=false;f.charge=0;f.over=0;
   sfx('hurt');shake(9);hitstop(4);burst(f.x,LANES[f.lane],16,'ALERT_JUICE')}
 function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spark=0;mash=0;
+  lostBeam=0;lostClash=0;
   rs=(SEED>>>0)||1}
 addEventListener('keydown',ev=>{
   if(ev.code==='Space'){ev.preventDefault();
@@ -180,10 +189,10 @@ function step(){const now=performance.now();
       /* the clash: mashing feeds the player side, charge fed the CPU side */
       spark+=(mash*0.8+p.beam*0.02)-(e.beam*0.045*CSPEED);mash=Math.max(0,mash-1);
       if(spark>60){hit(e);p.beam=0;e.beam=0;spark=0}
-      if(spark<-60){hit(p);p.beam=0;e.beam=0;spark=0}}
+      if(spark<-60){lostClash++;hit(p);p.beam=0;e.beam=0;spark=0}}
     else{
       if(pB){p.beam-=2;if(p.beam<=0){if(p.hitLock){hit(e)}p.beam=0;p.hitLock=false}}
-      if(eB){e.beam-=2;if(e.beam<=0){if(e.hitLock){hit(p)}e.beam=0;e.hitLock=false}}}}
+      if(eB){e.beam-=2;if(e.beam<=0){if(e.hitLock){lostBeam++;hit(p)}e.beam=0;e.hitLock=false}}}}
   draw(now);requestAnimationFrame(step)}
 function aura(x,y,r,c,now){const s=REDUCED?0:FRAME(4,6,now);
   cx.globalAlpha=0.25;cx.fillStyle=c;
@@ -510,3 +519,100 @@ __all__ = [
     "aim_probe",
     "probe_source",
 ]
+
+
+#: Fights the real duel two ways, so both of the ways a heart is lost are
+#: read off a page that played rather than assumed from the source.
+#:
+#: ``mode``: ``beam`` stands still and is shot - which is what an untouched
+#: go already does - and ``clash`` deliberately walks into the enemy's lane
+#: with a barely-charged beam, which is the shove that does not push hard
+#: enough. Both are driven through the keys the template listens for, so
+#: neither can reach a state a person could not.
+LOSS_PROBE = """
+const dNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : dNothing),
+  apply: () => dNothing, set: () => true });
+const dHandlers = {};
+globalThis.matchMedia = () => ({ matches: false, addEventListener(){}, addListener(){} });
+let dClock = 0;
+globalThis.performance = { now: () => dClock };
+globalThis.addEventListener = (type, fn) => { (dHandlers[type] = dHandlers[type] || []).push(fn) };
+globalThis.Image = function(){ return dNothing };
+const dStore = {};
+globalThis.localStorage = { getItem: (k) => (k in dStore ? dStore[k] : null),
+  setItem: (k, v) => { dStore[k] = String(v) }, removeItem: (k) => { delete dStore[k] } };
+globalThis.location = { reload: () => {} };
+globalThis.KeyboardEvent = function(type, init){ return Object.assign({ type: type }, init) };
+globalThis.dispatchEvent = (ev) => { (dHandlers[ev.type] || []).forEach(fn => fn(ev)); return true };
+let dPaint = [];
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => dNothing, querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {}, addEventListener: () => {},
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => new Proxy({
+      fillText: (s) => { dPaint.push(String(s)) }, fillRect: () => {} }, {
+      get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : dNothing)),
+      set: () => true }) }) };
+let dQueued = null;
+globalThis.requestAnimationFrame = (fn) => { dQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+const MODE = MODE_INPUT;
+let dFrame = 0;
+function dKey(type, key, code){ (dHandlers[type] || []).forEach(fn => fn({
+  key: key, code: code || key, preventDefault(){}, stopImmediatePropagation(){} })) }
+function dStep(){ if (!dQueued) return false;
+  const fn = dQueued; dQueued = null; dPaint = []; dClock += 50 / 3; fn(dClock); return true }
+dKey('keydown', ' ', 'Space'); dKey('keyup', ' ', 'Space');
+dStep(); dStep();
+/* Walk to a lane by pressing the same arrow the player would. */
+function dGoTo(lane){ for (let i = 0; i < 3 && p.lane !== lane; i++) {
+  dKey('keydown', p.lane > lane ? 'ArrowUp' : 'ArrowDown') } }
+let charging = false;
+for (let f = 0; f < FRAMES_INPUT; f++) {
+  if ((MODE === 'clash' || MODE === 'mixed') && state === 'play') {
+    if (e.beam > 0 && p.beam <= 0) {
+      /* The enemy's beam is in the air. Step into its lane and answer it
+         with the least charge that will fire at all - which is exactly the
+         shove that loses. */
+      dGoTo(e.beamLane);
+      if (!charging) { dKey('keydown', ' ', 'Space'); charging = true }
+      else if (p.charge > 20) { dKey('keyup', ' ', 'Space'); charging = false }
+    } else {
+      if (charging && p.charge > 60) {
+        /* Never let the charge run away into an overload. */
+        dKey('keyup', ' ', 'Space'); charging = false }
+      /* Between clashes, get out of the lane the enemy is locking on to.
+         Without this the run eats more beams than clashes, and a judge
+         that only ever saw the first-listed cause win could not tell
+         「the largest」 from 「the first」. */
+      if (MODE === 'clash' && e.aim >= 0 && p.lane === e.aim) {
+        dGoTo(e.aim === 0 ? 1 : e.aim - 1) } }
+  }
+  if (!dStep()) break;
+  if (state !== 'play') break;
+}
+const facts = duelFacts();
+/* The same finished page, asked what it would say if the hp had gone the
+   other way. 'end' is reached by winning and losing alike, so this is the
+   comparison C-1422 exists to add - interrogated on the product's own
+   predicate rather than re-implemented out here. */
+let asWin = null;
+try { const keepP = p.hp, keepE = e.hp; p.hp = 3; e.hp = 0;
+  asWin = recapFacts(); p.hp = keepP; e.hp = keepE }
+catch (err) { asWin = 'error: ' + err.message }
+console.log(JSON.stringify({ mode: MODE, facts: facts, asWin: asWin,
+  recap: (typeof recapFacts === 'function') ? recapFacts() : null,
+  state: state, winner: winner, frames: dFrame,
+  said: dPaint.slice(0, 8) }));
+"""
+
+
+def loss_probe_source(script: str, *, mode: str = "beam", frames: int = 4000) -> str:
+    """The page's own script, wrapped so both ways of losing can be driven."""
+
+    return (
+        LOSS_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("MODE_INPUT", json.dumps(mode))
+        .replace("FRAMES_INPUT", str(int(frames)))
+    )
