@@ -194,13 +194,38 @@ class GeneratedGame:
         new_tagline = tagline.strip() or self.tagline
         if (new_title, new_tagline) == (self.title, self.tagline):
             return self
-        # Tagline before title: the subtitle names the genre (「ジャンル 釣り」,
-        # C-1259) and a 「釣りゲーム」 request titles the page 「釣り」 too, so the
-        # title string is a substring of the tagline. Replacing the title first
-        # would rewrite it *inside* the tagline, and the tagline replace would
-        # then fail to find its now-mutated target and drop the model's line.
-        html = self.html.replace(escape(self.tagline), escape(new_tagline))
-        html = html.replace(escape(self.title), escape(new_title))
+        # Replaced through the elements that hold them, never as loose text
+        # over the whole page (C-1431). Measured on a fishing page, where
+        # the title 「釣り」 occurs five times: two of them are the display
+        # copy, and the other three are a browser-tab title, a GTITLE
+        # constant that merely *contains* it (「タイミング釣り」) and the
+        # share spec's genre name, which is 「釣り」 for a reason that has
+        # nothing to do with the title. A loose replace rewrote all five,
+        # turning GTITLE into 「タイミング朝凪の一本」 and relabelling the
+        # genre with the model's title.
+        #
+        # Since C-1259 the subtitle names the genre (「ジャンル 釣り」) and a
+        # 「釣りゲーム」 request titles the page 「釣り」, so the two fields can
+        # share a word - and a bare substitution lets whichever runs first
+        # rewrite the other. C-1259 fixed that by ordering the two, tagline
+        # before title, which closes one direction only: a model-written
+        # *new* tagline containing the *old* title is still cut into by the
+        # title pass, and the page ships the mangled line (measured:
+        # title 「朝凪の一本」 with tagline 「釣りの朝に。」 rendered
+        # 「朝凪の一本の朝に。」). Anchoring removes the crossing itself
+        # rather than one of its two directions, so no ordering is load
+        # bearing and neither field can reach into the other's element.
+        # Each of the three places the copy is *displayed*, replaced through
+        # the element that holds it - never as loose text over the page.
+        was_title, was_tag = escape(self.title), escape(self.tagline)
+        now_title, now_tag = escape(new_title), escape(new_tagline)
+        html = self.html
+        for before, after in (
+            (f"<title>{was_title}</title>", f"<title>{now_title}</title>"),
+            (f"<h1>{was_title}</h1>", f"<h1>{now_title}</h1>"),
+            (f'<p class="tag">{was_tag}</p>', f'<p class="tag">{now_tag}</p>'),
+        ):
+            html = html.replace(before, after)
         return replace(self, title=new_title, tagline=new_tagline, html=html)
 
 

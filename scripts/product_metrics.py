@@ -11347,6 +11347,102 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the model's wording lands whole, both ways round (C-1431) ------
+    #
+    # ``with_copy`` overlays a model-written title and subtitle onto a page
+    # that already works. Since C-1259 the subtitle names the genre in
+    # Japanese, so the two fields can share a word - 「釣りゲームを作って」
+    # titles its page 「釣り」 and its subtitle reads 「ジャンル 釣り」 - and a
+    # bare substitution over the whole page lets whichever runs first cut
+    # into the other.
+    #
+    # C-1259 ordered the two passes, which closes one direction. The other
+    # was measured open: a new subtitle containing the old title came out
+    # as 「朝凪の一本の朝に。」 on the page. Both directions are driven here,
+    # and the third case runs them at once, because an ordering fix passes
+    # whichever direction it was written for.
+    import re as _cp_re
+
+    _cp_ask = "釣りゲームを作って"
+    _cp_cases = (
+        ("forward", "朝凪の一本", "潮が動く前に。"),
+        ("reverse", "朝凪の一本", "釣りの朝に。"),
+        ("both", "釣りの一日", "釣りの朝に。"),
+    )
+    copy_gaps: list[str] = []
+    copy_page = generate_game(_cp_ask)
+    # The collision has to still exist, or every case below is vacuous.
+    if copy_page.title not in copy_page.tagline:
+        copy_gaps.append(
+            f"the fields no longer share a word ({copy_page.title!r} / "
+            f"{copy_page.tagline!r}), so this proves nothing"
+        )
+    else:
+        # The five places the title's text occurs on a fishing page: three
+        # are display copy and must follow the model, two merely contain
+        # the same characters and must not move.
+        _cp_shows = (
+            ("browser tab", r"<title>(.*?)</title>", "title"),
+            ("heading", r"<h1>(.*?)</h1>", "title"),
+            ("subtitle", r'<p class="tag">(.*?)</p>', "tagline"),
+        )
+        _cp_leaves = (
+            ("the game's own GTITLE", r'GTITLE="(.*?)"'),
+            ("the share spec's genre name", r'"name": "(.*?)"'),
+        )
+        _cp_kept = {
+            what: _cp_re.search(pat, copy_page.html).group(1)
+            for what, pat in _cp_leaves
+            if _cp_re.search(pat, copy_page.html)
+        }
+        if len(_cp_kept) != len(_cp_leaves):
+            copy_gaps.append("the page no longer carries the strings this guards")
+        for label, want_title, want_tag in _cp_cases:
+            rewritten = copy_page.with_copy(title=want_title, tagline=want_tag)
+            wanted = {"title": want_title, "tagline": want_tag}
+            for what, pat, field in _cp_shows:
+                found = _cp_re.search(pat, rewritten.html)
+                if found is None:
+                    copy_gaps.append(f"{label}: the page lost its {what}")
+                elif found.group(1) != wanted[field]:
+                    copy_gaps.append(
+                        f"{label}: the {what} came out {found.group(1)!r}, "
+                        f"not {wanted[field]!r}"
+                    )
+            # ...and the other direction: a substitution wide enough to
+            # catch the display copy also catches these, silently.
+            for what, pat in _cp_leaves:
+                found = _cp_re.search(pat, rewritten.html)
+                if found is not None and found.group(1) != _cp_kept.get(what):
+                    copy_gaps.append(
+                        f"{label}: {what} was rewritten to {found.group(1)!r}"
+                    )
+            if copy_page.tagline in rewritten.html:
+                copy_gaps.append(f"{label}: the old subtitle is still on the page")
+    c.add(
+        "game_copy_overlay_isolated",
+        "モデルの書いた題と副題が、互いを書き換えずにページに載る",
+        0.0 if copy_gaps else 1.0,
+        detail=(
+            "; ".join(copy_gaps)
+            if copy_gaps
+            else "題と副題が語を共有するページ（「釣り」/「ジャンル 釣り」）で"
+            "**両方向**を実際に上書きして確認: (a) 旧副題が旧題を含む場合、"
+            "(b) **新副題が旧題を含む**場合、(c) 両方同時。いずれもモデルの"
+            "文言が 3 か所（タブ題・見出し・副題）にそのまま出る。(b) は"
+            "C-1259 の順序入れ替えでは塞がっておらず、実測で副題が"
+            "「朝凪の一本の朝に。」になっていた。"
+            "**逆側も検査している**: 題の文字列はページに 5 回出るが、"
+            "残り 2 か所は題ではない——`GTITLE=\"タイミング釣り\"` は題を"
+            "部分文字列として含むだけの別の定数で、share の `name` は"
+            "ジャンル名。素の置換はこの 2 つも書き換えていた（実測で"
+            "`GTITLE` が「タイミング朝凪の一本」になる）。置換を"
+            "`<title>` / `<h1>` / `<p class=\"tag\">` に固定したので、"
+            "順序が効いているのではなく**混線という種類が消えている**"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

@@ -8020,3 +8020,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-05 17:22 進捗監視 前進あり: C-1260 完了（インライン favicon で 404 解消・16:54）。ループA は C-1431（with_copy の逆方向の混線）へ 17:06 着手、C-1261（17:19 ユーザー claim）進行中。C-1348（クリエイター）継続中。停滞なし。記録のみ。
 2026-09-05 18:32 辛口クリエイター C-1348 完了 creation_hero_face unmeasurable -> 1（判定器 exit 0・観点=§1 手触り・前回=§4・主人公に進行方向を見る目とまばたき＝技法表の最後の 1 つ）
+2026-09-05 17:34 UTC ループA 完了 C-1431 with_copy の混線を要素固定で断つ — game_copy_overlay_isolated unmeasurable→1（game_tagline_genre_localized 10→10 維持）、判定器 exit 0、pytest 全緑、verify_gate_recall MISS 0、Board=13。実測で症状がもう 1 つ見つかった（GTITLE と share の name が素の置換で壊れていた）。自分の最初の直しはタブ題を古いままにする罠を踏み、破壊 2 でそれを固定した。
