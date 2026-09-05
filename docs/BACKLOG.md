@@ -3476,7 +3476,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [x] 完了 2026-09-05 04:4x UTC 辛口ユーザー（`answer_language_defaults_japanese` 2.86→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・`answer_language_matches_question` は 10 のまま非退行。5 通りの破壊で 10→2.86/2.86/1.43/8.57/8.57 に落ち、復元で 10.0。API 実測: 「123456」「😀😀」→ 日本語の根拠なし応答、「what is GAMEYARD revenue」→ 英語のまま）**C-1248: 言語判定できない質問（数字だけ・絵文字だけ・記号だけ・空白）が根拠なし応答で英語＋内部 API 用語になる。「123456」「😀😀」→「No indexed evidence matched this question. Run POST /v1/github/analyze…」。日本語主体の製品なのに、CJK も Latin も無い＝言語の手がかりが無い質問を英語に倒していた。**
+- [~] 作業中 2026-09-05 05:2x UTC 辛口ユーザー（26 巡目・生成スライド）**C-1249: 生成スライドの表紙（タイトル）が「…のスライド」等の資料種名を重ねる（C-1246 のデッキ版）。「GAMEYARD の強みのスライドを作って」→ `<title>`／`<h1>` が「GAMEYARD の強みのスライド」——スライド束の表紙に「スライド」と書いてある。「営業用のデッキ」「進捗のプレゼン」「紹介スライドショー」も同様。再現: `POST /v1/chat {"message":"GAMEYARD の強みのスライドを作って"}` の deck HTML の title/h1。** → 動かす数字: `deck_title_no_kind_echo`（新設・表紙は主題のみ＝末尾の資料種名を落とす）判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・`answer_language_matches_question` は 10 のまま非退行。5 通りの破壊で 10→2.86/2.86/1.43/8.57/8.57 に落ち、復元で 10.0。API 実測: 「123456」「😀😀」→ 日本語の根拠なし応答、「what is GAMEYARD revenue」→ 英語のまま）**C-1248: 言語判定できない質問（数字だけ・絵文字だけ・記号だけ・空白）が根拠なし応答で英語＋内部 API 用語になる。「123456」「😀😀」→「No indexed evidence matched this question. Run POST /v1/github/analyze…」。日本語主体の製品なのに、CJK も Latin も無い＝言語の手がかりが無い質問を英語に倒していた。**
       （辛口ユーザーループ起票・25 巡目 エラー文言/エッジ・4/10）C-1231 で
       全角記号を日本語扱いにしたが、CJK も Latin も無い質問（数字・絵文字・
       記号・空）は依然 `_is_japanese` False→英語だった。**最小の解決**は
