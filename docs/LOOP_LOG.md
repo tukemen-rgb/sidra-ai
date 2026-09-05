@@ -7694,3 +7694,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   API 実測: 「GAMEYARD 提案の pptx を作って」→ deck 4 枚・題「GAMEYARD 提案」。
   注記: .pptx 自体は python-pptx 非導入だと書かれず HTML deck のみ（既存の
   graceful degradation）。
+
+2026-09-05 06:52 進捗監視 前進あり: C-1337 完了（走る 2 型の HUD 板・06:13）・C-1250 完了（pptx/パワポ依頼をスライド生成へ・06:47）。C-1338（06:40 クリエイター claim・shooter の attract 配線）進行中。次巡ループA には補充の C-1422/C-1423 が待機。停滞なし。記録のみ。
