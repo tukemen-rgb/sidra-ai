@@ -122,8 +122,8 @@ def test_one_hull_takes_the_whole_run(crashed):
 
 def test_reduced_motion_keeps_the_sound_and_drops_the_particles(clean):
     quiet = _fly(frames=700, reduced=True)
-    loud_rise = [e for e in clean["timeline"] if "gem" in e["rang"]]
-    quiet_rise = [e for e in quiet["timeline"] if "gem" in e["rang"]]
+    loud_rise = [e for e in clean["timeline"] if "powerup" in e["rang"]]
+    quiet_rise = [e for e in quiet["timeline"] if "powerup" in e["rang"]]
     assert quiet_rise, "reduced motion lost the sound of the rise"
     assert loud_rise
     assert quiet_rise[0]["rose"] < loud_rise[0]["rose"]

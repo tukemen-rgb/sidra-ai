@@ -112,7 +112,10 @@ function comboLabel(){return '\u00d7'+COMBO_MULT}
    Every effect is guarded: this preamble sits above templates that are
    allowed not to have a canvas. */
 function comboCheer(){
-  try{sfx('gem')}catch(e){}
+  /* The step-up is a power-up, not a 47th pickup (§2, C-1339): the
+     multiplier rising is rare and earned, and it gets sfxr's powerUp
+     shape - rising tone with vibrato - instead of the gem's sweep. */
+  try{sfx('powerup')}catch(e){}
   if(typeof REDUCED!=='undefined'&&REDUCED)return;
   try{shake(3)}catch(e){}
   try{burst(cv.width/2,40,12,'ACCENT_JUICE')}catch(e){}}

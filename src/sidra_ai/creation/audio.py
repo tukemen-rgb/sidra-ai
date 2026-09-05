@@ -111,6 +111,7 @@ const SFX_TABLE={
   charge:['sawtooth',120,480,0.25,0.1],
   clash:['square',300,260,0.06,0.12],
   catch:['triangle',500,900,0.09,0.16],
+  powerup:['vibrato',440,880,0.3,0.2],
   win:['triangle',523,1046,0.5,0.2],
   lose:['noise',1200,90,0.6,0.2],
   step:['triangle',240,200,0.04,0.05]};
@@ -175,9 +176,20 @@ function sfx(name){
       src.start(t0);src.stop(t0+dur+0.02);
     }else{
       const osc=AC.createOscillator();
-      osc.type=wave;
+      osc.type=wave==='vibrato'?'sawtooth':wave;
       osc.frequency.setValueAtTime(f0,t0);
       osc.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+      if(wave==='vibrato'){
+        /* sfxr's powerUp is its own preset, not a louder pickup (§2,
+           C-1339): a rising tone WITH vibrato - an LFO wired into the
+           main oscillator's frequency. The depth is set by assignment,
+           not scheduled, so the loudness books only ever carry gains
+           that are loudness. */
+        const lfo=AC.createOscillator(),dep=AC.createGain();
+        lfo.frequency.setValueAtTime(6,t0);
+        dep.gain.value=f0*0.04;
+        lfo.connect(dep);dep.connect(osc.frequency);
+        lfo.start(t0);lfo.stop(t0+dur+0.02);}
       osc.connect(gain);
       osc.start(t0);osc.stop(t0+dur+0.02);
     }
@@ -203,7 +215,8 @@ function Recorder(){ this.state='running'; this.currentTime=0; this.destination=
    (§14, C-1317). */
 const freqs = [];
 Recorder.prototype.createOscillator = function(){
-  return { type:'', frequency:{setValueAtTime(v){ freqs.push(v) }, exponentialRampToValueAtTime(){}},
+  return { type:'', frequency:{kind:'frequency',
+             setValueAtTime(v){ freqs.push(v) }, exponentialRampToValueAtTime(){}},
            connect(){ nodes.push('oscillator') }, start(){}, stop(){} } };
 Recorder.prototype.createBuffer = function(ch, len){
   return { getChannelData: () => new Float32Array(len) } };
@@ -217,8 +230,13 @@ Recorder.prototype.createBiquadFilter = function(){
     frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} },
     connect(){ nodes.push('lowpass->out') } } };
 Recorder.prototype.createGain = function(){
+  /* A gain wired into an AudioParam is modulation depth, not loudness
+     (§2, C-1339): the vibrato's LFO reaches the oscillator through one,
+     and THAT connection - not the LFO's existence - is what makes the
+     wobble audible. Recorded like the low-pass above: as a wiring fact. */
   const g = { gain:{ setValueAtTime(v){ played.push(v) },
-                     exponentialRampToValueAtTime(){} }, connect(){} };
+                     exponentialRampToValueAtTime(){} },
+    connect(t){ if (t && t.kind === 'frequency') nodes.push('lfo->frequency') } };
   return g };
 globalThis.window = { AudioContext: Recorder };
 globalThis.matchMedia = () => ({ matches: false });
@@ -272,6 +290,16 @@ combat(false);
 /* Texture, as built: what nodes each family's effect actually created. */
 nodes.length = 0; sfx('hurt'); const hurtNodes = nodes.slice();
 nodes.length = 0; sfx('gem'); const gemNodes = nodes.slice();
+/* The step-up, as wired (§2, C-1339): the powerup must carry its vibrato
+   as a CONNECTION into the oscillator's frequency, the cheer must reach
+   it, and the mute must silence it like everything else. */
+nodes.length = 0; sfx('powerup'); const powerupNodes = nodes.slice();
+let cheerNodes = null;
+if (typeof comboCheer === 'function') {
+  nodes.length = 0; comboCheer(); cheerNodes = nodes.slice() }
+keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
+nodes.length = 0; sfx('powerup'); const powerupMutedNodes = nodes.length;
+keyHandlers.forEach(fn => fn({ key: 'm', preventDefault(){}, stopImmediatePropagation(){} }));
 /* The repeat, as heard (§14, C-1317): the same effect eight times over.
    Each start frequency must sit near the table's pitch and the eight must
    not all be the same one - and the mute stops the variation with the
@@ -296,6 +324,8 @@ console.log(JSON.stringify({
   peak: Math.max.apply(null, peaks), hasCombat: typeof combat === 'function',
   combatDuringPlay: combatDuringPlay, nearEnemy: nearEnemy,
   hurtNodes: hurtNodes, gemNodes: gemNodes,
+  powerupNodes: powerupNodes, cheerNodes: cheerNodes,
+  powerupMutedNodes: powerupMutedNodes,
   catchFreqs: catchFreqs, mutedFreqs: mutedFreqs,
   winFreqs: winFreqs, winGains: winGains, winMutedFreqs: winMutedFreqs,
 }));

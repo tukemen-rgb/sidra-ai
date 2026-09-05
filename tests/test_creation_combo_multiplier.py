@@ -153,8 +153,8 @@ def test_reduced_motion_keeps_the_news_and_drops_the_confetti() -> None:
 
     loud = _play(frames=600)
     calm = _play(frames=600, reduced=True)
-    rises = [row for row in loud["timeline"] if "gem" in row["rang"]]
-    quiet_rises = [row for row in calm["timeline"] if "gem" in row["rang"]]
+    rises = [row for row in loud["timeline"] if "powerup" in row["rang"]]
+    quiet_rises = [row for row in calm["timeline"] if "powerup" in row["rang"]]
 
     assert rises and quiet_rises, "the rise made no sound at all"
     assert len(quiet_rises) == len(rises), "reduced motion changed the ladder"
@@ -167,4 +167,4 @@ def test_the_fall_is_not_celebrated() -> None:
     seen = _play(frames=1200, misses=[COMBO_STEP * 2])
     lost = [row for row in seen["timeline"] if row["missed"] == 1][0]
 
-    assert "gem" not in lost["rang"]
+    assert "powerup" not in lost["rang"]

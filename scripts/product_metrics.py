@@ -4128,8 +4128,8 @@ def measure_creation(c: Collector) -> None:
                 combo_gaps.append("the run never rebuilds after a miss")
 
         if quiet is not None:
-            loud = [row for row in (clean or {}).get("timeline", []) if "gem" in row["rang"]]
-            calm = [row for row in quiet["timeline"] if "gem" in row["rang"]]
+            loud = [row for row in (clean or {}).get("timeline", []) if "powerup" in row["rang"]]
+            calm = [row for row in quiet["timeline"] if "powerup" in row["rang"]]
             if not calm:
                 combo_gaps.append("reduced motion silences the rise as well")
             elif loud and min(row["rose"] for row in loud) <= max(
@@ -4268,8 +4268,8 @@ def measure_creation(c: Collector) -> None:
         # 6. C-1020's rule, not a new one: the rise keeps its sound and
         #    loses its particles. Compared against the same rung flown with
         #    motion on, so "quieter" is measured rather than assumed.
-        loud = [e for e in sc_clean["timeline"] if "gem" in e["rang"]]
-        quiet = [e for e in sc_quiet["timeline"] if "gem" in e["rang"]]
+        loud = [e for e in sc_clean["timeline"] if "powerup" in e["rang"]]
+        quiet = [e for e in sc_quiet["timeline"] if "powerup" in e["rang"]]
         if not quiet:
             sc_gaps.append("reduced motion lost the sound of the rise")
         elif not loud:
@@ -5573,6 +5573,68 @@ def measure_creation(c: Collector) -> None:
             else "実走行の AudioContext で確認: hurt/lose は白色雑音＋下降"
             "ローパス（§2 の explosion 系）、旋律系は従来の oscillator、"
             "戦闘音圧段とミュートは不変"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the step-up does not sound like the 47th gem ------------------
+    #
+    # §2's palette keeps powerUp as its own preset, apart from pickupCoin:
+    # a rising tone WITH vibrato (C-1339). The multiplier stepping up is
+    # rare and earned, and it was playing the same sweep as picking up a
+    # gem. Read off each combo template's driven page: the cheer must
+    # build the vibrato as a CONNECTION into the oscillator's frequency
+    # (C-1308's lesson - an LFO that is built and never wired shaped
+    # nothing), the gem must stay a plain oscillator, and the mute must
+    # silence the step-up like everything else.
+    powerup_gaps: list[str] = []
+    for _pu_req, _pu_key in (
+        ("キャッチゲームを作って", "catch"),
+        ("シューティングゲームを作って", "shooter"),
+        ("玉転がしゲームを作って", "marble"),
+    ):
+        _pu_page = generate_game(_pu_req).html
+        _pu_script = _scene_re.search(r"<script>(.*?)</script>", _pu_page, _scene_re.S)
+        if _pu_script is None:
+            powerup_gaps.append(f"{_pu_key}: no script")
+            continue
+        try:
+            _pu_run = _scene_sp.run(
+                ["node", "-"],
+                input=_sfx_probe.replace("SCRIPT_PLACEHOLDER", _pu_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _pu_run.returncode != 0:
+                raise ValueError(_pu_run.stderr.strip()[:60])
+            _pu = json.loads(_pu_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            powerup_gaps.append(f"{_pu_key}: probe unavailable ({exc})")
+            continue
+        cheer = _pu.get("cheerNodes")
+        if not cheer:
+            powerup_gaps.append(f"{_pu_key}: the cheer made no sound at all")
+        elif "lfo->frequency" not in cheer:
+            if "lfo->frequency" in (_pu.get("powerupNodes") or []):
+                powerup_gaps.append(f"{_pu_key}: the step-up sounds like the 47th gem ({cheer})")
+            else:
+                powerup_gaps.append(f"{_pu_key}: the vibrato is built but never wired in ({_pu.get('powerupNodes')})")
+        if "lfo->frequency" in (_pu.get("gemNodes") or []):
+            powerup_gaps.append(f"{_pu_key}: the pickup grew a vibrato too, so the step-up is not distinct")
+        if _pu.get("powerupMutedNodes"):
+            powerup_gaps.append(f"{_pu_key}: M does not silence the step-up")
+    c.add(
+        "creation_sfx_powerup",
+        "昇段が拾得と違う音で鳴る",
+        0.0 if powerup_gaps else 1.0,
+        detail=(
+            "; ".join(powerup_gaps)
+            if powerup_gaps
+            else "combo 3 型（catch/shooter/marble）の実ページで comboCheer() を"
+            "駆動: 昇段は上昇音＋ビブラート（LFO が osc.frequency へ実接続・"
+            "§2 の powerUp 系）、gem は従来の素の oscillator のまま＝節目が"
+            "音で聞き分けられる、M ミュートで無音"
         ),
         kind=OUTCOME,
     )

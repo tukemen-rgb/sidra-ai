@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 08:40 辛口クリエイター **C-1339: 昇段が 47 個目の宝石と同じ音（§2 の powerUp＝ビブラート欠落）。**
+- [x] 完了 2026-09-05 09:35 UTC 辛口クリエイター（`creation_sfx_powerup` unmeasurable→**1**、判定器 exit 0（NEW）。SFX_TABLE に powerup（'vibrato'・440→880・0.3s）、sfx() に vibrato 経路〔主 osc の上昇スイープ＋LFO 6Hz→depth gain→osc.frequency へ**接続**・深さは .value 代入で音量帳簿を汚さない〕、comboCheer を sfx('powerup') へ。Recorder は接続を記録（osc.frequency に kind、depth gain の connect 先が frequency なら 'lfo->frequency'）。実測: combo 3 型の実ページで cheer=['oscillator','lfo->frequency','oscillator']・gem=['oscillator'] のまま＝節目が音で聞き分けられる・M で無音。破壊 2 通り〔dep.connect 削除→0『the vibrato is built but never wired in』＝C-1308 のすり抜けが再発しない実証／comboCheer を gem へ戻す→0『the step-up sounds like the 47th gem』〕、復元で 1。**1 回目の判定器は exit 2**——creation_combo_multiplier / creation_shooter_combo が昇段音を 'gem' で追跡したままで 1→0（テストと同じ改名追随を計器 4 か所にも適用して exit 0、C-1121 の「計器は改名に従う」）。pytest exit 0（3453 passed / 3 skip）・gate MISS 0。テスト test_creation_sfx_powerup.py 新設＋既存 2 テストの追随。灯籠・祠・護符の powerup 化とデューティ比は次候補）**C-1339: 昇段が 47 個目の宝石と同じ音（§2 の powerUp＝ビブラート欠落）。**
       （辛口クリエイターループ起票・観点=§2 効果音の合成。前回=§8）§2 の
       技法列挙〔波形・ADSR・周波数傾き・**ビブラート**・デューティ比・
       LPF/HPF〕のうち、C-1308 が noise+LPF を入れた後も**ビブラートが
