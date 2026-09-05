@@ -7859,3 +7859,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-05 11:52 進捗監視 前進あり: C-1255 完了（題名の about 句も落とす・11:45）。C-1426（11:07 ループA・fishing コンボ）継続中、C-1343（11:37 クリエイター claim・番人の被弾 3 段）進行中。停滞なし。記録のみ。
 2026-09-05 11:56 UTC ループA 完了 C-1426 fishing にコンボ（合間の掃引は run を切らない） — creation_fishing_combo unmeasurable→1、SKIN_UNIT[fishing] 144→186 再測定、判定器 exit 0、pytest 全緑、verify_gate_recall MISS 0、Board=13
+2026-09-05 12:07 UTC ループA started
