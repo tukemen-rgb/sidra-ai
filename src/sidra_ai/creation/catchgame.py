@@ -144,4 +144,71 @@ def hold_probe(script: str) -> str:
     return HOLD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-__all__ = ["HOLD_PROBE", "PROBE", "hold_probe", "probe_source"]
+#: The receiving half of squash & stretch (§1, C-1341), watched on a real
+#: catch: the basket reads 1 before the impact, squashes below 0.9 on the
+#: catch frame, settles back to 1 within half a second, and never deforms
+#: while nothing lands. The reduced-motion run is the other half of the
+#: claim: every sampled frame reads exactly 1.
+BOUNCE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k, preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+}
+key(' ');
+run(30);
+/* Idle first: nothing has landed, so the basket must hold its shape -
+   steered away from every item so no accidental catch muddies the read. */
+let idleOff = 0;
+for (let i = 0; i < 40; i++) { px = 0.05; run(1);
+  if (catchFacts().squash !== 1) idleOff++ }
+/* Then one real catch, with the squash sampled every frame around it. */
+const before = caught;
+let catchSq = null, timeline = [];
+for (let i = 0; i < 900 && catchSq === null; i++) {
+  const low = items.reduce((a, b) => (a === null || b.y > a.y ? b : a), null);
+  if (low) { px = low.x }
+  run(1);
+  if (caught > before) { catchSq = catchFacts().squash } }
+for (let i = 0; i < 40; i++) { px = 0.05; run(1); timeline.push(catchFacts().squash) }
+console.log(JSON.stringify({
+  idleOff: idleOff, catchSq: catchSq,
+  minAfter: Math.min.apply(null, timeline),
+  settled: timeline[timeline.length - 1],
+  caught: caught,
+}));
+"""
+
+
+def bounce_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the basket's shape can be watched."""
+
+    return BOUNCE_PROBE.replace("REDUCED_INPUT", "true" if reduced else "false").replace(
+        "SCRIPT_PLACEHOLDER", script
+    )
+
+
+__all__ = [
+    "BOUNCE_PROBE",
+    "HOLD_PROBE",
+    "PROBE",
+    "bounce_probe",
+    "hold_probe",
+    "probe_source",
+]

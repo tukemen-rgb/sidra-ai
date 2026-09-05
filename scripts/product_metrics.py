@@ -3527,15 +3527,64 @@ def measure_creation(c: Collector) -> None:
             squash_gaps.append(f"{_sq_label}: the bounce never settles ({_sq['settled']})")
         if _sq["idleMax"] != 0:
             squash_gaps.append(f"{_sq_label}: the body breathes while standing still")
+    # The receiving half (C-1341): the catch basket takes an impact every
+    # second and was the only rigid body left in its frame. Same contract,
+    # its own verbs: 1 at rest, below 0.9 on the catch frame, back to 1
+    # within half a second, and bit-identical 1 under reduced motion.
+    from sidra_ai.creation.catchgame import bounce_probe as _bounce_probe
+
+    for _sq_request, _sq_reduced in (
+        ("キャッチゲームを作って", False),
+        ("キャッチゲームを作って", True),
+    ):
+        _sq_label = f"catch{'（reduced）' if _sq_reduced else ''}"
+        _sq_page = generate_game(_sq_request).html
+        _sq_script = _sq_re.search(r"<script>(.*?)</script>", _sq_page, _sq_re.S)
+        if _sq_script is None:
+            squash_gaps.append(f"{_sq_label}: no script")
+            continue
+        try:
+            _sq_run = _sq_sp.run(
+                ["node", "-"],
+                input=_bounce_probe(_sq_script.group(1), reduced=_sq_reduced),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _sq_run.returncode != 0:
+                squash_gaps.append(f"{_sq_label}: {_sq_run.stderr.strip()[:80]}")
+                continue
+            _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sq_sp.SubprocessError, ValueError) as exc:
+            squash_gaps.append(f"{_sq_label}: probe unavailable ({type(exc).__name__})")
+            continue
+        if not _sq.get("caught"):
+            squash_gaps.append(f"{_sq_label}: nothing was ever caught, so nothing was measured")
+            continue
+        if _sq_reduced:
+            if _sq["idleOff"] or _sq["catchSq"] != 1 or _sq["minAfter"] != 1:
+                squash_gaps.append(f"{_sq_label}: reduced motion still bounces {_sq}")
+            continue
+        if _sq["idleOff"]:
+            squash_gaps.append(f"{_sq_label}: the basket deforms with nothing landing")
+        if _sq["catchSq"] is None or _sq["catchSq"] >= 0.9:
+            squash_gaps.append(f"{_sq_label}: the catch never squashes ({_sq['catchSq']})")
+        if abs(_sq["settled"] - 1) > 0.02:
+            squash_gaps.append(f"{_sq_label}: the bounce never settles ({_sq['settled']})")
+    # C-1341 redefined the value from 0/1 to the NUMBER of templates whose
+    # own bounce contract holds - any gap anywhere still collapses it to 0
+    # (両定義: 旧 0/1 は platformer 時点で 1、新定義の変更前は catch が
+    # 未報告のため 0).
     c.add(
         "creation_squash_stretch",
-        "跳ぶ体が伸びて潰れる",
-        1.0 if not squash_gaps else 0.0,
+        "イベントで体が伸びて潰れる型",
+        2.0 if not squash_gaps else 0.0,
         detail=(
-            "platformer の実ジャンプを毎フレーム観測: 上昇中に縦へ伸び"
-            "（>1.1）、着地フレームで潰れ（<0.9・衝撃比例）、0.5 秒で静止形"
-            "に収束、立ち姿は揺れない。reduced-motion では全フレーム 1＝"
-            "輪郭は一切変わらない（§1 の技法表で唯一未実装だった拡縮バウンス）"
+            "platformer の実ジャンプ（上昇 >1.1・着地 <0.9・0.5 秒で収束・"
+            "立ち姿不動）＋ catch の実受け（受けの瞬間 <0.9・0.5 秒で復元・"
+            "何も受けない間は不動）を毎フレーム観測。reduced-motion では"
+            "両型とも全フレーム 1＝輪郭は一切変わらない（§1 の拡縮バウンス、"
+            "跳ぶ側と受ける側）"
             if not squash_gaps
             else "; ".join(squash_gaps)
         ),

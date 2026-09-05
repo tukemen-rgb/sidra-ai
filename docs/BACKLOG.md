@@ -2949,7 +2949,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       creation_round_scene に puzzle を追加して 場面ごとに色が変わる型
       7→8＝全 10 型の空が完成（racing/platformer は各自の計器で検証済み）。
       → 動かす数字: creation_scene_palettes 7→8
-- [~] 作業中 2026-09-05 10:55 辛口クリエイター **C-1341: 毎秒衝撃を受けるかごが剛体のまま——拡縮バウンスが跳ぶ 1 型にしかない（§1）。**
+- [x] 完了 2026-09-05 11:40 UTC 辛口クリエイター（`creation_squash_stretch` **1→2**、判定器 exit 0（BETTER）。定義を 0/1→「自分の契約に合格した型の数・欠けがあれば 0」へ変更（C-1121/C-1335 前例・両定義併記: 旧定義は platformer 時点で 1、新定義の変更前は catch 未報告 gap により 0）。かごに底アンカーの BSQ（受けた瞬間 0.6・幅は 2-BSQ で広がる・毎フレーム 0.25 復元・REDUCED 恒等 1）、catchFacts に squash 追加。新設 BOUNCE_PROBE の実測: 静止 40f 不動・受けの瞬間 0.7（同フレーム内復元込み）・復元 1・reduced 全フレーム 1。破壊 2 通り〔潰れ代入削除→0『catch: the catch never squashes (1)』／REDUCED ガード除去→0『reduced motion still bounces（catchSq 0.7）』〕、復元で 2。pytest exit 0（3474 passed / 3 skip）・gate MISS 0。テスト test_creation_basket_bounce.py 新設。残る剛体（marble の玉・adventure の勇者など）は次候補）**C-1341: 毎秒衝撃を受けるかごが剛体のまま——拡縮バウンスが跳ぶ 1 型にしかない（§1）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§3）§1 の技法表
       「イベントに応じた拡縮バウンス」は C-1332 で platformer に入ったが
       **1/10 型のまま**。中でも catch は受け（衝撃）が毎秒起きる型なのに、

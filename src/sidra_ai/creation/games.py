@@ -303,8 +303,14 @@ setPal(CATCH_PAL_TOKEN);
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 function catchFacts(){return {shown:shown,px:px,score:score,caught:caught,
-  missed:missed,scene:SCENE,ms:ROUND_MS,
+  missed:missed,scene:SCENE,ms:ROUND_MS,squash:BSQ,
   items:items.map(i=>({x:i.x,y:i.y}))}}
+/* Squash & stretch, the receiving half (§1, C-1341): the basket takes an
+   impact every catch and was the only rigid body in the frame. Bottom-
+   anchored: the catch squashes it to 0.6 and widens it by the same
+   budget, and it eases back to rest. Under reduced motion the silhouette
+   never changes - C-1332's line, verbatim. */
+let BSQ=1;
 /* Held movement lives in the loop, not in the event (§12 事実 3, C-1328).
    The on-screen pad synthesises no key repeat - one press is one keydown -
    so a basket that only moved inside the event stood still under a held ◀.
@@ -337,6 +343,7 @@ function step(){t++;
          (C-1405). Asked once, so the points added and the number drawn
          cannot disagree. */
       caught++;score+=scorePop(i.x*cv.width,cv.height-30,comboHit());sfx('catch');
+      if(!REDUCED)BSQ=0.6;
       shake(2);burst(i.x*cv.width,cv.height-30,10,'ACCENT_JUICE')}
     else{comboMiss();missed++;sfx('clash');shake(5);hitstop(2)}return false});
   setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
@@ -346,7 +353,9 @@ function step(){t++;
   /* decorative: a four-frame pulse, frozen when reduced */
   const pulse=[0,1,2,1][FRAME(4,8,performance.now())];
   items.forEach(i=>{sprite('target',i.x*w-10,i.y*h,20,20,'CYAN_TOKEN')});
-  sprite('marker',(shown-WIDE/2)*w,h-30-pulse,WIDE*w,20+pulse,'MAGENTA_TOKEN');
+  BSQ+=(1-BSQ)*0.25;if(Math.abs(BSQ-1)<0.01)BSQ=1;
+  const bh=(20+pulse)*BSQ,bw=WIDE*w*(2-BSQ);
+  sprite('marker',shown*w-bw/2,h-10-bh,bw,bh,'MAGENTA_TOKEN');
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(32,14,420,26);cx.fillRect(32,h-44,330,26);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font='16px ui-monospace,monospace';
