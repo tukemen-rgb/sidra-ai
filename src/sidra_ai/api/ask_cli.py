@@ -226,7 +226,21 @@ def render(payload: dict[str, Any]) -> int:
 
     answer = clean(payload.get("answer", "")).strip()
     print(answer if answer else "(空の回答)")
-    _print_citations(payload, clean)
+
+    # A creation response is not an index-grounded answer: it carries no
+    # citations, and the empty-index note would misread as an ingestion problem
+    # the same way it did after a refusal (C-1254). It also wrote a file the web
+    # UI would list but the CLI never named, leaving the operator with a summary
+    # and nowhere to look (C-1262). Show the path when one was written, and drop
+    # the index note for creations. The key is the *outcome*, not the presence
+    # of `creation`: every chat reply carries `creation.intent` metadata, so a
+    # plain question has `creation` too - only a routed/declined creation has an
+    # `outcome`, and only that should suppress the note. A genuine Q&A keeps it.
+    outcome = (payload.get("creation") or {}).get("outcome") or {}
+    artifact = outcome.get("artifact_path")
+    if artifact:
+        print(f"\n生成ファイル: {clean(str(artifact))}")
+    _print_citations(payload, clean, note_when_empty=not outcome)
 
     model = payload.get("model") or {}
     if model.get("backend"):

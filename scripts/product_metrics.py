@@ -735,6 +735,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1262: making something from the CLI printed the summary but not the path
+    # to the file it wrote, plus the misleading empty-index note on a creation
+    # response. render() now shows the artifact path and suppresses that note for
+    # creations, while a genuine Q&A keeps it. Rendered through the CLI's own
+    # render over real creation payloads.
+    from sidra_ai.evals.cli_shows_artifact_path import (
+        evaluate_cli_shows_artifact_path,
+    )
+
+    cli_artifact = evaluate_cli_shows_artifact_path()
+    c.add(
+        "cli_shows_artifact_path",
+        "CLI の制作出力が生成ファイルの場所を示し索引注記を誤って出さない",
+        10.0 * cli_artifact.checks_passed / cli_artifact.checks_total,
+        detail=f"{cli_artifact.checks_passed}/{cli_artifact.checks_total} checks; "
+               "src/sidra_ai/evals/cli_shows_artifact_path.py"
+               + ("" if cli_artifact.passed else "; " + "; ".join(cli_artifact.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
