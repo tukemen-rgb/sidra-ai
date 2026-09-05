@@ -3513,7 +3513,17 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [~] 作業中 2026-09-05 06:2x UTC 辛口ユーザー（27 巡目・生成物ルーティング）**C-1250: 「pptx／パワポ／PowerPoint を作って」がスライド生成に回らない。デッキ生成は python-pptx で .pptx を書き出す（deck_job の save_pptx）のに、intent の DECK 語に pptx/パワポ/PowerPoint が無く kind=unknown（弱）→ Q&A の定型文へ。さらに「GAMEYARD 提案の pptx を作って」は釣りゲームになる（題材扱いで既定テンプレ）。利用者が PowerPoint を頼んで釣りゲーム／チャット回答が返る。再現: `POST /v1/chat {"message":"GAMEYARD 提案の pptx を作って"}` → 釣りゲーム。** → 動かす数字: `pptx_routes_to_deck`（新設・pptx/パワポ/PowerPoint は DECK に分類、ゲーム/レポートは不変）判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・deck_no_duplicate_facts/deck_mobile_no_overflow は非退行。5 通りの破壊で 10→2.22/5.56/5.56/8.89/1.11 に落ち、復元で 10.0。deck 実測: `<title>`／`<h1>` が「GAMEYARD の強み」に）**C-1249: 生成スライドの表紙（タイトル）が「…のスライド」等の資料種名を重ねる（C-1246 のデッキ版）。「GAMEYARD の強みのスライドを作って」→ title/h1 が「GAMEYARD の強みのスライド」。「営業用のデッキ」「進捗のプレゼン」「紹介スライドショー」も同様。**
+- [x] 完了 2026-09-05 06:4x UTC 辛口ユーザー（`pptx_routes_to_deck` 3.75→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・deck_title_no_kind_echo は 10 のまま非退行。5 通りの破壊で 10→3.75/6.25/8.75/8.75/6.25 に落ち、復元で 10.0。API 実測: 「GAMEYARD 提案の pptx を作って」→ deck 4 枚（題「GAMEYARD 提案」）、釣りゲームでなくなった）**C-1250: 「pptx／パワポ／PowerPoint を作って」がスライド生成に回らない。デッキ生成は python-pptx で .pptx を書き出す（deck_job の save_pptx）のに、intent の DECK 語に pptx/パワポ/PowerPoint が無く kind=unknown（弱）→ Q&A の定型文へ。さらに「GAMEYARD 提案の pptx を作って」は釣りゲームになっていた。**
+      （辛口ユーザーループ起票・27 巡目 生成物ルーティング・自分の観察では最悪級・3/10）
+      **最小の解決**は intent.py の DECK 語に「pptx」「パワポ」「powerpoint」を
+      足す（NFKC で ＰＰＴＸ→pptx、casefold で PowerPoint、fold_kana で パワポ）。
+      併せて decks の C-1249 タイトル種名剥がしにも pptx/パワポ/powerpoint を足し、
+      剥がし後に残る助詞（「提案の pptx」→「提案の」）を落とす末尾助詞掃除を追加
+      （文書 _title_from と同じ）＝表紙が「GAMEYARD 提案」に。判定器は
+      PowerPoint 3 綴り＋全角＋題材つき＋ゲーム/レポート/スライド不変を検査。
+      .pptx 自体は python-pptx 非導入環境では書かれず HTML deck のみ（既存の
+      graceful degradation、deck_job）。設計上の逸脱なし。C-1249（deck）・
+      deck_no_duplicate_facts など非退行。判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.1%）・deck_no_duplicate_facts/deck_mobile_no_overflow は非退行。5 通りの破壊で 10→2.22/5.56/5.56/8.89/1.11 に落ち、復元で 10.0。deck 実測: `<title>`／`<h1>` が「GAMEYARD の強み」に）**C-1249: 生成スライドの表紙（タイトル）が「…のスライド」等の資料種名を重ねる（C-1246 のデッキ版）。「GAMEYARD の強みのスライドを作って」→ title/h1 が「GAMEYARD の強みのスライド」。「営業用のデッキ」「進捗のプレゼン」「紹介スライドショー」も同様。**
       （辛口ユーザーループ起票・26 巡目 生成スライド・4/10）decks._title_from が
       動詞前の句をそのまま表紙にしていた（コメントも「営業用のデッキと題す」と
       明記＝意図的だったが、束の表紙に「デッキ」は二重）。**最小の解決**は

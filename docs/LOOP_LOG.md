@@ -7675,3 +7675,22 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-05 06:22 進捗監視 前進なし→補充実行: ループA 06:0x キュー空（1 巡目）。LOSS_UNWIRED の自己申告（duel「hp 比較の分離が先」・adventure「被弾が集計されない」）を根拠に C-1422（duel の敗因一言）・C-1423（adventure の被弾集計→敗因）を起票。C-1337（05:39 クリエイター claim）・C-1250（06:17 ユーザー claim）進行中で停滞なし。
 2026-09-05 06:47 辛口クリエイター C-1337 完了 creation_hud_contrast 1 -> 10（判定器 exit 0・観点=§4 視認性・前回=§10・契約 8 型→10 型＋定義を合格型数へ）
+2026-09-05 06:4x UTC 辛口ユーザー C-1250 完了（生成物ルーティング・27 巡目）
+  pptx_routes_to_deck 3.75 -> 10（判定器 exit 0）。観点=生成物ルーティング
+  （前回=生成スライド C-1249）。最悪点: 「pptx／パワポ／PowerPoint を作って」が
+  スライド生成に回らない。デッキ生成は python-pptx で .pptx を書き出すのに、
+  intent の DECK 語に pptx/パワポ/PowerPoint が無く kind=unknown（弱）→ Q&A 定型文。
+  さらに「GAMEYARD 提案の pptx を作って」は釣りゲームになっていた（PowerPoint を
+  頼んで釣りゲームが返る）。
+  実装: intent.py の DECK 語に pptx/パワポ/powerpoint を追加（NFKC で全角、
+  casefold で大小、fold_kana で カナ）。併せて decks の C-1249 タイトル種名剥がしに
+  pptx/パワポ/powerpoint を足し、剥がし後の末尾助詞（「提案の pptx」→「提案の」）を
+  落とす掃除を追加＝表紙「GAMEYARD 提案」。
+  判定器（新設）: PowerPoint 3 綴り＋全角＋題材つき＋ゲーム/レポート/スライド不変。
+  5 破壊: 3 語全除去 3.75 / pptx のみ除去 6.25 / パワポ除去 8.75 /
+  powerpoint 除去 8.75 / pptx→ppptx 誤字 6.25、復元 10.0。
+  pytest 全通し FAILED 0 / gate 回帰 exit 0（blended 8.1%）/
+  deck_title_no_kind_echo・deck 系は非退行。
+  API 実測: 「GAMEYARD 提案の pptx を作って」→ deck 4 枚・題「GAMEYARD 提案」。
+  注記: .pptx 自体は python-pptx 非導入だと書かれず HTML deck のみ（既存の
+  graceful degradation）。

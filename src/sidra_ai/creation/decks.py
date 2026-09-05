@@ -127,8 +127,8 @@ def choose_outline(request: str) -> str:
 #: 「の」 goes with it. Applied once, and only when a subject remains in front -
 #: 「スライドを作って」 keeps the outline's default title.
 _TITLE_KIND_SUFFIX = re.compile(
-    r"の?(?:スライドショー|プレゼンテーション|ピッチデッキ|スライド|プレゼン|デッキ|ピッチ"
-    r"|slideshow|slides|slide|deck|pitch)$",
+    r"の?(?:スライドショー|プレゼンテーション|ピッチデッキ|スライド|プレゼン|パワポ|デッキ|ピッチ"
+    r"|slideshow|slides|slide|powerpoint|pptx|deck|pitch)$",
     re.IGNORECASE,
 )
 
@@ -145,6 +145,9 @@ def _title_from(request: str, fallback: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって)", request)[0].strip()
     stripped = " ".join(stripped.split())
     without_kind = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
+    # A dangling particle left where the kind word was ("提案の pptx"→"提案の")
+    # reads worse than the kind word did; drop it, as the document title does.
+    without_kind = re.sub(r"[をのはがにで]+$", "", without_kind).strip()
     if not without_kind:
         # The words were only a kind ("スライドを作って") or nothing: the outline's
         # default title is a better cover than 「スライド」 or a blank.

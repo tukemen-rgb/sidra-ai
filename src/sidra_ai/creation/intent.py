@@ -156,6 +156,13 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "slides",
         "presentation",
         "pitch",
+        # C-1250: the deck job already writes a .pptx (decks.save_pptx), so a
+        # PowerPoint request is a deck request. Without these it came back
+        # unknown and fell to the question path - 「…の pptx を作って」 even built
+        # a fishing game. NFKC folds ＰＰＴＸ→pptx, casefold folds PowerPoint.
+        "pptx",
+        "パワポ",
+        "powerpoint",
     ),
     CreationKind.DOCUMENT: (
         "文書",

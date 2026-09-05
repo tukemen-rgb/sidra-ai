@@ -1630,6 +1630,23 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1250: the deck job writes a real .pptx (decks.save_pptx), but the intent
+    # detector did not know 「pptx／パワポ／PowerPoint」 as deck words, so those
+    # requests came back unknown (weak) and fell to the question path - and
+    # 「…の pptx を作って」 built a fishing game. A PowerPoint request is a deck.
+    from sidra_ai.evals.pptx_routes_to_deck import evaluate_pptx_routes_to_deck
+
+    pptx = evaluate_pptx_routes_to_deck()
+    c.add(
+        "pptx_routes_to_deck",
+        "pptx／パワポ／PowerPoint の依頼がスライド生成に届く（ゲーム/レポートは不変）",
+        10.0 * pptx.checks_passed / pptx.checks_total,
+        detail=f"{pptx.checks_passed}/{pptx.checks_total} checks; "
+               "src/sidra_ai/evals/pptx_routes_to_deck.py"
+               + ("" if pptx.passed else "; " + "; ".join(pptx.failures)),
+        kind=OUTCOME,
+    )
+
     # C-1230: an unsupported-genre substitution said 「いちばん近い」 (the
     # nearest), but every unsupported genre falls to the same default template
     # - no nearness is measured. The wording now says 「代わりに既定の」 (the
