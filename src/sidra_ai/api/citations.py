@@ -121,7 +121,17 @@ def citation_excerpt(
     excerpt = select_excerpt_window(content, query)
     if not excerpt:
         return "", False
+    # C-1264: a window that drops the head or tail of the chunk ends (or starts)
+    # abruptly - mid-word for CJK - and read as broken data with no sign it was
+    # clipped. Mark each clipped edge with 「…」, detected on the pre-guard window
+    # so a redaction cannot confuse the comparison. The cap still holds: the
+    # marks' width is taken out of the body, not added on top.
+    head_cut = not content.startswith(excerpt)
+    tail_cut = not content.endswith(excerpt)
     guarded = output_guard.scan(excerpt)
     if guarded.blocked:
         return "", True
-    return guarded.content[:MAX_CITATION_EXCERPT_CHARS], False
+    lead = "…" if head_cut else ""
+    trail = "…" if tail_cut else ""
+    budget = MAX_CITATION_EXCERPT_CHARS - len(lead) - len(trail)
+    return lead + guarded.content[:budget] + trail, False

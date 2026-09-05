@@ -775,6 +775,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1264: a chunk longer than the cap came back as a bare 200-char slice cut
+    # mid-word, with no sign it was clipped, so the excerpt read as broken data.
+    # It now carries 「…」 where it drops the head or tail, within the cap, and a
+    # chunk that fits is unchanged. Checked on citation_excerpt directly.
+    from sidra_ai.evals.citation_excerpt_marks_truncation import (
+        evaluate_citation_excerpt_marks_truncation,
+    )
+
+    excerpt_mark = evaluate_citation_excerpt_marks_truncation()
+    c.add(
+        "citation_excerpt_marks_truncation",
+        "途中で切れた引用抜粋に切詰めの印（…）を付け上限内に収める",
+        10.0 * excerpt_mark.checks_passed / excerpt_mark.checks_total,
+        detail=f"{excerpt_mark.checks_passed}/{excerpt_mark.checks_total} checks; "
+               "src/sidra_ai/evals/citation_excerpt_marks_truncation.py"
+               + ("" if excerpt_mark.passed else "; " + "; ".join(excerpt_mark.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

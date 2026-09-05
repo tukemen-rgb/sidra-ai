@@ -3744,7 +3744,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [~] 作業中 2026-09-05 20:2x UTC 辛口ユーザー **C-1264: 回答の引用抜粋（citations[].excerpt）が 200 字ちょうどで語中で切れ、切れた印（…）が無いため、抜粋が壊れたデータのように見える。実測（chat・298 字の passage）: excerpt が「…第8条 返金は購」で終わり（200 字ちょうど・語中）、切詰めの表示なし。回答本文の [S1] は全文を出すのに構造化 excerpt だけが無印で途中切れ＝食い違い。excerpt は API/--json と計測（measure_outcomes）が読む「利用者が見る抜粋」（citations.py docstring）で、途中切れに印が無いと途中で終わったのか元々そこまでなのか区別できない。**（可視性は限定的＝既定 UI/CLI 表示は回答本文で excerpt 直表示なし・主に --json/計測。よって 4/10）
+- [x] 完了 2026-09-05 20:48 UTC 辛口ユーザー（`citation_excerpt_marks_truncation` 6.667→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 7.9%）。5 通りの破壊で 6/6→4/5/5/4/4 に落ち、復元で 6/6。chat 実測: 298 字 passage の excerpt が「…第8条 返金は購…」でなく末尾「…」付き・len=200／短文は全文で「…」無し。既存の excerpt テスト（test_excerpt_hits_marker/test_citation_evidence）も非退行）**C-1264: 回答の引用抜粋（citations[].excerpt）が 200 字ちょうどで語中で切れ、切れた印（…）が無いため、抜粋が壊れたデータのように見える。実測（chat・298 字の passage）: excerpt が「…第8条 返金は購」で終わり（200 字ちょうど・語中）、切詰めの表示なし。回答本文の [S1] は全文を出すのに構造化 excerpt だけが無印で途中切れ＝食い違い。excerpt は API/--json と計測（measure_outcomes）が読む「利用者が見る抜粋」（citations.py docstring）で、途中切れに印が無いと途中で終わったのか元々そこまでなのか区別できない。**（可視性は限定的＝既定 UI/CLI 表示は回答本文で excerpt 直表示なし・主に --json/計測。よって 4/10）
       （辛口ユーザーループ起票・41 巡目 質問応答/引用・4/10）
       **最小の解決**は citation_excerpt で、窓が chunk の先頭/末尾を落としているとき
       （content.startswith/endswith(window) で判定）末尾（と必要なら先頭）に「…」を付す。
