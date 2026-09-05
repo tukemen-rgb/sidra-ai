@@ -12,7 +12,13 @@ from pathlib import Path
 
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
-from sidra_ai.creation.models3d import generate_model3d, save_model3d, validate_model3d
+from sidra_ai.creation.models3d import (
+    DEFAULT_SHAPE,
+    SHAPE_LABELS,
+    generate_model3d,
+    save_model3d,
+    validate_model3d,
+)
 from sidra_ai.creation.router import CreationOutcome
 
 
@@ -31,12 +37,28 @@ def build_model3d_generator(data_dir: str | Path):
         verdict = validate_model3d(model)
         paths = save_model3d(model, data_dir)
         if verdict["valid"]:
+            shape_label = SHAPE_LABELS.get(model.shape, model.shape)
             summary = (
                 f"「{model.title}」の 3D モデルを作りました"
-                f"（low-poly、頂点 {verdict['vertices']}・面 {verdict['faces']}）。"
+                f"（形状: {shape_label}、low-poly、頂点 {verdict['vertices']}・"
+                f"面 {verdict['faces']}）。"
                 ".obj は Windows の 3D ビューアーでそのまま開けます。"
                 "プレビュー HTML はブラウザで回転表示できます。"
             )
+            # The request named no shape, so the fish default was used. Say so
+            # and list the shapes that can be asked for - a reader who asked for
+            # 「猫」 got a fish mesh and would otherwise never learn the subject
+            # was not modelled or what they could pick (C-1267). Not a claim the
+            # subject can't be modelled: the three shapes are abstract, so the
+            # honest fact is just "you didn't name one, here is what you got and
+            # what you can pick".
+            if not model.shape_named:
+                choices = " / ".join(SHAPE_LABELS.values())
+                summary += (
+                    f"依頼に合う形状が無かったので、既定の"
+                    f"「{SHAPE_LABELS[DEFAULT_SHAPE]}」にしました。"
+                    f"いま作れる形状は {choices} です。"
+                )
         else:
             summary = (
                 f"「{model.title}」の 3D モデルを作りましたが、検証に落ちています: "

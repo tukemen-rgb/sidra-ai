@@ -834,6 +834,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1267: the 3D generator named no shape and any request matching no shape
+    # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
+    # The summary now names the shape, an unnamed request says the default was
+    # used and lists the shapes, and a named shape stays silent. Real chat path.
+    from sidra_ai.evals.model3d_shape_default_honest import (
+        evaluate_model3d_shape_default_honest,
+    )
+
+    m3d_shape = evaluate_model3d_shape_default_honest()
+    c.add(
+        "model3d_shape_default_honest",
+        "3D モデルが形状を明記し無指定で既定に落ちたことを正直に伝える",
+        10.0 * m3d_shape.checks_passed / m3d_shape.checks_total,
+        detail=f"{m3d_shape.checks_passed}/{m3d_shape.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_shape_default_honest.py"
+               + ("" if m3d_shape.passed else "; " + "; ".join(m3d_shape.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

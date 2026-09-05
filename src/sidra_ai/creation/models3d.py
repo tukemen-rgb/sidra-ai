@@ -55,11 +55,27 @@ class GeneratedModel3D:
     preview_html: str
     vertex_count: int
     face_count: int
+    #: False when the request named no shape word and the fish default was used.
+    #: The mesh is identical either way; this lets the summary tell a reader who
+    #: asked for 「猫」 that they got the default (C-1267).
+    shape_named: bool = True
     evidence: tuple[str, ...] = field(default_factory=tuple)
 
 
-def choose_shape(request: str) -> str:
-    """Pick by what the request names; the fish is the flagship default."""
+#: The shape used when a request names none, and the label each shape is given
+#: to the operator (C-1267). ``_SHAPE_TITLES`` already maps these; naming the
+#: default here keeps ``choose_shape`` and the honest note agreeing.
+DEFAULT_SHAPE = "fish"
+
+
+def named_shape(request: str) -> str | None:
+    """The shape a request explicitly names, or ``None`` if it names none.
+
+    ``choose_shape`` collapses 「no match」 into the fish, which is right for
+    picking what to build but hides the one fact the operator needs: that their
+    subject matched no shape. This returns ``None`` there so the caller can say
+    so (C-1267).
+    """
 
     lowered = request.lower()
     if any(word in lowered for word in _BOAT_WORDS):
@@ -68,7 +84,13 @@ def choose_shape(request: str) -> str:
         return "terrain"
     if any(word in lowered for word in _FISH_WORDS):
         return "fish"
-    return "fish"
+    return None
+
+
+def choose_shape(request: str) -> str:
+    """Pick by what the request names; the fish is the flagship default."""
+
+    return named_shape(request) or DEFAULT_SHAPE
 
 
 def _title_from(request: str, fallback: str) -> str:
@@ -355,7 +377,11 @@ def generate_model3d(
 ) -> GeneratedModel3D:
     """Build one model deterministically from the request text."""
 
-    chosen = shape or choose_shape(request)
+    # An explicit shape= is the caller naming it; a derived one is named only
+    # when a word in the request matched (C-1267).
+    derived = named_shape(request)
+    chosen = shape or derived or DEFAULT_SHAPE
+    named = shape is not None or derived is not None
     if chosen not in _SHAPES:
         raise ValueError(f"unknown shape {chosen!r}")
     actual_seed = zlib.crc32(request.encode("utf-8")) if seed is None else seed
@@ -371,6 +397,7 @@ def generate_model3d(
         preview_html=_preview_html(title, mesh, trail),
         vertex_count=len(mesh[0]),
         face_count=len(mesh[1]),
+        shape_named=named,
         evidence=trail,
     )
 
@@ -456,10 +483,16 @@ def validate_model3d(model: GeneratedModel3D) -> dict:
     }
 
 
+#: Shape key -> the label shown to the operator. Reuses the title map.
+SHAPE_LABELS = dict(_SHAPE_TITLES)
+
 __all__ = [
+    "DEFAULT_SHAPE",
     "GeneratedModel3D",
+    "SHAPE_LABELS",
     "choose_shape",
     "generate_model3d",
+    "named_shape",
     "save_model3d",
     "validate_model3d",
 ]
