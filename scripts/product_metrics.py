@@ -8824,6 +8824,175 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the last ten seconds, said out loud (§8 事実 1, C-1417) ---------
+    #
+    # The shared clock has always ended a go at sixty seconds and nothing on
+    # the screen ever mentioned it, so the 「ここまで」 banner arrived out of
+    # nowhere. §8 事実 1 asks for a break inside about a minute; a break you
+    # cannot see coming is a surprise, not a break.
+    #
+    # The countdown is deliberately absent for the first fifty seconds
+    # (条件①: a clock running the whole go turns 「気楽な 1 分」 into an
+    # exam), and deliberately present under reduced motion (条件②: it is a
+    # number, not a movement). Both are read off a page driven for a whole
+    # go, frame by frame - the page's own opinion of whether it was due,
+    # beside what it actually painted, because C-1415's break table has an
+    # example of those two coming apart.
+    from sidra_ai.creation.round import (
+        ROUND_SHOW_MS as _clk_show,
+        ROUND_URGENT_MS as _clk_urgent,
+        clock_probe_source as _clk_probe,
+    )
+    from sidra_ai.creation.games import select_theme as _clk_theme
+
+    #: Racing finishes its three laps before the buzzer when nobody steers.
+    #: Held off the road it is slow enough to still be going at the end,
+    #: which is the situation the countdown exists for.
+    _CLK_HOLD = {"racing": "ArrowLeft"}
+
+    def _clk_expect(frame):
+        import math
+
+        return f"のこり {math.ceil(frame['ms'] / 1000)}"
+
+    def _clk_said(frame):
+        """True when the badge disagreed with the clock behind it."""
+
+        return frame["said"] != _clk_expect(frame)
+
+    def _clk_drive(key, body, **kw):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_clk_probe(body, hold=_CLK_HOLD.get(key, ""), **kw),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                return None, f"{key}: {out.stderr.strip()[:70]}"
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: probe unavailable ({type(exc).__name__})"
+
+    clk_gaps: list[str] = []
+    clk_ok: list[str] = []
+    clk_short: list[str] = []
+    _clk_tokens = _clk_theme("ゲームを作って").tokens
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            clk_gaps.append(f"{key}: no script")
+            continue
+        body = script.group(1)
+        run, problem = _clk_drive(key, body)
+        if problem:
+            clk_gaps.append(problem)
+            continue
+        frames = run["frames"]
+        early = [f for f in frames if f["ms"] >= _clk_show]
+        late = [f for f in frames if f["ms"] < _clk_show and not f["done"]]
+        trouble = None
+        # 1. 条件①, and this half is checkable on every template: for the
+        #    first fifty seconds there is nothing on the screen about time.
+        if any(f["said"] or f["due"] for f in early):
+            when = next(f for f in early if f["said"] or f["due"])
+            trouble = f"{key}: the clock showed with {when['ms'] / 1000:.1f}s still to go"
+        elif not late:
+            # This template's go ends long before the buzzer even when a key
+            # is held, so an unattended run never reaches the situation the
+            # countdown is for. Recorded as unmeasured, not as a pass.
+            clk_short.append(key)
+            continue
+        # 2. Every one of those frames that painted at all says so - not
+        #    just the ones where the page thought it was due.
+        #
+        #    "Painted at all" is the qualifier that matters. The juice kit
+        #    freezes the whole loop for a few frames on a hit (hitstop), and
+        #    those frames draw nothing whatsoever - the canvas keeps the
+        #    previous picture, badge included. Measured rather than assumed:
+        #    catch skips 46 of its last 600 frames and every one of them has
+        #    zero fills of any kind, not a redrawn game with the badge left
+        #    off it.
+        elif [f for f in late if f["all"] and not f["said"]]:
+            missed = [f for f in late if f["all"] and not f["said"]]
+            trouble = (
+                f"{key}: {len(missed)} of the last {len(late)} frames redrew the game "
+                f"without the clock (page said due on {sum(1 for f in missed if f['due'])})"
+            )
+        # 3. The number is the real remaining time, rounded up so the last
+        #    whole second reads 「1」 rather than 「0」. Compared against the
+        #    unrounded milliseconds: rounding them first made 9000.4ms look
+        #    like 9000 and the page's honest 「10」 look like an off-by-one.
+        elif any(_clk_said(f) for f in late if f["said"]):
+            wrong = next(f for f in late if f["said"] and _clk_said(f))
+            trouble = (
+                f"{key}: at {wrong['ms']:.1f}ms left it said {wrong['said']!r}, "
+                f"not {_clk_expect(wrong)!r}"
+            )
+        # 4. The last three seconds are said in the alert colour - a colour
+        #    that changes once, never a blink (§15).
+        # Only the frames that actually painted have an ink to read. A held
+        # frame painted nothing and is not evidence either way.
+        elif {f["ink"] for f in late if f["said"] and f["ms"] <= _clk_urgent} != {
+            _clk_tokens["alert"]
+        }:
+            trouble = (
+                f"{key}: the last {_clk_urgent // 1000}s were said in "
+                f"{sorted({f['ink'] for f in late if f['said'] and f['ms'] <= _clk_urgent})}"
+            )
+        elif {f["ink"] for f in late if f["said"] and f["ms"] > _clk_urgent} != {
+            _clk_tokens["text"]
+        }:
+            trouble = f"{key}: the earlier seconds were not said in the page's own ink"
+        # 5. ...and it stops when the go does. A countdown over a finished
+        #    round is counting down to nothing.
+        #
+        #    A guard against a future refactor rather than a confirmed
+        #    detector: no break reaches it today, because the round wrapper
+        #    returns at its 「ここまで」 branch before the draw is called,
+        #    and a template that ends on its own re-anchors the clock. Even
+        #    deleting the ROUND_DONE clause from roundClockDue leaves the
+        #    number at full marks, which is what proved the structure rather
+        #    than the clause is what holds this.
+        elif any(f["said"] for f in frames if f["done"]):
+            trouble = f"{key}: the countdown kept running after the round ended"
+        # 6. 条件②: reduced motion silences the decorations, not the facts.
+        if not trouble:
+            quiet, problem = _clk_drive(key, body, reduced=True)
+            if problem:
+                trouble = problem
+            elif len([f for f in quiet["frames"] if f["said"]]) != len(
+                [f for f in frames if f["said"]]
+            ):
+                trouble = f"{key}: reduced motion changed how long the countdown showed"
+        if trouble:
+            clk_gaps.append(trouble)
+        else:
+            clk_ok.append(key)
+    c.add(
+        "creation_time_visible",
+        "終盤だけ残り時間が見える（60 秒の幕切れが不意打ちでなくなる）",
+        0.0 if (clk_gaps or not clk_ok) else 1.0,
+        detail=(
+            "; ".join(clk_gaps)
+            if clk_gaps
+            else f"{len(clk_ok)} 型（{', '.join(clk_ok)}）を 1 ゲーム丸ごと"
+            f"フレーム単位で実走行: 残り {_clk_show // 1000} 秒を切るまで画面には"
+            "時間の話が一切出ず、切った後は毎フレーム出て、数字は実残り時間の"
+            f"切り上げと完全一致。最後の {_clk_urgent // 1000} 秒だけ警告色で言う"
+            "（明滅ではなく 1 度の色替えなので §15 の門番に触れない）。ラウンドが"
+            "終われば止まる。reduced motion でも出る秒数は同じ（数字であって動きでは"
+            f"ない・条件②）。残り {len(clk_short)} 型（{', '.join(clk_short) or 'なし'}）は"
+            "無操作でもキー長押しでも自分の決着が先に来るため、終盤の状況自体が"
+            "発生せず**未測定**（合格に数えていない）。表示位置は当て推量ではなく"
+            "実測で決めた——10 型を走らせて描画座標を記録し、どの型も文字を置かない"
+            "帯（HUD 行の 1 段下・右）を選んだ"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

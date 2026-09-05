@@ -121,6 +121,10 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "roundBest",
     "ROUND_DONE",
     "ROUND_LIMIT_MS",
+    "roundRemainMs",
+    "roundLeft",
+    "roundClockDue",
+    "roundClockFacts",
 )
 
 #: Every ``state='...'`` a template assigns. Read by the judge, so the live
@@ -245,6 +249,42 @@ function roundTick(t){
        ends the go; its 10 is measuring exactly this beat. Recorded in
        BACKLOG E 節 (C-1127) for the owner rather than decided here. */
     try{failBeat(RCV?RCV.width/2:0,RCV?RCV.height/2:0)}catch(e){}}}
+/* --- 終盤だけの残り時間 (§8 事実 1, C-1417) --------------------------- */
+const ROUND_SHOW_MS=ROUND_SHOW_TOKEN,ROUND_URGENT_MS=ROUND_URGENT_TOKEN;
+const ROUND_CLOCK_BOX=ROUND_CLOCK_BOX_TOKEN;
+function roundRemainMs(){return Math.max(0,ROUND_LIMIT_MS-ROUND_MS)}
+/* Rounded up, so the last whole second is spent showing 「1」 rather than
+   showing 「0」 to somebody who still has a second to use. */
+function roundLeft(){return Math.ceil(roundRemainMs()/1000)}
+/* Only near the end, and only in a go somebody is playing. A countdown
+   that runs the whole minute is an exam clock (条件①); one that runs
+   behind the title screen or over a finished round is just noise. */
+function roundClockDue(){
+  if(ROUND_DONE||!ROUND_PLAYED_A_FRAME)return false;
+  if(roundEnded())return false;
+  return roundRemainMs()<ROUND_SHOW_MS}
+function drawRoundClock(){if(!RCV||!roundClockDue())return;
+  const c=RCV.getContext('2d'),W=RCV.width;
+  const box=ROUND_CLOCK_BOX,urgent=roundRemainMs()<=ROUND_URGENT_MS;
+  c.save();
+  c.fillStyle='SCRIM_TOKEN'+'cc';
+  c.fillRect(W-box[0],box[1],box[2],box[3]);
+  /* The last three seconds are said in the alert colour rather than by
+     blinking. §15's gate is about rapid alternation and a colour that
+     changes once never approaches it - and 条件② asks for this to survive
+     reduced motion, which it does by not being motion. It also does not
+     say anything new: the number was already counting down. Whether the
+     buzzer is a break or a defeat is E 節's question (C-1127) and this
+     deliberately does not answer it - 「のこり」 says time is passing,
+     not that anybody is losing. */
+  c.fillStyle=urgent?'MAGENTA_TOKEN':'INK_TOKEN';
+  c.textAlign='right';c.font='15px ui-monospace,monospace';
+  c.fillText('のこり '+roundLeft(),W-16,box[1]+21);
+  c.textAlign='left';c.restore()}
+function roundClockFacts(){return {due:roundClockDue(),left:roundLeft(),
+  remain:roundRemainMs(),urgent:roundRemainMs()<=ROUND_URGENT_MS,
+  show:ROUND_SHOW_MS,urgentAt:ROUND_URGENT_MS,limit:ROUND_LIMIT_MS,
+  played:ROUND_PLAYED_A_FRAME}}
 function drawRoundEnd(){if(!RCV)return;
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
   c.save();c.fillStyle='SCRIM_TOKEN'+'cc';c.fillRect(0,H/2-52,W,104);
@@ -271,6 +311,9 @@ requestAnimationFrame=function(fn){
     roundTick(t);
     if(ROUND_DONE){drawRoundEnd();drawResultStrip();ROUND_RAF(tick);return}
     fn(t);
+    /* Over the template's own frame, so the badge is not painted under the
+       game (C-1417). It draws nothing at all until the last ten seconds. */
+    drawRoundClock();
     /* The template drew its own ending; the strip goes on top of it. */
     if(roundEnded()){drawResultStrip()}})};
 /* --- the result that leads back in (§8 事実 3) ------------------------ */
@@ -579,6 +622,27 @@ def probe_source(
     )
 
 
+#: When the countdown appears, and when it starts being said in the alert
+#: colour. Ten seconds because §8 事実 1 asks for a break inside about a
+#: minute and a break you cannot see coming is not a break, it is a
+#: surprise - and *not* sixty, because a clock that runs the whole go turns
+#: 「気楽な 1 分」 into an exam (C-1417 条件①).
+ROUND_SHOW_MS = 10_000
+ROUND_URGENT_MS = 3_000
+
+#: Where the badge goes: the band directly under the templates' own HUD
+#: row, on the right. Chosen by measurement rather than by eye - every
+#: template was driven and its paint recorded, and this band is the only
+#: one that carries no text in any of the ten. The corners do not qualify:
+#: seven templates print their score at the top left, kaiju and racing
+#: print at the top right, three print at the bottom left, and the
+#: on-screen pad owns the bottom right on a phone. Measured on a played
+#: frame per template, so a warning that only appears in some other moment
+#: could still land here; the badge draws its own scrim so it stays
+#: readable if one does.
+ROUND_CLOCK_BOX = (96, 44, 88, 30)
+
+
 def preamble_for(template: str) -> str:
     """The clock and the result strip, told about one template."""
 
@@ -589,6 +653,9 @@ def preamble_for(template: str) -> str:
             "ROUND_LIVE_TOKEN", json.dumps(list(ROUND_LIVE.get(template, ())))
         )
         .replace("ROUND_LIMIT_TOKEN", str(ROUND_SECONDS * 1000))
+        .replace("ROUND_SHOW_TOKEN", str(ROUND_SHOW_MS))
+        .replace("ROUND_URGENT_TOKEN", str(ROUND_URGENT_MS))
+        .replace("ROUND_CLOCK_BOX_TOKEN", json.dumps(list(ROUND_CLOCK_BOX)))
         .replace("ROUND_HAPTIC_TOKEN", json.dumps(list(HAPTIC_ROUND)))
         .replace("ROUND_NAME_TOKEN", json.dumps(template))
         .replace("ROUND_LABEL_TOKEN", json.dumps(label, ensure_ascii=False))
@@ -612,3 +679,90 @@ __all__ = [
     "probe_source",
     "states_in",
 ]
+
+
+#: Runs a generated page for a whole go and writes down, frame by frame,
+#: whether the countdown said it was due and what it actually painted. Both
+#: halves are needed: "due" is the page's own opinion and the painted text
+#: is what a player sees, and C-1415's break table has an example of those
+#: two coming apart (the condition decided correctly, the element never
+#: touched).
+CLOCK_PROBE = """
+const clkNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : clkNothing),
+  apply: () => clkNothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT,
+  addEventListener(){}, addListener(){} });
+let clkTime = 0;
+globalThis.performance = { now: () => clkTime };
+const clkKeys = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') clkKeys.push(fn) };
+globalThis.Image = function(){ return clkNothing };
+const clkStore = {};
+globalThis.localStorage = {
+  getItem: (k) => (k in clkStore ? clkStore[k] : null),
+  setItem: (k, v) => { clkStore[k] = String(v) }, removeItem: (k) => { delete clkStore[k] } };
+globalThis.location = { reload: () => {} };
+let clkPaint = [], clkInk = null;
+const clkEl = { width: 720, height: 320, style: {}, textContent: '', attrs: {}, handlers: {},
+  addEventListener(){}, setAttribute(){}, getAttribute(){ return null }, blur(){},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillText: (s, x, y) => { clkPaint.push({ s: String(s), x: Math.round(Number(x) || 0),
+      y: Math.round(Number(y) || 0), ink: clkInk }) },
+    fillRect: () => {} }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : clkNothing)),
+    set: (t, k, v) => { if (k === 'fillStyle') { clkInk = String(v) } return true } }) };
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => clkEl, querySelector: () => null, getElementById: () => clkEl };
+let clkQueued = null;
+globalThis.requestAnimationFrame = (fn) => { clkQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+/* Through the gate first: the clock does not start until play does. */
+function clkStep(){ if (!clkQueued) return null;
+  const fn = clkQueued; clkQueued = null; clkPaint = []; clkTime += 50 / 3; fn(clkTime);
+  return clkPaint.filter(op => op.s.indexOf('のこり') === 0) }
+clkStep(); clkStep();
+clkKeys.forEach(fn => fn({ key: ' ', code: 'Space',
+  preventDefault(){}, stopImmediatePropagation(){} }));
+const seen = [];
+const clkHold = HOLD_INPUT;
+for (let f = 0; f < FRAMES_INPUT; f++) {
+  /* Some templates end on their own long before the buzzer when nobody
+     touches them - a duel both sides refuse to fight is over in seconds.
+     Holding a key keeps the go alive far enough in to reach the clock. */
+  if (clkHold) { clkKeys.forEach(fn => fn({ key: clkHold, code: clkHold,
+    preventDefault(){}, stopImmediatePropagation(){} })) }
+  const painted = clkStep();
+  if (painted === null) break;
+  const facts = roundClockFacts();
+  seen.push({ ms: facts.remain, due: facts.due, left: facts.left,
+    /* Every fill on this frame, not only the badge's. A frame that painted
+       nothing at all is a frozen picture - the canvas still shows the last
+       one - and that is a very different thing from a frame that redrew
+       the game and left the badge off it. */
+    all: clkPaint.length,
+    urgent: facts.urgent, done: roundFacts().done,
+    /* What a player would read, and the colour it was in. */
+    said: painted.length ? painted[0].s : null,
+    ink: painted.length ? painted[0].ink : null,
+    at: painted.length ? [painted[0].x, painted[0].y] : null,
+    n: painted.length });
+}
+console.log(JSON.stringify({ frames: seen,
+  show: roundClockFacts().show, urgentAt: roundClockFacts().urgentAt,
+  limit: roundClockFacts().limit }));
+"""
+
+
+def clock_probe_source(
+    script: str, *, frames: int = 3900, reduced: bool = False, hold: str = ""
+) -> str:
+    """The page's own script, wrapped so a whole go can be watched tick down."""
+
+    return (
+        CLOCK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("FRAMES_INPUT", str(int(frames)))
+        .replace("REDUCED_INPUT", "true" if reduced else "false")
+        .replace("HOLD_INPUT", json.dumps(hold))
+    )
