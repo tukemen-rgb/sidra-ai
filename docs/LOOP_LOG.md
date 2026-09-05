@@ -8204,3 +8204,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest 全通し exit 0 FAILED 0（test_creation_subject_honest C-1125 非退行）/ gate 回帰 exit 0（blended 8.1%）。
   これで無指定既定の正直化ファミリ（アート C-1256・GIF C-1258・本巡 3D）が全 3 生成器で揃った。
   次候補: 英語 exfiltration 検知器の同型 FP（how-to/where 質問が拒否・要 English 特有設計）。
+
+2026-09-05 23:49 ループA C-1436 記録（マージせず revert）判定器 exit 2: creation_share_text 10→0。実装は成立（実測・破壊 5 通り・pytest exit 0・gate MISS 0）だが、落ちたのは別の判定器で原因は計器の側——shareBar() の Math.round(.5→上) を creation_share_text が Python の round(.5→偶数) で作り直しており、点が動いて score/per がちょうど 6.5 になった puzzle だけが不一致（ページ 7・判定器 6）。upstream の score 73 では 6.083 で一致するので再現しない＝点が動く型は今後どれでも踏む。前提条件を C-1437 として分割起票。自分の赤を計器の修正で緑にはしない。Board=13
