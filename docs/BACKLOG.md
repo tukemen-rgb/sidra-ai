@@ -5195,7 +5195,18 @@ C-12xx/13xx/14xx はループ用のまま）。
       原則）。→ 動かす数字: creation_score_history unmeasurable→1
       （複数回走ると並びが走った順に現れ、値が各走行の実スコアと一致し、
       無操作ラウンドが混入しないことをページ実走行で検査。破壊で 0）
-- [ ] **C-1433: platformer の幕の裏も歩く（attract のパイロット 3 例目）。**
+- [~] 作業中 2026-09-05 21:00 UTC 辛口クリエイター **C-1433: platformer の幕の裏も歩く（attract のパイロット 3 例目）。**
+      （引き継ぎ: 進捗監視の起票を辛口クリエイターが 51 巡目・観点=§8×§17
+      で実装。C-1349 の記録で platformer を clock 型 6 型に誤って含めたが
+      実読で訂正——state='goal'（旗到達）と ROUND_LIVE=('play',) があり
+      roundEnded() の周回検出はそのまま働く。起票の新計器
+      creation_platformer_attract は作らず、確立済みの共通計器
+      creation_attract_demo 4→5 で測る（起票の検査条件〔幕の裏で進む・
+      点/best/履歴を積まない・押下後は初期状態〕は共通計器の条項 1〜4 と
+      同一。C-1121: 計器は重複させず設計に追随）。パイロットは
+      keys.ArrowRight=true＋足場の縁で tryJump()——注意: keys は
+      reset() が触らないので ATTRACT_RESET 側でキーを離す（shooter の
+      fire は reset() が離す・platformer は離さない非対称の実読）。）
       （進捗監視起票 2026-09-05・根拠は attract.py の ATTRACT_UNWIRED
       実読「platformer: no input means standing on the first platform
       until the clock」＋製品内の確立済み前例: shooter は C-1338 で
