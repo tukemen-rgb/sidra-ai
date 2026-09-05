@@ -4612,6 +4612,8 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.games import _DIFFICULTY as _recap_ladder
     from sidra_ai.creation.recap import LOSS_UNWIRED, LOSS_WIRED
     from sidra_ai.creation.recap import probe_source as _recap_probe
+    from sidra_ai.evals.adventure_losable import FRAMES as _adv_frames
+    from sidra_ai.evals.adventure_losable import recap_route as _adv_route
 
     recap_gaps: list[str] = []
     if set(LOSS_WIRED) & set(LOSS_UNWIRED) or set(LOSS_WIRED) | set(
@@ -4635,6 +4637,14 @@ def measure_creation(c: Collector) -> None:
         "racing": (
             "レースゲームを作って",
             {"stored": {"speed": min(p[0] for p in _recap_ladder["racing"].values())}},
+        ),
+        # The only one that has to be *steered*. No key, held or not, loses
+        # the adventure: the way out of the first room goes around a pond
+        # the sword cannot cut, so a loss needs a route (C-1424). The route
+        # is the one that module measured, not a second copy of it.
+        "adventure": (
+            "冒険ゲームを作って",
+            {"frames": _adv_frames, "route": _adv_route()},
         ),
     }
     for key in sorted(LOSS_WIRED):
@@ -4676,6 +4686,13 @@ def measure_creation(c: Collector) -> None:
             "duel": (
                 max(raw.get("lostBeam") or 0, raw.get("lostClash") or 0)
                 if raw.get("lostBeam") is not None
+                else None
+            ),
+            # Same shape as duel: two causes, and the line reports whichever
+            # was larger.
+            "adventure": (
+                max(raw.get("hurtRoam") or 0, raw.get("hurtGuard") or 0)
+                if raw.get("hurtRoam") is not None
                 else None
             ),
         }.get(key)
@@ -4741,7 +4758,8 @@ def measure_creation(c: Collector) -> None:
             if recap_gaps
             else f"{len(LOSS_WIRED)} 型で実際に負けを作って確認: 帯の一言が"
             "その回のカウンタと一致し、勝ちでは何も言わず、0 のカウンタは"
-            "名指ししない。未配線 5 型は理由つき（LOSS_UNWIRED）"
+            f"名指ししない。未配線 {len(LOSS_UNWIRED)} 型は理由つき"
+            "（LOSS_UNWIRED）"
         ),
         kind=OUTCOME,
     )
@@ -10365,6 +10383,120 @@ def measure_creation(c: Collector) -> None:
             "——部屋 1 の敵は横切る者を追うので、居るだけで負けるため。穴ではなく"
             "製品の性質だが、運転器は意図して敵を狙う（将来もっと穏やかな部屋が"
             "来ても効くように）"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- and the adventure's own reason, interrogated (C-1425) -----------
+    #
+    # The shared judge above now covers adventure like any other template.
+    # This one asks the three questions that are specific to it, because
+    # they are the ones the shape of this template makes easy to get wrong:
+    #
+    # 1. The two counters are wired to the right damage sites. The same go
+    #    is measured a second way - hearts watched frame by frame, with the
+    #    room each drop happened in - and the two have to agree. Rooms 0
+    #    and 1 have no guardian in them at all, so a drop there that the
+    #    page filed under 「番人」 is a miswiring this catches.
+    # 2. The guardian clause is reachable, not decorative. No drive that
+    #    exists today survives to room 2 (C-1424 measured why), so the only
+    #    honest way to ask is to move the counters and re-read the line:
+    #    make the guardian the larger cause and the page must name it.
+    # 3. Zero both and the page says nothing - the C-1409 rule, asked of
+    #    this template's own counters rather than assumed from the shared
+    #    one.
+    from sidra_ai.evals.adventure_losable import REQUEST as _adv_request
+    from sidra_ai.evals.adventure_losable import (
+        recap_probe_source as _adv_recap_probe,
+    )
+
+    advrec_gaps: list[str] = []
+    advrec_line = ""
+    advrec_tail: dict = {}
+    found = _scene_re.search(
+        r"<script>(.*?)</script>", generate_game(_adv_request).html, _scene_re.S
+    )
+    if found is None:
+        advrec_gaps.append("no script on the adventure page")
+    else:
+        try:
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_adv_recap_probe(found.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:80])
+            out = run.stdout.strip().splitlines()
+            advrec_main = json.loads(out[-2])
+            advrec_tail = json.loads(out[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError, IndexError) as exc:
+            advrec_gaps.append(f"probe unavailable ({exc})")
+            advrec_main = {}
+    if not advrec_gaps:
+        end = advrec_main.get("atEnd") or {}
+        advrec_line = end.get("line") or ""
+        hits = advrec_tail.get("hits") or []
+        # Rooms other than the last have no guardian in them.
+        watched_roam = sum(1 for h in hits if h.get("room") != 2)
+        watched_guard = sum(1 for h in hits if h.get("room") == 2)
+        if not end.get("lost"):
+            advrec_gaps.append("the driven go was not a loss")
+        elif not advrec_line:
+            advrec_gaps.append("a loss with counted causes said nothing")
+        elif advrec_tail.get("roam") != watched_roam:
+            advrec_gaps.append(
+                f"まもの counted {advrec_tail.get('roam')} but "
+                f"{watched_roam} hearts were lost outside the guardian's room"
+            )
+        elif advrec_tail.get("guard") != watched_guard:
+            advrec_gaps.append(
+                f"番人 counted {advrec_tail.get('guard')} but "
+                f"{watched_guard} hearts were lost in the guardian's room"
+            )
+        elif str(watched_roam) not in advrec_line:
+            advrec_gaps.append(
+                f"the line's count is not the hearts that were lost "
+                f"({advrec_line!r} against {watched_roam})"
+            )
+        elif advrec_tail.get("guard") == 0 and "番人" in advrec_line:
+            advrec_gaps.append(f"named a cause counted zero ({advrec_line!r})")
+        elif "番人" not in (advrec_tail.get("saidGuard") or ""):
+            advrec_gaps.append(
+                "made the guardian the larger cause and the line still did "
+                f"not name it ({advrec_tail.get('saidGuard')!r})"
+            )
+        # ...and it read the moved counter rather than reprinting the number
+        # it had already said. A line whose count is a constant passes every
+        # check above, because the constant happens to be right.
+        elif str(watched_roam + 5) not in (advrec_tail.get("saidGuard") or ""):
+            advrec_gaps.append(
+                f"the guardian line's count did not follow the counter "
+                f"({advrec_tail.get('saidGuard')!r}, wanted {watched_roam + 5})"
+            )
+        elif advrec_tail.get("saidNothing"):
+            advrec_gaps.append(
+                f"both causes at zero and it still spoke "
+                f"({advrec_tail.get('saidNothing')!r})"
+            )
+        elif advrec_line not in (advrec_main.get("strip") or []):
+            advrec_gaps.append("the line never reached the result strip")
+    c.add(
+        "creation_adventure_loss_recap",
+        "冒険の敗因を一言で言う",
+        0.0 if advrec_gaps else 1.0,
+        detail=(
+            "; ".join(advrec_gaps)
+            if advrec_gaps
+            else f"C-1424 の経路で実際に負けた回を計測: 帯は「{advrec_line}」。"
+            "同じ回のハートの減りを部屋つきで別に数え、2 つのカウンタが"
+            "被弾した部屋と一致することを確認（部屋 0・1 に番人は居ない）。"
+            "番人側は今日どの運転でも到達できない（C-1424 実測）ので、"
+            "**カウンタを入れ替えて同じページに訊き直す**: 番人を多いほうに"
+            "すると帯は番人を名指しし、両方 0 にすると何も言わない。"
+            "つまり最多原因の選択が比較として動いていることまで測れている"
         ),
         kind=OUTCOME,
     )

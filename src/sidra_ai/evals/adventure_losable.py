@@ -56,41 +56,14 @@ REQUEST = "冒険ゲームを作って"
 #: it, so this is generous rather than tight.
 FRAMES = 12_000
 
-_DRIVER = """
-const advNothing = new Proxy(function(){}, {
-  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : advNothing),
-  apply: () => advNothing, set: () => true });
-const advH = {};
-globalThis.matchMedia = () => ({ matches: false, addEventListener(){}, addListener(){} });
-let advClock = 0;
-globalThis.performance = { now: () => advClock };
-globalThis.addEventListener = (type, fn) => { (advH[type] = advH[type] || []).push(fn) };
-globalThis.Image = function(){ return advNothing };
-const advStore = {};
-globalThis.localStorage = { getItem: (k) => (k in advStore ? advStore[k] : null),
-  setItem: (k, v) => { advStore[k] = String(v) }, removeItem: (k) => { delete advStore[k] } };
-globalThis.location = { reload: () => {} };
-globalThis.KeyboardEvent = function(t, i){ return Object.assign({ type: t }, i) };
-globalThis.dispatchEvent = (e) => { (advH[e.type] || []).forEach(fn => fn(e)); return true };
-globalThis.document = { readyState: 'complete', body: { children: [] },
-  createElement: () => advNothing, querySelector: () => null,
-  getElementById: () => ({ width: 720, height: 320, style: {}, addEventListener: () => {},
-    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-    getContext: () => advNothing }) };
-let advQ = null;
-globalThis.requestAnimationFrame = (fn) => { advQ = fn; return 1 };
-SCRIPT_PLACEHOLDER
-const CUT_GRASS = CUT_INPUT, MODE = MODE_INPUT;
-let advFrame = 0;
-function advKey(type, key){ (advH[type] || []).forEach(fn => fn({ key: key, code: key,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
-const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
-function advHold(want){ ARROWS.forEach(k => {
-  advKey(want.indexOf(k) >= 0 ? 'keydown' : 'keyup', k) }) }
-function advStep(){ if (!advQ) return false;
-  const fn = advQ; advQ = null; advClock += 50 / 3; fn(advFrame++ * 16); return true }
-advKey('keydown', ' '); advKey('keyup', ' ');
-advStep(); advStep();
+#: The route-finding itself, without any of the stubbing around it: the
+#: page's grid read through its own ``solid()``, a breadth-first step
+#: towards whatever this driver wants to touch, and one frame of aiming.
+#: Shared source rather than a copy, so the loss-recap probe drives the
+#: exact route this module measured. The caller defines the knobs
+#: (``CUT_GRASS``/``MODE``) and the two harness verbs (``advHold``/
+#: ``advSwing``) before splicing it in.
+ROUTE_SOURCE = """
 function advTile(px, py){ return [Math.floor((px - OX) / TILE), Math.floor((py - OY) / TILE)] }
 /* Solid is asked of the page, at the middle of the tile, so this can never
    disagree with the collision the template runs. Grass is the exception:
@@ -133,9 +106,10 @@ function advGoals(){
   for (let y = 0; y < GH; y++) { for (let x = 0; x < GW; x++) {
     if (rooms[room][y][x] === 5) { out.push([x, y]) } } }
   return out }
-const hits = [];
-let lastHp = hero.hp;
-for (let f = 0; f < FRAMES; f++) {
+/* One frame's worth of aiming, as a function so the recap probe can drive
+   the same route without a second copy of it. The caller supplies
+   ``advHold`` (hold exactly these arrows) and ``advSwing`` (one swing). */
+function advAim(f){
   /* 'naive' is what this looked like before the path: walk straight at the
      target and hope. It is kept because it is the control - it is the
      behaviour that spent a whole cycle stuck in the first room. */
@@ -147,10 +121,52 @@ for (let f = 0; f < FRAMES; f++) {
     if (ty - hero.y > 2) { want.push('ArrowDown') } else if (hero.y - ty > 2) { want.push('ArrowUp') }
     /* Facing the next tile and it is grass: cut it. The swing is aimed by
        hero.dir, which the arrows above have just set. */
-    if (CUT_GRASS && rooms[room][step[1]][step[0]] === 2 && f % 6 === 0) {
-      advKey('keydown', ' '); advKey('keyup', ' ') }
+    if (CUT_GRASS && rooms[room][step[1]][step[0]] === 2 && f % 6 === 0) { advSwing() }
   }
-  advHold(want);
+  return want }
+"""
+
+_DRIVER = """
+const advNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : advNothing),
+  apply: () => advNothing, set: () => true });
+const advH = {};
+globalThis.matchMedia = () => ({ matches: false, addEventListener(){}, addListener(){} });
+let advClock = 0;
+globalThis.performance = { now: () => advClock };
+globalThis.addEventListener = (type, fn) => { (advH[type] = advH[type] || []).push(fn) };
+globalThis.Image = function(){ return advNothing };
+const advStore = {};
+globalThis.localStorage = { getItem: (k) => (k in advStore ? advStore[k] : null),
+  setItem: (k, v) => { advStore[k] = String(v) }, removeItem: (k) => { delete advStore[k] } };
+globalThis.location = { reload: () => {} };
+globalThis.KeyboardEvent = function(t, i){ return Object.assign({ type: t }, i) };
+globalThis.dispatchEvent = (e) => { (advH[e.type] || []).forEach(fn => fn(e)); return true };
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => advNothing, querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {}, addEventListener: () => {},
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => advNothing }) };
+let advQ = null;
+globalThis.requestAnimationFrame = (fn) => { advQ = fn; return 1 };
+SCRIPT_PLACEHOLDER
+const CUT_GRASS = CUT_INPUT, MODE = MODE_INPUT;
+let advFrame = 0;
+function advKey(type, key){ (advH[type] || []).forEach(fn => fn({ key: key, code: key,
+  preventDefault(){}, stopImmediatePropagation(){} })) }
+const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+function advHold(want){ ARROWS.forEach(k => {
+  advKey(want.indexOf(k) >= 0 ? 'keydown' : 'keyup', k) }) }
+function advSwing(){ advKey('keydown', ' '); advKey('keyup', ' ') }
+function advStep(){ if (!advQ) return false;
+  const fn = advQ; advQ = null; advClock += 50 / 3; fn(advFrame++ * 16); return true }
+advKey('keydown', ' '); advKey('keyup', ' ');
+advStep(); advStep();
+ROUTE_TOKEN
+const hits = [];
+let lastHp = hero.hp;
+for (let f = 0; f < FRAMES; f++) {
+  advHold(advAim(f));
   if (!advStep()) break;
   if (hero.hp !== lastHp) { hits.push({ f: f, hp: hero.hp, room: room }); lastHp = hero.hp }
   if (state !== 'play') break;
@@ -194,6 +210,7 @@ def drive(
     source = (
         _DRIVER.replace("SCRIPT_PLACEHOLDER", found.group(1))
         .replace("CUT_INPUT", "true" if cut_grass else "false")
+        .replace("ROUTE_TOKEN", ROUTE_SOURCE)
         .replace("MODE_INPUT", json.dumps(mode))
         .replace("FRAMES", str(int(frames)))
     )
@@ -214,4 +231,97 @@ def drive(
     )
 
 
-__all__ = ["Drive", "FRAMES", "REQUEST", "drive"]
+#: The same route, wired for the loss-recap probe instead of this module's
+#: own stubs. Returned as ``(setup, step)`` for ``recap.probe_source``: the
+#: setup installs the knobs and the two harness verbs the route asks for,
+#: the step aims one frame. The recap probe presses with ``press``/
+#: ``release`` and holds nothing between frames, so the arrows are tracked
+#: here and only released when the route stops wanting them.
+RECAP_SETUP = (
+    """
+const CUT_GRASS = false, MODE = 'path';
+const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+const advDown = {};
+function advHold(want){ ARROWS.forEach(k => {
+  if (want.indexOf(k) >= 0) { press(k); advDown[k] = true }
+  else if (advDown[k]) { release(k); advDown[k] = false } }) }
+function advSwing(){ press(' '); release(' ') }
+/* Hearts watched rather than damage counted - the same go, measured a
+   second way. The page counts at its two damage sites; this counts drops
+   in hero.hp and notes which room they happened in. A page whose counters
+   were wired to the wrong site, or double-counted, disagrees with this
+   without either number changing on its own. */
+const advHits = [];
+let advLastHp = null;
+function advWatch(){ if (typeof hero === 'undefined') return;
+  if (advLastHp !== null && hero.hp < advLastHp) {
+    advHits.push({ room: room, hp: hero.hp }) }
+  advLastHp = hero.hp }
+"""
+    + ROUTE_SOURCE
+)
+
+#: One frame of it, for the probe's loop.
+RECAP_STEP = "try{ advWatch(); advHold(advAim(f)) }catch(e){}"
+
+
+def recap_route() -> tuple[str, str]:
+    """The route as ``recap.probe_source`` wants it."""
+
+    return RECAP_SETUP, RECAP_STEP
+
+
+#: What the loss-recap line has to survive, asked of the page that just
+#: lost. Appended after ``recap.probe_source``'s own report, so the judge
+#: reads two JSON lines: the recap probe's, then this one.
+#:
+#: The counters are moved and the line re-read rather than a second
+#: implementation of "largest cause" being written out here. Three
+#: questions, all of them about the product's own rule:
+#:
+#: * the hearts, watched instead of counted, agree with the two counters;
+#: * make the guardian the larger cause and the line names the guardian -
+#:   so the choice is a comparison, not the only clause that was ever
+#:   reachable, and the count it prints follows the counter that moved;
+#: * zero both and the line says nothing at all.
+_RECAP_TAIL = """
+/* The win case above left the page's state where a win would put it. The
+   line only speaks about a loss, so put it back before asking again. */
+state = 'over';
+const advSaidRoam = recapLine();
+const keepRoam = hurtRoam, keepGuard = hurtGuard;
+hurtGuard = keepRoam + 5;
+const advSaidGuard = recapLine();
+hurtRoam = 0; hurtGuard = 0;
+const advSaidNothing = recapLine();
+hurtRoam = keepRoam; hurtGuard = keepGuard;
+console.log(JSON.stringify({
+  hits: advHits, roam: hurtRoam, guard: hurtGuard,
+  said: advSaidRoam, saidGuard: advSaidGuard, saidNothing: advSaidNothing,
+}));
+"""
+
+
+def recap_probe_source(script: str, *, frames: int = FRAMES) -> str:
+    """The loss-recap probe, driven along this module's route and then asked
+    the three questions above. Two JSON lines out."""
+
+    from sidra_ai.creation.recap import probe_source
+
+    return (
+        probe_source(script, template="adventure", frames=frames, route=recap_route())
+        + _RECAP_TAIL
+    )
+
+
+__all__ = [
+    "Drive",
+    "FRAMES",
+    "RECAP_SETUP",
+    "RECAP_STEP",
+    "REQUEST",
+    "ROUTE_SOURCE",
+    "drive",
+    "recap_probe_source",
+    "recap_route",
+]

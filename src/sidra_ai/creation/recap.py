@@ -85,6 +85,22 @@ LOSS_WIRED: dict[str, dict] = {
             ),
         ],
     },
+    # Two causes, because the adventure has two damage sites and they are
+    # different mistakes (C-1425): a roamer is something that closed the
+    # distance while the hero was busy, the guardian is a blow that was
+    # telegraphed and landed anyway. Neither is advice - the counter says
+    # what happened and the clause says what the thing does.
+    #
+    # A loss here is only reachable by something that can find a route
+    # (C-1424), so unlike the others this template's losing go is driven
+    # rather than held: see ``probe_source``'s ``route``.
+    "adventure": {
+        "lost": "state==='over'",
+        "causes": [
+            ("hurtRoam", "'まものに '+n+' 回やられた——近づくと追ってくる'"),
+            ("hurtGuard", "'番人の一撃を '+n+' 回——溜めの光のあとに来る'"),
+        ],
+    },
     # Laps are the score here, so the shortfall is the reason.
     "racing": {
         "lost": "state!=='goal'",
@@ -100,7 +116,6 @@ LOSS_UNWIRED: dict[str, str] = {
     "catch": "no losing state at all - the clock ends every go and the score is the whole verdict",
     "fishing": "same as catch: nothing can end the round early",
     "puzzle": "'over' means the board jammed, but nothing counts *why* it jammed yet",
-    "adventure": "'over' exists but no counter survives it - the hero's damage is never tallied",
 }
 
 #: Names the preamble introduces.
@@ -203,7 +218,15 @@ function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; clock += 50 / 3; fn(clock) } }
 function press(k){ (handlers['keydown'] || []).forEach(fn => fn({ key: k,
   code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+/* Letting go again. A held key never needed this; a route does, because
+   walking a corner means stopping pressing the way you came. */
+function release(k){ (handlers['keyup'] || []).forEach(fn => fn({ key: k,
+  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
 run(2); press(' '); run(2);
+/* A template whose loss has to be *driven* rather than held installs its
+   own steering here, and the frame loop below calls ROUTE_STEP. Empty for
+   every template that loses on its own. */
+ROUTE_SETUP_TOKEN
 /* HOLD_INPUT is a key held down for the whole go, which is how the two
    templates that need a *mistake* rather than a shortfall get one: an
    untouched platformer never falls, so it has no counted cause and
@@ -213,6 +236,7 @@ if (held) { press(held) }
 let lost = null, verdictWhileLive = false;
 for (let f = 0; f < FRAMES_INPUT; f++) {
   if (held) { press(held) }
+  ROUTE_STEP_TOKEN
   run(1);
   /* A verdict handed down mid-play is the failure the round-over guard
      exists for, and it is invisible if only the end is inspected. */
@@ -227,7 +251,11 @@ const counters = { hp: peek('ship&&ship.hp'), respawns: peek('respawns'),
   cycles: peek('cycles'), laps: peek('times&&times.length'),
   /* duel's two, and the hp comparison that says which side lost. */
   lostBeam: peek('lostBeam'), lostClash: peek('lostClash'),
-  pHp: peek('p&&p.hp'), eHp: peek('e&&e.hp') };
+  pHp: peek('p&&p.hp'), eHp: peek('e&&e.hp'),
+  /* adventure's two damage sites, read off the page rather than through
+     hurtFacts, so a facts function that lies disagrees with them. */
+  hurtRoam: peek('hurtRoam'), hurtGuard: peek('hurtGuard'),
+  heroHp: peek('hero&&hero.hp') };
 const atEnd = recapFacts();
 /* The strip as drawn, after the round is over. */
 drawn = [];
@@ -256,6 +284,7 @@ WIN_STATE: dict[str, str] = {
     "platformer": "goal",
     "kaiju": "won",
     "racing": "goal",
+    "adventure": "win",
 }
 
 
@@ -266,6 +295,7 @@ def probe_source(
     frames: int = 4200,
     hold: str | None = None,
     stored: dict | None = None,
+    route: tuple[str, str] | None = None,
 ) -> str:
     """Play a go, then ask the same page what it would say about a win.
 
@@ -274,10 +304,21 @@ def probe_source(
     produced for the templates an untouched run does not lose: since
     C-1404 every racing rung finishes without input, so its loss comes
     from the panel's own slow pace, the way C-1105 generates one.
+
+    ``route`` is the third way, for a template that neither loses by itself
+    nor loses to any one held key: ``(setup, step)`` is JavaScript spliced
+    in after the page and into the frame loop, so the go is *steered*. The
+    adventure is the only one - it cannot be lost without finding a way out
+    of the first room, which C-1424 had to measure before this line could
+    exist. The step runs before the frame it steers, so ``f`` is the frame
+    about to be drawn.
     """
 
+    setup, step = route or ("", "")
     return (
         PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("ROUTE_SETUP_TOKEN", setup)
+        .replace("ROUTE_STEP_TOKEN", step)
         .replace("FRAMES_INPUT", str(int(frames)))
         .replace("HOLD_INPUT", json.dumps(hold))
         .replace("STORED_INPUT", json.dumps(stored))

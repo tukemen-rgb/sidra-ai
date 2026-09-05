@@ -88,6 +88,11 @@ const NAMES=['森のはずれ','ひかり苔の洞窟','風の祭壇'];
 let rooms=[],enemies=[],room=0,msg='',msgT=0,guard=null;
 let hero={x:0,y:0,dir:2,hp:3,gems:0,key:false,swing:0,inv:0};
 let state='play';let keyDrop=null;let FIRSTCUT=true;
+/* What took the hearts, kept apart because the two are different
+   mistakes (C-1425): a roamer is something that closed the distance,
+   the guardian is a telegraphed blow that landed anyway. Counting
+   only - nothing here is read back by the game itself. */
+let hurtRoam=0,hurtGuard=0;
 function empty(){const m=[];for(let y=0;y<GH;y++){const r=[];
   for(let x=0;x<GW;x++){r.push(x===0||y===0||x===GW-1||y===GH-1?1:0)}m.push(r)}return m}
 function carve(m,code,n){let put=0;while(put<n){const x=2+Math.floor(rand()*(GW-4)),
@@ -137,7 +142,7 @@ function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
   ||Math.abs(x-1)+Math.abs(y-4)<5);
   return {x:OX+x*TILE+8,y:OY+y*TILE+8,dx:0,dy:0,t:0,alive:true}}
 function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRSTCUT=true;
-  kprog=0;ksolved=false;
+  kprog=0;ksolved=false;hurtRoam=0;hurtGuard=0;
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
     charm:false,swing:0,inv:0};
   say('ぼうしの勇者、めざめる。')}
@@ -267,7 +272,7 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
     en.dx=Math.cos(a)*ESPEED*0.6;en.dy=Math.sin(a)*ESPEED*0.6;en.t=50+rand()*60}
   const nx=en.x+en.dx,ny=en.y+en.dy;
   if(!solid(nx,en.y)){en.x=nx}if(!solid(en.x,ny)){en.y=ny}
-  if(hero.inv<=0&&d<16){hero.hp--;hero.inv=60;sfx('hurt');
+  if(hero.inv<=0&&d<16){hero.hp--;hurtRoam++;hero.inv=60;sfx('hurt');
     shake(9);hitstop(4);burst(hero.x,hero.y,12,'ALERT_JUICE');
     hero.x-=en.dx*14;hero.y-=en.dy*14;
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
@@ -301,11 +306,13 @@ function moveGuard(){if(room!==2||!guard||!guard.alive)return;
     if(hitWall||--guard.chg<=0){guard.mode='stride';guard.t=70;
       shake(7);burst(guard.x,guard.y+14,12,'ACCENT_JUICE')}}
   if(hero.inv<=0&&Math.hypot(hero.x-guard.x,hero.y-guard.y)<24){
-    hero.hp--;hero.inv=60;sfx('hurt');shake(10);hitstop(5);
+    hero.hp--;hurtGuard++;hero.inv=60;sfx('hurt');shake(10);hitstop(5);
     burst(hero.x,hero.y,14,'ALERT_JUICE');
     hero.x+=(hero.x-guard.x)/d*20;hero.y+=(hero.y-guard.y)/d*20;
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
     else{say('重い一撃。')}}}
+function hurtFacts(){return {roam:hurtRoam,guard:hurtGuard,
+  total:hurtRoam+hurtGuard,hp:hero.hp,state:state}}
 function guardFacts(){return guard?{alive:guard.alive,hp:guard.hp,max:guard.max,
   mode:guard.mode,wind:guard.wind,x:guard.x,y:guard.y,inv:guard.inv,
   speed:guardSpeed(),windFrames:guardWind(),

@@ -32,6 +32,8 @@ from sidra_ai.creation.recap import (  # noqa: E402
     PREAMBLE_NAMES,
     probe_source,
 )
+from sidra_ai.evals.adventure_losable import FRAMES as ADVENTURE_FRAMES  # noqa: E402
+from sidra_ai.evals.adventure_losable import recap_route  # noqa: E402
 
 #: One request per wired template, and how to make that template lose.
 ASKS: dict[str, tuple[str, dict]] = {
@@ -53,6 +55,14 @@ ASKS: dict[str, tuple[str, dict]] = {
         "レースゲームを作って",
         {"stored": {"speed": min(p[0] for p in _DIFFICULTY["racing"].values())}},
     ),
+    # The only one that has to be *steered* (C-1425). No key, held or not,
+    # loses the adventure: the way out of the first room goes around a pond
+    # the sword cannot cut, so a loss needs a route. It is the route C-1424
+    # measured, spliced in rather than copied.
+    "adventure": (
+        "冒険ゲームを作って",
+        {"frames": ADVENTURE_FRAMES, "route": recap_route()},
+    ),
 }
 
 
@@ -67,7 +77,10 @@ def _play(template: str, **override) -> dict:
         input=probe_source(found.group(1), template=template, **{**drive, **override}),
         capture_output=True,
         text=True,
-        timeout=240,
+        # The steered adventure plays twelve thousand frames with a
+        # breadth-first search on each of them, so it needs longer than a
+        # template that loses by standing still.
+        timeout=900 if template == "adventure" else 240,
     )
     assert run.returncode == 0, run.stderr.strip()[:400]
     return json.loads(run.stdout.strip().splitlines()[-1])
@@ -136,6 +149,9 @@ def test_no_verdict_is_settled_while_the_go_is_still_live(template: str) -> None
         ("shooter", lambda raw: 3 - raw["hp"]),
         ("platformer", lambda raw: raw["respawns"]),
         ("kaiju", lambda raw: 3 - raw["cycles"]),
+        # Two causes, so the line reports whichever was larger - the same
+        # choice the page makes, derived here from the raw counters.
+        ("adventure", lambda raw: max(raw["hurtRoam"], raw["hurtGuard"])),
     ],
 )
 def test_the_count_is_the_counters_not_a_constant(template: str, expected) -> None:

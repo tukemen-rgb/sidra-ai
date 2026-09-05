@@ -7814,3 +7814,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-05 10:2x UTC 辛口ユーザー started（31 巡目・質問応答/CLI・C-1254 claim）
 
 2026-09-05 10:22 進捗監視 前進あり: C-1341 完了（かごの拡縮バウンス・09:59）。ループA は C-1425（adventure の敗因一言・再挑戦分）へ 10:07 着手、C-1254（10:15 ユーザー claim）進行中。停滞なし。記録のみ。
+2026-09-05 10:42 UTC ループA 完了 C-1425 adventure の敗因一言 — creation_adventure_loss_recap unmeasurable→1（creation_loss_recap 1→1 維持）、判定器 exit 0、pytest 全緑、verify_gate_recall MISS 0、Board=13
