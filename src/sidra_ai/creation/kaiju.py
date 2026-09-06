@@ -218,6 +218,13 @@ function wakeFacts(){return {state:state,t:t,cracks:cracks.length,
   dust:dust.length,wide:state==='wake'&&t>60}}
 /* The hit's other half, as a fact (§1, C-1361). */
 function kbFacts(){return {kvx:me.kvx,x:me.x,hp:me.hp}}
+/* The pilot's face, as a fact (§1, C-1363): the eyes lean at the
+   monster's leg - the fight's whole subject - with a deadzone so
+   standing under it reads as a straight look, and the blink is the
+   contract's shared beat, pinned open under reduced motion. */
+function faceFacts(){const lx=legX();
+  return {look:lx>me.x+8?1:lx<me.x-8?-1:0,
+    blink:FRAME(40,6,performance.now())===1}}
 function bossFacts(){return{phase:boss.phase,cycles:cycles,shown:boss.shown,
   tense:cycleTense(),growth:CRACK*cycleTense(),
   legHp:boss.legHp,beat:BEAT,state:state,hp:me.hp}}
@@ -277,6 +284,13 @@ function draw(){const now=performance.now();
   const gait=Math.sin(me.step*6.283);
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(me.x-16,GROUND-30,32,18);
   cx.fillRect(me.x-4,GROUND-42,8,12);
+  /* Eyes in the canopy (§1, C-1363): the pilot watches the monster.
+     Skipped only on the blink frame - under reduced motion the shared
+     FRAME pins the beat to 0 and the eyes never close. */
+  const face=faceFacts();
+  if(!face.blink){cx.fillStyle='#05070f';
+    cx.fillRect(me.x-3+face.look,GROUND-39,2,2);
+    cx.fillRect(me.x+1+face.look,GROUND-39,2,2)}
   cx.strokeStyle='CYAN_TOKEN';cx.lineWidth=3;
   [-10,10].forEach((o,i)=>{cx.beginPath();cx.moveTo(me.x+o,GROUND-14);
     cx.lineTo(me.x+o+(i?gait:-gait)*7,GROUND);cx.stroke()});
@@ -656,6 +670,64 @@ def stomp_probe(script: str) -> str:
     return STOMP_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The pilot's face, driven (§1, C-1363). The walker is parked on either
+#: side of the monster's leg and dead under it, and the look is read off
+#: the page; then it stands still for five hundred frames and the blink
+#: is counted. The probe's clock ticks with the frames - a zero-pinned
+#: performance.now freezes the wall-clock FRAME (C-1348's lesson).
+FACE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(110);
+me.x = 60; run(1);
+const legRight = faceFacts().look;
+me.x = 660; run(1);
+const legLeft = faceFacts().look;
+me.x = legX(); run(0);
+const underLeg = faceFacts().look;
+/* Stand still and count the blink. */
+let blinkFrames = 0, longest = 0, streak = 0;
+for (let i = 0; i < 500; i++) { run(1);
+  if (faceFacts().blink) { blinkFrames++; streak++;
+    if (streak > longest) longest = streak } else { streak = 0 } }
+console.log(JSON.stringify({
+  legRight: legRight, legLeft: legLeft, underLeg: underLeg,
+  blinkFrames: blinkFrames, longestBlink: longest,
+}));
+"""
+
+
+def face_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the pilot's gaze can be read."""
+
+    return FACE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 __all__ = [
     "WAKE_PROBE",
     "wake_probe",
@@ -663,6 +735,8 @@ __all__ = [
     "kb_probe",
     "STOMP_PROBE",
     "stomp_probe",
+    "FACE_PROBE",
+    "face_probe",
     "QUEUE_PROBE",
     "queue_probe",
     "KAIJU_DIFFICULTY",

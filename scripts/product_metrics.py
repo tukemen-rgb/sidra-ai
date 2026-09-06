@@ -4577,15 +4577,54 @@ def measure_creation(c: Collector) -> None:
             face_gaps.append(
                 f"{_fc_label}: the eyes stay shut ({_fc.get('longestBlink')} frames)"
             )
+    # The pilot (§1, C-1363): the kaiju walker's eyes lean at the
+    # monster's leg - the fight's whole subject - with a deadzone under
+    # it, and blink on the contract's shared beat.
+    from sidra_ai.creation.kaiju import face_probe as _kf_probe
+
+    for _kf_reduced in (False, True):
+        _kf_label = "kaiju" + ("（reduced）" if _kf_reduced else "")
+        _kf_page = generate_game("巨大怪獣と戦うゲームを作って").html
+        _kf_script = _scene_re.search(r"<script>(.*?)</script>", _kf_page, _scene_re.S)
+        if _kf_script is None:
+            face_gaps.append(f"{_kf_label}: no script")
+            continue
+        try:
+            _kf_run = _scene_sp.run(
+                ["node", "-"],
+                input=_kf_probe(_kf_script.group(1), reduced=_kf_reduced),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _kf_run.returncode != 0:
+                raise ValueError(_kf_run.stderr.strip()[:60])
+            _kf = json.loads(_kf_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            face_gaps.append(f"{_kf_label}: probe unavailable ({exc})")
+            continue
+        if _kf.get("legRight") != 1 or _kf.get("legLeft") != -1:
+            face_gaps.append(f"{_kf_label}: the pilot never watches the monster")
+        elif _kf.get("underLeg") != 0:
+            face_gaps.append(f"{_kf_label}: standing under the leg still pulls the eyes aside")
+        if _kf_reduced:
+            if _kf.get("blinkFrames"):
+                face_gaps.append(f"{_kf_label}: reduced motion still blinks")
+        elif not _kf.get("blinkFrames"):
+            face_gaps.append(f"{_kf_label}: the pilot never blinks")
+        elif _kf.get("longestBlink", 0) > 12:
+            face_gaps.append(
+                f"{_kf_label}: the eyes stay shut ({_kf.get('longestBlink')} frames)"
+            )
     # C-1351 redefined the value from 0/1 to the NUMBER of heroes whose
     # face contract holds - any gap anywhere still collapses it to 0
     # (両定義: 旧 0/1 は platformer 時点で 1、新定義の変更前も adventure
     # 未実装のため 1、変更後 2). C-1353 adds the basket, C-1355 the
-    # duellist: 4.
+    # duellist, C-1363 the kaiju pilot: 5.
     c.add(
         "creation_hero_face",
         "目が動きを追う主人公の数",
-        0.0 if face_gaps else 4.0,
+        0.0 if face_gaps else 5.0,
         detail=(
             "; ".join(face_gaps)
             if face_gaps
@@ -4596,7 +4635,9 @@ def measure_creation(c: Collector) -> None:
             "皿の目が最下の落下物の方向へ傾き（右 1・左 -1）、真上なら正面、"
             "受けの瞬間は BSQ で目も潰れる。duel の実対峙: 自機の目が敵の"
             "レーンへ縦に傾き（下 1・上 -1・同レーンで正面）、敵は平らな"
-            "バイザーのまま。四者とも"
+            "バイザーのまま。kaiju の実対峙: 操縦席の目が巨獣の脚へ傾き"
+            "（右 1・左 -1・真下で正面）＝画面の主題を主人公が見ている。"
+            "五者とも"
             "reduced-motion では FRAME が目を開いたまま留める＝顔は一切"
             "動かない（§1 の技法表で最後まで残っていた「キャラの目や表情」）"
         ),

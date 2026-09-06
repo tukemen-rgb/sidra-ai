@@ -5461,7 +5461,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       次の誰かの不安定な失敗になるだけなので採らない。
       **前提条件を C-1435 として分割起票**（計器の分母を「進んだフレーム」に
       する。棒は下げない）。それが済めば duel はそのまま測れる。
-- [~] 作業中 2026-09-06 12:50 UTC 辛口クリエイター **C-1363: 巨獣を見上げない操縦士——kaiju の歩行機は頭（8×12px）まで描かれているのに目が無く、§1「キャラの目や表情」の顔契約が 4 体で止まって 5 体目に届いていない（§1）。**
+- [x] 完了 2026-09-06 13:20 UTC 辛口クリエイター（`creation_hero_face` **4→5**、判定器 exit 0（BETTER）。faceFacts(){look,blink}——look は legX()（戦いの主題そのもの）へ ±8px 不感帯で 1/-1/0・blink は共通 FRAME(40,6,now)===1。描画は head 上の 2×2 目 2 個を look で 1px 寄せ・blink フレームだけ消す（platformer と同文）。新設 FACE_PROBE（wall-clock 前進ハーネス＝C-1348 の教訓・me.x を脚の左右と真下に置いて 3 値を実測）: legRight 1・legLeft -1・underLeg 0・blink 10/500f（longest 10≤12）・reduced 走行 0/500f。破壊 3 通り〔look 恒 0→『never watches』×2 走行／FRAME を生時計に置換→**normal は通るが reduced 走行だけが『still blinks』**＝REDUCED ピンは共通 FRAME 経由でしか守れないことの実証／blink 恒 false→『never blinks』〕、復元で CLEAN。pytest exit 0（3764 passed / 3 skip）・gate MISS 0。test_creation_hero_face.py に kaiju 2 検査を追加（11 検査）。顔契約は platformer・adventure・catch・duel・kaiju の 5 体——操縦士が巨獣を見上げた）**C-1363: 巨獣を見上げない操縦士——kaiju の歩行機は頭（8×12px）まで描かれているのに目が無く、§1「キャラの目や表情」の顔契約が 4 体で止まって 5 体目に届いていない（§1）。**
       （辛口クリエイターループ起票・観点=§1 キャラの目や表情。前回=§6）
       現物: 顔契約（C-1348 platformer→C-1351 adventure→C-1353 catch→
       C-1355 duel）は「目が意味のある対象を追い・数秒に 1 拍まばたき・

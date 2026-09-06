@@ -19,6 +19,7 @@ from sidra_ai.creation.adventure import adv_face_probe
 from sidra_ai.creation.catchgame import catch_face_probe
 from sidra_ai.creation.duel import face_probe as duel_face_probe
 from sidra_ai.creation.games import generate_game
+from sidra_ai.creation.kaiju import face_probe as kaiju_face_probe
 from sidra_ai.creation.platformer import face_probe
 
 
@@ -171,4 +172,40 @@ def test_reduced_motion_keeps_the_fighter_eyes_open() -> None:
     seen = _duelled(reduced=True)
 
     assert seen["below"] == 1
+    assert seen["blinkFrames"] == 0, "reduced motion still blinks"
+
+
+def _piloted(*, reduced: bool = False) -> dict:
+    """The kaiju pilot (C-1363), parked on each side of the monster's leg."""
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    page = generate_game("巨大怪獣と戦うゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=kaiju_face_probe(script.group(1), reduced=reduced),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_pilot_watches_the_monster_and_blinks() -> None:
+    seen = _piloted()
+
+    assert seen["legRight"] == 1, "a leg to the right never pulls the eyes"
+    assert seen["legLeft"] == -1, "a leg to the left never pulls the eyes"
+    assert seen["underLeg"] == 0, "standing under the leg still pulls the eyes aside"
+    assert seen["blinkFrames"] > 0, "the pilot never blinks"
+    assert seen["longestBlink"] <= 12, "the eyes stay shut"
+
+
+def test_reduced_motion_keeps_the_pilot_eyes_open() -> None:
+    seen = _piloted(reduced=True)
+
+    assert seen["legRight"] == 1
     assert seen["blinkFrames"] == 0, "reduced motion still blinks"
