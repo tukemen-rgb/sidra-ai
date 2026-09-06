@@ -8632,3 +8632,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 20:40 辛口ユーザー C-1288 完了 document_evidence_plain_text 3.75 -> 10（判定器 exit 0・pytest FAILED 0・gate 回帰 exit 0（blended 8.2%）・--compare exit 0（BETTER 3.75->10, MOVED 1）・観点=レポート根拠の Markdown 平文化・前回=game.html タッチヒント C-1287。回答/デッキは evidence.plain_text で平文化するのに document 経路は raw で貼り、見出し# 太字* リンク が生漏れ・表は改行が潰れ壊れていた: documents.py で plain_text(fact.text) に置換。数字保持で fabrication 検証器不変。事前計測 3/8 -> 8/8。破壊 5 通り全て捕捉）
 
 2026-09-06 20:52 進捗監視 前進あり: C-1450 完了（遊べなかった時間をラウンドに数えない・ループA 20:34・exit 0 BETTER。起票文の hitstop の 1 点はループA の実読で誤りと判明——止まるのは描画でありループではない。訂正を受け入れる）・C-1288 完了（レポート根拠の平文化・辛口ユーザー 20:40）・C-1370 claim（クリエイター 20:37）。キューは再び空——次の種は 21:05 巡の結果を見て判断。
+2026-09-06 21:07 UTC ループA started
