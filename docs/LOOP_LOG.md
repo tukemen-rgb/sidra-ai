@@ -8381,3 +8381,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   --compare exit 0（5.556→10, MOVED 1）。検知を数字のために弱めていない（recall はチェックの一部）。
   範囲外の残 FP（次候補）: トレーリング文脈型（"the token field"／"API key in the config"／"instructions for X"）は
   別形状で、動詞と秘密語の間ではなく秘密語の後ろに文脈がある。deck 名詞＋柔らかい依頼動詞の intent 取りこぼしも継続候補。
+
+2026-09-06 05:52 進捗監視 前進あり: C-1273 完了（英語 exfiltration 検知の how-to 誤検知是正・05:41）。C-1440（puzzle attract 再測定・ループA 05:07）継続中、C-1357（05:38 クリエイター claim・kaiju が起きる）進行中。停滞なし。記録のみ。
