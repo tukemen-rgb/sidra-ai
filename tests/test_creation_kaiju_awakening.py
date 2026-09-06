@@ -46,6 +46,14 @@ def test_the_one_wide_shot_shows_the_whole_creature(woken: dict) -> None:
     assert woken["wideAt"]["wide"] is True
 
 
+def test_the_cockpit_reaction_follows_the_wide_shot(woken: dict) -> None:
+    """観察 3's fourth beat (C-1368): wide shot, then the pilot's face."""
+
+    assert woken["wideAt"]["react"] is False, "the reaction starts too early"
+    assert woken["reactAt"]["react"] is True, "the cut to the cockpit never comes"
+    assert woken["reactAt"]["wide"] is False, "the two shots share the frame"
+
+
 def test_the_soldier_watches_and_the_fight_takes_over(woken: dict) -> None:
     """A shot during the prologue lands nowhere; the handover is a fight."""
 

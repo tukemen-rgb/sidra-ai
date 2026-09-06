@@ -214,8 +214,15 @@ addEventListener('keydown',e=>{keys[e.key]=true;
 addEventListener('keyup',e=>{keys[e.key]=false});
 /* The awakening, as a fact (C-1357): where the prologue is, what it has
    put on screen, and whether this is the wide-shot beat. */
+/* The awakening's fourth beat (§6 観察 3, C-1368): the film cuts from
+   the wide shot to the cockpit before the fight re-accelerates. One
+   constant carries the cut for draw() and the facts alike - the
+   declared beat and the painted one cannot drift apart (C-1342's
+   shared-constant guard). */
+const REACT_AT=75;
 function wakeFacts(){return {state:state,t:t,cracks:cracks.length,
-  dust:dust.length,wide:state==='wake'&&t>60}}
+  dust:dust.length,wide:state==='wake'&&t>55&&t<=REACT_AT,
+  react:state==='wake'&&t>REACT_AT}}
 /* The hit's other half, as a fact (§1, C-1361). */
 function kbFacts(){return {kvx:me.kvx,x:me.x,hp:me.hp}}
 /* The pilot's face, as a fact (§1, C-1363): the eyes lean at the
@@ -272,7 +279,7 @@ function draw(){const now=performance.now();
      head - small against the sky and enormous against the cannon. The
      fight then returns to the leg, and the full body is not seen again
      until it is down. */
-  if(state==='wake'&&t>60){
+  if(state==='wake'&&t>55&&t<=REACT_AT){
     cx.fillStyle=scenePaint('BORDER_TOKEN');
     const wx=W*0.55,wh=H*0.72,wb=GROUND;
     cx.fillRect(wx-30,wb-wh*0.42,60,wh*0.42);
@@ -281,6 +288,22 @@ function draw(){const now=performance.now();
     cx.beginPath();cx.arc(wx,wb-wh*0.86,26,0,6.283);cx.fill();
     cx.beginPath();cx.moveTo(wx+40,wb-wh*0.55);cx.lineTo(wx+150,wb-wh*0.30);
     cx.lineTo(wx+44,wb-wh*0.38);cx.closePath();cx.fill()}
+  /* The reaction shot (観察 3's 4th beat, C-1368): a framed cockpit
+     insert, the pilot four times life size, eyes wide open at the
+     monster - no blink in this beat, a held stare. A still frame, so
+     reduced motion has nothing to freeze. */
+  if(state==='wake'&&t>REACT_AT){
+    const ix=W*0.30,iy=48,iw=W*0.40,ih=110;
+    cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(ix,iy,iw,ih);
+    cx.strokeStyle=scenePaint('BORDER_TOKEN');cx.lineWidth=3;
+    cx.strokeRect(ix,iy,iw,ih);cx.lineWidth=1;
+    const hx=ix+iw/2,hb2=iy+ih-16;
+    cx.fillStyle='CYAN_TOKEN';cx.fillRect(hx-64,hb2-26,128,26);
+    cx.fillRect(hx-16,hb2-70,32,46);
+    const lk=legX()>me.x?1:-1;
+    cx.fillStyle='#05070f';
+    cx.fillRect(hx-12+lk*4,hb2-58,8,10);
+    cx.fillRect(hx+4+lk*4,hb2-58,8,10)}
   const gait=Math.sin(me.step*6.283);
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(me.x-16,GROUND-30,32,18);
   cx.fillRect(me.x-4,GROUND-42,8,12);
@@ -516,6 +539,8 @@ run(40);
 const mid = wakeFacts();
 run(26);
 const wideAt = wakeFacts();
+run(10);
+const reactAt = wakeFacts();
 /* A shot fired during the prologue must land nowhere: fire() is gated
    on 'fight', so the soldier watches like the film's do. Read as an
    absolute count, not a delta - the first destruction fired at the GATE
@@ -524,13 +549,13 @@ key(' ');
 const firedInWake = shots.length;
 let toFight = null;
 for (let i = 0; i < 60 && toFight === null; i++) { run(1);
-  if (wakeFacts().state === 'fight') toFight = 72 + i }
+  if (wakeFacts().state === 'fight') toFight = 82 + i }
 run(30);
 key(' ');
 const after = { state: wakeFacts().state, phase: bossFacts().phase,
   shots: shots.length };
 console.log(JSON.stringify({
-  early: early, mid: mid, wideAt: wideAt,
+  early: early, mid: mid, wideAt: wideAt, reactAt: reactAt,
   firedInWake: firedInWake, toFight: toFight, after: after,
 }));
 """

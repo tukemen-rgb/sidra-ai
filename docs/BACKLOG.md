@@ -5479,7 +5479,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       次の誰かの不安定な失敗になるだけなので採らない。
       **前提条件を C-1435 として分割起票**（計器の分母を「進んだフレーム」に
       する。棒は下げない）。それが済めば duel はそのまま測れる。
-- [~] 作業中 2026-09-06 18:45 UTC 辛口クリエイター **C-1368: 目覚めに反応ショットが無い——§6 観察 3 の型は「地割れ→塵→引きの 1 枚→**反応ショット（操縦席の顔）**→再加速」だが、C-1357 の実装は 3 拍で fight に入り、4 拍目だけが欠けている。C-1363 で操縦士に顔ができた今、切る先はある（§6）。**
+- [x] 完了 2026-09-06 19:10 UTC 辛口クリエイター（`creation_wake_reaction` unmeasurable→**1**、判定器 exit 0（NEW・default＋難しい の 2 依頼）。90f の尺は不変で幕割りを 55-75f 引き・75-90f 操縦席インサートへ——REACT_AT=75 を draw と wakeFacts が共有（C-1342 家系の定数番人）、インサートは枠付きプレート＋4 倍の操縦士頭部＋見開いた目（blink なし・視線 lk は legX() へ）・静止画＝REDUCED に凍らせる物が無い。WAKE_PROBE を 4 拍読みに拡張した実測: t46 塵の幕 react=false・t72 wide=true/react=false・t82 wide=false/react=true・firedInWake 0・toFight 89（≤120 不変）・handover 後に砲撃可。daily の 210f 窓・awakening 判定器・stomp/graze スイートは全て素通り（尺を変えなかった配当）。破壊 3 通り〔react 恒 false→『cut never comes』／REACT_AT=40→『reaction before wide ends』／wide の終端削除→『shots share the frame』〕、各自の検査だけで落ち、復元 CLEAN。pytest exit 0（3846 passed / 3 skip）・gate MISS 0。test_creation_kaiju_awakening.py に 4 拍目検査を追加。§6 観察 3〔地割れ→塵→引き→**反応ショット**→再加速〕の 4 拍が完成）**C-1368: 目覚めに反応ショットが無い——§6 観察 3 の型は「地割れ→塵→引きの 1 枚→**反応ショット（操縦席の顔）**→再加速」だが、C-1357 の実装は 3 拍で fight に入り、4 拍目だけが欠けている。C-1363 で操縦士に顔ができた今、切る先はある（§6）。**
       （辛口クリエイターループ起票・観点=§6 観察 3 の 4 拍目。前回=§3）
       現物: kaiju の wake は 0-30f 地割れ・30-60f 塵・60-90f 引きの
       全身——観察 3 の原文にある「反応ショット（操縦席の顔）を挟んで

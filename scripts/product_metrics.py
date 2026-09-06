@@ -7203,6 +7203,9 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.kaiju import wake_probe as _wk_probe
 
     wake_gaps: list[str] = []
+    #: The fourth beat (C-1368), harvested from the same driven pages: the
+    #: film cuts from the wide shot to the cockpit before re-accelerating.
+    react_gaps: list[str] = []
     for _wk_req in ("巨大怪獣と戦うゲームを作って", "難しい怪獣ゲームを作って"):
         _wk_label = "難しい" if "難しい" in _wk_req else "default"
         _wk_page = generate_game(_wk_req).html
@@ -7238,6 +7241,17 @@ def measure_creation(c: Collector) -> None:
             wake_gaps.append(f"{_wk_label}: the fight after the prologue is not a fight")
         elif not _wk["after"]["shots"]:
             wake_gaps.append(f"{_wk_label}: the cannon stays dead after the handover")
+        _wk_react = _wk.get("reactAt") or {}
+        if not _wk_react.get("react"):
+            react_gaps.append(f"{_wk_label}: the cut to the cockpit never comes")
+        elif _wk_react.get("wide"):
+            react_gaps.append(
+                f"{_wk_label}: the wide shot and the reaction share the frame"
+            )
+        elif _wk.get("wideAt", {}).get("react"):
+            react_gaps.append(f"{_wk_label}: the reaction starts before the wide shot ends")
+        elif _wk.get("mid", {}).get("react"):
+            react_gaps.append(f"{_wk_label}: the cockpit cuts in during the dust wall")
     c.add(
         "creation_kaiju_awakening",
         "怪獣は目覚めてから戦う",
@@ -7251,6 +7265,22 @@ def measure_creation(c: Collector) -> None:
             "プロローグ中の発砲は 0・~90f で 'fight' へ引き継ぎ、裂け目は"
             "閉じて戦いが始まる（§6 観察 3 のエスカレーション型。combat() の"
             "音圧段も 'fight' からなので観察 4 の静→轟も一致）"
+        ),
+        kind=OUTCOME,
+    )
+    c.add(
+        "creation_wake_reaction",
+        "目覚めに反応ショットが挟まる",
+        0.0 if react_gaps else 1.0,
+        detail=(
+            "; ".join(react_gaps)
+            if react_gaps
+            else "同じ実走行の 4 拍読み——引きの 1 枚（55-75f）が終わってから"
+            "操縦席のインサート（75-90f・見開いた目・blink なし）が入り、"
+            "塵の幕（46f）には無く、プロローグ発砲 0 と ~90f の fight 引き継ぎ"
+            "は不変（§6 観察 3 の 4 拍目「反応ショットを挟んで再加速」。"
+            "REACT_AT を draw と facts が共有＝宣言と塗りの乖離は定数共有が"
+            "番人）"
         ),
         kind=OUTCOME,
     )
