@@ -5991,6 +5991,20 @@ C-12xx/13xx/14xx はループ用のまま）。
       合う不変条件を選ぶ**。pytest から回帰として実行。→ 動かす数字:
       backlog_board_consistent unmeasurable→1（検査が現在の板で緑、
       過去の落ち方を再現した板で赤になること。破壊で 0）
+- [ ] **C-1448: 残り数秒が耳にも届く——urgent の静かな刻み音。**
+      （進捗監視起票 2026-09-06・根拠は round.py 実読: roundFacts に
+      `urgent`（roundRemainMs()<=ROUND_URGENT_MS）が既にあるが、これに
+      繋がる音が無い（round.py に beep/tick の SFX 呼び出し 0 件）。
+      C-1417 が目・C-1413 が指に伝えた「終わりが近い」を、家訓の
+      二重符号化（画面＋音＋振動）どおり耳にも伝える）urgent の間、
+      1 秒に 1 回だけの短く静かな刻み（§2 の合成・blip 系の低ゲイン）。
+      条件: ①M の消音と音量軸（C-1408）に従う ②1 秒 1 回を超えない
+      （鳴りっぱなし禁止・C-1413 の頻度上限と同思想） ③催促でなく
+      時計であること——音程を上げ続ける等の煽りはしない（C-1127 の
+      「区切りか敗北か」を先取りしない中立な音）。→ 動かす数字:
+      creation_urgent_tick unmeasurable→1（urgent 区間で 1 秒 1 回だけ
+      刻みが鳴り、非 urgent 区間と M 時に鳴らないことをページ実走行で
+      検査。破壊で 0）
       **記録 2026-09-06 14:44 ループA**（`scripts/check_backlog_board.py`
       ＋ `tests/test_backlog_board_consistent.py` 14 件・判定器 exit 0）
       **起票の指示どおり、まず 6 件の修復 commit を読み直した**——
