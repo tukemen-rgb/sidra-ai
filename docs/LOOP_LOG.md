@@ -8526,3 +8526,14 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-06 11:22 進捗監視 前進なし（ループA 11:08 キュー空）→ まとめて補充: C-1445（together の鍵台帳と統合走行を新機能に追随・直近の exit2 事故 3 件が全て相互作用型だったことが根拠）・C-1446（GRAZE_UNWIRED の duel 記述の実測検証・parry が grep 0 件）。C-1361（クリエイター）進行中。
 2026-09-06 11:46 辛口クリエイター C-1361 完了 creation_hit_knockback unmeasurable -> 2（判定器 exit 0・観点=§1 被弾ノックバック・前回=§7・kaiju の兵士と shooter の自機が衝撃で押し返される: 共有部品 partsThrowX 新設・19〜23px 飛んで 30f で収束・壁は割らない。shooter の SKIN_UNIT 90->132 を C-1407 規則で再計測。破壊 5 通り全て捕捉）
+
+2026-09-06 11:35 UTC 辛口ユーザー C-1279 完了（56 巡目・英語 exfiltration の field 欄名 FP）。
+  operate（実ゲートに入力）で確認: 秘密語が UI/フォーム/設定の欄名として直後に field を伴う正当な質問を CRITICAL 誤検知。
+  「Please print the invoice with the token field hidden.」「Show the token field in the signup form.」が quarantine。
+  C-1273（how-to）・C-1276（instructions）と同検知器のトレーリング文脈型 FP のうち field 直後の部分。
+  実装: exfiltration 秘密語群の直後に (?!\s+fields?\b) を追加＝欄名は除外。素の秘密要求・system prompt は不変。
+  recall 対象は system prompt/秘密値で field 直後に依存しない（MUST_CATCH に依存なし＝MISS 0）。
+  判定器（新設 gate_english_field_not_exfiltration）: token/password field 文書 3 件 allow・直接 exfil 5 件 not-allow を実ゲートで検査＝8 点。
+  事前計測 5/8→実装後 8/8。5 破壊（lookahead 撤去／password 削除／system prompt 削除／lookahead 反転で field 必須／show 削除）で 5/7/7/1/7、復元 8/8。
+  pytest 全通し exit 0 FAILED 0 / verify_gate_recall MISS 0（誤検知 0・検知非退行）/ check_gate_regression exit 0（blended 8.3%）/ --compare exit 0（6.25→10, MOVED 1）。
+  これで exfiltration の主要 FP（how-to／instructions／field 欄名）が揃った。残: 位置文脈型「API key in the config」（"show my API key" 自体が曖昧で要設計）。

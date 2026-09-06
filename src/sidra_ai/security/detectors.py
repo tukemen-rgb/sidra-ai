@@ -588,6 +588,11 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
         # now requires a system/prompt qualifier; "reveal the system prompt" does
         # not use this word, so recall is unchanged (verified: no MUST_CATCH case
         # relies on a bare "instructions").
+        # C-1279: a secret word directly followed by "field(s)" names a UI, form
+        # or config field ("print the invoice with the token field hidden"), not
+        # the secret value, so the trailing lookahead lets those through. Bare
+        # "show me the password" has no such word and is still caught; no
+        # MUST_CATCH case puts a secret before "field", so recall is unchanged.
         re.compile(
             r"(?i)\b(reveal|print|show|output|repeat|dump|leak)\b"
             r"(?:(?!\b(?:how\s+to|how\s+do|how\s+can|how\s+should|steps?|"
@@ -595,6 +600,7 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
             r"(system prompt|(?:your|the\s+system|system|previous|prior|initial|"
             r"original)\s+(?:system\s+)?instructions|api[ _-]?key|token|secret|"
             r"password|credential|\.env)\b"
+            r"(?!\s+fields?\b)"
         ),
         Severity.CRITICAL,
         "attempts to exfiltrate secrets or the system prompt",

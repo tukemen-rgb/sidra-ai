@@ -1071,6 +1071,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1279: the English exfiltration detector matched a secret word directly
+    # followed by "field(s)" - a UI/form/config field name, not the secret
+    # value - quarantining "print the invoice with the token field hidden". A
+    # trailing lookahead lets those through; direct requests stay caught
+    # (recall verified). Same detector as C-1273/C-1276, a further FP shape.
+    from sidra_ai.evals.gate_english_field_not_exfiltration import (
+        evaluate_gate_english_field_not_exfiltration,
+    )
+
+    en_field = evaluate_gate_english_field_not_exfiltration()
+    c.add(
+        "gate_english_field_not_exfiltration",
+        "英語の欄名（token field 等）を許し秘密値の窃取だけを捕まえる",
+        10.0 * en_field.checks_passed / en_field.checks_total,
+        detail=f"{en_field.checks_passed}/{en_field.checks_total} checks; "
+               "src/sidra_ai/evals/gate_english_field_not_exfiltration.py"
+               + ("" if en_field.passed else "; " + "; ".join(en_field.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
