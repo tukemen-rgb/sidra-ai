@@ -1091,6 +1091,29 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1280: C-1270 gave Japanese single-line paragraphs the sentence
+    # boundaries the excerpt window needs to reach the answering sentence, but
+    # English was left with only CJK marks, so an English Markdown paragraph
+    # (one logical line) offered a single candidate - the head - and the
+    # citation clipped right before the answer. Measured through
+    # select_excerpt_window and the real chat path, plus the guards that keep
+    # the new ASCII 「.」 boundary from opening on a false break.
+    from sidra_ai.evals.excerpt_centers_english_paragraph import (
+        evaluate_excerpt_centers_english_paragraph,
+    )
+
+    excerpt_center_en = evaluate_excerpt_centers_english_paragraph()
+    c.add(
+        "excerpt_centers_english_paragraph",
+        "英語の 1 行段落で引用抜粋が答えの文へ寄る",
+        10.0 * excerpt_center_en.checks_passed / excerpt_center_en.checks_total,
+        detail=f"{excerpt_center_en.checks_passed}/{excerpt_center_en.checks_total} checks; "
+               "src/sidra_ai/evals/excerpt_centers_english_paragraph.py"
+               + ("" if excerpt_center_en.passed
+                  else "; " + "; ".join(excerpt_center_en.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

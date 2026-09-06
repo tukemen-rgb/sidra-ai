@@ -20,7 +20,9 @@ two produced a citation that looked like evidence and showed none of it.
 
 So the window moves to where the question is being discussed: candidate
 starts are line *and* sentence boundaries (C-1270 - a Japanese paragraph has
-no line breaks, so without sentence starts the window could not move at all),
+no line breaks, so without sentence starts the window could not move at all;
+C-1280 - an English Markdown paragraph is one logical line too, so ASCII "."
+is a boundary as well, guarded so an abbreviation or decimal is not one),
 each is scored by how many *distinct* query terms its window contains, and the
 best-scoring window wins. A tie among matching windows goes to the latest, so
 the window opens on the answering sentence rather than clipping it at the far
@@ -84,12 +86,48 @@ def select_excerpt_window(content: str, query: str) -> str:
 #: A window may open right after one of these, as well as after a newline.
 #: Japanese prose runs a paragraph on one line and ends its sentences with 。,
 #: so without sentence boundaries the window has a single candidate - the head -
-#: and cannot move to the answering sentence (C-1270). Kept to CJK marks: English
-#: carries hard line breaks, and ASCII "." would open a window mid-abbreviation.
+#: and cannot move to the answering sentence (C-1270).
 _SENTENCE_ENDERS = "。！？．"
 #: Whitespace after a boundary is skipped so the window opens on the first real
 #: character of the next line or sentence, not on the break itself.
 _BOUNDARY_SKIP = " \t\n　"
+
+
+def _ascii_period_ends_sentence(content: str, index: int) -> bool:
+    """Is the ASCII 「.」 at ``index`` a sentence end worth opening a window on?
+
+    C-1280: English prose runs a paragraph on one line just as Japanese does, but
+    it ends sentences with ASCII 「.」, which was left out of ``_SENTENCE_ENDERS``
+    for fear of opening a window mid-abbreviation. So an English single-line
+    paragraph offered a single candidate - the head - and the excerpt could not
+    move to the answering sentence, the same failure C-1270 fixed for Japanese.
+
+    A bare 「.」 is too ambiguous to trust, so a period counts only with the shape
+    a real sentence break has and an abbreviation does not:
+
+    * the character *before* it is a lowercase letter or a digit - which rejects
+      an acronym ending a sentence (「TLS.」) and a person's initial (「J. Doe」),
+      the readings most likely to be a false break; and
+    * it is followed by whitespace and then an uppercase letter - the start of
+      the next sentence - which rejects a decimal (「3.14」) and a period glued to
+      the next word.
+
+    The window never opens *inside* the token: the start is taken past the period
+    and its trailing whitespace, so even a surviving abbreviation (「e.g. The」)
+    opens cleanly on the capitalised word, not on 「g.」. An acronym-ended
+    sentence is simply not offered as a start - strictly better than the head-only
+    behaviour it replaces, and safe.
+    """
+
+    prev = content[index - 1] if index > 0 else ""
+    if not (prev.isascii() and (prev.islower() or prev.isdigit())):
+        return False
+    after = index + 1
+    if after >= len(content) or content[after] not in _BOUNDARY_SKIP:
+        return False
+    while after < len(content) and content[after] in _BOUNDARY_SKIP:
+        after += 1
+    return after < len(content) and "A" <= content[after] <= "Z"
 
 
 def _candidate_starts(content: str) -> list[int]:
@@ -112,7 +150,11 @@ def _candidate_starts(content: str) -> list[int]:
     for index, char in enumerate(content):
         if len(starts) >= _MAX_CANDIDATES:
             break
-        if char != "\n" and char not in _SENTENCE_ENDERS:
+        if char == "\n" or char in _SENTENCE_ENDERS:
+            pass
+        elif char == "." and _ascii_period_ends_sentence(content, index):
+            pass
+        else:
             continue
         start = index + 1
         while start < len(content) and content[start] in _BOUNDARY_SKIP:
