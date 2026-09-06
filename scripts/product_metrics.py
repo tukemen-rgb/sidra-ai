@@ -1013,6 +1013,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1276: the English exfiltration detector matched a bare "instructions" as
+    # a secret, quarantining "print the setup instructions" - an ordinary
+    # document. It now requires a system/prompt qualifier, so document requests
+    # are allowed while "your/system instructions" and the system prompt stay
+    # caught (recall verified). Same detector as C-1273, a different FP shape.
+    from sidra_ai.evals.gate_english_instructions_not_exfiltration import (
+        evaluate_gate_english_instructions_not_exfiltration,
+    )
+
+    en_instr = evaluate_gate_english_instructions_not_exfiltration()
+    c.add(
+        "gate_english_instructions_not_exfiltration",
+        "英語の instructions 文書要求を許しシステム指示の窃取だけを捕まえる",
+        10.0 * en_instr.checks_passed / en_instr.checks_total,
+        detail=f"{en_instr.checks_passed}/{en_instr.checks_total} checks; "
+               "src/sidra_ai/evals/gate_english_instructions_not_exfiltration.py"
+               + ("" if en_instr.passed else "; " + "; ".join(en_instr.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

@@ -8448,3 +8448,20 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 08:12 UTC 辛口ユーザー started（53 巡目・Q&A/検索の端ケース 予定・前回=CLI 副ファイルのパス非表示 C-1275）
 
 2026-09-06 08:22 進捗監視 前進あり: C-1358 完了（両者が自分の衝撃で潰れる・07:50）。ループA は補充の C-1443（閉じない ** の残存）へ 08:07 着手。停滞なし。記録のみ。
+
+2026-09-06 08:37 UTC 辛口ユーザー C-1276 完了（53 巡目・英語 exfiltration の instructions 誤検知）。
+  operate（detectors 実読＋実入力を実ゲートに通す）で確認: exfiltration の秘密語群の素の「instructions」が
+  一般文書要求を CRITICAL 誤検知。「Show me the setup instructions.」「Please print the instructions for
+  onboarding new hires.」「Print the assembly instructions.」が quarantine される。狙いは
+  「reveal/repeat your instructions＝システムプロンプト」で、素の instructions は取説等の一般文書。
+  C-1273（how-to FP）と同検知器の別 FP 形状（トレーリング文脈型のうち recall-safe な部分）。
+  実装: 秘密語群の instructions を (?:your|the system|system|previous|prior|initial|original)
+  \s+(?:system\s+)?instructions に限定。your/system instructions・reveal the system prompt は維持。
+  recall 対象は system prompt を使い素の instructions に依存しない（MUST_CATCH に依存なし＝tighten で MISS 0）。
+  判定器（新設 gate_english_instructions_not_exfiltration）: instructions 文書 3 件 allow・
+  システム指示/プロンプト exfil 5 件 not-allow を実ゲートで検査＝8 点。事前計測 5/8→実装後 8/8。
+  5 破壊: 素 instructions 復帰 5/8〔FP 再発〕／your 削除 7/8〔recall〕／the を修飾子に 7/8〔過剰 FP〕／
+  system prompt 選択肢削除 7/8〔recall〕／system 系修飾子削除 7/8〔recall〕、復元 8/8。
+  pytest 全通し exit 0 FAILED 0 / verify_gate_recall MISS 0（誤検知 0・検知非退行）/ check_gate_regression exit 0（blended 8.1%）/
+  --compare exit 0（6.25→10, MOVED 1）。検知を数字のために弱めていない。
+  次候補: exfiltration の残トレーリング文脈型（"the token field"／"API key in the config"）。deck 名詞＋柔らか依頼動詞の intent。

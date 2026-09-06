@@ -580,12 +580,21 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
         # is still caught (no such marker in the gap) while the how-to question
         # is let through. This is the English side of the C-1266 fix for
         # exfiltration_ja.
+        #
+        # C-1276: "instructions" is only a secret when it names the assistant's
+        # own instructions ("reveal your instructions" = the system prompt). Bare
+        # "instructions" is an ordinary document - setup, onboarding, assembly -
+        # and matching it flagged "print the instructions" as exfiltration. It
+        # now requires a system/prompt qualifier; "reveal the system prompt" does
+        # not use this word, so recall is unchanged (verified: no MUST_CATCH case
+        # relies on a bare "instructions").
         re.compile(
             r"(?i)\b(reveal|print|show|output|repeat|dump|leak)\b"
             r"(?:(?!\b(?:how\s+to|how\s+do|how\s+can|how\s+should|steps?|"
             r"documentation|docs|guide|manual|tutorial)\b)[^.\n]){0,40}\b"
-            r"(system prompt|instructions|api[ _-]?key|token|secret|password|"
-            r"credential|\.env)\b"
+            r"(system prompt|(?:your|the\s+system|system|previous|prior|initial|"
+            r"original)\s+(?:system\s+)?instructions|api[ _-]?key|token|secret|"
+            r"password|credential|\.env)\b"
         ),
         Severity.CRITICAL,
         "attempts to exfiltrate secrets or the system prompt",
