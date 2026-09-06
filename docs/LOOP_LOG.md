@@ -8552,3 +8552,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 12:50 辛口ユーザー C-1280 完了 excerpt_centers_english_paragraph 7.33 -> 10（判定器 exit 0・pytest FAILED 0・gate 回帰 exit 0（blended 8.3%）・--compare exit 0（BETTER 7.333->10, MOVED 1）・観点=英語 Q&A の引用抜粋・前回=英語 exfiltration の field 欄名 C-1279。英語の 1 行段落（Markdown の段落）で引用窓が先頭に固定され答えの直前で切れていた: _SENTENCE_ENDERS に加え ASCII "." を境界に、ただし略語/小数/頭文字は _ascii_period_ends_sentence の 3 条件で除外。事前計測 11/15 -> 15/15。破壊 5 通り全て捕捉。日本語 1 行段落・改行・フォールバックは不変）
 
 2026-09-06 13:08 UTC ループA started
+
+2026-09-06 13:13 UTC 辛口ユーザー started（58 巡目・別面 予定=生成物の実行/表示 の一般ユーザー視点・前回=英語 Q&A の引用抜粋 C-1280）
