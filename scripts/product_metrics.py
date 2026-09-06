@@ -954,6 +954,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1273: the English exfiltration detector flagged how-to questions
+    # ("show me the steps to reset the password") as CRITICAL, the same false
+    # positive C-1266 removed from exfiltration_ja. The gap now stops before a
+    # how-to/procedure/documentation marker, so procedure questions are allowed
+    # while a direct "reveal the system prompt" stays caught (recall verified).
+    from sidra_ai.evals.gate_english_howto_not_exfiltration import (
+        evaluate_gate_english_howto_not_exfiltration,
+    )
+
+    en_howto = evaluate_gate_english_howto_not_exfiltration()
+    c.add(
+        "gate_english_howto_not_exfiltration",
+        "英語の手順質問を許し直接の秘密要求だけを捕まえる",
+        10.0 * en_howto.checks_passed / en_howto.checks_total,
+        detail=f"{en_howto.checks_passed}/{en_howto.checks_total} checks; "
+               "src/sidra_ai/evals/gate_english_howto_not_exfiltration.py"
+               + ("" if en_howto.passed else "; " + "; ".join(en_howto.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

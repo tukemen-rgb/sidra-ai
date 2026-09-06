@@ -572,8 +572,18 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
     ),
     (
         "exfiltration",
+        # A how-to/procedure/documentation marker between the verb and the secret
+        # word makes this a question about the *procedure* ("show me the steps to
+        # reset the password"), not a request for the secret value - a common,
+        # legitimate question the blunt gap flagged as exfiltration. The tempered
+        # gap stops before those markers, so a direct "reveal the system prompt"
+        # is still caught (no such marker in the gap) while the how-to question
+        # is let through. This is the English side of the C-1266 fix for
+        # exfiltration_ja.
         re.compile(
-            r"(?i)\b(reveal|print|show|output|repeat|dump|leak)\b[^.\n]{0,40}\b"
+            r"(?i)\b(reveal|print|show|output|repeat|dump|leak)\b"
+            r"(?:(?!\b(?:how\s+to|how\s+do|how\s+can|how\s+should|steps?|"
+            r"documentation|docs|guide|manual|tutorial)\b)[^.\n]){0,40}\b"
             r"(system prompt|instructions|api[ _-]?key|token|secret|password|"
             r"credential|\.env)\b"
         ),
