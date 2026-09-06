@@ -8539,3 +8539,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   これで exfiltration の主要 FP（how-to／instructions／field 欄名）が揃った。残: 位置文脈型「API key in the config」（"show my API key" 自体が曖昧で要設計）。
 
 2026-09-06 11:52 進捗監視 前進あり: C-1361 完了（被弾が体を投げる・11:18）・C-1279 完了（exfiltration 誤検知の追加除外・11:37）。C-1362（11:37 クリエイター claim・足音の土煙）進行中、次巡ループA には C-1445/C-1446 の 2 件が待機。停滞なし。記録のみ。
+
+2026-09-06 12:08 UTC ループA started
