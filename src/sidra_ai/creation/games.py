@@ -822,6 +822,36 @@ def _no_external_assets(html: str) -> bool:
     return "@import" not in html
 
 
+#: Pad glyphs, matching what ``padButtons`` draws on the canvas for each key.
+_PAD_GLYPH = {
+    "ArrowLeft": "◀", "ArrowRight": "▶", "ArrowUp": "▲", "ArrowDown": "▼",
+    " ": "A", "r": "R",
+}
+_PAD_DIRECTIONS = ("ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown")
+_PAD_ACTIONS = (" ", "r")
+
+
+def _touch_hint(script: str) -> str:
+    """The mobile hint, naming the buttons this page's pad actually draws.
+
+    C-1287: the hint was the constant 「◀ ▶ / A」 on every template, but the pad
+    draws only the keys the game reads (PAD_ACTIVE, C-1244) - a fishing page has
+    no arrows, racing has no A, and a puzzle has ▲▼ the constant never named. So
+    the line told a mobile player about buttons that were not there and hid ones
+    that were. The glyphs are read from the finished script's PAD_ACTIVE, the
+    same source ``padButtons`` draws from, so the words and the buttons agree.
+    """
+
+    match = re.search(r"PAD_ACTIVE=new Set\((\[[^\]]*\])\)", script)
+    active = set(json.loads(match.group(1))) if match else set()
+    directions = [_PAD_GLYPH[k] for k in _PAD_DIRECTIONS if k in active]
+    actions = [_PAD_GLYPH[k] for k in _PAD_ACTIONS if k in active]
+    groups = [" ".join(g) for g in (directions, actions) if g]
+    if not groups:
+        return "スマホでは画面のボタンで操作できます。"
+    return "スマホでは画面のボタン（" + " / ".join(groups) + "）で操作できます。"
+
+
 def _page(
     title: str, tagline: str, how: str, script: str, evidence: list[str], theme: Theme
 ) -> str:
@@ -904,7 +934,7 @@ a{{color:{t["accent"]}}}
 </div>
 <p class="rotatehint" id="{ROTATE_ID}">{escape(ROTATE_TEXT)}</p>
 <p class="how">{escape(how)}</p>
-<p class="touchhint">スマホでは画面のボタン（◀ ▶ / A）で操作できます。</p>
+<p class="touchhint">{_touch_hint(script)}</p>
 <footer>SIDRA AI が生成。配色と禁止事項の出典:
 <ul>{sources}</ul></footer>
 </main>

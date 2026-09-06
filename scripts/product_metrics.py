@@ -1277,6 +1277,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1287: the pad draws only the keys the game reads (C-1244 above), but the
+    # touch hint under it was the constant 「◀ ▶ / A」 on every template - naming
+    # buttons fishing has none of, an A racing has none of, and hiding a puzzle's
+    # ▲▼. The hint is now built from the same PAD_ACTIVE, so the words and the
+    # buttons agree.
+    from sidra_ai.evals.game_touch_hint_matches_pad import (
+        evaluate_game_touch_hint_matches_pad,
+    )
+
+    touch_hint = evaluate_game_touch_hint_matches_pad()
+    c.add(
+        "game_touch_hint_matches_pad",
+        "ゲームのタッチ操作ヒントが実際に描かれるボタンと一致する",
+        10.0 * touch_hint.checks_passed / touch_hint.checks_total,
+        detail=f"{touch_hint.checks_passed}/{touch_hint.checks_total} checks; "
+               "src/sidra_ai/evals/game_touch_hint_matches_pad.py"
+               + ("" if touch_hint.passed else "; " + "; ".join(touch_hint.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1247 (a C-1244 regression): the pad drew only what keys_read reports,
     # and keys_read cannot see K('ArrowLeft') (platformer) or partsSteerX
     # (kaiju), so those games lost their ◀▶ on a phone while the briefing still
