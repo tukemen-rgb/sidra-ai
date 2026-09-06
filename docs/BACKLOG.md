@@ -6055,6 +6055,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       実木で取り直したところ基準値も 7.4%——この項目は安全側の数字を
       1 つも動かしていない。
 - [x] 完了 2026-09-06 16:37 UTC ループA（`creation_urgent_tick` unmeasurable→**1**、判定器 exit 0（BETTER）） **C-1448: 残り数秒が耳にも届く——urgent の静かな刻み音。**
+- [~] 作業中 2026-09-06 16:08 UTC ループA **C-1448: 残り数秒が耳にも届く——urgent の静かな刻み音。**
       （進捗監視起票 2026-09-06・根拠は round.py 実読: roundFacts に
       `urgent`（roundRemainMs()<=ROUND_URGENT_MS）が既にあるが、これに
       繋がる音が無い（round.py に beep/tick の SFX 呼び出し 0 件）。
