@@ -5563,7 +5563,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       コメントとテストに書いたが、実測は逆だった（0 周回・17.0%）。
       ATTRACT_UNWIRED の元の一行「the room would sit there」が正しく、
       **推測ではなく実測**として両方の文言を書き直した。
-- [記録] 未完 2026-09-06 03:36 ループA（**マージせず revert**・パイロットは書けて実測も破壊も通ったが、判定器 exit 2〔`creation_attract_demo` **7→0**〕。**原因は製品でなく計器の側**——前提条件を C-1441 として分割起票）**C-1440: puzzle の幕の裏で盤が動く（attract パイロット）。**
+- [~] 作業中 2026-09-06 05:08 ループA（C-1441 で幕の籤が消えたので再測定。パイロットは 03:36 の記録に全文あり）／[記録] 未完 2026-09-06 03:36 ループA（**マージせず revert**・パイロットは書けて実測も破壊も通ったが、判定器 exit 2〔`creation_attract_demo` **7→0**〕。**原因は製品でなく計器の側**——前提条件を C-1441 として分割起票）**C-1440: puzzle の幕の裏で盤が動く（attract パイロット）。**
       （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
       実読「puzzle: a board that is never clicked is a still image」＋
       確立済みパイロット前例 6 件〔shooter/marble/platformer/duel/catch
