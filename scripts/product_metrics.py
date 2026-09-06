@@ -1033,6 +1033,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1277: every generator strips the kind word from the title (documents
+    # C-1246, decks C-1249, art/GIF C-1265) except the project bundle, whose
+    # summary read 「『…の制作一式』の制作一式を作りました」 - 制作一式 twice. The
+    # title is now the subject alone.
+    from sidra_ai.evals.project_title_no_kind_echo import (
+        evaluate_project_title_no_kind_echo,
+    )
+
+    proj_title = evaluate_project_title_no_kind_echo()
+    c.add(
+        "project_title_no_kind_echo",
+        "プロジェクト一式の題が種類語を二重に繰り返さない",
+        10.0 * proj_title.checks_passed / proj_title.checks_total,
+        detail=f"{proj_title.checks_passed}/{proj_title.checks_total} checks; "
+               "src/sidra_ai/evals/project_title_no_kind_echo.py"
+               + ("" if proj_title.passed else "; " + "; ".join(proj_title.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

@@ -172,6 +172,13 @@ def slugify(title: str, *, stamp: str) -> str:
     return f"{prefix}-{digest}-{stamp}"
 
 
+#: The kind word a request tacks onto the subject: 「制作一式」「プロジェクト一式」
+#: 「プロジェクト」「一式」, with an optional preceding の. Stripped from the title
+#: so the summary 「『X』の制作一式を作りました」 does not echo it twice - the same
+#: title cleanup documents (C-1246), decks (C-1249) and art/GIF (C-1265) got.
+_TITLE_KIND_SUFFIX = re.compile(r"(?:の)?(?:制作一式|プロジェクト一式|プロジェクト|一式)$")
+
+
 def _title_from(request: str) -> str:
     """The operator's own words, cut at the making-verb."""
 
@@ -182,6 +189,11 @@ def _title_from(request: str) -> str:
     # that used to attach to it, and "釣りゲームを" is not a title. Trailing
     # particles are dropped here rather than in the split, because which one
     # is left over depends on which phrase was removed.
+    stripped = re.sub(r"[をのはがにで]+$", "", stripped).strip()
+    # Drop the kind word so the summary does not read 「制作一式」の制作一式を.
+    # A request that is only the kind word (「制作一式を作って」) strips to nothing
+    # and falls to the default below - keeping 「制作一式」 would echo it anyway.
+    stripped = _TITLE_KIND_SUFFIX.sub("", stripped)
     stripped = re.sub(r"[をのはがにで]+$", "", stripped).strip()
     return stripped[:60] or "無題のゲーム"
 
