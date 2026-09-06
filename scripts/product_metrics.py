@@ -877,6 +877,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1453: the history-carry retry only fired when a follow-up retrieved
+    # nothing. A subject-less Japanese elaboration ('もっと詳しく') fills top_k on
+    # a glue bigram instead, so the carry was skipped and an unrelated doc was
+    # cited as the elaboration of the previous answer. The carry now also fires
+    # when the follow-up names no subject of its own; a follow-up that does name
+    # one, and single-turn retrieval, are unchanged.
+    from sidra_ai.evals.followup_without_subject_carries_context import (
+        evaluate_followup_without_subject_carries_context,
+    )
+
+    followup_subject = evaluate_followup_without_subject_carries_context()
+    c.add(
+        "followup_without_subject_carries_context",
+        "主語の無い追加質問（もっと詳しく等）が話題の文書に接地する",
+        10.0 * followup_subject.checks_passed / followup_subject.checks_total,
+        detail=f"{followup_subject.checks_passed}/{followup_subject.checks_total} checks; "
+               "src/sidra_ai/evals/followup_without_subject_carries_context.py"
+               + ("" if followup_subject.passed
+                  else "; " + "; ".join(followup_subject.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

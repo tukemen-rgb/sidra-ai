@@ -8659,3 +8659,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-06 23:28 進捗監視 前進あり: C-1452 完了（安全性ゲート role_reassignment の誤検知修正・辛口ユーザー 22:52）・C-1372 claim（車の軌跡・クリエイター 23:05）・辛口ユーザー 68 巡目開始。ループA 23:09 no-op＋予告の死角起票が無かったため引き継いで **C-1453 起票**——check_backlog_board.py の第 2 条項は FINISHED を continue で飛ばすので完了項目に落ちた記録は鳴らない（22:09 の実例・落下 9 件目）。記録の backtick 計測名と抱き主の照合で 1 本の規則に統一する案を明記。板の検査 exit 0。次の空き番号は C-1454。
 2026-09-06 23:21 辛口クリエイター C-1372 完了 creation_motion_trail 1 -> 2（判定器 exit 0・観点=§1 軌跡の 2 体目・前回=§2×§21・racing の車が残像を引く: ペースで span 27・徐行で 12＝速度が長さを描く・goal 後 9f で排水・reduced 0。破壊 4 通り全て捕捉）
+
+2026-09-06 23:37 辛口ユーザー C-1453 完了 followup_without_subject_carries_context 6.67 -> 10（判定器 exit 0・pytest FAILED 0・check_gate_regression exit 0（blended 8.2%）・--compare exit 0（BETTER 6.667->10, MOVED 1）・観点=追加質問の文脈引き継ぎ（主語の無い「もっと詳しく」が無関係文書を「その詳細」と誤引用）・前回=安全性ゲート role_reassignment の誤検知 C-1452。引き継ぎ条件を「空 or 主語語なし」に拡張＝主語の無い追加質問も直前質問を前置して再検索し話題に接地。over-carry せず・単発検索と英語空検索引き継ぎは不変・ランキング等不変。破壊 5 通り全て捕捉。判定器は over-carry も検査するよう 9 検査に強化）

@@ -27,7 +27,11 @@ from sidra_ai.models.base import (
 )
 from sidra_ai.models.usage import MeteredAdapter, UsageLedger
 from sidra_ai.retrieval.embedding import build_retriever
-from sidra_ai.retrieval.search import SearchResult, evidence_mentions_subject
+from sidra_ai.retrieval.search import (
+    SearchResult,
+    evidence_mentions_subject,
+    subject_terms,
+)
 from sidra_ai.retrieval.store import DocumentStore, LoadReport
 from sidra_ai.security.data_envelope import build_data_context, build_history_context
 from sidra_ai.security.decisions import Decision, GateResult
@@ -570,12 +574,19 @@ class SidraService:
         results: list[SearchResult] = self.retriever.search(
             query, top_k=top_k, repositories=repositories
         )
-        if not results and screened_history:
-            # A follow-up is often unsearchable on its own ("why is that?").
-            # Retry once with the previous question carried in, so the model
-            # gets evidence instead of only the recollection of it. Queries
-            # that already retrieved something are left exactly as they were,
-            # so ordinary single-turn retrieval quality cannot shift.
+        if screened_history and (not results or not subject_terms(query)):
+            # A follow-up is often unsearchable on its own ("why is that?",
+            # 「もっと詳しく」). It is unsearchable when it retrieved nothing - or
+            # when it names no subject of its own, a pure elaboration phrase
+            # whose only tokens are glue. BM25 still fills top_k for the latter
+            # on cross-word bigrams (C-1453: 「もっと詳しく」 matched an unrelated
+            # onboarding doc on 「詳し」 out of 「詳しい」), and because the phrase
+            # has no subject term the honesty floor below cannot rule on it, so
+            # that wrong doc would be cited as the elaboration. Carry the
+            # previous question in either case so the model grounds on the
+            # subject actually under discussion. A follow-up that does name a
+            # subject and already retrieved is left exactly as it was, so
+            # ordinary single-turn retrieval quality cannot shift.
             searched_query = f"{screened_history[-1][0]} {query}"
             results = self.retriever.search(
                 searched_query, top_k=top_k, repositories=repositories,
