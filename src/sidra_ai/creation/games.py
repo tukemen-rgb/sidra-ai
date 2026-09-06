@@ -344,6 +344,20 @@ setPal(CATCH_PAL_TOKEN);
    brightest sky was sinking the themed ink to ~3:1. */
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
+/* The far layer (§7 観察 7, C-1365): the one template whose whole scene
+   is sky had no distance in it - the basket in front, the falling fruit
+   in the middle, and a single flat fill behind them. Three still clouds
+   in the theme's border paint, faded by FAR_A toward the sky, sit under
+   the fruit; fixed positions (no rand(): the seed's board never moves)
+   and no motion, so reduced motion has nothing to freeze - the kaiju
+   ridge's reasoning. Same contract shape as the other four templates':
+   draw() paints through FAR_A and depthFacts() reports the paints. */
+const FAR_A=0.45;
+function depthFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
+      alpha:FAR_A})}
+  SCENE=keep;return out}
 function catchFacts(){return {shown:shown,px:px,score:score,caught:caught,
   missed:missed,scene:SCENE,ms:ROUND_MS,squash:BSQ,
   items:items.map(i=>({x:i.x,y:i.y}))}}
@@ -401,6 +415,11 @@ function step(){t++;
     else{comboMiss();missed++;sfx('clash');shake(5);hitstop(2)}return false});
   setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,w,h);
+  /* Clouds first, so the fruit falls in front of them (§7, C-1365). */
+  cx.fillStyle=scenePaint('BORDER_TOKEN');cx.globalAlpha=FAR_A;
+  [[0.15,0.18,70],[0.55,0.10,90],[0.82,0.26,54]].forEach(c=>{
+    cx.beginPath();cx.ellipse(c[0]*w,c[1]*h,c[2],c[2]*0.34,0,0,6.284);cx.fill()});
+  cx.globalAlpha=1;
   /* the basket eases toward the pointer instead of snapping to it */
   shown+=(px-shown)*(REDUCED?1:0.25);
   /* decorative: a four-frame pulse, frozen when reduced */

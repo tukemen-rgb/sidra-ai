@@ -73,6 +73,7 @@ console.log(JSON.stringify({
   done: end.done, reason: end.reason,
   scenes: sceneFacts().scenes,
   hud: hudFacts(),
+  depth: depthFacts(),
 }));
 """
 

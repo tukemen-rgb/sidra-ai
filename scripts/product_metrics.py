@@ -4073,7 +4073,7 @@ def measure_creation(c: Collector) -> None:
     # visibly there (>=1.02:1 against the sky) yet fainter than the
     # midground silhouette in every scene of every theme.
     depth_gaps: list[str] = []
-    _depth_all = ("kaiju", "duel", "platformer", "shooter")
+    _depth_all = ("kaiju", "duel", "platformer", "shooter", "catch")
     depth_seen = {label for label in scene_depth}
     for label in sorted(depth_seen):
         for act, plane in enumerate(scene_depth[label]):
@@ -4107,13 +4107,14 @@ def measure_creation(c: Collector) -> None:
         "遠景は淡く近景は濃い型",
         float(len(_depth_all)) if not depth_gaps else 0.0,
         detail=(
-            "kaiju・duel・platformer・shooter × 4 テーマ × 全 3 場面で、遠景（中景と"
+            "kaiju・duel・platformer・shooter・catch × 4 テーマ × 全 3 場面で、遠景（中景と"
             "同じ塗りを α 合成で霞ませたもの）が空より見えて（≥1.02:1）中景"
             "のシルエットより淡いことを実測（§7 観察 7 の 3 層。platformer の"
             "尾根は C-1354 で契約化——旧 0.22 は既定テーマで 1.010〜1.017:1 と"
             "不可視の帯にあり、0.45 で全セル ≥1.032:1 かつ足場の縁より淡い。"
             "shooter の星空は C-1360 で 2 層化——遅い星が FAR_A の遠景、速い星が"
-            "中景で、速度と淡さが同じ向きを指す）"
+            "中景で、速度と淡さが同じ向きを指す。catch は C-1365 で静止雲の"
+            "遠景——落下物が雲の手前を落ちる）"
             if not depth_gaps
             else "; ".join(depth_gaps)
         ),
