@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sidra_ai.creation.evidence import NUMBER, Fact
+from sidra_ai.creation.evidence import NUMBER, Fact, plain_text
 
 #: Same constant as the deck's, same reason: the renderer and the validator
 #: must agree byte-for-byte on what an unfilled slot looks like.
@@ -145,7 +145,14 @@ def generate_document(
         sources_by_text: dict[str, list[str]] = {}
         order: list[str] = []
         for fact in retrieved:
-            text = " ".join(fact.text.split())
+            # C-1288: the answer path (echo `_lead`) and the deck already run
+            # retrieved evidence through `plain_text`; the report did not, so a
+            # fact carrying Markdown printed 「## 概況」 raw inside a bullet and a
+            # table collapsed to one unreadable run of 「| --- |」 bars when the
+            # whitespace join ate its newlines. Same flatten here: decoration
+            # becomes prose, a table reads as 「セル / セル；」, every word and
+            # number survives, so the fabrication check still sees the figures.
+            text = plain_text(fact.text)
             label = fact.source or "出典不明"
             if text not in sources_by_text:
                 sources_by_text[text] = []

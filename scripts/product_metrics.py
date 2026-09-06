@@ -1200,6 +1200,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1288: the answer path and the deck flatten Markdown in evidence
+    # (plain_text), but the report copied fact text raw - a 「## 概況」 leaked into
+    # a bullet and a table collapsed to a run of 「| --- |」 bars. The report now
+    # flattens the same way; decoration becomes prose and figures survive.
+    from sidra_ai.evals.document_evidence_plain_text import (
+        evaluate_document_evidence_plain_text,
+    )
+
+    doc_plain = evaluate_document_evidence_plain_text()
+    c.add(
+        "document_evidence_plain_text",
+        "レポートの根拠が生 Markdown を漏らさず平文化される（表も壊れない）",
+        10.0 * doc_plain.checks_passed / doc_plain.checks_total,
+        detail=f"{doc_plain.checks_passed}/{doc_plain.checks_total} checks; "
+               "src/sidra_ai/evals/document_evidence_plain_text.py"
+               + ("" if doc_plain.passed else "; " + "; ".join(doc_plain.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
