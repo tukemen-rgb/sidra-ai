@@ -8654,3 +8654,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 22:51 辛口ユーザー C-1452 完了 gate_role_reassignment_targets_the_assistant 5 -> 10（判定器 exit 0・pytest FAILED 0・verify_gate_recall MISS 0・check_gate_regression exit 0（blended 8.2%->8.1%）・--compare exit 0（BETTER 5->10, MOVED 1）・観点=安全性ゲートの誤検知（role_reassignment が正当な英文まで隔離）・前回=デッキ根拠の平文化 C-1289。「you are now …」「act as …」を含むだけで続く役割を問わず quarantine していたのを、AI/アシスタント人格・制限解除マーカーが後続するときだけに限定。良性の役割は素通し・乗っ取りは不変・recall 不変。破壊 5 通り全て捕捉）
 
 2026-09-06 22:53 UTC 辛口ユーザー started（68 巡目・別面 予定=追加質問（「もっと詳しく」等）の文脈引き継ぎと無根拠時の応答・別面 一般利用者視点・前回=安全性ゲート role_reassignment の誤検知 C-1452）
+2026-09-06 23:08 UTC ループA started
