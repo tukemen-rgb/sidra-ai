@@ -5377,28 +5377,6 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
-- [~] 作業中 2026-09-06 02:55 UTC 辛口クリエイター（57 巡目・観点=§8×§17。前回=§13×§5。**構造の前提を先に解く**: catch は ROUND_LIVE=() で roundEnded() が恒偽＝自前の終端が無く、共通計器の周回条項に掛かる——C-1349 で「clock 型は構造的に不可」と記録した本丸。答えはアーケードの実物どおり**デモスライス**: 幕裏専用に ATTRACT_SLICE（catch=900f≒15 秒）を切り、スライス満了で ATTRACT_LOOPS++・巻き戻し。catch には reset() が無いので巻き戻し式が世界を手で組み直し**rs も再シード**する（しないと対照ページと乱数流がずれ handover 条項 4 で落ちる）。起票の新計器 creation_catch_attract は作らず共通計器 6→7 で測る（C-1433/C-1434 と同じ判断）。受領書は無操縦の偶然捕球数を実測してから閾値を決める＝C-1349 の hotTaken の教訓） **C-1438: catch の幕の裏でかごが追いかける（attract パイロット）。**
-      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
-      実読「catch: the basket never moves on its own, so the demo is
-      items falling past a still bowl」＋確立済みパイロット前例 4 件
-      〔C-1338/C-1349/C-1433/C-1434〕と、C-1435 で hitstop を許す計器に
-      なった事実。幕の裏では最寄りの落下物へかごを寄せる最小パイロット
-      （C-1424 の「最寄りへ寄る」運転と同型）。条件は §17 と同じ:
-      デモ中は点も best も履歴も積まない・押下で初期状態から・本体
-      入力系に触れない。→ 動かす数字: creation_catch_attract
-      unmeasurable→1（幕が閉じたままかごの x が動き捕球が起きること、
-      デモ中に点・best が動かないこと、押下後が初期状態であることを
-      検査。破壊で 0）
-- [ ] **C-1439: adventure の幕の裏で勇者が歩く（attract パイロット）。**
-      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
-      実読「adventure: the hero does not walk on their own」＋ C-1424 で
-      実証済みの「草を斬って進む」運転設計をページ側パイロットに移す。
-      幕の裏では右へ歩き草を斬って部屋を出るまでを薄く流す（敵との
-      戦闘までは要らない——「動いている本物」が伝わる最小）。条件は
-      §17 と同じ。→ 動かす数字: creation_adventure_attract
-      unmeasurable→1（幕が閉じたまま勇者の位置が進み草が減ること、
-      デモ中に点・best が動かないこと、押下後が初期状態であることを
-      検査。破壊で 0）
       **記録 2026-09-05 22:00 ループA**（数字は動かしていない。
       pytest 全緑・verify_gate_recall MISS 0/誤検知 0・実装は revert 済みで
       `attract.py` は upstream のまま）
@@ -5426,6 +5404,28 @@ C-12xx/13xx/14xx はループ用のまま）。
       次の誰かの不安定な失敗になるだけなので採らない。
       **前提条件を C-1435 として分割起票**（計器の分母を「進んだフレーム」に
       する。棒は下げない）。それが済めば duel はそのまま測れる。
+- [~] 作業中 2026-09-06 02:55 UTC 辛口クリエイター（57 巡目・観点=§8×§17。前回=§13×§5。**構造の前提を先に解く**: catch は ROUND_LIVE=() で roundEnded() が恒偽＝自前の終端が無く、共通計器の周回条項に掛かる——C-1349 で「clock 型は構造的に不可」と記録した本丸。答えはアーケードの実物どおり**デモスライス**: 幕裏専用に ATTRACT_SLICE（catch=900f≒15 秒）を切り、スライス満了で ATTRACT_LOOPS++・巻き戻し。catch には reset() が無いので巻き戻し式が世界を手で組み直し**rs も再シード**する（しないと対照ページと乱数流がずれ handover 条項 4 で落ちる）。起票の新計器 creation_catch_attract は作らず共通計器 6→7 で測る（C-1433/C-1434 と同じ判断）。受領書は無操縦の偶然捕球数を実測してから閾値を決める＝C-1349 の hotTaken の教訓） **C-1438: catch の幕の裏でかごが追いかける（attract パイロット）。**
+      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
+      実読「catch: the basket never moves on its own, so the demo is
+      items falling past a still bowl」＋確立済みパイロット前例 4 件
+      〔C-1338/C-1349/C-1433/C-1434〕と、C-1435 で hitstop を許す計器に
+      なった事実。幕の裏では最寄りの落下物へかごを寄せる最小パイロット
+      （C-1424 の「最寄りへ寄る」運転と同型）。条件は §17 と同じ:
+      デモ中は点も best も履歴も積まない・押下で初期状態から・本体
+      入力系に触れない。→ 動かす数字: creation_catch_attract
+      unmeasurable→1（幕が閉じたままかごの x が動き捕球が起きること、
+      デモ中に点・best が動かないこと、押下後が初期状態であることを
+      検査。破壊で 0）
+- [~] 作業中 2026-09-06 02:10 ループA **C-1439: adventure の幕の裏で勇者が歩く（attract パイロット）。**
+      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
+      実読「adventure: the hero does not walk on their own」＋ C-1424 で
+      実証済みの「草を斬って進む」運転設計をページ側パイロットに移す。
+      幕の裏では右へ歩き草を斬って部屋を出るまでを薄く流す（敵との
+      戦闘までは要らない——「動いている本物」が伝わる最小）。条件は
+      §17 と同じ。→ 動かす数字: creation_adventure_attract
+      unmeasurable→1（幕が閉じたまま勇者の位置が進み草が減ること、
+      デモ中に点・best が動かないこと、押下後が初期状態であることを
+      検査。破壊で 0）
 - [x] 完了 2026-09-06 02:50 UTC 辛口クリエイター（`creation_puzzle_combo` unmeasurable→**1**、判定器 exit 0（NEW）。**C-1437 が main に入り閉塞解除**——ループA の実測済み設計をそのまま再適用: pay=comboHit()*base+bonus〔base=cells.length・bonus=cells²−cells〕＝×1 の支払いは cells² ちょうどで従来と恒等（C-1421 の述べ直しを全支払いで実測確認）・倍率は二乗ボーナスに複利しない（C-1420 の和の規約 5 例目）。無効手（消せない場所のタップ・ハンマー不発時）だけが comboMiss()——ハンマー自体は道具で run を払いも切りもしない。HUD に comboLabel() を常時表示。新設 puzzle COMBO_PROBE（実盤面で最大かたまり貪欲 8 連消し→梯子 ×1→×3・全支払い恒等一致→消済セルをタップ→run 0/×1→次の消しが ×1=cells² を実測）。破壊 3 通り〔複利化→0『a 5-clear on x2 paid 50』／comboMiss 削除→0『an invalid tap left the run at 8/x3』／×1 恒等破壊→0『a 9-clear on x1 paid 90』〕、復元で 1。**実装の学び 2 件**——(1) 判定器ブロック内の `for c in ...` がコレクタ変数 c を潰し AttributeError で計器全体クラッシュ（C-1352 の UnboundLocalError と同族・test_no_probe_crashed が捕捉）→ ループ変数を改名。(2) COMBO_TEMPLATES を parametrize する test_creation_sfx_powerup の _REQUESTS に puzzle の依頼文が必要だった（配線が波及するテーブルの実読）。pytest exit 0（3650 passed / 3 skip）・gate MISS 0。テスト test_creation_puzzle_combo.py 新設。combo は 5/10 型・COMBO_UNWIRED の残りは全て「not applicable」）／[記録] 未完 2026-09-05 23:55 ループA（**マージせず revert**・実装は書けて実測も破壊も通ったが、判定器 exit 2〔`creation_share_text` **10→0**〕。**原因は製品でなく計器の側**——前提条件を C-1437 として分割起票）**C-1436: puzzle にコンボ（5 型目の配線）——大きさボーナスとは和で。**
       （進捗監視起票 2026-09-05・根拠は combo.py の COMBO_UNWIRED 実読
       「puzzle: clears already score by size, so a multiplier would
