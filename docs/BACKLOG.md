@@ -5377,6 +5377,28 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
+- [ ] **C-1438: catch の幕の裏でかごが追いかける（attract パイロット）。**
+      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
+      実読「catch: the basket never moves on its own, so the demo is
+      items falling past a still bowl」＋確立済みパイロット前例 4 件
+      〔C-1338/C-1349/C-1433/C-1434〕と、C-1435 で hitstop を許す計器に
+      なった事実。幕の裏では最寄りの落下物へかごを寄せる最小パイロット
+      （C-1424 の「最寄りへ寄る」運転と同型）。条件は §17 と同じ:
+      デモ中は点も best も履歴も積まない・押下で初期状態から・本体
+      入力系に触れない。→ 動かす数字: creation_catch_attract
+      unmeasurable→1（幕が閉じたままかごの x が動き捕球が起きること、
+      デモ中に点・best が動かないこと、押下後が初期状態であることを
+      検査。破壊で 0）
+- [ ] **C-1439: adventure の幕の裏で勇者が歩く（attract パイロット）。**
+      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
+      実読「adventure: the hero does not walk on their own」＋ C-1424 で
+      実証済みの「草を斬って進む」運転設計をページ側パイロットに移す。
+      幕の裏では右へ歩き草を斬って部屋を出るまでを薄く流す（敵との
+      戦闘までは要らない——「動いている本物」が伝わる最小）。条件は
+      §17 と同じ。→ 動かす数字: creation_adventure_attract
+      unmeasurable→1（幕が閉じたまま勇者の位置が進み草が減ること、
+      デモ中に点・best が動かないこと、押下後が初期状態であることを
+      検査。破壊で 0）
       **記録 2026-09-05 22:00 ループA**（数字は動かしていない。
       pytest 全緑・verify_gate_recall MISS 0/誤検知 0・実装は revert 済みで
       `attract.py` は upstream のまま）
