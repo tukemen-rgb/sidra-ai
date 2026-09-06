@@ -5585,7 +5585,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       コメントとテストに書いたが、実測は逆だった（0 周回・17.0%）。
       ATTRACT_UNWIRED の元の一行「the room would sit there」が正しく、
       **推測ではなく実測**として両方の文言を書き直した。
-- [~] 作業中 2026-09-06 05:08 ループA（C-1441 で幕の籤が消えたので再測定。パイロットは 03:36 の記録に全文あり）／[記録] 未完 2026-09-06 03:36 ループA（**マージせず revert**・パイロットは書けて実測も破壊も通ったが、判定器 exit 2〔`creation_attract_demo` **7→0**〕。**原因は製品でなく計器の側**——前提条件を C-1441 として分割起票）**C-1440: puzzle の幕の裏で盤が動く（attract パイロット）。**
+- [x] 完了 2026-09-06 05:31 ループA（`creation_attract_demo` **8→9**・判定器 exit 0（BETTER・他の数字は片方向にも動かず）。attract は **9/10 型**——残るは fishing 1 型のみ。pytest 3678 passed / FAILED 0・gate MISS 0/誤検知 0）／[記録] 未完 2026-09-06 03:36 ループA（**マージせず revert**・パイロットは書けて実測も破壊も通ったが、判定器 exit 2〔`creation_attract_demo` **7→0**〕。**原因は製品でなく計器の側**——前提条件を C-1441 として分割起票）**C-1440: puzzle の幕の裏で盤が動く（attract パイロット）。**
       （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
       実読「puzzle: a board that is never clicked is a still image」＋
       確立済みパイロット前例 6 件〔shooter/marble/platformer/duel/catch
@@ -5687,6 +5687,17 @@ C-12xx/13xx/14xx はループ用のまま）。
       同じ取りこぼしを持つ。duel は 4200 中 472 枚（11%）で下限 25% には
       遠く、今すぐ落ちる型は無いので**この巡では触らない**。
       これで C-1440（puzzle 配線）が測れる状態になった。
+      **結果 2026-09-06 05:31 ループA**（C-1440 再測定・
+      `creation_attract_demo` **8→9**・判定器 exit 0）
+      **パイロットは 03:36 のものをそのまま入れ直した**——1 文字も
+      ペーシングしていない。exit 2 の原因は計器の側だったので、
+      直った計器で同じものを測ればよい、が C-1441 を分けた理由そのもの。
+      実測（実ページ 4200 フレーム）: 12 周回・受領証あり・進んだ
+      フレームの **99.7%** で絵が変わる・時計 0ms・storage 空。
+      **最終フレームは今回も ops 10**（＝落ちたときと同じ hitstop の
+      フレーム）だが、幕は**最後にゲームを描いたフレーム**で判定される
+      ようになったので通る。**拍は変えていないのに通った**ことが、
+      あれが製品ではなく計器の欠陥だったことの実証になっている。
 - [x] 完了 2026-09-06 02:50 UTC 辛口クリエイター（`creation_puzzle_combo` unmeasurable→**1**、判定器 exit 0（NEW）。**C-1437 が main に入り閉塞解除**——ループA の実測済み設計をそのまま再適用: pay=comboHit()*base+bonus〔base=cells.length・bonus=cells²−cells〕＝×1 の支払いは cells² ちょうどで従来と恒等（C-1421 の述べ直しを全支払いで実測確認）・倍率は二乗ボーナスに複利しない（C-1420 の和の規約 5 例目）。無効手（消せない場所のタップ・ハンマー不発時）だけが comboMiss()——ハンマー自体は道具で run を払いも切りもしない。HUD に comboLabel() を常時表示。新設 puzzle COMBO_PROBE（実盤面で最大かたまり貪欲 8 連消し→梯子 ×1→×3・全支払い恒等一致→消済セルをタップ→run 0/×1→次の消しが ×1=cells² を実測）。破壊 3 通り〔複利化→0『a 5-clear on x2 paid 50』／comboMiss 削除→0『an invalid tap left the run at 8/x3』／×1 恒等破壊→0『a 9-clear on x1 paid 90』〕、復元で 1。**実装の学び 2 件**——(1) 判定器ブロック内の `for c in ...` がコレクタ変数 c を潰し AttributeError で計器全体クラッシュ（C-1352 の UnboundLocalError と同族・test_no_probe_crashed が捕捉）→ ループ変数を改名。(2) COMBO_TEMPLATES を parametrize する test_creation_sfx_powerup の _REQUESTS に puzzle の依頼文が必要だった（配線が波及するテーブルの実読）。pytest exit 0（3650 passed / 3 skip）・gate MISS 0。テスト test_creation_puzzle_combo.py 新設。combo は 5/10 型・COMBO_UNWIRED の残りは全て「not applicable」）／[記録] 未完 2026-09-05 23:55 ループA（**マージせず revert**・実装は書けて実測も破壊も通ったが、判定器 exit 2〔`creation_share_text` **10→0**〕。**原因は製品でなく計器の側**——前提条件を C-1437 として分割起票）**C-1436: puzzle にコンボ（5 型目の配線）——大きさボーナスとは和で。**
       （進捗監視起票 2026-09-05・根拠は combo.py の COMBO_UNWIRED 実読
       「puzzle: clears already score by size, so a multiplier would

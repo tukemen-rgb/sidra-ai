@@ -49,18 +49,26 @@ from __future__ import annotations
 #: purest case for the live receipt: its marker sweeps for ever, so an
 #: unpiloted page passes the motion bar on its own - only the receipt
 #: can tell the game from the screensaver its unwired reason described.
+#: Puzzle (C-1440) is the tenth and last, and the stillest page of them
+#: all: a board nobody clicks paints the identical picture for ever, so
+#: the hand is the only thing that moves it. It waited on C-1441, which
+#: stopped the veil check being decided by whether the last frame of the
+#: run happened to land inside a hitstop.
 ATTRACT_TEMPLATES: tuple[str, ...] = (
     "racing", "shooter", "kaiju", "marble", "platformer", "duel",
-    "adventure", "catch", "fishing")
+    "adventure", "catch", "fishing", "puzzle")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
 #: and only the first is a backlog item. Every reason here is about what
 #: the template *does* with no input, which is the only thing that decides
 #: whether a demo of it is worth watching.
-ATTRACT_UNWIRED: dict[str, str] = {
-    "puzzle": "a board that is never clicked is a still image",
-}
+#:
+#: Empty since C-1356 and C-1440 landed together: every template plays
+#: itself behind its title now. Kept rather than deleted because the
+#: table is what the next new template is measured against - a template
+#: with no demo has to say why, here, in one line.
+ATTRACT_UNWIRED: dict[str, str] = {}
 
 #: What to call to put the world back to its first frame. Every template
 #: that has one calls it ``reset``; the expression is written down rather
@@ -82,6 +90,10 @@ ATTRACT_RESET: dict[str, str] = {
     # for the same reason): otherwise the player's first go begins with
     # the hero already striding right.
     "adventure": "keys.arrowright=keys.arrowup=keys.arrowdown=false;reset()",
+    # Puzzle's pilot writes ``cur`` and calls pop() rather than holding a
+    # key, so there is no hand to open - reset() rebuilds the board and
+    # the cursor with it.
+    "puzzle": "reset()",
     # Catch has no reset() of its own - the round clock is its only
     # ending - so the rewind rebuilds the world by hand. The reseed is
     # load-bearing: the demo consumed the random stream, and a player
@@ -218,6 +230,35 @@ ATTRACT_PILOT: dict[str, str] = {
     "keys.arrowup=!keys.arrowdown&&((ABD&&!solid(hero.x,hero.y-34))"
     "||(!ABU&&!ABD&&hero.y>ALY+3));"
     "if(hero.gems>0)ATTRACT_LIVE=1",
+    # Puzzle (C-1440): one move every twelve frames, about five a second.
+    # The board's own puzzleFacts() already reads what the hand needs -
+    # ``best`` and ``lone`` are C-1322's economy read - so the pilot is
+    # only the choosing: clear the biggest group, and when none is left
+    # break a lone tile.
+    #
+    # The hammer is not a flourish. Measured without it the demo stalls
+    # the moment only lone tiles remain (6.8% of frames repaint, and it
+    # never ends), which is C-1428's "a hammer IS a move" seen from the
+    # demo's side.
+    #
+    # The pace was chosen for the picture, not for the bar. Motion sits
+    # on a wide plateau - a move every 6, 10, 12, 16 or 24 frames all
+    # repaint 99.5-99.9% of advanced frames - and only the frantic end
+    # falls off it (every 3 frames: 90.6%; every frame: the board
+    # thrashes through 150 rounds and hitstop swallows most of them).
+    # Twelve is the middle of the plateau and reads as somebody playing.
+    #
+    # puzzleFacts() also offers ``target``, C-1427's "group with a
+    # foreign tile above it", i.e. a pop guaranteed to drop something.
+    # Preferring it looks like the more thoughtful demo and was measured
+    # to make no difference at all (99.7% either way, 12 loops against
+    # 13), so it is not here: at five moves a second the board is never
+    # at rest long enough for one non-dropping pop to show. Written down
+    # because it is the obvious thing to add back.
+    "puzzle": "if(state==='play'&&ATTRACT_FRAMES%12===0){const PF=puzzleFacts();"
+    "const PT=PF.best.n>1?PF.best:(PF.hammers>0?PF.lone:null);"
+    "if(PT&&PT.x>=0){cur={x:PT.x,y:PT.y};pop()}}"
+    "if(score>0)ATTRACT_LIVE=1",
     "duel": "if(p.stun<=0){"
     "if(e.hold&&e.aim===p.lane)p.lane=e.aim===2?1:e.aim+1;"
     "if(!p.hold&&p.beam<=0)p.hold=true;"

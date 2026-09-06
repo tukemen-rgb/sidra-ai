@@ -348,6 +348,41 @@ def test_every_idle_frame_reports_whether_the_page_held_it(demo: dict) -> None:
     assert all("held" in frame for frame in demo["idle"])
 
 
+def test_the_puzzle_demo_clears_the_board_and_goes_again() -> None:
+    """The clicking hand (C-1440): the stillest page of the nine.
+
+    Every other demo has something that moves on its own; a board nobody
+    clicks paints the identical picture for ever, so here the pilot is
+    the only source of motion and the receipt - a score above zero - can
+    only come from a pop.
+
+    Measured on the real board, all four breaks dropping it: with no
+    pilot 0.0% of frames differ and nothing loops; without the hammer it
+    stalls the moment only lone tiles remain (6.8%, 0 loops), which is
+    C-1428 from the demo's side; with the receipt dropped it still runs
+    at 99.7% over 12 loops, which is what the receipt is for.
+
+    Pausing between moves is what makes the picture move at all, since
+    the fall is the animation - a plateau rather than a knife edge (a
+    move every 6 to 24 frames all repaint 99.5-99.9%), so twelve was
+    chosen for how it reads and not for the bar.
+
+    This is also the page C-1441 was found on: popping hitstops, so the
+    demo has frames it draws nothing on, and its last frame is one of
+    them (10 ops). The veil is judged over the last frame the game was
+    drawn on, so that is no longer a lottery.
+    """
+
+    seen = _watch("puzzle", idle=1200, play=30)
+    facts = seen["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 1200
+    assert facts["loops"] >= 1, "the board never ran out of moves"
+    assert facts["live"] == 1, "the demo never cleared a group"
+    assert seen["beforePress"]["round"]["ms"] == 0
+    assert sorted(seen["beforePress"]["store"]) == []
+
+
 def test_every_idle_frame_says_whether_the_game_was_drawn_on_it(demo: dict) -> None:
     """C-1441: which frames had the game under the title, not just how many
     ops they had.
