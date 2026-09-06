@@ -7372,6 +7372,66 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the marble leaves motion in the air ---------------------------
+    #
+    # §1 (C-1366): the technique list's three particle kinds are smoke,
+    # destruction and TRAILS - and trails existed nowhere. The marble,
+    # whose whole game is forward motion, now leaves ten fading
+    # afterimages behind it through the same projection it rolls in:
+    # filling while it moves, every sample behind the ball, draining a
+    # frame at a time once the run ends, and never accumulating under
+    # reduced motion (decoration, C-1020's rule).
+    import re as _tr_re
+    import subprocess as _tr_sp
+
+    from sidra_ai.creation.marble import trail_probe as _tr_probe
+
+    trail_gaps: list[str] = []
+    for _tr_reduced in (False, True):
+        _tr_label = "marble" + ("（reduced）" if _tr_reduced else "")
+        try:
+            _tr_page = generate_game("玉転がしゲームを作って").html
+            _tr_script = _tr_re.search(r"<script>(.*?)</script>", _tr_page, _tr_re.S)
+            if _tr_script is None:
+                raise ValueError("no script")
+            _tr_run = _tr_sp.run(
+                ["node", "-"],
+                input=_tr_probe(_tr_script.group(1), reduced=_tr_reduced),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if _tr_run.returncode != 0:
+                raise ValueError(_tr_run.stderr.strip()[:60])
+            _tr = json.loads(_tr_run.stdout.strip().splitlines()[-1])
+        except (OSError, _tr_sp.SubprocessError, ValueError) as exc:
+            trail_gaps.append(f"{_tr_label}: probe unavailable ({exc})")
+            continue
+        if _tr_reduced:
+            if _tr["full"]:
+                trail_gaps.append(f"{_tr_label}: reduced motion still streaks")
+            continue
+        if _tr["full"] != 10:
+            trail_gaps.append(f"{_tr_label}: the streak never fills ({_tr['full']})")
+        elif not _tr["behind"]:
+            trail_gaps.append(f"{_tr_label}: an afterimage sits ahead of the marble")
+        elif _tr["drained"] is None:
+            trail_gaps.append(f"{_tr_label}: the stopped marble keeps its streak")
+    c.add(
+        "creation_motion_trail",
+        "転がる玉が軌跡を引く",
+        0.0 if trail_gaps else 1.0,
+        detail=(
+            "; ".join(trail_gaps)
+            if trail_gaps
+            else "実ページを転がして実測——roll 中に残像 10 枚が満ち、全サンプルが"
+            "玉の後方（過去の位置はカメラ寄りに沈む）、run が終わると 1 枚/"
+            "フレームで排水（実測 9f で 0）、reduced 走行は 1 枚も積まない"
+            "（§1 の粒子 3 種〔煙・破壊・軌跡〕がこれで全て実装）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the pass is heard where it happens ----------------------------
     #
     # §2 (C-1364): the last synthesis axis. sfxr lists low-pass AND

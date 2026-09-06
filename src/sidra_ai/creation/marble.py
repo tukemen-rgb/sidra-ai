@@ -87,12 +87,18 @@ setPal(MARBLE_PAL_TOKEN);
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 let ball,things,gates,score,hotTaken,hotTotal,state,t,over,COURSE=1;
+/* The trail (§1, C-1366): the third particle kind. Ten afterimages of
+   where the marble just was, drawn behind it through the same proj and
+   fading with age - motion left in the air. Decoration, so reduced
+   motion never accumulates one (C-1020), and a stopped marble drains
+   its trail a frame at a time: streaks belong to movement. */
+let TRAIL=[];
 /* World to screen. z is depth ahead of the camera; y is up. Everything
    drawn here goes through this one function, so "3D" is this line. */
 function proj(x,y,z){const d=Math.max(NEAR,z);
   return {x:W/2+x*FOV/d,y:H*0.62-(y-EYE)*FOV/d,s:FOV/d}}
 function reset(){ball={x:0,y:8,z:0,vx:0};gates=0;score=0;hotTaken=0;hotTotal=0;
-  t=0;state='roll';over='';
+  t=0;state='roll';over='';TRAIL=[];
   rs=(SEED>>>0)||1;things=[];
   /* A gate first and close, so the opening hands something over before it
      asks for anything (§8 事実 5). Fixed at the middle it was not a gift at
@@ -134,6 +140,8 @@ function step(){
     ghostSample(ball.z,ball.x);
     /* Roll: the marble bobs a little so the depth reads as motion. */
     ball.y=8+Math.sin(t*0.18)*1.6;
+    if(!REDUCED){TRAIL.push({x:ball.x,y:ball.y,z:ball.z});
+      if(TRAIL.length>10)TRAIL.shift()}
     things.forEach(o=>{if(o.done)return;
       const dz=o.z-ball.z;
       /* The first gate lines itself up while it is still ahead. */
@@ -233,6 +241,14 @@ function step(){
     cx.arc(gp.x,gp.y,gr,0,6.2832);cx.fill();
     cx.globalAlpha=0.6;cx.strokeStyle=shade(TUNE_ACCENT,1);cx.lineWidth=1;
     cx.beginPath();cx.arc(gp.x,gp.y,gr,0,6.2832);cx.stroke();cx.restore()}
+  if(state!=='roll'&&TRAIL.length)TRAIL.shift();
+  /* The afterimages first, oldest faintest, each at the depth the
+     marble held it - its past sits nearer the camera than it does. */
+  TRAIL.forEach((sm,i)=>{const d=NEAR+34-(ball.z-sm.z);if(d<NEAR)return;
+    const pp=proj(sm.x,sm.y,d),aa=(i+1)/TRAIL.length;
+    cx.globalAlpha=aa*0.22;cx.fillStyle=shade(TUNE_ACCENT,0.55);
+    cx.beginPath();cx.arc(pp.x,pp.y,13*pp.s*(0.45+aa*0.45),0,6.2832);cx.fill()});
+  cx.globalAlpha=1;
   /* The marble last: it is the nearest thing there is. */
   const bp=proj(ball.x,ball.y,NEAR+34),br=13*bp.s;
   cx.fillStyle='#00000044';cx.beginPath();
@@ -264,10 +280,61 @@ function marbleFacts(){let next=null;
     if(o.z-ball.z>0)next={kind:o.kind,x:o.x,dz:o.z-ball.z}});
   return {state:state,z:ball.z,x:ball.x,spd:rollNow(),gates:gates,score:score,
     ghost:ghostFacts(),
+    trail:TRAIL.map(sm=>sm.z),
     hotTotal:hotTotal,hotTaken:hotTaken,scene:SCENE,
     course:COURSE,next:next}}
 step();
 """
+
+#: The trail, as rolled (§1, C-1366). The page is rolled for real and the
+#: afterimages are read off marbleFacts(): filling to ten while the
+#: marble moves, every sample strictly behind the ball, draining to zero
+#: within a dozen frames of the run ending, and never a single one under
+#: reduced motion.
+TRAIL_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+key('keydown', ' '); key('keyup', ' ');
+run(40);
+const rolling = marbleFacts();
+const behind = rolling.trail.every(z => z <= rolling.z);
+/* End the run the page's own way and watch the streak drain. */
+state = 'over';
+let drained = null;
+for (let i = 0; i < 20 && drained === null; i++) { run(1);
+  if (marbleFacts().trail.length === 0) drained = i }
+console.log(JSON.stringify({ full: rolling.trail.length, behind: behind,
+  z: rolling.z, drained: drained }));
+"""
+
+
+def trail_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the streak can be watched."""
+
+    return TRAIL_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
 
 #: The page rolled in node: the same no-op browser the other probes build.
 #: The pilot steers at gates and away from blocks, and notes the act of
@@ -420,6 +487,8 @@ def ghost_probe_source(
 
 
 __all__ = [
+    "TRAIL_PROBE",
+    "trail_probe",
     "MARBLE_HOW",
     "MARBLE_SCRIPT",
     "MARBLE_TITLE",
