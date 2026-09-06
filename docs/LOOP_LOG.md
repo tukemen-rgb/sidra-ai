@@ -8502,3 +8502,16 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 10:22 進捗監視 前進あり: C-1277 完了（プロジェクト題の種類語を落とす・09:53）。ループA は補充の C-1444（ポーズに 3 行表）へ 10:07 着手、C-1360（クリエイター）進行中。停滞なし。記録のみ。
 2026-09-06 10:41 辛口クリエイター C-1360 完了 creation_depth_layers 3 -> 4（判定器 exit 0・観点=§7 奥行き 3 層・前回=§2・shooter の星空を 2 層に: 遅い星=FAR_A 0.45 の遠景・速い星=素の中景・テーマ塗りで白直書きも解消。全 12 セルで可視かつ中景より淡い。破壊 3 通り全て捕捉）
 2026-09-06 10:31 ループA C-1444 完了 creation_pause_shows_controls unmeasurable -> 1（判定器 exit 0・NEW）。他は gate_false_positive_rate 7.2673%→7.2629%（0.004pt・安全な向き）で 0.5pt 未満につき無視。一時停止でも 3 行表〔目標・操作・敵〕が出るようにした。起票文の前提は実読どおり——drawGate の表は if(GATE==='title') の中だけにあり、gateSeen() で 2 回目以降は briefing 自体が飛ぶので鍵を忘れた人の行き先が無かった。直しは表を gateBriefTable に出して両方から呼ぶだけで、文言もレイアウトも共通なので 2 画面が食い違いようがない（新情報は足していない）。測るのは必ず再訪ページ（sidra.seen.<型> を置いた状態）——初回訪問には briefing があるので、そこから測ると問題でなかった画面を検査してしまう。判定器は briefing が実際にスキップされていない走行を採点拒否する。実測: 10 型すべてで P 押下時にラベルと本文が描かれ、もう一度 P で消える（shooter の本文「← → で移動、SPACE で連射」＝まさに思い出したい一行）。破壊 3 通りで 0: title 限定に戻す／ラベルだけで本文を落とす／プレイ中も出しっぱなし。4 つ目は破壊になっていなかったので捨てた——drawGate 冒頭の playing ガードを外しても何も変わらない（tick がプレイ中は drawGate を呼ばない到達しない二重の守り）。何も変えない破壊は何も証明しないので、実際に描画が起きる形に置き換えて測り直した。pytest 3747 passed FAILED 0・gate MISS 0/誤検知 0。Board=13
+
+2026-09-06 10:42 UTC 辛口ユーザー C-1278 完了（55 巡目・CLI 接続失敗メッセージの誤誘導）。
+  operate（sidra-ask を到達不可 --url で実行）で見た最悪点: 接続失敗時のメッセージが --url 指定時でも
+  「SIDRA_HOST / SIDRA_PORT が合っているか確認する」と固定で案内し、利用者が使っていない env を指す。
+  ConnectError 分岐だけ固定文で、汎用 HTTPError 分岐は既に「--url の指定が正しいか」と適応済み。
+  実装: ConnectError 分岐を knob = "--url の指定" if args.url else "SIDRA_HOST / SIDRA_PORT" に。
+  sidra-api 起動確認は両方に残す。多ターン追問（それ→履歴で解決）は実測で機能、「もっと詳しく」の無根拠壁は
+  文脈持ち越しが要る広い変更なので今回見送り。
+  判定器（新設 cli_connect_error_names_used_knob）: fake client で httpx.ConnectError を注入し main の stderr を捕捉、
+  --url 時は --url を指し SIDRA_HOST を出さない・既定時は SIDRA_HOST/PORT を指し --url を出さない・接続エラー文言を検査＝5 点。
+  事前計測 3/5→実装後 5/5。5 破壊（常に SIDRA_HOST／条件反転／常に --url／接続文言破壊／env で SIDRA_PORT 落とす）で 3/1/3/4/4、復元 5/5。
+  pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 8.2%）/ --compare exit 0（6→10, MOVED 1）。
+  次候補: exfiltration の残トレーリング文脈型（token field／API key in the config）。「もっと詳しく」等の文脈持ち越し追問（要設計）。

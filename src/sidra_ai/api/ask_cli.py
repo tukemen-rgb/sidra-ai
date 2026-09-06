@@ -312,9 +312,14 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
         try:
             response = ask(http, url, payload)
         except httpx.ConnectError:
+            # Name the knob the reader actually used. With --url the target came
+            # from that flag, so pointing them at SIDRA_HOST / SIDRA_PORT - which
+            # they did not set - sends them to the wrong place (C-1278). The
+            # generic HTTPError branch below already adapts this way.
+            knob = "--url の指定" if args.url else "SIDRA_HOST / SIDRA_PORT"
             print(
                 f"{url} に接続できない。`sidra-api` を起動しているか、"
-                "SIDRA_HOST / SIDRA_PORT が合っているか確認する。",
+                f"{knob}が合っているか確認する。",
                 file=sys.stderr,
             )
             return 1

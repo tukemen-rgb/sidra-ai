@@ -1052,6 +1052,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1278: sidra-ask's connection-error message always named SIDRA_HOST /
+    # SIDRA_PORT, even when the target came from --url - sending a reader who
+    # used --url to a knob they never set. The message now names the knob that
+    # was actually used.
+    from sidra_ai.evals.cli_connect_error_names_used_knob import (
+        evaluate_cli_connect_error_names_used_knob,
+    )
+
+    cli_knob = evaluate_cli_connect_error_names_used_knob()
+    c.add(
+        "cli_connect_error_names_used_knob",
+        "CLI の接続失敗メッセージが利用者の使った knob（--url/env）を指す",
+        10.0 * cli_knob.checks_passed / cli_knob.checks_total,
+        detail=f"{cli_knob.checks_passed}/{cli_knob.checks_total} checks; "
+               "src/sidra_ai/evals/cli_connect_error_names_used_knob.py"
+               + ("" if cli_knob.passed else "; " + "; ".join(cli_knob.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
