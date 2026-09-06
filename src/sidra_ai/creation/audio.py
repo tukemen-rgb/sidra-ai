@@ -114,6 +114,7 @@ const SFX_TABLE={
   gem:['pulse',660,1320,0.12,0.16,0.125],
   key:['triangle',520,1040,0.18,0.2],
   hurt:['noise',1800,180,0.22,0.24],
+  graze:['noise',1200,4800,0.08,0.07,'high'],
   fire:['sawtooth',900,140,0.3,0.2],
   charge:['sawtooth',120,480,0.25,0.1],
   clash:['square',300,260,0.06,0.12],
@@ -183,7 +184,13 @@ function sfx(name,pitch){
         const ch=NOISE_BUF.getChannelData(0);
         for(let i=0;i<ch.length;i++){ch[i]=Math.random()*2-1}}
       const src=AC.createBufferSource();src.buffer=NOISE_BUF;
-      const lp=AC.createBiquadFilter();lp.type='lowpass';
+      /* The other filter (§2, C-1364): sfxr lists low-pass AND high-pass,
+         and they are opposite characters - the falling low-pass is the
+         thud of the explosion family, the rising high-pass the thin
+         whistle of air. A 'high' voice keeps the same sweep contract
+         with the pass band inverted. */
+      const lp=AC.createBiquadFilter();
+      lp.type=spec[5]==='high'?'highpass':'lowpass';
       lp.frequency.setValueAtTime(f0,t0);
       lp.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
       src.connect(lp);lp.connect(gain);

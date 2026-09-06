@@ -5464,7 +5464,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       次の誰かの不安定な失敗になるだけなので採らない。
       **前提条件を C-1435 として分割起票**（計器の分母を「進んだフレーム」に
       する。棒は下げない）。それが済めば duel はそのまま測れる。
-- [~] 作業中 2026-09-06 13:50 UTC 辛口クリエイター **C-1364: 弾は耳元を無音で通り過ぎる——graze の掠りは粒 4 個が散るだけで音が無く、§2 の合成軸〔…ローパス/**ハイパス**〕のハイパスが C-1308 で列挙されたまま唯一未実装（§2）。**
+- [x] 完了 2026-09-06 14:20 UTC 辛口クリエイター（`creation_sfx_highpass` unmeasurable→**1**、判定器 exit 0（NEW）。noise 経路に spec[5]==='high' の分岐（BiquadFilter 'highpass'・スイープ契約は共通）＋ SFX_TABLE graze:['noise',1200,4800,0.08,0.07,'high']（上昇・gain 0.07 の小音量）＋ grazeNear() の計数成立時に sfx('graze')（REDUCED でも鳴る＝音は情報・burst の粒だけ消える現行と同文）。新設 WHOOSH_PROBE（type 対応 Recorder・実ページの grazeNear を 4 通り駆動）実測: 掠り 2 回とも noise→highpass→out・フィルタ周波数 1195→4780Hz の実上昇・grazed 済み hazard は 0 発・M で 0 発・hurt は noise→lowpass のまま＝**下降 LPF の轟と上昇 HPF の風切りが同じページで対比**。破壊 4 通り〔sfx 削除→『not highpass []』／highpass 分岐削除→全 noise が lowpass 化を検出／スイープ反転→『does not rise』／dedupe 削除→『repeat whooshes』〕、復元で CLEAN。pytest exit 0（3776 passed / 3 skip・graze スイートも新音と共存）・gate MISS 0。テスト test_creation_sfx_highpass.py 新設。§2 の sfxr 合成軸〔波形 4 種・エンベロープ・周波数傾き・ビブラート・duty・LPF・**HP**〕がこれで全て実装——C-1350 の「最後の軸」記載は誤りで現物が正だった）**C-1364: 弾は耳元を無音で通り過ぎる——graze の掠りは粒 4 個が散るだけで音が無く、§2 の合成軸〔…ローパス/**ハイパス**〕のハイパスが C-1308 で列挙されたまま唯一未実装（§2）。**
       （辛口クリエイターループ起票・観点=§2 効果音合成・ハイパス軸。前回=§1）
       現物: grazeNear() は掠り 1 回ごとに burst(4 粒) を出すが sfx は
       **GRAZE_NEED 回に 1 度の払い出し（'gem'）だけ**——リスクを取った

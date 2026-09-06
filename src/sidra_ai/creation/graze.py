@@ -141,6 +141,10 @@ function grazeNear(hazard,kill,dist,x,y){
   hazard.grazed=true;GRAZE_SEEN++;GRAZE_STREAK++;
   if(GRAZE_LOG.length<200){GRAZE_LOG.push([Math.round(dist*100)/100,
     Math.round(kill*100)/100])}
+  /* The pass is heard where it happens (§2, C-1364): thin air - white
+     noise through a RISING high-pass, quiet, once per hazard. The sound
+     stays under reduced motion (information); the sparks below do not. */
+  try{sfx('graze')}catch(e){}
   try{if(typeof REDUCED==='undefined'||!REDUCED){burst(x,y,4,'ACCENT_JUICE')}}catch(e){}
   if(GRAZE_STREAK>=GRAZE_NEED){GRAZE_STREAK=0;GRAZE_PAID++;
     /* The point is said where the risk was taken (C-1418). This one was
@@ -269,9 +273,90 @@ def probe_source(
     )
 
 
+#: The pass, as heard (§2, C-1364). A recording AudioContext with a
+#: type-aware filter log drives the built page's own ``grazeNear`` twice
+#: with two hazards inside the band, then again with a hazard already
+#: grazed and once with M held: the whoosh is white noise through a
+#: RISING high-pass, once per hazard, silent under the mute - and the
+#: hurt keeps its falling low-pass, which is the axis's other character.
+WHOOSH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+let rnd = 2463534242;
+Math.random = () => { rnd ^= rnd << 13; rnd ^= rnd >>> 17; rnd ^= rnd << 5;
+  return ((rnd >>> 0) % 100000) / 100000 };
+const nodes = [];
+const filtFreqs = [];
+function Recorder(){ this.state='running'; this.currentTime=0; this.destination={};
+  this.sampleRate=44100 }
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createOscillator = function(){
+  return { type:'', frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+           setPeriodicWave(){}, connect(){ nodes.push('oscillator') },
+           start(){}, stop(){} } };
+Recorder.prototype.createBuffer = function(ch, len){
+  return { getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){
+  return { buffer:null, start(){}, stop(){},
+    connect(t){ nodes.push(t && t.kind === 'filter'
+      ? 'noise->' + (t.type || 'lowpass') : 'noise->direct') } } };
+Recorder.prototype.createBiquadFilter = function(){
+  const f = { kind:'filter', type:'',
+    frequency:{ setValueAtTime(v){ filtFreqs.push(v) },
+                exponentialRampToValueAtTime(v){ filtFreqs.push(v) } },
+    connect(){ nodes.push((f.type || 'lowpass') + '->out') } };
+  return f };
+Recorder.prototype.createGain = function(){
+  return { gain:{ value:0, setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+    connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+const keyHandlers = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') keyHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
+function press(k){ keyHandlers.forEach(fn => fn({ key: k, code: k === ' ' ? 'Space' : k,
+  preventDefault(){}, stopImmediatePropagation(){} })) }
+press(' ');
+run(2);
+function whoosh(fn){ nodes.length = 0; filtFreqs.length = 0; fn();
+  return { nodes: nodes.slice(), freqs: filtFreqs.slice() } }
+const kill = 20, dist = kill + GRAZE_BAND * 0.5;
+const first = whoosh(() => grazeNear({}, kill, dist, 10, 10));
+const second = whoosh(() => grazeNear({}, kill, dist, 10, 10));
+const seen = { grazed: true };
+const repeat = whoosh(() => grazeNear(seen, kill, dist, 10, 10));
+press('m');
+const muted = whoosh(() => grazeNear({}, kill, dist, 10, 10));
+press('m');
+const hurt = whoosh(() => sfx('hurt'));
+console.log(JSON.stringify({ first: first, second: second,
+  repeatNodes: repeat.nodes.length, mutedNodes: muted.nodes.length,
+  hurtNodes: hurt.nodes,
+  table: (typeof SFX_TABLE !== 'undefined' && SFX_TABLE.graze) ? SFX_TABLE.graze : null }));
+"""
+
+
+def whoosh_probe(script: str) -> str:
+    """One built page, its near miss listened to four ways."""
+
+    return WHOOSH_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "GRAZE_BAND",
     "GRAZE_PREAMBLE",
+    "WHOOSH_PROBE",
+    "whoosh_probe",
     "GRAZE_RUN",
     "GRAZE_TEMPLATES",
     "GRAZE_UNWIRED",

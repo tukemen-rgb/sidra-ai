@@ -7329,6 +7329,73 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the pass is heard where it happens ----------------------------
+    #
+    # §2 (C-1364): the last synthesis axis. sfxr lists low-pass AND
+    # high-pass; C-1308 built the falling low-pass thud and the rising
+    # high-pass was never built - and the graze, the product's one
+    # bullet-past-the-ear moment, sparked in silence. Every counted graze
+    # now plays white noise through a RISING high-pass, once per hazard,
+    # quiet, silent under M, while the hurt keeps its falling low-pass -
+    # the axis's two characters, told apart on the same page.
+    import re as _wh_re
+    import subprocess as _wh_sp
+
+    from sidra_ai.creation.graze import whoosh_probe as _wh_probe
+
+    whoosh_gaps: list[str] = []
+    try:
+        _wh_page = generate_game("シューティングゲームを作って").html
+        _wh_script = _wh_re.search(r"<script>(.*?)</script>", _wh_page, _wh_re.S)
+        if _wh_script is None:
+            raise ValueError("no script")
+        _wh_run = _wh_sp.run(
+            ["node", "-"],
+            input=_wh_probe(_wh_script.group(1)),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if _wh_run.returncode != 0:
+            raise ValueError(_wh_run.stderr.strip()[:60])
+        _wh = json.loads(_wh_run.stdout.strip().splitlines()[-1])
+    except (OSError, _wh_sp.SubprocessError, ValueError) as exc:
+        whoosh_gaps.append(f"probe unavailable ({exc})")
+        _wh = None
+    if _wh is not None:
+        for _wh_label, _wh_pass in (("first", _wh["first"]), ("second", _wh["second"])):
+            if _wh_pass["nodes"] != ["noise->highpass", "highpass->out"]:
+                whoosh_gaps.append(
+                    f"the {_wh_label} pass is not air through a high-pass ({_wh_pass['nodes']})"
+                )
+            elif len(_wh_pass["freqs"]) < 2 or _wh_pass["freqs"][0] >= _wh_pass["freqs"][-1]:
+                whoosh_gaps.append(
+                    f"the {_wh_label} pass does not rise ({_wh_pass['freqs']})"
+                )
+        if not whoosh_gaps:
+            if _wh["repeatNodes"]:
+                whoosh_gaps.append("an already-grazed hazard whooshes again")
+            elif _wh["mutedNodes"]:
+                whoosh_gaps.append("muted, and the air played anyway")
+            elif _wh["hurtNodes"] != ["noise->lowpass", "lowpass->out"]:
+                whoosh_gaps.append(
+                    f"the hurt lost its falling low-pass ({_wh['hurtNodes']})"
+                )
+    c.add(
+        "creation_sfx_highpass",
+        "掠りが風を切る",
+        0.0 if whoosh_gaps else 1.0,
+        detail=(
+            "; ".join(whoosh_gaps)
+            if whoosh_gaps
+            else "実ページの grazeNear を帯内 hazard で駆動——掠りごとに白色雑音が"
+            "上昇ハイパス（1200→4800Hz スイープを実測）を通り、同じ hazard は"
+            "二度鳴らず、M で 0、hurt は下降ローパスのまま＝§2 の合成軸"
+            "〔波形 4 種・ADSR・傾き・ビブラート・duty・LPF・HP〕が全て実装"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the combo ladder has an altitude ------------------------------
     #
     # §2→§14 事実 1 の第 3 形 (C-1359): pitch as information, the rising
