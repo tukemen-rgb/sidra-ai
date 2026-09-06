@@ -5461,6 +5461,27 @@ C-12xx/13xx/14xx はループ用のまま）。
       次の誰かの不安定な失敗になるだけなので採らない。
       **前提条件を C-1435 として分割起票**（計器の分母を「進んだフレーム」に
       する。棒は下げない）。それが済めば duel はそのまま測れる。
+- [~] 作業中 2026-09-06 13:50 UTC 辛口クリエイター **C-1364: 弾は耳元を無音で通り過ぎる——graze の掠りは粒 4 個が散るだけで音が無く、§2 の合成軸〔…ローパス/**ハイパス**〕のハイパスが C-1308 で列挙されたまま唯一未実装（§2）。**
+      （辛口クリエイターループ起票・観点=§2 効果音合成・ハイパス軸。前回=§1）
+      現物: grazeNear() は掠り 1 回ごとに burst(4 粒) を出すが sfx は
+      **GRAZE_NEED 回に 1 度の払い出し（'gem'）だけ**——リスクを取った
+      瞬間そのもの（弾が耳元を通る）は無音。§2 の sfxr 軸列挙のうち
+      ハイパスだけが未実装（C-1308 は noise+LPF、C-1350 は duty で
+      「最後の軸」と書いたが HP が残っていた——現物が正）。近接通過音の
+      正体は「白色雑音＋**上昇ハイパス**スイープ」＝薄い風切り。実装:
+      (1) audio.py の noise 経路に spec[5]==='high' で BiquadFilter
+      'highpass' を選ぶ分岐（スイープは共通の f0→f1）、SFX_TABLE に
+      graze:['noise',1200,4800,0.08,0.07,'high']（上昇・小音量＝掠りは
+      主役ではない）。(2) grazeNear() の計数成立時（hazard 1 個に 1 度）
+      に sfx('graze')——REDUCED でも鳴る（音は情報・burst の粒だけが
+      REDUCED で消える現行と同文）。(3) Recorder の biquad 記録を type
+      対応にし『noise->highpass』『highpass->out』を新設（lowpass の
+      既存ラベルは不変）。新設 WHOOSH_PROBE（shooter 実ページ・帯内の
+      hazard で grazeNear を 2 個駆動）: 掠りごとに noise→highpass→gain
+      の配線・上昇スイープ（表の f0<f1）・同じ hazard の再通過は無音
+      （grazed dedupe）・hurt は noise→lowpass のまま＝軸の対比・M で 0。
+      → 動かす数字: creation_sfx_highpass unmeasurable→1（§2 の合成軸が
+      これで全て実装: 波形 4 種・ADSR・傾き・ビブラート・duty・LPF・HP）
 - [x] 完了 2026-09-06 13:20 UTC 辛口クリエイター（`creation_hero_face` **4→5**、判定器 exit 0（BETTER）。faceFacts(){look,blink}——look は legX()（戦いの主題そのもの）へ ±8px 不感帯で 1/-1/0・blink は共通 FRAME(40,6,now)===1。描画は head 上の 2×2 目 2 個を look で 1px 寄せ・blink フレームだけ消す（platformer と同文）。新設 FACE_PROBE（wall-clock 前進ハーネス＝C-1348 の教訓・me.x を脚の左右と真下に置いて 3 値を実測）: legRight 1・legLeft -1・underLeg 0・blink 10/500f（longest 10≤12）・reduced 走行 0/500f。破壊 3 通り〔look 恒 0→『never watches』×2 走行／FRAME を生時計に置換→**normal は通るが reduced 走行だけが『still blinks』**＝REDUCED ピンは共通 FRAME 経由でしか守れないことの実証／blink 恒 false→『never blinks』〕、復元で CLEAN。pytest exit 0（3764 passed / 3 skip）・gate MISS 0。test_creation_hero_face.py に kaiju 2 検査を追加（11 検査）。顔契約は platformer・adventure・catch・duel・kaiju の 5 体——操縦士が巨獣を見上げた）**C-1363: 巨獣を見上げない操縦士——kaiju の歩行機は頭（8×12px）まで描かれているのに目が無く、§1「キャラの目や表情」の顔契約が 4 体で止まって 5 体目に届いていない（§1）。**
       （辛口クリエイターループ起票・観点=§1 キャラの目や表情。前回=§6）
       現物: 顔契約（C-1348 platformer→C-1351 adventure→C-1353 catch→
