@@ -1094,6 +1094,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1285: the standalone game path says 「代わりに既定の…型で作りました」 when a
+    # genre it has no template for lands on the default fishing page, but the
+    # project bundling the same game.html listed its files and said nothing - so
+    # 「アクションゲームの制作一式」 read as a delivered action game. The summary now
+    # carries the same admission, and stays silent for a genre the tool builds.
+    from sidra_ai.evals.project_summary_discloses_genre_fallback import (
+        evaluate_project_summary_discloses_genre_fallback,
+    )
+
+    proj_genre = evaluate_project_summary_discloses_genre_fallback()
+    c.add(
+        "project_summary_discloses_genre_fallback",
+        "制作一式の要約がジャンル・フォールバックを単体ゲーム経路と同じく開示する",
+        10.0 * proj_genre.checks_passed / proj_genre.checks_total,
+        detail=f"{proj_genre.checks_passed}/{proj_genre.checks_total} checks; "
+               "src/sidra_ai/evals/project_summary_discloses_genre_fallback.py"
+               + ("" if proj_genre.passed else "; " + "; ".join(proj_genre.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1278: sidra-ask's connection-error message always named SIDRA_HOST /
     # SIDRA_PORT, even when the target came from --url - sending a reader who
     # used --url to a knob they never set. The message now names the knob that

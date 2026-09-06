@@ -118,6 +118,12 @@ class ScaffoldedProject:
     evidence: tuple[str, ...] = field(default_factory=tuple)
     #: True when the requested title carried a trademark and was replaced.
     renamed: bool = False
+    #: The game template the production's game.html was built on, or "" when the
+    #: project has no game stage. Exposed so the summary can disclose a genre
+    #: fall-back to the default template the same way the standalone game path
+    #: does (C-1285) - the game_job says 「代わりに既定の…型で作りました」 and the
+    #: project must not stay silent about the same substitution.
+    game_template: str = ""
 
     @property
     def files(self) -> tuple[str, ...]:
@@ -394,6 +400,7 @@ def scaffold_project(
         whole_project=wants_whole_project(request),
         evidence=evidence,
         renamed=renamed,
+        game_template=plan.template if Stage.GAME in stages else "",
     )
 
 

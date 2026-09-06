@@ -15,9 +15,45 @@ from __future__ import annotations
 from pathlib import Path
 
 from sidra_ai.creation.evidence import Fact
+from sidra_ai.creation.games import TEMPLATES, detect_genre, undepicted_subject
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.projects import scaffold_project, validate_project
 from sidra_ai.creation.router import CreationOutcome
+
+
+def _genre_fallback_note(message: str, project) -> str:
+    """Say the production's game fell back to the default template, when it did.
+
+    C-1285: the standalone game path says 「代わりに既定の…型で作りました」 when a
+    genre it has no template for lands on the default fishing page (game_job).
+    The project bundles that same game.html and said nothing, so a request for
+    an 「アクションゲームの制作一式」 read as a delivered action game. This carries
+    the same admission into the project summary.
+
+    Only the two cases the game path also treats as a substitution fire, so a
+    genre we *do* build (釣り, シューティング) never draws a caveat: a recognised
+    genre with no template, and a request that named no genre at all whose
+    subject the default template does not draw.
+    """
+
+    template = getattr(project, "game_template", "")
+    if not template:
+        return ""
+    default_title = TEMPLATES[template].default_title
+    requested = detect_genre(message)
+    if requested is not None and not requested.supported:
+        return (
+            f"なお「{requested.genre}」型はまだ作れないため、game.html は"
+            f"代わりに既定の「{default_title}」型で作りました。"
+        )
+    if requested is None:
+        undepicted = undepicted_subject(message, template, project.title)
+        if undepicted:
+            return (
+                f"なお「{undepicted}」の題材を描く型はまだ無いため、game.html は"
+                f"代わりに既定の「{default_title}」型で作りました。"
+            )
+    return ""
 
 
 def build_project_generator(data_dir: str | Path):
@@ -35,10 +71,12 @@ def build_project_generator(data_dir: str | Path):
             if project.renamed
             else ""
         )
+        genre_note = _genre_fallback_note(message, project)
         if verdict["complete"]:
             summary = (
                 f"「{project.title}」の制作一式を {project.slug} に作りました: {listing}。"
                 + notice
+                + genre_note
             )
         else:
             # Reported, not hidden: an operator told "six files" who finds
