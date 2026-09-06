@@ -170,7 +170,17 @@ function step(){t++;
       if(boss.phase==='leg'&&Math.abs(s.x-legX())<30&&s.y<GROUND-30&&s.y>GROUND-110){
         hitLeg();return false}
       return s.y>-20});
-    cracks.forEach(c=>{if(c.warn>0){c.warn--;if(c.warn===0)sfx('clash')}
+    cracks.forEach(c=>{if(c.warn>0){c.warn--;
+      if(c.warn===0){sfx('clash');
+        /* Weight is stride and dust (§6 観察 2, C-1362): the footfall
+           that splits the ground raises a plume and kicks the camera.
+           Deterministic offsets - the seed's board never moves - and a
+           shake between the leg hit's 3 and the lost heart's 6, §1's
+           weight-proportional rule. The soldier's stride had this; the
+           monster whose weight is the subject did not. */
+        for(let i=0;i<6;i++){dust.push({x:c.x+((i*37)%60)-30,
+          y:GROUND-((i*13)%24),r:3+(i%3),a:1})}
+        shake(5)}}
       else c.open=Math.min(56,c.open+CRACK*cycleTense())});
     cracks=cracks.filter(c=>{
       /* The gap and the radius that would cost a heart, named once and
@@ -580,11 +590,79 @@ def kb_probe(script: str) -> str:
     return KB_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The footfall's weight, as played (§6 観察 2, C-1362). The fight is run
+#: to its first slam - the frame a crack's warning reaches zero and the
+#: ground splits - and the plume is read where the foot came down: dust
+#: near the crack the moment it opens, a camera kick on the same frame,
+#: and a plume that clears instead of fogging the arena.
+STOMP_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+let shakes = 0;
+const realShake = shake;
+shake = (...a) => { shakes++; return realShake(...a) };
+key(' ');
+run(110);
+/* March to the first slam: the warning is on the page, so the probe
+   waits for it to reach zero rather than counting the clock itself. */
+let slam = null, shakesAt = 0, dustAt = 0, near = 0, cx0 = null;
+for (let i = 0; i < 400 && slam === null; i++) {
+  const before = { shakes: shakes, dust: dust.length };
+  const warned = cracks.filter(c => c.warn > 0).map(c => c.x);
+  run(1);
+  const opened = cracks.filter(c => c.warn === 0 && warned.indexOf(c.x) >= 0);
+  if (opened.length) { slam = i; cx0 = opened[0].x;
+    shakesAt = shakes - before.shakes;
+    dustAt = dust.length - before.dust;
+    near = dust.filter(d => Math.abs(d.x - cx0) <= 40).length }
+}
+/* The plume clears: no fresh stomp for a while, so only decay runs. */
+let cleared = null;
+if (slam !== null) {
+  boss.timer = 9000;
+  const plume = () => dust.filter(d => Math.abs(d.x - cx0) <= 40).length;
+  for (let i = 0; i < 400 && cleared === null; i++) { run(1);
+    if (plume() === 0) cleared = i }
+}
+console.log(JSON.stringify({ slam: slam, dustAt: dustAt, near: near,
+  shakesAt: shakesAt, cleared: cleared }));
+"""
+
+
+def stomp_probe(script: str) -> str:
+    """The page's own script, wrapped so the footfall can be weighed."""
+
+    return STOMP_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "WAKE_PROBE",
     "wake_probe",
     "KB_PROBE",
     "kb_probe",
+    "STOMP_PROBE",
+    "stomp_probe",
     "QUEUE_PROBE",
     "queue_probe",
     "KAIJU_DIFFICULTY",

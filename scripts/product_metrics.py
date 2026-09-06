@@ -7063,6 +7063,66 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the footfall raises dust ---------------------------------------
+    #
+    # §6 観察 2 (C-1362): weight is stride and dust - the film's walker
+    # puts dust down on every footfall. The soldier's stride had this;
+    # the monster whose weight is the game's subject slammed the ground
+    # open with a sound and nothing in the air. The slam frame now raises
+    # a deterministic plume at the crack and kicks the camera once,
+    # weight-proportional (§1) between the leg hit's 3 and the lost
+    # heart's 6. Read by running the fight to its first slam.
+    import re as _st_re
+    import subprocess as _st_sp
+
+    from sidra_ai.creation.kaiju import stomp_probe as _st_probe
+
+    stomp_gaps: list[str] = []
+    try:
+        _st_page = generate_game("巨大怪獣と戦うゲームを作って").html
+        _st_script = _st_re.search(r"<script>(.*?)</script>", _st_page, _st_re.S)
+        if _st_script is None:
+            raise ValueError("no script")
+        _st_run = _st_sp.run(
+            ["node", "-"],
+            input=_st_probe(_st_script.group(1)),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if _st_run.returncode != 0:
+            raise ValueError(_st_run.stderr.strip()[:60])
+        _st = json.loads(_st_run.stdout.strip().splitlines()[-1])
+    except (OSError, _st_sp.SubprocessError, ValueError) as exc:
+        stomp_gaps.append(f"probe unavailable ({exc})")
+        _st = None
+    if _st is not None:
+        if _st["slam"] is None:
+            stomp_gaps.append("the fight never slams")
+        elif _st["near"] < 4:
+            stomp_gaps.append(
+                f"the footfall raises no dust ({_st['near']} near the crack)"
+            )
+        elif not _st["shakesAt"]:
+            stomp_gaps.append("the ground opens and the camera never feels it")
+        elif _st["cleared"] is None:
+            stomp_gaps.append("the plume never clears - the arena fogs over")
+    c.add(
+        "creation_kaiju_stomp_dust",
+        "怪獣の足音が土煙を上げる",
+        0.0 if stomp_gaps else 1.0,
+        detail=(
+            "; ".join(stomp_gaps)
+            if stomp_gaps
+            else "実ページを最初の slam まで走らせて実測——warn が 0 になる"
+            "フレームに裂け目の ±40px へ土煙 ≥4 粒が立ち、同フレームで"
+            "カメラが 1 回蹴られ（shake 5・§1 の重さ比例）、プルームは"
+            "減衰して晴れる（§6 観察 2「接地のたびに土煙」の怪獣側。"
+            "決定的配置で rand() 不消費＝シードの盤面は不変）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the hit throws the body, not just the camera ------------------
     #
     # §1 (C-1361): the technique list pairs hitstop WITH knockback, and

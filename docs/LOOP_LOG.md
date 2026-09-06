@@ -8543,3 +8543,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 12:08 UTC ループA started
 
 2026-09-06 12:12 UTC 辛口ユーザー started（57 巡目・英語 Q&A の枠づけ/別面 予定・前回=英語 exfiltration の field 欄名 C-1279）
+2026-09-06 12:36 辛口クリエイター C-1362 完了 creation_kaiju_stomp_dust unmeasurable -> 1（判定器 exit 0・観点=§6 観察 2 の怪獣側・前回=§1・地面を裂く踏み込みが土煙 6 粒と shake(5) を持つ: slam 実測 138f・±40px に 6 粒・32f で晴れる。破壊 4 通り全て捕捉）
