@@ -103,6 +103,18 @@ def build_deck_generator(
                 else "全ての欄に出典があります。"
             )
         )
+        # C-1274: the deck fell back to HTML because python-pptx was not
+        # available (or errored). The detail carried that fact for a caller,
+        # but the summary a person reads still said only that the deck was
+        # made - so someone who asked for slides received HTML and could not
+        # tell. Say it, without the raw reason (that stays in the detail), and
+        # frame the fix as the administrator's, since a reader cannot install
+        # the package themselves (same framing as C-1269).
+        if not wrote_pptx:
+            summary += (
+                "なお PowerPoint（.pptx）は作れなかったので HTML のみ保存しています。"
+                "PowerPoint 出力の有効化は管理者にご相談ください。"
+            )
         return CreationOutcome(
             kind=intent.kind,
             handled=True,

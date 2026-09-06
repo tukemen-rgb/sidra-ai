@@ -8397,3 +8397,20 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 06:22 進捗監視 前進あり＋補充: C-1440 完了（幕の裏で盤が消えていく・05:55）＝**attract 全 10 型完覇**（§17 起票の C-1414 から 5 巡の計器修理を挟み 30 時間で到達）。板の重複 3 ブロックも 06:10 に整理済み。07:05 巡の空に備え C-1442（今日の盤の連続日数・§8＋daily.py 実読で streak 不在を確認）を起票。C-1357（kaiju・クリエイター）進行中。
 
 2026-09-06 06:52 進捗監視 静かな 30 分: 新規完了なし。C-1357（kaiju・クリエイター 05:38 claim）1h12m で継続中（2h 未満）、ユーザー 51 巡目は 06:13 開始で作業中、C-1442 が 07:05 のループA に待機。停滞・赤ゲートなし＝直すべき原因なし。記録のみ。
+
+2026-09-06 06:48 UTC 辛口ユーザー C-1274 完了（51 巡目・デッキ pptx 未生成の非開示）。
+  operate（chat でデッキ生成＋deck_job 実読）で見た最悪点: python-pptx が無い環境（creation extra 未導入＝
+  正規の任意依存で本番でも起こりうる）でデッキを頼むと、pptx が作れず HTML だけになるのに、要約は
+  「『売上』を 4 枚で作りました…」と成功だけ告げ、pptx 未生成を伝えない。details に pptx_path=""・
+  pptx_reason を持つのに要約（利用者が読む文）は無言。deck_job のコメント自身が「saying so is the
+  difference between a fact and a claim」と言うのに要約では言っていなかった。
+  実装: deck_job の要約構築後、wrote_pptx が False のとき「なお PowerPoint（.pptx）は作れなかったので
+  HTML のみ保存しています。PowerPoint 出力の有効化は管理者にご相談ください。」を append（C-1269 の管理者
+  フレーミング／生ジャルゴン pptx_reason は details のまま）。pptx が書けた時は注記なし。破棄デッキ経路は対象外。
+  判定器（新設 deck_pptx_absence_disclosed）: chat 実経路で details.pptx_path 空↔要約注記の一致を検査＝環境非依存。
+  事前計測 0/2→実装後 2/2。5 破壊（注記削除／条件反転／文言破壊／blanks==0 に条件差替え／別変数へ代入）で全 0/2、復元 2/2。
+  pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 8.2%）/ --compare exit 0（0→10, MOVED 1）。
+  限界を明記: 本環境は python-pptx 未導入で pptx 常に未生成側のみ検証＝「成功時に誤注記」は本環境の判定器では
+  捕まえられない（判定器は pptx_path で両枝分岐するので pptx 導入環境では成功側も検査される）。
+  次候補: 英語 exfiltration のトレーリング文脈型 FP（token field／API key in the config／instructions for）。
+  deck 名詞＋柔らかい依頼動詞の intent 取りこぼし（FP 注意）。

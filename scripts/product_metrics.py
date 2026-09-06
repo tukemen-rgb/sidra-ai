@@ -974,6 +974,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1274: where python-pptx is not installed (an optional creation extra),
+    # a deck falls back to HTML only, but the summary said only that the deck
+    # was made - someone who asked for slides received HTML and could not tell.
+    # The summary now discloses an absent .pptx. Environment-robust: the eval
+    # asserts the disclosure exactly when details.pptx_path is empty.
+    from sidra_ai.evals.deck_pptx_absence_disclosed import (
+        evaluate_deck_pptx_absence_disclosed,
+    )
+
+    deck_pptx = evaluate_deck_pptx_absence_disclosed()
+    c.add(
+        "deck_pptx_absence_disclosed",
+        "PowerPoint を作れなかったデッキがその旨を要約で伝える",
+        10.0 * deck_pptx.checks_passed / deck_pptx.checks_total,
+        detail=f"{deck_pptx.checks_passed}/{deck_pptx.checks_total} checks; "
+               "src/sidra_ai/evals/deck_pptx_absence_disclosed.py"
+               + ("" if deck_pptx.passed else "; " + "; ".join(deck_pptx.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
