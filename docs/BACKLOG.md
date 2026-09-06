@@ -5394,7 +5394,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
-- [~] 作業中 2026-09-06 03:58 UTC 辛口クリエイター **C-1354: platformer の遠景の尾根は描いてあるのに測っていない——§7 の 3 層契約（C-1342/C-1345）の外にいる 3 例目（§7）。**
+- [x] 完了 2026-09-06 04:50 UTC 辛口クリエイター（`creation_depth_layers` **2→3**、判定器 exit 0（BETTER）。**契約化したら実物の欠陥が出た**——起票時は「測っていない」だけの想定だったが、FAR_A=0.22 の旧尾根を実測すると **12 セル中 4 セルで可視性の棒（≥1.02:1）を割っていた**〔既定テーマ act0 1.012・act1 1.017・terminal act1 1.010〕＝「distance is contrast」の註釈に対し塗りは否。C-1347 の路肩と同じ「コメントは主張し実測は否定」型。掃引（実テンプレートへのパッチ×4 テーマ）で RAISED@0.45 を選択——**足場の縁と同じ塗りの半分以下**なのでどの足場も地平線に負けず、全 12 セル far 1.032〜1.069・縁 1.074〜1.183 で層序が成立。FAR_A 定数化＋depthFacts()（sky=BG・solid=RAISED）＋probe 出力 depth: を追加し、racing/platformer の既存 HUD ループで収穫＝**追加 node 実行ゼロ**。破壊 2 通り〔FAR_A→0.22（旧値）→0『the far layer is invisible (1.01)』＝旧状態そのものが破壊として落ちる／FAR_A→1.0→0『as near as the midground』〕・D3（契約報告の削除）は probe 側の行のためハーネスでは無効化——判定器の missing-label 検査（C-1345 で実証済みの同一経路）が構造的に覆う旨を明記。**ハーネスの学び 1 件**——最初の掃引が scenePaint に未置換トークン文字列を渡して全数値が無意味だった（border@* が far=1.000 ちょうどという不可能値で発覚）→ 実テンプレートへの dataclasses.replace パッチ方式で取り直し。pytest exit 0（3666 passed / 3 skip）・gate MISS 0。テスト test_creation_depth_layers.py に platformer を parametrize 追加）**C-1354: platformer の遠景の尾根は描いてあるのに測っていない——§7 の 3 層契約（C-1342/C-1345）の外にいる 3 例目（§7）。**
       （辛口クリエイターループ起票・観点=§7 場面の構成。前回=§8×§17）
       draw() の 231〜236 行に「distance is contrast, not colour」と註釈
       された視差 0.4× の尾根が既にあるが、**裸の 0.22 リテラルで塗られ

@@ -20,6 +20,7 @@ import pytest
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.duel import pace_probe as duel_probe
 from sidra_ai.creation.kaiju import probe_source
+from sidra_ai.creation.platformer import probe_source as plat_probe
 
 
 def _lum(hexcolour: str) -> float:
@@ -43,9 +44,13 @@ def _blend(alpha: float, top: str, under: str) -> str:
 _REQUESTS = {
     "kaiju": "巨大怪獣と戦うゲームを作って",
     "duel": "ビームで撃ち合うゲームを作って",
+    # The ridge that was drawn but unmeasured (C-1354): bringing it under
+    # the contract found the old 0.22 alpha below the visibility bar in
+    # the default theme - the comment said contrast, the paint said no.
+    "platformer": "ジャンプで進むゲームを作って",
 }
 
-_PROBES = {"kaiju": probe_source, "duel": duel_probe}
+_PROBES = {"kaiju": probe_source, "duel": duel_probe, "platformer": plat_probe}
 
 
 def _fought(template: str = "kaiju", suffix: str = "") -> dict:
@@ -65,7 +70,7 @@ def _fought(template: str = "kaiju", suffix: str = "") -> dict:
     return json.loads(probe.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("template", ["kaiju", "duel"])
+@pytest.mark.parametrize("template", ["kaiju", "duel", "platformer"])
 @pytest.mark.parametrize("suffix", ["", "紙のテーマで"])
 def test_the_skyline_sits_between_sky_and_silhouette(template: str, suffix: str) -> None:
     seen = _fought(template, suffix)

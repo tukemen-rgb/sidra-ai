@@ -3645,6 +3645,10 @@ def measure_creation(c: Collector) -> None:
                 hud_gaps.append(f"{label}: no HUD contract reported")
             if key == "racing" and isinstance(seen.get("edge"), dict):
                 racing_edge[label] = seen["edge"]
+            # The platformer's far ridge (C-1354), harvested from the same
+            # run - the C-1347 edge's habit: no extra node execution.
+            if isinstance(seen.get("depth"), list):
+                scene_depth[label] = seen["depth"]
     hud_seen: set[str] = set()
     for label, (hud, hud_scenes) in sorted(scene_hud.items()):
         hud_seen.add(label.split("/")[0])
@@ -3845,7 +3849,7 @@ def measure_creation(c: Collector) -> None:
     # visibly there (>=1.02:1 against the sky) yet fainter than the
     # midground silhouette in every scene of every theme.
     depth_gaps: list[str] = []
-    _depth_all = ("kaiju", "duel")
+    _depth_all = ("kaiju", "duel", "platformer")
     depth_seen = {label for label in scene_depth}
     for label in sorted(depth_seen):
         for act, plane in enumerate(scene_depth[label]):
@@ -3879,10 +3883,11 @@ def measure_creation(c: Collector) -> None:
         "遠景は淡く近景は濃い型",
         float(len(_depth_all)) if not depth_gaps else 0.0,
         detail=(
-            "kaiju・duel × 4 テーマ × 全 3 場面で、遠景スカイライン（中景と"
+            "kaiju・duel・platformer × 4 テーマ × 全 3 場面で、遠景（中景と"
             "同じ塗りを α 合成で霞ませたもの）が空より見えて（≥1.02:1）中景"
-            "のシルエットより淡いことを実測（§7 観察 7 の 3 層——手前・中景・"
-            "奥の霞。実測 遠景 1.04〜1.13:1・中景 1.21〜1.66:1）"
+            "のシルエットより淡いことを実測（§7 観察 7 の 3 層。platformer の"
+            "尾根は C-1354 で契約化——旧 0.22 は既定テーマで 1.010〜1.017:1 と"
+            "不可視の帯にあり、0.45 で全セル ≥1.032:1 かつ足場の縁より淡い）"
             if not depth_gaps
             else "; ".join(depth_gaps)
         ),

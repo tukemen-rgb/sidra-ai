@@ -140,6 +140,23 @@ function say(t){msg=t;msgT=150}
    by the rise, and whether this frame is the blink (§1, C-1348). */
 function faceFacts(){return {look:me.look,up:me.vy<-1,
   blink:FRAME(40,6,performance.now())===1}}
+/* The far layer (§7 観察 7, C-1354): the ridge was already drawn - a
+   0.4x parallax silhouette in the midground's own paint - but through a
+   bare literal no instrument could see. Same contract shape as kaiju's
+   and duel's: draw() paints through FAR_A, depthFacts() reports the
+   per-scene paints, and the judge holds the ridge visible against the
+   sky yet fainter than the platform lip it is made of. Bringing the
+   ridge under the contract measured the old 0.22 BELOW the visibility
+   bar in four theme/scene cells (default act0 1.012:1, terminal act1
+   1.010:1 - the comment said contrast and the paint said no); 0.45
+   holds every cell at >=1.032:1 while staying the lip's own paint at
+   under half strength, so no platform is ever outshone by its horizon. */
+const FAR_A=0.45;
+function depthFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({sky:scenePaint('BG_TOKEN'),solid:scenePaint('RAISED_TOKEN'),
+      alpha:FAR_A})}
+  SCENE=keep;return out}
 const keys={};
 function K(k){return keys[k]}
 function tryJump(){if(state!=='play')return;
@@ -229,8 +246,8 @@ function draw(now){
   cx.fillStyle=scenePaint('BG_TOKEN');cx.fillRect(0,0,W,H);
   const cam=Math.max(0,Math.min(LW-W,me.x-260));
   /* distance is contrast, not colour (§7 観察 7): a faint far ridge on a
-     slower scroll */
-  cx.globalAlpha=0.22;cx.fillStyle=scenePaint('RAISED_TOKEN');
+     slower scroll. FAR_A is the contract (C-1354), not decoration. */
+  cx.globalAlpha=FAR_A;cx.fillStyle=scenePaint('RAISED_TOKEN');
   for(let i=-1;i<4;i++){const rx=i*300-((cam*0.4)%300);
     cx.beginPath();cx.moveTo(rx,H);cx.lineTo(rx+150,H-90);cx.lineTo(rx+300,H);
     cx.closePath();cx.fill()}
@@ -484,6 +501,7 @@ const palette = sceneFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
   hud: hudFacts(),
+  depth: depthFacts(),
   window: settled.window, settledGround: settled.ground, groundY: settled.y,
   heldMin: heldMin, tapMin: tapMin,
   leftGround: leftGround, coyoteJump: coyoteJump, lateJumpRefused: lateJumpRefused,
