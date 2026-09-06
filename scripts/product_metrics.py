@@ -853,6 +853,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1283: the summary discloses the fish default (C-1267) but the preview
+    # HTML - the artifact opened in a browser and forwarded - was titled by the
+    # subject over a fish mesh with no word of it, the silent artifact C-1281
+    # fixed for the report. The preview now carries a disclosure note when the
+    # shape was a default, and stays clean when one was named.
+    from sidra_ai.evals.model3d_preview_discloses_default_shape import (
+        evaluate_model3d_preview_discloses_default_shape,
+    )
+
+    m3d_preview = evaluate_model3d_preview_discloses_default_shape()
+    c.add(
+        "model3d_preview_discloses_default_shape",
+        "3D プレビュー本体が既定形状フォールバックを開示する",
+        10.0 * m3d_preview.checks_passed / m3d_preview.checks_total,
+        detail=f"{m3d_preview.checks_passed}/{m3d_preview.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_preview_discloses_default_shape.py"
+               + ("" if m3d_preview.passed
+                  else "; " + "; ".join(m3d_preview.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1268: C-1252 capped the artifact list to a recent slice with a
     # count note, but loadProjects kept rendering every project with a
     # bare items.forEach - the same phone long-scroll, on the projects

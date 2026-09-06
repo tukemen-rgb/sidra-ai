@@ -296,11 +296,21 @@ def _mtl_text() -> str:
     return "\n".join(lines) + "\n"
 
 
-def _preview_html(title: str, mesh: Mesh, evidence: tuple[str, ...]) -> str:
+def _preview_html(
+    title: str, mesh: Mesh, evidence: tuple[str, ...], shape_note: str = ""
+) -> str:
     vertices, faces = mesh
     verts_js = ",".join(f"[{x:.4f},{y:.4f},{z:.4f}]" for x, y, z in vertices)
     faces_js = ",".join(f"[{i},{j},{k},{m}]" for i, j, k, m in faces)
     sources = "".join(f"<li>{escape(line)}</li>" for line in evidence)
+    # C-1283: the request named no shape, so the mesh is the fish default. The
+    # summary says so, but the preview is the artifact opened in a browser and
+    # forwarded - a page titled 「ドラゴン」 showing a fish with no word of it is
+    # the same silent artifact C-1281 fixed for the report. Disclose it on the
+    # page too, right under the title. No note when a shape was named.
+    note_html = (
+        f'<p id="shape-note">{escape(shape_note)}</p>' if shape_note else ""
+    )
     return f"""<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -311,10 +321,12 @@ body{{margin:0;background:#05070f;color:#e6f7ff;font-family:system-ui,sans-serif
 display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px}}
 canvas{{background:#0a0f1c;border-radius:12px;max-width:100%;height:auto}}
 h1{{font-size:1.1rem;margin:0}}
+#shape-note{{color:#ffb84d;font-size:.9rem;margin:0;max-width:640px;text-align:center}}
 small,li{{color:#8fb3c7}}
 ul{{margin:0;padding-left:1.2em}}
 </style></head><body>
 <h1>{escape(title)}</h1>
+{note_html}
 <canvas id="c" width="640" height="480"></canvas>
 <small id="note">ドラッグ不要・自動回転（reduced-motion 設定では静止します）。
 .obj は Windows の 3D ビューアーで開けます。</small>
@@ -388,13 +400,24 @@ def generate_model3d(
     mesh = _SHAPES[chosen](Random(actual_seed))
     title = _title_from(request, _SHAPE_TITLES[chosen])
     trail = tuple(evidence or ()) or ("palette: tukemen-rgb/site docs/DESIGN.md",)
+    # C-1283: disclose the fish default on the preview page itself, not only in
+    # the chat summary, whenever the request named no shape (C-1267's honesty,
+    # carried into the persisted artifact as C-1281 required of the report).
+    shape_note = ""
+    if not named:
+        choices = " / ".join(_SHAPE_TITLES.values())
+        shape_note = (
+            f"依頼「{title}」に合う形状が無かったため、"
+            f"既定の「{_SHAPE_TITLES[DEFAULT_SHAPE]}」で表示しています。"
+            f"作れる形状: {choices}。"
+        )
     return GeneratedModel3D(
         shape=chosen,
         title=title,
         seed=actual_seed,
         obj_text=_obj_text(mesh),
         mtl_text=_mtl_text(),
-        preview_html=_preview_html(title, mesh, trail),
+        preview_html=_preview_html(title, mesh, trail, shape_note),
         vertex_count=len(mesh[0]),
         face_count=len(mesh[1]),
         shape_named=named,
