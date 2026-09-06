@@ -21,6 +21,7 @@ from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.duel import pace_probe as duel_probe
 from sidra_ai.creation.kaiju import probe_source
 from sidra_ai.creation.platformer import probe_source as plat_probe
+from sidra_ai.creation.shooter import probe_source as shooter_probe
 
 
 def _lum(hexcolour: str) -> float:
@@ -48,9 +49,18 @@ _REQUESTS = {
     # the contract found the old 0.22 alpha below the visibility bar in
     # the default theme - the comment said contrast, the paint said no.
     "platformer": "ジャンプで進むゲームを作って",
+    # The starfield whose parallax had a speed gradient and no contrast
+    # gradient (C-1360): slow stars are now the far layer at FAR_A of the
+    # theme's border paint, fast stars the midground at full strength.
+    "shooter": "シューティングゲームを作って",
 }
 
-_PROBES = {"kaiju": probe_source, "duel": duel_probe, "platformer": plat_probe}
+_PROBES = {
+    "kaiju": probe_source,
+    "duel": duel_probe,
+    "platformer": plat_probe,
+    "shooter": shooter_probe,
+}
 
 
 def _fought(template: str = "kaiju", suffix: str = "") -> dict:
@@ -70,7 +80,7 @@ def _fought(template: str = "kaiju", suffix: str = "") -> dict:
     return json.loads(probe.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("template", ["kaiju", "duel", "platformer"])
+@pytest.mark.parametrize("template", ["kaiju", "duel", "platformer", "shooter"])
 @pytest.mark.parametrize("suffix", ["", "紙のテーマで"])
 def test_the_skyline_sits_between_sky_and_silhouette(template: str, suffix: str) -> None:
     seen = _fought(template, suffix)

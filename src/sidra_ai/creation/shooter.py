@@ -65,6 +65,23 @@ setPal(SHOOTER_PAL_TOKEN);
    sinking the themed ink to ~3:1 here too (C-1329's fix, template 4). */
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
+/* The far layer (§7 観察 7, C-1360): the starfield's parallax already had
+   a speed gradient and no contrast gradient - every star was the same
+   hardcoded #ffffff44, so a fast star and a slow one read as the same
+   distance, and the literal white sank into the light themes' skies.
+   Distance is drawn by CONTRAST: the slow stars (s<NEAR) are the far
+   layer, the theme's own border paint faded by FAR_A toward the sky; the
+   fast stars are the midground at full strength; the ship and the hulls
+   keep their information colours in front. Speed and faintness now point
+   the same way. Same contract shape as kaiju's, duel's and platformer's:
+   draw() paints through FAR_A and depthFacts() reports the per-scene
+   paints for the judge to blend. */
+const FAR_A=0.45,NEAR=1.1;
+function depthFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
+      alpha:FAR_A})}
+  SCENE=keep;return out}
 /* The 60-second round in three acts (game-design-notes.md §7 観察 5-6):
    the HUD already counts 第 N 波, so the sky agrees with it. ACT is a
    third of the round in frames; the final third is the brightest sky of
@@ -150,8 +167,12 @@ function draw(now){
      their information colours and their shapes (§4). */
   setScene(actOf());
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,W,H);
-  cx.fillStyle='#ffffff44';
-  stars.forEach(s=>{cx.fillRect(s.x,s.y,s.s,s.s*2)});
+  /* Far first, then near, so a slow star never sits over a fast one. */
+  cx.fillStyle=scenePaint('BORDER_TOKEN');
+  cx.globalAlpha=FAR_A;
+  stars.forEach(s=>{if(s.s<NEAR)cx.fillRect(s.x,s.y,s.s,s.s*2)});
+  cx.globalAlpha=1;
+  stars.forEach(s=>{if(s.s>=NEAR)cx.fillRect(s.x,s.y,s.s,s.s*2)});
   cx.fillStyle='CYAN_TOKEN';
   shots.forEach(s=>{cx.fillRect(s.x-1.5,s.y-8,3,10)});
   /* Foes read by shape as well as colour (C-1018): a hull with a notch. */
@@ -273,6 +294,7 @@ const hud = hudFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
   hud: hud,
+  depth: depthFacts(),
   sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
   t: end.t, wave: end.wave, hp: end.hp, score: end.score, state: end.state,
   /* Escalation, as measured: waves counted per act at spawn time, and the

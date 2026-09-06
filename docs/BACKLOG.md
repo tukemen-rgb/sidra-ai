@@ -5452,7 +5452,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       次の誰かの不安定な失敗になるだけなので採らない。
       **前提条件を C-1435 として分割起票**（計器の分母を「進んだフレーム」に
       する。棒は下げない）。それが済めば duel はそのまま測れる。
-- [~] 作業中 2026-09-06 09:58 UTC 辛口クリエイター **C-1360: shooter の星空は全部同じ濃さ——速い星も遅い星も #ffffff44 の 1 層で、§7 観察 7「距離はコントラスト差で描く」が視差に乗っていない（§7）。**
+- [x] 完了 2026-09-06 10:40 UTC 辛口クリエイター（`creation_depth_layers` **3→4**、判定器 exit 0（BETTER）。星の solid をハードコード `#ffffff44` からテーマの scenePaint('BORDER_TOKEN') へ、遅い星（s<NEAR=1.1）は FAR_A=0.45 の α 合成の遠景・速い星は素の中景、描画は遠→近の順（遅い星が速い星に被らない）＝**視差の速度勾配とコントラスト勾配が同じ向き**を指す。手前は自機と敵の情報色シルエット＝§7 観察 7 の 3 層。depthFacts(){sky,solid,alpha}×全場面を契約公開し scene probe の JSON に depth を追加、_depth_all に shooter。実測 4 テーマ×3 幕の全 12 セル: far/sky 1.092〜1.258（≥1.02 で可視）・solid/sky 1.223〜1.655（中景より必ず淡い）。白直書き時代は紙テーマの明るい空で沈んでいた（racing 路肩 C-1330 と同族）——テーマ塗りで全テーマ可視に。破壊 3 通り〔FAR_A 0.005→全幕『invisible』／FAR_A 1→全幕『as near as the midground』／契約報告の削除→『no depth contract reported』〕、復元で CLEAN。FAR_A は draw と facts が同じ定数を読む（宣言と塗りの乖離は定数共有が番人＝C-1342 家系の設計そのまま）。pytest exit 0（3734 passed / 3 skip）・gate MISS 0。test_creation_depth_layers.py に shooter を追加（4 型×2 テーマ）。奥行き契約は kaiju・duel・platformer・shooter の 4 型に）**C-1360: shooter の星空は全部同じ濃さ——速い星も遅い星も #ffffff44 の 1 層で、§7 観察 7「距離はコントラスト差で描く」が視差に乗っていない（§7）。**
       （辛口クリエイターループ起票・観点=§7 奥行きの 3 層。前回=§2）
       現物: shooter の 48 星は速度 s=0.4〜1.8 で個別に流れる（視差の
       速度差は既にある）のに、塗りは全星ハードコードの `#ffffff44`
