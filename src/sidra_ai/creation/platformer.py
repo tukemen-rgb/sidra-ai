@@ -105,7 +105,7 @@ function hudFacts(){const keep=SCENE,sk=[];
   SCENE=keep;return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A,skies:sk}}
 /* seeded LCG: same request, same course - the regeneration promise. */
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
-let plats,orbs,lamp,flag,LW,me,state,respawns,msg,msgT;
+let plats,orbs,lamp,flag,LW,me,state,respawns,msg,msgT,SHELF,SHELF_BASE;
 function build(){
   /* The first and last ledges are fixed so the opening steps and the goal
      are always fair; the seed decides everything between them. Gaps stay
@@ -126,11 +126,33 @@ function build(){
   x+=Math.round(40*GAPF);
   plats.push({x:x,y:250,w:170});
   flag={x:x+130,y:250};LW=x+170;
-  const mid=plats[Math.floor(plats.length/2)];
+  /* The soft lock (§3, C-1367): a shelf only skill opens. It hangs 56px
+     over the HIGHEST platform of the middle stretch - inside the jump's
+     61.7px reach from that base and outside it from everywhere lower -
+     so the lock is the player's arc, not an item. The low road still
+     runs to the flag underneath it (a lock the skilled can bypass is
+     soft; one they must pass is the road itself). Seeded like the rest
+     of the course: same words, same shelf. Pushed into the same arrays,
+     so drawing, one-way landings and the lantern economy just work. */
+  let hb=null;
+  const slo=Math.floor(plats.length/3),shi=Math.floor(plats.length*2/3);
+  for(let i=slo;i<=shi;i++){if(!hb||plats[i].y<hb.y)hb=plats[i]}
+  const sy=Math.max(96,hb.y-56);
+  /* Over the base's CENTRE, not its edge: the auto-runner's jumps all
+     start where the floor runs out, and an edge-jump's arc crosses the
+     shelf's height ~50px past the lip - a shelf there would board
+     itself. Centred, it takes a deliberate standing jump from under it:
+     the lock is the choice plus the arc. One platform, two gems. */
+  SHELF=[{x:hb.x+hb.w/2-36,y:sy,w:72}];
+  SHELF_BASE=hb;
+  plats.push(SHELF[0]);
+  orbs.push({x:hb.x+hb.w/2-20,y:sy-26,got:false,shelf:true},
+    {x:hb.x+hb.w/2+20,y:sy-26,got:false,shelf:true});
+  const mid=plats[Math.floor((plats.length-1)/2)];
   lamp={x:mid.x+mid.w/2,y:mid.y,lit:false};
   /* the lantern's platform keeps no gem: two pickups in one spot would
      read as one */
-  orbs=orbs.filter(o=>Math.abs(o.x-lamp.x)>1)}
+  orbs=orbs.filter(o=>o.shelf||Math.abs(o.x-lamp.x)>1)}
 function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;
   me={x:60,y:230,vy:0,ground:false,coyote:0,buffer:0,held:false,gems:0,
     cpX:60,cpY:262,sq:1,look:1};
@@ -152,6 +174,11 @@ function faceFacts(){return {look:me.look,up:me.vy<-1,
    holds every cell at >=1.032:1 while staying the lip's own paint at
    under half strength, so no platform is ever outshone by its horizon. */
 const FAR_A=0.45;
+/* The routes, as facts (§3, C-1367): the shelf, the base it hangs over,
+   and whether its gems have been earned. */
+function routeFacts(){return {shelf:SHELF.map(p=>({x:p.x,y:p.y,w:p.w})),
+  base:{x:SHELF_BASE.x,y:SHELF_BASE.y,w:SHELF_BASE.w},
+  gems:orbs.filter(o=>o.shelf).map(o=>o.got)}}
 function depthFacts(){const keep=SCENE,out=[];
   for(let i=0;i<SPAL.length;i++){SCENE=i;
     out.push({sky:scenePaint('BG_TOKEN'),solid:scenePaint('RAISED_TOKEN'),
@@ -657,6 +684,104 @@ def lamp_sfx_probe(script: str) -> str:
 #: left and they follow, jump and they lift, wait and they blink - once,
 #: briefly. The reduced-motion run is the other half: the blink never
 #: comes, because FRAME pins the face open.
+
+#: The two roads, as driven (§3, C-1367). The page is really played three
+#: ways: the auto-runner takes the low road to the flag and must never
+#: board the shelf (soft = bypassable); a standing held jump from the
+#: base's centre boards it and earns its gems (the lock opens to skill);
+#: the same jump from the stretch's lowest platform falls short (the lock
+#: is real). Direct state ops are the racing/guard probes' precedent.
+ROUTE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+function onShelf(){ return me.ground &&
+  SHELF.some(p => Math.abs(me.y - p.y) < 1 && me.x >= p.x - 2 && me.x <= p.x + p.w + 2) }
+ev('keydown', ' '); ev('keyup', ' ');
+run(4);
+const facts0 = routeFacts();
+/* (a) The low road: run right, jump where the floor runs out - the
+   attract pilot's own rule - and reach the flag without the shelf. */
+/* Capped inside the 60-second round: the (b)/(c) jumps below need live
+   round time - past the buzzer the round wrapper intercepts step() and
+   the world freezes (C-1349's mechanism, met here as a frozen probe). */
+ev('keydown', 'ArrowRight');
+let goal = false, boarded = false;
+for (let i = 0; i < DRIVE_INPUT && !goal; i++) {
+  if (me.ground && !plats.some(p => me.x + 30 > p.x - 6 && me.x + 30 < p.x + p.w + 6
+      && p.y >= me.y - 1 && p.y < me.y + 60)) tryJump();
+  run(1);
+  if (onShelf()) boarded = true;
+  if (state !== 'play') { goal = state === 'goal'; break }
+}
+ev('keyup', 'ArrowRight');
+const lowGems = routeFacts().gems.slice();
+/* (b) The high road: reset, stand on the base's centre, one held
+   standing jump onto the shelf, then run and jump along it. */
+ev('keydown', 'r'); ev('keyup', 'r'); run(2);
+const base = routeFacts().base;
+me.x = base.x + base.w / 2; me.y = base.y; me.vy = 0;
+me.ground = true; me.coyote = 6; me.buffer = 0; me.held = false;
+me.held = true; tryJump(); run(26); me.held = false;
+const onFirst = onShelf();
+if (onFirst) {
+  ev('keydown', 'ArrowRight'); run(8); ev('keyup', 'ArrowRight');
+  ev('keydown', 'ArrowLeft'); run(16); ev('keyup', 'ArrowLeft');
+}
+const highGems = routeFacts().gems.slice();
+/* (c) The same jump from the stretch's lowest platform falls short. */
+ev('keydown', 'r'); ev('keyup', 'r'); run(2);
+const sy = routeFacts().shelf[0].y;
+let low = null;
+const lo = Math.floor(plats.length / 3), hi = Math.floor(plats.length * 2 / 3);
+for (let i = lo; i <= hi; i++) { const pl = plats[i];
+  if (Math.abs(pl.y - sy) < 1) continue;
+  if (!low || pl.y > low.y) low = pl }
+me.x = low.x + low.w / 2; me.y = low.y; me.vy = 0;
+me.ground = true; me.coyote = 6; me.buffer = 0;
+let minY = me.y;
+me.held = true; tryJump();
+for (let i = 0; i < 40; i++) { run(1); if (me.y < minY) minY = me.y }
+me.held = false;
+console.log(JSON.stringify({ facts0: facts0, goal: goal, boarded: boarded,
+  lowGems: lowGems, onFirst: onFirst, highGems: highGems,
+  lowY: low.y, baseY: facts0.base.y, shelfY: sy, minY: minY,
+  shortBy: sy - minY }));
+"""
+
+
+def route_probe(script: str, *, drive: int = 2400) -> str:
+    """The page's own script, wrapped so both roads can be driven.
+
+    ``drive`` caps the low-road walk in frames; pass 0 to only read the
+    geometry (a harder course than the pilot's one rule can clear still
+    has to carry the same seeded shelf).
+    """
+
+    return ROUTE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "DRIVE_INPUT", str(int(drive))
+    )
+
 FACE_PROBE = """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),

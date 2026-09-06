@@ -7393,6 +7393,84 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a lock only skill opens ---------------------------------------
+    #
+    # §3 (C-1367): the one fact of the lock-and-key section never
+    # reflected - hard locks open by their key, SOFT locks the skilled
+    # can bypass (or here: only the skilled can open). A shelf hangs 56px
+    # over the highest platform of the platformer's middle stretch,
+    # inside a held jump's reach from that base and outside it from
+    # everywhere lower, carrying two gems. The low road runs to the flag
+    # underneath it. Driven, not declared: the auto-runner walks the low
+    # road without boarding it, a standing jump from the base boards it
+    # and earns the gems, and the same jump from the stretch's lowest
+    # platform falls short. The hard course carries the same seeded shelf
+    # but is geometry-checked only - its widened gaps outrun the one-rule
+    # pilot, which is the difficulty working, not the shelf failing.
+    import re as _sr_re
+    import subprocess as _sr_sp
+
+    from sidra_ai.creation.platformer import route_probe as _sr_probe
+
+    route_gaps: list[str] = []
+    for _sr_req, _sr_drive in (
+        ("ジャンプで進むゲームを作って", 2400),
+        ("ジャンプで進むゲームを作って 難しくして", 0),
+    ):
+        _sr_label = "platformer" + ("（難しい・幾何のみ）" if not _sr_drive else "")
+        try:
+            _sr_page = generate_game(_sr_req).html
+            _sr_script = _sr_re.search(r"<script>(.*?)</script>", _sr_page, _sr_re.S)
+            if _sr_script is None:
+                raise ValueError("no script")
+            _sr_run = _sr_sp.run(
+                ["node", "-"],
+                input=_sr_probe(_sr_script.group(1), drive=_sr_drive),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _sr_run.returncode != 0:
+                raise ValueError(_sr_run.stderr.strip()[:60])
+            _sr = json.loads(_sr_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sr_sp.SubprocessError, ValueError) as exc:
+            route_gaps.append(f"{_sr_label}: probe unavailable ({exc})")
+            continue
+        if _sr_drive:
+            if not _sr["goal"]:
+                route_gaps.append(f"{_sr_label}: the low road never reaches the flag")
+            elif _sr["boarded"]:
+                route_gaps.append(f"{_sr_label}: the auto-runner boards the shelf")
+            elif any(_sr["lowGems"]):
+                route_gaps.append(f"{_sr_label}: the low road collects the shelf's gems")
+        if not _sr["onFirst"]:
+            route_gaps.append(f"{_sr_label}: the standing jump never boards the shelf")
+        elif not all(_sr["highGems"]):
+            route_gaps.append(
+                f"{_sr_label}: the shelf keeps its gems from the one who earned it"
+            )
+        elif _sr["shortBy"] > -6:
+            route_gaps.append(
+                f"{_sr_label}: the lock opens from low ground ({_sr['shortBy']:.1f}px)"
+            )
+    c.add(
+        "creation_soft_route",
+        "腕でだけ開く棚",
+        0.0 if route_gaps else 1.0,
+        detail=(
+            "; ".join(route_gaps)
+            if route_gaps
+            else "実ページを 3 通りに運転——自動走者は低い道で旗に着き棚に触れず"
+            "（soft＝迂回可能）、base 中央からの立ちジャンプだけが棚（base の"
+            "56px 上・跳躍到達 58.1px の内側）に乗って宝石 2 個を取り、区間"
+            "最低の足場からの同じジャンプは 19.9〜32.9px 届かない（錠前は"
+            "腕）。難しいコースも同じ seed 決定的な棚を持つ（幾何検査・"
+            "広がった隙間は 1 規則パイロットの外＝難易度の仕事）。§3 の"
+            "hard/soft の区別が製品に入った"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the marble leaves motion in the air ---------------------------
     #
     # §1 (C-1366): the technique list's three particle kinds are smoke,
