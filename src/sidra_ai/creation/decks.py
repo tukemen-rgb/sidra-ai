@@ -30,7 +30,7 @@ from pathlib import Path
 
 #: Shared with the game generator so a deck and a game made by the same tool
 #: look like they came from the same place.
-from sidra_ai.creation.evidence import NUMBER, Fact, whole_sentences
+from sidra_ai.creation.evidence import NUMBER, Fact, plain_text, whole_sentences
 from sidra_ai.creation.themes import Theme, select_theme
 
 #: What an unfilled slot says. Kept as one constant because both the renderer
@@ -215,8 +215,14 @@ def _bullets_for(
     # The 120-character budget is a display cap, not a place a sentence may
     # end: a bullet cut there reads 「…（components/UploadForm.ts」 (C-1217).
     # whole_sentences only trims - a terminator-free fragment passes whole.
+    # C-1289: flatten first, like the answer and the report (C-1288). The corpus
+    # is Markdown, and whole_sentences only trims, so a fact carrying 「## 概況」
+    # or a table put raw 「##」/「| --- |」 on an HTML slide as literal characters.
+    # plain_text turns decoration into prose and a table into 「セル / セル；」,
+    # keeping every word and figure, and runs before the cap so the 120 counts
+    # display characters, not markup.
     bullets = tuple(
-        whole_sentences(" ".join(fact.text.split())[:120]) for fact in hits
+        whole_sentences(plain_text(fact.text)[:120]) for fact in hits
     )
     sources = tuple(dict.fromkeys(fact.source for fact in hits))
     return bullets, sources, tuple(hits)

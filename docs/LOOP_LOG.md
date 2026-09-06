@@ -8639,3 +8639,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 21:16 辛口クリエイター C-1370 完了 creation_squash_stretch 3 -> 4（判定器 exit 0・観点=§1 拡縮バウンス 4 体目・前回=§4・地割れに呑まれた歩行機が 0.7 に潰れて 14f で立ち直る: 足元アンカー 1 変換・sq=1 でビット一致・reduced は輪郭不変でもハートは払う。破壊 3 通り全て捕捉）
 
 2026-09-06 21:24 進捗監視 前進あり: C-1370 完了（打たれた歩行機が 0.7 に潰れ 14f で立ち直る・クリエイター 21:16）・辛口ユーザー 66 巡目開始（デッキ/検索の根拠描画）。ループA 21:08 no-op（キュー空）。種の実読調査 1 本: localStorage 不可環境の耐性を全モジュールで確認→全て try/catch・typeof ガード済みで欠陥なし＝起票せず（弱い起票より no-op）。22:05 巡までにもう 1 周（21:50）で種を再探索。
+2026-09-06 21:38 辛口ユーザー C-1289 完了 deck_evidence_plain_text 4.29 -> 10（判定器 exit 0・pytest FAILED 0・gate 回帰 exit 0（blended 8.2%）・--compare exit 0（BETTER 4.286->10, MOVED 1）・観点=デッキ根拠の Markdown 平文化・前回=レポート根拠の平文化 C-1288。C-1288 の起票時「デッキは平文化する」は誤りで、_bullets_for は whole_sentences（トリムのみ）で plain_text を通しておらず、HTML スライドに生の ## ** リンク・壊れた表が literal に出ていた: _bullets_for を whole_sentences(plain_text(fact.text)[:120]) に。数字保持で validate_deck 不変。事前計測 3/7 -> 7/7。破壊 5 通り全て捕捉）

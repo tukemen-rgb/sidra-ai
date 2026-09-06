@@ -1460,6 +1460,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1289: _bullets_for trimmed evidence to whole sentences but never ran it
+    # through plain_text, so a fact carrying 「## 概況」 or a table put raw 「##」/
+    # 「| --- |」 on an HTML slide as literal characters (the deck twin of the
+    # report's C-1288). The deck now flattens first; decoration becomes prose and
+    # figures survive.
+    from sidra_ai.evals.deck_evidence_plain_text import (
+        evaluate_deck_evidence_plain_text,
+    )
+
+    deck_plain = evaluate_deck_evidence_plain_text()
+    c.add(
+        "deck_evidence_plain_text",
+        "スライドの根拠が生 Markdown を漏らさず平文化される（表も壊れない）",
+        10.0 * deck_plain.checks_passed / deck_plain.checks_total,
+        detail=f"{deck_plain.checks_passed}/{deck_plain.checks_total} checks; "
+               "src/sidra_ai/evals/deck_evidence_plain_text.py"
+               + ("" if deck_plain.passed else "; " + "; ".join(deck_plain.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1237: build_slides filled every section from the whole fact list, so a
     # fact matching two sections' cues (or a numeric fact carrying a prose cue)
     # showed on several slides at once - a deck whose 解決 and 根拠 slides repeat
