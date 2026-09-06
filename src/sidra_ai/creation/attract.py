@@ -45,9 +45,13 @@ from __future__ import annotations
 #: no ending of its own (ROUND_LIVE is empty), so its demo loops on a
 #: fixed slice instead - the arcade's own habit of showing fifteen
 #: seconds and starting over. See ATTRACT_SLICE.
+#: Fishing (C-1356) is the ninth, the second clock-bound one, and the
+#: purest case for the live receipt: its marker sweeps for ever, so an
+#: unpiloted page passes the motion bar on its own - only the receipt
+#: can tell the game from the screensaver its unwired reason described.
 ATTRACT_TEMPLATES: tuple[str, ...] = (
     "racing", "shooter", "kaiju", "marble", "platformer", "duel",
-    "adventure", "catch")
+    "adventure", "catch", "fishing")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
@@ -55,7 +59,6 @@ ATTRACT_TEMPLATES: tuple[str, ...] = (
 #: the template *does* with no input, which is the only thing that decides
 #: whether a demo of it is worth watching.
 ATTRACT_UNWIRED: dict[str, str] = {
-    "fishing": "the marker sweeps for ever and nothing else happens: motion without a game in it",
     "puzzle": "a board that is never clicked is a still image",
 }
 
@@ -85,7 +88,13 @@ ATTRACT_RESET: dict[str, str] = {
     # handed a board the control page would not have drawn fails the
     # handover comparison ten seconds in.
     "catch": "items=[];score=0;caught=0;missed=0;t=0;firstDrop=true;"
-    "px=0.5;shown=0.5;BSQ=1;rs=(SEED>>>0)||1"}
+    "px=0.5;shown=0.5;BSQ=1;rs=(SEED>>>0)||1",
+    # Fishing has no reset() either, but the OPPOSITE reseed rule to
+    # catch: its one rand() draw happens at load (SPOT) and play never
+    # touches the stream, so the control page's rs is the post-SPOT
+    # state - reseeding here would be the divergence, not the cure.
+    "fishing": "score=0;hits=0;crits=0;casts=0;flash=0;pos=0;dir=1;"
+    "msg='SPACE / クリックで合わせる'"}
 
 
 #: Demo slice length, in gate frames, for templates with no ending of
@@ -94,7 +103,7 @@ ATTRACT_RESET: dict[str, str] = {
 #: every this-many frames and counts it a loop - fifteen seconds, the
 #: arcade's own attract-slice habit. Zero means "the template ends
 #: itself" and the gate keeps listening to roundEnded() alone.
-ATTRACT_SLICE: dict[str, int] = {"catch": 900}
+ATTRACT_SLICE: dict[str, int] = {"catch": 900, "fishing": 900}
 
 
 def slice_frames(template: str) -> int:
@@ -225,6 +234,17 @@ ATTRACT_PILOT: dict[str, str] = {
     "catch": "let CB=null;items.forEach(i=>{if(!CB||i.y>CB.y)CB=i});"
     "if(CB)px=Math.max(0,Math.min(1,CB.x));"
     "if(caught>=20)ATTRACT_LIVE=1",
+    # Fishing (C-1356): cast as the marker crosses dead centre, so every
+    # cast is a 会心 - the game's own best picture. The cooldown against
+    # the gate's own counters is load-bearing: the cast's hitstop freezes
+    # ``pos`` INSIDE the window, and a pilot without it re-casts the
+    # frame the stop lifts, locking the page into hitstop for ever
+    # (measured: 4081 of 4199 frames self-held - the demo as a statue
+    # of its own best moment). The receipt is a fish landed: the sweep
+    # alone never casts, so a still hand can never light it.
+    "fishing": "if(Math.abs(pos-SPOT)<SPEED*0.55"
+    "&&(ATTRACT_FRAMES-ATTRACT_MARK)>casts*80)cast();"
+    "if(hits>0)ATTRACT_LIVE=1",
 }
 
 

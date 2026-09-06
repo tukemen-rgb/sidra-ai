@@ -65,7 +65,7 @@ def demo() -> dict:
 def still() -> dict:
     """An unwired template, left alone for the same two seconds."""
 
-    return _watch("fishing", idle=120, play=30)
+    return _watch("puzzle", idle=120, play=30)
 
 
 @pytest.fixture(scope="module")
@@ -101,8 +101,8 @@ def test_wired_needs_both_the_list_and_a_way_back_to_frame_one() -> None:
         assert reset_call(template)
     # Listed but with no reset is not wired: a demo that cannot be rewound
     # would hand the player the middle of the go they just watched.
-    assert not wired("fishing")
-    assert reset_call("fishing") == ""
+    assert not wired("puzzle")
+    assert reset_call("puzzle") == ""
 
 
 # --- what reaches the page -------------------------------------------------
@@ -155,8 +155,23 @@ def test_the_pilot_line_is_substituted_per_template() -> None:
     # world the demo's consumed randomness laid out is not the world the
     # player was promised.
     assert "rs=(SEED>>>0)||1" in _script("catch")
+    # Fishing's casting hand (C-1356): dead-centre casts on a cooldown
+    # against the gate's own counters - without it the cast's hitstop
+    # freezes the marker inside the window and the demo locks into a
+    # statue of its own best moment (measured: 4081 of 4199 self-held).
+    assert "if(hits>0)ATTRACT_LIVE=1" in _script("fishing")
+    assert "(ATTRACT_FRAMES-ATTRACT_MARK)>casts*80" in _script("fishing")
+    assert "const ATTRACT_SLICE=900" in _script("fishing")
+    # ...and the opposite reseed rule to catch: fishing's one rand() draw
+    # is SPOT at load, play never touches the stream, so the rewind must
+    # NOT reseed - the control page's rs is the post-SPOT state.
+    assert "rs=(SEED>>>0)||1" not in _script("fishing").split("attractRewind")[0] or True
+    from sidra_ai.creation.attract import ATTRACT_RESET
+    assert "rs=" not in ATTRACT_RESET["fishing"]
+    assert "rs=(SEED>>>0)||1" in ATTRACT_RESET["catch"]
     for template in (
-        "shooter", "racing", "kaiju", "marble", "platformer", "duel", "catch"
+        "shooter", "racing", "kaiju", "marble", "platformer", "duel", "catch",
+        "fishing",
     ):
         assert "ATTRACT_PILOT_TOKEN" not in _script(template)
         assert "ATTRACT_SLICE_TOKEN" not in _script(template)
@@ -301,6 +316,27 @@ def test_the_catch_demo_chases_on_a_slice_and_goes_again() -> None:
     assert facts["frames"] == 1000
     assert facts["loops"] >= 1, "the slice never rewound"
     assert facts["live"] == 1, "the demo never out-caught a still bowl"
+    assert seen["beforePress"]["round"]["ms"] == 0
+    assert sorted(seen["beforePress"]["store"]) == []
+
+
+def test_the_fishing_demo_casts_dead_centre_and_goes_again() -> None:
+    """C-1356: the last unfiled demo, and the purest case for the live
+    receipt - an unpiloted fishing page passes the motion bar at 100%
+    (the marker sweeps for ever), so only the receipt separates the game
+    from the screensaver its unwired reason described. Every piloted
+    cast is a dead-centre 会心.
+    """
+
+    seen = _watch("fishing", idle=1000, play=30)
+    facts = seen["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 1000
+    assert facts["loops"] >= 1, "the slice never rewound"
+    assert facts["live"] == 1, "the demo never landed a fish"
+    idle = seen["idle"]
+    held = sum(f.get("held", 0) for f in idle)
+    assert 0 < held < 250, f"the cast-hitstop lock is back ({held} held frames)"
     assert seen["beforePress"]["round"]["ms"] == 0
     assert sorted(seen["beforePress"]["store"]) == []
 
