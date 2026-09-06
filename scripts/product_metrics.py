@@ -633,6 +633,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1284: the summary discloses the flow default (C-1271) but the art HTML -
+    # the artifact opened in a browser and forwarded - was titled by the subject
+    # over a flow drawing with no word of it, the silent artifact C-1281/C-1283
+    # fixed for the report and 3D preview. The page now carries a disclosure note
+    # under the caption when the pattern was a default, silent when one was named.
+    from sidra_ai.evals.art_preview_discloses_default_pattern import (
+        evaluate_art_preview_discloses_default_pattern,
+    )
+
+    art_preview = evaluate_art_preview_discloses_default_pattern()
+    c.add(
+        "art_preview_discloses_default_pattern",
+        "アートの HTML 本体が既定パターン・フォールバックを開示する",
+        10.0 * art_preview.checks_passed / art_preview.checks_total,
+        detail=f"{art_preview.checks_passed}/{art_preview.checks_total} checks; "
+               "src/sidra_ai/evals/art_preview_discloses_default_pattern.py"
+               + ("" if art_preview.passed
+                  else "; " + "; ".join(art_preview.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1257: right after making a game, demonstrative revisions (その/これ/
     # それ/この …を直して) fell to the Q&A "no evidence, ask an admin to ingest
     # a repository" wall because _BACK_REFERENCES had no demonstratives.

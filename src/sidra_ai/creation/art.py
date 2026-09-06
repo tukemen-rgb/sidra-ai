@@ -150,11 +150,13 @@ _PAGE = """<!doctype html>
   canvas {{ background: {bg}; max-width: 100%; height: auto;
             box-shadow: 0 0 40px {surface}; }}
   p {{ color: {cyan}; opacity: .6; font-size: .75rem; }}
+  p.note {{ color: #ffb84d; opacity: .85; max-width: 640px; text-align: center; }}
 </style>
 </head>
 <body>
 <canvas id="c" width="640" height="400"></canvas>
 <p>{title} — seed {seed}</p>
+{note}
 <script>
 "use strict";
 var SEED = {seed};
@@ -296,6 +298,20 @@ def generate_art(
         .replace("%CYAN%", CYAN)
         .replace("%MAGENTA%", MAGENTA)
     )
+    # C-1284: the request named no pattern, so the flow default was used. The
+    # summary says so (C-1271's honesty), but the HTML is the artifact opened in
+    # a browser and forwarded - a page titled 「猫」 drawing flow with no word of
+    # it is the silent artifact C-1281/C-1283 fixed for the report and the 3D
+    # preview. Disclose it on the page too, under the caption. No note when a
+    # pattern was named; no digit, so validate_art has nothing to catch.
+    note = ""
+    if not named:
+        choices = " / ".join(PATTERN_LABELS.values())
+        note = (
+            f'<p class="note">依頼「{escape(title)}」に合うパターン名が'
+            f"無かったため、既定の「{PATTERN_LABELS[DEFAULT_PATTERN]}」で"
+            f"描いています。指定できるパターン: {choices}。</p>"
+        )
     html = _PAGE.format(
         title=escape(title),
         bg=BG,
@@ -303,6 +319,7 @@ def generate_art(
         cyan=CYAN,
         seed=actual_seed,
         body=body,
+        note=note,
     )
     return GeneratedArt(
         title=title,
