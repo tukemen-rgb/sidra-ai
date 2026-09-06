@@ -5479,6 +5479,27 @@ C-12xx/13xx/14xx はループ用のまま）。
       次の誰かの不安定な失敗になるだけなので採らない。
       **前提条件を C-1435 として分割起票**（計器の分母を「進んだフレーム」に
       する。棒は下げない）。それが済めば duel はそのまま測れる。
+- [~] 作業中 2026-09-06 19:55 UTC 辛口クリエイター **C-1369: 色覚多様性で主役と敵が溶ける——§4 の「色だけで伝えない」は形で守ってきたが、情報 2 色そのものを CVD シミュレーションで測ったことが無く、実測すると紙テーマの protan で ΔE 11.3・ターミナルの protan で 13.1 まで潰れている（§4→§20 増築）。**
+      （辛口クリエイターループ起票・観点=§4 アクセシビリティ×外部調査 §20。前回=§6）
+      §1〜§9 の未反映事実が尽きたため C-0k の規則どおり外部調査で §20
+      を増築してから適用。調査（URL 実開 2026-09-06）: daltonlens の
+      CVD シミュレーション解説 2 本＋Machado 2009 の公式行列表——
+      sRGB→linear のガンマ補正を挟んで 3×3 行列 1 回で protan/deutan/
+      tritan の見えを再現できる（省略すると実験が無効になる、が最重要の
+      落とし穴）。事前実測（Machado 重度 1.0・Lab ΔE・4 テーマ×3 型）:
+      default 36.1/17.8/116.9・**紙 11.3**/18.9/87.9・**ターミナル
+      13.1**/22.4/77.4・dusk 74.9/57.8/30.3——紙とターミナルの protan で
+      主役色と敵色がほぼ同じ色に落ちる（緑 vs 黄は protan 混同の教科書
+      例）。形の併用（C-1018）が最後の砦として働くのは §4 どおりだが、
+      色の砦が沈黙して落ちているのを計測が初めて見た。実装: (1) §20 を
+      knowledge base に増築（出典・行列・実測表・学び） (2) 紙とターミナル
+      の alert 系を最小シフトで protan ΔE≥20 へ（default は GAMEYARD
+      ブランド固定＝C-0k の改変禁止・17.8 のまま床 15 で記録） (3) 判定器
+      creation_cvd_info_pair——テーマ tokens を実読し sRGB→linear→
+      Machado→Lab で全 12 セルの ΔE を計測、床（editable テーマ 20・
+      brand 固定 15）を割れば 0。
+      → 動かす数字: creation_cvd_info_pair unmeasurable→12（セル数・
+      どこか 1 セルでも床を割れば 0 の C-1341 規約）
 - [x] 完了 2026-09-06 19:10 UTC 辛口クリエイター（`creation_wake_reaction` unmeasurable→**1**、判定器 exit 0（NEW・default＋難しい の 2 依頼）。90f の尺は不変で幕割りを 55-75f 引き・75-90f 操縦席インサートへ——REACT_AT=75 を draw と wakeFacts が共有（C-1342 家系の定数番人）、インサートは枠付きプレート＋4 倍の操縦士頭部＋見開いた目（blink なし・視線 lk は legX() へ）・静止画＝REDUCED に凍らせる物が無い。WAKE_PROBE を 4 拍読みに拡張した実測: t46 塵の幕 react=false・t72 wide=true/react=false・t82 wide=false/react=true・firedInWake 0・toFight 89（≤120 不変）・handover 後に砲撃可。daily の 210f 窓・awakening 判定器・stomp/graze スイートは全て素通り（尺を変えなかった配当）。破壊 3 通り〔react 恒 false→『cut never comes』／REACT_AT=40→『reaction before wide ends』／wide の終端削除→『shots share the frame』〕、各自の検査だけで落ち、復元 CLEAN。pytest exit 0（3846 passed / 3 skip）・gate MISS 0。test_creation_kaiju_awakening.py に 4 拍目検査を追加。§6 観察 3〔地割れ→塵→引き→**反応ショット**→再加速〕の 4 拍が完成）**C-1368: 目覚めに反応ショットが無い——§6 観察 3 の型は「地割れ→塵→引きの 1 枚→**反応ショット（操縦席の顔）**→再加速」だが、C-1357 の実装は 3 拍で fight に入り、4 拍目だけが欠けている。C-1363 で操縦士に顔ができた今、切る先はある（§6）。**
       （辛口クリエイターループ起票・観点=§6 観察 3 の 4 拍目。前回=§3）
       現物: kaiju の wake は 0-30f 地割れ・30-60f 塵・60-90f 引きの
