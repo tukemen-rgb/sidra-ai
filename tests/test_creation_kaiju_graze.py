@@ -124,3 +124,63 @@ def test_a_hit_takes_the_run(crash: dict) -> None:
 
 def test_reduced_motion_drops_the_particles_not_the_points() -> None:
     assert _fight(mode="hug", frames=3000, reduced=True)["graze"]["paid"] > 0
+
+
+# --- the unwired table has to be true of the templates (C-1446) ----------
+
+
+def test_the_duel_entry_names_a_mechanic_duel_actually_has() -> None:
+    """The table is where every loop goes shopping for the next item, so a
+    false line in it produces items built on a premise that was never
+    real - C-1429 in reverse.
+
+    This entry claimed "a parry window already fills this role". Duel has
+    no parry: the word appears nowhere in the template, and nothing in it
+    blocks or catches a shot. What it has is a telegraph, which the entry
+    now names, and which the next test drives on the page.
+    """
+
+    from sidra_ai.creation.games import TEMPLATES
+
+    entry = GRAZE_UNWIRED["duel"]
+
+    assert "parry" not in entry
+    assert "parry" not in TEMPLATES["duel"].script.lower()
+    assert "AIM_LOCK" in entry, "the entry should name the mechanic that is there"
+
+
+def test_stepping_out_of_the_telegraphed_lane_is_what_avoids_the_shot() -> None:
+    """The measurement behind the entry, run rather than asserted.
+
+    Without this the table would carry a second unverified claim in place
+    of the first one.
+    """
+
+    import json as _json
+    import re as _re
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    import pytest as _pytest
+
+    from sidra_ai.creation.duel import aim_probe
+    from sidra_ai.creation.games import generate_game as _generate
+
+    if _shutil.which("node") is None:  # pragma: no cover - environment guard
+        _pytest.skip("node is required to drive the duel")
+    page = _generate("対戦ゲームを作って", template="duel").html
+    body = _re.search(r"<script>(.*?)</script>", page, _re.S)
+    assert body is not None
+    ran = _subprocess.run(
+        ["node", "-"], input=aim_probe(body.group(1)),
+        capture_output=True, text=True, timeout=300,
+    )
+    assert ran.returncode == 0, ran.stderr[:400]
+    seen = _json.loads(ran.stdout.strip().splitlines()[-1])
+
+    assert seen["aimLock"] == 18, "the entry quotes this number"
+    # Warned, then stepped aside: untouched.
+    assert seen["dodged"]["hpAfter"] == seen["dodged"]["hpBefore"]
+    # Warned, and stayed in the lane: hit. Without this half the line
+    # above would pass on a page where the beam never lands at all.
+    assert seen["stayed"]["hpAfter"] < seen["stayed"]["hpBefore"]

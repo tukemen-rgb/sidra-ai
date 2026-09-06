@@ -47,7 +47,24 @@ GRAZE_TEMPLATES: tuple[str, ...] = ("shooter", "kaiju")
 #: Why each of the others is not wired. "Nothing to graze" and "not yet"
 #: are different answers, and only the second is a backlog item.
 GRAZE_UNWIRED: dict[str, str] = {
-    "duel": "a parry window already fills this role; two risk layers needs a decision",
+    # Measured, not reasoned about (C-1446, the same discipline C-1429
+    # forced). This entry used to say "a parry window already fills this
+    # role", and duel has no parry: the word appears nowhere in the
+    # template, and nothing in it blocks or catches a shot. What it does
+    # have is a telegraph. The enemy's aim is shown for AIM_LOCK frames
+    # and the shot lands in that lane, so the answer is to be somewhere
+    # else by the time it fires - driven on the real page: 18 frames of
+    # warning, step to another lane and hp goes 3 -> 3, stay in it and
+    # hp goes 3 -> 2.
+    #
+    # So the judgement the entry was making survives, and its reason
+    # changes: the risk window is already there, and a graze band would
+    # pay a second time for the same instant of standing in the beam's
+    # lane. That is the decision, and it is not one to take here.
+    "duel": "it already has a risk window under another name: the enemy's aim shows "
+    "for AIM_LOCK (18) frames and stepping out of that lane avoids the shot - "
+    "a band would pay a second time for the same instant; two risk layers needs "
+    "a decision",
     # Measured, not reasoned about (C-1429). The worry this entry used
     # to record - "a band would pay continuously" - is not what the
     # page does: the pass is evaluated at the single instant an
