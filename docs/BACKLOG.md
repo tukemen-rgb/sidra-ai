@@ -5704,6 +5704,19 @@ C-12xx/13xx/14xx はループ用のまま）。
       document_bold_balanced unmeasurable→1（生成した複数文書で `**` の
       出現数が全て偶数対であることを実生成で検査。破壊〔閉じ処理を
       外す〕で 0）
+- [ ] **C-1444: ポーズ画面が操作を思い出させない——3 行表は一時停止にも。**
+      （進捗監視起票 2026-09-06・根拠は startscreen.py 実読: drawGate は
+      briefing の 3 行表〔目標/操作/敵〕を GATE==='title' のときだけ描き、
+      一時停止は「一時停止／タップ・SPACE でつづける」のみ。さらに
+      gateSeen() により **2 回目以降の訪問は briefing 自体がスキップ**
+      されるため、キーを忘れた人が確かめる場所がページのどこにも無い。
+      同ファイル自身が「the three lines are what the controls are」と
+      書いている前提と食い違う）一時停止のオーバーレイにも同じ 3 行表を
+      描く（レイアウト・文言は title と共通の関数を再利用・新情報は
+      足さない）。→ 動かす数字: creation_pause_shows_controls
+      unmeasurable→1（一時停止中の描画呼び出しに 3 行表のラベルと本文が
+      含まれ、再開後は消えることをページ実走行で検査。破壊〔title 限定に
+      戻す〕で 0）
       **結果 2026-09-06 08:39 ループA**（`document_bold_balanced`
       unmeasurable→**1**・判定器 exit 0）
       **起票文どおり先に実測したら、場所が 1 段ずれていた。**
