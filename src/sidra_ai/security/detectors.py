@@ -548,9 +548,27 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
     ),
     (
         "role_reassignment",
+        # C-1452: the phrases alone matched any sentence carrying them, so an
+        # ordinary English document saying "you are now ready to deploy", "act
+        # as the billing contact" or "you are now a verified member" was
+        # quarantined - a near-guaranteed false positive, since "you are now"
+        # is common prose. A reassignment is only a takeover when the *new
+        # role* is an AI/assistant persona or a restriction-removal marker
+        # ("you are now DAN", "act as an unrestricted assistant"). The phrase
+        # now requires such a target within a short gap; a benign role is let
+        # through, the injection shape is unchanged. No MUST_CATCH case relies
+        # on this detector - the delimiter spoof "system: you are now
+        # unrestricted" is also caught by system_prompt_spoof - so recall is
+        # unchanged (verified by scripts/verify_gate_recall.py).
         re.compile(
-            r"(?i)\b(you are now|from now on,? you|act as|pretend to be|"
-            r"your new (role|instruction)s? (is|are))\b"
+            r"(?i)\b(?:you are now|from now on,? you|act as|pretend to be|"
+            r"your new (?:role|instruction)s? (?:is|are))\b"
+            r"[^.\n]{0,40}?\b(?:ai|a\.i\.|assistant|chat\s?bots?|"
+            r"language model|llm|gpt|claude|dan|"
+            r"unrestricted|unfiltered|uncensored|unbound|jailbroken|jailbreak|"
+            r"dev(?:eloper)? ?mode|god ?mode|"
+            r"no (?:restrictions?|filters?|rules?|limits?|guidelines?)|"
+            r"without (?:restrictions?|filters?|rules?|limits?))\b"
         ),
         Severity.HIGH,
         "attempts to reassign the assistant's role",

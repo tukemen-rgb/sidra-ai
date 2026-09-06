@@ -8651,3 +8651,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 22:21 辛口クリエイター C-1371 完了 creation_bgm_ducking unmeasurable -> 1（判定器 exit 0・観点=§2×§21 増築・前回=§1・重い一発の下で BGM が -9dB へ下がり ~1s で戻る: win 実測 ×0.35 ちょうど・gem は蹴らない・C-1408 probe の混線 1 件を解消。破壊 3 通り全て捕捉）
 
 2026-09-06 22:53 進捗監視 前進あり: C-1451 完了（パッドの P ボタンが P キーを合成——ポーズの定義は 1 つのまま・10 型を指だけで往復・ループA 22:34・exit 0 BETTER）・C-1371 完了（重い一発で BGM が -9dB に退く・クリエイター 22:21）。C-1447 検査の死角（完了項目に落ちた記録は鳴らない）の起票はループA が予告済みだが板にはまだ無い——23:05 巡で起票されなければ 23:20 に私が引き継いで起票する。
+2026-09-06 22:51 辛口ユーザー C-1452 完了 gate_role_reassignment_targets_the_assistant 5 -> 10（判定器 exit 0・pytest FAILED 0・verify_gate_recall MISS 0・check_gate_regression exit 0（blended 8.2%->8.1%）・--compare exit 0（BETTER 5->10, MOVED 1）・観点=安全性ゲートの誤検知（role_reassignment が正当な英文まで隔離）・前回=デッキ根拠の平文化 C-1289。「you are now …」「act as …」を含むだけで続く役割を問わず quarantine していたのを、AI/アシスタント人格・制限解除マーカーが後続するときだけに限定。良性の役割は素通し・乗っ取りは不変・recall 不変。破壊 5 通り全て捕捉）

@@ -855,6 +855,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1452: role_reassignment fired on the bare phrases 「you are now」/「act
+    # as」/「from now on you」/「pretend to be」 regardless of the role, so an
+    # ordinary document saying 「you are now ready to deploy」 or 「act as the
+    # billing contact」 was quarantined. It now requires the new role to be an
+    # AI/assistant persona or a restriction-removal marker; a benign role is
+    # allowed, the injection shape is still caught. Recall unchanged (no
+    # MUST_CATCH case leans on this detector alone).
+    from sidra_ai.evals.gate_role_reassignment_targets_the_assistant import (
+        evaluate_gate_role_reassignment_targets_the_assistant,
+    )
+
+    gate_role = evaluate_gate_role_reassignment_targets_the_assistant()
+    c.add(
+        "gate_role_reassignment_targets_the_assistant",
+        "安全性ゲートが正当な『あなたは今〜/…として』を通し乗っ取りだけ止める",
+        10.0 * gate_role.checks_passed / gate_role.checks_total,
+        detail=f"{gate_role.checks_passed}/{gate_role.checks_total} checks; "
+               "src/sidra_ai/evals/gate_role_reassignment_targets_the_assistant.py"
+               + ("" if gate_role.passed else "; " + "; ".join(gate_role.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was
