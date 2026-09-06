@@ -121,6 +121,12 @@ class AllDate {
   static parse(){ const [y, m, d] = 'STAMP_INPUT'.split('-').map(Number);
     return { getFullYear: () => y, getMonth: () => m - 1, getDate: () => d } }
 }
+/* The statics the page still needs, carried over before Date is replaced.
+   Without UTC the day-count in daily.py returns null and the streak reads
+   0 - so seeding a streak here would have been a check that could not
+   fire, which is worse than not seeding one (C-1445). */
+AllDate.UTC = Date.UTC;
+AllDate.now = () => 0;
 globalThis.Date = AllDate;
 globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
 let allClock = 0;

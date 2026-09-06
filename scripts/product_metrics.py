@@ -9148,6 +9148,14 @@ def measure_creation(c: Collector) -> None:
 
     _all_stamp = "2026-09-03"
     _all_request = "ゲームを作って"
+
+    def _all_day(stamp):
+        """The day number daily.py counts in, for the stamp the probe pins."""
+
+        from datetime import date as _all_date
+
+        year, month, day = (int(part) for part in stamp.split("-"))
+        return (_all_date(year, month, day) - _all_date(1970, 1, 1)).days
     together_gaps: list[str] = []
     together_ok: list[str] = []
     for key in sorted(_tune_templates):
@@ -9159,12 +9167,22 @@ def measure_creation(c: Collector) -> None:
         body = found.group(1)
         earned = _all_skin(key)["skins"][1]
         hardest = max(pair[0] for pair in _tune_ladder[key].values())
+        # Everything the page has learned to write down, not only what it
+        # wrote in September's first week (C-1445). The run existed to
+        # catch features colliding, and it was seeding a 9/4 page: the
+        # strip it measured came out 68px narrower than the one a real
+        # returning player sees, because neither the row of runs (C-1432)
+        # nor the day count (C-1442) was ever in it.
         stored = {
             f"sidra.seen.{key}": "1",
             f"sidra.skin.{key}": earned["id"],
             f"sidra.total.{key}": str(earned["at"]),
             f"sidra.best.{key}": "999999",
             f"sidra.tune.{key}": {"daily": True, "speed": hardest},
+            f"sidra.runs.{key}": [12, 34, 7, 56, 23],
+            f"sidra.daily.{key}": {"day": _all_day(_all_stamp), "n": 7},
+            f"sidra.streak.{key}": "3",
+            f"sidra.tie.{key}": "5",
         }
         try:
             probe = _scene_sp.run(
@@ -9208,6 +9226,15 @@ def measure_creation(c: Collector) -> None:
             problems.append(f"the panel's speed did not reach the game ({seen['atLoad']['speed']})")
         if seen["atLoad"]["accent"] != earned["accent"]:
             problems.append("the earned colour is not the one being painted with")
+        # The state seeded above has to actually reach the screen, or the
+        # widest strip this measures is not the widest strip there is.
+        # Learned the hard way here: the harness's Date carried no UTC, so
+        # daily.py's day count returned null and the streak read 0 - the
+        # key was seeded and the feature was still invisible.
+        if not any("直近 " in line for line in lines):
+            problems.append("the row of recent runs never reached the strip")
+        if not any("日目" in line for line in lines):
+            problems.append("the day count never reached the strip")
         if not (seen["atBreak"]["round"]["done"] or seen["atBreak"]["round"]["ended"]):
             problems.append("the round never reached a break")
         if seen["stripAt"] is None:

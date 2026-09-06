@@ -247,3 +247,40 @@ def test_the_declared_keys_say_who_owns_each_one() -> None:
         assert not [
             other for other in others if other.startswith(prefix) or prefix.startswith(other)
         ], f"{prefix} overlaps another declared key"
+
+
+# --- the run has to be measuring today's page (C-1445) -------------------
+
+
+def test_the_ledger_covers_every_key_the_page_actually_writes() -> None:
+    """The sweep is self-declaring: a feature that picks a new prefix
+    fails here rather than quietly overwriting whichever got there first.
+
+    Measured when C-1445 was picked up: the ledger was already current -
+    ghost, streak, runs and daily were all in it, and the sweep reported
+    no gaps. What was NOT current was the state the integration run seeds,
+    which is the other half of the same question.
+    """
+
+    from sidra_ai.creation.together import STORAGE_PREFIXES, key_gaps, storage_keys
+
+    for template in sorted(TEMPLATES):
+        body, _ = _script(template)
+        assert key_gaps(body) == [], template
+        for prefix in storage_keys(body):
+            assert prefix in STORAGE_PREFIXES, f"{template}: {prefix}"
+
+
+def test_the_harness_date_carries_the_statics_the_page_uses() -> None:
+    """Otherwise a seeded feature is invisible and the check cannot fire.
+
+    daily.py counts days with ``Date.UTC``. The harness replaced ``Date``
+    with a stub that had none, so the day count returned null and the
+    streak read 0 - the key was seeded and the feature still never
+    reached the screen. A check that cannot fail is worse than no check.
+    """
+
+    from sidra_ai.creation.together import PROBE
+
+    assert "AllDate.UTC = Date.UTC;" in PROBE
+    assert PROBE.index("AllDate.UTC") < PROBE.index("globalThis.Date = AllDate;")
