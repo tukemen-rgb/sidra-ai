@@ -13341,6 +13341,143 @@ def measure_creation(c: Collector) -> None:
     # naming no theme still renders in the site's own palette. Without it a
     # "themed" generator that had quietly redecorated the default would score
     # full marks here while having changed the product's identity.
+    # --- the board still says what it means ------------------------------
+    #
+    # C-1447. Three loops append to docs/BACKLOG.md at once, and between
+    # 2026-09-06 04:08 and 13:39 six commits did nothing but put it back
+    # together by hand. Judged against those six boards rather than against
+    # a made-up one: the check has to go red on the state each repair was
+    # cleaning up, and green on the state it left behind - otherwise it is
+    # a check for a bug the board never had.
+    import importlib.util as _board_import
+
+    _board_spec = _board_import.spec_from_file_location(
+        "check_backlog_board", ROOT / "scripts" / "check_backlog_board.py"
+    )
+    _board_mod = _board_import.module_from_spec(_board_spec)
+    _board_spec.loader.exec_module(_board_mod)
+
+    # sha -> what that commit repaired, and whether it finished the job.
+    # b835209 fixed one duplicate and left three behind; 832bad0 removed
+    # them two hours later. So its "after" is still red - a true reading,
+    # and the reason this table records the expectation per commit.
+    _BOARD_REPAIRS = {
+        "b835209": ("C-1439 の重複（3 ブロックは残った）", False),
+        "832bad0": ("重複 3 ブロックと C-1434 の記録位置", True),
+        "ff24e9e": ("C-1440 の記録が C-1442 の下に落ちた", True),
+        "b3a233a": ("C-1357 の重複した作業中行", True),
+        "2099b44": ("C-1442 の記録が C-1443 の下に落ちた", True),
+        "01c68e4": ("C-1443 の記録が C-1444 の下に落ちた", True),
+    }
+
+    def _board_at(ref):
+        try:
+            got = _scene_sp.run(
+                ["git", "show", f"{ref}:docs/BACKLOG.md"],
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+                timeout=120,
+            )
+        except (OSError, _scene_sp.SubprocessError) as exc:
+            return None, f"git unavailable ({type(exc).__name__})"
+        if got.returncode != 0:
+            return None, f"{ref}: {got.stderr.strip()[:60]}"
+        return got.stdout, None
+
+    board_gaps: list[str] = []
+    board_caught = 0
+    live = (ROOT / "docs" / "BACKLOG.md").read_text(encoding="utf-8")
+    live_problems = _board_mod.check(live)
+    if live_problems:
+        board_gaps.append(f"現在の板が赤い: {live_problems[0]}")
+    for _board_sha, (_board_what, _board_finished) in _BOARD_REPAIRS.items():
+        if board_gaps:
+            break
+        before, problem = _board_at(f"{_board_sha}^")
+        if problem:
+            board_gaps.append(problem)
+            break
+        if not _board_mod.check(before):
+            board_gaps.append(
+                f"{_board_sha}^ は {_board_what} を抱えた板なのに検査が緑"
+            )
+            break
+        board_caught += 1
+        after, problem = _board_at(_board_sha)
+        if problem:
+            board_gaps.append(problem)
+            break
+        repaired = not _board_mod.check(after)
+        if repaired is not _board_finished:
+            board_gaps.append(
+                f"{_board_sha} の修復後が想定と違う"
+                f"（想定={'緑' if _board_finished else '赤'}）"
+            )
+            break
+    # The live board has to be able to go red, or "緑" above means only
+    # that the check never fires. Both shapes are reconstructed on the real
+    # text, by doing to it what the six commits had to undo:
+    #   1. insert a new item between a finished item's brief and the record
+    #      appended under it (ff24e9e's commit message names this cause), and
+    #   2. paste an item's heading line a second time (a rebase bringing the
+    #      other loop's copy back).
+    if not board_gaps:
+        _board_items = _board_mod.read_items(live)
+        _board_donor = None
+        for _board_item in _board_items:
+            if _board_item["box"] not in _board_mod.FINISHED or not _board_item["id"]:
+                continue
+            for _board_n, _board_l in _board_item["body"]:
+                if _board_mod.RECORD.match(_board_l):
+                    _board_donor = (_board_item, _board_n)
+                    break
+            if _board_donor:
+                break
+        if _board_donor is None:
+            board_gaps.append("記録を持つ完了項目が板に無く、落ち方を再現できない")
+        else:
+            _board_item, _board_n = _board_donor
+            _board_lines = live.split("\n")
+            _board_drift = list(_board_lines)
+            _board_drift[_board_n - 1 : _board_n - 1] = [
+                "- [ ] **C-9999: あとから挿し込まれた新しい項目。**",
+                "      （起票の根拠）→ 動かす数字: some_metric unmeasurable→1",
+            ]
+            if not _board_mod.check("\n".join(_board_drift)):
+                board_gaps.append(
+                    f"{_board_item['id']} の記録の上に項目を挿し込んでも検査が緑のまま"
+                )
+            _board_double = list(_board_lines)
+            _board_double.insert(_board_item["line"], _board_item["text"])
+            if not _board_mod.check("\n".join(_board_double)):
+                board_gaps.append(
+                    f"{_board_item['id']} の見出しを 2 度貼っても検査が緑のまま"
+                )
+    c.add(
+        "backlog_board_consistent",
+        "板の完了記録が持ち主の項目から離れない",
+        0.0 if board_gaps else 1.0,
+        detail=(
+            "; ".join(board_gaps)
+            if board_gaps
+            else f"手で直した **{board_caught} 件の実際の板**（{', '.join(_BOARD_REPAIRS)}）"
+            "を git から取り出して両方向で実測: **修復前の板はすべて赤**、"
+            "**修復後は 5/6 が緑**——`b835209` だけは修復後も赤で、これは誤検知"
+            "ではなく実際に 3 ブロックが残っていた（2 時間後の `832bad0` が消した）。"
+            "落ち方は 2 形しかない: ①同じ C 番号が 2 つの項目を見出しに立つ"
+            "（rebase で戻った複製）②未了の項目が完了記録を抱える（項目の説明と"
+            "後から足した記録の間に新項目が入る＝`ff24e9e` の commit が名指しした原因）。"
+            "現在の板は緑だが、**その実物に落ち方を作れば赤になる**——"
+            "①記録の上に新項目を挿し込む（原因そのもの）②見出しを 2 度貼る。"
+            "**緑が「検査が鳴らないだけ」でないことを毎回確かめる**。"
+            "C-1011 だけは事前から 2 項目に使われており（既に他所の完了記録が"
+            "両方を引用しているので付け替えられない）明示的に列挙して除外、"
+            "他の重複は落ちる"
+        ),
+        kind=OUTCOME,
+    )
+
     themed, detail = _measure_themes()
     c.add(
         "creation_themes_available",
