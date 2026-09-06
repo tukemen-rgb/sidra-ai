@@ -24,11 +24,14 @@ re-scheduling itself, exactly as the hitstop does.
 
 from __future__ import annotations
 
+import json
+
 #: What the preamble introduces.
 PREAMBLE_NAMES: tuple[str, ...] = (
     "gateState",
     "gateFrames",
     "gateBrief",
+    "gateBriefTable",
     "gateSkipped",
     "gateSeen",
     "gateGesture",
@@ -201,6 +204,28 @@ function gateWrap(text,limit){const out=[];let line='';
   for(const ch of text){line+=ch;
     if(line.length>=limit){out.push(line);line=''}}
   if(line)out.push(line);return out}
+/* The briefing table: objective, controls, threat - the three things a
+   player needs before the first frame, in that order. Falls back to the
+   instruction line for a template with no briefing, so a missing entry
+   costs the framing rather than the screen.
+   Drawn on the PAUSE screen as well as the title (C-1442... C-1444): the
+   briefing is skipped from the second visit onward by design - it is only
+   news once - and pause was the one place left that could answer "what
+   was the key again?". Nothing new is written there; it is the same three
+   lines, from the same function, so the two screens cannot drift apart. */
+function gateBriefTable(c,W,H){
+  let y=H/2-30;
+  if(GBRIEF&&GBRIEF.length===3){
+    const LABEL=['目標','操作','敵'];
+    GBRIEF.forEach((line,i)=>{
+      c.textAlign='left';
+      c.fillStyle='CYAN_TOKEN';c.font='12px ui-monospace,monospace';
+      c.fillText(LABEL[i],W/2-190,y);
+      c.fillStyle='INK_TOKEN';c.font='13px ui-monospace,monospace';
+      gateWrap(line,30).forEach((part,j)=>{c.fillText(part,W/2-140,y+j*18)});
+      y+=gateWrap(line,30).length*18+10});
+    c.textAlign='center'}
+  else{gateWrap(GHOW,34).forEach((line,i)=>{c.fillText(line,W/2,H/2-18+i*20)})}}
 function drawGate(){if(!GCV||GATE==='playing')return;
   const c=GCV.getContext('2d'),W=GCV.width,H=GCV.height;
   c.save();
@@ -213,23 +238,7 @@ function drawGate(){if(!GCV||GATE==='playing')return;
   c.font='22px ui-monospace,monospace';
   c.fillText(GATE==='title'?GTITLE:'一時停止',W/2,H/2-54);
   c.font='13px ui-monospace,monospace';
-  if(GATE==='title'){
-    /* The briefing table: objective, controls, threat - the three things a
-       player needs before the first frame, in that order. Falls back to the
-       instruction line for a template with no briefing, so a missing entry
-       costs the framing rather than the screen. */
-    let y=H/2-30;
-    if(GBRIEF&&GBRIEF.length===3){
-      const LABEL=['目標','操作','敵'];
-      GBRIEF.forEach((line,i)=>{
-        c.textAlign='left';
-        c.fillStyle='CYAN_TOKEN';c.font='12px ui-monospace,monospace';
-        c.fillText(LABEL[i],W/2-190,y);
-        c.fillStyle='INK_TOKEN';c.font='13px ui-monospace,monospace';
-        gateWrap(line,30).forEach((part,j)=>{c.fillText(part,W/2-140,y+j*18)});
-        y+=gateWrap(line,30).length*18+10});
-      c.textAlign='center'}
-    else{gateWrap(GHOW,34).forEach((line,i)=>{c.fillText(line,W/2,H/2-18+i*20)})}}
+  gateBriefTable(c,W,H);
   c.font='15px ui-monospace,monospace';
   c.fillText(GATE==='title'?'タップ / SPACE ではじめる':'タップ / SPACE でつづける',
     W/2,H-46);
@@ -307,6 +316,65 @@ console.log(JSON.stringify({
   brief: typeof gateBrief === 'function' ? gateBrief() : null,
 }));
 """
+
+
+#: A page started, paused and resumed, reporting what was drawn each time.
+#:
+#: Every name here carries a ``pg`` prefix: the templates declare ``keys``,
+#: ``ctx`` and ``store`` of their own at the top level, and a harness that
+#: reuses one of those does not shadow it - the page refuses to parse at
+#: all (C-1436 was the same lesson from inside a loop).
+PAUSE_PROBE = """
+const pgNothing = new Proxy(function(){}, {
+  get: (t,k)=>(k===Symbol.toPrimitive?()=>0:pgNothing), apply:()=>pgNothing, set:()=>true });
+globalThis.matchMedia = () => ({ matches: false });
+let pgClock = 0; globalThis.performance = { now: () => pgClock };
+const pgKeys = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') pgKeys.push(fn) };
+globalThis.Image = function(){ return pgNothing };
+const pgStore = STORE_INPUT;
+globalThis.localStorage = { getItem:k=>k in pgStore?pgStore[k]:null,
+  setItem:(k,v)=>{pgStore[k]=String(v)}, removeItem:k=>{delete pgStore[k]} };
+let pgDrawn = [];
+const pgCtx = new Proxy({ fillText: (t)=>{ pgDrawn.push(String(t)) } },
+  { get:(t,k)=>(k in t?t[k]:(k===Symbol.toPrimitive?()=>0:pgNothing)), set:()=>true });
+globalThis.document = { readyState:'complete', body:{children:[]},
+  createElement:()=>pgNothing, querySelector:()=>null,
+  getElementById:()=>({ width:720, height:320, style:{}, addEventListener:()=>{},
+    getBoundingClientRect:()=>({left:0,top:0,width:720,height:320}), getContext:()=>pgCtx }) };
+globalThis.location = { reload: () => {} };
+let pgQueued = null;
+globalThis.requestAnimationFrame = (fn) => { pgQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function pgKey(k){ const e={key:k, code:k===' '?'Space':k,
+  preventDefault(){}, stopImmediatePropagation(){}};
+  pgKeys.forEach(fn=>fn(e)) }
+function pgStep(n){ for(let i=0;i<n && pgQueued;i++){
+  const fn=pgQueued; pgQueued=null; pgClock+=16; fn(pgClock) } }
+/* Whatever the gate is showing before anything is pressed. On a first
+   visit this is the title; on a return visit the briefing is skipped by
+   design and the game is already running. */
+const atLoad = (function(){ pgDrawn=[]; pgStep(3); return pgDrawn.slice() })();
+pgKey(' '); pgStep(8);
+const playing = (function(){ pgDrawn=[]; pgStep(3); return pgDrawn.slice() })();
+pgKey('p'); pgStep(3);
+const paused = (function(){ pgDrawn=[]; pgStep(3); return pgDrawn.slice() })();
+pgKey('p'); pgStep(3);
+const resumed = (function(){ pgDrawn=[]; pgStep(3); return pgDrawn.slice() })();
+console.log(JSON.stringify({
+  gate: gateState(), brief: (function(){ try { return gateBrief() } catch(e){ return null } })(),
+  skipped: (function(){ try { return gateSkipped() } catch(e){ return null } })(),
+  atLoad: atLoad, playing: playing, paused: paused, resumed: resumed,
+}));
+"""
+
+
+def pause_probe_source(script: str, *, store: dict[str, str] | None = None) -> str:
+    """The page driven to a pause and back, with ``store`` behind it."""
+
+    return PAUSE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "STORE_INPUT", json.dumps(store or {}, ensure_ascii=False)
+    )
 
 
 def probe_source(script: str) -> str:
@@ -435,8 +503,10 @@ __all__ = [
     "GATE_PREAMBLE",
     "INSTANT_FRAMES",
     "PREAMBLE_NAMES",
+    "PAUSE_PROBE",
     "PROBE",
     "START_PROBE",
+    "pause_probe_source",
     "probe_source",
     "start_probe_source",
 ]

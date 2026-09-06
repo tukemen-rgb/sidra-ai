@@ -12889,6 +12889,94 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the pause screen answers "what was the key again?" --------------
+    #
+    # C-1444. The briefing table (objective, controls, threat) is news only
+    # once, so from the second visit the page skips it and opens straight
+    # into play - which left the controls written down nowhere a player
+    # could reach. Pause was the obvious place and showed only 「一時停止」.
+    #
+    # Measured on a RETURN visit, because that is the case at issue: the
+    # probe seeds `sidra.seen.<template>` and the judge refuses to score a
+    # page whose briefing was not actually skipped.
+    from sidra_ai.creation.startscreen import pause_probe_source as _pause_probe
+
+    _PAUSE_LABELS = ("目標", "操作", "敵")
+
+    def _pause_drive(template):
+        art = _tune_generate("ゲームを作って", template=template)
+        body = _scene_re.search(r"<script>(.*?)</script>", art.html, _scene_re.S)
+        if body is None:
+            return None, f"{template}: no script"
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_pause_probe(
+                    body.group(1), store={f"sidra.seen.{template}": "1"}
+                ),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: pause probe unavailable ({type(exc).__name__})"
+
+    pause_gaps: list[str] = []
+    pause_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        seen, problem = _pause_drive(key)
+        if problem:
+            pause_gaps.append(problem)
+            break
+        paused, resumed = seen["paused"], seen["resumed"]
+        if not seen["skipped"]:
+            pause_gaps.append(
+                f"{key}: the briefing was not skipped on a return visit, so the "
+                "case this is about was never reached"
+            )
+            break
+        if "一時停止" not in paused:
+            pause_gaps.append(f"{key}: P did not reach the pause screen ({paused[:3]})")
+            break
+        missing = [label for label in _PAUSE_LABELS if label not in paused]
+        if missing:
+            pause_gaps.append(f"{key}: the pause screen omits {missing}")
+            break
+        # The lines themselves, not only their labels - and the same ones
+        # the briefing carries, so the two screens cannot drift apart.
+        brief = seen.get("brief")
+        if brief and len(brief) == 3:
+            absent = [
+                line for line in brief if not any(line[:12] in drew for drew in paused)
+            ]
+            if absent:
+                pause_gaps.append(
+                    f"{key}: the labels are there but not the line {absent[0][:22]!r}"
+                )
+                break
+        if any(label in resumed for label in _PAUSE_LABELS):
+            pause_gaps.append(f"{key}: the table was still up after resuming")
+            break
+        pause_ok.append(key)
+    c.add(
+        "creation_pause_shows_controls",
+        "一時停止でも操作を確かめられる",
+        0.0 if pause_gaps else 1.0,
+        detail=(
+            "; ".join(pause_gaps)
+            if pause_gaps
+            else f"{len(pause_ok)} 型すべてを**再訪ページ**（briefing が設計どおり"
+            "スキップされる状態＝操作の確かめ場所がどこにも無かった状況）で実走行し、"
+            "P で一時停止したときに 3 行表〔目標・操作・敵〕の**ラベルと本文の両方**が"
+            "描かれ、もう一度 P で消えることを検査。本文はタイトルが出すものと同一"
+            "（同じ関数・新情報なし）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by
