@@ -38,8 +38,11 @@ from __future__ import annotations
 #: Duel (C-1434) is the sixth, unblocked by C-1435: its fights hitstop on
 #: every landed blow, and until the motion bar stopped counting frames
 #: the page held still itself, an honest duel demo could not pass it.
+#: Adventure (C-1439) is the seventh: the hero does not walk unbidden, and
+#: the walk is the whole demo - out of the waking room, cutting what is in
+#: the way.
 ATTRACT_TEMPLATES: tuple[str, ...] = (
-    "racing", "shooter", "kaiju", "marble", "platformer", "duel")
+    "racing", "shooter", "kaiju", "marble", "platformer", "duel", "adventure")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
@@ -50,7 +53,6 @@ ATTRACT_UNWIRED: dict[str, str] = {
     "catch": "the basket never moves on its own, so the demo is items falling past a still bowl",
     "fishing": "the marker sweeps for ever and nothing else happens: motion without a game in it",
     "puzzle": "a board that is never clicked is a still image",
-    "adventure": "the hero does not walk on their own; the room would sit there",
 }
 
 #: What to call to put the world back to its first frame. Every template
@@ -67,7 +69,12 @@ ATTRACT_RESET: dict[str, str] = {
     "platformer": "keys.ArrowRight=false;reset()",
     # Duel's reset rebuilds both fighters, so the pilot's held charge
     # goes with them.
-    "duel": "reset()"}
+    "duel": "reset()",
+    # Adventure's reset() rebuilds the hero but leaves ``keys`` alone, so
+    # the demo's walk has to be let go of here (platformer's case, and
+    # for the same reason): otherwise the player's first go begins with
+    # the hero already striding right.
+    "adventure": "keys.arrowright=keys.arrowup=keys.arrowdown=false;reset()"}
 
 #: One line of piloting, run every demo frame before the template's step
 #: (C-1338). The arcade's attract mode is a recorded hand on the real
@@ -127,6 +134,55 @@ ATTRACT_PILOT: dict[str, str] = {
     # enemy's lane and release. The receipt is a landed blow: an
     # unpiloted duel is the CPU executing a statue, and its own KO loops
     # pass everything but this.
+    # Adventure (C-1439): walk right along the row the hero wakes on -
+    # which is the row the door out is on - and cut what can be cut.
+    # Measured on the real forest rather than assumed: row 4 reads
+    # 1 0 [hero] 2 0 2 0 2 0 3 3 3 0 ... 5, so the walk meets grass it
+    # can clear and then a POND it cannot. Grass is solid until cut and
+    # ponds are solid for ever, so "hold right and swing" wedges against
+    # the water. Hence the step aside.
+    #
+    # It reads TWO corners rather than one tile ahead, because that is
+    # what the template's own movement reads, and a pilot that tests
+    # less than the game does gets stuck where the game says it may not
+    # pass. The first version tested one tile and wedged 20px from the
+    # start for all 4200 frames: the hero wakes at y=144, the top EDGE
+    # of its row, so its 10px box straddles two rows and the NPC sitting
+    # in the row above (tile 8, solid) was blocking a walk that looked
+    # clear on the hero's own row. Stepping off the boundary is what
+    # frees it, and the step is self-cancelling - once the box is inside
+    # one row the corner stops reading solid.
+    #
+    # It also holds the row it woke on when nothing is in the way, and
+    # that is not tidiness: build() puts every door of every room on row
+    # 4 (forest[4][GW-1], cave[4][0], cave[4][GW-1], altar[4][0]), so
+    # that row IS the way through. Without the bias the sidesteps only
+    # ever accumulated one way - measured, the hero ended its 70 seconds
+    # in row 7 against the right wall, having walked and cut the whole
+    # time but never found the door.
+    #
+    # ``hero.dir`` is set before the swing because holding up or down
+    # turns the hero that way on the step, and a swing goes where the
+    # hero faces - a demo that steps around a pond and then cuts the
+    # air is one the receipt would rightly refuse.
+    #
+    # The receipt is a gem, and gems come only from cutting grass.
+    # Unlike marble and duel, an unpiloted adventure fails on its own
+    # merits and not only on the receipt - measured with the pilot
+    # removed: the picture changes on 17.0% of frames and the round
+    # never ends (0 loops), because the roamers are the only things
+    # moving and they do not come for a hero standing in its bed. That
+    # is ATTRACT_UNWIRED's old line, confirmed rather than assumed.
+    "adventure": "const AX=hero.x+13,ALY=OY+4*TILE+TILE/2,"
+    "AU=tileAt(AX,hero.y-10),AD=tileAt(AX,hero.y+10),"
+    "ABU=solid(AX,hero.y-10)&&AU!==2,ABD=solid(AX,hero.y+10)&&AD!==2;"
+    "if(AU===2||AD===2){hero.dir=1;swing()}"
+    "keys.arrowright=true;"
+    "keys.arrowdown=(ABU&&!solid(hero.x,hero.y+34))"
+    "||(!ABU&&!ABD&&hero.y<ALY-3);"
+    "keys.arrowup=!keys.arrowdown&&((ABD&&!solid(hero.x,hero.y-34))"
+    "||(!ABU&&!ABD&&hero.y>ALY+3));"
+    "if(hero.gems>0)ATTRACT_LIVE=1",
     "duel": "if(p.stun<=0){"
     "if(e.hold&&e.aim===p.lane)p.lane=e.aim===2?1:e.aim+1;"
     "if(!p.hold&&p.beam<=0)p.hold=true;"

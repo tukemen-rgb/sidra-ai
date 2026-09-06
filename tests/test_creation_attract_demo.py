@@ -244,6 +244,36 @@ def test_the_duel_demo_lands_blows_and_the_meter_forgives_the_hitstop() -> None:
     assert sorted(seen["beforePress"]["store"]) == []
 
 
+def test_the_adventure_demo_walks_out_cutting_and_goes_again() -> None:
+    """The walking hand (C-1439): hold right, cut what is in the way.
+
+    The hero wakes on the row every door in every room is built on, so
+    the demo is that walk - and the pilot has to read the two corners
+    the template's own movement reads, not one tile ahead. Measured on
+    the real page: reading one tile wedged the hero 20px from its bed
+    for the whole 70 seconds (the NPC in the row above blocked a walk
+    that was clear on the hero's own row), and without the bias back to
+    that row the sidesteps only ever went one way and it finished in row
+    7 against the wall, having never reached a door: 0 loops both times.
+
+    The receipt is a gem, which comes only from cutting grass. Every
+    break was measured on the real page and each drops the demo: no
+    pilot at all 17.0% moved / 0 loops / no gem, the same walk with the
+    swing taken out 17.2% / 0 / none (the grass it cannot cut is what
+    pens it in), and the swing kept but the row bias dropped 100.0%
+    moved but still 0 loops - motion is not a game.
+    """
+
+    seen = _watch("adventure", idle=1200, play=30)
+    facts = seen["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 1200
+    assert facts["loops"] >= 1, "the demo never reached an ending of its own"
+    assert facts["live"] == 1, "the demo never cut grass"
+    assert seen["beforePress"]["round"]["ms"] == 0
+    assert sorted(seen["beforePress"]["store"]) == []
+
+
 def test_every_idle_frame_reports_whether_the_page_held_it(demo: dict) -> None:
     """C-1435: the probe distinguishes a frame the page held on purpose
     (hitstop spends frames by design) from a demo that froze."""
