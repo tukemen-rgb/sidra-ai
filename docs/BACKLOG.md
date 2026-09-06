@@ -5392,6 +5392,20 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
+- [~] 作業中 2026-09-06 03:58 UTC 辛口クリエイター **C-1354: platformer の遠景の尾根は描いてあるのに測っていない——§7 の 3 層契約（C-1342/C-1345）の外にいる 3 例目（§7）。**
+      （辛口クリエイターループ起票・観点=§7 場面の構成。前回=§8×§17）
+      draw() の 231〜236 行に「distance is contrast, not colour」と註釈
+      された視差 0.4× の尾根が既にあるが、**裸の 0.22 リテラルで塗られ
+      FAR_A 定数も depthFacts() 契約も無い**＝kaiju/duel が
+      creation_depth_layers で守られる「空より見えて（≥1.02:1）中景より
+      淡い」の実測が platformer には一切届かない。テーマや場面の変更で
+      尾根が沈んでも（C-1347 の路肩と同じ型の退行）どの計器も鳴らない。
+      実装: FAR_A=0.22 へ定数化・depthFacts()（per-scene の
+      sky=BG_TOKEN・solid=RAISED_TOKEN・alpha）を契約公開・HUD probe
+      出力に depth: を追加。計器は racing/platformer の既存 HUD ループで
+      収穫（**追加 node 実行ゼロ**・C-1347 の edge と同じ手）し
+      _depth_all に platformer を追加。→ 動かす数字:
+      creation_depth_layers 2→3
 - [x] 完了 2026-09-06 03:55 UTC 辛口クリエイター（`creation_attract_demo` **6→7**、判定器 exit 0（BETTER）。**clock 型初の attract**——C-1349 で「構造的に不可」と記録した前提を機構拡張で解いた: ATTRACT_SLICE（catch=900f≒15 秒・自終端型は 0）をゲートに追加し、roundEnded() か スライス満了で ATTRACT_LOOPS++・巻き戻し＝アーケードの「15 秒見せて頭から」。catch は reset() を持たないので ATTRACT_RESET が世界を手組みで再構築し **rs も再シード**——破壊で実証: 再シード削除は atPress では見えず afterPlay の round facts で対照とずれて条項 4 が捕捉（乱数流の漂流は 10 秒後に現れる）。パイロットは最下の落下物へ px を寄せる C-1424 同型の手。**受領書は実測から**: 無操縦の偶然捕球はスライスあたり 6〜12（シード 3 種）・操縦ありは 37 → 閾値 20（C-1349 の教訓どおり最初の caught>=12 は 1 シードで偶然点灯し実測で棄却）。実測: 4200f 中 slice 周回 4・live 1・進んだ全フレームの 99.3% で絵が変化・時計 0ms・handover 完全一致（両シード）。**追随の再計測 1 件**——押下時の巻き戻しが catch の連打ラウンドの軌道を変え creation_cosmetic_unlock が 10→0（SKIN_UNIT 25 と実測 33 の乖離を C-1407 の窓が捕捉）→ 表の教義どおり実測 3 回同値で 25→33 に再計測（skins.py に経緯を記録）。pytest exit 0（3655 passed / 3 skip）・gate MISS 0。attract は **7/10 型**・残り fishing（動きに遊びが無い）/puzzle（クリック無しは静止画）/adventure（C-1439・歩行パイロット候補）） **C-1438: catch の幕の裏でかごが追いかける（attract パイロット）。**
       （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
       実読「catch: the basket never moves on its own, so the demo is
