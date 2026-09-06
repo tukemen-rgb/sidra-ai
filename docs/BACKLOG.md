@@ -3775,7 +3775,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       **効くことを確認した破壊は 6 通り**（帯を 1 行に戻す／種の無い盤面に
       今日を名乗らせる／パネル値がゲームに届かなくする／localStorage の鍵を
       型で分けない／帯から再挑戦の案内を消す／即時開始と既読スキップを食い違わせる）。
-- [~] 作業中 2026-09-06 00:2x UTC 辛口ユーザー **C-1268: 質問応答画面のプロジェクト一覧（loadProjects）が上限なしで全件描画され、C-1252 で成果物一覧に入れた「新しい順に N 件・全 M 件」の抑制が抜けている。実測（ui.py 実読）: loadArtifacts は ARTIFACT_LIMIT=20 で slice＋「新しい順に N 件を表示（全 M 件）」表示だが、loadProjects は items.forEach で全件描画・件数注記なし。プロジェクト（ゲーム制作一式）が増えるとスマホで長スクロールになり C-1252 と同じ体裁崩れ。API は newest-first・MAX_LISTED で server-cap 済みだが、UI 側の表示抑制が成果物側だけにあり不整合。**（成果物のファイル取得/一覧・traversal は実測で堅牢＝欠陥なし。operate 中に見つかった本 UI 不整合を最悪点に採る）
+- [x] 完了 2026-09-06 00:47 UTC 辛口ユーザー（`ui_project_list_bounded` 0→**10**、判定器 exit 0・pytest 全通し FAILED 0・gate 回帰 exit 0（blended 8.0%）・--compare exit 0（BETTER 0→10, MOVED 1）。5 通りの破壊（bounded slice 撤去／PROJECT_LIMIT 宣言削除／件数注記削除／PROJECT_LIMIT=9999／loadProjects に items 直 forEach 混入）で 4/4→2/3/3/3/3 に落ち、復元で 4/4。実ブラウザ E2E（Chromium・iPhone 12、/v1/projects を 25 件でスタブ）: 行数 25→**20**・project-status「新しい順に 20 件を表示（全 25 件）。」・pageerror なし・document 高 2303px。C-1252 家系だが別関数・別リスト、非退行）**C-1268: 質問応答画面のプロジェクト一覧（loadProjects）が上限なしで全件描画され、C-1252 で成果物一覧に入れた「新しい順に N 件・全 M 件」の抑制が抜けている。実測（ui.py 実読）: loadArtifacts は ARTIFACT_LIMIT=20 で slice＋「新しい順に N 件を表示（全 M 件）」表示だが、loadProjects は items.forEach で全件描画・件数注記なし。プロジェクト（ゲーム制作一式）が増えるとスマホで長スクロールになり C-1252 と同じ体裁崩れ。API は newest-first・MAX_LISTED で server-cap 済みだが、UI 側の表示抑制が成果物側だけにあり不整合。**（成果物のファイル取得/一覧・traversal は実測で堅牢＝欠陥なし。operate 中に見つかった本 UI 不整合を最悪点に採る）
       （辛口ユーザーループ起票・45 巡目 Web UI プロジェクト一覧・4/10。C-1252 家系だが別関数・別リスト、約16 巡ぶり）
       **最小の解決**は C-1252 と同型: loadProjects に PROJECT_LIMIT を導入し
       items.slice(0, PROJECT_LIMIT) を描画、全件超なら project-status に

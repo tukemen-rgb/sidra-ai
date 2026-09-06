@@ -213,6 +213,9 @@ ASK_PAGE = """<!doctype html>
   // How many generated files the entry page lists at once (C-1252). The list is
   // newest-first, so this is the recent handful; the rest is reported as a count.
   var ARTIFACT_LIMIT = 20;
+  // Same cap for productions (C-1268): loadProjects listed every one, so the
+  // projects section grew the same phone long-scroll the artifact cap fixed.
+  var PROJECT_LIMIT = 20;
 
   function authHeaders() {
     var token = document.getElementById("token").value;
@@ -312,8 +315,19 @@ ASK_PAGE = """<!doctype html>
       }).then(function (result) {
         clear(projectList);
         var items = result.projects || [];
-        projectStatus.textContent = items.length ? "" : "まだありません。";
-        items.forEach(function (p) {
+        // Newest-first like the artifacts; one production can carry many files,
+        // so an uncapped list is the same long-scroll (C-1268). Show a recent
+        // slice and report the total so nothing is hidden without saying so.
+        var shown = items.slice(0, PROJECT_LIMIT);
+        if (!items.length) {
+          projectStatus.textContent = "まだありません。";
+        } else if (items.length > PROJECT_LIMIT) {
+          projectStatus.textContent =
+            "新しい順に " + PROJECT_LIMIT + " 件を表示（全 " + items.length + " 件）。";
+        } else {
+          projectStatus.textContent = "";
+        }
+        shown.forEach(function (p) {
           // One entry per production. The slug and the file names are the
           // server's own metadata; production-log.md inside answers "when,
           // from what, with which parameters".

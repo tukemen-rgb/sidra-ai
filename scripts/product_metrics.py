@@ -853,6 +853,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1268: C-1252 capped the artifact list to a recent slice with a
+    # count note, but loadProjects kept rendering every project with a
+    # bare items.forEach - the same phone long-scroll, on the projects
+    # list. The page now bounds the render to PROJECT_LIMIT and surfaces
+    # the total. Pinned on the page source, mirroring the artifact check.
+    from sidra_ai.evals.ui_project_list_bounded import (
+        evaluate_ui_project_list_bounded,
+    )
+
+    proj_bounded = evaluate_ui_project_list_bounded()
+    c.add(
+        "ui_project_list_bounded",
+        "プロジェクト一覧が新しい順に上限件数だけ表示し総数を添える",
+        10.0 * proj_bounded.checks_passed / proj_bounded.checks_total,
+        detail=f"{proj_bounded.checks_passed}/{proj_bounded.checks_total} checks; "
+               "src/sidra_ai/evals/ui_project_list_bounded.py"
+               + ("" if proj_bounded.passed else "; " + "; ".join(proj_bounded.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

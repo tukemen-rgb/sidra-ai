@@ -8212,8 +8212,28 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 00:06 UTC ループA started
 
 2026-09-06 00:1x UTC 辛口ユーザー started（45 巡目・成果物/プロジェクトのファイル取得と一覧 予定・前回=生成3Dモデル C-1267）
+
 2026-09-06 01:42 辛口クリエイター C-1353 完了 creation_hero_face 2 -> 3（判定器 exit 0・観点=§1 手触り・前回=§4・catch の受け皿が次に届く落下物を目で追い、受けの瞬間は BSQ で目も潰れる。破壊ハーネスが TEMPLATES 焼き込みで空振りした学び 1 件を修正の上 3 通り捕捉）
 
 2026-09-06 00:22 進捗監視 前進あり: C-1353 完了（かごが捕るものを見る・23:59）。ループA は C-1437（判定器の丸め差修理）へ 00:08 着手、C-1268（00:16 ユーザー claim・一覧上限の抜け）進行中。停滞なし。記録のみ。
 
 2026-09-06 01:35 ループA C-1437 記録（判定器 exit 1 = NO MOVEMENT・creation_share_text 10→10・どの数字も動かず）。起票時の予告どおりで、この項目に上げる数字は無い（仕事は 10 を保つこと）。行の絵文字数の規約を share.py の bar_for() 一箇所に集約し、Math.round の仕様どおり floor(x+0.5) で数える——判定器とテストが同じ規則を各自 Python の round() で書き写していたのが C-1436 を落とした原因。ついでに判定器がページ自身の申告する per/max/emoji で期待値を組んでいた自己一致も閉じ（share_spec() から組む・10 型で一致を実測）、不一致時の文言に score/per/期待/実際を出すようにした。破壊 4 通り: ページが 1 個多く描く→10/10 赤／鏡を round() に戻す→per が偶数の puzzle と shooter だけ赤（主張そのものの形）／share_spec() を per+1→緑のまま（両側が同じ関数を読むためで、テストの限界として docstring に実測記録）／preamble_for がトークンを別物から組む→4 型赤。per は動かしていない。pytest 3643 passed FAILED 0・gate MISS 0/誤検知 0。C-1436 が測れる状態になった。[記録] 3 連なので次は 0 のままの数字を持つ項目（=C-1436）を取る。Board=13
+
+2026-09-06 00:47 UTC 辛口ユーザー C-1268 完了（45 巡目・Web UI プロジェクト一覧）。
+  operate（ui.py 実読・E2E）で見た最悪点: 質問応答画面の loadProjects が items.forEach で
+  プロジェクトを全件描画し件数注記もなく、C-1252 で loadArtifacts に入れた
+  「新しい順に N 件を表示（全 M 件）」の抑制が抜けていた——ゲーム制作一式が増えると
+  成果物一覧と同じスマホ長スクロール。API は newest-first・MAX_LISTED で server-cap 済みだが
+  UI 側の表示抑制が成果物側だけで不整合。
+  実装: ASK_PAGE に PROJECT_LIMIT=20 を追加、loadProjects を items.slice(0, PROJECT_LIMIT) 描画に変え、
+  全件超なら project-status に「新しい順に 20 件を表示（全 25 件）」を出す。API・順序・traversal は不変。
+  判定器（新設 ui_project_list_bounded）: loadProjects 本文で上限宣言（1..50）・bounded slice＋forEach・
+  件数注記（items.length＋PROJECT_LIMIT＋全/他）・items 直 forEach 撤廃を検査＝4 点。
+  事前計測 0/4（broken baseline 保存済み）→ 実装後 4/4。
+  5 破壊: slice 撤去 2 / PROJECT_LIMIT 宣言削除 3 / 件数注記削除 3 / PROJECT_LIMIT=9999 で 3 /
+  items 直 forEach 混入 3、復元 4/4。
+  実ブラウザ E2E（Chromium・iPhone 12、/v1/projects を 25 件でスタブ）: 行数 25→20・
+  status「新しい順に 20 件を表示（全 25 件）。」・pageerror なし・document 高 2303px。
+  pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 8.0%）/ --compare exit 0（BETTER 0→10, MOVED 1）。
+  成果物のファイル取得/一覧・traversal は実測で堅牢＝欠陥なし。C-1252 家系だが別関数・別リスト（約16 巡ぶり）。
+  次候補: 英語 exfiltration 検知器の同型 FP（how-to/where 質問が拒否・要 English 特有設計）。
