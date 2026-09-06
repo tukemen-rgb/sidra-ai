@@ -137,7 +137,12 @@ THEMES: dict[str, Theme] = {
             "code": "#1d2531",
             "muted": "#4d5768",
             "accent": "#0b5c72",
-            "alert": "#9c1462",
+            # C-1369 (§4×§20): the old #9c1462 crimson collapsed onto the
+            # teal accent for protanopes (Machado-simulated ΔE 11.3) -
+            # the classic red-discount. Shifted toward purple, which
+            # keeps its distance on the S-cone axis: min ΔE across the
+            # three dichromacies 20.3, contrast vs surface 6.33:1.
+            "alert": "#8a34a2",
             "radius": GAMEYARD_TOKENS["radius"],
             "radius_tight": GAMEYARD_TOKENS["radius_tight"],
         },
@@ -157,7 +162,11 @@ THEMES: dict[str, Theme] = {
             "code": "#bdf5bd",
             "muted": "#74c274",
             "accent": "#2bff6b",
-            "alert": "#ffd23f",
+            # C-1369 (§4×§20): amber vs phosphor green is the textbook
+            # protan confusion (both land yellowish, ΔE 13.1). A deeper
+            # amber separates by luminance where hue is gone: min ΔE
+            # 20.7, contrast vs surface 9.94:1.
+            "alert": "#f4ac28",
             "radius": "4px",
             "radius_tight": "2px",
         },

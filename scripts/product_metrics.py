@@ -7483,6 +7483,100 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the two information hues survive colour-blind eyes ------------
+    #
+    # §4×§20 (C-1369): the shape channel (C-1018) was always the last
+    # line of defence, but nobody had ever measured the colour channel
+    # itself. Machado 2009's full-severity matrices (applied in linear
+    # RGB - skipping the gamma step invalidates the measurement, §20's
+    # own warning) simulate each dichromacy, and the accent×alert pair
+    # must stay apart in Lab: ΔE >= 20 on the editable themes, >= 15 on
+    # the brand-locked default (GAMEYARD's palette is not ours to move).
+    # Before C-1369 the paper theme sat at 11.3 and terminal at 13.1
+    # under protanopia - two silently collapsed cells.
+    import math as _cvd_math
+
+    from sidra_ai.creation.themes import select_theme as _cvd_theme
+
+    _cvd_M = {
+        "protan": [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],
+        "deutan": [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]],
+        "tritan": [[1.255528, -0.076749, -0.178779], [-0.078411, 0.930809, 0.147602], [0.004733, 0.691367, 0.303900]],
+    }
+
+    def _cvd_lin(hexcolour: str) -> list[float]:
+        raw = hexcolour.lstrip("#")
+        v = [int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+        return [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in v]
+
+    def _cvd_sim(m: list, rgb: list[float]) -> list[float]:
+        return [
+            max(0.0, min(1.0, sum(m[i][j] * rgb[j] for j in range(3))))
+            for i in range(3)
+        ]
+
+    def _cvd_lab(rgb: list[float]) -> tuple[float, float, float]:
+        X = 0.4124 * rgb[0] + 0.3576 * rgb[1] + 0.1805 * rgb[2]
+        Y = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+        Z = 0.0193 * rgb[0] + 0.1192 * rgb[1] + 0.9505 * rgb[2]
+
+        def f(t: float) -> float:
+            return t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+
+        fx, fy, fz = f(X / 0.95047), f(Y), f(Z / 1.08883)
+        return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+
+    cvd_gaps: list[str] = []
+    cvd_cells = 0
+    # The sentinel: a red/olive pair every protanope confuses. If the
+    # simulator stops collapsing it toward itself (ΔE 95.4 raw, 27.4
+    # simulated), the matrices are no longer simulating anything and a
+    # passing table would be a blessing from a broken instrument.
+    _cvd_s1, _cvd_s2 = _cvd_lin("#ff0000"), _cvd_lin("#9b9b00")
+    _cvd_raw = _cvd_math.dist(_cvd_lab(_cvd_s1), _cvd_lab(_cvd_s2))
+    _cvd_simmed = _cvd_math.dist(
+        _cvd_lab(_cvd_sim(_cvd_M["protan"], _cvd_s1)),
+        _cvd_lab(_cvd_sim(_cvd_M["protan"], _cvd_s2)),
+    )
+    if _cvd_simmed >= _cvd_raw * 0.5:
+        cvd_gaps.append(
+            f"the simulator no longer simulates (sentinel {_cvd_simmed:.1f} vs raw {_cvd_raw:.1f})"
+        )
+    for _cvd_req, _cvd_floor in (
+        ("ゲームを作って", 15.0),
+        ("紙のテーマで", 20.0),
+        ("ターミナルのテーマで", 20.0),
+        ("dusk のテーマで", 20.0),
+    ):
+        _cvd_tk = _cvd_theme(_cvd_req).tokens
+        _cvd_a = _cvd_lin(_cvd_tk["accent"])
+        _cvd_b = _cvd_lin(_cvd_tk["alert"])
+        for _cvd_name, _cvd_m in _cvd_M.items():
+            _cvd_d = _cvd_math.dist(
+                _cvd_lab(_cvd_sim(_cvd_m, _cvd_a)), _cvd_lab(_cvd_sim(_cvd_m, _cvd_b))
+            )
+            if _cvd_d < _cvd_floor:
+                cvd_gaps.append(
+                    f"{_cvd_req}/{_cvd_name}: the two hues collapse (ΔE {_cvd_d:.1f} < {_cvd_floor:g})"
+                )
+            else:
+                cvd_cells += 1
+    c.add(
+        "creation_cvd_info_pair",
+        "色覚多様性でも主役と敵が別の色",
+        0.0 if cvd_gaps else float(cvd_cells),
+        detail=(
+            "; ".join(cvd_gaps)
+            if cvd_gaps
+            else "4 テーマ×3 種 2 色覚の全 12 セルで、accent×alert を Machado "
+            "重度 1.0 行列（linear RGB 適用・ガンマ補正込み）で変換した Lab ΔE "
+            "が床（editable 20・ブランド固定 default 15）を超える。修正前は"
+            "紙/protan 11.3・ターミナル/protan 13.1 が沈黙して落ちていた"
+            "（§20 の実測・形の併用 C-1018 は別の砦のまま）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a lock only skill opens ---------------------------------------
     #
     # §3 (C-1367): the one fact of the lock-and-key section never
