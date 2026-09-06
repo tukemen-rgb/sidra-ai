@@ -88,12 +88,23 @@ def generate_document(
     *,
     facts: list[Fact] | None = None,
     now: datetime | None = None,
+    set_aside: int = 0,
 ) -> GeneratedDocument:
     """Build one Markdown report from exactly the facts handed in.
 
     An empty ``facts`` list is a supported input and produces an honest
     skeleton: headings, blanks, and a sources section that says nothing was
     retrieved - which is a document the owner can fill, not a failure.
+
+    ``set_aside`` is how many retrieved facts the caller dropped as off-topic
+    before handing over ``facts`` (C-1281). The summary says so, but the summary
+    is shown once and the file is the artifact that is saved, edited and
+    forwarded - a report that quietly leaves out evidence reads as the complete
+    sourced picture it is not. So when any were set aside the file discloses it
+    too, in 「まだ埋まっていないこと」. No count is printed: a digit that names
+    nothing in the evidence is exactly what ``validate_document`` catches as a
+    fabricated number, and the honest thing to disclose here is *that* evidence
+    was withheld, not to smuggle a figure past the check.
     """
 
     title = _title_from(request)
@@ -151,7 +162,13 @@ def generate_document(
 
     # Present even when everything above is filled: a report that cannot say
     # what it does not know reads as if it knows everything.
-    lines += ["## まだ埋まっていないこと", "", f"- {BLANK}", ""]
+    lines += ["## まだ埋まっていないこと", "", f"- {BLANK}"]
+    if set_aside > 0:
+        lines.append(
+            "- 依頼と主題が重ならないと判断した根拠は、この文書には載せていません"
+            "（依頼を具体的にすると入ります）。"
+        )
+    lines.append("")
     unfilled.append("まだ埋まっていないこと")
 
     lines += ["## 出典", ""]

@@ -34,7 +34,7 @@ def build_document_generator(data_dir: str | Path):
         # is the shape a reader trusts most. Facts that share no subject
         # term with the request are set aside rather than printed.
         facts, aside = on_topic(message, list(retrieved or []))
-        document = generate_document(message, facts=facts)
+        document = generate_document(message, facts=facts, set_aside=len(aside))
         verdict = validate_document(document, facts)
         path = save_document(document, data_dir)
         # C-1128: 「レポートを作りました（根拠 0 件、社長が埋める欄 3 箇所）」

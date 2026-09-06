@@ -1114,6 +1114,30 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1281: the report drops off-topic facts (C-1403) and the chat summary
+    # says so, but the summary is shown once and the .md file is the artifact
+    # that is saved and forwarded - it disclosed nothing, so a report that had
+    # quietly left out evidence read as the complete sourced picture. The file
+    # now discloses the withholding in 「まだ埋まっていないこと」, without a count
+    # (a digit naming nothing in the evidence is what the fabrication validator
+    # catches). Measured through the router's document generator and the
+    # validator.
+    from sidra_ai.evals.document_discloses_set_aside_evidence import (
+        evaluate_document_discloses_set_aside_evidence,
+    )
+
+    doc_aside = evaluate_document_discloses_set_aside_evidence()
+    c.add(
+        "document_discloses_set_aside_evidence",
+        "外した根拠を保存ファイル本体でも開示する",
+        10.0 * doc_aside.checks_passed / doc_aside.checks_total,
+        detail=f"{doc_aside.checks_passed}/{doc_aside.checks_total} checks; "
+               "src/sidra_ai/evals/document_discloses_set_aside_evidence.py"
+               + ("" if doc_aside.passed
+                  else "; " + "; ".join(doc_aside.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
