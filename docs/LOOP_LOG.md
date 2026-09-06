@@ -8414,3 +8414,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   捕まえられない（判定器は pptx_path で両枝分岐するので pptx 導入環境では成功側も検査される）。
   次候補: 英語 exfiltration のトレーリング文脈型 FP（token field／API key in the config／instructions for）。
   deck 名詞＋柔らかい依頼動詞の intent 取りこぼし（FP 注意）。
+
+2026-09-06 07:07 UTC ループA started
