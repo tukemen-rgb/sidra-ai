@@ -157,6 +157,12 @@ function sfx(name,pitch){
     if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)()}
     if(AC.state==='suspended'){AC.resume()}
     const t0=AC.currentTime,[wave,rawF0,rawF1,dur]=spec,vol=sfxGain(name);
+    /* The three heaviest voices ask the music to step back (§21,
+       C-1371) - and only they do, because a duck on every pickup would
+       be the overuse the reference warns about. Guarded: a page without
+       the music preamble still plays its effect. */
+    if(name==='win'||name==='lose'||name==='powerup'){
+      try{musicDuck(Math.round(dur*60)+30)}catch(e){}}
     const jit=1+(Math.random()*2-1)*SFX_JITTER;
     /* Pitch as information (§14 事実 1 の第 3 形, C-1359): a caller that
        KNOWS a height - the rung of a ladder - says it here, and the whole
@@ -477,6 +483,11 @@ const tune = measure(() => musicNote(440, 0, 0.2, 0.2, 'square'));
    caller, so asking it for one the clamp does bind is the only way to
    measure the rule rather than assume it. */
 combat(true);
+/* The ordering, not the duck: the sounds this probe played above may
+   have left MUSIC_DUCK below 1 (C-1371), and a synthetic ceiling-bound
+   note read through it would measure two rules at once. The duck has
+   its own judge; this one is stood back to full height first. */
+try { MUSIC_DUCK = 1; MUSIC_DUCK_HOLD = 0 } catch (e) {}
 const clampedTune = measure(() => musicNote(440, 0, 0.2, 0.8, 'square'));
 combat(false);
 console.log(JSON.stringify({

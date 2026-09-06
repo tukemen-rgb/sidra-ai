@@ -7792,6 +7792,71 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the bars step back for the heavy beats ------------------------
+    #
+    # §2×§21 (C-1371): ducking. The reference mix pulls everything but
+    # the moment's most important sound to -9dB and releases over a
+    # second; SIDRA's dialogue-equivalents are the win phrase, the lose
+    # noise and the milestone powerup, and the four bars used to play on
+    # at full height beneath all three. Read off a built page with a
+    # recording context: music notes are told from one-shots by gain.
+    import re as _dk_re
+    import subprocess as _dk_sp
+
+    from sidra_ai.creation.music import duck_probe as _dk_probe
+
+    duck_gaps: list[str] = []
+    try:
+        _dk_page = generate_game("ゲームを作って", template="catch").html
+        _dk_script = _dk_re.search(r"<script>(.*?)</script>", _dk_page, _dk_re.S)
+        if _dk_script is None:
+            raise ValueError("no script")
+        _dk_run = _dk_sp.run(
+            ["node", "-"],
+            input=_dk_probe(_dk_script.group(1)),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if _dk_run.returncode != 0:
+            raise ValueError(_dk_run.stderr.strip()[:60])
+        _dk = json.loads(_dk_run.stdout.strip().splitlines()[-1])
+    except (OSError, _dk_sp.SubprocessError, ValueError) as exc:
+        duck_gaps.append(f"probe unavailable ({exc})")
+        _dk = None
+    if _dk is not None:
+        _dk_calm = _dk["calm"]
+        if len(_dk_calm) < 3 or min(_dk_calm) < 0.04:
+            duck_gaps.append(f"the calm bars are not at height ({_dk_calm})")
+        elif _dk["duckAfterGem"] != 1:
+            duck_gaps.append("a light pickup ducks the music - the overuse the reference warns about")
+        elif not _dk["ducked"] or any(
+            not (0.3 <= v / c <= 0.4)
+            for v in _dk["ducked"]
+            for c in (0.045 if v < 0.017 else 0.055,)
+        ):
+            duck_gaps.append(f"the win does not pull the bars to -9dB ({_dk['ducked']})")
+        elif len(_dk["recovered"]) < 3 or min(_dk["recovered"]) < 0.0449:
+            duck_gaps.append(f"the bars never come back ({_dk['recovered']})")
+        elif _dk["duckAfterLose"] != 0.35 or _dk["duckAfterPowerup"] != 0.35:
+            duck_gaps.append("a heavy voice fails to duck the music")
+    c.add(
+        "creation_bgm_ducking",
+        "重い一発の下で音楽が場所を空ける",
+        0.0 if duck_gaps else 1.0,
+        detail=(
+            "; ".join(duck_gaps)
+            if duck_gaps
+            else "実ページの記録実測——平常の音符 0.045/0.055 が win の瞬間"
+            "×0.35（§21 の -9dB）に沈み、保持後 ~1 秒で完全復帰、lose と"
+            "powerup も同じく蹴り、gem など軽い声は蹴らない（乱発防止は"
+            "§21 の警告どおり呼び出し側を重い 3 声に限る設計）。天井と"
+            "コンバット段の後・master の前の乗算＝C-1408 の順序と §6 の"
+            "音圧比・音符の本数は不変"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the pass is heard where it happens ----------------------------
     #
     # §2 (C-1364): the last synthesis axis. sfxr lists low-pass AND

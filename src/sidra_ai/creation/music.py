@@ -34,6 +34,7 @@ from __future__ import annotations
 #: Names this preamble introduces, held to by the vocabulary test.
 PREAMBLE_NAMES: tuple[str, ...] = (
     "musicTick",
+    "musicDuck",
     "musicFacts",
     "musicArm",
     "MUSIC_ON",
@@ -47,6 +48,14 @@ MUSIC_PREAMBLE = """
    and impossible to make dissonant on this scale. */
 const MUSIC_STEP=0.27,MUSIC_STEPS=32,MUSIC_AHEAD=0.1;
 let MUSIC_ON=false,MUSIC_NEXT=-1,MUSIC_I=0,MUSIC_N=0;
+/* Ducking (§2×§21, C-1371): when the round's heaviest one-shots speak,
+   the four bars step back so the moment is heard - x0.35 is the -9dB
+   the reference mix ducks to, held for the effect and released over
+   about a second (+0.011 a tick). Only the three heavy voices call
+   musicDuck: restraint is the technique's own first rule. */
+let MUSIC_DUCK=1,MUSIC_DUCK_HOLD=0;
+function musicDuck(frames){MUSIC_DUCK_HOLD=Math.max(MUSIC_DUCK_HOLD,frames|0);
+  MUSIC_DUCK=0.35}
 /* Its own generator: the game's rand() deals the world, this one only
    deals the tune, so the same request stays the same game AND the same
    song, and neither draw disturbs the other. MUSIC_SEED_INPUT is its
@@ -100,7 +109,10 @@ function musicNote(freq,off,dur,vol,wave){
        ceiling and the same mute as everything else. */
     /* Same dial as the effects, applied after the same ceiling (C-1408),
        so the fight's step over calm keeps its size at every volume. */
-    const v=Math.min(MAX_GAIN,vol*(COMBAT?COMBAT_GAIN:1))*masterGain();
+    /* The duck multiplies after the ceiling and the combat step, like
+       the master dial (C-1408's order): a reduction below the ceiling
+       keeps every authored ratio intact, and only this note gets quieter. */
+    const v=Math.min(MAX_GAIN,vol*(COMBAT?COMBAT_GAIN:1))*MUSIC_DUCK*masterGain();
     gain.gain.setValueAtTime(v,t0);
     gain.gain.exponentialRampToValueAtTime(0.001,t0+dur);
     osc.connect(gain);gain.connect(AC.destination);
@@ -126,6 +138,9 @@ function musicTick(tms){
      length of talk - 2.1s vs 4.4s - so combat keeps time twice as fast).
      Same four bars, same notes, twice the tread; the gain step §6 観察 4
      already gives every note stays as it was, and M still wins. */
+  /* The duck holds while the one-shot speaks, then climbs home. */
+  if(MUSIC_DUCK_HOLD>0){MUSIC_DUCK_HOLD--}
+  else if(MUSIC_DUCK<1){MUSIC_DUCK=Math.min(1,MUSIC_DUCK+0.011)}
   const stepNow=COMBAT?MUSIC_STEP*0.5:MUSIC_STEP;
   while(MUSIC_NEXT<now+MUSIC_AHEAD){
     const i=MUSIC_I%MUSIC_STEPS,off=MUSIC_NEXT-now;
@@ -206,6 +221,85 @@ console.log(JSON.stringify({
 """
 
 
+#: The duck, as heard (§2×§21, C-1371). A recording AudioContext logs the
+#: first gain of every scheduled node; music notes sit at 0.045/0.055 and
+#: the heavy one-shots well above 0.1, so the two are told apart by
+#: value. The win must pull the music to x0.35 of itself, a light pickup
+#: must not, and one second later the bars must be back at full height.
+DUCK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const gains = [];
+function Recorder(){ this.state='running'; this.currentTime=0; this.destination={};
+  this.sampleRate=44100 }
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createOscillator = function(){
+  return { type:'', frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+           setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBuffer = function(ch, len){
+  return { getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){
+  return { buffer:null, start(){}, stop(){}, connect(){} } };
+Recorder.prototype.createBiquadFilter = function(){
+  return { kind:'filter', type:'',
+    frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){} } };
+Recorder.prototype.createGain = function(){
+  let first = true;
+  return { gain:{ value:0, setValueAtTime(v){ if (first) { gains.push(v); first = false } },
+                  exponentialRampToValueAtTime(){} },
+    connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+function music(){ return gains.filter(v => v < 0.1) }
+key(' ');
+run(90);
+gains.length = 0; run(60);
+const calm = music().slice();
+sfx('gem');
+const duckAfterGem = MUSIC_DUCK;
+sfx('win');
+gains.length = 0; run(55);
+const ducked = music().slice();
+run(240);
+gains.length = 0; run(60);
+const recovered = music().slice();
+sfx('lose');
+const duckAfterLose = MUSIC_DUCK;
+run(200);
+sfx('powerup');
+const duckAfterPowerup = MUSIC_DUCK;
+console.log(JSON.stringify({
+  calm: calm, duckAfterGem: duckAfterGem, ducked: ducked, recovered: recovered,
+  duckAfterLose: duckAfterLose, duckAfterPowerup: duckAfterPowerup }));
+"""
+
+
+def duck_probe(script: str) -> str:
+    """The page's own script, wrapped so the bars' height can be read."""
+
+    return DUCK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the tune can be watched in node."""
 
@@ -271,6 +365,8 @@ def end_probe(script: str) -> str:
 __all__ = [
     "END_PROBE",
     "MUSIC_PREAMBLE",
+    "DUCK_PROBE",
+    "duck_probe",
     "PREAMBLE_NAMES",
     "PROBE",
     "end_probe",
