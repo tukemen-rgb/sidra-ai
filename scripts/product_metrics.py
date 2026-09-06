@@ -894,6 +894,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1270: select_excerpt_window (C-983) moved the citation window to where
+    # the query is discussed, but its candidate starts were newline positions
+    # only. Japanese prose ends sentences with 。 and runs a paragraph on one
+    # line, so the window could not move and the excerpt showed the paragraph
+    # opening, not the answering sentence. Sentence boundaries are now candidate
+    # starts too. Measured through select_excerpt_window and the real chat path.
+    from sidra_ai.evals.excerpt_centers_in_paragraph import (
+        evaluate_excerpt_centers_in_paragraph,
+    )
+
+    excerpt_center = evaluate_excerpt_centers_in_paragraph()
+    c.add(
+        "excerpt_centers_in_paragraph",
+        "日本語の段落でも引用抜粋が回答文を含む位置に寄る",
+        10.0 * excerpt_center.checks_passed / excerpt_center.checks_total,
+        detail=f"{excerpt_center.checks_passed}/{excerpt_center.checks_total} checks; "
+               "src/sidra_ai/evals/excerpt_centers_in_paragraph.py"
+               + ("" if excerpt_center.passed else "; " + "; ".join(excerpt_center.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

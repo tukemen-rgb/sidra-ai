@@ -23,7 +23,13 @@ def test_citation_excerpt_marks_truncation_eval_passes():
 
 
 def test_tail_clip_is_marked_and_within_cap():
-    content = "返金方針。" + "".join(f"第{i}条 返金は 14 日以内。" for i in range(1, 20))
+    # The match sits only in the opening sentence, so the window stays at the
+    # head and the tail is clipped. Since C-1270 the window can open on a later
+    # sentence, so a term repeated in every clause would move it down - a
+    # head-only match is what keeps this a head-anchored, tail-clipped case.
+    content = "返金方針についての説明。" + "".join(
+        f"第{i}条 一般的な契約条件が続く。" for i in range(1, 20)
+    )
     excerpt, withheld = citation_excerpt(content, OutputGuard(), query="返金")
     assert not withheld
     assert excerpt.endswith("…")

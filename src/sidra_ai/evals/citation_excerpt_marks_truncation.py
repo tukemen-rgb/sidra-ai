@@ -44,9 +44,13 @@ def evaluate_citation_excerpt_marks_truncation() -> CitationExcerptTruncationRes
         else:
             failures.append(msg)
 
-    # A long single-line chunk: window opens at the head, tail is clipped.
-    long_head = "返金方針について。" + "".join(
-        f"第{i}条 返金は購入後 14 日以内に限り受け付ける。" for i in range(1, 14)
+    # A long single-line chunk whose match is only at the head: the window opens
+    # there and the tail is clipped. The query term is kept to the opening
+    # sentence on purpose - since C-1270 the window can open on a later sentence
+    # too, so a term repeated in every clause would move it down; a head-only
+    # match is what pins this case to a head-anchored, tail-clipped excerpt.
+    long_head = "返金方針についてまとめる。" + "".join(
+        f"第{i}条 一般的な契約条件の説明が続く。" for i in range(1, 14)
     )
     ex_head, _ = citation_excerpt(long_head, guard, query="返金")
     add(ex_head.endswith(_ELLIPSIS), f"tail-clipped excerpt has no 「…」: 「{ex_head[-16:]}」")
