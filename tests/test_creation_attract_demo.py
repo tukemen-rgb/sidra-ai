@@ -22,6 +22,7 @@ import subprocess
 
 import pytest
 
+import sidra_ai.creation.attract as attract_module
 from sidra_ai.creation.attract import (
     ATTRACT_RESET,
     ATTRACT_TEMPLATES,
@@ -63,9 +64,22 @@ def demo() -> dict:
 
 @pytest.fixture(scope="module")
 def still() -> dict:
-    """An unwired template, left alone for the same two seconds."""
+    """A page with no demo behind its title, left alone the same two seconds.
 
-    return _watch("puzzle", idle=120, play=30)
+    Built rather than borrowed. Every template has been wired since
+    C-1356 and C-1440 landed together, so there is no unwired one left
+    to point at - and this guard has to outlive that, because it is what
+    says the gate itself decides, rather than every page happening to
+    have a demo. One template is generated with the table that decides
+    the token temporarily not naming it.
+    """
+
+    kept = attract_module.ATTRACT_TEMPLATES
+    attract_module.ATTRACT_TEMPLATES = tuple(t for t in kept if t != "puzzle")
+    try:
+        return _watch("puzzle", idle=120, play=30)
+    finally:
+        attract_module.ATTRACT_TEMPLATES = kept
 
 
 @pytest.fixture(scope="module")
@@ -100,9 +114,18 @@ def test_wired_needs_both_the_list_and_a_way_back_to_frame_one() -> None:
         assert wired(template)
         assert reset_call(template)
     # Listed but with no reset is not wired: a demo that cannot be rewound
-    # would hand the player the middle of the go they just watched.
-    assert not wired("puzzle")
-    assert reset_call("puzzle") == ""
+    # would hand the player the middle of the go they just watched. The
+    # case is constructed rather than named after whichever template
+    # happens to be unwired - this used to point at puzzle, and went
+    # stale the moment C-1440 wired it.
+    kept = attract_module.ATTRACT_TEMPLATES
+    attract_module.ATTRACT_TEMPLATES = kept + ("unrewindable",)
+    try:
+        assert "unrewindable" not in ATTRACT_RESET
+        assert not wired("unrewindable")
+        assert reset_call("unrewindable") == ""
+    finally:
+        attract_module.ATTRACT_TEMPLATES = kept
 
 
 # --- what reaches the page -------------------------------------------------
