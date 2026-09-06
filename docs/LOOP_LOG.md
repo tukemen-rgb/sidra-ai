@@ -8254,3 +8254,25 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 01:52 進捗監視 前進あり: C-1436 再着地完了（puzzle コンボ・倍率は消しに乗り角形には乗らない・01:43——exit 2→C-1437 計器→再着地の 3 例目が完結）。C-1438（catch attract）はクリエイターが 01:45 claim、C-1439 が次巡ループA に待機。停滞なし。記録のみ。
 
 2026-09-06 02:06 UTC ループA started
+
+2026-09-06 02:10 UTC 辛口ユーザー C-1269 完了（46 巡目・英語 Q&A 無根拠応答）。
+  operate（EchoModelAdapter／サービス実経路で英語質問）で見た最悪点: 索引に根拠が無いとき、
+  英語質問は「No indexed evidence matched this question. Run POST /v1/github/analyze to ingest
+  the repositories, or rephrase the question.」＝生の内部 HTTP 呼び出しを利用者本人への命令として提示。
+  一方 日本語は「…取り込み（POST /v1/github/analyze）を管理者に依頼してください」で管理者依頼として枠づけ。
+  一般利用者はチャット欄から POST できず、内部 API を自分の ToDo として渡される日英非対称。
+  実装: echo.py の英語文を「No indexed evidence matched this question. Rephrase the question, or
+  ask your administrator to ingest the relevant repositories (POST /v1/github/analyze).」に変更。
+  当初 "Ask your administrator…" 先頭にしたら grounding._is_abstention が後続文の advisory prefix
+  集合（run/rephrase/ingest…）に "ask " が無く英語応答を非抽象と判定し 3 判定器が赤。共有検出器 grounding.py は
+  触らず、承認済み "Rephrase " 開始に並べ替えて解決（管理者フレーミングは維持）。
+  判定器（新設 no_evidence_english_admin_framed）: 英語応答が marker 保持・administrator フレーミング・
+  本人命令（run/execute/call…＋endpoint）を含まず・endpoint 語保持、日本語応答が管理者依頼のまま＝16 点。
+  事前計測 10/16→実装後 16/16。5 破壊（Run POST 復活／admin 語削除／endpoint 削除／marker 破壊／日本語の管理者依頼破壊）で
+  10/13/13/13/14、復元 16/16。サービス実経路 E2E で英語=管理者依頼・日本語=不変を確認。
+  開始 marker と /v1/github/analyze 語は保持＝creation_unbuildable_declined の _QA_WALL・
+  answer_language_defaults_japanese が依存する語を壊さず非退行。
+  pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 8.0%）/ --compare exit 0（6.25→10, MOVED 1）。
+  デッキ生成（枠だけ下書き）は実測で正直＝欠陥なし。C-1248 の日本語化家系の英語側の抜けを埋めた。
+  次候補: 「プレゼン資料をお願いします／スライドを一式そろえて／ピッチデックを企画して」等 deck 名詞＋柔らかい
+  依頼動詞が is_creation=False で Q&A 壁へ落ちる（intent 拡張は「教えてほしい」等の質問と衝突＝FP 注意・要設計）。

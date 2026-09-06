@@ -105,8 +105,8 @@ class EchoModelAdapter(LocalModelAdapter):
             else:
                 text = (
                     "No indexed evidence matched this question. "
-                    "Run POST /v1/github/analyze to ingest the repositories, or "
-                    "rephrase the question.\n\n"
+                    "Rephrase the question, or ask your administrator to ingest "
+                    "the relevant repositories (POST /v1/github/analyze).\n\n"
                     f"Question received: {question}"
                 )
             return self._result(request, text, finish_reason="no_evidence")

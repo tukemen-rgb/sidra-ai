@@ -873,6 +873,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1269: the English no-evidence reply told the reader to run
+    # 「POST /v1/github/analyze」 themselves, while the Japanese reply for the
+    # same state asked the administrator to do the ingestion. A general user
+    # cannot POST from a chat box; the English framing now routes the ask to
+    # the administrator too. Markers and the endpoint token stay (other judges
+    # key on them). Measured through the real reply path.
+    from sidra_ai.evals.no_evidence_english_admin_framed import (
+        evaluate_no_evidence_english_admin_framed,
+    )
+
+    en_admin = evaluate_no_evidence_english_admin_framed()
+    c.add(
+        "no_evidence_english_admin_framed",
+        "英語の無根拠応答が取り込みを管理者依頼として枠づけ本人命令を渡さない",
+        10.0 * en_admin.checks_passed / en_admin.checks_total,
+        detail=f"{en_admin.checks_passed}/{en_admin.checks_total} checks; "
+               "src/sidra_ai/evals/no_evidence_english_admin_framed.py"
+               + ("" if en_admin.passed else "; " + "; ".join(en_admin.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
