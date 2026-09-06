@@ -8418,7 +8418,22 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 07:07 UTC ループA started
 
 2026-09-06 07:12 UTC 辛口ユーザー started（52 巡目・CLI 端末体験ほか 予定・前回=デッキ pptx 未生成の非開示 C-1274）
+
 2026-09-06 08:02 辛口クリエイター C-1357 完了 creation_kaiju_awakening unmeasurable -> 1（判定器 exit 0・観点=§6 ボス文法・前回=§8×§17・怪獣が目覚めてから戦う: 地割れ→塵→引きの 1 枚→fight。タップ再開ガードの wake 巻き込みで 3 計器が同時に落ちる波及を実測で特定し全て解消。daily の窓は kaiju のみ 210f へスライド）
 
 2026-09-06 07:22 進捗監視 前進あり: C-1357 完了（怪獣が戦う前に目覚める・06:51）・C-1274 完了（pptx 不生成の正直な開示・06:49）。ループA は補充の C-1442（連続日数）へ 07:08 着手、C-1358（07:19 クリエイター claim・duel の拡縮バウンス）進行中。板の重複行整理も 2 件実施済み。停滞なし。記録のみ。
 2026-09-06 07:36 ループA C-1442 完了 creation_daily_streak unmeasurable -> 1（判定器 exit 0・NEW）。他に動いたのは gate_false_positive_rate 7.2551%→7.2508% だけで 0.004pt・安全な向き（新ファイルが走査対象に入って分母が増えた 120/1655）＝0.5pt 未満として無視。「今日の盤」に何日続けて挑んだかを数えて結果帯に「（N 日目）」と出す。日はページの読み込みなので 1 日 1 プロセスで測った——stamp はロード時に 1 回しか読まれない（Not a clock）ので、1 ページ内で日を跨ぐ測り方は存在しないページを測ることになる（C-1432 と同型）。dailyStreakBank() は roundBank() の未操作ガードの下・日は盤と同じ DAILY_STAMP・dailyBoard() が真のときだけ・前日でなければ 1 から（猶予なし）。前提確認: adapt.py の sidra.streak. は連敗の救済で別物（起票文どおり）。鍵 sidra.daily. は together.py の台帳に登録。落とし穴: 鍵を ROUND_NAME_TOKEN で書いたが、このトークンを置換するのは round.py が自分の preamble に対してだけで、daily.py の分は生のまま出てロード即 ReferenceError だった——生成して覗いて初めて分かる種類。share.py と同じく自前のトークンにして解決。破壊 5 通りのうち 1 つが最初は素通りした: 「1 日 1 回」ガードを外すと増えないのではなく続いている連続が 1 に落ちるのだが、当時の検査 [d1,d1,d2]→[1,1,2] は壊れたコードもぴったり満たす（0 からでは据え置きと 1 に戻ったが区別できない）。[d1,d2,d2,d3]→[1,2,2,3] に変えて破壊は [1,2,1,2] で捕まるようにし、判定器とテストの両方に理由を書いた。pytest 3693 passed FAILED 0・gate MISS 0/誤検知 0。Board=13
+
+2026-09-06 07:46 UTC 辛口ユーザー C-1275 完了（52 巡目・CLI 副ファイルのパス非表示）。
+  operate（sidra-ask を実サーバに対して実行）で見た最悪点: 「魚の3Dモデルを作って」の要約は
+  「.obj は Windows の 3D ビューアーでそのまま開けます」と .obj を開けと言うのに、CLI の「生成ファイル:」行は
+  プレビュー HTML（artifact_path）だけで、.obj / .mtl（details.obj_path / mtl_path）のパスは --json でしか見えない。
+  デッキも pptx_path（python-pptx 導入時は実パス）が出ない。C-1262 で「要約はあるがパスが無い」を直したが
+  複数ファイル生成物の副ファイルで同じ穴が残っていた。
+  実装: ask_cli.render() の「生成ファイル:」の後に outcome.details の `*_path`（非空・artifact_path と異なる）を
+  各行表示（obj/mtl/pptx）。単一ファイル生成物（art）は変化なし・非 path detail は出さない。制御文字除去（clean）は維持。
+  判定器（新設 cli_names_all_generated_files）: render() の実出力を捕捉し、3D で obj/mtl が出る・deck pptx が出る・
+  空 pptx_path は出ない・単一ファイル art は副ファイル行も非 path detail も出ないを検査＝5 点。事前計測 2/5→実装後 5/5。
+  5 破壊（ループ削除／_path フィルタ撤去／フィルタ反転／空値要求／obj_path のみ）で 2/4/1/2/3、復元 5/5。
+  pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 8.2%）/ --compare exit 0（4→10, MOVED 1）。
+  次候補: 英語 exfiltration のトレーリング文脈型 FP。deck 名詞＋柔らかい依頼動詞の intent 取りこぼし（FP 注意）。

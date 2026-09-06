@@ -240,6 +240,18 @@ def render(payload: dict[str, Any]) -> int:
     artifact = outcome.get("artifact_path")
     if artifact:
         print(f"\n生成ファイル: {clean(str(artifact))}")
+        # A multi-file creation names only its preview in artifact_path: a 3D
+        # model's .obj/.mtl and a deck's .pptx live in the details. The summary
+        # tells the reader to open the .obj, so the CLI must give its path or it
+        # repeats C-1262 (a summary and nowhere to look) for the other files.
+        # Show every other *_path detail that was actually written.
+        details = outcome.get("details") or {}
+        for key in sorted(details):
+            if not key.endswith("_path"):
+                continue
+            value = details[key]
+            if value and str(value) != str(artifact):
+                print(f"  {clean(str(value))}")
     _print_citations(payload, clean, note_when_empty=not outcome)
 
     model = payload.get("model") or {}

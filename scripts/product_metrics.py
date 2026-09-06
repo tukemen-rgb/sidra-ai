@@ -994,6 +994,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1275: sidra-ask printed only artifact_path for a creation, so a 3D
+    # model's .obj/.mtl and a deck's .pptx - the files the summary tells the
+    # reader to open - had no path in the terminal (C-1262, for the other
+    # files). The render now names every written *_path detail.
+    from sidra_ai.evals.cli_names_all_generated_files import (
+        evaluate_cli_names_all_generated_files,
+    )
+
+    cli_files = evaluate_cli_names_all_generated_files()
+    c.add(
+        "cli_names_all_generated_files",
+        "CLI が複数ファイル生成物の副ファイル（obj/mtl/pptx）のパスも示す",
+        10.0 * cli_files.checks_passed / cli_files.checks_total,
+        detail=f"{cli_files.checks_passed}/{cli_files.checks_total} checks; "
+               "src/sidra_ai/evals/cli_names_all_generated_files.py"
+               + ("" if cli_files.passed else "; " + "; ".join(cli_files.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
