@@ -18,6 +18,7 @@ import pytest
 
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.marble import trail_probe
+from sidra_ai.creation.racing import trail_probe as racing_trail_probe
 
 
 def _rolled(*, reduced: bool = False) -> dict:
@@ -47,5 +48,37 @@ def test_the_rolling_marble_streaks_behind_itself() -> None:
 
 def test_reduced_motion_never_accumulates_one() -> None:
     seen = _rolled(reduced=True)
+
+    assert seen["full"] == 0, "reduced motion still streaks"
+
+
+def _raced(*, reduced: bool = False) -> dict:
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    page = generate_game("レースゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=racing_trail_probe(script.group(1), reduced=reduced),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_racing_car_streaks_and_speed_draws_the_length() -> None:
+    seen = _raced()
+
+    assert seen["full"] == 10, "the streak never fills"
+    assert seen["behind"], "an afterimage sits ahead of the car"
+    assert seen["slowSpan"] < seen["fastSpan"] * 0.7, "speed does not draw the length"
+    assert seen["drained"] is not None, "the finished run keeps its streak"
+
+
+def test_racing_reduced_motion_never_accumulates_one() -> None:
+    seen = _raced(reduced=True)
 
     assert seen["full"] == 0, "reduced motion still streaks"

@@ -90,12 +90,19 @@ const W=cv.width,H=cv.height,CARY=H-56,LAP=1800,LAPS=LAPS_TOKEN,ROADW=190;
 const PH1=rand()*6.283,PH2=rand()*6.283;
 function roadAt(d){return W/2+Math.sin(d/380+PH1)*150+Math.sin(d/151+PH2)*62}
 let car,obs,dist,lap,lapT,times,state,grace,spd,nextObs,passed,slips;
+/* The trail (§1, C-1372): ten afterimages of where the car just was,
+   fading with age behind it. Speed is what draws the length - the
+   samples are one frame apart, so a fast lap stretches them and the
+   post-crash crawl shrinks them, §1's weight-proportional rule read
+   from the speed side. Decoration: reduced motion never accumulates
+   one (C-1020), and a finished run drains a frame at a time. */
+let TRAIL=[];
 /* The stream the obstacles come out of, back to the top with everything
    else (C-1414). Three other templates already reset their seed here; this
    one did not, so a go that followed a demo - or an R restart - met a
    different set of obstacles on the same course. 「同じ依頼は同じ世界」 is
    the promise SEED makes, and it has to survive a restart. */
-function reset(){rs=(SEED>>>0)||1;car={x:roadAt(0)};obs=[];dist=0;lap=1;lapT=0;times=[];
+function reset(){rs=(SEED>>>0)||1;car={x:roadAt(0)};obs=[];dist=0;lap=1;lapT=0;times=[];TRAIL=[];
   state='race';grace=0;spd=PACE;nextObs=320;passed=0;slips=0}
 setPal(RACING_PAL_TOKEN);
 /* HUD contract (§4 WCAG 1.4.3, C-1337): draw() paints through these
@@ -120,6 +127,7 @@ function edgeFacts(){const keep=SCENE,out=[];
   SCENE=keep;return {a:EDGE_A,b:EDGE_B,scenes:out}}
 function onRoad(){return Math.abs(car.x-roadAt(dist))<ROADW/2-8}
 function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,passed:passed,
+  trail:TRAIL.map(s=>s.d),
   slips:slips,
   base:PACE,carX:car.x,road:roadAt(dist),roadW:ROADW,grace:grace,
   onRoad:onRoad(),times:times.slice(),lapT:lapT}}
@@ -148,6 +156,7 @@ function step(){
     const target=onRoad()?PACE:PACE*0.45;
     spd+=(target-spd)*(spd>target?0.08:0.03);
     dist+=spd;
+    if(!REDUCED){TRAIL.push({x:car.x,d:dist});if(TRAIL.length>10)TRAIL.shift()}
     /* Where we were, at this point on the course. */
     ghostSample(dist,car.x);
     if(grace>0)grace--;
@@ -173,6 +182,7 @@ function step(){
         return false}
       return o.d>dist-60});
     if(dist>=lap*LAP)crossLine()}
+  if(state!=='race'&&TRAIL.length)TRAIL.shift();
   draw();requestAnimationFrame(step)}
 function draw(){
   /* A lap is a scene: the palette steps once per lap and the final lap is
@@ -208,6 +218,12 @@ function draw(){
      outline only and dimmer than the best, drawn first so the record
      sits above it. When the last run IS the record the two coincide and
      honestly read as one. */
+  /* The afterimages first, oldest faintest, each where the car held it -
+     its past slides down-screen as the course scrolls on. */
+  TRAIL.forEach((s,i)=>{const y=CARY+(dist-s.d);if(y>H+20)return;
+    const a=(i+1)/TRAIL.length;
+    cx.save();cx.globalAlpha=a*0.28;cx.fillStyle='CYAN_TOKEN';
+    cx.fillRect(s.x-11,y-16,22,32);cx.restore()});
   const glx=ghostAtLast(dist);
   if(glx!==null){cx.save();cx.globalAlpha=0.35;
     cx.strokeStyle=TUNE_ACCENT;cx.lineWidth=1;
@@ -388,6 +404,63 @@ def slip_probe(script: str) -> str:
     return SLIP_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The trail, as raced (§1, C-1372). The page is really driven: at pace
+#: the ten afterimages fill and stretch, off the road the crawl shrinks
+#: their span, the finish drains them a frame at a time, and reduced
+#: motion never accumulates one.
+TRAIL_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(80);
+const fast = raceFacts();
+const fastBehind = fast.trail.every(d => d <= fast.dist);
+const fastSpan = fast.trail.length ? fast.dist - Math.min.apply(null, fast.trail) : 0;
+/* Park the car off the road: the crawl must shrink the streak. */
+car.x = 2;
+run(160);
+const slow = raceFacts();
+const slowSpan = slow.trail.length ? slow.dist - Math.min.apply(null, slow.trail) : 0;
+/* End the run the page's own way and watch the streak drain. */
+state = 'goal';
+let drained = null;
+for (let i = 0; i < 20 && drained === null; i++) { run(1);
+  if (raceFacts().trail.length === 0) drained = i }
+console.log(JSON.stringify({ full: fast.trail.length, behind: fastBehind,
+  fastSpan: fastSpan, slowSpan: slowSpan, spdFast: fast.spd, spdSlow: slow.spd,
+  drained: drained }));
+"""
+
+
+def trail_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the streak can be watched."""
+
+    return TRAIL_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the race can be driven in node."""
 
@@ -395,6 +468,8 @@ def probe_source(script: str) -> str:
 
 
 __all__ = [
+    "TRAIL_PROBE",
+    "trail_probe",
     "RACING_DIFFICULTY",
     "RACING_HOW",
     "RACING_SCRIPT",

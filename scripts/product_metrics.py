@@ -7799,17 +7799,58 @@ def measure_creation(c: Collector) -> None:
             trail_gaps.append(f"{_tr_label}: an afterimage sits ahead of the marble")
         elif _tr["drained"] is None:
             trail_gaps.append(f"{_tr_label}: the stopped marble keeps its streak")
+    # The second body (C-1372): the racing car, whose speed is the whole
+    # game. Ten one-frame-apart samples make speed draw the length - a
+    # fast lap stretches the streak, the post-crash crawl shrinks it.
+    from sidra_ai.creation.racing import trail_probe as _rtr_probe
+
+    for _tr_reduced in (False, True):
+        _tr_label = "racing" + ("（reduced）" if _tr_reduced else "")
+        try:
+            _tr_page = generate_game("レースゲームを作って").html
+            _tr_script = _tr_re.search(r"<script>(.*?)</script>", _tr_page, _tr_re.S)
+            if _tr_script is None:
+                raise ValueError("no script")
+            _tr_run = _tr_sp.run(
+                ["node", "-"],
+                input=_rtr_probe(_tr_script.group(1), reduced=_tr_reduced),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if _tr_run.returncode != 0:
+                raise ValueError(_tr_run.stderr.strip()[:60])
+            _tr = json.loads(_tr_run.stdout.strip().splitlines()[-1])
+        except (OSError, _tr_sp.SubprocessError, ValueError) as exc:
+            trail_gaps.append(f"{_tr_label}: probe unavailable ({exc})")
+            continue
+        if _tr_reduced:
+            if _tr["full"]:
+                trail_gaps.append(f"{_tr_label}: reduced motion still streaks")
+            continue
+        if _tr["full"] != 10:
+            trail_gaps.append(f"{_tr_label}: the streak never fills ({_tr['full']})")
+        elif not _tr["behind"]:
+            trail_gaps.append(f"{_tr_label}: an afterimage sits ahead of the car")
+        elif _tr["slowSpan"] >= _tr["fastSpan"] * 0.7:
+            trail_gaps.append(
+                f"{_tr_label}: speed does not draw the length "
+                f"({_tr['fastSpan']:.1f} vs {_tr['slowSpan']:.1f})"
+            )
+        elif _tr["drained"] is None:
+            trail_gaps.append(f"{_tr_label}: the finished run keeps its streak")
     c.add(
         "creation_motion_trail",
         "転がる玉が軌跡を引く",
-        0.0 if trail_gaps else 1.0,
+        0.0 if trail_gaps else 2.0,
         detail=(
             "; ".join(trail_gaps)
             if trail_gaps
-            else "実ページを転がして実測——roll 中に残像 10 枚が満ち、全サンプルが"
-            "玉の後方（過去の位置はカメラ寄りに沈む）、run が終わると 1 枚/"
-            "フレームで排水（実測 9f で 0）、reduced 走行は 1 枚も積まない"
-            "（§1 の粒子 3 種〔煙・破壊・軌跡〕がこれで全て実装）"
+            else "marble の実転がり——roll 中に残像 10 枚が満ち、全サンプルが玉の"
+            "後方、run 後に排水、reduced は 1 枚も積まない。racing の実走行"
+            "——ペースで span 27・コース外の徐行で 12（**速度が長さを描く**・"
+            "§1 の重さ比例を速度側から）、goal 後に排水、reduced 0（§1 の"
+            "粒子 3 種〔煙・破壊・軌跡〕の軌跡が 2 体に）"
         ),
         kind=OUTCOME,
     )
