@@ -89,6 +89,32 @@ def choose_pattern(request: str) -> str:
     return named_pattern(request) or DEFAULT_PATTERN
 
 
+#: The colour palette is fixed to the GAMEYARD brand (cyan on dark) by design,
+#: so a request that names a colour cannot be honoured. This spots a clearly
+#: colour-naming request so the summary can *say* the colour was not applied
+#: rather than drawing cyan and calling it 「青い海」 (C-1271). Kept conservative
+#: - い-adjective colours, 「色」/「〜の」 forms, katakana and English colour words -
+#: so 「金曜」 or 「赤字」 do not read as a colour request.
+_COLOR_PATTERN = re.compile(
+    r"青い|赤い|黒い|白い|青白い|黄色い|茶色い|"
+    r"[青赤緑黄紫橙桃茶金銀白黒]色|"
+    r"[青赤緑黄紫橙桃茶金銀白黒]の|"
+    r"ブルー|レッド|グリーン|イエロー|パープル|オレンジ|ピンク|"
+    r"(?<![A-Za-z])(?:blue|red|green|yellow|purple|orange|pink|black|white)(?![A-Za-z])",
+    re.IGNORECASE,
+)
+
+
+def names_color(request: str) -> bool:
+    """True when a request clearly names a colour for the art.
+
+    The palette is fixed to the brand, so this exists only so the summary can
+    admit the colour was not applied instead of ignoring it silently (C-1271).
+    """
+
+    return bool(_COLOR_PATTERN.search(unicodedata.normalize("NFKC", request)))
+
+
 #: Art-kind nouns a title should not end with, since the artifact already is
 #: one: 「螺旋のアート」→「螺旋」 (C-1265, the art twin of documents' C-1246 and
 #: decks' C-1249). Longer spellings first, optional leading 「の」, applied once
@@ -344,6 +370,7 @@ __all__ = [
     "PATTERN_LABELS",
     "choose_pattern",
     "generate_art",
+    "named_color",
     "named_pattern",
     "save_art",
     "validate_art",

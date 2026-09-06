@@ -14,6 +14,7 @@ from sidra_ai.creation.art import (
     PATTERN_LABELS,
     PATTERNS,
     generate_art,
+    names_color,
     save_art,
     validate_art,
 )
@@ -50,6 +51,17 @@ def build_art_generator(data_dir: str | Path):
                     f"依頼にパターン名が無かったので、既定の"
                     f"「{PATTERN_LABELS[DEFAULT_PATTERN]}」で描きました。"
                     f"指定できるパターンは {choices} です。"
+                )
+            # The request named a colour, but the palette is fixed to the brand
+            # (cyan on dark), so 「青い海」 was drawn cyan and pink. Say the colour
+            # was not applied rather than let the title imply it was - the same
+            # honesty the pattern default note gives (C-1271). Colour is not a
+            # choice here, so this states the fixed palette instead of offering
+            # options.
+            if names_color(message):
+                summary += (
+                    "依頼にあった色は今の配色に反映していません。"
+                    "アートはブランド固定の配色（シアン×マゼンタ）で描いています。"
                 )
         else:
             summary = (

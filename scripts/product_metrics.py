@@ -915,6 +915,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1271: the art palette is fixed to the GAMEYARD brand (cyan on dark), so
+    # a request naming a colour - 「青い海のアート」 - was drawn cyan and pink with
+    # no word that the colour had been ignored, while the title quoted it back.
+    # The summary now admits the colour was not applied and names the fixed
+    # palette, the same honesty the pattern/motif/shape default notes give.
+    from sidra_ai.evals.art_color_named_honest import (
+        evaluate_art_color_named_honest,
+    )
+
+    art_color = evaluate_art_color_named_honest()
+    c.add(
+        "art_color_named_honest",
+        "色を指定されたアートが固定配色で描いたことを正直に伝える",
+        10.0 * art_color.checks_passed / art_color.checks_total,
+        detail=f"{art_color.checks_passed}/{art_color.checks_total} checks; "
+               "src/sidra_ai/evals/art_color_named_honest.py"
+               + ("" if art_color.passed else "; " + "; ".join(art_color.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path
