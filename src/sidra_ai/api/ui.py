@@ -97,8 +97,13 @@ ASK_PAGE = """<!doctype html>
   <button type="submit" id="send">送信</button>
 </form>
 
-<p id="status"></p>
-<p id="answer"></p>
+<!-- role="status" (an implicit aria-live="polite") and aria-live on the answer:
+     both regions are rewritten by JS after submit - 「問い合わせ中…」, the answer,
+     an error or a refusal - and without a live region a screen-reader user hears
+     nothing when the reply arrives and has no way to know it is there (WCAG 4.1.3
+     Status Messages, C-1286). Visual layout is unchanged. -->
+<p id="status" role="status" aria-live="polite"></p>
+<p id="answer" aria-live="polite"></p>
 <div id="sources"></div>
 
 <section id="artifacts">

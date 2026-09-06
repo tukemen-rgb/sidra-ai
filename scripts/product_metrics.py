@@ -1365,6 +1365,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1286: the ask page rewrites #status and #answer after submit but neither
+    # was a live region, so a screen-reader user heard nothing when the reply
+    # arrived (WCAG 4.1.3). #status now carries role="status" and #answer
+    # aria-live="polite", and the metric confirms the announced regions are the
+    # ones the JS actually updates.
+    from sidra_ai.evals.ask_page_announces_async_updates import (
+        evaluate_ask_page_announces_async_updates,
+    )
+
+    announce = evaluate_ask_page_announces_async_updates()
+    c.add(
+        "ask_page_announces_async_updates",
+        "ask ページの回答・状態更新が支援技術に読み上げられる",
+        10.0 * announce.checks_passed / announce.checks_total,
+        detail=f"{announce.checks_passed}/{announce.checks_total} checks; "
+               "src/sidra_ai/evals/ask_page_announces_async_updates.py"
+               + ("" if announce.passed else "; " + "; ".join(announce.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1224: on a phone the ask page's 更新 and per-file 開く buttons were
     # 41-42px, under the 48dp tap minimum - the game shell got this fix
     # (C-1219) but the product page it sits behind did not. One coarse-pointer

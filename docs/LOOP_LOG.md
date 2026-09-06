@@ -8611,3 +8611,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 18:26 UTC 辛口ユーザー started（63 巡目・別面 予定=Web UI（ask ページ）のブラウザ利用者視点・前回=プロジェクト要約のジャンル開示 C-1285）
 
 2026-09-06 18:52 進捗監視 前進あり: C-1285 完了（要約のジャンル開示・辛口ユーザー 18:24、63 巡目開始）・C-1368 claim（クリエイター 18:38）。ループA キューは依然空——19:05 巡は no-op 見込み、確かな種が立たない限り弱い起票はしない（17:52 方針維持）。
+2026-09-06 18:58 辛口ユーザー C-1286 完了 ask_page_announces_async_updates 6.67 -> 10（判定器 exit 0・pytest FAILED 0・gate 回帰 exit 0（blended 8.2%）・--compare exit 0（BETTER 6.667->10, MOVED 1）・観点=Web UI の支援技術告知・前回=プロジェクト要約のジャンル開示 C-1285。ask ページの #status/#answer は submit 後 textContent で書き換わるのに live 領域でなく SR 利用者に回答が告知されなかった: #status に role="status"、#answer に aria-live="polite"。判定器は読み上げ領域が実際に JS 更新される領域と一致することも検査。表示不変。事前計測 4/6 -> 6/6。破壊 5 通り全て捕捉）
