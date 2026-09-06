@@ -10284,8 +10284,17 @@ def measure_creation(c: Collector) -> None:
         #    on everything above while showing the player nothing.
         elif not _attract_veiled(watched["idlePaint"]):
             trouble = f"{key}: the title covers the demo instead of veiling it"
-        elif idle[-1]["ops"] <= 12:
-            trouble = f"{key}: nothing but the title was drawn on the last idle frame"
+        # ...and it has to have been drawn at all. Asked of the whole
+        # idle run rather than of its last frame (C-1441): a page that
+        # hitstops does not draw on the frames it holds, so whether the
+        # 4200th frame happens to be one of those is a fact about the
+        # pilot's timing and not about the demo. Measured when it bit:
+        # puzzle drew only the title on 594 frames and its last was one
+        # of them, while duel had 472 such frames and passed because its
+        # last was not - the same page would have failed on a different
+        # frame count.
+        elif not any(f.get("drew") for f in idle):
+            trouble = f"{key}: nothing but the title was ever drawn behind it"
         # 3. Seventy seconds of demo earned nobody anything: the round clock
         #    never started, so it never rang, and nothing was written down.
         elif press["round"]["ms"] or press["round"]["done"] or press["touched"]:

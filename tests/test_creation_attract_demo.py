@@ -312,6 +312,40 @@ def test_every_idle_frame_reports_whether_the_page_held_it(demo: dict) -> None:
     assert all("held" in frame for frame in demo["idle"])
 
 
+def test_every_idle_frame_says_whether_the_game_was_drawn_on_it(demo: dict) -> None:
+    """C-1441: which frames had the game under the title, not just how many
+    ops they had.
+
+    A page that hitstops does not draw on the frames it holds, so some
+    idle frames carry only the gate's panel. Whether the *last* frame is
+    one of those is a fact about the pilot's timing against the frame
+    count, so the veil has to be judged over a frame the game was on.
+    """
+
+    assert all("drew" in frame for frame in demo["idle"])
+    assert any(frame["drew"] for frame in demo["idle"]), "the demo never drew"
+
+
+def test_the_veil_is_judged_over_a_frame_the_game_was_drawn_on(demo: dict) -> None:
+    """The kept paint is a picture with something under it (C-1441).
+
+    Structurally: the template fills the canvas with its own ground and
+    the gate fills it again with its panel, so a frame with the game in
+    it carries more than one full-canvas fill. Measured at 1 on every
+    title-only frame and 2+ on every drawn one, across three templates.
+    """
+
+    full = [
+        op
+        for op in demo["idlePaint"]
+        if op.startswith("r:") and op.endswith(":0,0,720,320")
+    ]
+
+    assert len(full) > 1, "the kept frame has no game under the gate's panel"
+    # ...and the last of them is the gate's, carrying an alpha: a veil.
+    assert len(full[-1].split(":")[1]) > 7
+
+
 def test_the_press_after_a_piloted_demo_matches_the_control(piloted: dict) -> None:
     """The handover lets go of the trigger: the go starts from the top."""
 

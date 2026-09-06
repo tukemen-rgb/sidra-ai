@@ -291,11 +291,30 @@ globalThis.document = { readyState: 'complete',
    show a page that looked perfectly healthy. The browser keeps every one
    of them, so this keeps every one of them. */
 let attractQueue = [];
+/* The paint of the last frame the game was actually drawn on. Kept once
+   rather than per frame for the same reason idlePaint always was. */
+let attractLastDrawn = null;
 globalThis.requestAnimationFrame = (fn) => { attractQueue.push(fn); return attractQueue.length };
 SCRIPT_PLACEHOLDER
 /* One number for a frame's worth of paint. A demo that is running draws a
    different picture every frame; a title with nothing behind it draws the
    same one for ever. */
+/* Did the page draw the GAME this frame, or only the title over it?
+   Structural, so it needs no threshold on how many ops count as a game:
+   the template fills the whole canvas with its own ground and the gate
+   fills it again with its panel, so a frame with the game in it carries
+   more than one full-canvas fill and a frame the page skipped carries
+   only the gate's. Measured on puzzle, duel and adventure: exactly 1 on
+   every title-only frame, 2 or more on every frame with the game in it.
+
+   It has to be asked per frame because a page that hitstops does not
+   draw on the frames it holds (C-1435), so "the last frame" is a frame
+   the demo may simply have been still for - which is a property of the
+   pop's timing against the frame count, not of the demo (C-1441). */
+function attractDrewGame(ops){ let n = 0;
+  for (const op of ops) {
+    if (op.startsWith('r:') && op.endsWith(':0,0,720,320')) { n++ } }
+  return n > 1 }
 function attractHash(ops){ let h = 2166136261;
   const s = ops.join('|');
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0 }
@@ -315,8 +334,10 @@ function attractRun(frames){ const seen = [];
     const held = (typeof HITSTOP !== 'undefined' && HITSTOP > 0) ? 1 : 0;
     attractOps = []; attractClock += 50 / 3;
     for (const fn of due) { fn(attractClock) }
+    const drew = attractDrewGame(attractOps);
+    if (drew) { attractLastDrawn = attractOps.slice() }
     seen.push({ hash: attractHash(attractOps), ops: attractOps.length,
-      calls: due.length, held: held }) }
+      calls: due.length, held: held, drew: drew ? 1 : 0 }) }
   return seen }
 /* Everything a go is made of, read off the page. Compared between a run
    that watched the demo and one that pressed at once: if the demo left
@@ -338,10 +359,14 @@ function attractSnap(){
   return out }
 const atLoad = attractSnap();
 const idle = attractRun(IDLE_INPUT);
-/* The whole of the last idle frame, kept once rather than per frame: the
-   veil is a claim about one picture, and four thousand of them would be a
-   megabyte of JSON to say it. */
-const idlePaint = attractOps.slice();
+/* The whole of the last idle frame on which the game was drawn, kept
+   once rather than per frame: the veil is a claim about one picture, and
+   four thousand of them would be a megabyte of JSON to say it. It is the
+   last DRAWN frame and not simply the last one because the veil can only
+   be judged over a picture that has something under it - and a page that
+   never drew one falls back to the plain last frame, which is what says
+   so (C-1441). */
+const idlePaint = attractLastDrawn || attractOps.slice();
 const beforePress = attractSnap();
 if (PRESS_INPUT) {
   const ev = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
