@@ -87,7 +87,7 @@ function reset(){
   /* Under the leg, not across the field (§8 事実 5): the first shot a
      new player fires has to hit something. Walking away is a choice
      they make after that, not a toll before it. */
-  me={x:W*0.68,hp:3,step:0,cool:0,kvx:0};
+  me={x:W*0.68,hp:3,step:0,cool:0,kvx:0,sq:1};
   shots=[];cracks=[];dust=[];t=0;cycles=0;state='wake';
   boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
 setPal(KAIJU_PAL_TOKEN);
@@ -132,6 +132,9 @@ function openCrack(){const x=60+rand()*(W-120);
   cracks.push({x:x,w:0,warn:34,open:0});sfx('charge')}
 function step(){t++;
   combat(state==='fight'&&gateState()==='playing');
+  /* The crush settles by quarter-steps and snaps (C-1332), outside the
+     fight guard so a downed walker still stands back up. */
+  me.sq+=(1-me.sq)*0.25;if(Math.abs(me.sq-1)<0.01)me.sq=1;
   /* The awakening (§6 観察 3, C-1357): the film's escalation opens every
      encounter - cracks run, a dust wall rises, ONE wide shot shows the
      whole creature the leg belongs to, a beat, then the fight. Ninety
@@ -199,6 +202,9 @@ function step(){t++;
            below keeps a wall from turning the throw into a pin. Kept
            under REDUCED - position is gameplay, not decoration. */
         me.kvx=(me.x<c.x?-1:1)*6;
+        /* The crush (§1, C-1332's recipe, C-1370): the fourth struck
+           body. Under reduced motion the silhouette never changes. */
+        if(!REDUCED)me.sq=0.7;
         if(me.hp<=0){state='lost';failBeat(me.x,GROUND-20)}return false}
       /* Outside the radius that would have hurt, inside the ribbon: the
          crack was stood beside rather than fled from. */
@@ -224,7 +230,7 @@ function wakeFacts(){return {state:state,t:t,cracks:cracks.length,
   dust:dust.length,wide:state==='wake'&&t>55&&t<=REACT_AT,
   react:state==='wake'&&t>REACT_AT}}
 /* The hit's other half, as a fact (§1, C-1361). */
-function kbFacts(){return {kvx:me.kvx,x:me.x,hp:me.hp}}
+function kbFacts(){return {kvx:me.kvx,x:me.x,hp:me.hp,sq:me.sq}}
 /* The pilot's face, as a fact (§1, C-1363): the eyes lean at the
    monster's leg - the fight's whole subject - with a deadzone so
    standing under it reads as a straight look, and the blink is the
@@ -305,18 +311,24 @@ function draw(){const now=performance.now();
     cx.fillRect(hx-12+lk*4,hb2-58,8,10);
     cx.fillRect(hx+4+lk*4,hb2-58,8,10)}
   const gait=Math.sin(me.step*6.283);
-  cx.fillStyle='CYAN_TOKEN';cx.fillRect(me.x-16,GROUND-30,32,18);
-  cx.fillRect(me.x-4,GROUND-42,8,12);
+  /* One feet-anchored transform for the whole walker (§1, C-1370):
+     heights scale by sq, widths by (2-sq), and every factor is exactly
+     1 when sq is 1 - the idle and reduced silhouettes are bit-identical
+     to what they were before the crush existed. */
+  const sq=me.sq,sqw=2-sq;
+  cx.fillStyle='CYAN_TOKEN';
+  cx.fillRect(me.x-16*sqw,GROUND-30*sq,32*sqw,18*sq);
+  cx.fillRect(me.x-4*sqw,GROUND-42*sq,8*sqw,12*sq);
   /* Eyes in the canopy (§1, C-1363): the pilot watches the monster.
      Skipped only on the blink frame - under reduced motion the shared
      FRAME pins the beat to 0 and the eyes never close. */
   const face=faceFacts();
   if(!face.blink){cx.fillStyle='#05070f';
-    cx.fillRect(me.x-3+face.look,GROUND-39,2,2);
-    cx.fillRect(me.x+1+face.look,GROUND-39,2,2)}
+    cx.fillRect(me.x+(-3+face.look)*sqw,GROUND-39*sq,2*sqw,2*sq);
+    cx.fillRect(me.x+(1+face.look)*sqw,GROUND-39*sq,2*sqw,2*sq)}
   cx.strokeStyle='CYAN_TOKEN';cx.lineWidth=3;
-  [-10,10].forEach((o,i)=>{cx.beginPath();cx.moveTo(me.x+o,GROUND-14);
-    cx.lineTo(me.x+o+(i?gait:-gait)*7,GROUND);cx.stroke()});
+  [-10,10].forEach((o,i)=>{cx.beginPath();cx.moveTo(me.x+o*sqw,GROUND-14*sq);
+    cx.lineTo(me.x+(o+(i?gait:-gait)*7)*sqw,GROUND);cx.stroke()});
   shots.forEach(s=>{cx.fillStyle='ACCENT_JUICE';cx.fillRect(s.x-2,s.y-8,4,10)});
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<me.hp;i++){cx.fillRect(12+i*18,10,14,10)}
@@ -695,6 +707,60 @@ def stomp_probe(script: str) -> str:
     return STOMP_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The crush, as played (§1, C-1370). The walker idles untouched for
+#: thirty frames (silhouette factor exactly 1 on every one), takes one
+#: blast, crushes to 0.7 on the hit frame, and stands back to exactly 1
+#: inside half a second; the reduced run takes the same blast and never
+#: deforms a single frame. KB_PROBE's harness, with the beat quieted so
+#: the one placed blast is the only impact.
+SQUASH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(110);
+boss.timer = 900; cracks.length = 0;
+let idleOff = 0;
+for (let i = 0; i < 30; i++) { run(1); if (kbFacts().sq !== 1) idleOff++ }
+cracks.push({ x: me.x + 4, w: 0, warn: 0, open: 30 });
+run(1);
+const hitSq = kbFacts().sq;
+let settled = null;
+for (let i = 0; i < 40 && settled === null; i++) { run(1);
+  if (kbFacts().sq === 1) settled = i }
+console.log(JSON.stringify({ idleOff: idleOff, hitSq: hitSq,
+  settled: settled, hp: kbFacts().hp }));
+"""
+
+
+def squash_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the crush can be watched."""
+
+    return SQUASH_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 #: The pilot's face, driven (§1, C-1363). The walker is parked on either
 #: side of the monster's leg and dead under it, and the look is read off
 #: the page; then it stands still for five hundred frames and the blink
@@ -758,6 +824,8 @@ __all__ = [
     "wake_probe",
     "KB_PROBE",
     "kb_probe",
+    "SQUASH_PROBE",
+    "squash_probe",
     "STOMP_PROBE",
     "stomp_probe",
     "FACE_PROBE",

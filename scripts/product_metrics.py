@@ -4546,18 +4546,56 @@ def measure_creation(c: Collector) -> None:
     # own bounce contract holds - any gap anywhere still collapses it to 0
     # (両定義: 旧 0/1 は platformer 時点で 1、新定義の変更前は catch が
     # 未報告のため 0。C-1358 の変更前は duel が未報告のため 2).
+    # The struck walker (C-1370): the fourth body. Its hit already had
+    # shake, hitstop and knockback; the crush completes §1's pair on the
+    # one body where the impact never reached the silhouette.
+    from sidra_ai.creation.kaiju import squash_probe as _kj_sq_probe
+
+    for _sq_reduced in (False, True):
+        _sq_label = f"kaiju{'（reduced）' if _sq_reduced else ''}"
+        _sq_page = generate_game("巨大怪獣と戦うゲームを作って").html
+        _sq_script = _scene_re.search(r"<script>(.*?)</script>", _sq_page, _scene_re.S)
+        if _sq_script is None:
+            squash_gaps.append(f"{_sq_label}: no script")
+            continue
+        try:
+            _sq_run = _scene_sp.run(
+                ["node", "-"],
+                input=_kj_sq_probe(_sq_script.group(1), reduced=_sq_reduced),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _sq_run.returncode != 0:
+                raise ValueError(_sq_run.stderr.strip()[:60])
+            _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            squash_gaps.append(f"{_sq_label}: probe unavailable ({exc})")
+            continue
+        if _sq["idleOff"]:
+            squash_gaps.append(f"{_sq_label}: the idle walker deforms ({_sq['idleOff']} frames)")
+        if _sq["hp"] != 2:
+            squash_gaps.append(f"{_sq_label}: the blast cost {3 - _sq['hp']} hearts")
+        if _sq_reduced:
+            if _sq["hitSq"] != 1:
+                squash_gaps.append(f"{_sq_label}: reduced motion still crushes ({_sq['hitSq']})")
+        elif _sq["hitSq"] is None or _sq["hitSq"] > 0.75:
+            squash_gaps.append(f"{_sq_label}: the blast never crushes ({_sq['hitSq']})")
+        elif _sq["settled"] is None or _sq["settled"] > 30:
+            squash_gaps.append(f"{_sq_label}: the crush never settles ({_sq['settled']})")
     c.add(
         "creation_squash_stretch",
         "イベントで体が伸びて潰れる型",
-        3.0 if not squash_gaps else 0.0,
+        4.0 if not squash_gaps else 0.0,
         detail=(
             "platformer の実ジャンプ（上昇 >1.1・着地 <0.9・0.5 秒で収束・"
             "立ち姿不動）＋ catch の実受け（受けの瞬間 <0.9・0.5 秒で復元・"
             "何も受けない間は不動）＋ duel の実打ち合い（溜めで沈む <0.97・"
             "解放で伸びる >1.1・被弾で潰れる <0.9・各 0.5 秒で復元・無操作"
-            "不動）を毎フレーム観測。reduced-motion では全型とも全フレーム"
-            " 1＝輪郭は一切変わらない（§1 の拡縮バウンス、跳ぶ側と受ける側と"
-            "打ち合う側）"
+            "不動）＋ kaiju の実被弾（地割れに呑まれた瞬間 0.7・0.5 秒で"
+            "復元・無操作不動）を毎フレーム観測。reduced-motion では全型とも"
+            "全フレーム 1＝輪郭は一切変わらない（§1 の拡縮バウンス、跳ぶ側と"
+            "受ける側と打ち合う側と撃たれる側）"
             if not squash_gaps
             else "; ".join(squash_gaps)
         ),
