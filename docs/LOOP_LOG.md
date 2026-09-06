@@ -8537,3 +8537,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   事前計測 5/8→実装後 8/8。5 破壊（lookahead 撤去／password 削除／system prompt 削除／lookahead 反転で field 必須／show 削除）で 5/7/7/1/7、復元 8/8。
   pytest 全通し exit 0 FAILED 0 / verify_gate_recall MISS 0（誤検知 0・検知非退行）/ check_gate_regression exit 0（blended 8.3%）/ --compare exit 0（6.25→10, MOVED 1）。
   これで exfiltration の主要 FP（how-to／instructions／field 欄名）が揃った。残: 位置文脈型「API key in the config」（"show my API key" 自体が曖昧で要設計）。
+
+2026-09-06 11:52 進捗監視 前進あり: C-1361 完了（被弾が体を投げる・11:18）・C-1279 完了（exfiltration 誤検知の追加除外・11:37）。C-1362（11:37 クリエイター claim・足音の土煙）進行中、次巡ループA には C-1445/C-1446 の 2 件が待機。停滞なし。記録のみ。
