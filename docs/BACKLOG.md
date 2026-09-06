@@ -5467,6 +5467,21 @@ C-12xx/13xx/14xx はループ用のまま）。
       次の誰かの不安定な失敗になるだけなので採らない。
       **前提条件を C-1435 として分割起票**（計器の分母を「進んだフレーム」に
       する。棒は下げない）。それが済めば duel はそのまま測れる。
+- [~] 作業中 2026-09-06 15:45 UTC 辛口クリエイター **C-1366: 転がる玉が軌跡を引かない——§1 の粒子 3 種〔煙・破壊・軌跡〕のうち軌跡だけが全 10 型のどこにも無く、動きそのものが主題の marble の玉が残像ゼロで転がる（§1）。**
+      （辛口クリエイターループ起票・観点=§1 パーティクルの軌跡。前回=§7）
+      現物: §1 の技法表「多数パーティクル（煙/破壊/**軌跡**）」——煙は
+      kaiju の土煙・被弾 smoke、破壊は burst で全型に入ったが、**軌跡は
+      grep 0 件**（ghost.py の trail は再走ゴーストで別物）。前進が
+      ゲームの全てである marble の玉は、廊下をどの速さで転がっても
+      残像 1 枚を引かない。実装: TRAIL（直近 10 サンプルの {x,y,z}・
+      REDUCED では 1 枚も積まない＝装飾の C-1020 規約）を roll 中に
+      サンプルし、玉の手前に既存 proj で投影して減衰 α の残像を描く
+      （古いほど淡く小さい・d<NEAR は clip・rand() 不消費）。roll が
+      終わると 1 枚/フレームずつ排水——止まった玉の後ろに軌跡は残らない。
+      marbleFacts に trail を追加。新設 TRAIL_PROBE（実ページ）: roll 中
+      trail が 10 まで満ち・サンプルの z が玉の後方・停止後 ≤12f で 0・
+      REDUCED 走行は全フレーム 0。
+      → 動かす数字: creation_motion_trail unmeasurable→1
 - [x] 完了 2026-09-06 15:25 UTC 辛口クリエイター（`creation_depth_layers` **4→5**、判定器 exit 0（BETTER）。FAR_A=0.45 の静止雲 3 つ（決定的配置・rand() 不消費・静止＝REDUCED に凍らせる物が無い、kaiju 尾根と同じ理由）を BORDER_TOKEN の scenePaint で空の直後に描き、落下物が雲の手前を落ちる。depthFacts 契約公開＋catch scene probe に depth 追加＋_depth_all に catch。実測 4 テーマ×3 幕の全 12 セル: far/sky 1.092〜1.267（可視）・solid/sky 1.221〜1.652（中景より必ず淡い）。破壊 3 通り〔FAR_A 0.004→全幕『invisible』／FAR_A 1→全幕『as near as midground』／契約空返し→『no depth contract reported』〕——**最初の破壊 3 連は全て CLEAN の偽陰性**: games.py 内蔵の _CATCH は reload で盤面がディスクから戻るため模擬が届いていなかった（C-1353 の教訓の再演）→ TEMPLATES['catch'] を dataclasses.replace で patch して 3/3 捕捉、復元 CLEAN。**計測の正直記録**: 事前計測を claim 直後に走らせたまま実装したため、probe（depth 要求）が先・テンプレ（depthFacts 定義）が後の瞬間を baseline が踏み、scene_palettes/hud_contrast/round_scene の 3 計器が baseline だけ 0 に落ちた——compare の 0→8/0→10/0→1 は見かけの改善で、**前サイクルの清浄な baseline（before1364: 8/10/1）と現在値が完全一致**することを確認済み＝実movement は depth 4→5 のみ。教訓: 共有 probe に触る編集は baseline 完了後に始める。pytest exit 0（3783 passed / 3 skip）・gate MISS 0。test_creation_depth_layers.py に catch 追加（5 型×2 テーマ）。奥行き契約は 5 型に）**C-1365: catch の空は 1 枚のべた塗り——場面の全部が空のテンプレートに遠景が無く、§7 観察 7 の 3 層（手前の皿・中景の落下物・奥の霞）が奥だけ欠けている（§7）。**
       （辛口クリエイターループ起票・観点=§7 奥行き 3 層。前回=§2）
       現物: _CATCH の背景は scenePaint('SURFACE_TOKEN') の fillRect
