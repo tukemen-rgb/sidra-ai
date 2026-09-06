@@ -6235,26 +6235,6 @@ C-12xx/13xx/14xx はループ用のまま）。
       → 動かす数字: creation_round_clock_honest unmeasurable→1（フレーム
       列に大きな空白を挟んでも roundRemainMs が空白分を失わないことを
       検査。破壊〔ガード除去〕で 0）
-- [~] 作業中 2026-09-06 22:09 UTC ループA **C-1451: 指でもポーズが掛けられる——タッチにはポーズへの道が無い。**
-      （進捗監視起票 2026-09-06・根拠は startscreen.py 実読:
-      ポーズの入口は keydown の P だけ（`if((e.key==='p'||e.key==='P')&&
-      GATE!=='title')…gateTogglePause()`）。GCV の pointerdown ハンドラは
-      gateStart か gateGesture のみで、**ポーズへ入る分岐が存在しない**。
-      つまりキーボードの無いスマホでは、paused からの再開はできるのに
-      （pointerdown → gateStart が GATE='playing' に戻す）、掛ける
-      ことが一度もできない片道。§18 の実画面面積の知見どおり本命の
-      閲覧環境はスマホであり、中断（着信・改札）が最も起きるのも
-      スマホ。置き場所は発明不要——C-1244 で「そのゲームが読むキー
-      だけ描く」パッドが立ち、C-1287 でヒントも同一出典になった。
-      あの並びに GATE!=='title' のときだけポーズの 1 ボタンを足し、
-      押下で gateTogglePause() を呼ぶのが最小。条件: ①タイトルでは
-      出さない（title の「any key」を壊さない・P と同じ帳簿）
-      ②paused 中の canvas タップ再開は現状のまま（既にある道を
-      塞がない）③キーボードの P は不変）→ 動かす数字:
-      creation_touch_pause unmeasurable→1（タッチ経路だけで
-      playing→paused→playing が往復できることをページ実走行で検査。
-      破壊〔ボタン除去 or ハンドラ切断〕で 0）
-- [記録] 完了・数字は動かず 2026-09-06 04:34 ループA（判定器 exit 1 = NO MOVEMENT・`creation_attract_demo` **8→8**・どの数字も片方向にも動かず。**起票時にそう書いたとおり**——この項目の仕事は 8 を保つことで、上げる数字は無い。pytest 3672 passed / FAILED 0・gate MISS 0/誤検知 0）**C-1441: 幕の検査が、最後の 1 フレームだけを見ている。**
       **記録 2026-09-06 20:34 ループA**（`round.py` に 1 行のガードと
       `ROUND_GAP_MS`・幕の probe に不在注入・判定器
       `creation_round_clock_honest`・テスト 15 件。判定器 exit 0）
@@ -6296,6 +6276,26 @@ C-12xx/13xx/14xx はループ用のまま）。
       他の数字は 1 つも動いていない（MOVED は 1 件）。
       **60 秒ブザーの是非（E 節 C-1127）には触れていない**——これは
       時計の正直さの話。
+- [~] 作業中 2026-09-06 22:09 UTC ループA **C-1451: 指でもポーズが掛けられる——タッチにはポーズへの道が無い。**
+      （進捗監視起票 2026-09-06・根拠は startscreen.py 実読:
+      ポーズの入口は keydown の P だけ（`if((e.key==='p'||e.key==='P')&&
+      GATE!=='title')…gateTogglePause()`）。GCV の pointerdown ハンドラは
+      gateStart か gateGesture のみで、**ポーズへ入る分岐が存在しない**。
+      つまりキーボードの無いスマホでは、paused からの再開はできるのに
+      （pointerdown → gateStart が GATE='playing' に戻す）、掛ける
+      ことが一度もできない片道。§18 の実画面面積の知見どおり本命の
+      閲覧環境はスマホであり、中断（着信・改札）が最も起きるのも
+      スマホ。置き場所は発明不要——C-1244 で「そのゲームが読むキー
+      だけ描く」パッドが立ち、C-1287 でヒントも同一出典になった。
+      あの並びに GATE!=='title' のときだけポーズの 1 ボタンを足し、
+      押下で gateTogglePause() を呼ぶのが最小。条件: ①タイトルでは
+      出さない（title の「any key」を壊さない・P と同じ帳簿）
+      ②paused 中の canvas タップ再開は現状のまま（既にある道を
+      塞がない）③キーボードの P は不変）→ 動かす数字:
+      creation_touch_pause unmeasurable→1（タッチ経路だけで
+      playing→paused→playing が往復できることをページ実走行で検査。
+      破壊〔ボタン除去 or ハンドラ切断〕で 0）
+- [記録] 完了・数字は動かず 2026-09-06 04:34 ループA（判定器 exit 1 = NO MOVEMENT・`creation_attract_demo` **8→8**・どの数字も片方向にも動かず。**起票時にそう書いたとおり**——この項目の仕事は 8 を保つことで、上げる数字は無い。pytest 3672 passed / FAILED 0・gate MISS 0/誤検知 0）**C-1441: 幕の検査が、最後の 1 フレームだけを見ている。**
       （ループA 起票 2026-09-06・C-1440 の実測で判明。**製品は正しく、
       hitstop を持つ型は籤で通っている**）
       `creation_attract_demo` の幕の検査は 2 つとも**最終アイドル
