@@ -126,8 +126,17 @@ def choose_outline(request: str) -> str:
 #: whole word is stripped (スライドショー before スライド); an optional leading
 #: 「の」 goes with it. Applied once, and only when a subject remains in front -
 #: 「スライドを作って」 keeps the outline's default title.
+#:
+#: C-1282: 「資料」 is the everyday word for a deck, and the intent detector
+#: routes every 「X資料」 to DECK, so a cover reading 「週次進捗資料」 echoes the
+#: kind the same way 「…のスライド」 did. The pure-kind compounds (「プレゼン資料」
+#: is two kind words stacked) are listed first so they strip whole in one pass -
+#: bare 「資料」 alone would leave 「プレゼン」 behind - and bare 「資料」 follows for
+#: 「企画資料」→「企画」. The document title already strips 「資料」; only the deck
+#: had missed it. Anchored to the tail, so 「資料設計の指針」 is untouched.
 _TITLE_KIND_SUFFIX = re.compile(
-    r"の?(?:スライドショー|プレゼンテーション|ピッチデッキ|スライド|プレゼン|パワポ|デッキ|ピッチ"
+    r"の?(?:プレゼンテーション資料|プレゼン資料|スライド資料|パワポ資料|ピッチ資料|デッキ資料"
+    r"|スライドショー|プレゼンテーション|ピッチデッキ|スライド|プレゼン|パワポ|デッキ|ピッチ|資料"
     r"|slideshow|slides|slide|powerpoint|pptx|deck|pitch)$",
     re.IGNORECASE,
 )

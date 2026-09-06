@@ -1374,6 +1374,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1282: 「資料」 is the everyday word for a deck and the intent detector
+    # routes every 「X資料」 to DECK, but the deck title stripper (C-1249) had
+    # only スライド/プレゼン/デッキ and missed the 資料 forms, so 「…のプレゼン
+    # 資料」 titled the cover 「…のプレゼン資料」. The document title already
+    # strips 「資料」; this closes the same gap for the deck.
+    from sidra_ai.evals.deck_title_no_material_kind_echo import (
+        evaluate_deck_title_no_material_kind_echo,
+    )
+
+    deck_title_material = evaluate_deck_title_no_material_kind_echo()
+    c.add(
+        "deck_title_no_material_kind_echo",
+        "スライドの表紙が「プレゼン資料」「〜資料」を二重に言わない",
+        10.0 * deck_title_material.checks_passed / deck_title_material.checks_total,
+        detail=f"{deck_title_material.checks_passed}/{deck_title_material.checks_total} checks; "
+               "src/sidra_ai/evals/deck_title_no_material_kind_echo.py"
+               + ("" if deck_title_material.passed
+                  else "; " + "; ".join(deck_title_material.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1222: a generated document's 概要 opened 「2. ブランドを分けるか」 - the
     # excerpt landed mid ordered-list and plain_text stripped bullets but not
     # ordered-list numbers, so the first line began with a 2 and no 1. The
