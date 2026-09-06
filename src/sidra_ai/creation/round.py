@@ -48,7 +48,7 @@ ROUND_LIVE: dict[str, tuple[str, ...]] = {
     "catch": (),
     "duel": ("play",),
     "fishing": (),
-    "kaiju": ("fight",),
+    "kaiju": ("wake", "fight"),
     "marble": ("roll",),
     "platformer": ("play",),
     "puzzle": ("play",),

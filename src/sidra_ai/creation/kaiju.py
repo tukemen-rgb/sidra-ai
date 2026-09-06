@@ -88,7 +88,7 @@ function reset(){
      new player fires has to hit something. Walking away is a choice
      they make after that, not a toll before it. */
   me={x:W*0.68,hp:3,step:0,cool:0};
-  shots=[];cracks=[];dust=[];t=0;cycles=0;state='fight';
+  shots=[];cracks=[];dust=[];t=0;cycles=0;state='wake';
   boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
 setPal(KAIJU_PAL_TOKEN);
 /* HUD contract (§4 WCAG 1.4.3, C-1334): draw() paints the HUD through
@@ -132,6 +132,23 @@ function openCrack(){const x=60+rand()*(W-120);
   cracks.push({x:x,w:0,warn:34,open:0});sfx('charge')}
 function step(){t++;
   combat(state==='fight'&&gateState()==='playing');
+  /* The awakening (§6 観察 3, C-1357): the film's escalation opens every
+     encounter - cracks run, a dust wall rises, ONE wide shot shows the
+     whole creature the leg belongs to, a beat, then the fight. Ninety
+     frames, deterministic (no rand(): the seeded world must not shift),
+     and quiet - combat() stays off until 'fight', so the §6 観察 4
+     loudness step lands exactly when the film's does. */
+  if(state==='wake'){
+    if(t===1){sfx('hurt')}
+    if(t<=30){if(t%6===0){cracks.push({x:W*0.12+t*W*0.025,w:0,warn:0,open:5+t*0.5})}}
+    else if(t<=60){if(t%3===0){dust.push({x:(t*53)%W,y:GROUND-((t*29)%70),r:3+(t%5),a:1})}}
+    else if(t===61){shake(9)}
+    dust=dust.filter(d=>{d.a-=0.008;d.r+=0.15;return d.a>0});
+    /* The ground closes as the fight opens: the prologue's fissures are
+       scenery, not hazards - left in place they paid graze for standing
+       still and could eat the spawn (measured by the graze suite). */
+    if(t>=90){state='fight';t=0;cracks=[]}
+    draw();requestAnimationFrame(step);return}
   if(state==='fight'){
     if(me.cool>0){me.cool--;
       if(me.cool===0&&me.queued){me.queued=false;fire()}}
@@ -179,6 +196,10 @@ addEventListener('keydown',e=>{keys[e.key]=true;
   if(e.key===' '){fire();e.preventDefault()}
   if(e.key==='r'||e.key==='R')reset()});
 addEventListener('keyup',e=>{keys[e.key]=false});
+/* The awakening, as a fact (C-1357): where the prologue is, what it has
+   put on screen, and whether this is the wide-shot beat. */
+function wakeFacts(){return {state:state,t:t,cracks:cracks.length,
+  dust:dust.length,wide:state==='wake'&&t>60}}
 function bossFacts(){return{phase:boss.phase,cycles:cycles,shown:boss.shown,
   tense:cycleTense(),growth:CRACK*cycleTense(),
   legHp:boss.legHp,beat:BEAT,state:state,hp:me.hp}}
@@ -221,6 +242,20 @@ function draw(){const now=performance.now();
   else{cx.fillStyle='BORDER_TOKEN';
     cx.beginPath();cx.moveTo(lx-160,GROUND);cx.lineTo(lx-40,GROUND-120);
     cx.lineTo(lx+70,GROUND-96);cx.lineTo(lx+180,GROUND);cx.closePath();cx.fill()}
+  /* The one wide shot (§6 観察 1+3, C-1357): for thirty frames of the
+     awakening the WHOLE creature stands on the horizon - legs, body,
+     head - small against the sky and enormous against the cannon. The
+     fight then returns to the leg, and the full body is not seen again
+     until it is down. */
+  if(state==='wake'&&t>60){
+    cx.fillStyle=scenePaint('BORDER_TOKEN');
+    const wx=W*0.55,wh=H*0.72,wb=GROUND;
+    cx.fillRect(wx-30,wb-wh*0.42,60,wh*0.42);
+    [-20,16].forEach(o=>{cx.fillRect(wx+o-7,wb-wh*0.46,14,wh*0.46)});
+    cx.fillRect(wx-44,wb-wh*0.78,88,wh*0.38);
+    cx.beginPath();cx.arc(wx,wb-wh*0.86,26,0,6.283);cx.fill();
+    cx.beginPath();cx.moveTo(wx+40,wb-wh*0.55);cx.lineTo(wx+150,wb-wh*0.30);
+    cx.lineTo(wx+44,wb-wh*0.38);cx.closePath();cx.fill()}
   const gait=Math.sin(me.step*6.283);
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(me.x-16,GROUND-30,32,18);
   cx.fillRect(me.x-4,GROUND-42,8,12);
@@ -243,7 +278,11 @@ function draw(){const now=performance.now();
 /* One tap from the result goes again (§8 事実 3). The keyboard restart
    above is the only one this template had, which on a phone meant the
    result screen was a dead end. */
-cv.addEventListener('pointerdown',()=>{if(state!=='fight')reset()});
+/* A tap restarts a FINISHED go - not the awakening. Left as
+   state!=='fight' the prologue reset on every tap, and a masher
+   tapping through the opening was pinned at t<=15 for ever
+   (measured: the first-success probe starved at 30s). */
+cv.addEventListener('pointerdown',()=>{if(state==='won'||state==='lost')reset()});
 reset();step();
 """
 
@@ -271,6 +310,8 @@ function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queu
 const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
 keyHandlers.forEach(fn => fn(press));
 run(2);
+/* Through the awakening (C-1357): this probe tests the FIGHT. */
+run(92);
 /* Wasted shots first: hitting the leg while the head is down is the only
    thing that works, so shooting the sky must move nothing. */
 const before = bossFacts();
@@ -379,6 +420,8 @@ function key(k){
   (handlers.keyup || []).forEach(fn => fn(e));
 }
 key(' '); run(2);
+/* Through the awakening (C-1357): these probes test the FIGHT. */
+run(92);
 /* The shot itself flies off and vanishes, so the cannon's own cooldown is
    the witness: a re-armed cooldown eleven frames after the first shot is
    the queued second shot firing. */
@@ -405,7 +448,71 @@ def queue_probe(script: str) -> str:
 
     return QUEUE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
+
+
+#: The awakening, as watched (§6 観察 3, C-1357): press start and read
+#: the prologue's own timeline - cracks running, the dust wall, the one
+#: wide shot - then the handover to a fight that behaves like a fight.
+WAKE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(6);
+const early = wakeFacts();
+run(40);
+const mid = wakeFacts();
+run(26);
+const wideAt = wakeFacts();
+/* A shot fired during the prologue must land nowhere: fire() is gated
+   on 'fight', so the soldier watches like the film's do. Read as an
+   absolute count, not a delta - the first destruction fired at the GATE
+   press and a differential taken later missed it behind the cooldown. */
+key(' ');
+const firedInWake = shots.length;
+let toFight = null;
+for (let i = 0; i < 60 && toFight === null; i++) { run(1);
+  if (wakeFacts().state === 'fight') toFight = 72 + i }
+run(30);
+key(' ');
+const after = { state: wakeFacts().state, phase: bossFacts().phase,
+  shots: shots.length };
+console.log(JSON.stringify({
+  early: early, mid: mid, wideAt: wideAt,
+  firedInWake: firedInWake, toFight: toFight, after: after,
+}));
+"""
+
+
+def wake_probe(script: str) -> str:
+    """The page's own script, wrapped so the awakening can be watched."""
+
+    return WAKE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "WAKE_PROBE",
+    "wake_probe",
     "QUEUE_PROBE",
     "queue_probe",
     "KAIJU_DIFFICULTY",
@@ -459,6 +566,7 @@ function kRun(n){ for (let i = 0; i < n && kQueued; i++) {
 function kKey(type, k){ (kHandlers[type] || []).forEach(fn => fn({ key: k, code: k,
   preventDefault(){}, stopImmediatePropagation(){} })) }
 kKey('keydown', ' '); kKey('keyup', ' ');
+kRun(94); /* through the awakening (C-1357) */
 kRun(2);
 /* The crack the player would meet, and the radius that would cost a heart -
    both read off the page's own state, using the page's own expression, so

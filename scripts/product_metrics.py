@@ -6840,6 +6840,70 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the monster wakes before it fights (§6 観察 3, C-1357) ---------
+    #
+    # The film's escalation opens every encounter: cracks run, a dust
+    # wall rises, ONE wide shot shows the whole creature the leg belongs
+    # to, a beat, then the fight - and kaiju used to start mid-fight with
+    # none of it. Driven, not styled: the probe presses start and reads
+    # the prologue's own timeline, then confirms the handover to a fight
+    # that behaves like a fight (and that a shot fired during the
+    # prologue lands nowhere - the soldier watches, like the film's do).
+    from sidra_ai.creation.kaiju import wake_probe as _wk_probe
+
+    wake_gaps: list[str] = []
+    for _wk_req in ("巨大怪獣と戦うゲームを作って", "難しい怪獣ゲームを作って"):
+        _wk_label = "難しい" if "難しい" in _wk_req else "default"
+        _wk_page = generate_game(_wk_req).html
+        _wk_script = _scene_re.search(r"<script>(.*?)</script>", _wk_page, _scene_re.S)
+        if _wk_script is None:
+            wake_gaps.append(f"{_wk_label}: no script")
+            continue
+        try:
+            _wk_run = _scene_sp.run(
+                ["node", "-"],
+                input=_wk_probe(_wk_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _wk_run.returncode != 0:
+                raise ValueError(_wk_run.stderr.strip()[:60])
+            _wk = json.loads(_wk_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            wake_gaps.append(f"{_wk_label}: probe unavailable ({exc})")
+            continue
+        if _wk["early"]["state"] != "wake" or not _wk["early"]["cracks"]:
+            wake_gaps.append(f"{_wk_label}: no cracks run when the ground first stirs")
+        elif not _wk["mid"]["dust"]:
+            wake_gaps.append(f"{_wk_label}: no dust wall rises")
+        elif not _wk["wideAt"]["wide"]:
+            wake_gaps.append(f"{_wk_label}: the one wide shot never comes")
+        elif _wk["firedInWake"]:
+            wake_gaps.append(f"{_wk_label}: the cannon fires during the prologue")
+        elif _wk["toFight"] is None or _wk["toFight"] > 120:
+            wake_gaps.append(f"{_wk_label}: the awakening never hands over the fight")
+        elif _wk["after"]["state"] != "fight" or _wk["after"]["phase"] != "leg":
+            wake_gaps.append(f"{_wk_label}: the fight after the prologue is not a fight")
+        elif not _wk["after"]["shots"]:
+            wake_gaps.append(f"{_wk_label}: the cannon stays dead after the handover")
+    c.add(
+        "creation_kaiju_awakening",
+        "怪獣は目覚めてから戦う",
+        0.0 if wake_gaps else 1.0,
+        detail=(
+            "; ".join(wake_gaps)
+            if wake_gaps
+            else "実ページ 2 依頼で開幕 90f を読む: 地割れが走り（決定的配置・"
+            "乱数流を消費しない）、塵の壁が立ち、引きの 1 枚で全身が空に立って"
+            "自機と対比され（観察 1 の「全身は要所に 1 回」の開幕側）、"
+            "プロローグ中の発砲は 0・~90f で 'fight' へ引き継ぎ、裂け目は"
+            "閉じて戦いが始まる（§6 観察 3 のエスカレーション型。combat() の"
+            "音圧段も 'fight' からなので観察 4 の静→轟も一致）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the repeat never lands on the same pitch twice ----------------
     #
     # §14 事実 1 (C-1317): frequently fired effects need a small random
@@ -8088,7 +8152,10 @@ def measure_creation(c: Collector) -> None:
                 input=_board_probe(
                     script.group(1),
                     speed_expr=_board_binding[template],
-                    frames=120,
+                    # Kaiju spends its first 90 frames waking (C-1357), so
+                    # its seed-decided world starts that much later - the
+                    # window slides with the design, the checks do not.
+                    frames=210 if template == "kaiju" else 120,
                     quiet=True,
                     reduced=True,
                     random_pin=pin,

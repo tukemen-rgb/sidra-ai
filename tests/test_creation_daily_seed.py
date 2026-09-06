@@ -99,7 +99,10 @@ def _board(template: str, request: str, *, on: bool, stamp: str, pin: int) -> in
         input=together_probe(
             script.group(1),
             speed_expr=SPEED_BINDING[template],
-            frames=120,
+            # Kaiju spends its first 90 frames waking (C-1357), so its
+            # seed-decided world starts that much later - the window
+            # slides with the design.
+            frames=210 if template == "kaiju" else 120,
             quiet=True,
             # Particles draw with Math.random and fire on their own in half
             # the templates; C-1020 guarantees reduced motion is what drops
