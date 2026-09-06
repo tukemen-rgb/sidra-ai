@@ -169,6 +169,12 @@ function pop(){if(state!=='play')return;
         if(cleared){winBeat(cv.width/2,cv.height/2)}
         else{failBeat(cv.width/2,cv.height/2)}}
       return}
+    /* An invalid tap breaks the run (§13, C-1436): asking a group too
+       small to pop, with nothing to spend on it, is the mistake this
+       game lets you keep playing through - which is what a run has to
+       be breakable by. The hammer above is a tool, not a clear, so it
+       neither pays the run nor ends it. */
+    comboMiss();
     sfx('clash');shake(1.5);return}
   /* The tap: a big clear pays in the currency that matters, capped so
      hoarding cannot trivialise the endgame (§5 tap/sink balance). */
@@ -180,7 +186,12 @@ function pop(){if(state!=='play')return;
      number appears where the big clear was (C-1418). */
   const popX=OX+CELL/2+CELL*cells.reduce(function(a,c){return a+c[0]},0)/cells.length,
         popY=OY+CELL/2+CELL*cells.reduce(function(a,c){return a+c[1]},0)/cells.length;
-  score+=scorePop(popX,popY,cells.length*cells.length);
+  /* C-1420's sum, on the fifth template (C-1436): the run multiplies the
+     clear's base (one per tile) and the size bonus rides OUTSIDE it, so
+     a x1 clear pays exactly cells.length*cells.length - the payment this
+     game always made - and the ladder never compounds the square. */
+  const base=cells.length,bonus=cells.length*cells.length-cells.length;
+  score+=scorePop(popX,popY,comboHit()*base+bonus);
   cells.forEach(([x,y])=>{burst(OX+x*CELL+CELL/2,OY+y*CELL+CELL/2,4,
     PALETTE[grid[y][x]]||'CYAN_TOKEN');grid[y][x]=-1});
   sfx('gem');shake(Math.min(9,cells.length));hitstop(cells.length>4?3:1);
@@ -228,7 +239,7 @@ function draw(now){
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(OX-8,10,336,22);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
-  cx.fillText('得点 '+score+'  つち ×'+hammers,OX,26);
+  cx.fillText('得点 '+score+' '+comboLabel()+'  つち ×'+hammers,OX,26);
   const left=group(cur.x,cur.y).length;
   cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,26);
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';
@@ -587,12 +598,93 @@ def probe_source(script: str, *, reduced: bool = False) -> str:
         "SCRIPT_PLACEHOLDER", script
     )
 
+#: The run, played out on a real board (§13, C-1436): greedy biggest-group
+#: clears build the ladder, every payment is checked against the sum rule
+#: as it happens, one deliberately invalid tap breaks the run, and the
+#: next clear is paid at x1 - which must be exactly cells squared, the
+#: payment this game always made (C-1421's restatement, confirmed live).
+COMBO_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(40);
+/* The biggest group on the board, by the page's own group(). */
+function biggest(){ let best = null;
+  for (let y = 0; y < ROWS; y++) { for (let x = 0; x < COLS; x++) {
+    if (grid[y][x] < 0) continue;
+    const g = group(x, y);
+    if (g.length >= 2 && (!best || g.length > best.length)) best = g } }
+  return best }
+function walkTo(x, y){
+  while (cur.x !== x) key(cur.x < x ? 'ArrowRight' : 'ArrowLeft');
+  while (cur.y !== y) key(cur.y < y ? 'ArrowDown' : 'ArrowUp') }
+const clears = [];
+for (let i = 0; i < 8 && state === 'play'; i++) {
+  const g = biggest();
+  if (!g) break;
+  walkTo(g[0][0], g[0][1]);
+  const size = group(cur.x, cur.y).length;
+  const before = score;
+  key(' '); run(20);
+  clears.push({ size: size, paid: score - before,
+    run: comboFacts().run, mult: comboFacts().mult });
+}
+const atLadder = comboFacts();
+/* The break: tap a cell that was already cleared - a group of zero, an
+   invalid move whatever the hammer count says. */
+let broke = null;
+outer: for (let y = 0; y < ROWS; y++) { for (let x = 0; x < COLS; x++) {
+  if (grid[y][x] < 0) { walkTo(x, y); key(' '); run(4);
+    broke = comboFacts(); break outer } } }
+/* And the clear after the break pays at x1: cells squared, exactly. */
+let afterBreak = null;
+const g2 = biggest();
+if (g2 && state === 'play') {
+  walkTo(g2[0][0], g2[0][1]);
+  const size = group(cur.x, cur.y).length;
+  const before = score;
+  key(' '); run(20);
+  afterBreak = { size: size, paid: score - before, mult: comboFacts().mult };
+}
+console.log(JSON.stringify({ clears: clears, atLadder: atLadder,
+  broke: broke, afterBreak: afterBreak, state: state }));
+"""
+
+
+def combo_probe(script: str) -> str:
+    """The page's own script, wrapped so the run can be built and broken."""
+
+    return COMBO_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "PUZZLE_DIFFICULTY",
     "PUZZLE_HOW",
     "PUZZLE_SCRIPT",
     "PUZZLE_TITLE",
     "PUZZLE_WORDS",
+    "COMBO_PROBE",
+    "combo_probe",
     "PROBE",
     "probe_source",
     "HAMMER_PROBE",

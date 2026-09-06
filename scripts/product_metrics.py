@@ -11548,6 +11548,94 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the puzzle's run rides the clears, never the square (C-1436) ----
+    #
+    # COMBO_UNWIRED held puzzle back because a multiplier would compound
+    # the squared size bonus; C-1420's sum is the answer, on the fifth
+    # template: the run multiplies the clear's base (one per tile), the
+    # size bonus (cells^2 - cells) rides outside it, so a x1 clear pays
+    # exactly cells^2 - the payment this game always made (C-1421's
+    # restatement, confirmed on every live payment below). The run breaks
+    # on an invalid tap and on nothing else.
+    from sidra_ai.creation.combo import COMBO_TEMPLATES as _pzc_wired
+    from sidra_ai.creation.puzzle import combo_probe as _pzc_probe
+
+    pzc_gaps: list[str] = []
+    pzc_top = 1
+    _pzc_page = generate_game("さめがめ風パズルを作って").html
+    _pzc_script = _scene_re.search(r"<script>(.*?)</script>", _pzc_page, _scene_re.S)
+    if "puzzle" not in _pzc_wired:
+        pzc_gaps.append("puzzle is not in COMBO_TEMPLATES")
+    elif _pzc_script is None:
+        pzc_gaps.append("no script on the puzzle page")
+    else:
+        try:
+            _pzc_run = _scene_sp.run(
+                ["node", "-"],
+                input=_pzc_probe(_pzc_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _pzc_run.returncode != 0:
+                raise ValueError(_pzc_run.stderr.strip()[:80])
+            _pzc = json.loads(_pzc_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            _pzc = None
+            pzc_gaps.append(f"probe unavailable ({exc})")
+        if _pzc is not None:
+            _pzc_clears = _pzc.get("clears") or []
+            pzc_top = max([c["mult"] for c in _pzc_clears] or [1])
+            if len(_pzc_clears) < 5:
+                pzc_gaps.append(f"only {len(_pzc_clears)} clears were measured")
+            for _pzc_c in _pzc_clears:
+                if _pzc_c["paid"] != (
+                    _pzc_c["mult"] * _pzc_c["size"]
+                    + _pzc_c["size"] * _pzc_c["size"]
+                    - _pzc_c["size"]
+                ):
+                    pzc_gaps.append(
+                        f"a {_pzc_c['size']}-clear on x{_pzc_c['mult']} paid "
+                        f"{_pzc_c['paid']}, not base x mult + size bonus"
+                    )
+                    break
+            if not pzc_gaps and pzc_top < 2:
+                pzc_gaps.append("the run never climbed past x1")
+            if not pzc_gaps:
+                _pzc_broke = _pzc.get("broke") or {}
+                if _pzc_broke.get("run") != 0 or _pzc_broke.get("mult") != 1:
+                    pzc_gaps.append(
+                        f"an invalid tap left the run at "
+                        f"{_pzc_broke.get('run')}/x{_pzc_broke.get('mult')}"
+                    )
+            if not pzc_gaps:
+                _pzc_after = _pzc.get("afterBreak")
+                if not _pzc_after:
+                    pzc_gaps.append("no clear was measured after the break")
+                elif _pzc_after["mult"] != 1 or (
+                    _pzc_after["paid"] != _pzc_after["size"] * _pzc_after["size"]
+                ):
+                    pzc_gaps.append(
+                        f"the x1 clear after the break paid {_pzc_after['paid']}, "
+                        f"not {_pzc_after['size']}^2 - the identity C-1421 demands"
+                    )
+    c.add(
+        "creation_puzzle_combo",
+        "パズルの連続消しが積み上がる（大きさボーナスとは和）",
+        0.0 if pzc_gaps else 1.0,
+        detail=(
+            "; ".join(pzc_gaps)
+            if pzc_gaps
+            else f"実盤面を運転して計測: 最大かたまりの連続消しで梯子が x{pzc_top} "
+            "まで上がり、**全支払いが「基礎×倍率＋(cells²−cells)」と一致**、"
+            "×1 の支払いは従来どおり cells² ちょうど（C-1421 の恒等式を実測で"
+            "再確認＝倍率は二乗ボーナスに複利しない・C-1420 の和の規約の 5 例目）。"
+            "無効手（消せない場所のタップ）だけが run を 0 に戻し、"
+            "そこから ×1 で積み直す"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- and the puzzle's own reason, interrogated (C-1427) --------------
     #
     # LOSS_UNWIRED said "'over' means the board jammed, but nothing counts

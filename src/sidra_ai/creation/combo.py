@@ -71,13 +71,22 @@ import json
 #: 会心 (C-1331) already pays double, so this is the same sum C-1420 chose
 #: for marble: the multiplier rides the cast's base value and the perfect
 #: throw's extra is added outside it. A 会心 on a x3 run pays 3 + 1, not 6.
-COMBO_TEMPLATES: tuple[str, ...] = ("catch", "shooter", "marble", "fishing")
+#:
+#: ``puzzle`` fifth (C-1436). This table used to say a multiplier would
+#: compound the squared size bonus, and C-1420's sum is again the answer:
+#: the run multiplies the clear's base value (one per tile) and the size
+#: bonus (cells^2 - cells) is added outside it, so a x1 clear pays exactly
+#: cells^2 - the payment it always was - and the ladder pays for keeping
+#: clears CONSECUTIVE, never for compounding size. The run breaks on an
+#: invalid tap (a group too small to pop, with no hammer to spend); the
+#: hammer itself is a tool, not a clear, and neither pays nor breaks.
+COMBO_TEMPLATES: tuple[str, ...] = (
+    "catch", "shooter", "marble", "fishing", "puzzle")
 
 #: Why each of the others is not wired yet. Written down because "not yet"
 #: and "not applicable" are different answers, and only the first is a
 #: backlog item.
 COMBO_UNWIRED: dict[str, str] = {
-    "puzzle": "clears already score by size, so a multiplier would compound an existing bonus",
     "adventure": "gems are placed, not earned in a run; there is nothing to be consecutive about",
     "platformer": "same as adventure - the gems are level furniture",
     "kaiju": "the cycle is the unit and there is only one target",
