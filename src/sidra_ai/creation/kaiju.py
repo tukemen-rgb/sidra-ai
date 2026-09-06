@@ -87,7 +87,7 @@ function reset(){
   /* Under the leg, not across the field (§8 事実 5): the first shot a
      new player fires has to hit something. Walking away is a choice
      they make after that, not a toll before it. */
-  me={x:W*0.68,hp:3,step:0,cool:0};
+  me={x:W*0.68,hp:3,step:0,cool:0,kvx:0};
   shots=[];cracks=[];dust=[];t=0;cycles=0;state='wake';
   boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
 setPal(KAIJU_PAL_TOKEN);
@@ -154,6 +154,7 @@ function step(){t++;
       if(me.cool===0&&me.queued){me.queued=false;fire()}}
     /* The shared steering part (C-1114), with this game's own margin. */
     partsSteerX(me,2.1,30,W-30);
+    partsThrowX(me,30,W-30);
     if(Math.abs(me.x-(me.lastX||me.x))>0.4){me.step+=0.05;
       /* Dust on the footfall, not every frame: weight is the stride. */
       if(Math.sin(me.step*6.283)>0.97)dust.push({x:me.x,y:GROUND,r:2,a:1})}
@@ -183,6 +184,11 @@ function step(){t++;
         /* One crack, two losses: the heart and the graze run. */
         grazeStruck(gd,gk);grazeLost();
         me.hp--;shake(6);sfx('hurt');hitstop(3);
+        /* Knockback (§1, C-1361): the other half of the hitstop pair.
+           The blast throws the soldier AWAY from the crack; the clamp
+           below keeps a wall from turning the throw into a pin. Kept
+           under REDUCED - position is gameplay, not decoration. */
+        me.kvx=(me.x<c.x?-1:1)*6;
         if(me.hp<=0){state='lost';failBeat(me.x,GROUND-20)}return false}
       /* Outside the radius that would have hurt, inside the ribbon: the
          crack was stood beside rather than fled from. */
@@ -200,6 +206,8 @@ addEventListener('keyup',e=>{keys[e.key]=false});
    put on screen, and whether this is the wide-shot beat. */
 function wakeFacts(){return {state:state,t:t,cracks:cracks.length,
   dust:dust.length,wide:state==='wake'&&t>60}}
+/* The hit's other half, as a fact (§1, C-1361). */
+function kbFacts(){return {kvx:me.kvx,x:me.x,hp:me.hp}}
 function bossFacts(){return{phase:boss.phase,cycles:cycles,shown:boss.shown,
   tense:cycleTense(),growth:CRACK*cycleTense(),
   legHp:boss.legHp,beat:BEAT,state:state,hp:me.hp}}
@@ -510,9 +518,73 @@ def wake_probe(script: str) -> str:
     return WAKE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The knockback, as played (§1, C-1361). A live crack is placed beside
+#: the soldier - the same shape the fight grows - and the throw is read
+#: off kbFacts() frame by frame: away from the blast, settled inside half
+#: a second, and pinned by the arena bound rather than pushed through it.
+#: Direct state ops are the racing/guard probes' precedent (C-1306).
+KB_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(110);
+/* Quiet the stomp clock so the one placed blast is the only one. */
+boss.timer = 900; cracks.length = 0;
+const x0 = me.x, hpBefore = me.hp;
+cracks.push({ x: me.x + 4, w: 0, warn: 0, open: 30 });
+run(1);
+const onHit = kbFacts();
+const track = [];
+for (let i = 0; i < 40; i++){ run(1); track.push(kbFacts().x) }
+const settled = kbFacts();
+/* The wall case: parked on the left bound with the blast to the right,
+   the throw points into the wall and the bound must hold. */
+boss.timer = 900; cracks.length = 0;
+me.x = 30; me.kvx = 0; me.hp = 3;
+cracks.push({ x: me.x + 4, w: 0, warn: 0, open: 30 });
+run(1);
+let minX = 1e9;
+for (let i = 0; i < 40; i++){ run(1); minX = Math.min(minX, kbFacts().x) }
+console.log(JSON.stringify({
+  x0: x0, hpBefore: hpBefore, onHit: onHit,
+  moved: x0 - Math.min.apply(null, track),
+  settledKvx: settled.kvx, hpAfter: settled.hp, minX: minX,
+}));
+"""
+
+
+def kb_probe(script: str) -> str:
+    """The page's own script, wrapped so the throw can be measured."""
+
+    return KB_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "WAKE_PROBE",
     "wake_probe",
+    "KB_PROBE",
+    "kb_probe",
     "QUEUE_PROBE",
     "queue_probe",
     "KAIJU_DIFFICULTY",

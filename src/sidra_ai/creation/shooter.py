@@ -65,6 +65,8 @@ setPal(SHOOTER_PAL_TOKEN);
    sinking the themed ink to ~3:1 here too (C-1329's fix, template 4). */
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
+/* The hit's other half, as a fact (§1, C-1361). */
+function kbFacts(){return {kvx:ship.kvx,x:ship.x,hp:ship.hp}}
 /* The far layer (§7 観察 7, C-1360): the starfield's parallax already had
    a speed gradient and no contrast gradient - every star was the same
    hardcoded #ffffff44, so a fast star and a slow one read as the same
@@ -97,7 +99,7 @@ function actOf(){return t>=ACT*2?2:t>=ACT?1:0}
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const W=cv.width,H=cv.height,SHIP=22;
 let ship,shots,foes,stars,score,kills,wave,t,state,fire,spawnIn,actSpawn,actVy;
-function reset(){ship={x:W/2,y:H-34,hp:3,cool:0};shots=[];foes=[];score=0;kills=0;wave=0;
+function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0};shots=[];foes=[];score=0;kills=0;wave=0;
   t=0;state='play';fire=false;rs=(SEED>>>0)||1;
   spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];grazeReset();
   /* A new go starts at x1. Carrying a run across a restart would hand
@@ -127,6 +129,10 @@ function step(){const now=performance.now();
     if(ship.cool>0)ship.cool--;
     if(keys['arrowleft']||keys['a']){ship.x=Math.max(SHIP,ship.x-4)}
     if(keys['arrowright']||keys['d']){ship.x=Math.min(W-SHIP,ship.x+4)}
+    /* Knockback (§1, C-1361): the ram throws the ship AWAY from the hull,
+       played out by the shared part through the same bounds the arrows
+       respect. Kept under REDUCED - position is gameplay, not decoration. */
+    partsThrowX(ship,SHIP,W-SHIP);
     if(fire)shoot();
     if(--spawnIn<=0){spawn();spawnIn=Math.max(8,Math.round(WAVE*ACT_GAP[actOf()]))}
     shots.forEach(s=>{s.y-=7});
@@ -152,6 +158,7 @@ function step(){const now=performance.now();
       /* One hull, two independent losses: the graze run and the kill
          run both end, and neither is the other's number (C-1411). */
       f.hp=0;ship.hp--;comboMiss();sfx('clash');shake(11);hitstop(5);
+      ship.kvx=(ship.x<f.x?-1:1)*7;
       grazeStruck(gd,gk);grazeLost();
       burst(ship.x,ship.y,18,'ALERT_JUICE');
       if(ship.hp<=0){state='over';failBeat(ship.x,ship.y)}}
@@ -310,7 +317,67 @@ def probe_source(script: str) -> str:
 
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
+#: The knockback, as played (§1, C-1361). A hull is placed on the ship's
+#: shoulder and the ram's throw is read off kbFacts() frame by frame:
+#: away from the hull, settled inside half a second, and pinned by the
+#: screen bound rather than pushed through it.
+KB_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(4);
+const x0 = ship.x, hpBefore = ship.hp;
+foes.push({ x: ship.x + 3, y: ship.y, vy: 0, vx: 0, r: 13, hp: 1 });
+run(1);
+const onHit = kbFacts();
+const track = [];
+for (let i = 0; i < 40; i++){ run(1); track.push(kbFacts().x) }
+const settled = kbFacts();
+/* The wall case: parked on the left bound with the hull to the right,
+   the throw points into the wall and the bound must hold. */
+foes.length = 0; ship.x = SHIP; ship.kvx = 0; ship.hp = 3;
+foes.push({ x: ship.x + 3, y: ship.y, vy: 0, vx: 0, r: 13, hp: 1 });
+run(1);
+let minX = 1e9;
+for (let i = 0; i < 40; i++){ run(1); minX = Math.min(minX, kbFacts().x) }
+console.log(JSON.stringify({
+  x0: x0, hpBefore: hpBefore, onHit: onHit,
+  moved: x0 - Math.min.apply(null, track),
+  settledKvx: settled.kvx, hpAfter: settled.hp, minX: minX, bound: SHIP,
+}));
+"""
+
+
+def kb_probe(script: str) -> str:
+    """The page's own script, wrapped so the throw can be measured."""
+
+    return KB_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "KB_PROBE",
+    "kb_probe",
     "SHOOTER_DIFFICULTY",
     "SHOOTER_HOW",
     "SHOOTER_SCRIPT",

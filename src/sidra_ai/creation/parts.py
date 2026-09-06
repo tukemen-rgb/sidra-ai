@@ -39,6 +39,7 @@ from __future__ import annotations
 PREAMBLE_NAMES: tuple[str, ...] = (
     "partsHeld",
     "partsSteerX",
+    "partsThrowX",
     "partsFacts",
 )
 
@@ -78,6 +79,14 @@ function partsSteerX(actor,speed,lo,hi,left,right){
   if(partsHeld(back)){actor.x=Math.max(lo,actor.x-speed);PARTS_MOVES++}
   if(partsHeld(fwd)){actor.x=Math.min(hi,actor.x+speed);PARTS_MOVES++}
   return actor.x}
+/* The hit's other half (§1, C-1361): a decaying impulse played out
+   through the same bounds steering respects. Quarters and a snap, so
+   control never fights a phantom drift; the clamp keeps a wall from
+   turning the throw into an exit. Reads no input, so it composes with
+   partsSteerX and with a template's own key map alike. */
+function partsThrowX(actor,lo,hi){if(!actor.kvx)return;
+  actor.x=Math.max(lo,Math.min(hi,actor.x+actor.kvx));
+  actor.kvx*=0.7;if(Math.abs(actor.kvx)<0.2)actor.kvx=0}
 /* What the judge reads back: that the part is the thing that moved the
    actor, rather than a template's own copy of the same three lines. */
 function partsFacts(){return {moves:PARTS_MOVES,

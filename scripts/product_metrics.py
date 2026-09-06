@@ -7043,6 +7043,81 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the hit throws the body, not just the camera ------------------
+    #
+    # §1 (C-1361): the technique list pairs hitstop WITH knockback, and
+    # only the adventure's hero had both. The kaiju soldier and the
+    # shooter ship took their hits rooted to the spot - screen shaken,
+    # body unmoved. Each now takes an impulse away from the impact,
+    # decaying by quarters inside half a second, clamped by the same
+    # bounds steering respects. Read by placing the impact source beside
+    # the body on the built page and tracking kbFacts() frame by frame.
+    import re as _kb_re
+    import subprocess as _kb_sp
+
+    from sidra_ai.creation.kaiju import kb_probe as _kb_kaiju
+    from sidra_ai.creation.shooter import kb_probe as _kb_shooter
+
+    kb_gaps: list[str] = []
+    kb_ok: list[str] = []
+    for _kb_key, _kb_req, _kb_builder, _kb_bound in (
+        ("kaiju", "巨大怪獣と戦うゲームを作って", _kb_kaiju, 30.0),
+        ("shooter", "シューティングゲームを作って", _kb_shooter, 22.0),
+    ):
+        try:
+            _kb_page = generate_game(_kb_req).html
+            _kb_script = _kb_re.search(
+                r"<script>(.*?)</script>", _kb_page, _kb_re.S
+            )
+            if _kb_script is None:
+                raise ValueError("no script")
+            _kb_run = _kb_sp.run(
+                ["node", "-"],
+                input=_kb_builder(_kb_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _kb_run.returncode != 0:
+                raise ValueError(_kb_run.stderr.strip()[:60])
+            _kb = json.loads(_kb_run.stdout.strip().splitlines()[-1])
+        except (OSError, _kb_sp.SubprocessError, ValueError) as exc:
+            kb_gaps.append(f"{_kb_key}: probe unavailable ({exc})")
+            continue
+        if _kb["hpBefore"] - _kb["hpAfter"] != 1:
+            kb_gaps.append(f"{_kb_key}: the hit cost {_kb['hpBefore'] - _kb['hpAfter']} hearts")
+        elif not _kb["onHit"]["kvx"] or _kb["onHit"]["kvx"] >= 0:
+            kb_gaps.append(
+                f"{_kb_key}: the hit never throws the body ({_kb['onHit']['kvx']})"
+            )
+        elif _kb["moved"] < 12:
+            kb_gaps.append(f"{_kb_key}: the throw is a twitch ({_kb['moved']:.1f}px)")
+        elif _kb["settledKvx"] != 0:
+            kb_gaps.append(
+                f"{_kb_key}: the body never settles (kvx {_kb['settledKvx']})"
+            )
+        elif _kb["minX"] < _kb_bound - 1e-9:
+            kb_gaps.append(
+                f"{_kb_key}: the wall lets the throw through ({_kb['minX']})"
+            )
+        else:
+            kb_ok.append(_kb_key)
+    c.add(
+        "creation_hit_knockback",
+        "被弾で体が押し返される",
+        0.0 if kb_gaps else float(len(kb_ok)),
+        detail=(
+            "; ".join(kb_gaps)
+            if kb_gaps
+            else f"{', '.join(kb_ok)}: 実ページで衝撃源を体の隣に置いて実測——"
+            "被弾フレームに衝撃源から遠ざかる kvx が点火し、体が ≥12px 飛ばされ、"
+            "0.7 減衰で 30f 以内に kvx=0 へ収束、壁際の被弾では移動と同じ"
+            "クランプが境界を守る（§1 の「ヒットストップとノックバック」の対が"
+            "adventure の hero に続き 3 体に）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the repeat never lands on the same pitch twice ----------------
     #
     # §14 事実 1 (C-1317): frequently fired effects need a small random

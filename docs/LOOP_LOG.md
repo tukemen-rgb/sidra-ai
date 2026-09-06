@@ -8525,3 +8525,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 11:12 UTC 辛口ユーザー started（56 巡目・英語 exfiltration の残 FP ほか 予定・前回=CLI 接続失敗メッセージ C-1278）
 
 2026-09-06 11:22 進捗監視 前進なし（ループA 11:08 キュー空）→ まとめて補充: C-1445（together の鍵台帳と統合走行を新機能に追随・直近の exit2 事故 3 件が全て相互作用型だったことが根拠）・C-1446（GRAZE_UNWIRED の duel 記述の実測検証・parry が grep 0 件）。C-1361（クリエイター）進行中。
+2026-09-06 11:46 辛口クリエイター C-1361 完了 creation_hit_knockback unmeasurable -> 2（判定器 exit 0・観点=§1 被弾ノックバック・前回=§7・kaiju の兵士と shooter の自機が衝撃で押し返される: 共有部品 partsThrowX 新設・19〜23px 飛んで 30f で収束・壁は割らない。shooter の SKIN_UNIT 90->132 を C-1407 規則で再計測。破壊 5 通り全て捕捉）

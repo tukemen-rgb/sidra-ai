@@ -69,6 +69,12 @@ import json
 #: seeded item stream instead of the load-time one, and catches more.
 #: Three runs, same number each time - the trajectory changed, so the
 #: measurement follows it (C-1407's rule).
+#: ``shooter`` 90 -> 132 when C-1361 gave the ship knockback: a masher's
+#: rammed ship is now thrown clear of the hull instead of standing in the
+#: formation, so it survives the wave it just paid a heart to and keeps
+#: shooting into it. The mash living longer is the feature working - the
+#: throw is the mercy the technique list promised - and the yardstick
+#: follows the trajectory it measures (C-1407's rule).
 SKIN_UNIT: dict[str, int] = {
     "adventure": 2,
     "catch": 33,
@@ -79,7 +85,7 @@ SKIN_UNIT: dict[str, int] = {
     "platformer": 1,
     "puzzle": 58,
     "racing": 3,
-    "shooter": 90,
+    "shooter": 132,
 }
 
 #: How many played-out rounds each skin costs. Nothing is free (a skin the
