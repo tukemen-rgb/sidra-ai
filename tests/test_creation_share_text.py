@@ -41,6 +41,7 @@ from sidra_ai.creation.share import (  # noqa: E402
     SHARE_NAME,
     SHARE_PREAMBLE,
     SHARE_TYPICAL,
+    bar_for,
     leaks,
     probe_source,
     share_spec,
@@ -115,11 +116,11 @@ def test_the_line_carries_the_score_and_a_row_derived_from_it(template: str) -> 
     seen, _ = _play(template)
     facts = seen["facts"]
     score = facts["score"]
-    want = (
-        ""
-        if not (score and score > 0)
-        else facts["emoji"] * max(1, min(SHARE_MAX, round(score / facts["per"])))
-    )
+    # By the page's rule (C-1437). Python's own `round` sends a half to
+    # the even side while the page's `Math.round` sends it up, so this
+    # test used to fail a correct page whenever score/per landed exactly
+    # halfway - which any change to a template's points can cause.
+    want = bar_for(score, share_spec(template))
 
     assert str(score) in facts["text"]
     assert facts["bar"] == want
@@ -202,3 +203,104 @@ def test_no_template_shadows_a_share_name(template: str) -> None:
         assert f"function {name}(" not in body
         assert f"const {name}=" not in body
         assert f"let {name}=" not in body
+
+
+# --- the mirror, held to the page it mirrors (C-1437) ------------------
+#
+# Anything checking the row has to build the expected one from the score,
+# and building it in Python is where C-1437 came from: `Math.round` sends
+# a half up, `round` sends it to the even side, so the two agree until a
+# template's points put `score / per` exactly halfway and then the page
+# is failed for being right. `bar_for()` is that mirror, and a mirror is
+# only worth having if it is checked against the thing it reflects - so
+# this runs the page's own `shareBar` and compares, rather than restating
+# the rule a third time.
+
+
+def _page_shareBar(spec: dict, scores: list[int]) -> list[str]:
+    """The product's own shareBar, run in node over the given scores."""
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to run the page's own rule")
+    body = SHARE_PREAMBLE[SHARE_PREAMBLE.index("function shareBar") :]
+    body = body[: body.index("\nfunction ")]
+    source = (
+        f"const SHARE_SPEC={json.dumps(spec, ensure_ascii=False)};\n"
+        f"{body}\n"
+        f"console.log(JSON.stringify({json.dumps(scores)}.map(shareBar)))"
+    )
+    ran = subprocess.run(["node", "-"], input=source, capture_output=True, text=True, timeout=60)
+    assert ran.returncode == 0, ran.stderr[:400]
+    return json.loads(ran.stdout)
+
+
+@pytest.mark.parametrize("template", KEYS)
+def test_the_mirror_agrees_with_the_page_on_every_score_including_the_ties(
+    template: str,
+) -> None:
+    spec = share_spec(template)
+    # Far enough past `max * per` that the clamp is exercised too, and
+    # dense enough that every half-way point in range is in the list.
+    scores = list(range(0, spec["per"] * (spec["max"] + 2) + 1))
+
+    theirs = _page_shareBar(spec, scores)
+    mine = [bar_for(score, spec) for score in scores]
+
+    assert mine == theirs
+    # A whole score can only land halfway when `per` is even, so an odd
+    # one cannot reach the disagreement at all. Which templates those
+    # are is not fixed - `per` is derived from the skin unit and moves -
+    # so the tie is asserted where it exists rather than assumed.
+    ties = [s for s in scores if (s / spec["per"]) % 1 == 0.5]
+    assert bool(ties) is (spec["per"] % 2 == 0)
+
+
+def test_the_python_builtin_would_have_disagreed() -> None:
+    """The bug this replaced, pinned so nobody quietly puts it back.
+
+    Not a claim about `bar_for` - a claim about why it cannot be one
+    line of `round()`. Were that true, the two would agree here.
+    """
+
+    spec = {"emoji": "x", "max": 10, "per": 12}
+    # 78 / 12 is exactly 6.5: the page draws seven, `round` wants six.
+    assert bar_for(78, spec) == "x" * 7
+    assert round(78 / spec["per"]) == 6
+
+
+def test_some_template_can_actually_reach_the_halfway_score() -> None:
+    """Otherwise the test above passes by never meeting the case.
+
+    If every `per` went odd this would stop guarding anything, and it
+    should say so rather than going quietly green.
+    """
+
+    reachable = [k for k in KEYS if share_spec(k)["per"] % 2 == 0]
+
+    assert reachable, "no template can land on a half; the tie is untested"
+
+
+@pytest.mark.parametrize("template", KEYS)
+def test_the_page_carries_this_sides_spec_rather_than_one_of_its_own(template: str) -> None:
+    """What the row is checked against has to be independent of the page.
+
+    The expected row is built from `share_spec()`, not from the per/max/
+    emoji the page reports about itself - a check that used the page's
+    own numbers would pass a page that shipped the wrong ones, which is
+    the same self-agreement C-1427 found in a different counter. That is
+    only sound while the two are actually the same object, so they are
+    held to each other here.
+
+    What this can see, and what it cannot: both sides read `share_spec()`,
+    so changing that function moves them together and this stays green
+    (measured - a deliberate `per + 1` there passed). What it catches is
+    the path between the two, which is where they can actually come
+    apart: a `preamble_for` building the token out of anything else
+    fails it (measured, `per=8` in the token: four templates red).
+    """
+
+    page = generate_game(REQUEST, template=template).html
+    carried = re.search(r"const SHARE_SPEC=(\{.*?\});", page, re.S)
+
+    assert carried is not None, "the page declares no spec"
+    assert json.loads(carried.group(1)) == share_spec(template)

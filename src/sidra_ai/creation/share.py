@@ -27,6 +27,7 @@ behind it, and nothing else - no share sheet, no network, no analytics.
 from __future__ import annotations
 
 import json
+import math
 
 from sidra_ai.creation.skins import SKIN_UNIT
 
@@ -83,6 +84,35 @@ def share_spec(template: str) -> dict:
         "per": max(1, round(unit / SHARE_TYPICAL)),
         "max": SHARE_MAX,
     }
+
+
+def bar_for(score: float | None, spec: dict) -> str:
+    """The row the page itself would draw, by the page's own rule.
+
+    Anything checking the row has to re-derive it from the score - a
+    judge that reads the count off the page it is judging agrees with
+    itself. But re-deriving it in Python is where C-1437 came from:
+    ``shareBar()`` counts with JS ``Math.round``, which sends a half up,
+    and Python's ``round`` sends a half to the nearest *even*. They agree
+    everywhere except when ``score / per`` lands exactly halfway, and
+    then the page is called wrong for being right.
+
+    It surfaced when a scoring change put one round on the tie (puzzle,
+    daily on, per=12, score 78 -> 6.5): the page drew 7, the checker
+    wanted 6, and a green judge went to 0. Nothing about that was the
+    page's fault, and the tie is reachable by any template whose points
+    ever move, so the mirror lives here, once, rather than being written
+    out again at each place that needs it.
+
+    ``Math.round(x)`` is specified as ``floor(x + 0.5)``, so that is what
+    the mirror is. (The negative-zero corner of that definition cannot be
+    reached: a row is only drawn for a score above zero.)
+    """
+
+    if not (score and score > 0):
+        return ""
+    n = max(1, min(spec["max"], math.floor(score / spec["per"] + 0.5)))
+    return spec["emoji"] * n
 
 
 #: Names the preamble introduces, held to by a test like the other

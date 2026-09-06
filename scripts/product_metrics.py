@@ -8218,6 +8218,7 @@ def measure_creation(c: Collector) -> None:
         PREAMBLE_NAMES as _share_names,
         SHARE_MAX as _share_max,
         SHARE_PREAMBLE as _share_preamble,
+        bar_for as _share_bar,
         leaks as _share_leaks,
         probe_source as _share_probe,
         share_spec as _share_spec,
@@ -8277,18 +8278,31 @@ def measure_creation(c: Collector) -> None:
                     text, request=_share_request, title=title or "", seed=_share_seed
                 )
                 score = facts["score"]
-                want = (
-                    ""
-                    if not (score and score > 0)
-                    else facts["emoji"]
-                    * max(1, min(facts["max"], round(score / facts["per"])))
-                )
+                # By the page's own rule, not Python's (C-1437): a half
+                # goes up in JS and to the even side here, so re-deriving
+                # the count with `round` calls a correct page wrong the
+                # moment score/per lands exactly halfway.
+                want = _share_bar(score, spec)
+                # The expected row is built from this side's spec, not
+                # from the numbers the page reports about itself: a row
+                # checked against the page's own per/max/emoji would pass
+                # for a page that shipped the wrong ones. So the two
+                # specs are held to each other first, where a mismatch
+                # can say what it actually is.
+                spec_said = {k: facts[k] for k in ("emoji", "max", "per")}
+                spec_want = {k: spec[k] for k in ("emoji", "max", "per")}
                 if found:
                     trouble = f"{where}: {'; '.join(found)}"
+                elif spec_said != spec_want:
+                    trouble = f"{where}: the page carries {spec_said!r}, not {spec_want!r}"
                 elif str(score) not in text:
                     trouble = f"{where}: the line does not carry the score"
                 elif facts["bar"] != want:
-                    trouble = f"{where}: the row is not derived from the score"
+                    trouble = (
+                        f"{where}: the row is not derived from the score "
+                        f"(score {score} over {spec['per']} wants {len(want)}, "
+                        f"the page drew {len(facts['bar']) // len(spec['emoji'])})"
+                    )
                 elif len(facts["bar"]) and facts["bar"] not in text:
                     trouble = f"{where}: the row was not in the copied line"
                 # The daily stamp is safe to paste precisely because it is
