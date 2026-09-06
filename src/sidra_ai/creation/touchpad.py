@@ -82,13 +82,34 @@ function padButtons(){const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,
     {id:'ArrowDown',x:lx+g,y:ly-b/2+(b+g),w:b,h:b,g:'down'},
     {id:' ',x:W-g-b*1.4,y:ly-b/2,w:b*1.4,h:b,g:'A'},
     {id:'r',x:W-g-b*1.4,y:ly-b/2-(b+g),w:b*1.4,h:b*0.7,g:'R'}
-  ].filter(b=>PAD_ACTIVE.has(b.id))}
+  ].filter(b=>PAD_ACTIVE.has(b.id)).concat(padPauseButton()||[])}
+/* The gate's own control, not the game's (C-1451). Pause was reachable from
+   a keyboard only: the canvas pointerdown handler leads to gateStart or
+   gateGesture and nowhere else, so a phone could RESUME a paused game - a
+   tap counts as "start" - but could never pause one. A one-way door, on the
+   device where an interruption (a call, a ticket gate) is likeliest.
+   Deliberately outside the PAD_ACTIVE filter above: that filter is about the
+   keys THIS TEMPLATE reads (C-1244), and no template reads P. The page does.
+   It sends the key rather than calling gateTogglePause, so pause keeps one
+   definition and the pad stays the thing that turns taps into keys.
+   Not on the title screen, for the reason P itself is ignored there:
+   「any key」 has to mean any key. Belt and braces - while the gate is shut
+   the template's frames are withheld, so the pad is not drawn either - but
+   the rule is written down rather than inherited from that. */
+function padPauseButton(){
+  let where='playing';
+  try{where=gateState()}catch(e){return null}
+  if(where==='title')return null;
+  const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,W=PADCV.width,H=PADCV.height,
+    ly=H-g-b*1.5;
+  return {id:'p',x:W-g-b*1.4,y:ly-b/2-(b+g)-(b*0.7+g),w:b*1.4,h:b*0.7,g:'P'}}
 function padAt(ev){const r=PADCV.getBoundingClientRect(),
   x=(ev.clientX-r.left)*(PADCV.width/r.width),
   y=(ev.clientY-r.top)*(PADCV.height/r.height);
   return padButtons().find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h)||null}
+const PAD_CODES={' ':'Space',r:'KeyR',p:'KeyP'};
 function padKey(type,id){dispatchEvent(new KeyboardEvent(type,
-  {key:id,code:id===' '?'Space':(id==='r'?'KeyR':id),bubbles:true,cancelable:true}))}
+  {key:id,code:PAD_CODES[id]||id,bubbles:true,cancelable:true}))}
 function padDown(ev){
   if(ev.pointerType==='touch'||ev.pointerType==='pen'){PAD_ON=true}
   if(!PAD_ON)return;
@@ -108,7 +129,7 @@ if(PADCV){PADCV.addEventListener('pointerdown',padDown);
   PADCV.addEventListener('pointermove',padMove)}
 function padGlyph(c,b){const cxp=b.x+b.w/2,cyp=b.y+b.h/2,r=Math.min(b.w,b.h)*0.22;
   c.fillStyle='BORDER_TOKEN';
-  if(b.g==='A'||b.g==='R'){c.font=Math.round(r*2)+'px ui-monospace,monospace';
+  if(b.g==='A'||b.g==='R'||b.g==='P'){c.font=Math.round(r*2)+'px ui-monospace,monospace';
     c.textAlign='center';c.textBaseline='middle';c.fillText(b.g,cxp,cyp);
     c.textAlign='left';c.textBaseline='alphabetic';return}
   const d={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[b.g];
@@ -152,6 +173,94 @@ _PARTS_STEER_CALL = re.compile(r"(?<!function )partsSteerX\(")
 
 #: ``KeyboardEvent.code`` spellings, back to the ``key`` the pad sends.
 _FROM_CODE = {"Space": " ", "KeyR": "r"}
+
+
+#: A phone playing the page: taps go in at canvas coordinates, and what
+#: comes back is the gate's state after each one (C-1451).
+#:
+#: The one fact this harness has to get right is the ORDER of the two
+#: pointerdown listeners on the canvas. Both the gate and the pad register on
+#: the same element, and for an event whose target IS that element the DOM
+#: runs its listeners in REGISTRATION order - the capture flag decides
+#: nothing here. The gate's preamble is assembled first, so the gate is
+#: called first, and its ``stopImmediatePropagation`` on a shut gate is what
+#: keeps a tap from reaching the pad. Modelled that way rather than
+#: capture-first, which would have been the same answer for the wrong reason.
+#:
+#: Every name carries a ``tp`` prefix: the templates declare ``keys``,
+#: ``ctx`` and ``store`` at the top level, and a harness that reuses one of
+#: those stops the page from parsing at all.
+TOUCH_PAUSE_PROBE = """
+const tpNothing = new Proxy(function(){}, {
+  get:(t,k)=>(k===Symbol.toPrimitive?()=>0:tpNothing), apply:()=>tpNothing, set:()=>true });
+/* A phone: the pad only shows itself for a coarse pointer. */
+globalThis.matchMedia = (q) => ({ matches: String(q).indexOf('coarse') >= 0,
+  addEventListener(){}, addListener(){} });
+let tpClock = 0; globalThis.performance = { now: () => tpClock };
+globalThis.KeyboardEvent = function(type, init){ Object.assign(this, init || {});
+  this.type = type; this.preventDefault = function(){};
+  this.stopImmediatePropagation = function(){ this.tpStopped = true } };
+const tpWindowKeys = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') tpWindowKeys.push(fn) };
+globalThis.dispatchEvent = (ev) => { if (ev && ev.type === 'keydown') {
+  for (const fn of tpWindowKeys) { fn(ev); if (ev.tpStopped) break } } return true };
+globalThis.Image = function(){ return tpNothing };
+const tpStore = STORE_INPUT;
+globalThis.localStorage = { getItem:k=>k in tpStore?tpStore[k]:null,
+  setItem:(k,v)=>{tpStore[k]=String(v)}, removeItem:k=>{delete tpStore[k]} };
+globalThis.location = { reload: () => {} };
+let tpPainted = [];
+const tpCtx = new Proxy({
+  fillText:(t)=>{ tpPainted.push({ kind:'text', v:String(t) }) },
+  fillRect:(x,y,w,h)=>{ tpPainted.push({ kind:'rect', x:Math.round(x), y:Math.round(y),
+    w:Math.round(w), h:Math.round(h) }) } },
+  { get:(t,k)=>(k in t?t[k]:(k===Symbol.toPrimitive?()=>0:tpNothing)), set:()=>true });
+/* Listeners in one list, in registration order - see the note above. */
+const tpListeners = [];
+const tpCanvas = { width:720, height:320, style:{},
+  addEventListener:(type, fn)=>{ tpListeners.push({ type:type, fn:fn }) },
+  getBoundingClientRect:()=>({ left:0, top:0, width:720, height:320 }),
+  getContext:()=>tpCtx };
+globalThis.document = { readyState:'complete', body:{children:[]},
+  createElement:()=>tpNothing, querySelector:()=>null, getElementById:()=>tpCanvas };
+let tpQueued = null;
+globalThis.requestAnimationFrame = (fn) => { tpQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function tpSend(type, ev){ ev.type = type;
+  ev.preventDefault = function(){};
+  ev.stopImmediatePropagation = function(){ ev.tpStopped = true };
+  for (const l of tpListeners) { if (l.type !== type) continue;
+    l.fn(ev); if (ev.tpStopped) break } }
+function tpTap(x, y){ const ev = { clientX:x, clientY:y, pointerId:1, pointerType:'touch' };
+  tpSend('pointerdown', ev);
+  tpSend('pointerup', { clientX:x, clientY:y, pointerId:1, pointerType:'touch' }) }
+function tpStep(n){ for (let i = 0; i < n && tpQueued; i++) {
+  const fn = tpQueued; tpQueued = null; tpClock += 16; fn(tpClock) } }
+function tpPause(){ try { return padButtons().find(b => b.id === 'p') || null }
+  catch(e){ return null } }
+const tpSeen = [];
+function tpNote(what){ tpSeen.push({ what:what, gate:gateState(),
+  pause:tpPause(), painted:tpPainted.slice() }); tpPainted = [] }
+tpStep(3); tpNote('atLoad');
+/* Into play with a tap - the only input a phone has. */
+tpTap(360, 160); tpStep(4); tpNote('playing');
+/* ...and now the button that did not exist: pause, by finger. */
+const tpButton = tpPause();
+if (tpButton) { tpTap(tpButton.x + tpButton.w / 2, tpButton.y + tpButton.h / 2) }
+tpStep(3); tpNote('afterPauseTap');
+/* Back out the way that already worked, so this cannot have closed a door. */
+tpTap(360, 160); tpStep(4); tpNote('afterResumeTap');
+console.log(JSON.stringify({ seen: tpSeen, button: tpButton,
+  canvas: { w: tpCanvas.width, h: tpCanvas.height } }));
+"""
+
+
+def touch_pause_probe_source(script: str, *, store: dict[str, str] | None = None) -> str:
+    """The page driven from a title screen to paused and back, by taps only."""
+
+    return TOUCH_PAUSE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "STORE_INPUT", __import__("json").dumps(store or {}, ensure_ascii=False)
+    )
 
 
 def _normalise(name: str) -> str:

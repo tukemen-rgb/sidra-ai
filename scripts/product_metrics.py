@@ -11953,6 +11953,120 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a finger can pause too (§4/§18, C-1451) -------------------------
+    #
+    # Pause had one entrance, the P key. The canvas pointerdown handler led
+    # to gateStart or gateGesture and nowhere else - so a phone could RESUME
+    # a paused game (a tap counts as "start") but could never pause one. A
+    # one-way door, on the device where an interruption is likeliest.
+    #
+    # Driven by taps at canvas coordinates, never by calling the page's
+    # functions: what is being measured is whether a thumb can reach it.
+    from sidra_ai.creation.round import ROUND_CLOCK_BOX as _tp_clock
+    from sidra_ai.creation.touchpad import touch_pause_probe_source as _tp_probe
+
+    def _tp_drive(key, body):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_tp_probe(body),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                return None, f"{key}: {out.stderr.strip()[:70]}"
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: touch probe unavailable ({type(exc).__name__})"
+
+    touch_gaps: list[str] = []
+    touch_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            touch_gaps.append(f"{key}: no script")
+            continue
+        run, problem = _tp_drive(key, script.group(1))
+        if problem:
+            touch_gaps.append(problem)
+            continue
+        seen = {step["what"]: step for step in run["seen"]}
+        button = run["button"]
+        trouble = None
+        # 条件①: nothing on the title screen, where 「any key」 must mean
+        # any key - and the probe has to have actually been there.
+        if seen["atLoad"]["gate"] != "title":
+            trouble = f"{key}: the page did not open on the title screen"
+        elif seen["atLoad"]["pause"]:
+            trouble = f"{key}: the pause button was up on the title screen"
+        elif seen["playing"]["gate"] != "playing":
+            trouble = f"{key}: a tap did not start the game"
+        elif not button:
+            trouble = f"{key}: no pause button once the game was running"
+        # The round trip, by finger only. This is the number.
+        elif seen["afterPauseTap"]["gate"] != "paused":
+            trouble = (
+                f"{key}: tapping the pause button left the gate "
+                f"{seen['afterPauseTap']['gate']!r}"
+            )
+        # 条件②: the door that already worked is still open.
+        elif seen["afterResumeTap"]["gate"] != "playing":
+            trouble = f"{key}: a tap no longer resumes a paused game"
+        # ...and it is a real button on the glass: drawn where it is hit,
+        # inside the canvas, and not on top of the countdown badge.
+        else:
+            drawn = [
+                op
+                for op in seen["playing"]["painted"]
+                if op["kind"] == "rect"
+                and abs(op["x"] - round(button["x"])) <= 1
+                and abs(op["y"] - round(button["y"])) <= 1
+            ]
+            width, height = run["canvas"]["w"], run["canvas"]["h"]
+            clock_top, clock_height = _tp_clock[1], _tp_clock[3]
+            if not drawn:
+                trouble = f"{key}: the button is hit-testable but never drawn"
+            elif not (
+                0 <= button["x"] and button["x"] + button["w"] <= width
+                and 0 <= button["y"] and button["y"] + button["h"] <= height
+            ):
+                trouble = f"{key}: the button sits off the canvas ({button})"
+            elif button["y"] < clock_top + clock_height:
+                trouble = (
+                    f"{key}: the button overlaps the countdown badge "
+                    f"(top {button['y']:.0f} vs badge bottom "
+                    f"{clock_top + clock_height})"
+                )
+        if trouble:
+            touch_gaps.append(trouble)
+        else:
+            touch_ok.append(key)
+    c.add(
+        "creation_touch_pause",
+        "指だけで一時停止できる（スマホからポーズへの道）",
+        0.0 if (touch_gaps or not touch_ok) else 1.0,
+        detail=(
+            "; ".join(touch_gaps)
+            if touch_gaps
+            else f"{len(touch_ok)} 型すべてを**指だけで**実走行: タイトルを"
+            "タップして開始 → **パッドの P を押して paused** → もう一度"
+            "画面をタップして playing、と往復する。ページの関数を呼ばず"
+            "**キャンバス座標へのタップ**で駆動するので、測っているのは"
+            "「親指が届くか」そのもの。**タイトルでは P のボタンを出さない**"
+            "（条件①・`gateState()` が title の間は返さない）。"
+            "**既にあった道は塞いでいない**——paused からの画面タップ再開は"
+            "そのまま（条件②）。ボタンは**当たり判定と同じ矩形に実際に"
+            "描かれ**、キャンバス内に収まり、終盤の残り時間バッジ"
+            f"（上端 {_tp_clock[1] + _tp_clock[3]}px）と重ならない。"
+            "押下は `gateTogglePause()` を直接呼ばず**P キーを合成する**ので、"
+            "ポーズの定義は 1 つのまま（パッドはタップをキーに変える物、"
+            "という役割も 1 つのまま）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- time nobody could play is not time spent (C-1450) ---------------
     #
     # requestAnimationFrame stops while a tab is hidden, and this clock read
