@@ -8237,3 +8237,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 8.0%）/ --compare exit 0（BETTER 0→10, MOVED 1）。
   成果物のファイル取得/一覧・traversal は実測で堅牢＝欠陥なし。C-1252 家系だが別関数・別リスト（約16 巡ぶり）。
   次候補: 英語 exfiltration 検知器の同型 FP（how-to/where 質問が拒否・要 English 特有設計）。
+
+2026-09-06 00:52 進捗監視 前進あり: C-1437 完了（判定器の丸めをページ規約に合わせ [記録] exit 1・数字不変＝計器だけの修理として正直に記録）→ C-1436（puzzle コンボ）を reopen して次巡へ。C-1268 完了（プロジェクト一覧の上限・00:48）。停滞なし。記録のみ。
