@@ -17,6 +17,7 @@ import pytest
 
 from sidra_ai.creation.adventure import adv_face_probe
 from sidra_ai.creation.catchgame import catch_face_probe
+from sidra_ai.creation.duel import face_probe as duel_face_probe
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.platformer import face_probe
 
@@ -134,4 +135,40 @@ def test_reduced_motion_keeps_the_basket_eyes_open() -> None:
     seen = _caught(reduced=True)
 
     assert seen["lookRight"] == 1
+    assert seen["blinkFrames"] == 0, "reduced motion still blinks"
+
+
+def _duelled(*, reduced: bool = False) -> dict:
+    """The duel fighter (C-1355), stared at from each lane relation."""
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    page = generate_game("ビームで撃ち合うゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=duel_face_probe(script.group(1), reduced=reduced),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_fighter_watches_the_enemy_lane_and_blinks() -> None:
+    seen = _duelled()
+
+    assert seen["below"] == 1, "an enemy below never pulls the eyes down"
+    assert seen["above"] == -1, "an enemy above never pulls the eyes up"
+    assert seen["level"] == 0, "a met stare still pulls the eyes aside"
+    assert seen["blinkFrames"] > 0, "the fighter never blinks"
+    assert seen["longestBlink"] <= 12, "the eyes stay shut"
+
+
+def test_reduced_motion_keeps_the_fighter_eyes_open() -> None:
+    seen = _duelled(reduced=True)
+
+    assert seen["below"] == 1
     assert seen["blinkFrames"] == 0, "reduced motion still blinks"

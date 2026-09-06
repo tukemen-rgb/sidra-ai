@@ -4296,14 +4296,55 @@ def measure_creation(c: Collector) -> None:
             face_gaps.append(
                 f"{_fc_label}: the eyes stay shut ({_fc.get('longestBlink')} frames)"
             )
+    # The fourth face (§1, C-1355): duel's own fighter watches the
+    # enemy's LANE - the eyes lean down when the enemy sits below, up
+    # when above, level when the stare is met. The enemy keeps its flat
+    # visor; only the player's face is the contract's.
+    from sidra_ai.creation.duel import face_probe as _df_probe
+
+    for _fc_reduced in (False, True):
+        _fc_label = "duel" + ("（reduced）" if _fc_reduced else "")
+        _fc_page = generate_game("ビームで撃ち合うゲームを作って").html
+        _fc_script = _scene_re.search(r"<script>(.*?)</script>", _fc_page, _scene_re.S)
+        if _fc_script is None:
+            face_gaps.append(f"{_fc_label}: no script")
+            continue
+        try:
+            _fc_run = _scene_sp.run(
+                ["node", "-"],
+                input=_df_probe(_fc_script.group(1), reduced=_fc_reduced),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _fc_run.returncode != 0:
+                raise ValueError(_fc_run.stderr.strip()[:60])
+            _fc = json.loads(_fc_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            face_gaps.append(f"{_fc_label}: probe unavailable ({exc})")
+            continue
+        if _fc.get("below") != 1 or _fc.get("above") != -1:
+            face_gaps.append(f"{_fc_label}: the eyes never lean at the enemy's lane")
+        elif _fc.get("level") != 0:
+            face_gaps.append(f"{_fc_label}: a met stare still pulls the eyes aside")
+        if _fc_reduced:
+            if _fc.get("blinkFrames"):
+                face_gaps.append(f"{_fc_label}: reduced motion still blinks")
+        elif not _fc.get("blinkFrames"):
+            face_gaps.append(f"{_fc_label}: the fighter never blinks")
+        elif _fc.get("longestBlink", 0) > 12:
+            face_gaps.append(
+                f"{_fc_label}: the eyes stay shut ({_fc.get('longestBlink')} frames)"
+            )
     # C-1351 redefined the value from 0/1 to the NUMBER of heroes whose
     # face contract holds - any gap anywhere still collapses it to 0
     # (両定義: 旧 0/1 は platformer 時点で 1、新定義の変更前も adventure
-    # 未実装のため 1、変更後 2). C-1353 adds the basket: 3.
+    # 未実装のため 1、変更後 2). C-1353 adds the basket, C-1355 the
+    # duellist: 4.
     c.add(
         "creation_hero_face",
         "目が動きを追う主人公の数",
-        0.0 if face_gaps else 3.0,
+        0.0 if face_gaps else 4.0,
         detail=(
             "; ".join(face_gaps)
             if face_gaps
@@ -4312,7 +4353,9 @@ def measure_creation(c: Collector) -> None:
             "adventure の実歩行: 右 dir=1 で右寄り・左 dir=3・正面 dir=2 は"
             "中央、上向き dir=0 は後ろ姿＝目は描かれない。catch の実受け: "
             "皿の目が最下の落下物の方向へ傾き（右 1・左 -1）、真上なら正面、"
-            "受けの瞬間は BSQ で目も潰れる。三者とも"
+            "受けの瞬間は BSQ で目も潰れる。duel の実対峙: 自機の目が敵の"
+            "レーンへ縦に傾き（下 1・上 -1・同レーンで正面）、敵は平らな"
+            "バイザーのまま。四者とも"
             "reduced-motion では FRAME が目を開いたまま留める＝顔は一切"
             "動かない（§1 の技法表で最後まで残っていた「キャラの目や表情」）"
         ),

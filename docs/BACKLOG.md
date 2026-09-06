@@ -5394,7 +5394,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
-- [~] 作業中 2026-09-06 05:00 UTC 辛口クリエイター **C-1355: 4 人目の顔——duel の自分の戦士は敵を見ていない（§1・顔契約の残り最後の操作対象）。**
+- [x] 完了 2026-09-06 05:45 UTC 辛口クリエイター（`creation_hero_face` **3→4**、判定器 exit 0（BETTER）。duel の自機（シアンの戦士）の平らなバイザーを 2 つの目に——**敵とのレーン差の方向へ縦に傾く**（敵が下 look=1・上 -1・同レーンで正面＝3 レーンの駆け引きが顔に出る）。**敵はバイザーのまま**＝敵味方が顔で読み分けられる副次効果。まばたき FRAME(40,6)・REDUCED 常時開眼（C-1348 と同一契約）。body() に任意 face 引数を足し自機の呼び出しだけ faceFacts() を渡す＝敵側は 1 バイト も変わらない。新設 duel FACE_PROBE（時計フレーム追随・p は実キー ArrowUp/Down で移動・e.lane は CPU 状態として probe が配置=BEAT_PROBE の免許）実測: below 1/above -1/level 0・blink 20f/500f（2 回・longest 10≤12）・reduced 走行 blink 0。破壊 3 通り〔look 恒 0→0『the eyes never lean at the enemy's lane』／blink 恒偽→0『the fighter never blinks』／level 削除（look 恒 ±1）→0『a met stare still pulls the eyes aside』〕、復元で 4。**運用の記録 1 件**——当初この巡は C-1441（幕検査の最終フレーム籤）を取りに行ったが、claim 直前の pull でループA が 04:08 に claim 済み（2 時間規則内の現役）と判明し衝突回避で撤回・本項目へ切替（attract 系ファイルはループA の C-1441/C-1440 が流れているため顔契約の最終拡張を選択）。pytest exit 0（3672 passed / 3 skip）・gate MISS 0。顔契約は 4 分身＝走る・歩く・受ける・対峙する で完結（racing の車・kaiju の砲台・fishing のマーカー・puzzle のカーソル・marble の玉・shooter の機体は顔を持つ身体ではない）） **C-1355: 4 人目の顔——duel の自分の戦士は敵を見ていない（§1・顔契約の残り最後の操作対象）。**
       （辛口クリエイターループ起票・観点=§1 手触り。前回=§7。当初 C-1441
       を取りに行ったがループA が 04:08 に claim 済み（2 時間規則内の
       現役作業）と判明し衝突回避で撤回——attract 系はループA の C-1441/

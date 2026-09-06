@@ -120,6 +120,11 @@ let p,e,state,winner,flash,spark,mash;
 let lostBeam,lostClash;
 function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,
   think:0,hitLock:false,over:0,stun:0,aim:-1,fireAt:0}}
+/* The face, as a fact (§1, C-1355): which way the player's eyes lean -
+   at the enemy's lane, +1 down / -1 up / 0 level - and whether this
+   frame is the blink. Under reduced motion FRAME pins the eyes open. */
+function faceFacts(){return {look:e.lane>p.lane?1:e.lane<p.lane?-1:0,
+  blink:FRAME(40,6,performance.now())===1}}
 function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
   act:duelAct(),tense:TENSE.slice(),
   playerStun:p?p.stun:0,playerOver:p?p.over:0,enemyStun:e?e.stun:0,
@@ -208,11 +213,20 @@ function step(){const now=performance.now();
 function aura(x,y,r,c,now){const s=REDUCED?0:FRAME(4,6,now);
   cx.globalAlpha=0.25;cx.fillStyle=c;
   cx.beginPath();cx.arc(x,y,r+s*2,0,6.28318);cx.fill();cx.globalAlpha=1}
-function body(x,y,c,mir){
+function body(x,y,c,mir,face){
   sprite('fighter',x-12,y-26,24,44,'');
   cx.fillStyle=c;cx.fillRect(x-9,y-24,18,20);
   cx.fillRect(x-6,y-4,12,22);
-  cx.fillStyle='#05070f';cx.fillRect(x-9+(mir?10:2),y-20,6,5)}
+  cx.fillStyle='#05070f';
+  /* The enemy keeps its flat visor; the player's face is the fourth in
+     the contract (§1, C-1355): two eyes that lean toward the enemy's
+     LANE - the whole game is three lanes, and the fighter watching them
+     is the mind-game made visible. The blink is one FRAME beat, pinned
+     open under reduced motion (C-1348's rule, verbatim). */
+  if(!face){cx.fillRect(x-9+(mir?10:2),y-20,6,5);return}
+  if(face.blink)return;
+  const ey=face.look*1.5,ex=x-9+(mir?10:2);
+  cx.fillRect(ex,y-20+ey,2.5,3);cx.fillRect(ex+3.5,y-20+ey,2.5,3)}
 function beamDraw(f,from,dir,c,now){
   if(f.beam<=0)return;const y=LANES[f.beamLane];
   const clash=p.beam>0&&e.beam>0&&p.beamLane===e.beamLane;
@@ -251,7 +265,7 @@ function draw(now){
       if(cx.setLineDash)cx.setLineDash([7,7]);
       cx.beginPath();cx.moveTo(PX+30,ly);cx.lineTo(EX-30,ly);cx.stroke();
       if(cx.setLineDash)cx.setLineDash([]);cx.lineWidth=1}}
-  body(PX,LANES[p.lane],'CYAN_TOKEN',true);
+  body(PX,LANES[p.lane],'CYAN_TOKEN',true,faceFacts());
   body(EX,LANES[e.lane],'MAGENTA_TOKEN',false);
   beamDraw(p,PX+14,1,'CYAN_TOKEN',now);
   beamDraw(e,EX-14,-1,'MAGENTA_TOKEN',now);
@@ -522,6 +536,66 @@ def pace_probe(script: str) -> str:
     return PACE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The face, as watched (§1, C-1355): put the enemy in each lane relation
+#: on the page's own state, move the player on its own keys, and read
+#: where the eyes lean; stand level and count the blink. The clock ticks
+#: with the frames (C-1348's lesson: a zero-pinned performance.now
+#: freezes the wall-clock FRAME and the blink never comes).
+FACE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function ev(type, k){
+  const e2 = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e2));
+}
+ev('keydown', ' '); ev('keyup', ' '); run(2);
+/* The player walks on its own keys; the enemy's lane is CPU state the
+   probe may place (the BEAT_PROBE's licence). */
+function lane(want){ while (p.lane > want) { ev('keydown', 'ArrowUp'); run(1) }
+  while (p.lane < want) { ev('keydown', 'ArrowDown'); run(1) } }
+lane(0); e.lane = 2; run(1);
+const below = faceFacts().look;
+lane(2); e.lane = 0; run(1);
+const above = faceFacts().look;
+e.lane = 2; run(1);
+const level = faceFacts().look;
+/* Then hold the stare and count the blink. */
+let blinkFrames = 0, longest = 0, streak = 0;
+for (let i = 0; i < 500; i++) { run(1); e.lane = p.lane;
+  if (faceFacts().blink) { blinkFrames++; streak++;
+    if (streak > longest) longest = streak } else { streak = 0 } }
+console.log(JSON.stringify({
+  below: below, above: above, level: level,
+  blinkFrames: blinkFrames, longestBlink: longest,
+}));
+"""
+
+
+def face_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the fighter's face can be watched."""
+
+    return FACE_PROBE.replace("REDUCED_INPUT", "true" if reduced else "false").replace(
+        "SCRIPT_PLACEHOLDER", script
+    )
+
+
 __all__ = [
     "DUEL_DIFFICULTY",
     "DUEL_HOW",
@@ -529,6 +603,8 @@ __all__ = [
     "DUEL_TITLE",
     "DUEL_WORDS",
     "AIM_PROBE",
+    "FACE_PROBE",
+    "face_probe",
     "PACE_PROBE",
     "pace_probe",
     "FLASH_PROBE",
