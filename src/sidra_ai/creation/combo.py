@@ -130,11 +130,17 @@ function comboLabel(){return '\u00d7'+COMBO_MULT}
    and the sound stays - decoration is what C-1020 drops, not information.
    Every effect is guarded: this preamble sits above templates that are
    allowed not to have a canvas. */
-function comboCheer(){
+function comboCheer(rung){
   /* The step-up is a power-up, not a 47th pickup (§2, C-1339): the
      multiplier rising is rare and earned, and it gets sfxr's powerUp
-     shape - rising tone with vibrato - instead of the gem's sweep. */
-  try{sfx('powerup')}catch(e){}
+     shape - rising tone with vibrato - instead of the gem's sweep.
+     The ladder is audible (§2→§14 事実 1 の第 3 形, C-1359): each rung
+     cheers two semitones above the last - x2 at the table's own pitch,
+     x3 a fifth of an octave up, x4 above that. Two semitones, because
+     one adjacent pair of ±4% jitter bands must not touch: a player who
+     cannot watch the screen still hears which rung this is, and the
+     jitter can never fake a step. */
+  try{sfx('powerup',Math.pow(2,(Math.max(2,rung||2)-2)/6))}catch(e){}
   if(typeof REDUCED!=='undefined'&&REDUCED)return;
   try{shake(3)}catch(e){}
   try{burst(cv.width/2,40,12,'ACCENT_JUICE')}catch(e){}}
@@ -142,7 +148,7 @@ function comboCheer(){
    rather than asking twice and risking the two answers disagreeing. */
 function comboHit(){COMBO_RUN++;
   const next=Math.min(COMBO_MAX,1+Math.floor(COMBO_RUN/COMBO_STEP));
-  if(next>COMBO_MULT){COMBO_MULT=next;comboCheer()}
+  if(next>COMBO_MULT){COMBO_MULT=next;comboCheer(next)}
   return COMBO_MULT}
 /* One miss takes all of it. No decay, no grace frame: a run with a
    cushion under it is not a run. */
@@ -219,7 +225,7 @@ let bursts = 0, shakes = 0, sounds = [];
 const realBurst = burst, realShake = shake, realSfx = sfx;
 burst = (...a) => { bursts++; return realBurst(...a) };
 shake = (...a) => { shakes++; return realShake(...a) };
-sfx = (n) => { sounds.push(String(n)); return realSfx(n) };
+sfx = (...a) => { sounds.push(String(a[0])); return realSfx(...a) };
 /* Read the briefing, the way a player does: the gate holds the loop
    until a key arrives, so a probe that never presses one measures a
    start screen. */
@@ -300,7 +306,7 @@ SCRIPT_PLACEHOLDER
 let bursts = 0, sounds = [];
 const realBurst = burst, realSfx = sfx;
 burst = (...a) => { bursts++; return realBurst(...a) };
-sfx = (n) => { sounds.push(String(n)); return realSfx(n) };
+sfx = (...a) => { sounds.push(String(a[0])); return realSfx(...a) };
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; fn((F++) * 16) } }
@@ -390,8 +396,94 @@ def shooter_probe_source(
     )
 
 
+#: The ladder's altitude, as heard (§2→§14 事実 1 の第 3 形, C-1359). A
+#: recording AudioContext reads the cheer's oscillator start frequency the
+#: frame a rung is reached, once per rung up the whole ladder, then again
+#: with M held down. The climb calls ``comboHit()`` on the built page - the
+#: same global every template's success handler calls - so what is measured
+#: is the generated preamble and the generated synthesiser, not this file.
+LADDER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+/* Deterministic jitter: the sweep still moves every playback, and two runs
+   of this probe read the same page the same way. */
+let rnd = 2463534242;
+Math.random = () => { rnd ^= rnd << 13; rnd ^= rnd >>> 17; rnd ^= rnd << 5;
+  return ((rnd >>> 0) % 100000) / 100000 };
+/* Every start frequency any oscillator is given.  The cheer's tone is the
+   only entry above the audible floor; the vibrato LFO parks at 6Hz. */
+const freqs = [];
+function Recorder(){ this.state='running'; this.currentTime=0; this.destination={};
+  this.sampleRate=44100 }
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createOscillator = function(){
+  return { type:'', frequency:{kind:'frequency',
+             setValueAtTime(v){ freqs.push(v) }, exponentialRampToValueAtTime(){}},
+           setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBuffer = function(ch, len){
+  return { getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){
+  return { buffer:null, start(){}, stop(){}, connect(){} } };
+Recorder.prototype.createBiquadFilter = function(){
+  return { kind:'lowpass', type:'',
+    frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){} } };
+Recorder.prototype.createGain = function(){
+  return { gain:{ value:0, setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+    connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+const keyHandlers = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') keyHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+const store = {};
+globalThis.localStorage = { getItem: (k) => (k in store ? store[k] : null),
+  setItem: (k, v) => { store[k] = String(v) }, removeItem: (k) => { delete store[k] } };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function press(k){ keyHandlers.forEach(fn => fn({ key: k, code: k,
+  preventDefault(){}, stopImmediatePropagation(){} })) }
+function run(n){ for (let i = 0; i < n && queued; i++) {
+  const fn = queued; queued = null; fn(i * 16) } }
+run(2); press('Space'); run(2);
+/* Climb from a clean floor one success at a time, and read the cheer the
+   moment the multiplier moves.  Only the audible tone is kept. */
+function climb(){ comboMiss(); const heard = [];
+  for (let i = 0; i < 3 * (comboFacts().max - 1) + 1; i++) {
+    freqs.length = 0; const before = comboMult(); comboHit();
+    if (comboMult() > before) {
+      heard.push({ rung: comboMult(), fs: freqs.filter(f => f > 20) }) } }
+  return heard }
+const cheers = climb();
+/* M must silence the altitude with everything else - and the ladder must
+   still climb, because the mute is the ear's, not the rule's. */
+press('m');
+const muted = climb();
+press('m');
+console.log(JSON.stringify({ cheers: cheers,
+  mutedFreqs: muted.reduce((a, c) => a + c.fs.length, 0),
+  mutedRungs: muted.map(c => c.rung),
+  base: (typeof SFX_TABLE !== 'undefined' && SFX_TABLE.powerup) ? SFX_TABLE.powerup[1] : null,
+  jitter: (typeof SFX_JITTER !== 'undefined') ? SFX_JITTER : null,
+  max: comboFacts().max }));
+"""
+
+
+def ladder_probe(script: str) -> str:
+    """One built page, its ladder climbed twice: audible, then muted."""
+
+    return LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "COMBO_MAX",
+    "LADDER_PROBE",
     "PROBE",
     "SHOOTER_PROBE",
     "COMBO_PREAMBLE",
@@ -399,6 +491,7 @@ __all__ = [
     "COMBO_TEMPLATES",
     "COMBO_UNWIRED",
     "PREAMBLE_NAMES",
+    "ladder_probe",
     "preamble_for",
     "probe_source",
     "shooter_probe_source",

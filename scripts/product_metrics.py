@@ -7046,6 +7046,116 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the combo ladder has an altitude ------------------------------
+    #
+    # §2→§14 事実 1 の第 3 形 (C-1359): pitch as information, the rising
+    # series on chained actions. The rung-up cheer used to play the same
+    # 440Hz powerup at x2 and at x4; now each rung cheers two semitones
+    # above the last - a step chosen so that adjacent ±4% jitter bands can
+    # never touch, which means the jitter can never fake (or hide) a rung.
+    # Read by climbing the ladder on every combo template's BUILT page with
+    # a recording AudioContext - comboHit() per success, the cheer's
+    # oscillator start frequency per rung - then climbing again under M.
+    # The count collapses to 0 if any wired template loses its ladder
+    # (C-1341 convention).
+    import re as _ldr_re
+    import subprocess as _ldr_sp
+
+    from sidra_ai.creation.combo import COMBO_TEMPLATES as _ldr_templates
+    from sidra_ai.creation.combo import ladder_probe as _ldr_probe
+
+    ladder_gaps: list[str] = []
+    ladder_ok: list[str] = []
+    for _ldr_key in _ldr_templates:
+        try:
+            _ldr_page = generate_game("ゲームを作って", template=_ldr_key).html
+            _ldr_script = _ldr_re.search(
+                r"<script>(.*?)</script>", _ldr_page, _ldr_re.S
+            )
+            if _ldr_script is None:
+                raise ValueError("no script")
+            _ldr_run = _ldr_sp.run(
+                ["node", "-"],
+                input=_ldr_probe(_ldr_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if _ldr_run.returncode != 0:
+                raise ValueError(_ldr_run.stderr.strip()[:60])
+            _ldr = json.loads(_ldr_run.stdout.strip().splitlines()[-1])
+        except (OSError, _ldr_sp.SubprocessError, ValueError) as exc:
+            ladder_gaps.append(f"{_ldr_key}: probe unavailable ({exc})")
+            continue
+        _ldr_base, _ldr_jit = _ldr.get("base"), _ldr.get("jitter")
+        _ldr_cheers = _ldr.get("cheers") or []
+        _ldr_rungs = [ch.get("rung") for ch in _ldr_cheers]
+        _ldr_want = list(range(2, int(_ldr.get("max") or 0) + 1))
+        if not _ldr_base or _ldr_jit is None:
+            ladder_gaps.append(f"{_ldr_key}: the page hides its own pitch table")
+            continue
+        if _ldr_rungs != _ldr_want or any(len(ch["fs"]) != 1 for ch in _ldr_cheers):
+            ladder_gaps.append(
+                f"{_ldr_key}: the climb did not cheer once per rung ({_ldr_rungs})"
+            )
+            continue
+        # The declared geometry first: adjacent jitter bands must be
+        # disjoint, or a random shift can fake a step (§14 事実 2's line
+        # between variation and information).
+        _ldr_step = 2 ** (1 / 6)
+        if _ldr_base * (1 + _ldr_jit) >= _ldr_base * _ldr_step * (1 - _ldr_jit):
+            ladder_gaps.append(f"{_ldr_key}: the rungs are inside the jitter")
+            continue
+        _ldr_heard = [ch["fs"][0] for ch in _ldr_cheers]
+        if any(
+            _ldr_heard[i] >= _ldr_heard[i + 1] for i in range(len(_ldr_heard) - 1)
+        ):
+            ladder_gaps.append(
+                f"{_ldr_key}: the ladder does not rise "
+                f"({[round(f) for f in _ldr_heard]})"
+            )
+            continue
+        _ldr_off = [
+            f
+            for r, f in zip(_ldr_rungs, _ldr_heard)
+            if not (
+                _ldr_base * _ldr_step ** (r - 2) * (1 - _ldr_jit - 1e-9)
+                <= f
+                <= _ldr_base * _ldr_step ** (r - 2) * (1 + _ldr_jit + 1e-9)
+            )
+        ]
+        if _ldr_off:
+            ladder_gaps.append(
+                f"{_ldr_key}: a cheer left its rung's band "
+                f"({[round(f) for f in _ldr_off]})"
+            )
+            continue
+        if _ldr.get("mutedFreqs"):
+            ladder_gaps.append(f"{_ldr_key}: muted, and the altitude played anyway")
+            continue
+        if _ldr.get("mutedRungs") != _ldr_want:
+            ladder_gaps.append(
+                f"{_ldr_key}: the mute broke the ladder itself "
+                f"({_ldr.get('mutedRungs')})"
+            )
+            continue
+        ladder_ok.append(_ldr_key)
+    c.add(
+        "creation_combo_pitch_ladder",
+        "コンボの段が耳で分かる",
+        0.0 if ladder_gaps else float(len(ladder_ok)),
+        detail=(
+            "; ".join(ladder_gaps)
+            if ladder_gaps
+            else f"{', '.join(ladder_ok)}: 実ページの comboHit() で梯子を"
+            "登り、記録型 AudioContext が段上がりごとの cheer 実周波数を"
+            "捕捉——×2→×3→×4 が 1 段 2 半音で厳密上昇し、各段が自段の"
+            "±4% ジッタ帯に収まり、隣接帯は不交差（偶然では段を跨げない）、"
+            "M で 0 発でも梯子自体は登る（§2→§14 事実 1 の第 3 形）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the victory has a phrase, not a beep --------------------------
     #
     # §2 (C-1326): the win became the round's heaviest beat (C-1316) while

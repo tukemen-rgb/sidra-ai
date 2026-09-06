@@ -136,7 +136,7 @@ const SFX_JITTER=0.04;
    four notes a chord owns. One jitter factor for the whole phrase, so
    the fanfare stays in tune with itself. */
 const WIN_NOTES=[523,659,784,1046];
-function sfx(name){
+function sfx(name,pitch){
   /* Zero is silence, not a very quiet sound. Scheduling one would hand
      exponentialRampToValueAtTime a start value of 0, which has no defined
      ramp, and would build a node graph for something nobody can hear. */
@@ -147,7 +147,14 @@ function sfx(name){
     if(AC.state==='suspended'){AC.resume()}
     const t0=AC.currentTime,[wave,rawF0,rawF1,dur]=spec,vol=sfxGain(name);
     const jit=1+(Math.random()*2-1)*SFX_JITTER;
-    const f0=rawF0*jit,f1=rawF1*jit;
+    /* Pitch as information (§14 事実 1 の第 3 形, C-1359): a caller that
+       KNOWS a height - the rung of a ladder - says it here, and the whole
+       sweep moves by that factor. Deliberate steps ride on top of the
+       random jitter, so a step only reads as a step when the caller keeps
+       it wider than the jitter band. Both ends move together: the sweep's
+       interval is the effect's identity and the pitch is its altitude. */
+    const px=(typeof pitch==='number'&&pitch>0)?pitch:1;
+    const f0=rawF0*jit*px,f1=rawF1*jit*px;
     if(name==='win'){
       /* Each note passes through the same gain contract as any effect:
          the combat step, the ceiling, the master dial and M, per note. */
