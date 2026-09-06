@@ -165,6 +165,10 @@ ROUND_PREAMBLE = """
 const ROUND_LIVE=ROUND_LIVE_TOKEN,ROUND_LIMIT_MS=ROUND_LIMIT_TOKEN;
 const RCV=document.getElementById('stage');
 let ROUND_DONE=false,ROUND_T0=null,ROUND_MS=0,ROUND_REASON='';
+/* The last frame's timestamp, and how long an absence has to be before the
+   clock stops charging for it (C-1450). */
+let ROUND_LAST=null;
+const ROUND_GAP_MS=ROUND_GAP_TOKEN;
 /* The template's own verdict, when it has one. Guarded because two
    templates have no state machine at all - for them the clock is the only
    ending there is. */
@@ -211,6 +215,24 @@ function roundTick(t){
      frames do not reach here at all. */
   try{if(gateState()==='title'){ROUND_T0=null;return}}catch(e){}
   const now=(typeof t==='number'&&isFinite(t))?t:ROUND_MS+16;
+  /* Time nobody could play is not time spent (C-1450). requestAnimationFrame
+     stops while the tab is hidden, so the first frame back carries the whole
+     absence in one step - and this clock read the raw difference, which meant
+     a minute spent in another tab arrived as a minute of the round, buzzer
+     and failure beat included, for a go the player never got to touch.
+     The neighbour already does this: music.py re-anchors its scheduler with
+     `if(MUSIC_NEXT<0||now-MUSIC_NEXT>1){MUSIC_NEXT=now}` when it wakes to
+     find the world moved on. Same one second, for the same reason.
+     The threshold has to be far above any real hitch and far below anything
+     a player would call a pause: 1000ms is 60 frames at 60fps, so no stutter,
+     no long paint, and no hitstop reaches it (hitstop withholds the DRAWING
+     for a few frames - the loop keeps running at frame pace, measured, so
+     nothing here forgives it and nothing needs to).
+     Only the gap is forgiven, by pushing the start forward exactly as far as
+     the page was away: everything before and after it is still charged. */
+  if(ROUND_LAST!==null&&ROUND_T0!==null&&now-ROUND_LAST>ROUND_GAP_MS){
+    ROUND_T0+=now-ROUND_LAST}
+  ROUND_LAST=now;
   if(ROUND_T0===null){ROUND_T0=now}
   ROUND_MS=now-ROUND_T0;
   try{if(gateState()==='playing'){ROUND_PLAYED_A_FRAME=true}}catch(e){}
@@ -710,6 +732,14 @@ def probe_source(
 ROUND_SHOW_MS = 10_000
 ROUND_URGENT_MS = 3_000
 
+#: How long a break in the frames has to be before the clock stops charging
+#: for it (C-1450). One second, taken from the neighbour rather than from
+#: taste: music.py re-anchors its scheduler on the same gap. It is 60 frames
+#: at 60fps - far past any stutter or long paint, and far short of anything
+#: a person would notice as a pause - and hitstop does not reach it either,
+#: because hitstop withholds the drawing while the loop keeps running.
+ROUND_GAP_MS = 1_000
+
 #: Where the badge goes: the band directly under the templates' own HUD
 #: row, on the right. Chosen by measurement rather than by eye - every
 #: template was driven and its paint recorded, and this band is the only
@@ -735,6 +765,7 @@ def preamble_for(template: str) -> str:
         .replace("ROUND_LIMIT_TOKEN", str(ROUND_SECONDS * 1000))
         .replace("ROUND_SHOW_TOKEN", str(ROUND_SHOW_MS))
         .replace("ROUND_URGENT_TOKEN", str(ROUND_URGENT_MS))
+        .replace("ROUND_GAP_TOKEN", str(ROUND_GAP_MS))
         .replace("ROUND_CLOCK_BOX_TOKEN", json.dumps(list(ROUND_CLOCK_BOX)))
         .replace("ROUND_HAPTIC_TOKEN", json.dumps(list(HAPTIC_ROUND)))
         .replace("ROUND_NAME_TOKEN", json.dumps(template))
@@ -755,6 +786,7 @@ __all__ = [
     "ROUND_TIE",
     "ROUND_PREAMBLE",
     "ROUND_SECONDS",
+    "ROUND_GAP_MS",
     "live_gaps",
     "tick_probe_source",
     "preamble_for",
@@ -912,10 +944,18 @@ for (let f = 0; f < FRAMES_INPUT; f++) {
      Holding a key keeps the go alive far enough in to reach the clock. */
   if (clkHold) { clkKeys.forEach(fn => fn({ key: clkHold, code: clkHold,
     preventDefault(){}, stopImmediatePropagation(){} })) }
+  /* A hidden tab, as the page would actually see it (C-1450): no frames at
+     all for a while, then one frame carrying the whole absence in its
+     timestamp. Injected into the clock rather than into the loop, because
+     that is exactly what requestAnimationFrame does when it wakes. */
+  if (GAP_MS_INPUT && f === GAP_AT_INPUT) { clkTime += GAP_MS_INPUT }
   const painted = clkStep();
   if (painted === null) break;
   const facts = roundClockFacts();
   seen.push({ ms: facts.remain, due: facts.due, left: facts.left,
+    /* Why the go ended, so "the buzzer fired for time nobody played" is a
+       read fact rather than an inference from the clock. */
+    reason: roundFacts().reason, clock: clkTime,
     /* Every fill on this frame, not only the badge's. A frame that painted
        nothing at all is a frozen picture - the canvas still shows the last
        one - and that is a very different thing from a frame that redrew
@@ -1049,13 +1089,26 @@ def tick_probe_source(
 
 
 def clock_probe_source(
-    script: str, *, frames: int = 3900, reduced: bool = False, hold: str = ""
+    script: str,
+    *,
+    frames: int = 3900,
+    reduced: bool = False,
+    hold: str = "",
+    gap_ms: int = 0,
+    gap_at: int = 0,
 ) -> str:
-    """The page's own script, wrapped so a whole go can be watched tick down."""
+    """The page's own script, wrapped so a whole go can be watched tick down.
+
+    ``gap_ms`` inserts an absence of that many milliseconds before frame
+    ``gap_at`` - the shape a hidden tab has when it comes back (C-1450).
+    Left at 0 the run is exactly what it was before the option existed.
+    """
 
     return (
         CLOCK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("FRAMES_INPUT", str(int(frames)))
         .replace("REDUCED_INPUT", "true" if reduced else "false")
         .replace("HOLD_INPUT", json.dumps(hold))
+        .replace("GAP_MS_INPUT", str(int(gap_ms)))
+        .replace("GAP_AT_INPUT", str(int(gap_at)))
     )

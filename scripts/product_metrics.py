@@ -11876,6 +11876,152 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- time nobody could play is not time spent (C-1450) ---------------
+    #
+    # requestAnimationFrame stops while a tab is hidden, and this clock read
+    # the raw difference between timestamps - so a minute in another tab
+    # arrived as a minute of the round, buzzer and failure beat included.
+    # music.py already forgave the same absence; the clock did not.
+    #
+    # Judged in BOTH directions, because "forgive the gap" has an obvious
+    # wrong version: a page that forgave every hitch would drift away from
+    # the wall clock and the 60 seconds would stop meaning anything. So a
+    # short break must still be charged, and the run with no break at all
+    # must still reach the buzzer on time.
+    from sidra_ai.creation.round import (
+        ROUND_GAP_MS as _gap_threshold,
+        clock_probe_source as _gap_probe,
+    )
+
+    _GAP_HOLD = {"racing": "ArrowLeft"}
+    #: Where the absence is injected: ten seconds into a played go, far from
+    #: both ends so neither the start nor the buzzer is what is being read.
+    _GAP_AT = 600
+    #: A minute away, the case the item was filed about.
+    _GAP_LONG = 60_000
+    #: Half the threshold: a hitch, not an absence. Still charged.
+    _GAP_SHORT = _gap_threshold // 2
+    #: One frame at 60fps. Two runs of the same page differ by at most the
+    #: frame the gap displaced, never more.
+    _GAP_SLACK = 17
+
+    def _gap_drive(key, body, **kw):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_gap_probe(body, hold=_GAP_HOLD.get(key, ""), **kw),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                return None, f"{key}: {out.stderr.strip()[:70]}"
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: gap probe unavailable ({type(exc).__name__})"
+
+    def _gap_ends(run):
+        """The frame the buzzer fired on, and why the go ended."""
+
+        for index, frame in enumerate(run["frames"]):
+            if frame["done"]:
+                return index, frame["reason"]
+        return None, None
+
+    gap_gaps: list[str] = []
+    gap_ok: list[str] = []
+    gap_short: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            gap_gaps.append(f"{key}: no script")
+            continue
+        body = script.group(1)
+        plain, problem = _gap_drive(key, body)
+        if problem:
+            gap_gaps.append(problem)
+            continue
+        plain_end, plain_why = _gap_ends(plain)
+        # The buzzer has to be what ends this template's go, or there is no
+        # clock here to be honest or dishonest about.
+        if plain_why != "time" or plain_end is None or plain_end <= _GAP_AT:
+            gap_short.append(key)
+            continue
+        trouble = None
+        away, problem = _gap_drive(key, body, gap_ms=_GAP_LONG, gap_at=_GAP_AT)
+        hitch, problem2 = _gap_drive(key, body, gap_ms=_GAP_SHORT, gap_at=_GAP_AT)
+        if problem or problem2:
+            gap_gaps.append(problem or problem2)
+            continue
+        away_end, away_why = _gap_ends(away)
+        hitch_end, _ = _gap_ends(hitch)
+        # 1. The minute away costs the round nothing: same frame, same
+        #    remaining time, same reason.
+        if away_end != plain_end or away_why != "time":
+            trouble = (
+                f"{key}: a {_GAP_LONG // 1000}s absence moved the buzzer from "
+                f"frame {plain_end} to {away_end} ({away_why})"
+            )
+        else:
+            drift = max(
+                abs(away["frames"][i]["ms"] - plain["frames"][i]["ms"])
+                for i in range(_GAP_AT + 1, plain_end)
+            )
+            if drift > _GAP_SLACK:
+                trouble = f"{key}: the absence cost the round {drift:.0f}ms"
+        # 2. ...and a hitch below the threshold is still charged, or the
+        #    clock has stopped being a clock.
+        if not trouble:
+            # Read shortly after the hitch, while both runs are still
+            # going. Past the buzzer the remaining time is clamped at 0 in
+            # both, so a late frame reports "no difference" whatever the
+            # guard did - measured, that read 3e-09 and would have made
+            # this half of the check permanently blind.
+            _gap_look = _GAP_AT + 60
+            charged = (
+                plain["frames"][_gap_look]["ms"] - hitch["frames"][_gap_look]["ms"]
+                if _gap_look < min(len(hitch["frames"]), len(plain["frames"]))
+                else None
+            )
+            if hitch_end is None or hitch_end >= plain_end:
+                trouble = (
+                    f"{key}: a {_GAP_SHORT}ms hitch was forgiven too "
+                    f"(buzzer at {hitch_end}, plain at {plain_end})"
+                )
+            elif charged is None or charged < _GAP_SHORT * 0.8:
+                trouble = f"{key}: the {_GAP_SHORT}ms hitch only cost {charged}ms"
+        if trouble:
+            gap_gaps.append(trouble)
+        else:
+            gap_ok.append(key)
+    c.add(
+        "creation_round_clock_honest",
+        "遊べなかった時間をラウンドに数えない",
+        0.0 if (gap_gaps or not gap_ok) else 1.0,
+        detail=(
+            "; ".join(gap_gaps)
+            if gap_gaps
+            else f"{len(gap_ok)} 型（{', '.join(gap_ok)}）で**同じページを 3 通り**"
+            f"走らせて対照: 素の走行・{_GAP_LONG // 1000} 秒の不在・"
+            f"{_GAP_SHORT}ms のつまずき。不在は rAF が実際にやること"
+            "——フレームが途切れ、戻った 1 枚が丸ごとの空白を timestamp に"
+            f"乗せる——で注入する。**{_GAP_LONG // 1000} 秒よそを見ても"
+            "ブザーは同じフレームで鳴り**（理由も time のまま）、その間の"
+            f"残り時間の食い違いは最大 {_GAP_SLACK}ms＝1 フレーム以内。"
+            f"**逆向きも測る**: {_GAP_SHORT}ms のつまずきは**赦さず**"
+            "そのまま引かれる（ブザーもその分早い）——これが無いと"
+            "「全部赦す時計」が満点を取り、60 秒が何の 60 秒か分からなくなる。"
+            f"閾値 {_gap_threshold}ms は好みではなく隣から取った: music.py が"
+            "同じ 1 秒で自分のスケジューラを取り直している。hitstop は"
+            "**描画を止めるだけでループは回り続ける**ので、この閾値には"
+            f"届かない（実測）。残り {len(gap_short)} 型"
+            f"（{', '.join(gap_short) or 'なし'}）は自分の決着が先に来て"
+            "ブザーに届かず**未測定**（合格に数えない）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the last seconds in the ear (§16, C-1448) -----------------------
     #
     # C-1417 put the countdown on the screen and C-1413 put the round's own
