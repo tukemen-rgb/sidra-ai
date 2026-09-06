@@ -128,6 +128,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "roundLeft",
     "roundClockDue",
     "roundClockFacts",
+    "roundTickFacts",
 )
 
 #: Every ``state='...'`` a template assigns. Read by the judge, so the live
@@ -233,6 +234,9 @@ function roundTick(t){
      finished, so ``state`` was still live and the banner lasted a single
      frame. Found by driving the page rather than by reading it. */
   if(ROUND_DONE){return}
+  /* Before the buzzer's own branch, so the last tick and the buzzer are
+     never the same frame (C-1448). */
+  roundTickSound();
   if(ROUND_MS>=ROUND_LIMIT_MS){ROUND_DONE=true;ROUND_REASON='time';
     /* Running out of time without finishing fires the shared failure beat
        (C-1105), on every template - the branch is only reached when the
@@ -288,6 +292,28 @@ function roundClockFacts(){return {due:roundClockDue(),left:roundLeft(),
   remain:roundRemainMs(),urgent:roundRemainMs()<=ROUND_URGENT_MS,
   show:ROUND_SHOW_MS,urgentAt:ROUND_URGENT_MS,limit:ROUND_LIMIT_MS,
   played:ROUND_PLAYED_A_FRAME}}
+/* --- 終盤の刻み、耳にも (§16 二重符号化, C-1448) ---------------------- */
+/* C-1417 put the last seconds on the screen and C-1413 put the round's own
+   ending in the hand. This is the same fact in the third channel, under
+   the same two rules those two follow.
+   Keyed to roundLeft() rather than to a timer of its own: the badge is
+   already counting whole seconds, so the tick cannot drift away from the
+   number a player is reading, and a slow frame - or two frames inside one
+   millisecond - cannot double it up. One blip per whole second, three in
+   all, and none of them any different from the others: the sound does not
+   climb or quicken, because 「区切りか敗北か」 is the owner's question
+   (C-1127, E 節) and a rising tick would have answered it.
+   It asks sfx() rather than the audio context, which is how M and the
+   volume dial (C-1408) are obeyed without this knowing about either. */
+let ROUND_TICK_SAID=null;
+function roundTickSound(){
+  if(!roundClockDue()||roundRemainMs()>ROUND_URGENT_MS){ROUND_TICK_SAID=null;return}
+  const left=roundLeft();
+  /* 0 belongs to the buzzer, not to the countdown. */
+  if(left<=0||left===ROUND_TICK_SAID)return;
+  ROUND_TICK_SAID=left;
+  try{sfx('tick')}catch(e){}}
+function roundTickFacts(){return {said:ROUND_TICK_SAID}}
 function drawRoundEnd(){if(!RCV)return;
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
   c.save();c.fillStyle='SCRIM_TOKEN'+'cc';c.fillRect(0,H/2-52,W,104);
@@ -723,12 +749,14 @@ def preamble_for(template: str) -> str:
 __all__ = [
     "PREAMBLE_NAMES",
     "PROBE",
+    "TICK_PROBE",
     "ROUND_LIVE",
     "ROUND_SCORE",
     "ROUND_TIE",
     "ROUND_PREAMBLE",
     "ROUND_SECONDS",
     "live_gaps",
+    "tick_probe_source",
     "preamble_for",
     "probe_source",
     "states_in",
@@ -904,6 +932,120 @@ console.log(JSON.stringify({ frames: seen,
   show: roundClockFacts().show, urgentAt: roundClockFacts().urgentAt,
   limit: roundClockFacts().limit }));
 """
+
+
+#: The last seconds in the ear (C-1448). Built on the clock probe above -
+#: same fake page, same whole go - with a recording AudioContext in place of
+#: the silence, so what is read back is the sound the page actually built
+#: rather than the call it made. That distinction is the point of the mute
+#: run: muted, ``sfx`` returns before it touches the context, so a page that
+#: obeys M records zero nodes while still asking once a second.
+TICK_PROBE = """
+const tkNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : tkNothing),
+  apply: () => tkNothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: false, addEventListener(){}, addListener(){} });
+let tkTime = 0;
+globalThis.performance = { now: () => tkTime };
+/* Every sound the page BUILDS, with the note it started on: an effect that
+   is asked for while muted never reaches here, which is how the mute run
+   tells "asked and refused" from "never asked". */
+const tkBuilt = [];
+function TkContext(){ this.state='running'; this.currentTime=0; this.destination={};
+  this.sampleRate=44100 }
+TkContext.prototype.createPeriodicWave = function(){ return { kind:'wave' } };
+TkContext.prototype.createOscillator = function(){
+  const note = { hz: null, to: null };
+  tkBuilt.push(note);
+  return { type:'', setPeriodicWave(){},
+    frequency:{ kind:'frequency', setValueAtTime(v){ note.hz = Number(v) },
+      exponentialRampToValueAtTime(v){ note.to = Number(v) } },
+    connect(){}, start(){}, stop(){} } };
+TkContext.prototype.createBuffer = function(ch, len){
+  return { getChannelData: () => new Float32Array(len) } };
+TkContext.prototype.createBufferSource = function(){
+  return { buffer:null, start(){}, stop(){}, connect(){} } };
+TkContext.prototype.createBiquadFilter = function(){
+  return { kind:'lowpass', type:'',
+    frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){} } };
+TkContext.prototype.createGain = function(){
+  return { gain:{ setValueAtTime(v){ tkBuilt.push({ gain: Number(v) }) },
+      exponentialRampToValueAtTime(){}, value: 0 },
+    connect(){} } };
+globalThis.window = { AudioContext: TkContext };
+const tkKeys = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') tkKeys.push(fn) };
+globalThis.Image = function(){ return tkNothing };
+const tkStore = STORE_INPUT;
+globalThis.localStorage = {
+  getItem: (k) => (k in tkStore ? tkStore[k] : null),
+  setItem: (k, v) => { tkStore[k] = String(v) }, removeItem: (k) => { delete tkStore[k] } };
+globalThis.location = { reload: () => {} };
+const tkEl = { width: 720, height: 320, style: {}, textContent: '', attrs: {}, handlers: {},
+  addEventListener(){}, setAttribute(){}, getAttribute(){ return null }, blur(){},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => tkNothing };
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => tkEl, querySelector: () => null, getElementById: () => tkEl };
+let tkQueued = null;
+globalThis.requestAnimationFrame = (fn) => { tkQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+/* What each call to sfx BUILT, per call. The real sfx is still the one
+   doing the work - this only brackets it - so the mute and the volume dial
+   stay inside the measurement: a muted call comes back having constructed
+   nothing, which is a different reading from a call that never happened. */
+const tkCalls = [];
+const tkRealSfx = sfx;
+sfx = function(name, pitch){ const at = tkBuilt.length;
+  const out = tkRealSfx.call(this, name, pitch);
+  /* The pitch each call asked for, so "it does not climb" is a read fact
+     rather than a promise: a tick that leant on the player would raise
+     this from one second to the next (条件③). */
+  tkCalls.push({ name: String(name), built: tkBuilt.length - at,
+    pitch: (typeof pitch === 'number') ? pitch : null });
+  return out };
+function tkPress(key){ tkKeys.forEach(fn => fn({ key: key, code: key,
+  preventDefault(){}, stopImmediatePropagation(){} })) }
+function tkStep(){ if (!tkQueued) return false;
+  const fn = tkQueued; tkQueued = null; tkTime += 50 / 3; fn(tkTime); return true }
+tkStep(); tkStep();
+if (MUTE_INPUT) { tkPress('m') }
+tkPress(' ');
+const tkHold = HOLD_INPUT;
+const tkFrames = [];
+for (let f = 0; f < FRAMES_INPUT; f++) {
+  if (tkHold) { tkPress(tkHold) }
+  const before = tkCalls.length;
+  if (!tkStep()) break;
+  const facts = roundClockFacts();
+  tkFrames.push({ remain: facts.remain, left: facts.left, urgent: facts.urgent,
+    due: facts.due, done: roundFacts().done, said: roundTickFacts().said,
+    /* Only what this frame asked for, so "once a second" is a per-frame
+       fact rather than a total that could have arrived all at once. */
+    calls: tkCalls.slice(before) });
+}
+console.log(JSON.stringify({ frames: tkFrames, urgentAt: roundClockFacts().urgentAt,
+  limit: roundClockFacts().limit, muted: !!MUTE_INPUT }));
+"""
+
+
+def tick_probe_source(
+    script: str,
+    *,
+    frames: int = 3900,
+    hold: str = "",
+    mute: bool = False,
+    store: dict[str, str] | None = None,
+) -> str:
+    """The page's own script, wrapped so the last seconds can be listened to."""
+
+    return (
+        TICK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("FRAMES_INPUT", str(int(frames)))
+        .replace("HOLD_INPUT", json.dumps(hold))
+        .replace("MUTE_INPUT", "true" if mute else "false")
+        .replace("STORE_INPUT", json.dumps(store or {}))
+    )
 
 
 def clock_probe_source(

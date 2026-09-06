@@ -11593,6 +11593,156 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the last seconds in the ear (§16, C-1448) -----------------------
+    #
+    # C-1417 put the countdown on the screen and C-1413 put the round's own
+    # ending in the hand; the third channel was silent. This drives a whole
+    # go per template and listens: one short blip per whole second of the
+    # urgent window, none before it, and the same blip every time.
+    #
+    # Read as two different facts on purpose. What the page ASKED for comes
+    # from bracketing sfx, and what it BUILT comes from a recording
+    # AudioContext under it - because 条件① is about obeying M and the
+    # volume dial, and "asked and refused" is exactly what obeying looks
+    # like. A probe that only counted calls would pass a page that shouts
+    # through the mute; one that only counted nodes could not tell that page
+    # apart from one whose clock never ticks at all.
+    from sidra_ai.creation.round import (
+        ROUND_URGENT_MS as _tick_urgent,
+        tick_probe_source as _tick_probe,
+    )
+
+    #: Same reason as the clock judge above: racing finishes its laps before
+    #: the buzzer unless it is held off the road.
+    _TICK_HOLD = {"racing": "ArrowLeft"}
+
+    def _tick_drive(key, body, **kw):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_tick_probe(body, hold=_TICK_HOLD.get(key, ""), **kw),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if out.returncode != 0:
+                return None, f"{key}: {out.stderr.strip()[:70]}"
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: tick probe unavailable ({type(exc).__name__})"
+
+    def _tick_calls(run):
+        """Every tick this run asked for, with the frame it landed on."""
+
+        return [
+            dict(call, left=frame["left"], remain=frame["remain"], urgent=frame["urgent"])
+            for frame in run["frames"]
+            for call in frame["calls"]
+            if call["name"] == "tick"
+        ]
+
+    tick_gaps: list[str] = []
+    tick_ok: list[str] = []
+    tick_short: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            tick_gaps.append(f"{key}: no script")
+            continue
+        body = script.group(1)
+        run, problem = _tick_drive(key, body)
+        if problem:
+            tick_gaps.append(problem)
+            continue
+        urgent_frames = [f for f in run["frames"] if f["urgent"] and not f["done"]]
+        ticks = _tick_calls(run)
+        trouble = None
+        if not urgent_frames:
+            # This template's go is over before the last seconds arrive, so
+            # the situation the tick exists for never happened. Unmeasured,
+            # not passed - the same bookkeeping the clock judge above uses.
+            if ticks:
+                tick_gaps.append(f"{key}: ticked {len(ticks)}x without ever being urgent")
+            else:
+                tick_short.append(key)
+            continue
+        stray = [t for t in ticks if not t["urgent"]]
+        expected = sorted(range(1, _tick_urgent // 1000 + 1), reverse=True)
+        seconds = [t["left"] for t in ticks]
+        if stray:
+            trouble = (
+                f"{key}: {len(stray)} tick(s) outside the last "
+                f"{_tick_urgent // 1000}s (first at {stray[0]['remain']:.0f}ms left)"
+            )
+        # 条件②: one per whole second, and the seconds are the ones the
+        # badge is showing. A list rather than a set, so a second that
+        # ticked twice fails here instead of hiding in the count.
+        elif seconds != expected:
+            trouble = f"{key}: ticked on seconds {seconds}, expected {expected}"
+        # 条件③: the same blip each time. A tick that leant on the player
+        # would ride a rising pitch, and the caller is where that would be.
+        elif {t["pitch"] for t in ticks} != {None}:
+            trouble = f"{key}: the tick changed pitch across the window ({seconds})"
+        # ...and it reached the audio device. Without this the three calls
+        # above could all be returning at the door.
+        elif any(t["built"] <= 0 for t in ticks):
+            trouble = f"{key}: the tick was asked for but built no sound"
+        if not trouble:
+            # 条件①, both halves of the volume axis (C-1408). The calls must
+            # still happen - a clock that stops counting when you mute it is
+            # a different bug - and nothing at all may be built.
+            for label, extra in (
+                ("M", {"mute": True}),
+                ("volume 0", {"store": {f"sidra.tune.{key}": json.dumps({"volume": 0})}}),
+            ):
+                quiet, problem = _tick_drive(key, body, **extra)
+                if problem:
+                    trouble = problem
+                    break
+                hushed = _tick_calls(quiet)
+                if [t["left"] for t in hushed] != expected:
+                    trouble = f"{key}: {label} changed when the clock ticked ({hushed})"
+                    break
+                if any(t["built"] for t in hushed):
+                    trouble = f"{key}: the tick played through {label}"
+                    break
+                if any(
+                    call["built"]
+                    for frame in quiet["frames"]
+                    for call in frame["calls"]
+                ):
+                    trouble = f"{key}: something else played through {label}"
+                    break
+        if trouble:
+            tick_gaps.append(trouble)
+        else:
+            tick_ok.append(key)
+    c.add(
+        "creation_urgent_tick",
+        "終盤の残り数秒が耳にも届く（画面・手に続く第 3 の通路）",
+        0.0 if (tick_gaps or not tick_ok) else 1.0,
+        detail=(
+            "; ".join(tick_gaps)
+            if tick_gaps
+            else f"{len(tick_ok)} 型（{', '.join(tick_ok)}）を 1 ゲーム丸ごと"
+            f"実走行して耳で測った: 刻みが鳴るのは最後の {_tick_urgent // 1000} 秒だけで、"
+            f"**秒ごとにちょうど 1 回**（{'・'.join(str(n) for n in sorted(range(1, _tick_urgent // 1000 + 1), reverse=True))} と"
+            "数え、二度打ちも取りこぼしも無い——集合ではなく並びで検査するので"
+            "同じ秒に 2 回鳴れば落ちる）。**音は毎回同じ**（呼び出しの pitch が"
+            "全て既定＝音程が上がらない・条件③。煽らない時計であることを"
+            "「書いてある」ではなく走らせて読む）。**M と音量 0 では 1 音も"
+            "組み立てられない**が、刻みの呼び出し自体は同じ 3 回のまま"
+            "（条件①——止まるのは音であって時計ではない）。**要求と生成を"
+            "別々に読む**のがこの計器の要点: 呼び出し数だけ見れば消音を"
+            "突き破るページが通り、ノード数だけ見れば「そもそも刻まない"
+            "ページ」と区別が付かない。"
+            f"残り {len(tick_short)} 型（{', '.join(tick_short) or 'なし'}）は"
+            "自分の決着が先に来て終盤自体が発生せず**未測定**（合格に数えない）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the number said where it was earned (§1, C-1418) ----------------
     #
     # The score has only ever moved as a total in the corner, so which act

@@ -55,6 +55,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "win",
     "lose",
     "step",
+    "tick",
 )
 
 #: How much louder an effect is while a fight is on. The episode gives a gap
@@ -122,7 +123,16 @@ const SFX_TABLE={
   powerup:['vibrato',440,880,0.3,0.2],
   win:['triangle',523,1046,0.5,0.2],
   lose:['noise',1200,90,0.6,0.2],
-  step:['triangle',240,200,0.04,0.05]};
+  step:['triangle',240,200,0.04,0.05],
+  /* The clock, once a second, in the last seconds (C-1448). Deliberately
+     the flattest entry in the table: start and end on the SAME note, so
+     the sweep every other effect uses to say something - rising for a
+     pickup, falling for a hit - says nothing here. A tick that climbed
+     would be telling the player they are losing, and whether the buzzer
+     is a break or a defeat is the owner's question (C-1127, E 節). Gain
+     ties the quietest voice in the drawer (step) and the duration is the
+     shortest, because this one plays over whatever else is happening. */
+  tick:['triangle',880,880,0.03,0.05]};
 /* Repeats stay fresh (§14 事実 1): every playback shifts the whole sweep
    by one small random factor - well under the semitone (x1.06) that reads
    as a deliberate step - so a catch streak or a footstep run never sounds
