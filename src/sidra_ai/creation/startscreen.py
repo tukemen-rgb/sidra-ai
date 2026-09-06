@@ -140,6 +140,12 @@ const ATTRACT_WIRED=ATTRACT_WIRED_TOKEN;
    held the trigger and hit nothing is a still worth doubting, and the
    judge reads this instead of guessing from motion. */
 let ATTRACT_FRAMES=0,ATTRACT_LOOPS=0,ATTRACT_ASKED=false,ATTRACT_LIVE=0;
+/* The demo slice (C-1438): a clock-bound template has no ending of its
+   own - the round clock is its only break, and the clock does not run
+   behind the title - so its demo rewinds every SLICE frames instead,
+   the arcade's habit of showing fifteen seconds and starting over.
+   Zero means the template ends itself and roundEnded() alone decides. */
+const ATTRACT_SLICE=ATTRACT_SLICE_TOKEN;let ATTRACT_MARK=0;
 function attractOn(){return ATTRACT_WIRED&&GATE==='title'}
 /* The demo's leftovers, cleared before the game is handed over - and
    between demo goes. The template's own reset is the substituted call; the
@@ -260,7 +266,8 @@ requestAnimationFrame=function(fn){
         fn(t);
         /* The demo reached its own ending: another go, so the title is
            never a frozen goal screen. */
-        try{if(roundEnded()){ATTRACT_LOOPS++;attractRewind()}}catch(e){}
+        try{if(roundEnded()||(ATTRACT_SLICE>0&&ATTRACT_FRAMES-ATTRACT_MARK>=ATTRACT_SLICE)){
+          ATTRACT_LOOPS++;ATTRACT_MARK=ATTRACT_FRAMES;attractRewind()}}catch(e){}
         drawGate();if(!ATTRACT_ASKED){GATE_RAF(tick)}return}
       drawGate();GATE_RAF(tick);return}
     fn(t);GATE_RAN++})};

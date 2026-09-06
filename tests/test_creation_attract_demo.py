@@ -65,7 +65,7 @@ def demo() -> dict:
 def still() -> dict:
     """An unwired template, left alone for the same two seconds."""
 
-    return _watch("catch", idle=120, play=30)
+    return _watch("fishing", idle=120, play=30)
 
 
 @pytest.fixture(scope="module")
@@ -101,8 +101,8 @@ def test_wired_needs_both_the_list_and_a_way_back_to_frame_one() -> None:
         assert reset_call(template)
     # Listed but with no reset is not wired: a demo that cannot be rewound
     # would hand the player the middle of the go they just watched.
-    assert not wired("catch")
-    assert reset_call("catch") == ""
+    assert not wired("fishing")
+    assert reset_call("fishing") == ""
 
 
 # --- what reaches the page -------------------------------------------------
@@ -145,8 +145,21 @@ def test_the_pilot_line_is_substituted_per_template() -> None:
     # unpiloted duel is the CPU executing a statue.
     assert "if(e.hp<3)ATTRACT_LIVE=1" in _script("duel")
     assert "fire(p)" in _script("duel")
-    for template in ("shooter", "racing", "kaiju", "marble", "platformer", "duel"):
+    # Catch's chasing hand (C-1438): the pointer target the template
+    # eases toward, and a worked-for receipt a lucky still bowl cannot
+    # reach. The demo slice is its loop - catch has no ending of its own.
+    assert "if(caught>=20)ATTRACT_LIVE=1" in _script("catch")
+    assert "const ATTRACT_SLICE=900" in _script("catch")
+    assert "const ATTRACT_SLICE=0" in _script("racing")
+    # ...and the rewind reseeds the stream: catch has no reset(), and a
+    # world the demo's consumed randomness laid out is not the world the
+    # player was promised.
+    assert "rs=(SEED>>>0)||1" in _script("catch")
+    for template in (
+        "shooter", "racing", "kaiju", "marble", "platformer", "duel", "catch"
+    ):
         assert "ATTRACT_PILOT_TOKEN" not in _script(template)
+        assert "ATTRACT_SLICE_TOKEN" not in _script(template)
 
 
 def test_the_piloted_demo_shoots_loses_and_goes_again(piloted: dict) -> None:
@@ -270,6 +283,24 @@ def test_the_adventure_demo_walks_out_cutting_and_goes_again() -> None:
     assert facts["frames"] == 1200
     assert facts["loops"] >= 1, "the demo never reached an ending of its own"
     assert facts["live"] == 1, "the demo never cut grass"
+    assert seen["beforePress"]["round"]["ms"] == 0
+    assert sorted(seen["beforePress"]["store"]) == []
+
+
+def test_the_catch_demo_chases_on_a_slice_and_goes_again() -> None:
+    """C-1438: the first clock-bound demo. Catch cannot end itself - the
+    round clock is its only break and the clock does not run behind the
+    title - so the demo rewinds on a 900-frame slice, the arcade's own
+    habit. The receipt is 20 catches in a slice: a still bowl was
+    measured collecting at most 12 by luck while the chase collects 37.
+    """
+
+    seen = _watch("catch", idle=1000, play=30)
+    facts = seen["beforePress"]["attract"]
+    assert facts["wired"] is True
+    assert facts["frames"] == 1000
+    assert facts["loops"] >= 1, "the slice never rewound"
+    assert facts["live"] == 1, "the demo never out-caught a still bowl"
     assert seen["beforePress"]["round"]["ms"] == 0
     assert sorted(seen["beforePress"]["store"]) == []
 

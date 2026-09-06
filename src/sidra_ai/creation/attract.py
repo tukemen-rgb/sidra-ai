@@ -41,8 +41,13 @@ from __future__ import annotations
 #: Adventure (C-1439) is the seventh: the hero does not walk unbidden, and
 #: the walk is the whole demo - out of the waking room, cutting what is in
 #: the way.
+#: Catch (C-1438) is the eighth, and the first CLOCK-BOUND one: it has
+#: no ending of its own (ROUND_LIVE is empty), so its demo loops on a
+#: fixed slice instead - the arcade's own habit of showing fifteen
+#: seconds and starting over. See ATTRACT_SLICE.
 ATTRACT_TEMPLATES: tuple[str, ...] = (
-    "racing", "shooter", "kaiju", "marble", "platformer", "duel", "adventure")
+    "racing", "shooter", "kaiju", "marble", "platformer", "duel",
+    "adventure", "catch")
 
 #: Why each of the others is not wired yet, in the same shape as
 #: ``COMBO_UNWIRED``: "not yet" and "not applicable" are different answers
@@ -50,7 +55,6 @@ ATTRACT_TEMPLATES: tuple[str, ...] = (
 #: the template *does* with no input, which is the only thing that decides
 #: whether a demo of it is worth watching.
 ATTRACT_UNWIRED: dict[str, str] = {
-    "catch": "the basket never moves on its own, so the demo is items falling past a still bowl",
     "fishing": "the marker sweeps for ever and nothing else happens: motion without a game in it",
     "puzzle": "a board that is never clicked is a still image",
 }
@@ -74,7 +78,29 @@ ATTRACT_RESET: dict[str, str] = {
     # the demo's walk has to be let go of here (platformer's case, and
     # for the same reason): otherwise the player's first go begins with
     # the hero already striding right.
-    "adventure": "keys.arrowright=keys.arrowup=keys.arrowdown=false;reset()"}
+    "adventure": "keys.arrowright=keys.arrowup=keys.arrowdown=false;reset()",
+    # Catch has no reset() of its own - the round clock is its only
+    # ending - so the rewind rebuilds the world by hand. The reseed is
+    # load-bearing: the demo consumed the random stream, and a player
+    # handed a board the control page would not have drawn fails the
+    # handover comparison ten seconds in.
+    "catch": "items=[];score=0;caught=0;missed=0;t=0;firstDrop=true;"
+    "px=0.5;shown=0.5;BSQ=1;rs=(SEED>>>0)||1"}
+
+
+#: Demo slice length, in gate frames, for templates with no ending of
+#: their own (ROUND_LIVE empty: the round clock is their only break, and
+#: the clock does not run behind the title). The gate rewinds the demo
+#: every this-many frames and counts it a loop - fifteen seconds, the
+#: arcade's own attract-slice habit. Zero means "the template ends
+#: itself" and the gate keeps listening to roundEnded() alone.
+ATTRACT_SLICE: dict[str, int] = {"catch": 900}
+
+
+def slice_frames(template: str) -> int:
+    """How long this template's demo slice runs, or 0 for its own end."""
+
+    return ATTRACT_SLICE.get(template, 0)
 
 #: One line of piloting, run every demo frame before the template's step
 #: (C-1338). The arcade's attract mode is a recorded hand on the real
@@ -189,6 +215,16 @@ ATTRACT_PILOT: dict[str, str] = {
     "if(p.hold&&p.charge>26&&!(e.hold&&e.aim===p.lane)){"
     "if(e.lane!==p.lane)p.lane=e.lane;fire(p)}}"
     "if(e.hp<3)ATTRACT_LIVE=1",
+    # Catch (C-1438): chase the lowest item - the same "move at the
+    # nearest" hand C-1424 drives with - by writing the pointer target
+    # the template itself eases toward. The receipt is a WORKED-FOR
+    # count: the opening gift and the items that happen to fall into the
+    # band catch themselves, and a still bowl was measured collecting
+    # 6-12 per slice by luck alone while the chasing hand collects 37 -
+    # so the receipt sits at 20, a total no still bowl reaches.
+    "catch": "let CB=null;items.forEach(i=>{if(!CB||i.y>CB.y)CB=i});"
+    "if(CB)px=Math.max(0,Math.min(1,CB.x));"
+    "if(caught>=20)ATTRACT_LIVE=1",
 }
 
 
@@ -337,11 +373,13 @@ def probe_source(script: str, *, idle: int = 240, press: bool = True, play: int 
 __all__ = [
     "ATTRACT_PILOT",
     "ATTRACT_RESET",
+    "ATTRACT_SLICE",
     "ATTRACT_TEMPLATES",
     "ATTRACT_UNWIRED",
     "PROBE",
     "pilot_call",
     "probe_source",
     "reset_call",
+    "slice_frames",
     "wired",
 ]

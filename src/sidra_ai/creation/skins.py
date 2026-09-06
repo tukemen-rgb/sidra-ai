@@ -63,9 +63,15 @@ import json
 #: The multiplier still tells careful play from long play, but it does it
 #: on rate rather than on reach: a flown round takes about 165 points in
 #: 1400 frames where the mash takes 90 in a whole 3600-frame round.
+#: ``catch`` 25 -> 33 when C-1438 wired its attract demo: pressing start
+#: now rewinds the world (the demo needs a rewind, and catch's is a hand
+#: -built one that also reseeds), so the masher's round runs a freshly
+#: seeded item stream instead of the load-time one, and catches more.
+#: Three runs, same number each time - the trajectory changed, so the
+#: measurement follows it (C-1407's rule).
 SKIN_UNIT: dict[str, int] = {
     "adventure": 2,
-    "catch": 25,
+    "catch": 33,
     "duel": 3,
     "fishing": 186,
     "kaiju": 3,

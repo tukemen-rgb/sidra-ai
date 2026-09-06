@@ -5392,6 +5392,28 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
+- [x] 完了 2026-09-06 03:55 UTC 辛口クリエイター（`creation_attract_demo` **6→7**、判定器 exit 0（BETTER）。**clock 型初の attract**——C-1349 で「構造的に不可」と記録した前提を機構拡張で解いた: ATTRACT_SLICE（catch=900f≒15 秒・自終端型は 0）をゲートに追加し、roundEnded() か スライス満了で ATTRACT_LOOPS++・巻き戻し＝アーケードの「15 秒見せて頭から」。catch は reset() を持たないので ATTRACT_RESET が世界を手組みで再構築し **rs も再シード**——破壊で実証: 再シード削除は atPress では見えず afterPlay の round facts で対照とずれて条項 4 が捕捉（乱数流の漂流は 10 秒後に現れる）。パイロットは最下の落下物へ px を寄せる C-1424 同型の手。**受領書は実測から**: 無操縦の偶然捕球はスライスあたり 6〜12（シード 3 種）・操縦ありは 37 → 閾値 20（C-1349 の教訓どおり最初の caught>=12 は 1 シードで偶然点灯し実測で棄却）。実測: 4200f 中 slice 周回 4・live 1・進んだ全フレームの 99.3% で絵が変化・時計 0ms・handover 完全一致（両シード）。**追随の再計測 1 件**——押下時の巻き戻しが catch の連打ラウンドの軌道を変え creation_cosmetic_unlock が 10→0（SKIN_UNIT 25 と実測 33 の乖離を C-1407 の窓が捕捉）→ 表の教義どおり実測 3 回同値で 25→33 に再計測（skins.py に経緯を記録）。pytest exit 0（3655 passed / 3 skip）・gate MISS 0。attract は **7/10 型**・残り fishing（動きに遊びが無い）/puzzle（クリック無しは静止画）/adventure（C-1439・歩行パイロット候補）） **C-1438: catch の幕の裏でかごが追いかける（attract パイロット）。**
+      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
+      実読「catch: the basket never moves on its own, so the demo is
+      items falling past a still bowl」＋確立済みパイロット前例 4 件
+      〔C-1338/C-1349/C-1433/C-1434〕と、C-1435 で hitstop を許す計器に
+      なった事実。幕の裏では最寄りの落下物へかごを寄せる最小パイロット
+      （C-1424 の「最寄りへ寄る」運転と同型）。条件は §17 と同じ:
+      デモ中は点も best も履歴も積まない・押下で初期状態から・本体
+      入力系に触れない。→ 動かす数字: creation_catch_attract
+      unmeasurable→1（幕が閉じたままかごの x が動き捕球が起きること、
+      デモ中に点・best が動かないこと、押下後が初期状態であることを
+      検査。破壊で 0）
+- [ ] **C-1439: adventure の幕の裏で勇者が歩く（attract パイロット）。**
+      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
+      実読「adventure: the hero does not walk on their own」＋ C-1424 で
+      実証済みの「草を斬って進む」運転設計をページ側パイロットに移す。
+      幕の裏では右へ歩き草を斬って部屋を出るまでを薄く流す（敵との
+      戦闘までは要らない——「動いている本物」が伝わる最小）。条件は
+      §17 と同じ。→ 動かす数字: creation_adventure_attract
+      unmeasurable→1（幕が閉じたまま勇者の位置が進み草が減ること、
+      デモ中に点・best が動かないこと、押下後が初期状態であることを
+      検査。破壊で 0）
       **記録 2026-09-05 22:00 ループA**（数字は動かしていない。
       pytest 全緑・verify_gate_recall MISS 0/誤検知 0・実装は revert 済みで
       `attract.py` は upstream のまま）
