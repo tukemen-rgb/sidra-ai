@@ -8494,3 +8494,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   pytest 全通し exit 0 FAILED 0 / gate 回帰 exit 0（blended 8.2%）/ --compare exit 0（2.5→10, MOVED 1）。
   decline ラベル「ゲーム制作一式」（C-1263）は不変。これで題名種類語ファミリが全生成器で揃った。
   次候補: exfiltration の残トレーリング文脈型（"the token field"／"API key in the config"）。deck 名詞＋柔らか依頼動詞の intent。
+
+2026-09-06 10:07 UTC ループA started
