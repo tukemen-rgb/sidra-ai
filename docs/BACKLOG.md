@@ -6235,7 +6235,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       → 動かす数字: creation_round_clock_honest unmeasurable→1（フレーム
       列に大きな空白を挟んでも roundRemainMs が空白分を失わないことを
       検査。破壊〔ガード除去〕で 0）
-- [ ] **C-1451: 指でもポーズが掛けられる——タッチにはポーズへの道が無い。**
+- [~] 作業中 2026-09-06 22:09 UTC ループA **C-1451: 指でもポーズが掛けられる——タッチにはポーズへの道が無い。**
       （進捗監視起票 2026-09-06・根拠は startscreen.py 実読:
       ポーズの入口は keydown の P だけ（`if((e.key==='p'||e.key==='P')&&
       GATE!=='title')…gateTogglePause()`）。GCV の pointerdown ハンドラは
