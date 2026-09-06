@@ -12616,6 +12616,148 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- no half a bold span reaches the reader --------------------------
+    #
+    # C-1443. Chunking cuts a document every ~1200 characters without
+    # regard for markup, so a bold span that straddles a cut arrives at
+    # the flattener as half a span - and the flattener only knew how to
+    # remove PAIRS. Measured on this repo's own docs before the fix: 95
+    # of the 940 chunks carrying ``**`` held an odd number, and every one
+    # of them showed the reader a raw ``**``.
+    #
+    # Asked here rather than of the generated documents, which is where
+    # the item was filed: those carry no ``**`` at all, so the check as
+    # filed would have passed without a line changing. Both are measured
+    # below, but the one that can fail is the excerpt path.
+    #
+    # And it has to fail in BOTH directions, because the cheap fix -
+    # delete every ``**`` - would take real characters out of quoted
+    # evidence. Two shapes in this corpus are content, not decoration,
+    # and the judge requires them to survive: one standing between spaces
+    # (「③閉じない ** の残存」, which is this bug being reported) and one
+    # ending a path (「src/sidra_ai/security/**」).
+    from datetime import datetime as _bold_dt, timezone as _bold_tz
+
+    from sidra_ai.creation.documents import generate_document as _bold_generate
+    from sidra_ai.creation.evidence import plain_text as _bold_plain
+    from sidra_ai.documents import (
+        Provenance as _BoldProv,
+        SourceType as _BoldSource,
+        TrustLevel as _BoldTrust,
+    )
+    from sidra_ai.retrieval.chunker import (
+        Document as _BoldDoc,
+        chunk_document as _bold_chunk,
+    )
+
+    def _bold_hugs(text):
+        """Every surviving ``**`` that is decoration rather than content.
+
+        Decoration hugs its words; content either stands between spaces
+        or belongs to a path. That is the same distinction the flattener
+        makes, which is unavoidable - a judge for "the right ones were
+        removed" has to say which ones those are. What keeps it from
+        merely agreeing with itself is the other direction below: the
+        literals are named individually and required to survive, and a
+        flattener that deleted every ``**`` fails on them.
+        """
+
+        out = []
+        for spot in _scene_re.finditer(r"\*\*", text):
+            after = text[spot.end() : spot.end() + 1]
+            before = text[spot.start() - 1 : spot.start()] if spot.start() else ""
+            touching = (after and not after.isspace()) or (
+                before and not before.isspace()
+            )
+            if touching and before != "/" and after != "/":
+                out.append(text[max(0, spot.start() - 30) : spot.start() + 10])
+        return out
+
+    bold_gaps: list[str] = []
+    _bold_prov = _BoldProv(
+        source="git",
+        repository="tukemen-rgb/sidra-ai",
+        path="docs/BACKLOG.md",
+        commit_sha="0" * 40,
+        timestamp=_bold_dt.now(_bold_tz.utc),
+        source_type=_BoldSource.DOCS,
+        trust_level=_BoldTrust.INTERNAL_REPO,
+        license="unknown",
+    )
+    bold_chunks = bold_split = bold_kept = 0
+    for _bold_file in sorted((ROOT / "docs").glob("*.md")):
+        _bold_text = _bold_file.read_text(encoding="utf-8", errors="ignore")
+        for _bold_c in _bold_chunk(_BoldDoc(content=_bold_text, provenance=_bold_prov)):
+            if "**" not in _bold_c.content:
+                continue
+            bold_chunks += 1
+            if _bold_c.content.count("**") % 2:
+                bold_split += 1
+            _bold_out = _bold_plain(_bold_c.content)
+            hugging = _bold_hugs(_bold_out)
+            if hugging:
+                bold_gaps.append(
+                    f"{_bold_file.name} chunk {_bold_c.index}: half a bold span "
+                    f"reached the reader: {hugging[0]!r}"
+                )
+                break
+            bold_kept += _bold_out.count("**")
+        if bold_gaps:
+            break
+    # The corpus has to actually contain the case, or this passes by never
+    # meeting it.
+    if not bold_gaps and bold_split == 0:
+        bold_gaps.append(
+            f"no chunk in {bold_chunks} split a bold span, so nothing was tested"
+        )
+    # ...and the literals have to have survived: a flattener that deleted
+    # every ``**`` would satisfy everything above.
+    if not bold_gaps and bold_kept == 0:
+        bold_gaps.append(
+            "every ** was removed, including the ones that are content "
+            "rather than decoration"
+        )
+    if not bold_gaps:
+        for _bold_lit, _bold_why in (
+            ("③閉じない ** の残存", "a marker standing between spaces"),
+            ("src/sidra_ai/security/** is not special", "a path ending in a glob"),
+            ("docs/**<br>tests/", "a glob with text right after it"),
+            ("パスは a/**/b です", "a glob in the middle of a path"),
+            # ...and one that LEADS with the stars. Every glob above has
+            # a slash before it, so a rule that guarded only that side
+            # kept them all and still ate this one - measured, it passed
+            # the whole check until this line was added.
+            ("**/health ではなく /v1/index に出した", "a glob leading a path"),
+        ):
+            if "**" not in _bold_plain(_bold_lit):
+                bold_gaps.append(f"{_bold_why} was dropped from quoted evidence")
+    # The documents the item was filed against, measured too: they emit no
+    # bold at all, so what is checked is that this stays true.
+    if not bold_gaps:
+        for _bold_req in ("新機能の提案書を作って", "週次レポートを作って"):
+            _bold_doc = _bold_generate(_bold_req)
+            if _bold_doc.markdown.count("**") % 2:
+                bold_gaps.append(f"{_bold_req}: the document left a ** unclosed")
+    c.add(
+        "document_bold_balanced",
+        "太字の開きっぱなしが読み手に届かない",
+        0.0 if bold_gaps else 1.0,
+        detail=(
+            "; ".join(bold_gaps)
+            if bold_gaps
+            else f"実コーパスを製品のチャンカーで割って実測: `**` を含む "
+            f"{bold_chunks} チャンクのうち {bold_split} 件が太字をまたいで"
+            "切られており（約 1200 字ごとに markup を見ずに切るので必ず起きる）、"
+            "**そのどれもが読み手に生の `**` を見せない**。"
+            f"同時に、装飾でなく中身である `**` は {bold_kept} 個そのまま残る"
+            "——空白に挟まれた 1 個（「③閉じない ** の残存」＝この不具合の"
+            "報告そのもの）と、パスの glob（`src/sidra_ai/security/**`・`docs/**<br>`・`a/**/b`・`**/health`）。**後ろに文字が続く glob は最初の規則が食っていた**——残った印だけ見る検査では気づけないので、消えていないことも명示的に検査する。"
+            "全部消せば前者は通るが後者で落ちる。生成文書側は `**` を"
+            "そもそも出さないので、その不変を保つことを併せて検査"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by

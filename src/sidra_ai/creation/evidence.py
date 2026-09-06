@@ -35,6 +35,48 @@ NUMBER = re.compile(r"\d[\d,.\s]*\s*(?:%|％|円|万|億|人|件|倍|pt|x)?", re
 #: is removed - the words are the evidence and must survive unchanged.
 _MD_HEADING = re.compile(r"(?:(?<=\s)|^)#{1,6}\s+")
 _MD_BOLD = re.compile(r"\*\*([^*]+)\*\*")
+#: A ``**`` left over after the pairs are gone (C-1443). Chunking cuts a
+#: document every ~1200 characters without regard for markup, so a bold
+#: span that straddles the cut arrives here as half a span: measured on
+#: this repo's own docs, 95 of the 940 chunks that carry ``**`` hold an
+#: odd number of them, and every one of those used to show the reader a
+#: raw ``**``.
+#:
+#: What may NOT be dropped is a ``**`` that is content rather than
+#: decoration, because losing a real character out of quoted evidence is
+#: worse than showing a marker. Two such shapes are in the corpus and
+#: both are kept: one standing alone between spaces (13 of them - the
+#: line 「③閉じない ** の残存」 says it about this very bug), and one
+#: ending a path (3 of them, 「src/sidra_ai/security/**」). What is left
+#: is a marker hugging the text it was decorating, which is the only
+#: shape emphasis can take.
+_MD_BOLD_DANGLING = re.compile(r"\*\*")
+
+
+def _drop_dangling_bold(text: str) -> str:
+    """Remove a ``**`` that is decoration; keep one that is content.
+
+    Decoration hugs the words it decorates, so a leftover marker with
+    text against it on either side is half a bold span. Two shapes are
+    content and are kept: one standing between spaces, and one belonging
+    to a path - ``docs/**``, ``a/**/b``, ``src/sidra_ai/security/**``.
+    The path test looks at BOTH sides, which a first version did not:
+    it kept ``security/**`` and quietly ate the stars out of
+    ``docs/**<br>`` and ``a/**/b``, because those have text after them.
+    """
+
+    out: list[str] = []
+    last = 0
+    for spot in _MD_BOLD_DANGLING.finditer(text):
+        before = text[spot.start() - 1 : spot.start()] if spot.start() else ""
+        after = text[spot.end() : spot.end() + 1]
+        touching = (before and not before.isspace()) or (after and not after.isspace())
+        in_a_path = before == "/" or after == "/"
+        if touching and not in_a_path:
+            out.append(text[last : spot.start()])
+            last = spot.end()
+    out.append(text[last:])
+    return "".join(out)
 _MD_EMPHASIS = re.compile(r"(?<![\w*])\*([^*\s][^*]*)\*(?![\w*])")
 _MD_CODE = re.compile(r"`([^`]+)`")
 _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
@@ -132,6 +174,8 @@ def plain_text(text: str) -> str:
     text = _MD_LIST.sub("", text)
     text = _MD_HEADING.sub("", text)
     text = _MD_BOLD.sub(r"\1", text)
+    # ...and then whatever half-span the chunker handed us (C-1443).
+    text = _drop_dangling_bold(text)
     text = _MD_EMPHASIS.sub(r"\1", text)
     text = _MD_CODE.sub(r"\1", text)
     text = _MD_QUOTE.sub("", text)
