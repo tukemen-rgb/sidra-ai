@@ -5434,6 +5434,17 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま勇者の位置が進み草が減ること、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
+- [ ] **C-1440: puzzle の幕の裏で盤が動く（attract パイロット）。**
+      （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
+      実読「puzzle: a board that is never clicked is a still image」＋
+      確立済みパイロット前例 6 件〔shooter/marble/platformer/duel/catch
+      〔進行中〕/adventure〕。幕の裏では有効手を 1 つ選んでクリックする
+      最小パイロット——盤が消えて落ちる絵は puzzle の遊びそのもの。
+      条件は §17 と同じ: デモ中は点も best も履歴もコンボ（C-1436）も
+      積まない・押下で必ず初期状態から・本体入力系に触れない。
+      → 動かす数字: creation_puzzle_attract unmeasurable→1（幕が
+      閉じたまま盤面の状態が変わること、デモ中に点・best が動かない
+      こと、押下後が初期状態であることを検査。破壊で 0）
       **結果 2026-09-06 02:36 ループA**（`creation_attract_demo` **6→7**・
       判定器 exit 0）
       **起票文の数字名は存在しなかった。** `creation_adventure_attract` は
