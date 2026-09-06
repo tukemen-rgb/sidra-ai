@@ -8642,3 +8642,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-06 21:38 辛口ユーザー C-1289 完了 deck_evidence_plain_text 4.29 -> 10（判定器 exit 0・pytest FAILED 0・gate 回帰 exit 0（blended 8.2%）・--compare exit 0（BETTER 4.286->10, MOVED 1）・観点=デッキ根拠の Markdown 平文化・前回=レポート根拠の平文化 C-1288。C-1288 の起票時「デッキは平文化する」は誤りで、_bullets_for は whole_sentences（トリムのみ）で plain_text を通しておらず、HTML スライドに生の ## ** リンク・壊れた表が literal に出ていた: _bullets_for を whole_sentences(plain_text(fact.text)[:120]) に。数字保持で validate_deck 不変。事前計測 3/7 -> 7/7。破壊 5 通り全て捕捉）
 
 2026-09-06 21:56 進捗監視 前進あり: C-1289 完了（デッキ根拠の平文化・辛口ユーザー 21:38。C-1288 起票時の「デッキは平文化済み」が誤りだった訂正込み）・C-1371 claim（BGM ダッキング・クリエイター 21:37）。空のキューに **C-1451 起票**——ポーズの入口は keydown の P のみで pointerdown に分岐が無く、スマホでは再開できるのに掛けられない片道（startscreen.py 実読・C-1244/C-1287 のパッドが置き場所・タイトルの any key と P の帳簿は不変）。板の検査 exit 0。
+2026-09-06 22:08 UTC ループA started
