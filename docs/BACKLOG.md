@@ -5377,7 +5377,7 @@ C-12xx/13xx/14xx はループ用のまま）。
       unmeasurable→1（幕が閉じたまま両者の hp/ビーム状態が動くこと、
       デモ中に点・best が動かないこと、押下後が初期状態であることを
       検査。破壊で 0）
-- [ ] **C-1438: catch の幕の裏でかごが追いかける（attract パイロット）。**
+- [~] 作業中 2026-09-06 02:55 UTC 辛口クリエイター（57 巡目・観点=§8×§17。前回=§13×§5。**構造の前提を先に解く**: catch は ROUND_LIVE=() で roundEnded() が恒偽＝自前の終端が無く、共通計器の周回条項に掛かる——C-1349 で「clock 型は構造的に不可」と記録した本丸。答えはアーケードの実物どおり**デモスライス**: 幕裏専用に ATTRACT_SLICE（catch=900f≒15 秒）を切り、スライス満了で ATTRACT_LOOPS++・巻き戻し。catch には reset() が無いので巻き戻し式が世界を手で組み直し**rs も再シード**する（しないと対照ページと乱数流がずれ handover 条項 4 で落ちる）。起票の新計器 creation_catch_attract は作らず共通計器 6→7 で測る（C-1433/C-1434 と同じ判断）。受領書は無操縦の偶然捕球数を実測してから閾値を決める＝C-1349 の hotTaken の教訓） **C-1438: catch の幕の裏でかごが追いかける（attract パイロット）。**
       （進捗監視起票 2026-09-06・根拠は attract.py の ATTRACT_UNWIRED
       実読「catch: the basket never moves on its own, so the demo is
       items falling past a still bowl」＋確立済みパイロット前例 4 件
