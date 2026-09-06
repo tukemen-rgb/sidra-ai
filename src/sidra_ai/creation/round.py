@@ -410,6 +410,9 @@ function roundBank(){if(ROUND_BANKED)return;
   /* Into the row before anything is judged: the sequence is what happened,
      not what was good enough (C-1432). */
   roundLogPush(ROUND_FINAL);
+  /* And the day is counted here, under the same guard: a day nobody
+     played is not a day you came back (C-1442). */
+  try{dailyStreakBank()}catch(e){}
   /* The round confirming itself, in the third sense (C-1413, §16): two
      short taps, after the guard above, so a round nobody played stays
      silent in the hand as well as in the records. */
@@ -467,7 +470,12 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   /* Whose board this was. Only when the switch is on: a line that always
      said 今日の挑戦 would make the shared attempt meaningless. */
   let mark='';
-  try{if(dailyBoard()){mark='今日の挑戦 '+dailyStamp()+'   '}}catch(e){}
+  try{if(dailyBoard()){mark='今日の挑戦 '+dailyStamp();
+    /* Only once it is a run of days. On the first one 「1 日目」 would be
+       a streak of one, which is just today with a number on it - the same
+       reason the runs row waits for a second run (C-1432). */
+    const days=dailyStreak();if(days>1){mark+='（'+days+' 日目）'}
+    mark+='   '}}catch(e){}
   /* The copy key is offered only where there is something to copy. */
   let right='R / タップでもう一度';
   try{if(shareReady()){right+='   C / 結果をコピー'}}catch(e){}

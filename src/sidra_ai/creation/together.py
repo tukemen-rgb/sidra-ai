@@ -48,6 +48,7 @@ STORAGE_PREFIXES: dict[str, str] = {
     "sidra.tie.": "C-1124 the second key, for a score that has a ceiling",
     "sidra.keys.": "C-1305 this device's key re-assignments",
     "sidra.runs.": "C-1432 the last few runs, in the order they happened",
+    "sidra.daily.": "C-1442 how many days running the shared board was taken",
 }
 
 #: The canvas the templates are drawn on, and the font the strip uses. Used

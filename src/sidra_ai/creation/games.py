@@ -132,7 +132,7 @@ from sidra_ai.creation.platformer import (
     PLATFORMER_WORDS,
 )
 from sidra_ai.creation.touchpad import PAD_PREAMBLE, pad_active_declaration
-from sidra_ai.creation.daily import DAILY_PREAMBLE
+from sidra_ai.creation.daily import preamble_for as daily_preamble
 from sidra_ai.creation.round import preamble_for as round_preamble_for
 from sidra_ai.creation.parts import PARTS_PREAMBLE
 from sidra_ai.creation.share import preamble_for as share_preamble_for
@@ -976,7 +976,7 @@ def generate_game(
             + TUNE_PREAMBLE
             # After the panel (it reads the switch) and before anything
             # that uses SEED_TOKEN, which is every template body.
-            + DAILY_PREAMBLE
+            + daily_preamble(key)
             # Before the gate, which is what takes the line away: the
             # element has to have been found by the time a press can
             # happen, and gateStart is the only caller (C-1415).

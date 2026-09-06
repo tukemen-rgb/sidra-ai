@@ -12361,6 +12361,162 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- how many days running the shared board was taken ----------------
+    #
+    # C-1442, §8 事実 4. The daily switch gives everybody the same board;
+    # this is the only number about coming BACK rather than about a round,
+    # and it is worth measuring precisely because it is the kind of number
+    # products fudge - a grace day here, a "you were close" there, and the
+    # count stops meaning what it says.
+    #
+    # Days are page loads, so a run of days is a run of PROCESSES with only
+    # the store carried between them - the stamp is read once at load and
+    # never again, by design (daily.py's "Not a clock"), so anything that
+    # simulated midnight inside one page would be measuring a page that
+    # cannot exist. Same shape as C-1432's row of runs, and for the same
+    # reason.
+    from sidra_ai.creation.daily import streak_probe_source as _streak_probe
+
+    def _streak_day(template, script, stamp, store, *, hold="ArrowRight"):
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_streak_probe(script, stamp=stamp, store=store, hold=hold),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: streak probe unavailable ({type(exc).__name__})"
+
+    def _streak_walk(template, days, *, daily=True, hold="ArrowRight"):
+        """Load the page once per day, carrying the store between loads."""
+
+        art = _tune_generate("ゲームを作って", template=template)
+        body = _scene_re.search(r"<script>(.*?)</script>", art.html, _scene_re.S)
+        if body is None:
+            return None, f"{template}: no script"
+        store = (
+            {f"sidra.tune.{template}": json.dumps({"daily": True})} if daily else {}
+        )
+        walked = []
+        for stamp in days:
+            seen, problem = _streak_day(template, body.group(1), stamp, store, hold=hold)
+            if problem:
+                return None, problem
+            store = seen["store"]
+            walked.append(seen)
+        return walked, None
+
+    streak_gaps: list[str] = []
+    _streak_key = "sidra.daily."
+    # Three days running, then a skipped day, on a template whose board the
+    # seed really does decide.
+    run, problem = _streak_walk("adventure", ["2026-09-01", "2026-09-02", "2026-09-03"])
+    if problem:
+        streak_gaps.append(problem)
+    else:
+        counted = [d["after"]["shown"] for d in run]
+        if counted != [1, 2, 3]:
+            streak_gaps.append(f"three days running counted {counted}, not [1, 2, 3]")
+        # The number has to reach the player, and only once it is a run of
+        # days: "1 日目" on the first would be today wearing a streak's hat.
+        elif any("日目" in (d["said"][0] if d["said"] else "") for d in run[:1]):
+            streak_gaps.append("the first day already called itself a streak")
+        elif not all(
+            f"（{n} 日目）" in (d["said"][0] if d["said"] else "")
+            for n, d in zip(counted[1:], run[1:])
+        ):
+            streak_gaps.append(
+                f"the strip did not carry the count: {[d['said'][:1] for d in run]}"
+            )
+    if not streak_gaps:
+        broke, problem = _streak_walk(
+            "adventure", ["2026-09-01", "2026-09-02", "2026-09-05"]
+        )
+        if problem:
+            streak_gaps.append(problem)
+        elif [d["after"]["shown"] for d in broke] != [1, 2, 1]:
+            streak_gaps.append(
+                "a skipped day did not start again: "
+                f"{[d['after']['shown'] for d in broke]}"
+            )
+        elif "日目" in (broke[-1]["said"][0] if broke[-1]["said"] else ""):
+            streak_gaps.append("the day after a gap still claimed a run of days")
+    # Twice in one day is one day - asked of a streak that has already
+    # built, because from zero it cannot tell "held at 1" from "reset to
+    # 1". Measured: dropping the once-a-day guard leaves [1, 1, 2] intact
+    # and only shows up here, where a second go on day two would knock a
+    # two-day run back to one.
+    if not streak_gaps:
+        twice, problem = _streak_walk(
+            "adventure", ["2026-09-01", "2026-09-02", "2026-09-02", "2026-09-03"]
+        )
+        if problem:
+            streak_gaps.append(problem)
+        elif [d["after"]["shown"] for d in twice] != [1, 2, 2, 3]:
+            streak_gaps.append(
+                f"a second go on the same day moved it: "
+                f"{[d['after']['shown'] for d in twice]}"
+            )
+    # With the switch off there is no shared board, so there is nothing to
+    # have taken - and nothing written down either.
+    if not streak_gaps:
+        off, problem = _streak_walk(
+            "adventure", ["2026-09-01", "2026-09-02"], daily=False
+        )
+        if problem:
+            streak_gaps.append(problem)
+        elif any(d["after"]["shown"] for d in off):
+            streak_gaps.append("the switch was off and it counted anyway")
+        elif any(k.startswith(_streak_key) for d in off for k in d["store"]):
+            streak_gaps.append("the switch was off and it wrote a day down")
+    # A round nobody played is not a day you came back. Measured on a
+    # clock-bound template, so the round really does end without a hand on
+    # it - and it scores, which is what makes the refusal meaningful.
+    if not streak_gaps:
+        idle, problem = _streak_walk(
+            "catch", ["2026-09-01", "2026-09-02"], hold=None
+        )
+        if problem:
+            streak_gaps.append(problem)
+        elif any(d["touched"] for d in idle):
+            streak_gaps.append("the untouched loads were counted as played")
+        elif any(d["after"]["shown"] for d in idle):
+            streak_gaps.append("a round nobody played counted as a day")
+        else:
+            played, problem = _streak_walk("catch", ["2026-09-01", "2026-09-02"])
+            if problem:
+                streak_gaps.append(problem)
+            elif [d["after"]["shown"] for d in played] != [1, 2]:
+                streak_gaps.append(
+                    "the same page played does not count either, so the "
+                    "refusal above proves nothing: "
+                    f"{[d['after']['shown'] for d in played]}"
+                )
+    c.add(
+        "creation_daily_streak",
+        "今日の盤に何日続けて挑んだかが見える",
+        0.0 if streak_gaps else 1.0,
+        detail=(
+            "; ".join(streak_gaps)
+            if streak_gaps
+            else "日付を固定したページを 1 日 1 プロセスで読み込み、store だけを"
+            "持ち越して実測（日付はロード時に 1 回しか読まれないので、"
+            "1 ページ内で日を跨ぐ測り方は存在しないページを測ることになる）。"
+            "3 日連続で 1→2→3 と数え、結果帯に 2 日目から「（N 日目）」が出る。同じ日に 2 回遊んでも増えも減りもしない（**続いている最中に**測る——0 からでは「据え置き」と「1 に戻った」が区別できない）。"
+            "**1 日空けると 1 に戻り表示も消える**（猶予は作らない）。"
+            "スイッチが off なら数えも書きもしない。"
+            "**触れなかったラウンドは得点を持ちながら数えない**"
+            "（時計で終わる型を手を触れずに走らせて確認し、同じページを"
+            "遊べば数えることを対照で確認）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the palette a request asked for, and the one it did not ---------
     #
     # Counted by generating with each theme and looking at the page, not by
