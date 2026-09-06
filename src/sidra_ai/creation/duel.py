@@ -119,7 +119,18 @@ let p,e,state,winner,flash,spark,mash;
    Counting only - the damage and the CPU are untouched by these lines. */
 let lostBeam,lostClash;
 function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,
-  think:0,hitLock:false,over:0,stun:0,aim:-1,fireAt:0}}
+  think:0,hitLock:false,over:0,stun:0,aim:-1,fireAt:0,sq:1}}
+/* Squash & stretch for the fighters (§1, C-1358): the jump got it in
+   C-1332 and the basket in C-1341, and the duel - whose whole loop is
+   the exchange of impacts - stayed rigid. Three verbs write it: holding
+   a charge sinks the body in proportion (anticipation), a released shot
+   snaps it tall, a landed hit crushes it. Every frame walks a quarter
+   step back to its pose and snaps inside 0.01 (C-1332's recipe). Under
+   reduced motion nothing ever writes it and the silhouette never moves. */
+function poseOf(f){return f.hold?1-Math.min(0.15,f.charge*0.0015):1}
+function settleSq(f){if(REDUCED){f.sq=1;return}
+  const w=poseOf(f);f.sq+=(w-f.sq)*0.25;if(Math.abs(f.sq-w)<0.01){f.sq=w}}
+function squashFacts(){return {p:p?p.sq:1,e:e?e.sq:1}}
 /* The face, as a fact (§1, C-1355): which way the player's eyes lean -
    at the enemy's lane, +1 down / -1 up / 0 level - and whether this
    frame is the blink. Under reduced motion FRAME pins the eyes open. */
@@ -134,6 +145,7 @@ function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
   pLane:p?p.lane:-1,pHp:p?p.hp:0,eHp:e?e.hp:0,
   lostBeam:lostBeam||0,lostClash:lostClash||0}}
 function overload(f){f.stun=STUN_FRAMES;f.hold=false;f.charge=0;f.over=0;
+  if(!REDUCED){f.sq=0.7}
   sfx('hurt');shake(9);hitstop(4);burst(f.x,LANES[f.lane],16,'ALERT_JUICE')}
 function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spark=0;mash=0;
   lostBeam=0;lostClash=0;
@@ -153,6 +165,8 @@ cv.addEventListener('pointerdown',()=>{if(state!=='play'){reset();return}
 cv.addEventListener('pointerup',()=>{fire(p)});
 function fire(f){if(state!=='play'||!f.hold||f.stun>0)return;f.hold=false;f.over=0;
   if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;if(flashGate())flash=1;sfx('fire');
+    /* the release: the sunken pose snaps tall for one beat (§1, C-1358) */
+    if(!REDUCED){f.sq=1.25}
     /* the kick scales with the charge: a tap fires a thread, a long hold
        fires something that shoves the camera */
     shake(2+f.charge*0.08);burst(f.x,LANES[f.lane],10,'ACCENT_JUICE');
@@ -188,6 +202,7 @@ function cpu(){if(e.stun>0){e.stun--;return}
       e.beam=e.charge;
       e.charge=0;if(flashGate())flash=1;sfx('fire')}}}
 function hit(who){who.hp--;if(flashGate())flash=1;sfx('hurt');
+  if(!REDUCED){who.sq=0.7}
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
     if(who===e){winner='勝利。ひかりが押し切った。';winBeat(EX,LANES[e.lane])}
@@ -209,24 +224,32 @@ function step(){const now=performance.now();
     else{
       if(pB){p.beam-=2;if(p.beam<=0){if(p.hitLock){hit(e)}p.beam=0;p.hitLock=false}}
       if(eB){e.beam-=2;if(e.beam<=0){if(e.hitLock){lostBeam++;hit(p)}e.beam=0;e.hitLock=false}}}}
+  /* outside the play-guard so a knocked-out loser still settles upright */
+  settleSq(p);settleSq(e);
   draw(now);requestAnimationFrame(step)}
 function aura(x,y,r,c,now){const s=REDUCED?0:FRAME(4,6,now);
   cx.globalAlpha=0.25;cx.fillStyle=c;
   cx.beginPath();cx.arc(x,y,r+s*2,0,6.28318);cx.fill();cx.globalAlpha=1}
-function body(x,y,c,mir,face){
-  sprite('fighter',x-12,y-26,24,44,'');
-  cx.fillStyle=c;cx.fillRect(x-9,y-24,18,20);
-  cx.fillRect(x-6,y-4,12,22);
+function body(x,y,c,mir,face,sq){
+  /* The deformation is one transform, feet-anchored: heights shrink by
+     sq, widths grow by (2-sq) so the volume reads constant (C-1332's
+     drawing rule). At sq=1 every coordinate is bit-identical to the
+     rigid body, which is what the reduced-motion run promises. */
+  sq=sq||1;const bt=y+18,wd=2-sq;
+  function part(rx,ry,rw,rh){cx.fillRect(x+(rx-x)*wd,bt+(ry-bt)*sq,rw*wd,rh*sq)}
+  sprite('fighter',x+(-12)*wd,bt+(y-26-bt)*sq,24*wd,44*sq,'');
+  cx.fillStyle=c;part(x-9,y-24,18,20);
+  part(x-6,y-4,12,22);
   cx.fillStyle='#05070f';
   /* The enemy keeps its flat visor; the player's face is the fourth in
      the contract (§1, C-1355): two eyes that lean toward the enemy's
      LANE - the whole game is three lanes, and the fighter watching them
      is the mind-game made visible. The blink is one FRAME beat, pinned
      open under reduced motion (C-1348's rule, verbatim). */
-  if(!face){cx.fillRect(x-9+(mir?10:2),y-20,6,5);return}
+  if(!face){part(x-9+(mir?10:2),y-20,6,5);return}
   if(face.blink)return;
   const ey=face.look*1.5,ex=x-9+(mir?10:2);
-  cx.fillRect(ex,y-20+ey,2.5,3);cx.fillRect(ex+3.5,y-20+ey,2.5,3)}
+  part(ex,y-20+ey,2.5,3);part(ex+3.5,y-20+ey,2.5,3)}
 function beamDraw(f,from,dir,c,now){
   if(f.beam<=0)return;const y=LANES[f.beamLane];
   const clash=p.beam>0&&e.beam>0&&p.beamLane===e.beamLane;
@@ -265,8 +288,8 @@ function draw(now){
       if(cx.setLineDash)cx.setLineDash([7,7]);
       cx.beginPath();cx.moveTo(PX+30,ly);cx.lineTo(EX-30,ly);cx.stroke();
       if(cx.setLineDash)cx.setLineDash([]);cx.lineWidth=1}}
-  body(PX,LANES[p.lane],'CYAN_TOKEN',true,faceFacts());
-  body(EX,LANES[e.lane],'MAGENTA_TOKEN',false);
+  body(PX,LANES[p.lane],'CYAN_TOKEN',true,faceFacts(),p.sq);
+  body(EX,LANES[e.lane],'MAGENTA_TOKEN',false,undefined,e.sq);
   beamDraw(p,PX+14,1,'CYAN_TOKEN',now);
   beamDraw(e,EX-14,-1,'MAGENTA_TOKEN',now);
   cx.fillStyle='CYAN_TOKEN';
@@ -596,6 +619,86 @@ def face_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The fighter's silhouette under its three impacts (§1, C-1358): hold a
+#: real Space until the body sinks (anticipation), release and catch the
+#: tall snap, then stand in one aimed volley and watch the crush - each
+#: settling back to its pose within half a second. The reduced run reads
+#: 1 on every sampled frame. Keys are the template's own; the enemy's aim
+#: is dodged by lane during the charge so nothing but the verb under test
+#: writes the number.
+SQUASH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function ev(type, k){
+  const e2 = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e2));
+}
+ev('keydown', ' '); ev('keyup', ' '); run(2);
+/* While a phase is watching one verb, the enemy's volleys are dodged by
+   lane (PACE_PROBE's licence) and the pools pinned so no stray hit or
+   match end writes the number under test. */
+function dodge(){ if (e.aim >= 0 && p.lane === e.aim) { p.lane = (e.aim + 1) % 3 } }
+/* Phase 0: nobody is doing anything - the player's body must not breathe.
+   Short window, before the first volley can land. */
+let idleOff = 0;
+for (let i = 0; i < 30; i++) { dodge(); run(1); if (squashFacts().p !== 1) idleOff++ }
+/* Phase 1: hold the charge and watch the anticipation sink in. */
+ev('keydown', ' ');
+let chargeDip = 1;
+for (let i = 0; i < 45; i++) { dodge(); p.hp = 3; run(1);
+  chargeDip = Math.min(chargeDip, squashFacts().p) }
+const heldCharge = p.charge;
+/* Phase 2: let go - fire() runs in the keyup handler, synchronously. */
+ev('keyup', ' ');
+const released = squashFacts().p;
+let settleFire = null;
+for (let i = 0; i < 30; i++) { dodge(); p.hp = 3; run(1) }
+settleFire = squashFacts().p;
+/* Phase 3: stand in one aimed volley and take the hit. */
+let guard = 0;
+while (e.aim < 0 && guard++ < 3000) { p.hp = 3; run(1) }
+if (e.aim >= 0) { p.lane = e.aim }
+const hpBefore = p.hp;
+let hitSq = null;
+while (guard++ < 3000) { run(1);
+  if (p.hp < hpBefore) { hitSq = squashFacts().p; break } }
+let settleHit = null;
+for (let i = 0; i < 30; i++) { p.hp = 3; run(1) }
+settleHit = squashFacts().p;
+console.log(JSON.stringify({
+  idleOff: idleOff, chargeDip: chargeDip, heldCharge: heldCharge,
+  released: released, settleFire: settleFire,
+  gotHit: hitSq !== null, hitSq: hitSq, settleHit: settleHit,
+  enemySq: squashFacts().e,
+}));
+"""
+
+
+def squash_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the fighters' bounce can be watched."""
+
+    return SQUASH_PROBE.replace("REDUCED_INPUT", "true" if reduced else "false").replace(
+        "SCRIPT_PLACEHOLDER", script
+    )
+
+
 __all__ = [
     "DUEL_DIFFICULTY",
     "DUEL_HOW",
@@ -605,6 +708,8 @@ __all__ = [
     "AIM_PROBE",
     "FACE_PROBE",
     "face_probe",
+    "SQUASH_PROBE",
+    "squash_probe",
     "PACE_PROBE",
     "pace_probe",
     "FLASH_PROBE",

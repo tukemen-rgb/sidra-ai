@@ -4214,20 +4214,80 @@ def measure_creation(c: Collector) -> None:
             squash_gaps.append(f"{_sq_label}: the catch never squashes ({_sq['catchSq']})")
         if abs(_sq["settled"] - 1) > 0.02:
             squash_gaps.append(f"{_sq_label}: the bounce never settles ({_sq['settled']})")
+    # The fighting half (C-1358): the duel's loop is the exchange of
+    # impacts, and both bodies were rigid through every one of them.
+    # Three verbs on the player's own keys: the held charge sinks the
+    # pose (anticipation), the release snaps it past 1.1, a taken volley
+    # crushes it under 0.9 - each settling within half a second, nothing
+    # moving while nobody acts, and every sampled frame exactly 1 under
+    # reduced motion.
+    from sidra_ai.creation.duel import squash_probe as _duel_sq_probe
+
+    for _sq_request, _sq_reduced in (
+        ("光線で撃ち合う対戦ゲームを作って", False),
+        ("光線で撃ち合う対戦ゲームを作って", True),
+    ):
+        _sq_label = f"duel{'（reduced）' if _sq_reduced else ''}"
+        _sq_page = generate_game(_sq_request).html
+        _sq_script = _sq_re.search(r"<script>(.*?)</script>", _sq_page, _sq_re.S)
+        if _sq_script is None:
+            squash_gaps.append(f"{_sq_label}: no script")
+            continue
+        try:
+            _sq_run = _sq_sp.run(
+                ["node", "-"],
+                input=_duel_sq_probe(_sq_script.group(1), reduced=_sq_reduced),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _sq_run.returncode != 0:
+                squash_gaps.append(f"{_sq_label}: {_sq_run.stderr.strip()[:80]}")
+                continue
+            _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sq_sp.SubprocessError, ValueError) as exc:
+            squash_gaps.append(f"{_sq_label}: probe unavailable ({type(exc).__name__})")
+            continue
+        if not _sq.get("gotHit"):
+            squash_gaps.append(f"{_sq_label}: no volley ever landed, so the crush went unmeasured")
+            continue
+        if _sq_reduced:
+            if (
+                _sq["idleOff"]
+                or _sq["chargeDip"] != 1
+                or _sq["released"] != 1
+                or _sq["hitSq"] != 1
+            ):
+                squash_gaps.append(f"{_sq_label}: reduced motion still bounces {_sq}")
+            continue
+        if _sq["idleOff"]:
+            squash_gaps.append(f"{_sq_label}: the fighter breathes with nobody acting")
+        if _sq["chargeDip"] >= 0.97:
+            squash_gaps.append(f"{_sq_label}: the held charge never sinks the pose ({_sq['chargeDip']})")
+        if _sq["released"] <= 1.1:
+            squash_gaps.append(f"{_sq_label}: the release never snaps tall ({_sq['released']})")
+        if abs(_sq["settleFire"] - 1) > 0.02:
+            squash_gaps.append(f"{_sq_label}: the release never settles ({_sq['settleFire']})")
+        if _sq["hitSq"] is None or _sq["hitSq"] >= 0.9:
+            squash_gaps.append(f"{_sq_label}: the taken hit never crushes ({_sq['hitSq']})")
+        if abs(_sq["settleHit"] - 1) > 0.02:
+            squash_gaps.append(f"{_sq_label}: the crush never settles ({_sq['settleHit']})")
     # C-1341 redefined the value from 0/1 to the NUMBER of templates whose
     # own bounce contract holds - any gap anywhere still collapses it to 0
     # (両定義: 旧 0/1 は platformer 時点で 1、新定義の変更前は catch が
-    # 未報告のため 0).
+    # 未報告のため 0。C-1358 の変更前は duel が未報告のため 2).
     c.add(
         "creation_squash_stretch",
         "イベントで体が伸びて潰れる型",
-        2.0 if not squash_gaps else 0.0,
+        3.0 if not squash_gaps else 0.0,
         detail=(
             "platformer の実ジャンプ（上昇 >1.1・着地 <0.9・0.5 秒で収束・"
             "立ち姿不動）＋ catch の実受け（受けの瞬間 <0.9・0.5 秒で復元・"
-            "何も受けない間は不動）を毎フレーム観測。reduced-motion では"
-            "両型とも全フレーム 1＝輪郭は一切変わらない（§1 の拡縮バウンス、"
-            "跳ぶ側と受ける側）"
+            "何も受けない間は不動）＋ duel の実打ち合い（溜めで沈む <0.97・"
+            "解放で伸びる >1.1・被弾で潰れる <0.9・各 0.5 秒で復元・無操作"
+            "不動）を毎フレーム観測。reduced-motion では全型とも全フレーム"
+            " 1＝輪郭は一切変わらない（§1 の拡縮バウンス、跳ぶ側と受ける側と"
+            "打ち合う側）"
             if not squash_gaps
             else "; ".join(squash_gaps)
         ),
