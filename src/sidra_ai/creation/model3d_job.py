@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.creation.art import names_color
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.models3d import (
@@ -58,6 +59,15 @@ def build_model3d_generator(data_dir: str | Path):
                     f"依頼に合う形状が無かったので、既定の"
                     f"「{SHAPE_LABELS[DEFAULT_SHAPE]}」にしました。"
                     f"いま作れる形状は {choices} です。"
+                )
+            # The request named a colour, but the palette is fixed, so 「青い」 was
+            # painted the same as every other model. Say the colour was not
+            # applied rather than let the title imply it was - the same honesty
+            # art got (C-1272, extending C-1271 to the 3D generator).
+            if names_color(message):
+                summary += (
+                    "依頼にあった色は今の配色に反映していません。"
+                    "3D モデルは固定の配色で描いています。"
                 )
         else:
             summary = (

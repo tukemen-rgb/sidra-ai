@@ -935,6 +935,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1272: C-1271's colour honesty was missing from the GIF and 3D
+    # generators - 「青いGIFを作って」/「青い3Dモデルを作って」 drew the usual palette
+    # and quoted the colour back with no word it was ignored. Both now carry the
+    # note when a colour is named, completing the colour-honesty family.
+    from sidra_ai.evals.gif_3d_color_named_honest import (
+        evaluate_gif_3d_color_named_honest,
+    )
+
+    gif3d_color = evaluate_gif_3d_color_named_honest()
+    c.add(
+        "gif_3d_color_named_honest",
+        "色を指定された GIF/3D が固定配色で描いたことを正直に伝える",
+        10.0 * gif3d_color.checks_passed / gif3d_color.checks_total,
+        detail=f"{gif3d_color.checks_passed}/{gif3d_color.checks_total} checks; "
+               "src/sidra_ai/evals/gif_3d_color_named_honest.py"
+               + ("" if gif3d_color.passed else "; " + "; ".join(gif3d_color.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1403: C-1201 put a subject-term floor under the *answer* path and
     # the generators never got it, so a weekly-report request printed
     # jam-making steps under 「わかっていること」 with a repository path

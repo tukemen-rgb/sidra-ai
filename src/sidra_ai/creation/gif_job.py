@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.creation.art import names_color
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.gifs import (
     DEFAULT_MOTIF,
@@ -52,6 +53,15 @@ def build_gif_generator(data_dir: str | Path):
                     f"依頼に合う絵柄が無かったので、既定の"
                     f"「{MOTIF_LABELS[DEFAULT_MOTIF]}」にしました。"
                     "いま絵柄を指定できるのは「魚」です。"
+                )
+            # The request named a colour, but the palette is fixed, so 「青い」 was
+            # drawn in the same colours as every other GIF. Say the colour was
+            # not applied rather than let the title imply it was - the same
+            # honesty art got (C-1272, extending C-1271 to the GIF generator).
+            if names_color(message):
+                summary += (
+                    "依頼にあった色は今の配色に反映していません。"
+                    "GIF は固定の配色で描いています。"
                 )
         else:
             summary = (
