@@ -8880,3 +8880,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 18:05 UTC 辛口ユーザー C-1475 完了（91 巡目・別面=RAG 回答本文・引用の抜粋窓・前回=デッキ本文の事実配置 C-1474・excerpt_reaches_paragraph_tail 6→10・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 6/5/6/5/5・board exit 0・`_candidate_starts` の末尾 break を撤去し末尾文境界も候補に＝チャンク末尾約 200 字に書かれた答え〔結論・数値〕にも引用窓が開く・C-1270/C-1280 の中央寄せと先頭フォールバックは不変）
 
 2026-09-07 18:07 UTC ループA started
+
+2026-09-07 18:13 UTC 辛口ユーザー started（92 巡目・別面=文書生成（documents.py generate_document）の本文内容＝一般利用者が根拠（facts）から文書を作ったときの各節への事実配置・出典の扱い・除外/空欄の開示の正直さを実際に動かして点検（デッキ 90 巡とは別ジェネレータ）。前回=RAG 回答本文・引用抜粋 C-1475）
