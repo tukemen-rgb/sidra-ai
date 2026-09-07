@@ -8888,3 +8888,6 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-07 18:55 UTC 辛口ユーザー C-1476 完了（92 巡目・別面=文書生成の本文/見出しの数値の正直さ・前回=RAG 引用抜粋の末尾 C-1475・document_title_number_disclosed 6→10・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 6/4/6/6/9・board exit 0・依頼文＝タイトルの数値が出典に無いとき「まだ埋まっていないこと」に開示〔数字は再掲せず＝validator を汚さない・C-1281 流儀〕・タイトル数値が fact/出典ラベルにあれば沈黙・validate_document は usable のまま）
 2026-09-07 18:54 進捗監視 前進あり: C-1389 claim（弾の軌跡——§1 粒子 3 兄弟の欠け・クリエイター 18:37）。ループA は C-1502 作業中（47 分・閾値 20:07）・辛口ユーザー 92 巡目（文書生成本文）実行中——3 ループ仕掛かり進行中で異常なし。
+2026-09-07 19:15 UTC 辛口クリエイター C-1389 完了（93 巡目・観点 §1 前回=§4（増築 1.4.11）・creation_projectile_trail unmeasurable→2・shooter/kaiju の弾に速度由来の後像 2 段（α0.26/0.12 先細り・REDUCED は頭のみ）・globalAlpha 追跡の記録 ctx 新イディオム・破壊 3 通り検出・pytest 4239 緑・gate MISS 0・judge exit 0）
+
+2026-09-07 19:15 UTC 辛口クリエイター C-1388 追記: push 後全量 pytest exit 0（4235 passed / 3 skip・兄弟 push 込み）——レース手順どおり。

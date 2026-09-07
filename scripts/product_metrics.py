@@ -7804,6 +7804,80 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the shot leaves a trail (§1, C-1389) ---------------------------
+    #
+    # §1's particle list names three siblings - smoke, debris, trails -
+    # and the trail was the one nowhere in ten templates: every shot was
+    # a rectangle existing for one frame at a time. Driven: one real shot
+    # flies, and every flight frame must paint the full-alpha head with
+    # two fading afterimages exactly one and two flight-steps behind
+    # (0.26 then 0.12). Motion, so reduced motion draws the head alone.
+    from sidra_ai.creation.kaiju import trail_probe as _kj_trail
+    from sidra_ai.creation.shooter import trail_probe as _sh_trail
+
+    trail_gaps: list[str] = []
+    for _tr_key, _tr_builder, _tr_req in (
+        ("shooter", _sh_trail, "ゲームを作って"),
+        ("kaiju", _kj_trail, "巨大怪獣と戦うゲームを作って"),
+    ):
+        _tr_page = generate_game(_tr_req, template=_tr_key).html
+        _tr_m = _scene_re.search(r"<script>(.*?)</script>", _tr_page, _scene_re.S)
+        if _tr_m is None:
+            trail_gaps.append(f"{_tr_key}: no script")
+            continue
+        try:
+            _tr_runs = {}
+            for _tr_red in (False, True):
+                _tr_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_tr_builder(_tr_m.group(1), reduced=_tr_red),
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if _tr_run.returncode != 0:
+                    raise ValueError(_tr_run.stderr.strip()[:60])
+                _tr_runs[_tr_red] = json.loads(
+                    _tr_run.stdout.strip().splitlines()[-1]
+                )
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            trail_gaps.append(f"{_tr_key}: probe unavailable ({exc})")
+            continue
+        _tr_n, _tr_r = _tr_runs[False], _tr_runs[True]
+        for _tr_lbl, _tr_one in (("", _tr_n), ("（reduced）", _tr_r)):
+            if _tr_one["fired"] != 1 or _tr_one["watched"] < 10:
+                trail_gaps.append(
+                    f"{_tr_key}{_tr_lbl}: the shot never flew "
+                    f"({_tr_one['fired']}/{_tr_one['watched']}f)"
+                )
+        if trail_gaps and trail_gaps[-1].startswith(_tr_key):
+            continue
+        if _tr_n["headFrames"] != _tr_n["watched"]:
+            trail_gaps.append(f"{_tr_key}: the head flickers")
+        if _tr_n["fullTrail"] != _tr_n["watched"]:
+            trail_gaps.append(
+                f"{_tr_key}: the trail breaks "
+                f"({_tr_n['fullTrail']}/{_tr_n['watched']}f)"
+            )
+        if _tr_r["headFrames"] != _tr_r["watched"]:
+            trail_gaps.append(f"{_tr_key}: reduced motion loses the head")
+        if _tr_r["ghosts"] != 0:
+            trail_gaps.append(f"{_tr_key}: reduced motion still streaks")
+    c.add(
+        "creation_projectile_trail",
+        "速い弾が軌跡を引く型（実発射）",
+        0.0 if trail_gaps else 2.0,
+        detail=(
+            "; ".join(trail_gaps)
+            if trail_gaps
+            else "実発射 1 発の全飛行フレームで、α1 の頭＋1 歩後ろ α0.26＋"
+            "2 歩後ろ α0.12 の先細り後像を shooter/kaiju の 2 体で実測"
+            "（§1 の粒子 3 兄弟の第 3・煙と破壊は §23/C-1381 で着地済み）。"
+            "REDUCED は同じ 1 発が頭だけで飛ぶ（後像ゼロ）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the pad stays visible on every floor (§4 1.4.11, C-1388) -------
     #
     # The virtual pad is the phone's only control, and its buttons sit on

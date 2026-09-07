@@ -334,7 +334,12 @@ function draw(){const now=performance.now();
   cx.strokeStyle='CYAN_TOKEN';cx.lineWidth=3;
   [-10,10].forEach((o,i)=>{cx.beginPath();cx.moveTo(me.x+o*sqw,GROUND-14*sq);
     cx.lineTo(me.x+(o+(i?gait:-gait)*7)*sqw,GROUND);cx.stroke()});
-  shots.forEach(s=>{cx.fillStyle='ACCENT_JUICE';cx.fillRect(s.x-2,s.y-8,4,10)});
+  /* The trail (§1, C-1389): same afterimage pair as the shooter's shot -
+     the walker's bolt climbs at the same 7px/frame, so the segments sit
+     +7 and +14 behind, fading. Reduced motion draws the head alone. */
+  shots.forEach(s=>{cx.fillStyle='ACCENT_JUICE';cx.fillRect(s.x-2,s.y-8,4,10);
+    if(!REDUCED){cx.globalAlpha=0.26;cx.fillRect(s.x-1.5,s.y+2,3,7);
+      cx.globalAlpha=0.12;cx.fillRect(s.x-0.75,s.y+9,1.5,7);cx.globalAlpha=1}});
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<me.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
@@ -690,6 +695,71 @@ def kick_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The trail, as painted (§1, C-1389): the walker's bolt climbs at the
+#: same 7px/frame as the shooter's shot, so the same contract holds - a
+#: full-alpha head with two fading afterimages one and two flight-steps
+#: behind, and under reduced motion the head alone.
+TRAIL_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let A = 1, frameFills = [];
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillRect: (x, y, w, h) => { frameFills.push([x, y, w, h, A]) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: (t, k, v) => { if (k === 'globalAlpha') A = v; return true } }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(110);
+boss.timer = 900; cracks.length = 0;
+me.cool = 0;
+key(' ');
+const fired = shots.length;
+let watched = 0, headFrames = 0, fullTrail = 0, ghosts = 0;
+for (let i = 0; i < 20 && shots.length; i++) {
+  frameFills = []; run(1);
+  const s = shots[0]; if (!s) break; watched++;
+  if (frameFills.some(f => f[0] === s.x - 2 && f[1] === s.y - 8 &&
+    f[2] === 4 && f[3] === 10 && f[4] === 1)) headFrames++;
+  const t1 = frameFills.some(f => f[0] === s.x - 1.5 && f[1] === s.y + 2 &&
+    f[2] === 3 && f[3] === 7 && f[4] === 0.26);
+  const t2 = frameFills.some(f => f[0] === s.x - 0.75 && f[1] === s.y + 9 &&
+    f[2] === 1.5 && f[3] === 7 && f[4] === 0.12);
+  if (t1 && t2) fullTrail++;
+  ghosts += frameFills.filter(f => (f[4] === 0.26 || f[4] === 0.12) &&
+    Math.abs(f[0] - s.x) < 5).length;
+}
+console.log(JSON.stringify({ state: state, fired: fired, watched: watched,
+  headFrames: headFrames, fullTrail: fullTrail, ghosts: ghosts }));
+"""
+
+
+def trail_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the bolt's trail can be watched."""
+
+    return TRAIL_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 def kb_probe(script: str) -> str:
     """The page's own script, wrapped so the throw can be measured."""
 
@@ -879,7 +949,9 @@ __all__ = [
     "wake_probe",
     "KB_PROBE",
     "KICK_PROBE",
+    "TRAIL_PROBE",
     "kick_probe",
+    "trail_probe",
     "kb_probe",
     "SQUASH_PROBE",
     "squash_probe",

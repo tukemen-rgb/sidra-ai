@@ -209,7 +209,13 @@ function draw(now){
     cx.fillRect(-d.r/2,-d.r/2,d.r,d.r);cx.restore()});
   cx.globalAlpha=1;
   cx.fillStyle='CYAN_TOKEN';
-  shots.forEach(s=>{cx.fillRect(s.x-1.5,s.y-8,3,10)});
+  /* The trail (§1, C-1389): the third particle sibling after smoke and
+     debris. Two tapering afterimages the shot's own velocity dictates -
+     +7 and +14 behind, fading - so speed stays on screen for more than
+     one frame. Motion, so reduced motion draws the head alone. */
+  shots.forEach(s=>{cx.fillRect(s.x-1.5,s.y-8,3,10);
+    if(!REDUCED){cx.globalAlpha=0.26;cx.fillRect(s.x-1,s.y+2,2,7);
+      cx.globalAlpha=0.12;cx.fillRect(s.x-0.5,s.y+9,1,7);cx.globalAlpha=1}});
   /* Foes read by shape as well as colour (C-1018): a hull with a notch. */
   foes.forEach(f=>{sprite('foe',f.x-f.r,f.y-f.r,f.r*2,f.r*2,'');
     cx.fillStyle='MAGENTA_TOKEN';cx.beginPath();
@@ -455,6 +461,69 @@ def kick_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The trail, as painted (§1, C-1389): a recording context that tracks
+#: globalAlpha pairs every fill with the opacity it was drawn at, one real
+#: shot flies, and every flight frame must show the full-alpha head with
+#: two fading afterimages exactly one and two flight-steps behind. Under
+#: reduced motion the same shot flies with the head alone.
+TRAIL_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let A = 1, frameFills = [];
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillRect: (x, y, w, h) => { frameFills.push([x, y, w, h, A]) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: (t, k, v) => { if (k === 'globalAlpha') A = v; return true } }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(4);
+ev('keydown', ' '); run(1); ev('keyup', ' ');
+const fired = shots.length;
+let watched = 0, headFrames = 0, fullTrail = 0, ghosts = 0;
+for (let i = 0; i < 20 && shots.length; i++) {
+  frameFills = []; run(1);
+  const s = shots[0]; if (!s) break; watched++;
+  if (frameFills.some(f => f[0] === s.x - 1.5 && f[1] === s.y - 8 &&
+    f[2] === 3 && f[3] === 10 && f[4] === 1)) headFrames++;
+  const t1 = frameFills.some(f => f[0] === s.x - 1 && f[1] === s.y + 2 &&
+    f[2] === 2 && f[3] === 7 && f[4] === 0.26);
+  const t2 = frameFills.some(f => f[0] === s.x - 0.5 && f[1] === s.y + 9 &&
+    f[2] === 1 && f[3] === 7 && f[4] === 0.12);
+  if (t1 && t2) fullTrail++;
+  ghosts += frameFills.filter(f => (f[4] === 0.26 || f[4] === 0.12) &&
+    Math.abs(f[0] - s.x) < 4).length;
+}
+console.log(JSON.stringify({ fired: fired, watched: watched,
+  headFrames: headFrames, fullTrail: fullTrail, ghosts: ghosts }));
+"""
+
+
+def trail_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the shot's trail can be watched."""
+
+    return TRAIL_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 #: A kill, then gravity (§23, C-1374): the chunks appear where the hull
 #: died, fall every frame, and drain once they leave the screen. Under
 #: reduced motion nothing is spawned at all.
@@ -513,7 +582,9 @@ def wreck_probe(script: str, *, reduced: bool = False) -> str:
 __all__ = [
     "KB_PROBE",
     "KICK_PROBE",
+    "TRAIL_PROBE",
     "kick_probe",
+    "trail_probe",
     "kb_probe",
     "WRECK_PROBE",
     "wreck_probe",
