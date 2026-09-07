@@ -7353,6 +7353,61 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the act raises the band too (§6 観察 3, C-1383) ----------------
+    #
+    # Every sibling system steps by thirds - the fall, the roll, the
+    # sky, the engine's pitch - while the four bars walked the whole
+    # round at one pace. Driven: the same page is played through act 0
+    # and act 2, and the scheduler's tread over an equal window must
+    # rise by the tempo table while act 0's stride stays exactly the old
+    # MUSIC_STEP (every deterministic window lives there).
+    from sidra_ai.creation.music import tempo_probe as _tempo_probe
+
+    tempo_gaps: list[str] = []
+    _tp_page = generate_game("釣りゲームを作って").html
+    _tp_m = _scene_re.search(r"<script>(.*?)</script>", _tp_page, _scene_re.S)
+    if _tp_m is None:
+        tempo_gaps.append("no script on the page")
+    else:
+        try:
+            _tp_run = _scene_sp.run(
+                ["node", "-"],
+                input=_tempo_probe(_tp_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if _tp_run.returncode != 0:
+                raise ValueError(_tp_run.stderr.strip()[:60])
+            _tp = json.loads(_tp_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            _tp = None
+            tempo_gaps.append(f"probe unavailable ({exc})")
+        if _tp is not None:
+            if _tp["t0"] != 1:
+                tempo_gaps.append(f"act 0 is not the old pace (tempo {_tp['t0']})")
+            if _tp["t2"] != 1.15:
+                tempo_gaps.append(f"act 2 never reaches its tempo ({_tp['t2']})")
+            if not (_tp["walked2"] > _tp["walked0"]):
+                tempo_gaps.append("the final act treads no faster")
+            elif not (1.10 <= _tp["ratio"] <= 1.22):
+                tempo_gaps.append(f"the tread ratio is off the table ({_tp['ratio']:.2f})")
+            if _tp["step"] != 0.27:
+                tempo_gaps.append("the base stride itself drifted")
+    c.add(
+        "creation_music_tempo",
+        "幕が音楽の歩幅も上げる（実走行）",
+        0.0 if tempo_gaps else 1.0,
+        detail=(
+            "; ".join(tempo_gaps)
+            if tempo_gaps
+            else "釣りの実走行: 幕 0 は旧歩幅そのまま（tempo 1・36 歩/10s 窓）、"
+            "最終幕は tempo 1.15 で同じ窓の歩数比 1.10-1.22 帯。COMBAT の"
+            "倍速とは乗算で共存・全型 0 配線（SCENE を typeof ガードで読む）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the ending's quiet beat (§6 観察 8, C-1382) --------------------
     #
     # The chrome used to land on the very frame the round broke: two bars

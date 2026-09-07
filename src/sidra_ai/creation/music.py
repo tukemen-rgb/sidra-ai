@@ -37,6 +37,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "musicDuck",
     "musicFacts",
     "musicArm",
+    "musicTempo",
     "MUSIC_ON",
     "MUSIC_N",
 )
@@ -118,6 +119,19 @@ function musicNote(freq,off,dur,vol,wave){
     osc.connect(gain);gain.connect(AC.destination);
     osc.start(t0);osc.stop(t0+dur+0.02);
   }catch(err){/* no audio device is a machine, not a bug */}}
+/* The act raises the band too (§6 観察 3, C-1383): every sibling system
+   steps by thirds - the fall, the roll, the guardian's stride, the sky's
+   brightness, even the engine's pitch - while the four bars walked the
+   whole round at one pace. Same notes, same walk, a slightly quicker
+   tread per act: 1 / 1.08 / 1.15, multiplied with the combat double so
+   a final-act fight is the fastest music of the run. Act 0 is exactly
+   the old pace, so a round's opening (and every deterministic probe
+   window) is bit-identical. typeof-guarded: a page without the scene
+   preamble keeps tempo 1. */
+const MUSIC_TEMPO=[1,1.08,1.15];
+function musicTempo(){try{
+  if(typeof SCENE==='undefined')return 1;
+  return MUSIC_TEMPO[Math.max(0,Math.min(2,SCENE|0))]||1}catch(e){return 1}}
 function musicTick(tms){
   if(!MUSIC_ON||MUTED)return;
   /* The break is quiet (§10 事実 4, C-1336): adaptive music's oldest rule
@@ -141,7 +155,7 @@ function musicTick(tms){
   /* The duck holds while the one-shot speaks, then climbs home. */
   if(MUSIC_DUCK_HOLD>0){MUSIC_DUCK_HOLD--}
   else if(MUSIC_DUCK<1){MUSIC_DUCK=Math.min(1,MUSIC_DUCK+0.011)}
-  const stepNow=COMBAT?MUSIC_STEP*0.5:MUSIC_STEP;
+  const stepNow=(COMBAT?MUSIC_STEP*0.5:MUSIC_STEP)/musicTempo();
   while(MUSIC_NEXT<now+MUSIC_AHEAD){
     const i=MUSIC_I%MUSIC_STEPS,off=MUSIC_NEXT-now;
     const m=MUSIC_MEL[i];
@@ -155,7 +169,7 @@ const MUSIC_RAF=requestAnimationFrame;
 requestAnimationFrame=function(fn){
   return MUSIC_RAF(function(t){musicTick(t);fn(t)})};
 function musicFacts(){return {on:MUSIC_ON,muted:MUTED,scheduled:MUSIC_N,
-  step:MUSIC_STEP,steps:MUSIC_STEPS,
+  step:MUSIC_STEP,steps:MUSIC_STEPS,tempo:musicTempo(),walked:MUSIC_I,
   mel:MUSIC_MEL.slice(),bass:MUSIC_BASS.slice(),
   /* [from, drawn step, to] per sounded note. Recorded on the page rather
      than re-derived by the probe: re-running the generator to check the
@@ -362,7 +376,77 @@ def end_probe(script: str) -> str:
     return END_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The act's tread, counted (§6 観察 3, C-1383): the same page is walked
+#: through act 0 and act 2, and the scheduler's step count over an equal
+#: window must rise by the tempo table - while act 0's stride stays
+#: exactly the old MUSIC_STEP.
+TEMPO_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let mClock = 0;
+globalThis.performance = { now: () => mClock };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+globalThis.document = { readyState: 'complete',
+  createElement: () => nothing, querySelector: () => null,
+  getElementById: () => ({
+    width: 720, height: 320, style: {}, addEventListener: () => {},
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => nothing }) };
+function FakeCtx(){ this.currentTime = mClock / 1000; this.state = 'running';
+  this.destination = {} }
+FakeCtx.prototype.createOscillator = function(){ return { type: '',
+  frequency: { value: 0, setValueAtTime(){} }, connect(){}, start(){}, stop(){} } };
+FakeCtx.prototype.createGain = function(){ return { gain: { value: 0,
+    setValueAtTime(){}, exponentialRampToValueAtTime(){}, linearRampToValueAtTime(){} },
+  connect(){} } };
+FakeCtx.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { value: 0 }, connect(){} } };
+FakeCtx.prototype.createBuffer = function(){ return { getChannelData: () => new Float32Array(8) } };
+FakeCtx.prototype.createBufferSource = function(){ return { buffer: null,
+  loop: false, connect(){}, start(){}, stop(){} } };
+FakeCtx.prototype.resume = function(){};
+globalThis.window = globalThis;
+globalThis.AudioContext = FakeCtx;
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) {
+  const fn = queued; queued = null; mClock += 50 / 3; fn(mClock) } }
+function key(k){ (handlers.keydown || []).forEach(fn => fn({ key: k,
+  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+/* Arm the band, settle into act 0. */
+key(' ');
+run(60);
+const t0 = musicFacts().tempo, s0 = musicFacts().walked;
+run(600);
+const walked0 = musicFacts().walked - s0;
+/* Down the round to its final third. */
+let guard = 0;
+while (musicFacts().tempo < 1.15 && guard++ < 4000) run(1);
+const t2 = musicFacts().tempo, s2 = musicFacts().walked;
+run(600);
+const walked2 = musicFacts().walked - s2;
+console.log(JSON.stringify({ t0: t0, t2: t2,
+  walked0: walked0, walked2: walked2,
+  ratio: walked0 ? walked2 / walked0 : 0,
+  step: musicFacts().step }));
+"""
+
+
+def tempo_probe(script: str) -> str:
+    """The page's own script, wrapped so the tread can be counted."""
+
+    return TEMPO_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "TEMPO_PROBE",
+    "tempo_probe",
     "END_PROBE",
     "MUSIC_PREAMBLE",
     "DUCK_PROBE",
