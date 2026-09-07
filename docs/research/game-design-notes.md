@@ -663,3 +663,35 @@ URL はすべて 2026-09-03 に実際に開いて確認。
   も自然に通る。
 - SIDRA での反映先: C-1373（blur/hidden での握りキー解放・判定器
   creation_focus_release）
+
+## 23. permanence——結果は消えずに残る（外部調査 2026-09-07・辛口クリエイターループ）
+
+§1 の Juice は「打った瞬間」の増幅（shake・hitstop・burst・flash）まで
+で、**その後**——倒した敵・壊した物がどうなるか——の基準が無かったための
+増築。URL は 2026-09-07 に実際に開いて確認。
+
+- 事実 1: Vlambeer の Jan Willem Nijman『The Art of Screenshake』の技法表
+  には screen shake・knockback・sleep(hitstop) 等と並んで **permanence**
+  が独立の 1 項目としてある（13:18。27:54 には「even more permanence
+  (smoke in explosion)」——爆発の煙まで残す追い足し）。
+  （出典: https://theengineeringofconsciousexperience.com/jan-willem-nijman-vlambeer-the-art-of-screenshake/）
+- 事実 2: その中身の定義: 「**Add permanence! Explosion, debris, enemy
+  corpses, smoke, blood, destroyed objects, etc. Show the player the
+  consequences of their actions.** Make them feel like they're
+  interacting with the game world.」——薬莢は床に落ちて残り、倒した敵は
+  離れて戻ってきてもまだそこにいる。結果が残ることが「世界に触っている」
+  感触を作る。（出典: https://gamedevacademy.org/game-feel-tutorial/）
+- 学び: SIDRA の Juice は瞬間側が完備（C-1032〜/C-1105/C-1343…）だが、
+  **撃破の 0.5 秒後には何も無かったことになる**——shooter の敵は
+  `hp>0` の filter で撃破フレームに配列から消え、adventure の敵は
+  `alive=false` の瞬間から描画がスキップされる。burst の粒が消えたら
+  戦いの痕跡ゼロ。最小の反映は (a) adventure: 倒した敵の場所に残骸を
+  部屋に居る限り（再入室でも）描き続ける——`enemies[room]` は
+  alive=false のまま保持されているので、描く側を足すだけで Nijman の
+  「戻ってきてもまだそこにいる」がそのまま成立する。(b) shooter:
+  撃破で機体色の破片が尾を引いて落ちる（薬莢の移植——宇宙に床は無い
+  ので、残ることではなく**落ちて視界を横切ること**が痕跡になる）。
+  残骸は静的な結果であって動きの装飾ではないが、落下・回転する破片は
+  motion なので REDUCED では積まない（adventure の静止残骸は常に描く）。
+- SIDRA での反映先: C-1374（adventure の残骸・shooter の破片・判定器
+  creation_permanence）
