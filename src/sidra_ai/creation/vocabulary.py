@@ -78,7 +78,13 @@ GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("シミュレーション", "simulation", "経営ゲーム"),
     ),
     ("ノベル", "novel", ("ノベルゲーム", "ノベル", "visual novel", "サウンドノベル")),
-    ("リズム", "rhythm", ("リズムゲーム", "音ゲー", "rhythm")),
+    # 「音楽ゲーム」 is the spelling that fell through (C-1505): 「音ゲー」 and
+    # 「リズムゲーム」 were declined as a genre, but this one matched no
+    # table and dropped to the *subject* path, so the reply was 「「音楽」の
+    # 題材を描く型はまだ無い」 - a music game answered as though the operator
+    # had asked for a game about music. The bare 「音楽」 stays out: 「音楽を
+    # 作って」 is not a request for a rhythm game.
+    ("リズム", "rhythm", ("リズムゲーム", "音ゲー", "音楽ゲーム", "rhythm")),
     # Falling blocks are not the match-clear board this product builds, so
     # this is named in order to be declined rather than approximated. Kept
     # to the two unambiguous spellings: 「落ちもの」 belongs to the catch

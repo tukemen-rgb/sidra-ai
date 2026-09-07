@@ -2959,6 +2959,12 @@ def measure_creation(c: Collector) -> None:
     # 対戦格闘 by its other names and in the other order: the bare 「対戦」 in
     # DUEL_WORDS is what made these three different questions.
     honest_asks += ["対戦格闘ゲームを作って", "格闘対戦を作って", "格ゲーを作って"]
+    # C-1505: only ``_h_words[0]`` is turned into an ask above, so a second
+    # spelling of an already-declined genre is invisible to this number
+    # unless it is named. 「音楽ゲーム」 is the one that was answered as a
+    # subject（「「音楽」の題材を描く型はまだ無い」）while 「音ゲー」 and
+    # 「リズムゲーム」 were declined properly.
+    honest_asks += ["音楽ゲームを作って"]
     honest_asks = list(dict.fromkeys(honest_asks))
 
     #: The silent side. It must be a genre whose template is *not* the
