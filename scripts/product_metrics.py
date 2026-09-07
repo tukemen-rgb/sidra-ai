@@ -7823,6 +7823,71 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the muzzle lights up (§1×§23 事実 4, C-1391) -------------------
+    #
+    # The talk's bullet trio - bigger bullets, muzzle flash, faster
+    # bullets - had its middle member nowhere: shots, recoil and trails
+    # all landed while the muzzle stayed dark. Driven: one real shot must
+    # light the nose/cannon for exactly two frames at 0.85 alpha and go
+    # dark again; the idle gun never lights; reduced motion fires the
+    # same shot with the muzzle dark.
+    from sidra_ai.creation.kaiju import muzzle_probe as _kj_muzzle
+    from sidra_ai.creation.shooter import muzzle_probe as _sh_muzzle
+
+    mz_gaps: list[str] = []
+    for _mz_key, _mz_builder, _mz_req in (
+        ("shooter", _sh_muzzle, "ゲームを作って"),
+        ("kaiju", _kj_muzzle, "巨大怪獣と戦うゲームを作って"),
+    ):
+        _mz_page = generate_game(_mz_req, template=_mz_key).html
+        _mz_m = _scene_re.search(r"<script>(.*?)</script>", _mz_page, _scene_re.S)
+        if _mz_m is None:
+            mz_gaps.append(f"{_mz_key}: no script")
+            continue
+        try:
+            _mz_runs = {}
+            for _mz_red in (False, True):
+                _mz_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_mz_builder(_mz_m.group(1), reduced=_mz_red),
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if _mz_run.returncode != 0:
+                    raise ValueError(_mz_run.stderr.strip()[:60])
+                _mz_runs[_mz_red] = json.loads(
+                    _mz_run.stdout.strip().splitlines()[-1]
+                )
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            mz_gaps.append(f"{_mz_key}: probe unavailable ({exc})")
+            continue
+        _mz_n, _mz_r = _mz_runs[False], _mz_runs[True]
+        if _mz_n["shots"] != 1 or _mz_r["shots"] != 1:
+            mz_gaps.append(f"{_mz_key}: the trigger fired {_mz_n['shots']} shots")
+            continue
+        if _mz_n["idleFlash"] or _mz_r["idleFlash"]:
+            mz_gaps.append(f"{_mz_key}: the idle muzzle glows")
+        if _mz_n["lit"] != [True, True, False, False]:
+            mz_gaps.append(f"{_mz_key}: the flash misfires ({_mz_n['lit']})")
+        if any(_mz_r["lit"]):
+            mz_gaps.append(f"{_mz_key}: reduced motion still flashes")
+    c.add(
+        "creation_muzzle_flash",
+        "銃口が発射の瞬間だけ光る型（実発射）",
+        0.0 if mz_gaps else 2.0,
+        detail=(
+            "; ".join(mz_gaps)
+            if mz_gaps
+            else "実発射 1 発で shooter の機首（6×6 α0.85）と kaiju の砲口"
+            "（8×8 α0.85）がちょうど 2 フレーム点灯して消えることを実測"
+            "（§23 事実 4 の弾 3 項目——bigger bullets/muzzle flash/faster "
+            "bullets——の中央。面積は 2.3.1 の免除域内）。待機中は不点灯・"
+            "REDUCED は同じ 1 発で銃口不動"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the pad is painted, not declared (§4, C-1390) ------------------
     #
     # C-1388's judge computes ratios from padFacts()' DECLARED colours -

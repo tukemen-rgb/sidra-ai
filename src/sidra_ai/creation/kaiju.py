@@ -87,7 +87,7 @@ function reset(){
   /* Under the leg, not across the field (§8 事実 5): the first shot a
      new player fires has to hit something. Walking away is a choice
      they make after that, not a toll before it. */
-  me={x:W*0.68,hp:3,step:0,cool:0,kvx:0,sq:1};
+  me={x:W*0.68,hp:3,step:0,cool:0,kvx:0,sq:1,mz:0};
   shots=[];cracks=[];dust=[];t=0;cycles=0;state='wake';
   boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
 setPal(KAIJU_PAL_TOKEN);
@@ -121,7 +121,11 @@ function fire(){if(state!=='fight')return;
      walker for a beat, through the same squash channel the stomp crush
      uses - settle, draw and the reduced-motion exemption all ride along
      for free. Softer than the crush (0.94 vs 0.7): a shot is not a hit. */
-  if(!REDUCED){me.sq=Math.min(me.sq,0.94)}
+  if(!REDUCED){me.sq=Math.min(me.sq,0.94);
+    /* 3, not 2: fire() runs from the key handler, so the step's decay
+       ticks once before the first draw - three leaves two lit frames,
+       the same two the shooter's in-step shoot() gets. */
+    me.mz=3}
   shots.push({x:me.x,y:GROUND-26,vy:-7});sfx('fire')}
 function hitLeg(){boss.legHp--;boss.hurt=8;boss.smoke=34;shake(3);burst(legX(),GROUND-70,7,'ALERT_JUICE');
   sfx('cut');
@@ -140,6 +144,7 @@ function step(){t++;
   /* The crush settles by quarter-steps and snaps (C-1332), outside the
      fight guard so a downed walker still stands back up. */
   me.sq+=(1-me.sq)*0.25;if(Math.abs(me.sq-1)<0.01)me.sq=1;
+  if(me.mz>0)me.mz--;
   /* The awakening (§6 観察 3, C-1357): the film's escalation opens every
      encounter - cracks run, a dust wall rises, ONE wide shot shows the
      whole creature the leg belongs to, a beat, then the fight. Ninety
@@ -334,6 +339,10 @@ function draw(){const now=performance.now();
   cx.strokeStyle='CYAN_TOKEN';cx.lineWidth=3;
   [-10,10].forEach((o,i)=>{cx.beginPath();cx.moveTo(me.x+o*sqw,GROUND-14*sq);
     cx.lineTo(me.x+(o+(i?gait:-gait)*7)*sqw,GROUND);cx.stroke()});
+  /* Muzzle flash (§1×§23 事実 4, C-1391): two frames of light at the
+     cannon mouth, the same !REDUCED event as the kick's sink. */
+  if(me.mz>0){cx.fillStyle='ACCENT_JUICE';cx.globalAlpha=0.85;
+    cx.fillRect(me.x-4,GROUND-34,8,8);cx.globalAlpha=1}
   /* The trail (§1, C-1389): same afterimage pair as the shooter's shot -
      the walker's bolt climbs at the same 7px/frame, so the segments sit
      +7 and +14 behind, fading. Reduced motion draws the head alone. */
@@ -760,6 +769,61 @@ def trail_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The muzzle flash, as painted (§1×§23 事実 4, C-1391): one real shot
+#: must light the cannon mouth for exactly two frames at 0.85 alpha, and
+#: reduced motion fires the same shot with the mouth dark.
+MUZZLE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let A = 1, frameFills = [];
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillRect: (x, y, w, h) => { frameFills.push([x, y, w, h, A]) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: (t, k, v) => { if (k === 'globalAlpha') A = v; return true } }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+function flashNow(){ return frameFills.some(f => f[2] === 8 && f[3] === 8 &&
+  f[4] === 0.85 && f[0] === me.x - 4 && f[1] === GROUND - 34) }
+key(' ');
+run(110);
+boss.timer = 900; cracks.length = 0;
+frameFills = []; run(1);
+const idleFlash = flashNow();
+me.cool = 0;
+key(' ');
+const lit = [];
+for (let i = 0; i < 4; i++) { frameFills = []; run(1); lit.push(flashNow()) }
+console.log(JSON.stringify({ state: state, shots: shots.length,
+  idleFlash: idleFlash, lit: lit }));
+"""
+
+
+def muzzle_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the cannon light can be watched."""
+
+    return MUZZLE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 def kb_probe(script: str) -> str:
     """The page's own script, wrapped so the throw can be measured."""
 
@@ -950,8 +1014,10 @@ __all__ = [
     "KB_PROBE",
     "KICK_PROBE",
     "TRAIL_PROBE",
+    "MUZZLE_PROBE",
     "kick_probe",
     "trail_probe",
+    "muzzle_probe",
     "kb_probe",
     "SQUASH_PROBE",
     "squash_probe",

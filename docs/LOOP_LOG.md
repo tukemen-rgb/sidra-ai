@@ -8920,3 +8920,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 21:07 UTC ループA started
 
 2026-09-07 21:24 進捗監視 前進あり: ループA が C-1505 claim（音楽ゲームが題材扱い・21:08——C-15xx 帯の消化 4 件目）。C-1391（muzzle flash）はクリエイター作業中（47 分・閾値 22:37）。静かな 30 分だが 2 ループ仕掛かり中で異常なし。
+
+2026-09-07 21:50 UTC 辛口クリエイター C-1391 完了（95 巡目・観点 §1×§23 事実 4 前回=§4・creation_muzzle_flash unmeasurable→2・shooter/kaiju の銃口が発射の 2 フレームだけ α0.85 で点灯（REDUCED は全暗・kaiju は decay 順序で mz=3）・graze テストとの語彙衝突を全量 pytest が捕捉→コメント言い換えで 4297 緑・破壊 3 通り検出・gate MISS 0・judge exit 0）

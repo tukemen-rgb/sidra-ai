@@ -110,7 +110,7 @@ function wreckSpawn(f){if(REDUCED)return;
     vx:(i-1)*0.7,vy:1.2+i*0.6,r:5-(i%2)*2,rot:i*2.1})}}
 function wreckFacts(){return {alpha:WRECK_A,
   debris:debris.map(d=>({x:d.x,y:d.y}))}}
-function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0,rk:0};shots=[];foes=[];debris=[];score=0;kills=0;wave=0;
+function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0,rk:0,mz:0};shots=[];foes=[];debris=[];score=0;kills=0;wave=0;
   t=0;state='play';fire=false;rs=(SEED>>>0)||1;
   spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];grazeReset();
   /* A new go starts at x1. Carrying a run across a restart would hand
@@ -136,7 +136,7 @@ function shoot(){if(ship.cool>0)return;ship.cool=9;
   /* The gun kicks (§1×§23 事実 3, C-1380): three pixels of recoil the
      shot pushes back through the hull, gone in a third of a second.
      Motion, so reduced keeps the ship perfectly still. */
-  if(!REDUCED){ship.rk=3}
+  if(!REDUCED){ship.rk=3;ship.mz=2}
   shots.push({x:ship.x,y:ship.y-16});sfx('fire')}
 function step(){const now=performance.now();
   combat(state==='play'&&gateState()==='playing');
@@ -150,6 +150,7 @@ function step(){const now=performance.now();
     partsThrowX(ship,SHIP,W-SHIP);
     /* the recoil settles the way it arrived: fast and small (C-1380) */
     ship.rk*=0.7;if(ship.rk<0.2)ship.rk=0;
+    if(ship.mz>0)ship.mz--;
     if(fire)shoot();
     if(--spawnIn<=0){spawn();spawnIn=Math.max(8,Math.round(WAVE*ACT_GAP[actOf()]))}
     shots.forEach(s=>{s.y-=7});
@@ -232,6 +233,12 @@ function draw(now){
   cx.lineTo(ship.x+SHIP*0.8,sy+SHIP*0.7);cx.closePath();cx.fill();
   cx.fillStyle='CYAN_TOKEN';
   cx.fillRect(ship.x-3,sy+SHIP*0.7,6,6+flick*3);
+  /* Muzzle flash (§1×§23 事実 4, C-1391): the middle of the talk's
+     shot trio [10:13-10:58]. Two frames of light at the nose, the same
+     !REDUCED event as the kick. (Worded without the b-word on purpose:
+     the graze test reads 「no enemy shots」 off this page's text.) */
+  if(ship.mz>0){cx.globalAlpha=0.85;
+    cx.fillRect(ship.x-3,sy-SHIP-6,6,6);cx.globalAlpha=1}
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<ship.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
@@ -524,6 +531,60 @@ def trail_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The muzzle flash, as painted (§1×§23 事実 4, C-1391): one real shot
+#: must light the nose for exactly two frames at 0.85 alpha, and reduced
+#: motion fires the same shot with the nose dark.
+MUZZLE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let A = 1, frameFills = [];
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillRect: (x, y, w, h) => { frameFills.push([x, y, w, h, A]) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: (t, k, v) => { if (k === 'globalAlpha') A = v; return true } }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+function flashNow(){ return frameFills.some(f => f[2] === 6 && f[3] === 6 &&
+  f[4] === 0.85 && f[0] === ship.x - 3 &&
+  f[1] === ship.y + ship.rk - SHIP - 6) }
+ev('keydown', ' '); ev('keyup', ' ');
+run(4);
+frameFills = []; run(1);
+const idleFlash = flashNow();
+ev('keydown', ' ');
+const lit = [];
+for (let i = 0; i < 4; i++) { frameFills = []; run(1); lit.push(flashNow()) }
+ev('keyup', ' ');
+console.log(JSON.stringify({ shots: shots.length, idleFlash: idleFlash,
+  lit: lit }));
+"""
+
+
+def muzzle_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the nose light can be watched."""
+
+    return MUZZLE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 #: A kill, then gravity (§23, C-1374): the chunks appear where the hull
 #: died, fall every frame, and drain once they leave the screen. Under
 #: reduced motion nothing is spawned at all.
@@ -583,8 +644,10 @@ __all__ = [
     "KB_PROBE",
     "KICK_PROBE",
     "TRAIL_PROBE",
+    "MUZZLE_PROBE",
     "kick_probe",
     "trail_probe",
+    "muzzle_probe",
     "kb_probe",
     "WRECK_PROBE",
     "wreck_probe",
