@@ -62,6 +62,7 @@ from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.ghost import preamble_for as ghost_preamble_for
 from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.music import MUSIC_PREAMBLE
+from sidra_ai.creation.focus import FOCUS_PREAMBLE
 from sidra_ai.creation.remap import preamble_for as remap_preamble_for
 from sidra_ai.creation.marble import (
     GATE_BASE as MARBLE_GATE_BASE,
@@ -1016,6 +1017,12 @@ def generate_game(
             # or template registers a handler - otherwise a remapped key
             # would reach some listeners in the old spelling.
             + remap_preamble_for(key, spec.script)
+            # Right on top of the remap wrapper, before anything registers
+            # a keyup: focus loss releases held keys (§22, C-1373). It
+            # hears keys in the spelling remap already translated, so its
+            # synthetic keyups feed the handlers directly without being
+            # translated twice.
+            + FOCUS_PREAMBLE
             # The skins before the panel: TUNE_ACCENT is resolved through
             # skinAccent, so the colour a template paints with is the one
             # the player earned unless they picked one by hand (C-1109).

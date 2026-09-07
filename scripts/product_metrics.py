@@ -6835,6 +6835,84 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- focus loss lets go of held keys (§22, C-1373) ------------------
+    #
+    # A keyup released in another window never arrives, so every
+    # template's held-key flag stays pressed for a player who alt-tabbed
+    # away - the hero keeps running alone. Judged by driving the page:
+    # a held key moves the game, the focus-loss signal empties the held
+    # set, and the game stands still afterwards. Both §22 signals are
+    # exercised - blur on the platformer, visibilitychange(hidden) on the
+    # shooter - across the two key-state styles the templates use (raw
+    # ``keys[e.key]`` and lowercased). Counted per driven template, only
+    # when the preamble is on all of them; any gap collapses to 0.
+    from sidra_ai.creation.focus import probe_source as _focus_probe
+
+    focus_gaps: list[str] = []
+    focus_unwired = [
+        key
+        for key in sorted(_TOUCH_TEMPLATES)
+        if "focusRelease" not in generate_game("ゲームを作って", template=key).html
+    ]
+    if focus_unwired:
+        focus_gaps.append(f"no focus release on: {', '.join(focus_unwired)}")
+    _focus_runs = [
+        ("platformer", "ArrowRight", "me.x", "blur"),
+        ("shooter", "ArrowLeft", "ship.x", "hidden"),
+    ]
+    focus_ok = 0
+    for _fo_key, _fo_hold, _fo_facts, _fo_signal in _focus_runs:
+        _fo_page = generate_game("ゲームを作って", template=_fo_key).html
+        _fo_m = _scene_re.search(r"<script>(.*?)</script>", _fo_page, _scene_re.S)
+        if _fo_m is None:
+            focus_gaps.append(f"{_fo_key}: no script on the page")
+            continue
+        try:
+            _fo_run = _scene_sp.run(
+                ["node", "-"],
+                input=_focus_probe(
+                    _fo_m.group(1),
+                    hold=_fo_hold,
+                    facts=_fo_facts,
+                    signal=_fo_signal,
+                ),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _fo_run.returncode != 0:
+                raise ValueError(_fo_run.stderr.strip()[:60])
+            _fo = json.loads(_fo_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            focus_gaps.append(f"{_fo_key}: probe unavailable ({exc})")
+            continue
+        if not _fo["moved"]:
+            focus_gaps.append(f"{_fo_key}: the held key does not move the game")
+        elif _fo["heldBefore"] != [_fo_hold]:
+            focus_gaps.append(f"{_fo_key}: the hold is not tracked")
+        elif _fo["heldAfter"]:
+            focus_gaps.append(f"{_fo_key}: {_fo_signal} leaves keys held")
+        elif _fo["drift"]:
+            focus_gaps.append(
+                f"{_fo_key}: still moving after {_fo_signal} ({_fo['drift']:+.0f}px)"
+            )
+        else:
+            focus_ok += 1
+    c.add(
+        "creation_focus_release",
+        "フォーカス喪失で握りが解ける型（実走行）",
+        0.0 if focus_gaps else float(focus_ok),
+        detail=(
+            "; ".join(focus_gaps)
+            if focus_gaps
+            else "全型に搭載・blur（platformer）と visibilitychange"
+            "（shooter）の実走行で「押したまま離れても戻った画面は止まって"
+            "いる」を確認（§22。押しっぱなし +19.2px/8f が信号後 30f で "
+            "0px）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the boss behind the boss key ----------------------------------
     #
     # §3's modern-Zelda floor is rooms -> boss key -> boss; the adventure's
