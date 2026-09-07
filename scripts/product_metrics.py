@@ -1002,6 +1002,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1460: the ingestion summary aggregated total_indexed/total_quarantined
+    # but not blocked files (Decision.BLOCK), though every RepositoryReport
+    # counts them - so the top-level summary an operator reads after analyze
+    # accounted for fewer files than were fetched, and the two rejection classes
+    # were surfaced inconsistently. total_blocked is now aggregated too.
+    from sidra_ai.evals.ingestion_report_totals_blocked import (
+        evaluate_ingestion_report_totals_blocked,
+    )
+
+    ingest_blocked = evaluate_ingestion_report_totals_blocked()
+    c.add(
+        "ingestion_report_totals_blocked",
+        "取り込み要約が却下（blocked）件数も集計して隔離と揃えて開示する",
+        10.0 * ingest_blocked.checks_passed / ingest_blocked.checks_total,
+        detail=f"{ingest_blocked.checks_passed}/{ingest_blocked.checks_total} checks; "
+               "src/sidra_ai/evals/ingestion_report_totals_blocked.py"
+               + ("" if ingest_blocked.passed else "; " + "; ".join(ingest_blocked.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

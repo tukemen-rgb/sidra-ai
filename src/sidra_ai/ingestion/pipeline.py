@@ -231,12 +231,24 @@ class IngestionReport:
     def total_quarantined(self) -> int:
         return sum(r.quarantined for r in self.repositories)
 
+    @property
+    def total_blocked(self) -> int:
+        # C-1460: blocked files (Decision.BLOCK: an unpermitted source or a
+        # block-severity finding) were counted per repository but never summed
+        # here, so the top-level ingestion summary reported total_indexed and
+        # total_quarantined while the count of files refused outright was
+        # missing - a reader scanning the summary saw fewer files accounted for
+        # than were fetched, and the two rejection classes were surfaced
+        # inconsistently. Aggregated alongside total_quarantined.
+        return sum(r.blocked for r in self.repositories)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "changed": self.changed,
             "requires_inference": self.requires_inference,
             "total_indexed": self.total_indexed,
             "total_quarantined": self.total_quarantined,
+            "total_blocked": self.total_blocked,
             "repositories": [r.to_dict() for r in self.repositories],
         }
 

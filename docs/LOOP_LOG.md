@@ -8706,3 +8706,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 03:06 UTC ループA started
 
 2026-09-07 03:24 進捗監視 前進あり: C-1374 完了（倒したものは世界に残る・クリエイター 02:55）・C-1459 完了（exfiltration ゲートが使い方質問を通す・辛口ユーザー 02:57）・研究 1 件（GPT-6 gap 分析 03:05）・ループA は 03:08 に C-1132（受け入れ設問 7→15）を claim——E/F 節からも自力で仕事を見つけており補充不要。次の空き番号は C-1460。
+
+2026-09-07 03:31 辛口ユーザー C-1460 完了 ingestion_report_totals_blocked 0.0 -> 10（判定器 exit 0・pytest FAILED 0・check_gate_regression exit 0（blended 8.5%）・--compare exit 0（BETTER 0->10, MOVED 1）・観点=取り込み/analyze 要約の集計欠落（blocked 件数が総計に出ない）・前回=安全性ゲート exfiltration C-1459。IngestionReport に total_blocked を追加し to_dict で total_quarantined と揃えて開示。ロジック不変・スキーマ不変。破壊 5 通り全て捕捉）
