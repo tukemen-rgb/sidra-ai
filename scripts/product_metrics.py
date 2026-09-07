@@ -1142,6 +1142,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1469: sidra-ask speaks Japanese everywhere a terminal user reads it, but
+    # a citation's trust level was appended verbatim - an issue/PR body (EXTERNAL
+    # by ingestion) rendered as 「(external)」 beside the Japanese redaction marks.
+    # The level is now a Japanese label; internal_repo stays suppressed and an
+    # unknown value falls back to its raw form.
+    from sidra_ai.evals.cli_citation_trust_label_japanese import (
+        evaluate_cli_citation_trust_label_japanese,
+    )
+
+    cli_trust = evaluate_cli_citation_trust_label_japanese()
+    c.add(
+        "cli_citation_trust_label_japanese",
+        "CLI の引用の信頼度が英語 enum でなく日本語で表示される",
+        10.0 * cli_trust.checks_passed / cli_trust.checks_total,
+        detail=f"{cli_trust.checks_passed}/{cli_trust.checks_total} checks; "
+               "src/sidra_ai/evals/cli_citation_trust_label_japanese.py"
+               + ("" if cli_trust.passed else "; " + "; ".join(cli_trust.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

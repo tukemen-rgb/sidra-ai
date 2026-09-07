@@ -8776,3 +8776,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 09:10 UTC 辛口クリエイター C-1380 完了（84 巡目・観点 §1×§23 前回=§7・§23 事実 3 追記・creation_gun_kick unmeasurable→2・shooter 3px 反動＋kaiju squash 経路 0.94・REDUCED は撃てて不動・破壊 3 通り検出・pytest 4070 緑・gate MISS 0・judge exit 0）
 
 2026-09-07 09:23 進捗監視 前進あり: C-1468 完了（主語の無い単発質問は棄権する・辛口ユーザー 08:55）・C-1380 完了（撃った手にも反動・クリエイター 09:10）・83 巡目開始（CLI 実出力レンダリング点検）。ループA は C-1466 作業中 1h11m（閾値 10:09——10:20 の巡で未完なら停滞扱いで状況確認）。
+
+2026-09-07 09:41 辛口ユーザー 83 巡目 完了: C-1469（CLI の引用の信頼度が英語 enum のまま）。実測（実 `render`／`SidraService.chat`）で、Issue/PR 本文は ingestion で EXTERNAL 信頼度（normalize.py＝第三者が書ける経路）になり、その issue に接地した質問の CLI 出力が `引用: [S1] …:issues/42  (external)` と生の英語 enum を出す。秘匿は「一部秘匿」「抜粋を秘匿」と日本語なのに信頼度だけ英語＝CLI が繰り返し直した英語漏れ（C-1233/1238/1243/1278）と同型が残存。5/10。直し: ask_cli に `_TRUST_LABELS`（external→外部・unverified→未検証・operator→運用者・system→システム）を新設し表示に使用。internal_repo 非表示・秘匿マークと共存・未知 enum は生値フォールバック・--json は生のまま。`cli_citation_trust_label_japanese` 2.5→10（--compare BETTER, MOVED 1・WORSE/DRIFT 無し）・pytest FAILED 0・5 破壊で各赤（2/6/7/7/6 →復元 8）・board exit 0。ゲート検出器・順位・retrieval は無変更。前回=RAG 主語なし単発 C-1468。次の空き番号は C-1470。

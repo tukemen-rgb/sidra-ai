@@ -164,6 +164,18 @@ def authorization_header(url: str, settings: Settings) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+#: A citation's trust level, shown to a Japanese reader the way the redaction
+#: marks are (C-1469). ``internal_repo`` is the norm and stays suppressed; an
+#: unknown future level falls back to its raw value rather than vanishing, so a
+#: reader still sees *something* they can look up. ``--json`` keeps the raw enum.
+_TRUST_LABELS = {
+    "external": "外部",
+    "unverified": "未検証",
+    "operator": "運用者",
+    "system": "システム",
+}
+
+
 def _print_citations(
     payload: dict[str, Any], clean: _Stripped, note_when_empty: bool = True
 ) -> None:
@@ -193,7 +205,7 @@ def _print_citations(
             marks.append("抜粋を秘匿")
         trust = clean(citation.get("trust_level", ""))
         if trust and trust != "internal_repo":
-            marks.append(trust)
+            marks.append(_TRUST_LABELS.get(trust, trust))
         suffix = f"  ({', '.join(marks)})" if marks else ""
         print(f"  [{label}] {reference}{suffix}")
 
