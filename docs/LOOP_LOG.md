@@ -8700,3 +8700,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-07 02:54 進捗監視 この 30 分は完了 commit なし——ただし停滞ではない: C-1374 はクリエイター作業中（01:35 claim・1h19m・閾値 2h 未満）、辛口ユーザー 73 巡目（ブラウザ UI）実行中。種の実読 1 本: 調整パネルのタッチ到達性を確認→ details/summary の DOM でタップで開き音量へ届く＝欠陥なし・起票せず。03:05 ループA no-op 見込みは既知の状態（C-1374 生存中は奪わない規約どおり）。
 2026-09-07 02:56 辛口ユーザー C-1459 完了 gate_exfiltration_allows_usage_questions 4.44 -> 10（判定器 exit 0・pytest FAILED 0・verify_gate_recall MISS 0・check_gate_regression exit 0（blended 8.4%）・--compare exit 0（BETTER 4.444->10, MOVED 1）・観点=安全性ゲート exfiltration の誤検知（秘密の所在/設定を問う質問が quarantine）・前回=作成意図の文書語彙 C-1458。gap 除外に where/which/schema・末尾に settings?・秘密語直後の is/was/are/were を除外。値要求は従来どおり捕捉。C-1266/1276/1279 と同型。破壊 5 通り全て捕捉）
+
+2026-09-07 02:57 UTC 辛口ユーザー started（74 巡目・別面 予定=取り込み/analyze 経路を一般利用者として点検（状態・エラー文言・正直さの粗）・前回=安全性ゲート exfiltration C-1459）
