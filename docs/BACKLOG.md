@@ -2717,7 +2717,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       ないか（連打→juice→時計停止の連鎖）も同じハーネスで走査すること。
       → 動かす数字: `creation_mash_round_ends`（毎フレーム連打でも全 10 型の
       ラウンドが 70 秒以内に終わり記録が banked される型の数）0→10。
-- [ ] **C-1501: kaiju がスペース連打だけで normal/hard とも無傷完勝。**〔重大〕
+- [~] 作業中 2026-09-07 17:10 UTC ループA **C-1501: kaiju がスペース連打だけで normal/hard とも無傷完勝。**〔重大〕
       再現: 「怪獣と戦うゲームを作って」「難しい怪獣と戦うゲームを作って」の
       両ページを hold=' ' で 2 ラウンド駆動→全ラウンド lost=False・
       残り体力満タン（sidra.tie.kaiju=3）。難易度の看板が無策の連打に
