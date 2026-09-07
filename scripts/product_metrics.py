@@ -7016,6 +7016,84 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- permanence: the fight leaves a trace (§23, C-1374) -------------
+    #
+    # Nijman's list has permanence as its own entry: corpses, debris,
+    # shells - the consequences of the player's actions stay visible.
+    # Judged by driving both bodies: the adventure's slain enemy leaves a
+    # husk that survives leaving the room (and the fallen guardian leaves
+    # one), and the shooter's downed hull drops chunks that fall across
+    # the screen and drain past its edge - none under reduced motion.
+    # Counted per template with a passing contract; any gap collapses
+    # to 0.
+    from sidra_ai.creation.adventure import wreck_probe as _adv_wreck
+    from sidra_ai.creation.shooter import wreck_probe as _sh_wreck
+
+    def _wreck_run(source: str) -> dict:
+        run = _scene_sp.run(
+            ["node", "-"], input=source, capture_output=True, text=True, timeout=180
+        )
+        if run.returncode != 0:
+            raise ValueError(run.stderr.strip()[:60])
+        return json.loads(run.stdout.strip().splitlines()[-1])
+
+    wreck_gaps: list[str] = []
+    _wk_page = generate_game("ゲームを作って", template="adventure").html
+    _wk_m = _scene_re.search(r"<script>(.*?)</script>", _wk_page, _scene_re.S)
+    try:
+        if _wk_m is None:
+            raise ValueError("no script on the page")
+        _wk = _wreck_run(_adv_wreck(_wk_m.group(1)))
+    except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+        _wk = None
+        wreck_gaps.append(f"adventure: probe unavailable ({exc})")
+    if _wk is not None:
+        _wk_marks = _wk["afterKill"]["marks"]
+        if _wk["before"] != 0 or len(_wk_marks) != 1:
+            wreck_gaps.append("adventure: the kill leaves no husk")
+        elif (
+            abs(_wk_marks[0]["x"] - _wk["enemyAt"]["x"]) > 24
+            or abs(_wk_marks[0]["y"] - _wk["enemyAt"]["y"]) > 24
+        ):
+            wreck_gaps.append("adventure: the husk lies away from the fall")
+        elif len(_wk["back"]["marks"]) != 1:
+            wreck_gaps.append("adventure: leaving the room erases the husk")
+        elif _wk["guardWreck"] is not True:
+            wreck_gaps.append("adventure: the fallen guardian leaves nothing")
+    _sh_page = generate_game("ゲームを作って", template="shooter").html
+    _sh_m = _scene_re.search(r"<script>(.*?)</script>", _sh_page, _scene_re.S)
+    try:
+        if _sh_m is None:
+            raise ValueError("no script on the page")
+        _sw = _wreck_run(_sh_wreck(_sh_m.group(1)))
+        _swr = _wreck_run(_sh_wreck(_sh_m.group(1), reduced=True))
+    except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+        _sw = _swr = None
+        wreck_gaps.append(f"shooter: probe unavailable ({exc})")
+    if _sw is not None and _swr is not None:
+        if _sw["spawned"] != 3:
+            wreck_gaps.append("shooter: the kill drops no chunks")
+        elif any(b <= a for a, b in zip(_sw["y0"], _sw["y1"])):
+            wreck_gaps.append("shooter: the chunks do not fall")
+        elif _sw["drained"] != 0:
+            wreck_gaps.append("shooter: the chunks never leave the screen")
+        if _swr["spawned"] != 0:
+            wreck_gaps.append("shooter: reduced motion still drops chunks")
+    c.add(
+        "creation_permanence",
+        "戦いの痕跡が残る型（実走行）",
+        0.0 if wreck_gaps else 2.0,
+        detail=(
+            "; ".join(wreck_gaps)
+            if wreck_gaps
+            else "adventure=倒した敵の残骸が倒れた場所に・部屋を出ても消えず・"
+            "番人も残す／shooter=撃破で破片 3 個が落下し画面外で排水・"
+            "REDUCED では積まない（§23。burst の 0.5 秒で消えていた痕跡が"
+            "残るようになった）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the boss behind the boss key ----------------------------------
     #
     # §3's modern-Zelda floor is rooms -> boss key -> boss; the adventure's

@@ -331,6 +331,14 @@ function guardFacts(){return guard?{alive:guard.alive,hp:guard.hp,max:guard.max,
   speed:guardSpeed(),windFrames:guardWind(),
   hurt:guard.hurt,smoke:guard.smoke,
   phase:guard.hp<=3?2:1}:null}
+/* Permanence, as facts (§23, C-1374): where the fallen lie. draw() and
+   this read the same WRECK_A, so declared and painted cannot drift. The
+   marks come from the same per-room array the fight used - nothing is
+   copied, so walking away and coming back finds them by construction. */
+const WRECK_A=0.5;
+function wreckFacts(){return {alpha:WRECK_A,
+  marks:(enemies[room]||[]).filter(e=>!e.alive).map(e=>({x:e.x,y:e.y})),
+  guard:room===2&&guard?!guard.alive:null}}
 const GROUND={0:'SURFACE_TOKEN',5:'SURFACE_TOKEN',6:'SURFACE_TOKEN'};
 /* Readability rules from the knowledge base (game-design-notes.md §4):
    walls differ from floor by VALUE and FORM (edge highlights), never by hue
@@ -392,6 +400,16 @@ function draw(now){
     drawTile(rooms[room][y][x],OX+x*TILE,OY+y*TILE,now)}}
   if(keyDrop&&room===1){cx.fillStyle='CYAN_TOKEN';
     cx.fillRect(keyDrop.x-4,keyDrop.y-7,8,10);cx.fillRect(keyDrop.x-1,keyDrop.y-1,6,3)}
+  /* Permanence (§23, C-1374): a beaten enemy is not erased - a flat husk
+     stays where it fell for as long as the world does (walk away, come
+     back: still there). Static paint under the live sprites, so REDUCED
+     keeps it too - a consequence, not a motion. */
+  cx.globalAlpha=WRECK_A;cx.fillStyle='MAGENTA_TOKEN';
+  (enemies[room]||[]).forEach(en=>{if(en.alive)return;
+    cx.fillRect(en.x-10,en.y+2,20,7)});
+  if(room===2&&guard&&!guard.alive){
+    cx.fillRect(guard.x-20,guard.y+6,40,11)}
+  cx.globalAlpha=1;
   enemies[room].forEach(en=>{if(!en.alive)return;
     const bob=[0,-2,0,2][FRAME(4,9,now)];
     sprite('enemy',en.x-10,en.y-10+bob,20,20,'MAGENTA_TOKEN')});
@@ -697,6 +715,7 @@ console.log(JSON.stringify({
   lockedState: lockedState, hpA: hpA, hpB: hpB,
   p1: p1, p2: p2, sawWind: sawWind, sawCharge: sawCharge,
   fallenAlive: fallen.alive, finalState: state, turns: turns,
+  wreck: wreckFacts(),
 }));
 """
 
@@ -705,6 +724,73 @@ def guard_probe(script: str) -> str:
     """The page's own script, wrapped so the guardian can be fought."""
 
     return GUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+#: A kill, an exit, a return (§23, C-1374): the husk must lie where the
+#: enemy fell, survive leaving the room, and the fallen guardian must
+#: leave one too. Driven with the sword, not by flipping flags - except
+#: the guardian, whose 3000-turn fight GUARD_PROBE already runs; here its
+#: hp is set to 1 so one real blow fells it through the same code path.
+WRECK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+/* Into the cave, blade to the first enemy. */
+room = 1;
+const en = enemies[1][0];
+hero.hp = 99;
+hero.x = en.x - 20; hero.y = en.y; hero.dir = 1; hero.swing = 0;
+const before = wreckFacts().marks.length;
+/* Where it stood when the blade fell - read BEFORE the kill, so a
+   template that displaces its dead cannot move the anchor with them. */
+const enemyAt = { x: en.x, y: en.y };
+key(' '); run(1);
+const afterKill = wreckFacts();
+const aliveNow = enemies[1].filter(e => e.alive).length;
+/* Walk away (the village), and come back: still there (§23). */
+room = 0; run(30);
+const awayMarks = wreckFacts().marks.length;
+room = 1; run(30);
+const back = wreckFacts();
+/* The guardian falls by the same blade - one real blow on 1 hp. */
+room = 2; hero.key = true;
+guard.hp = 1; guard.inv = 0; hero.swing = 0;
+hero.x = guard.x - 26; hero.y = guard.y; hero.dir = 1;
+key(' '); run(1);
+const guardWreck = wreckFacts().guard;
+console.log(JSON.stringify({
+  before: before, afterKill: afterKill, aliveNow: aliveNow,
+  awayMarks: awayMarks, back: back, enemyAt: enemyAt,
+  guardWreck: guardWreck,
+}));
+"""
+
+
+def wreck_probe(script: str) -> str:
+    """The page's own script, wrapped so the husks can be counted."""
+
+    return WRECK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
 #: One blow on the guardian, and the sixty frames after it (§6 観察 2,
@@ -1000,6 +1086,8 @@ __all__ = [
     "milestone_probe",
     "combo_probe",
     "WORLD_PROBE",
+    "WRECK_PROBE",
+    "wreck_probe",
     "guard_probe",
     "know_probe",
     "world_probe",

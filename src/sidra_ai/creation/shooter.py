@@ -98,8 +98,19 @@ const ACT_FALL=[1,1.15,1.3],ACT_GAP=[1,0.85,0.7];
 function actOf(){return t>=ACT*2?2:t>=ACT?1:0}
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
 const W=cv.width,H=cv.height,SHIP=22;
-let ship,shots,foes,stars,score,kills,wave,t,state,fire,spawnIn,actSpawn,actVy;
-function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0};shots=[];foes=[];score=0;kills=0;wave=0;
+let ship,shots,foes,stars,score,kills,wave,t,state,fire,spawnIn,actSpawn,actVy,debris;
+/* Permanence (§23, C-1374): a downed hull does not just vanish - chunks
+   of it fall out of the fight, the shell-casing of a game with no floor:
+   the trace crosses the sky instead of resting on it. Falling chunks are
+   motion, so REDUCED keeps none; the burst is still there for the hit
+   itself. draw() and wreckFacts() read the same WRECK_A. */
+const WRECK_A=0.5;
+function wreckSpawn(f){if(REDUCED)return;
+  for(let i=0;i<3;i++){debris.push({x:f.x+(i-1)*6,y:f.y,
+    vx:(i-1)*0.7,vy:1.2+i*0.6,r:5-(i%2)*2,rot:i*2.1})}}
+function wreckFacts(){return {alpha:WRECK_A,
+  debris:debris.map(d=>({x:d.x,y:d.y}))}}
+function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0};shots=[];foes=[];debris=[];score=0;kills=0;wave=0;
   t=0;state='play';fire=false;rs=(SEED>>>0)||1;
   spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];grazeReset();
   /* A new go starts at x1. Carrying a run across a restart would hand
@@ -148,7 +159,8 @@ function step(){const now=performance.now();
            points added and the number drawn cannot disagree. `kills` stays
            the raw count because 「撃墜 N 機」 is a count. */
         f.hp=0;s.y=-99;kills++;score+=scorePop(f.x,f.y,comboHit());
-        sfx('hurt');shake(4);burst(f.x,f.y,12,'ACCENT_JUICE')}})});
+        sfx('hurt');shake(4);burst(f.x,f.y,12,'ACCENT_JUICE');
+        wreckSpawn(f)}})});
     foes.forEach(f=>{if(f.hp<=0)return;
       /* One distance, one radius, two answers (C-1406). The kill radius is
          unchanged and the band sits strictly outside it, so brushing a hull
@@ -158,6 +170,7 @@ function step(){const now=performance.now();
       /* One hull, two independent losses: the graze run and the kill
          run both end, and neither is the other's number (C-1411). */
       f.hp=0;ship.hp--;comboMiss();sfx('clash');shake(11);hitstop(5);
+      wreckSpawn(f);
       ship.kvx=(ship.x<f.x?-1:1)*7;
       grazeStruck(gd,gk);grazeLost();
       burst(ship.x,ship.y,18,'ALERT_JUICE');
@@ -166,6 +179,10 @@ function step(){const now=performance.now();
     foes=foes.filter(f=>f.hp>0&&f.y<H+30);
     shots=shots.filter(s=>s.y>-10);
     stars.forEach(s=>{s.y+=REDUCED?0:s.s;if(s.y>H){s.y=0;s.x=rand()*W}})}
+  /* Wreckage falls outside the play gate too: an 'over' screen where the
+     chunks freeze mid-air would read as a bug, not a consequence. */
+  debris.forEach(d=>{d.x+=d.vx;d.y+=d.vy;d.rot+=0.15});
+  debris=debris.filter(d=>d.y<H+20);
   draw(now);requestAnimationFrame(step)}
 function draw(now){
   /* The act is read off the play clock, not the wave count: the round is
@@ -180,6 +197,11 @@ function draw(now){
   stars.forEach(s=>{if(s.s<NEAR)cx.fillRect(s.x,s.y,s.s,s.s*2)});
   cx.globalAlpha=1;
   stars.forEach(s=>{if(s.s>=NEAR)cx.fillRect(s.x,s.y,s.s,s.s*2)});
+  /* The wreckage under everything alive: a trace, not an actor (§23). */
+  cx.globalAlpha=WRECK_A;cx.fillStyle='MAGENTA_TOKEN';
+  debris.forEach(d=>{cx.save();cx.translate(d.x,d.y);cx.rotate(d.rot);
+    cx.fillRect(-d.r/2,-d.r/2,d.r,d.r);cx.restore()});
+  cx.globalAlpha=1;
   cx.fillStyle='CYAN_TOKEN';
   shots.forEach(s=>{cx.fillRect(s.x-1.5,s.y-8,3,10)});
   /* Foes read by shape as well as colour (C-1018): a hull with a notch. */
@@ -375,9 +397,66 @@ def kb_probe(script: str) -> str:
     return KB_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: A kill, then gravity (§23, C-1374): the chunks appear where the hull
+#: died, fall every frame, and drain once they leave the screen. Under
+#: reduced motion nothing is spawned at all.
+WRECK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(4);
+/* One hull, one shot, same spot: a certain kill. */
+foes.push({ x: 200, y: 80, vx: 0, vy: 0.4, r: 13, hp: 1 });
+shots.push({ x: 200, y: 80 });
+run(1);
+const w0 = wreckFacts();
+const y0 = w0.debris.map(d => d.y);
+run(30);
+const y1 = wreckFacts().debris.map(d => d.y);
+/* Long enough for every chunk to cross the bottom and drain. */
+run(400);
+const drained = wreckFacts().debris.length;
+console.log(JSON.stringify({
+  spawned: w0.debris.length, y0: y0, y1: y1,
+  drained: drained, alpha: w0.alpha,
+}));
+"""
+
+
+def wreck_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the falling chunks can be watched."""
+
+    return WRECK_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 __all__ = [
     "KB_PROBE",
     "kb_probe",
+    "WRECK_PROBE",
+    "wreck_probe",
     "SHOOTER_DIFFICULTY",
     "SHOOTER_HOW",
     "SHOOTER_SCRIPT",
