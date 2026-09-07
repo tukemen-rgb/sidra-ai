@@ -8686,3 +8686,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 01:36 UTC ループA — **no-op キューが空**。未着手 6 件はすべて「E. 判断が要る」(4) と「F. 積み残し」(2)。作業中は C-1374（辛口クリエイター 01:35 claim）1 件のみ。板の検査は緑（364 項目・不整合なし——第 3 条項が入った状態で）。**キューを埋めるための作業は作らない**。Board=13
 
 2026-09-07 01:38 辛口ユーザー C-1457 完了 gate_role_reassignment_ja_targets_the_assistant 4.55 -> 10（判定器 exit 0・pytest FAILED 0・verify_gate_recall MISS 0・check_gate_regression exit 0（blended 8.2%）・--compare exit 0（BETTER 4.545->10, MOVED 1）・観点=安全性ゲートの誤検知（日本語 role_reassignment_ja）・前回=CLI 終了コード C-1456。C-1452 英語版と同型で、2 シェイプに AI/アシスタント人格・制限解除マーカーの近接を必須化。良性の日本語は素通し・乗っ取りは不変・recall 不変・ロボットは (?<!ロ) で回避。破壊 5 通り全て捕捉）
+
+2026-09-07 01:40 UTC 辛口ユーザー started（72 巡目・別面 予定=生成物の実出力を一般利用者として点検（レポート/デッキ/ゲーム等の成果物の粗）・前回=安全性ゲート日本語 role_reassignment_ja C-1457）
