@@ -102,7 +102,7 @@ let TRAIL=[];
    one did not, so a go that followed a demo - or an R restart - met a
    different set of obstacles on the same course. 「同じ依頼は同じ世界」 is
    the promise SEED makes, and it has to survive a restart. */
-function reset(){rs=(SEED>>>0)||1;car={x:roadAt(0)};obs=[];dist=0;lap=1;lapT=0;times=[];TRAIL=[];
+function reset(){rs=(SEED>>>0)||1;car={x:roadAt(0),sq:1};obs=[];dist=0;lap=1;lapT=0;times=[];TRAIL=[];
   state='race';grace=0;spd=PACE;nextObs=320;passed=0;slips=0}
 setPal(RACING_PAL_TOKEN);
 /* HUD contract (§4 WCAG 1.4.3, C-1337): draw() paints through these
@@ -126,7 +126,7 @@ function edgeFacts(){const keep=SCENE,out=[];
     out.push({surf:scenePaint('SURFACE_TOKEN'),road:scenePaint('RAISED_TOKEN')})}
   SCENE=keep;return {a:EDGE_A,b:EDGE_B,scenes:out}}
 function onRoad(){return Math.abs(car.x-roadAt(dist))<ROADW/2-8}
-function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,passed:passed,
+function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,sq:car.sq,passed:passed,
   trail:TRAIL.map(s=>s.d),
   slips:slips,
   base:PACE,carX:car.x,road:roadAt(dist),roadW:ROADW,grace:grace,
@@ -134,6 +134,10 @@ function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,pass
 /* A hit is a cost, not an ending: the pace is cut, a short grace window
    keeps one obstacle from billing twice, and the clock keeps running. */
 function hitObstacle(){grace=45;spd=Math.max(PACE*0.35,spd*0.45);
+  /* Squash & stretch, the crash half (§1, C-1385): the hit crushes the
+     body for a beat through C-1332's recipe; under reduced motion the
+     silhouette never changes. */
+  if(!REDUCED){car.sq=0.7}
   shake(5);hitstop(3);sfx('clash');burst(car.x,CARY,10,'ALERT_JUICE')}
 function crossLine(){times.push(lapT);lapT=0;
   if(lap>=LAPS){state='goal';winBeat(car.x,CARY-20)}
@@ -193,6 +197,9 @@ function step(){
   try{ENG_ON=state==='race'&&gateState()==='playing'}catch(e){ENG_ON=state==='race'}
   if(ENG_ON){try{engineTick(spd/(PACE*1.4))}catch(e){}}
   else{try{engineStop()}catch(e){}}
+  /* The crush settles by quarter-steps and snaps (C-1332), outside the
+     race guard so a car on the goal screen still pops back to shape. */
+  if(car){car.sq+=(1-car.sq)*0.25;if(Math.abs(car.sq-1)<0.01)car.sq=1}
   if(state!=='race'&&TRAIL.length)TRAIL.shift();
   draw();requestAnimationFrame(step)}
 function draw(){
@@ -248,8 +255,14 @@ function draw(){
     cx.fillStyle=TUNE_ACCENT;cx.fillRect(gx-11,CARY-16,22,32);
     cx.globalAlpha=0.6;cx.strokeStyle=TUNE_ACCENT;cx.lineWidth=1;
     cx.strokeRect(gx-11,CARY-16,22,32);cx.restore()}
-  cx.fillStyle='CYAN_TOKEN';cx.fillRect(car.x-11,CARY-16,22,32);
-  cx.fillStyle='#05070f';cx.fillRect(car.x-6,CARY-8,12,9);
+  /* One bottom-anchored transform for body and windshield together, so
+     the crush reads as the car deforming, not parts sliding (C-1385).
+     At sq=1 every coordinate is bit-identical to the old literals. */
+  const csq=car.sq,csw=2-csq;
+  cx.fillStyle='CYAN_TOKEN';
+  cx.fillRect(car.x-11*csw,CARY+16-32*csq,22*csw,32*csq);
+  cx.fillStyle='#05070f';
+  cx.fillRect(car.x-6*csw,CARY+16-24*csq,12*csw,9*csq);
   if(grace>0){cx.strokeStyle=EDGE_A;cx.lineWidth=4;
     cx.strokeRect(car.x-13,CARY-18,26,36);
     cx.strokeStyle=EDGE_B;cx.lineWidth=2;
@@ -464,6 +477,60 @@ console.log(JSON.stringify({ full: fast.trail.length, behind: fastBehind,
 """
 
 
+#: The crash, crushed and settled (§1, C-1385): a real obstacle strike
+#: must crush the body to 0.7 and walk it back to exactly 1 within thirty
+#: frames; under reduced motion the same strike cuts the pace but never
+#: bends the silhouette.
+SQUASH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+/* On the road, at pace, body at rest. */
+for (let i = 0; i < 30; i++) { car.x = roadAt(dist); run(1) }
+const idle = raceFacts().sq;
+const spdBefore = raceFacts().spd;
+/* A certain crash: an obstacle placed on the car, grace open. */
+grace = 0;
+obs.push({ d: dist + 10, x: car.x });
+let hit = null, guard = 0;
+while (hit === null && guard++ < 30) { car.x = roadAt(dist); run(1);
+  if (raceFacts().spd < spdBefore * 0.7) { hit = raceFacts().sq } }
+const trace = [];
+for (let i = 0; i < 30; i++) { run(1); trace.push(raceFacts().sq) }
+console.log(JSON.stringify({ idle: idle, hit: hit, trace: trace,
+  settled: raceFacts().sq, spdCut: raceFacts().spd < spdBefore }));
+"""
+
+
+def squash_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the crash's crush can be watched."""
+
+    return SQUASH_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 #: The engine, heard (§25, C-1378): a fake AudioContext records the one
 #: oscillator the voice builds, the probe drives a fast stretch and an
 #: off-road crawl, and the pitch and gain must follow the pace - higher
@@ -566,6 +633,8 @@ def probe_source(script: str) -> str:
 
 
 __all__ = [
+    "SQUASH_PROBE",
+    "squash_probe",
     "ENGINE_PROBE",
     "engine_probe",
     "TRAIL_PROBE",
