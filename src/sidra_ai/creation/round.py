@@ -120,6 +120,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "roundTieBeats",
     "roundTieFacts",
     "roundFacts",
+    "roundAskReady",
     "roundScore",
     "roundBest",
     "ROUND_DONE",
@@ -387,6 +388,9 @@ let ROUND_SHIELD_FRAMES=0;
    draw: a template that ends on its very last scheduled frame still gets
    its bank on that frame (the old behaviour), and only the drawing
    waits. */
+/* Templates ask through this (C-1384): their verdict and stats land at
+   once, their own 「もう一度」 waits out the same quiet the strip does. */
+function roundAskReady(){return ROUND_END_FRAMES>ROUND_HOLD}
 function roundEndBeat(){
   if(ROUND_DONE||roundEnded()){
     if(ROUND_END_FRAMES===0){try{roundBank()}catch(e){}}

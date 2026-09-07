@@ -248,7 +248,7 @@ function draw(now){
     const a=cleared?'全部消えた。':'もう消せる手がない。';
     cx.fillText(a,cv.width/2-a.length*10,cv.height/2-8);
     cx.font='13px ui-monospace,monospace';
-    const b='得点 '+score+' / SPACE か R でもう一度';
+    const b='得点 '+score+(((typeof roundAskReady!=='function'||roundAskReady()))?' / SPACE か R でもう一度':'');
     cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}}
 function step(){settle();draw(performance.now());requestAnimationFrame(step)}
 /* Read back off the running page: how far the board is from rest, and a

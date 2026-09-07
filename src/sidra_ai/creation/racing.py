@@ -271,7 +271,7 @@ function draw(){
     times.forEach((f,i)=>{total+=f;
       cx.fillText('LAP '+(i+1)+'  '+(f/60).toFixed(2)+'s',W/2-70,y);y+=18});
     cx.fillText('TOTAL '+(total/60).toFixed(2)+'s',W/2-70,y);
-    const b='R でもう一度';cx.fillText(b,W/2-b.length*6.5,y+26)}}
+    if((typeof roundAskReady!=='function'||roundAskReady())){const b='R でもう一度';cx.fillText(b,W/2-b.length*6.5,y+26)}}}
 reset();step();
 """
 

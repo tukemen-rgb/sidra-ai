@@ -7421,9 +7421,15 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.round import hold_probe_source as _hold_probe
 
     hold_gaps: list[str] = []
+    # C-1384 redefined the value: the quiet must silence the ASKS too -
+    # the shared strip AND the template's own 「もう一度」 line - on every
+    # measured ending, and a third body (the shooter's own death screen)
+    # joins the watch. 両定義: 旧=共有帯のみ静・値 2／新定義で C-1384 以前は
+    # marble/shooter の誘いが結末のフレームから鳴るため 0.
     for _hd_key, _hd_req, _hd_tmpl, _hd_pure in (
         ("fishing", "釣りゲームを作って", None, True),
-        ("marble", "ゲームを作って", "marble", False),
+        ("marble", "ゲームを作って", "marble", True),
+        ("shooter", "シューティングゲームを作って", None, True),
     ):
         if _hd_tmpl:
             _hd_page = generate_game(_hd_req, template=_hd_tmpl).html
@@ -7453,7 +7459,7 @@ def measure_creation(c: Collector) -> None:
         if _hd["early"]["strip"]:
             hold_gaps.append(f"{_hd_key}: the strip lands on the verdict's frame")
         if _hd_pure and _hd["early"]["ask"]:
-            hold_gaps.append(f"{_hd_key}: the banner asks before the quiet ends")
+            hold_gaps.append(f"{_hd_key}: an ask lands before the quiet ends")
         if not _hd["late"]["strip"]:
             hold_gaps.append(f"{_hd_key}: the strip never arrives")
         if not _hd["early"]["banked"] or not _hd["early"]["bestKept"]:
@@ -7463,14 +7469,14 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_end_hold",
         "終幕に静の一拍がある（実走行）",
-        0.0 if hold_gaps else 2.0,
+        0.0 if hold_gaps else 3.0,
         detail=(
             "; ".join(hold_gaps)
             if hold_gaps
-            else "時計終い（fishing）とテンプレ終い（marble）の両経路で実測: "
-            "結末+10f はチロームなし（時計側は banner の誘いも待つ）・+60f で"
-            "帯到着・bank は結末の 1 コマ目＝静の間に R を押しても記録は残る"
-            "（§6 観察 8 の終幕の静・保持 45f はファンファーレ 30f の後）"
+            else "時計終い（fishing）とテンプレ終い（marble の走破・shooter の"
+            "被撃墜）の 3 体で実測: 結末+10f は帯も『もう一度』の誘いも一切"
+            "なし・+60f で到着・bank は結末の 1 コマ目＝静の間の R でも記録は"
+            "残る（§6 観察 8。C-1384 でテンプレ自身の誘い 9 サイトも静に従う）"
         ),
         kind=OUTCOME,
     )

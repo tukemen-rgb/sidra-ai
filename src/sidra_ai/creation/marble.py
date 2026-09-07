@@ -281,7 +281,7 @@ function step(){
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font='20px ui-monospace,monospace';cx.fillText(over,W/2,H/2-6);
     cx.font='13px ui-monospace,monospace';
-    cx.fillText('R / タップでもう一度',W/2,H/2+24);cx.textAlign='left'}
+    if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('R / タップでもう一度',W/2,H/2+24)}cx.textAlign='left'}
   requestAnimationFrame(step)}
 /* Read back off the running page: where the run is, which act the sky is
    in, and the next thing ahead, so a probe can roll the course by hand. */

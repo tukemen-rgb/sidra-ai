@@ -243,7 +243,7 @@ function draw(now){
     cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
     const a='撃墜 '+kills+' 機・得点 '+score+'。';cx.fillText(a,W/2-a.length*10,H/2-8);
     cx.font='13px ui-monospace,monospace';
-    const b='SPACE か R、タップでもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}
+    if((typeof roundAskReady!=='function'||roundAskReady())){const b='SPACE か R、タップでもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}}
 /* Read back off the running page rather than grepped for: the act the sky
    is in, and the nearest incoming hull, so a probe can dodge like a hand. */
 function shooterFacts(){const incoming=[];

@@ -43,6 +43,11 @@ def template_end() -> dict:
     return _drive("ゲームを作って", template="marble")
 
 
+@pytest.fixture(scope="module")
+def death_end() -> dict:
+    return _drive("シューティングゲームを作って")
+
+
 def test_the_clock_ending_is_fully_quiet_first(clock_end: dict) -> None:
     assert clock_end["broke"]
     assert not clock_end["early"]["strip"], "the strip lands on the verdict's frame"
@@ -50,13 +55,23 @@ def test_the_clock_ending_is_fully_quiet_first(clock_end: dict) -> None:
     assert clock_end["late"]["strip"], "the strip never arrives"
 
 
-def test_the_template_ending_still_holds_the_shared_strip(template_end: dict) -> None:
+def test_the_template_ending_is_fully_quiet_too(template_end: dict) -> None:
+    """C-1384: the template's own 「もう一度」 line waits with the chrome."""
+
     assert template_end["broke"]
     assert not template_end["early"]["strip"]
-    assert template_end["late"]["strip"]
+    assert not template_end["early"]["ask"], "the verdict screen asks at once"
+    assert template_end["late"]["strip"] and template_end["late"]["ask"]
 
 
-@pytest.mark.parametrize("who", ["clock_end", "template_end"])
+def test_the_death_ending_is_fully_quiet_too(death_end: dict) -> None:
+    assert death_end["broke"]
+    assert not death_end["early"]["strip"]
+    assert not death_end["early"]["ask"]
+    assert death_end["late"]["strip"] and death_end["late"]["ask"]
+
+
+@pytest.mark.parametrize("who", ["clock_end", "template_end", "death_end"])
 def test_the_quiet_never_loses_the_record(who: str, request) -> None:
     got = request.getfixturevalue(who)
     assert got["early"]["banked"], "the bank waited with the chrome"

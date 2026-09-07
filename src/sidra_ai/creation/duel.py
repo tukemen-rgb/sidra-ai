@@ -357,7 +357,7 @@ function draw(now){
     cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
     cx.fillText(winner,cv.width/2-winner.length*10,cv.height/2-6);
     cx.font='13px ui-monospace,monospace';
-    cx.fillText('SPACE / タップでもう一度',cv.width/2-78,cv.height/2+20)}}
+    if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('SPACE / タップでもう一度',cv.width/2-78,cv.height/2+20)}}}
 reset();step();
 """
 

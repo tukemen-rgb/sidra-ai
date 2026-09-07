@@ -483,7 +483,7 @@ function draw(now){
     cx.fillRect(OX,cv.height-34,GW*TILE,26);cx.fillStyle='INK_TOKEN';
     cx.fillText(msg,OX+10,cv.height-16)}
   if(state==='win'){shade('宝箱をあけた。冒険の勝利。',
-    '宝石 '+hero.gems+' 個 / 護符 '+(hero.charm?'あり':'なし')+' / R か タップでもう一度')}
+    '宝石 '+hero.gems+' 個 / 護符 '+(hero.charm?'あり':'なし')+(((typeof roundAskReady!=='function'||roundAskReady()))?' / R か タップでもう一度':''))}
   if(state==='over'){shade('ちからつきた。','R か タップでやり直す')}}
 function glow(x,y,r,now){const g=cx.createRadialGradient(x,y,4,x,y,r);
   g.addColorStop(0,'#f5d89a55');g.addColorStop(1,'#00000000');
