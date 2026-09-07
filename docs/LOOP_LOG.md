@@ -8935,3 +8935,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-07 22:24 進捗監視 前進あり: C-1392 完了（中断でパッドの指も離れる——PAD_HELD の解放漏れを閉じる・クリエイター 22:13。C-1373 の合成 keyup と対になる仕上げ）・ループA が C-1506 claim（roundEnded の切り分け・22:09——総合評 C-15xx 帯の最終件）。全 7 件が着手済みとなり第 2 回総合評の指摘は 1 日で消化の見込み。
 2026-09-07 22:50 UTC 辛口ユーザー C-1479 完了（96 巡目・別面=制作意図の英語ルーティング・前回=デッキ脱落開示 C-1478・creation_english_3d_model_not_game 7→10・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 7/7/7/7/7・board exit 0・`_find_artifact` の tie-break に「同一 index は長い cue 優先」を追加＝英語 "make a 3D model" が GAME でなく MODEL3D へ・"3Dゲーム"/"3d game" は位置で GAME 維持・日本語ルートと PROJECT/GAME 位置 tie は不変）
+
+2026-09-07 22:54 進捗監視 前進あり: C-1479 完了（英語の「3D モデル」依頼を 3D 生成器へ——同一 index の tie-break は長い cue 優先・辛口ユーザー 22:50）・C-1393 claim（動きを減らすスイッチ・§4 増築・クリエイター 22:40）。ループA は C-1506 作業中（45 分・閾値 24:09 相当）。次の空き番号は C-1480。
