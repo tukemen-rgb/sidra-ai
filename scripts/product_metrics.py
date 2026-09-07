@@ -7233,6 +7233,75 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the engine voice: speed made audible (§25, C-1378) -------------
+    #
+    # The earliest racing engines were nothing but the RPM driving a
+    # square wave's pitch, and even that told the player their speed -
+    # while SIDRA's racer drank the course in silence. Judged by hearing
+    # the page: a recording AudioContext catches the voice, a clean fast
+    # stretch must sing high and full, the off-road crawl low and soft
+    # (pitch AND gain sink off-throttle, §25 事実 2), the title's attract
+    # demo stays silent, the goal screen does not idle, and M mutes the
+    # engine within a frame.
+    from sidra_ai.creation.racing import engine_probe as _eng_probe
+
+    engine_gaps: list[str] = []
+    _en_page = generate_game("ゲームを作って", template="racing").html
+    _en_m = _scene_re.search(r"<script>(.*?)</script>", _en_page, _scene_re.S)
+    if _en_m is None:
+        engine_gaps.append("no script on the page")
+    else:
+        try:
+            _en_run = _scene_sp.run(
+                ["node", "-"],
+                input=_eng_probe(_en_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _en_run.returncode != 0:
+                raise ValueError(_en_run.stderr.strip()[:60])
+            _en = json.loads(_en_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            _en = None
+            engine_gaps.append(f"probe unavailable ({exc})")
+        if _en is not None:
+            _en_f, _en_c = _en["fast"]["facts"], _en["crawl"]["facts"]
+            if _en["before"]:
+                engine_gaps.append("the engine idles in the shop window (title demo)")
+            if not (_en_f["on"] and _en_c["on"]):
+                engine_gaps.append("the race has no engine voice")
+            else:
+                if _en_f["freq"] <= _en_c["freq"]:
+                    engine_gaps.append("the pitch does not follow the pace")
+                if _en_f["gain"] <= _en_c["gain"]:
+                    engine_gaps.append("the throttle does not carry the gain")
+                if not (
+                    _en_f["f0"] <= _en_c["freq"]
+                    and _en_f["freq"] <= _en_f["f0"] + _en_f["span"]
+                ):
+                    engine_gaps.append(
+                        "the sweep leaves its octave (§25's stretch warning)"
+                    )
+            if _en["atGoal"]:
+                engine_gaps.append("the result screen idles")
+            if _en["afterMute"]:
+                engine_gaps.append("M does not silence the engine")
+    c.add(
+        "creation_engine_voice",
+        "速度が連続音で聞こえる型（実走行）",
+        0.0 if engine_gaps else 1.0,
+        detail=(
+            "; ".join(engine_gaps)
+            if engine_gaps
+            else "racing を録音 AudioContext で実走行: 速走 94.3Hz/0.044・"
+            "路外の徐行 72.7Hz/0.035＝ピッチもゲインも沈む（§25 事実 2）、"
+            "帯域は 55-110Hz の 1 オクターブ内、タイトルのデモは無音・"
+            "goal で停止・M で 1 フレーム内に消える"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the sinks stay affordable in the worst case (§5, C-1376) -------
     #
     # §5's own source makes tap/sink BALANCE the rule, and the balance

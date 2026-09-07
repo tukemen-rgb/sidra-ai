@@ -182,6 +182,17 @@ function step(){
         return false}
       return o.d>dist-60});
     if(dist>=lap*LAP)crossLine()}
+  /* The engine voice (§25, C-1378): the pace itself, sung every frame -
+     PACE*1.4 is the slipstream ceiling, so full boost is the top of the
+     octave and the off-road crawl sits near its floor. Gated on the
+     round actually playing: the title's attract demo drives this same
+     loop (C-1414), and a demo that hums before anyone pressed anything
+     would be the engine idling in the shop window. Outside the race the
+     engine is off: a result screen does not idle either. */
+  let ENG_ON=false;
+  try{ENG_ON=state==='race'&&gateState()==='playing'}catch(e){ENG_ON=state==='race'}
+  if(ENG_ON){try{engineTick(spd/(PACE*1.4))}catch(e){}}
+  else{try{engineStop()}catch(e){}}
   if(state!=='race'&&TRAIL.length)TRAIL.shift();
   draw();requestAnimationFrame(step)}
 function draw(){
@@ -453,6 +464,93 @@ console.log(JSON.stringify({ full: fast.trail.length, behind: fastBehind,
 """
 
 
+#: The engine, heard (§25, C-1378): a fake AudioContext records the one
+#: oscillator the voice builds, the probe drives a fast stretch and an
+#: off-road crawl, and the pitch and gain must follow the pace - higher
+#: and fuller at speed, lower and softer in the crawl. The goal screen
+#: stops the engine, and M mutes it within a frame.
+ENGINE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+const OSCS = [];
+function FakeOsc(){ this.type = ''; this.frequency = { value: 0 };
+  this.started = false; this.stopped = false }
+FakeOsc.prototype.start = function(){ this.started = true };
+FakeOsc.prototype.stop = function(){ this.stopped = true };
+FakeOsc.prototype.connect = function(){};
+FakeOsc.prototype.disconnect = function(){};
+function FakeCtx(){ this.currentTime = 0; this.state = 'running';
+  this.destination = {} }
+FakeCtx.prototype.createOscillator = function(){ const o = new FakeOsc();
+  OSCS.push(o); return o };
+FakeCtx.prototype.createGain = function(){ return { gain: { value: 0,
+    setValueAtTime(){}, exponentialRampToValueAtTime(){}, linearRampToValueAtTime(){} },
+  connect(){}, disconnect(){} } };
+FakeCtx.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { value: 0 }, connect(){}, disconnect(){} } };
+FakeCtx.prototype.createBuffer = function(){ return { getChannelData: () => new Float32Array(8) } };
+FakeCtx.prototype.createBufferSource = function(){ return { buffer: null,
+  loop: false, connect(){}, start(){}, stop(){} } };
+FakeCtx.prototype.resume = function(){};
+globalThis.window = globalThis;
+globalThis.AudioContext = FakeCtx;
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+const before = engineFacts().on;
+key(' ');
+/* A clean fast stretch: held to the road's centre every frame, so the
+   pace eases up to PACE and the voice sits high in its octave. */
+for (let i = 0; i < 80; i++) { car.x = roadAt(dist); run(1) }
+const fast = { facts: engineFacts(), spd: raceFacts().spd };
+/* Off the road: the pace decays and the voice must sink with it. */
+for (let i = 0; i < 160; i++) { car.x = 2; run(1) }
+const crawl = { facts: engineFacts(), spd: raceFacts().spd };
+car.x = roadAt(dist);
+run(40);
+/* The goal screen does not idle. */
+state = 'goal';
+run(3);
+const atGoal = engineFacts().on;
+/* Back on the road, then M - the mute must land within a frame. */
+state = 'race';
+run(10);
+const beforeMute = engineFacts().on;
+key('m');
+run(2);
+const afterMute = engineFacts().on;
+console.log(JSON.stringify({
+  before: before, fast: fast, crawl: crawl, atGoal: atGoal,
+  beforeMute: beforeMute, afterMute: afterMute,
+  oscTypes: OSCS.map(o => o.type),
+}));
+"""
+
+
+def engine_probe(script: str) -> str:
+    """The page's own script, wrapped so the engine can be heard."""
+
+    return ENGINE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def trail_probe(script: str, *, reduced: bool = False) -> str:
     """The page's own script, wrapped so the streak can be watched."""
 
@@ -468,6 +566,8 @@ def probe_source(script: str) -> str:
 
 
 __all__ = [
+    "ENGINE_PROBE",
+    "engine_probe",
     "TRAIL_PROBE",
     "trail_probe",
     "RACING_DIFFICULTY",

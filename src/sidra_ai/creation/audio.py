@@ -147,6 +147,38 @@ const SFX_JITTER=0.04;
    four notes a chord owns. One jitter factor for the whole phrase, so
    the fanfare stays in tune with itself. */
 const WIN_NOTES=[523,659,784,1046];
+/* --- the engine voice: speed made audible (§25, C-1378) --------------
+   The earliest racing engines were nothing but the RPM driving a square
+   wave's pitch, and even that told the player their speed. One octave of
+   travel - 55 to 110 Hz - because a wider sweep is where the synthetic
+   smell starts (§25 事実 1/2), a lowpass so it sits UNDER the one-shot
+   voices, gain that eases off with the throttle (事実 2's off-throttle
+   drop), and the gates every sound obeys: M mutes it, the volume slider
+   scales it, and the music duck pulls it back with the bed. Called every
+   frame by the template that owns a speed, so a mute lands within one. */
+let ENGINE=null,ENGINE_RATE=0;
+const ENGINE_F0=55,ENGINE_SPAN=55,ENGINE_GAIN=0.05;
+function engineTick(rate){
+  rate=Math.min(1,Math.max(0,rate||0));ENGINE_RATE=rate;
+  if(MUTED||masterGain()<=0){engineStop();return}
+  try{
+    if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)()}
+    if(AC.state==='suspended'){AC.resume()}
+    if(!ENGINE){
+      const osc=AC.createOscillator();osc.type='square';
+      const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;
+      const g=AC.createGain();g.gain.value=0;
+      osc.connect(lp);lp.connect(g);g.connect(AC.destination);
+      osc.start();ENGINE={osc:osc,g:g}}
+    let duck=1;try{duck=MUSIC_DUCK}catch(e){}
+    ENGINE.osc.frequency.value=ENGINE_F0+ENGINE_SPAN*rate;
+    ENGINE.g.gain.value=ENGINE_GAIN*(0.55+0.45*rate)*duck*masterGain();
+  }catch(e){}}
+function engineStop(){if(ENGINE){try{ENGINE.osc.stop()}catch(e){}
+  try{ENGINE.osc.disconnect()}catch(e){}ENGINE=null}}
+function engineFacts(){return {on:!!ENGINE,rate:ENGINE_RATE,
+  freq:ENGINE?ENGINE.osc.frequency.value:0,
+  gain:ENGINE?ENGINE.g.gain.value:0,f0:ENGINE_F0,span:ENGINE_SPAN}}
 function sfx(name,pitch){
   /* Zero is silence, not a very quiet sound. Scheduling one would hand
      exponentialRampToValueAtTime a start value of 0, which has no defined
