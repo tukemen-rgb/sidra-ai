@@ -28,6 +28,38 @@ from sidra_ai.retrieval.store import DocumentStore
 
 _LATIN = re.compile(r"[A-Za-z0-9_]+")
 _CJK_RUN = re.compile(r"[぀-ゟ゠-ヿ一-鿿]+")
+
+#: C-1136 rerank coefficients, all off by default until measurement says
+#: otherwise (the constants are module-level so the experiment harness can
+#: sweep them and the adopted values are visible in one place). COVERAGE
+#: rewards a chunk matching *more distinct* subject terms - BM25 sums term
+#: scores, so one very rare term can outrank a chunk that matched the whole
+#: question. PHRASE rewards joint presence of overlapping bigram pairs (the
+#: closest this tokenizer gets to "contains the phrase"). PATH rewards a
+#: subject term appearing in the file path.
+#: All three stay 0.0 - i.e. scoring is byte-identical to plain BM25 -
+#: because measurement said no to each (2026-09-07, 38-question judge over
+#: the 5 real repositories; do not re-raise without a new measurement):
+#:
+#: * COVERAGE at 0.1 lifted MRR 0.293 -> 0.301 and plateaued there
+#:   (0.2/0.35/0.5/0.75/1.0 all land on the same 0.301), but the full run
+#:   showed the cost the coarse sweep rounded away: discrimination fell
+#:   +23.7 -> +21.1 pt. A rank fix that buys +0.008 MRR by letting
+#:   neighbour-repository chunks into more top-5 sets is the C-1008 trade
+#:   (product number up, safety margin down) at a smaller scale, and it is
+#:   declined for the same reason.
+#: * PHRASE at 0.1/0.2 dropped answered 15 -> 14: a joint bigram pair is
+#:   better evidence of boilerplate than of the query's phrase here.
+#: * PATH at 0.1 changed nothing; at 0.2 it dropped MRR to 0.275.
+#:
+#: The hooks stay so the next measurement is a constant away, not a
+#: reimplementation. The measured route to more answered questions is the
+#: semantic pass (embedding.py): re-confirmed the same day at 18/38
+#: answered / paraphrase 5/20 / MRR 0.347 with every floor held - it needs
+#: only the e5-small weights staged on the machine (RUNBOOK).
+COVERAGE_BONUS: float = 0.0
+PHRASE_BONUS: float = 0.0
+PATH_BONUS: float = 0.0
 _CJK_CHAR = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
 
 #: Common tokens that carry no retrieval signal in this corpus.
@@ -448,6 +480,27 @@ class BM25Retriever:
                 if not eligible_positions:
                     return []
 
+        # Rerank inputs, computed once per query (C-1136). Subject terms are
+        # the hiragana-free tokens (`subject_terms`' definition, inlined on
+        # the already-bounded term set); phrase pairs are consecutive bigrams
+        # out of one CJK run, whose joint presence is this tokenizer's best
+        # available evidence that the chunk contains the query's *phrase*
+        # rather than its letters. Both bonuses are multiplicative and small,
+        # and both default to 0.0 so a clean checkout scores byte-identically
+        # to the shipped BM25 unless the measured coefficients below say
+        # otherwise.
+        subject = tuple(
+            term for term in query_terms if not _HIRAGANA_ANY.search(term)
+        )
+        phrase_pairs: list[tuple[str, str]] = []
+        if COVERAGE_BONUS or PHRASE_BONUS:
+            normalized_query = unicodedata.normalize("NFKC", query).lower()
+            for run in _CJK_RUN.findall(normalized_query):
+                for i in range(len(run) - 2):
+                    first, second = run[i : i + 2], run[i + 1 : i + 3]
+                    if first in query_terms and second in query_terms:
+                        phrase_pairs.append((first, second))
+
         scored: list[SearchResult] = []
         for position in eligible_positions:
             chunk = self._chunks[position]
@@ -467,6 +520,24 @@ class BM25Retriever:
                     filtered_total, filtered_document_frequency.get(term, 0)
                 )
                 score += idf * (frequency * (self.k1 + 1)) / denominator
+
+            if score > 0.0:
+                if COVERAGE_BONUS and len(subject) > 1:
+                    hits = sum(1 for term in subject if counts.get(term, 0))
+                    if hits > 1:
+                        score *= 1.0 + COVERAGE_BONUS * (hits - 1)
+                if PHRASE_BONUS and phrase_pairs:
+                    joined = sum(
+                        1
+                        for first, second in phrase_pairs
+                        if counts.get(first, 0) and counts.get(second, 0)
+                    )
+                    if joined:
+                        score *= 1.0 + PHRASE_BONUS * joined
+                if PATH_BONUS and subject:
+                    path = chunk.provenance.path.lower()
+                    if any(term in path for term in subject):
+                        score *= 1.0 + PATH_BONUS
 
             if score > min_score:
                 scored.append(SearchResult(chunk=chunk, score=score))

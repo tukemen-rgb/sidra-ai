@@ -376,10 +376,19 @@ OUTCOME_QUESTIONS: tuple[OutcomeQuestion, ...] = (
     # The paraphrase tier covered three repositories and called itself a
     # measurement of five; marketing had no paraphrased question at all. These
     # three are answered by single lines of its own deliverables.
+    # Replaced 2026-09-07: the original question here (para-mkt-best-hook,
+    # 「投稿を促すうえでいちばん響く売り文句は何ですか」, marker 「作者に
+    # とって最も効く一文である」) lost its ground truth when marketing's
+    # docs/research/interviews.md was deleted upstream by that repository's
+    # own maintenance. A question whose answer no longer exists anywhere
+    # measures nothing, and the harness rightly refuses to run around it -
+    # so it is replaced, not deleted quietly, by a question of the same
+    # tier answered by a single line of marketing's current deliverables.
+    # Totals stay 38; per-question history for the old name ends here.
     OutcomeQuestion(
-        name="para-mkt-best-hook",
-        question="投稿を促すうえでいちばん響く売り文句は何ですか",
-        answer_marker="作者にとって最も効く一文である",
+        name="para-mkt-trust-promise",
+        question="スポンサー営業で信頼につながるいちばん大事な約束は何ですか",
+        answer_marker="広告料で掲載順を変えない",
         repository="tukemen-rgb/marketing",
         tier="paraphrase",
     ),

@@ -21,6 +21,28 @@
 > （3B の初回測定がまだなら、載せ替え**前**に 1 回・**後**に 1 回で差が見える）。
 > 戻すときは `--model qwen2.5:3b-instruct-q4_K_M` で再実行するだけ。
 
+> **第 2 部（同じく帰国日・約 15 分）: 意味検索の有効化。**言い換え質問への
+> 強さが実測で別物になる（2026-09-07 の 5 リポジトリ実測: answered 15/38→
+> **18/38**・言い換え 2/20→**5/20**・MRR 0.293→**0.347**、安全フロア全維持）。
+> モデル交換と独立に効くので、第 1 部が NG でもこれだけ入れる価値がある。
+> PowerShell で:
+>
+> ```powershell
+> py -m pip install sentence-transformers "huggingface_hub[cli]"
+> hf download intfloat/multilingual-e5-small --local-dir C:\SIDRA\models\e5-small
+> $env:SIDRA_EMBEDDING_MODEL_PATH = "C:\SIDRA\models\e5-small"
+> $env:SIDRA_EMBEDDING_QUERY_PREFIX = "query: "
+> $env:SIDRA_EMBEDDING_PASSAGE_PREFIX = "passage: "
+> ```
+>
+> （モデルは intfloat/multilingual-e5-small・MIT ライセンス・約 470MB の
+> 埋め込み専用。外部 LLM API ではなくローカル重みなので決まりに適合。
+> **プレフィックス 2 つは末尾の半角スペースまで値の一部**——cmd の `set` は
+> 末尾スペースが見えないので PowerShell 推奨）。設定後にサーバーを再起動し、
+> いつもの `check_model_answers.py` で引用率の変化を確認。外すときは
+> `SIDRA_EMBEDDING_MODEL_PATH` を空にするだけ（重みが無ければ自動で
+> 従来の BM25 単体に戻る設計）。
+
 `docs/RUNBOOK_FIRST_REAL_ANSWER.md` で `qwen2.5:3b-instruct-q4_K_M` が
 動いている状態からの**差分**手順。目的はコード生成の質を上げること。
 実行するのは社長の PC。**この文書は測っていない数字を書かない。**
