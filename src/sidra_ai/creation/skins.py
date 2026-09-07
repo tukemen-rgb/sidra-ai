@@ -397,8 +397,9 @@ for (let f = 0; f < FRAMES_INPUT && skinQueued && !skinDone; f++) {
   const now = roundFacts();
   if (f > 60 && (now.done || now.ended)) { skinDone = true }
 }
-/* Two more frames, untouched, so the strip draws and the round is banked. */
-for (let i = 0; i < 2 && skinQueued; i++) {
+/* Through the ending's quiet beat (C-1382: the strip waits 45 frames
+   past the break; the bank lands on the break's own frame). */
+for (let i = 0; i < 55 && skinQueued; i++) {
   const fn = skinQueued; skinQueued = null;
   skinClock += 50 / 3;
   fn(skinClock);

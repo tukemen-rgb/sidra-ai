@@ -236,7 +236,9 @@ allText.length = 0;
    frames saw an empty strip and looked like a missing result. How many
    frames it actually takes is reported rather than assumed. */
 let stripAt = null;
-for (let i = 0; i < 20; i++) {
+/* ...and past the ending's quiet beat (C-1382): the chrome now waits 45
+   frames on purpose, so the watch window covers hold + hitstop. */
+for (let i = 0; i < 70; i++) {
   allRun(1);
   if (stripAt === null && allText.length) { stripAt = i + 1 }
 }

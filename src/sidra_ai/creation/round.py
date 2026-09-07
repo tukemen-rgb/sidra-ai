@@ -341,8 +341,11 @@ function drawRoundEnd(){if(!RCV)return;
   c.save();c.fillStyle='SCRIM_TOKEN'+'cc';c.fillRect(0,H/2-52,W,104);
   c.fillStyle='INK_TOKEN';c.textAlign='center';
   c.font='22px ui-monospace,monospace';c.fillText('ここまで',W/2,H/2-10);
-  c.font='13px ui-monospace,monospace';
-  c.fillText('R / タップでもう一度',W/2,H/2+22);
+  /* The verdict lands at once; the ask waits out the quiet beat with the
+     rest of the chrome (§6 観察 8, C-1382). R itself works throughout. */
+  if(ROUND_END_FRAMES>ROUND_HOLD){
+    c.font='13px ui-monospace,monospace';
+    c.fillText('R / タップでもう一度',W/2,H/2+22)}
   c.textAlign='left';c.restore()}
 /* The clock only ever fires over a game that had *not* finished, so there
    is no end screen to preserve: re-running the page is the whole restart,
@@ -354,19 +357,40 @@ function roundRestart(){if(!ROUND_DONE)return;
 addEventListener('keydown',function(e){
   if(ROUND_DONE&&(e.key==='r'||e.key==='R')){roundRestart()}});
 if(RCV){RCV.addEventListener('pointerdown',function(){if(ROUND_DONE){roundRestart()}})}
+/* The ending's quiet beat (§6 観察 8, C-1382): the verdict - the
+   template's own win/lose screen, or the clock's banner - lands at once,
+   but the shared chrome waits 45 frames, so the fanfare (C-1326, ~30f)
+   finishes over the scene it earned rather than under two bars of
+   「R でもう一度」. The bank does NOT wait: it moves to the ending's
+   first frame, so an R pressed inside the quiet still keeps the record. */
+const ROUND_HOLD=45;
+let ROUND_END_FRAMES=0;
 /* Outermost wrapper, installed after the pad: the banner has to be the last
    thing drawn, and holding the frame must not stop the loop. */
+/* Counted AFTER the template's frame, in the same spot the strip used to
+   draw: a template that ends on its very last scheduled frame still gets
+   its bank on that frame (the old behaviour), and only the drawing
+   waits. */
+function roundEndBeat(){
+  if(ROUND_DONE||roundEnded()){
+    if(ROUND_END_FRAMES===0){try{roundBank()}catch(e){}}
+    ROUND_END_FRAMES++}
+  else{ROUND_END_FRAMES=0}}
 const ROUND_RAF=requestAnimationFrame;
 requestAnimationFrame=function(fn){
   return ROUND_RAF(function tick(t){
     roundTick(t);
-    if(ROUND_DONE){drawRoundEnd();drawResultStrip();ROUND_RAF(tick);return}
+    if(ROUND_DONE){roundEndBeat();drawRoundEnd();
+      if(ROUND_END_FRAMES>ROUND_HOLD){drawResultStrip()}
+      ROUND_RAF(tick);return}
     fn(t);
+    roundEndBeat();
     /* Over the template's own frame, so the badge is not painted under the
        game (C-1417). It draws nothing at all until the last ten seconds. */
     drawRoundClock();
-    /* The template drew its own ending; the strip goes on top of it. */
-    if(roundEnded()){drawResultStrip()}})};
+    /* The template drew its own ending; the strip goes on top of it,
+       after the quiet beat. */
+    if(roundEnded()&&ROUND_END_FRAMES>ROUND_HOLD){drawResultStrip()}})};
 /* --- the result that leads back in (§8 事実 3) ------------------------ */
 const ROUND_KEY='sidra.best.'+ROUND_NAME_TOKEN,ROUND_LABEL=ROUND_LABEL_TOKEN;
 let ROUND_FINAL=null,ROUND_BEST=null,ROUND_RECORD=false,ROUND_BANKED=false;
@@ -553,6 +577,7 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   c.textAlign='left';c.restore()}
 function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   tie:roundTieFacts(),
+  endFrames:ROUND_END_FRAMES,hold:ROUND_HOLD,banked:ROUND_BANKED,
   ended:roundEnded(),limit:ROUND_LIMIT_MS,
   score:ROUND_FINAL,best:ROUND_BEST,record:ROUND_RECORD,
   live:roundScore(),
@@ -778,6 +803,8 @@ def preamble_for(template: str) -> str:
 
 
 __all__ = [
+    "HOLD_PROBE",
+    "hold_probe_source",
     "PREAMBLE_NAMES",
     "PROBE",
     "TICK_PROBE",
@@ -869,6 +896,85 @@ console.log(JSON.stringify({
   store: hStore,
 }));
 """
+
+
+#: The quiet beat, watched (§6 観察 8, C-1382): the round is played to its
+#: break, and the strip must be absent just after it, present after the
+#: hold - while the bank has already happened inside the quiet.
+HOLD_PROBE = """
+const roundNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : roundNothing),
+  apply: () => roundNothing, set: () => true });
+const roundKeys = [];
+globalThis.matchMedia = () => ({ matches: false });
+let roundClock = 0;
+globalThis.performance = { now: () => roundClock };
+const roundPointers = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') roundKeys.push(fn) };
+globalThis.Image = function(){ return roundNothing };
+const roundStore = {};
+globalThis.localStorage = {
+  getItem: (k) => (k in roundStore ? roundStore[k] : null),
+  setItem: (k, v) => { roundStore[k] = String(v) },
+  removeItem: (k) => { delete roundStore[k] } };
+const roundText = [];
+globalThis.location = { reload(){} };
+globalThis.document = { readyState: 'complete',
+  createElement: () => roundNothing, querySelector: () => null,
+  getElementById: () => ({
+    width: 720, height: 320, style: {},
+    addEventListener: (type, fn) => {
+      if (type === 'pointerdown') roundPointers.push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => new Proxy({
+      fillText: (t) => { roundText.push(String(t)) },
+      fillRect: () => {} }, {
+      get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : roundNothing)),
+      set: () => true }) }) };
+let roundQueued = null;
+globalThis.requestAnimationFrame = (fn) => { roundQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function roundRun(frames){
+  for (let i = 0; i < frames && roundQueued; i++) {
+    const fn = roundQueued; roundQueued = null;
+    roundClock += 50 / 3;
+    fn(roundClock);
+  }
+}
+function roundKey(k){ roundKeys.forEach(fn => fn({ key: k,
+  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+/* Through the gate, then one real cast so the round is somebody's. */
+roundKey(' ');
+roundRun(30);
+roundKey(' ');
+/* To the break. */
+let guard = 0;
+while (!(roundFacts().done || roundFacts().ended) && guard++ < 12000) roundRun(1);
+const atEnd = roundFacts();
+/* The shared strip's own marker: only it says 自己ベスト. A template's
+   verdict screen may carry its own retry line - that is the verdict, and
+   the claim leaves it immediate; the quiet is about the shared chrome. */
+const strip = (line) => line.indexOf('自己ベスト') >= 0;
+const ask = (line) => line.indexOf('もう一度') >= 0;
+/* Just inside the quiet: no chrome, but the bank already closed. */
+roundText.length = 0;
+roundRun(10);
+const early = { strip: roundText.some(strip), ask: roundText.some(ask),
+  banked: roundFacts().banked,
+  bestKept: Object.keys(roundStore).some(k => k.indexOf('sidra.best.') === 0) };
+/* Past the hold: the chrome arrives. */
+roundRun(50);
+const late = { strip: roundText.some(strip), ask: roundText.some(ask),
+  endFrames: roundFacts().endFrames };
+console.log(JSON.stringify({ broke: atEnd.done || atEnd.ended,
+  hold: atEnd.hold, early: early, late: late, score: roundFacts().score }));
+"""
+
+
+def hold_probe_source(script: str) -> str:
+    """The page's own script, wrapped so the quiet beat can be watched."""
+
+    return HOLD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
 def history_probe_source(
