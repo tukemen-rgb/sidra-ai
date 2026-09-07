@@ -96,6 +96,20 @@
   なら「どちらかが必ず 3:1」が全セルで成立**（実測最悪 4.79:1）。
 - SIDRA での反映先: C-1388（パッドの 2 重リングとグリフの ink 化・
   判定器 creation_pad_visible）
+- 事実（増築 2026-09-07・辛口クリエイターループ。URL は同日に実際に開いて
+  確認）: GAG 中級に**「Provide an option to turn off / hide background
+  movement」**——背景の動きを切るオプションの提供——が Cognitive と
+  Vision の**両カテゴリに同文で**載っている（動きが認知負荷と視覚の
+  両方に効くという整理）。
+  （出典: https://gameaccessibilityguidelines.com/full-list/）
+- 学び: SIDRA の REDUCED は OS の prefers-reduced-motion **のみ**を読む。
+  OS 設定に手が届かない人（借り物の端末・学校の PC・設定の場所を知らない
+  人）には動きを減らす手段がゼロ——調整パネルは音量・振動という「部屋に
+  要らないチャンネル」を既に持つのに、第 3 のチャンネル＝動きだけが無い。
+  OS 設定は約束なので **パネルは足す方向にだけ効く**（OS が reduce なら
+  パネルで戻せない・OR 結合）が正しい。
+- SIDRA での反映先: C-1393（調整パネルの「動きを減らす」スイッチ・
+  判定器 creation_motion_switch）
 - SIDRA での反映先: C-1018（コントラスト・ドア標識・水配置）**→ 反映済み 2026-08-29（C-1018 完了: 壁に縁の形・扉にシェブロン・池を実配置）** / C-1019（仮想パッド、
   48dp 以上・reduced-motion と両立）**→ 反映済み 2026-08-29（C-1019 完了: 56px の
   ボタンを 12px 間隔で canvas 内に描画。合成 KeyboardEvent でテンプレ側の
