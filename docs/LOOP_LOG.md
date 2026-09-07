@@ -8741,3 +8741,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 06:20 UTC 辛口クリエイター C-1377 完了（81 巡目・観点 §6 前回=§5・研究増築なし・creation_duel_hit_beats unmeasurable→2・両決闘者に hurt8/smoke34 を移植し実対戦の一撃で 3 段を実測・破壊 3 通り検出・pytest 4023 緑・gate MISS 0・judge exit 0）
 
 2026-09-07 06:14 UTC 辛口ユーザー started（79 巡目・別面 予定=/v1/retrieve 生検索経路を一般利用者として点検（redaction/抜粋/スコア表示の正直さ）・前回=改訂フロー丁寧依頼 C-1463）
+
+2026-09-07 06:22 辛口ユーザー 79 巡目 no-op（起票なし）: 実読で 7 面を点検し全て堅牢＝<6 の欠陥が出ず。①/v1/retrieve（抜粋/本文を返さず provenance+score のみ・ゲート審査・無根拠は正直に reason）②アート pattern 選択（flow/軌道 とも選択可・既定は開示）③GIF 実バイナリ（GIF89a・120x90・10 フレーム・NETSCAPE ループ＝要約と一致）④回答の [S#] ラベルと引用の対応が一致⑤作成要求もゲート審査後のみ routing（injection 要求は quarantine で不生成・出力ガードも通す）⑥ますか veto の丁寧依頼漏れは creation/revision の 2 箇所のみで両方修正済み＝第 3 の検出器は無し⑦/v1/index は content-free・認証付き・audit 耐久性を開示。弱い起票より no-op。前回=改訂フロー丁寧依頼 C-1463
