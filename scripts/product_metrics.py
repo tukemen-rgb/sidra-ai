@@ -7800,6 +7800,66 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a blow on either duelist reads in three beats (§6, C-1377) -----
+    #
+    # The third body built on §6's boss grammar took its blows in one
+    # beat: screen flash, squash, burst - no body flash, no smoke. Now
+    # both duelists carry the kaiju leg's numbers (hurt 8, smoke 34),
+    # and the probe lands one REAL volley on each: the player's beam by
+    # the trigger-time rule, then the CPU's own volley on the player.
+    from sidra_ai.creation.duel import beat_probe_source as _duel_beats
+
+    dbeat_gaps: list[str] = []
+    _db_page = generate_game("ゲームを作って", template="duel").html
+    _db_m = _scene_re.search(r"<script>(.*?)</script>", _db_page, _scene_re.S)
+    if _db_m is None:
+        dbeat_gaps.append("no script on the page")
+    else:
+        try:
+            _db_run = _scene_sp.run(
+                ["node", "-"],
+                input=_duel_beats(_db_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _db_run.returncode != 0:
+                raise ValueError(_db_run.stderr.strip()[:60])
+            _db = json.loads(_db_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            _db = None
+            dbeat_gaps.append(f"probe unavailable ({exc})")
+        if _db is not None:
+            for _db_who, _db_label in (("e", "the enemy"), ("p", "the player")):
+                _db_t = _db.get(_db_who)
+                if not _db_t:
+                    dbeat_gaps.append(f"no blow ever landed on {_db_label}")
+                    continue
+                if not _db_t["hurtFrames"]:
+                    dbeat_gaps.append(f"{_db_label}'s blow never flashes the body")
+                if not _db_t["smokeFrames"]:
+                    dbeat_gaps.append(f"{_db_label}'s smoke never lingers")
+                elif _db_t["smokeAfterHurt"] < 15:
+                    dbeat_gaps.append(
+                        f"{_db_label}'s smoke dies with the flash "
+                        f"({_db_t['smokeAfterHurt']} frames past it)"
+                    )
+                if _db_t["smokeLeft"]:
+                    dbeat_gaps.append(f"{_db_label}'s smoke never clears")
+    c.add(
+        "creation_duel_hit_beats",
+        "決闘の被弾が両者とも 3 段で読める",
+        0.0 if dbeat_gaps else 2.0,
+        detail=(
+            "; ".join(dbeat_gaps)
+            if dbeat_gaps
+            else "実対戦で両者に 1 発ずつ当てて 70f を読む: 体の白閃が立ち、"
+            "煙が閃光より 26f 長く残り、煙も晴れて体が再登場（§6 観察 2・"
+            "kaiju の脚と番人と同じ実測値 hurt 8/smoke 34）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the monster wakes before it fights (§6 観察 3, C-1357) ---------
     #
     # The film's escalation opens every encounter: cracks run, a dust

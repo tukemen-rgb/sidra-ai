@@ -119,7 +119,14 @@ let p,e,state,winner,flash,spark,mash;
    Counting only - the damage and the CPU are untouched by these lines. */
 let lostBeam,lostClash;
 function fighter(x){return {x:x,lane:1,hp:3,charge:0,beam:0,beamLane:1,hold:false,
-  think:0,hitLock:false,over:0,stun:0,aim:-1,fireAt:0,sq:1}}
+  think:0,hitLock:false,over:0,stun:0,aim:-1,fireAt:0,sq:1,hurt:0,smoke:0}}
+/* A blow reads in three beats (§6 観察 2, C-1377): flash, smoke that
+   stays, the silhouette back out of it - the kaiju leg's numbers
+   (C-1032) and the guardian's (C-1343), now on both duelists. The
+   third boss grammar was built on stayed one beat short. */
+function beatTick(f){if(f.hurt>0)f.hurt--;if(f.smoke>0)f.smoke--}
+function beatFacts(){return {p:{hurt:p.hurt,smoke:p.smoke},
+  e:{hurt:e.hurt,smoke:e.smoke}}}
 /* Squash & stretch for the fighters (§1, C-1358): the jump got it in
    C-1332 and the basket in C-1341, and the duel - whose whole loop is
    the exchange of impacts - stayed rigid. Three verbs write it: holding
@@ -202,6 +209,7 @@ function cpu(){if(e.stun>0){e.stun--;return}
       e.beam=e.charge;
       e.charge=0;if(flashGate())flash=1;sfx('fire')}}}
 function hit(who){who.hp--;if(flashGate())flash=1;sfx('hurt');
+  who.hurt=8;who.smoke=34;
   if(!REDUCED){who.sq=0.7}
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
@@ -226,6 +234,7 @@ function step(){const now=performance.now();
       if(eB){e.beam-=2;if(e.beam<=0){if(e.hitLock){lostBeam++;hit(p)}e.beam=0;e.hitLock=false}}}}
   /* outside the play-guard so a knocked-out loser still settles upright */
   settleSq(p);settleSq(e);
+  beatTick(p);beatTick(e);
   draw(now);requestAnimationFrame(step)}
 function aura(x,y,r,c,now){const s=REDUCED?0:FRAME(4,6,now);
   cx.globalAlpha=0.25;cx.fillStyle=c;
@@ -288,8 +297,17 @@ function draw(now){
       if(cx.setLineDash)cx.setLineDash([7,7]);
       cx.beginPath();cx.moveTo(PX+30,ly);cx.lineTo(EX-30,ly);cx.stroke();
       if(cx.setLineDash)cx.setLineDash([]);cx.lineWidth=1}}
-  body(PX,LANES[p.lane],'CYAN_TOKEN',true,faceFacts(),p.sq);
-  body(EX,LANES[e.lane],'MAGENTA_TOKEN',false,undefined,e.sq);
+  /* Beat one: the blow turns the body white for eight frames - the same
+     state paint as the kaiju leg's, not a strobe (§6 観察 2, C-1377). */
+  body(PX,LANES[p.lane],p.hurt>0?'#dfe7f5':'CYAN_TOKEN',true,faceFacts(),p.sq);
+  body(EX,LANES[e.lane],e.hurt>0?'#dfe7f5':'MAGENTA_TOKEN',false,undefined,e.sq);
+  /* Beat two: smoke that outlives the flash, fading where the hit
+     landed; beat three is the body already drawn, re-emerging as it
+     thins. Same 34-frame envelope as the other two bosses. */
+  [[p,PX],[e,EX]].forEach(pair=>{const f=pair[0];
+    if(f.smoke>0){cx.fillStyle='#dfe7f5';cx.globalAlpha=f.smoke/70;
+      cx.beginPath();cx.arc(pair[1],LANES[f.lane],24,0,6.283);cx.fill();
+      cx.globalAlpha=1}});
   beamDraw(p,PX+14,1,'CYAN_TOKEN',now);
   beamDraw(e,EX-14,-1,'MAGENTA_TOKEN',now);
   cx.fillStyle='CYAN_TOKEN';
@@ -706,6 +724,8 @@ __all__ = [
     "DUEL_TITLE",
     "DUEL_WORDS",
     "AIM_PROBE",
+    "BEAT_PROBE",
+    "beat_probe_source",
     "FACE_PROBE",
     "face_probe",
     "SQUASH_PROBE",
@@ -815,3 +835,61 @@ def loss_probe_source(script: str, *, mode: str = "beam", frames: int = 4000) ->
         .replace("MODE_INPUT", json.dumps(mode))
         .replace("FRAMES_INPUT", str(int(frames)))
     )
+
+
+#: A real volley on each duelist, and the sixty frames after it (§6 観察 2,
+#: C-1377): the player's beam lands on the enemy through the trigger-time
+#: rule, then the CPU's own volley lands on the player, and each blow must
+#: flash the body, leave smoke that outlives the flash, and clear.
+BEAT_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const keyHandlers = [];
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') keyHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
+const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+keyHandlers.forEach(fn => fn(press));
+run(2);
+/* Watch one fighter for seventy frames after its hp drops. */
+function watch(f, hpBefore){
+  const trace = { hurtFrames: 0, smokeFrames: 0, smokeAfterHurt: 0, smokeLeft: 0 };
+  for (let i = 0; i < 70; i++) { run(1);
+    const b = beatFacts()[f];
+    if (b.hurt > 0) trace.hurtFrames++;
+    if (b.smoke > 0) { trace.smokeFrames++; if (b.hurt <= 0) trace.smokeAfterHurt++ } }
+  trace.smokeLeft = beatFacts()[f].smoke;
+  return trace;
+}
+/* The player's volley, by the trigger-time rule: charge, stand the CPU in
+   the lane, fire. The CPU is stunned so nothing else moves the board. */
+p.hold = true; run(40);
+e.stun = 400; e.lane = p.lane; e.hold = false; e.beam = 0;
+fire(p);
+let eTrace = null, guard = 0;
+while (e.hp === 3 && guard++ < 120) run(1);
+if (e.hp < 3) eTrace = watch('e', 3);
+/* Then the CPU's own volley on the player: stand still and take it. */
+e.stun = 0;
+let pTrace = null; guard = 0;
+while (p.hp === 3 && guard++ < 2000) run(1);
+if (p.hp < 3) pTrace = watch('p', 3);
+console.log(JSON.stringify({ e: eTrace, p: pTrace,
+  eHp: e.hp, pHp: p.hp }));
+"""
+
+
+def beat_probe_source(script: str) -> str:
+    """The page's own script, wrapped so a blow on each duelist is read."""
+
+    return BEAT_PROBE.replace("SCRIPT_PLACEHOLDER", script)
