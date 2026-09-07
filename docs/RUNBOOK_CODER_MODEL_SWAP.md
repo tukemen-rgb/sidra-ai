@@ -1,5 +1,26 @@
 # RUNBOOK: 7B コード特化モデルへの載せ替え（GTX 1660 Ti 6GB）
 
+> **2026-09-07 追記（帰国日はこの節だけで足りる）**: この文書が書かれた後に
+> `scripts/setup_real_model.py` ができたので、手順 4〜6（manifest の手書きと
+> admission の手計算）は**全部自動化済み**。帰国日の実手順は:
+>
+> ```
+> cd C:\sidra\sidra-ai
+> git pull
+> ollama pull qwen2.5-coder:7b-instruct-q4_K_M
+> py scripts\setup_real_model.py --model qwen2.5-coder:7b-instruct-q4_K_M
+> ```
+>
+> スクリプトが実測（サイズ・量子化・空き VRAM）→ 収まる最大 context を選択
+> → manifest を書く → **サーバーと同じ審査をその場で通す**まで一気にやる。
+> `NG 空き VRAM が足りません` と出たら、それがこの文書 §0 の算数の答えなので
+> 載せない（次候補: `qwen2.5-coder:7b-instruct-q4_0` → それも NG なら 3B 続行。
+> 参考: 2026-09-02 の実測では空き 5,449 MiB で、q4_K_M 7B は際どい）。
+> 審査が通ったら仕上げに前後比較:
+> `py scripts\check_model_answers.py --base http://127.0.0.1:8787`
+> （3B の初回測定がまだなら、載せ替え**前**に 1 回・**後**に 1 回で差が見える）。
+> 戻すときは `--model qwen2.5:3b-instruct-q4_K_M` で再実行するだけ。
+
 `docs/RUNBOOK_FIRST_REAL_ANSWER.md` で `qwen2.5:3b-instruct-q4_K_M` が
 動いている状態からの**差分**手順。目的はコード生成の質を上げること。
 実行するのは社長の PC。**この文書は測っていない数字を書かない。**
