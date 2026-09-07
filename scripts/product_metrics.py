@@ -941,6 +941,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1457: the Japanese twin of C-1452. role_reassignment_ja fired on
+    # 「(今から|これから)あなたは…」 and 「…として振る舞う」 regardless of the role, so
+    # ordinary Japanese prose was quarantined. It now requires the new role to
+    # be an AI/assistant persona or a restriction-removal marker; recall
+    # unchanged (no MUST_CATCH case leans on this detector alone).
+    from sidra_ai.evals.gate_role_reassignment_ja_targets_the_assistant import (
+        evaluate_gate_role_reassignment_ja_targets_the_assistant,
+    )
+
+    gate_role_ja = evaluate_gate_role_reassignment_ja_targets_the_assistant()
+    c.add(
+        "gate_role_reassignment_ja_targets_the_assistant",
+        "安全性ゲートが正当な『今からあなたは〜/…として振る舞う』を通し乗っ取りだけ止める",
+        10.0 * gate_role_ja.checks_passed / gate_role_ja.checks_total,
+        detail=f"{gate_role_ja.checks_passed}/{gate_role_ja.checks_total} checks; "
+               "src/sidra_ai/evals/gate_role_reassignment_ja_targets_the_assistant.py"
+               + ("" if gate_role_ja.passed else "; " + "; ".join(gate_role_ja.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

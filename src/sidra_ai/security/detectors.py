@@ -575,7 +575,27 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
     ),
     (
         "role_reassignment_ja",
-        re.compile(r"(今から|これから)あなたは|として(振る舞|ふるま)"),
+        # C-1457: the Japanese twin of C-1452. 「(今から|これから)あなたは…」 and
+        # 「…として振る舞う」 alone matched any role, so ordinary Japanese prose -
+        # 「今からあなたは正式なチームメンバーです」「会議のファシリテーターとして
+        # 振る舞ってください」「彼は当番として振る舞った」 - was quarantined. A
+        # reassignment is only a takeover when the new role is an AI/assistant
+        # persona or a restriction-removal marker, so both shapes now require
+        # such a target nearby. No MUST_CATCH case relies on this detector
+        # (the ja injection case is caught by override_instructions_ja and
+        # exfiltration_ja), so recall is unchanged - verified.
+        re.compile(
+            r"(?:今から|これから)あなたは[^。\n]{0,20}?"
+            r"(?:AI|エーアイ|エージェント|アシスタント|チャットボット|(?<!ロ)ボット|"
+            r"言語モデル|GPT|Claude|claude|DAN|"
+            r"無制限|制限の(?:ない|無い)|制約の(?:ない|無い)|フィルタ(?:ー)?なし|"
+            r"検閲なし|ジェイルブレイク|脱獄|制限を(?:無視|解除)|ルールを無視)"
+            r"|(?:AI|エーアイ|エージェント|アシスタント|チャットボット|(?<!ロ)ボット|"
+            r"言語モデル|GPT|Claude|claude|DAN|"
+            r"無制限|制限の(?:ない|無い)|制約の(?:ない|無い)|フィルタ(?:ー)?なし|"
+            r"検閲なし|ジェイルブレイク|脱獄|制限を(?:無視|解除)|ルールを無視)"
+            r"[^。\n]{0,8}?として(?:振る舞|ふるま)"
+        ),
         Severity.HIGH,
         "attempts to reassign the assistant's role (Japanese)",
     ),
