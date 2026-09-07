@@ -704,6 +704,13 @@ URL はすべて 2026-09-03 に実際に開いて確認。
   「Camera kick [25:09]」。撃った瞬間の体の反動は、当たった瞬間の
   knockback（17:15）と別の項目として数えられている。
   （出典: https://theengineeringofconsciousexperience.com/jan-willem-nijman-vlambeer-the-art-of-screenshake/）
+- 事実 4（増築 2026-09-07・辛口クリエイターループ。事実 1 と同じ技法表
+  ページを同日に再確認）: 弾の視覚は連続する 3 項目で並ぶ——「bigger
+  bullets [10:13]」「**muzzle flash [10:39]**」「faster bullets
+  [10:58]」。銃口の閃光は反動（19:52）とも弾そのものとも独立の 1 項目で、
+  発射の**瞬間**を銃口の位置で光らせる。SIDRA は弾（3×10/4×10）・反動
+  （C-1380）・軌跡（C-1389）まで持つが、銃口では何も光らない。
+  （出典: 同上）
 - 学び: SIDRA の Juice は瞬間側が完備（C-1032〜/C-1105/C-1343…）だが、
   **撃破の 0.5 秒後には何も無かったことになる**——shooter の敵は
   `hp>0` の filter で撃破フレームに配列から消え、adventure の敵は
