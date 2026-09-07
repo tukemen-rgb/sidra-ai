@@ -7661,6 +7661,30 @@ C-12xx/13xx/14xx はループ用のまま）。
 
 ### E. 判断が要る（実装せず、社長の判断を待つ）
 
+- [ ] **要判断: PII 検出が RFC 2606 のドキュメント用予約ドメイン（example.com/.org/.net・
+      .test/.invalid/.localhost）のメールを本物の個人情報として扱う——README の
+      プレースホルダ `user@example.com` を含む普通の文書が quarantine される一方、
+      これらは「安全に書ける PII テスト用の代役ドメイン」でもあり、免除するかは
+      トレードオフ。**（2026-09-07 14:xx UTC 辛口ユーザー 88 巡目・実装を試みたが
+      巻き戻して社長判断へ）
+      実測（実 `PIIDetector`）: 「the sample email in docs is user@example.com」が
+      email（HIGH→quarantine）。example.com 等は RFC 2606 が文書用に予約し実在の人に
+      割り当てられないので、取り込み観点では明確な誤検知（README が索引されない）。
+      **しかし実装して分かった強い反対理由**: 既存の安全性テスト 8 本
+      （test_data_not_instructions・test_fetch_ingestion_bridge・
+      test_quarantine_precision_measurement・test_security_redaction_overlap）は
+      `person@example.invalid` 等の**予約ドメインを「安全に書ける個人情報の代役」**
+      として使い、OutputGuard がそれを**ブロック/秘匿する**ことを検証している。
+      PIIDetector の severity は 1 つで、取り込み隔離と出力ガードの両方を駆動するため、
+      予約ドメインを LOW に落とすと出力ガードが予約ドメインのメールをブロックしなくなり
+      （＝生成回答での漏洩防止がその分緩む）、かつ PII をテストする安全な代役ドメインが
+      無くなる。取り込み FP を消すには「取り込みと出力で severity 閾値を分ける」等の
+      構造変更が要り、最小修正ではない。**判断事項**: ①現状維持（予約ドメインも PII
+      として保守的に隔離＝README プレースホルダは人手レビュー）か、②取り込みだけ免除し
+      出力ガードは維持する構造分離を入れるか。①なら「弱い起票より no-op」でこのまま、
+      ②なら設計変更として別途。（役割/noreply の LOW は現状どおり・電話/カード/My Number
+      は無関係）
+
 - [ ] **要判断: レポート生成の話題フィルタ（C-1403 `on_topic`）が、進捗レポートの
       肝心な数字を「主題と重ならない」として外す。**（2026-09-07 04:xx UTC
       辛口ユーザー 76 巡目・実装せず社長判断へ）
