@@ -1280,6 +1280,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1478: build_slides leaves a fact that matches no section's cue off every
+    # slide - the right conservative call - but silently, so a deck built from
+    # five facts could show two and quietly drop three, reading as the whole
+    # picture. The footer now discloses that some evidence did not fit, the way
+    # the report discloses its set-aside evidence (C-1281).
+    from sidra_ai.evals.deck_discloses_omitted_facts import (
+        evaluate_deck_discloses_omitted_facts,
+    )
+
+    deck_omitted = evaluate_deck_discloses_omitted_facts()
+    c.add(
+        "deck_discloses_omitted_facts",
+        "デッキがどのスライドにも載らなかった根拠を黙って捨てず開示する",
+        10.0 * deck_omitted.checks_passed / deck_omitted.checks_total,
+        detail=f"{deck_omitted.checks_passed}/{deck_omitted.checks_total} checks; "
+               "src/sidra_ai/evals/deck_discloses_omitted_facts.py"
+               + ("" if deck_omitted.passed else "; " + "; ".join(deck_omitted.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

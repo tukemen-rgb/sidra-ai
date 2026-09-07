@@ -288,8 +288,10 @@ def _bullets_for(
     return bullets, sources, tuple(hits)
 
 
-def build_slides(outline: DeckOutline, facts: list[Fact]) -> tuple[Slide, ...]:
-    """One slide per section. Sections with no evidence keep their blank.
+def build_slides(
+    outline: DeckOutline, facts: list[Fact]
+) -> tuple[tuple[Slide, ...], list[Fact]]:
+    """One slide per section, and the facts that were actually placed.
 
     A fact is claimed by the first section that takes it and hidden from the
     rest: filling every section from the whole list put a fact that matched two
@@ -297,6 +299,12 @@ def build_slides(outline: DeckOutline, facts: list[Fact]) -> tuple[Slide, ...]:
     at once, so a deck's 解決 and 根拠 slides repeated the same paragraph
     (C-1237). Section order is the priority; a later slide with nothing of its
     own left keeps its honest blank rather than borrowing another's evidence.
+
+    The placed facts are returned too (C-1478): a fact whose text matches no
+    section's cue is deliberately left out - a passage that does not answer a
+    heading must not sit under it - but the caller has to know some evidence was
+    dropped so the artifact can disclose it, the way the report discloses its
+    set-aside evidence (C-1281). ``used`` is exactly what landed on a slide.
     """
 
     slides: list[Slide] = []
@@ -306,7 +314,7 @@ def build_slides(outline: DeckOutline, facts: list[Fact]) -> tuple[Slide, ...]:
         bullets, sources, chosen = _bullets_for(section, available)
         used.extend(chosen)
         slides.append(Slide(title=section, bullets=bullets, sources=sources))
-    return tuple(slides)
+    return tuple(slides), used
 
 
 def _no_external_assets(html: str) -> bool:
@@ -316,8 +324,20 @@ def _no_external_assets(html: str) -> bool:
     return "@import" not in html
 
 
-def _render(title: str, slides: tuple[Slide, ...], theme: Theme) -> str:
+def _render(
+    title: str, slides: tuple[Slide, ...], theme: Theme, omitted: bool = False
+) -> str:
     t = theme.tokens
+    # C-1478: a fact whose text matched no section's cue was left out of every
+    # slide - the right conservative call - but silently, so the deck read as
+    # the whole picture. Disclosed here the way the report discloses its
+    # set-aside evidence (C-1281): that some evidence did not fit, no figure.
+    omitted_note = (
+        "どのスライドにも当てはまらなかった根拠は載せていません"
+        "（見出しに沿う内容だけを配置しています）。"
+        if omitted
+        else ""
+    )
     blocks = []
     for index, slide in enumerate(slides, start=1):
         bullets = "".join(f"<li>{escape(b)}</li>" for b in slide.bullets)
@@ -361,7 +381,7 @@ footer{{margin-top:24px;border-top:1px solid {t["border"]};padding-top:14px;
 <h1>{escape(title)}</h1>
 {"".join(blocks)}
 <footer>SIDRA AI が生成。数字は索引した文書から引いたものだけを載せ、
-根拠が無い欄は {escape(BLANK)} のまま残しています（推測で埋めません）。</footer>
+根拠が無い欄は {escape(BLANK)} のまま残しています（推測で埋めません）。{omitted_note}</footer>
 </main></body></html>
 """
 
@@ -382,9 +402,11 @@ def generate_deck(
     if key not in OUTLINES:
         raise KeyError(f"unknown deck outline: {key!r}")
     spec = OUTLINES[key]
-    slides = build_slides(spec, list(facts or []))
+    provided = list(facts or [])
+    slides, used = build_slides(spec, provided)
+    omitted = any(fact not in used for fact in provided)
     title = _title_from(request, spec.default_title)
-    html = _render(title, slides, select_theme(request))
+    html = _render(title, slides, select_theme(request), omitted=omitted)
     unfilled = tuple(slide.title for slide in slides if slide.blanks)
     return GeneratedDeck(key, title, slides, html, unfilled)
 
