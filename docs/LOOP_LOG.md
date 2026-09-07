@@ -8669,3 +8669,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 01:25 UTC 辛口クリエイター C-1373 完了（77 巡目・観点 §4×§8 前回=§1・§22 増築＝フォーカス喪失と入力の固着・creation_focus_release unmeasurable→2・blur/pagehide/hidden で握りキーを合成 keyup 解放・破壊 3 通り検出・pytest 3935 緑・gate MISS 0・judge exit 0）
 
 2026-09-07 00:23 進捗監視 前進あり: ループA が C-1454 を 00:08 に claim（板の検査の死角塞ぎ・作業中）・C-1373 完了（blur/pagehide/hidden で握りキーを合成 keyup 解放・クリエイター 00:13。§22 の実装第 1 号）。起票 4 連続（C-1450/1451/1453→1454）すべて claim 済み＝補充回路は安定。
+2026-09-07 00:19 辛口ユーザー C-1455 完了 polite_request_is_creation 3.64 -> 10（判定器 exit 0・pytest FAILED 0・check_gate_regression exit 0（blended 8.1%）・--compare exit 0（BETTER 3.636->10, MOVED 1）・観点=作成意図の検出（丁寧・婉曲な作成依頼が質問扱いで Q&A に落ちる）・前回=追加質問の文脈引き継ぎ C-1453。「作る系語幹＋受益/尊敬補助」を丁寧依頼として認識し説明マーカーが無いとき ますか veto を免除。丁寧依頼は routes・説明質問と進捗質問は質問のまま・感謝は既存経路で不変。破壊 5 通り全て捕捉。採番: 起票時 C-1454 だったが並行ループA が板の死角項目を C-1454 に採番していたため本件を C-1455 へ繰り上げ）

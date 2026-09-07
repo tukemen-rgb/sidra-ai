@@ -899,6 +899,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1454: creation intent required a bare imperative ('作って') and treated
+    # 'ますか' as a question veto, so a polite request ('資料を作成いただけますか',
+    # 'アートを描いてください') - how Japanese operators actually phrase it - was
+    # answered as a Q&A instead of building the deliverable. The detector now
+    # reads a making stem plus a benefactive/honorific auxiliary as a request,
+    # while an explanation question ('作り方を教えて') still stays a question.
+    from sidra_ai.evals.polite_request_is_creation import (
+        evaluate_polite_request_is_creation,
+    )
+
+    polite_req = evaluate_polite_request_is_creation()
+    c.add(
+        "polite_request_is_creation",
+        "丁寧・婉曲な作成依頼（作成いただけますか等）が生成に接続する",
+        10.0 * polite_req.checks_passed / polite_req.checks_total,
+        detail=f"{polite_req.checks_passed}/{polite_req.checks_total} checks; "
+               "src/sidra_ai/evals/polite_request_is_creation.py"
+               + ("" if polite_req.passed else "; " + "; ".join(polite_req.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

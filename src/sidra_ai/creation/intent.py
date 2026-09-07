@@ -295,6 +295,36 @@ def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
     return best[1], best[2]
 
 
+#: A polite request to *make* the artifact, phrased as a courteous imperative
+#: or a request-question: a making stem directly followed by a benefactive or
+#: honorific auxiliary - 「作ってもらえますか」「作成いただけますか」「描いてください」.
+#: Japanese business requests are overwhelmingly phrased this way; the bare
+#: imperative 「作って」 is the exception, not the rule. The trailing 「ますか」 made
+#: the blunt question veto fire on every one of these (C-1454), so a polite
+#: 「資料を作成いただけますか」 was answered as a question instead of building the
+#: deck. Recognising the request lets the veto spare it. An explanation
+#: question ("作り方を教えてもらえますか") still loses: its stem is nominalised
+#: (作り方, not a te-form making verb) so this does not match it, and even if a
+#: request and an explanation are mixed, ``_EXPLANATION_QUESTION`` withdraws the
+#: exemption. The gratitude form 「作ってくれてありがとう」 is excluded because the
+#: benefactive branch requires a trailing 「か」 (a request), which it lacks.
+#: Written in hiragana and folded to katakana to match the normalised text.
+_POLITE_REQUEST = re.compile(fold_kana(
+    r"(?:作って|つくって|書いて|描いて|組んで|作成して|作成|制作して|制作|"
+    r"生成して|生成|用意して|用意|出力して|出力)"
+    r"(?:(?:ください|下さい|くださ|ちょうだい)"
+    r"|(?:もらえ|もらい|いただけ|いただき|頂け|頂き|くれ)[^。\n]{0,8}?か)"
+))
+
+#: Explanation-seeking markers that keep a message a question however politely a
+#: making-verb is wrapped. The subset of the veto markers that name *asking*
+#: rather than *courtesy*, so a polite request keeps its veto exemption only
+#: when none of these is present.
+_EXPLANATION_QUESTION = re.compile(fold_kana(
+    r"教えて|どうやって|どうすれば|方法|作り方|とは|は何|なぜ"
+))
+
+
 def detect_creation_intent(message: str) -> CreationIntent:
     """Classify one operator message.
 
@@ -314,13 +344,22 @@ def detect_creation_intent(message: str) -> CreationIntent:
     verb_hits = [verb for verb in _MAKE_VERBS if fold_kana(verb.casefold()) in text]
     verb_hits.extend(match.group(1).casefold() for match in _EN_VERB_PATTERN.finditer(text))
 
+    # A polite request ("作ってもらえますか") is a making-verb too, and one the
+    # bare _MAKE_VERBS list misses when the courtesy auxiliary swallows the te-
+    # form or replaces して. It only counts as a request when it is not also an
+    # explanation question.
+    polite_request = bool(_POLITE_REQUEST.search(text)) and not _EXPLANATION_QUESTION.search(text)
+    if polite_request:
+        verb_hits.append("polite_request")
+
     if not verb_hits:
         return CreationIntent(is_creation=False)
 
-    if question_hits:
+    if question_hits and not polite_request:
         # A making-verb inside a question is still a question. Reported as a
         # non-creation intent carrying its evidence, so the near miss is
-        # visible to anyone auditing why a message was not routed.
+        # visible to anyone auditing why a message was not routed. A polite
+        # request is exempt: its 「ますか」 is courtesy, not an asking verb.
         return CreationIntent(
             is_creation=False,
             confidence="vetoed",
