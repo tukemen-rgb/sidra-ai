@@ -1082,6 +1082,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1465: a deck's cover title is the operator's words minus the slide-kind
+    # word (C-1249/C-1282). But 「…のスライドをパワポで作って」 stacks two kind
+    # words, and stripping the kind and the particle once each left 「…をパワポ」
+    # on the cover. The title now peels the trailing particle and kind word
+    # until the tail is a real subject; the full 「パワーポイント」 was added too.
+    from sidra_ai.evals.deck_title_drops_format_words import (
+        evaluate_deck_title_drops_format_words,
+    )
+
+    deck_title = evaluate_deck_title_drops_format_words()
+    c.add(
+        "deck_title_drops_format_words",
+        "デッキの表題が体裁語（パワポ/スライド等）を残さない",
+        10.0 * deck_title.checks_passed / deck_title.checks_total,
+        detail=f"{deck_title.checks_passed}/{deck_title.checks_total} checks; "
+               "src/sidra_ai/evals/deck_title_drops_format_words.py"
+               + ("" if deck_title.passed else "; " + "; ".join(deck_title.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

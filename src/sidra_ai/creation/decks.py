@@ -134,10 +134,14 @@ def choose_outline(request: str) -> str:
 #: bare 「資料」 alone would leave 「プレゼン」 behind - and bare 「資料」 follows for
 #: 「企画資料」→「企画」. The document title already strips 「資料」; only the deck
 #: had missed it. Anchored to the tail, so 「資料設計の指針」 is untouched.
+#: C-1465: 「パワーポイント」 (the full spelling of 「パワポ」) and 「ppt」 were
+#: missing, so 「…をパワーポイントで作って」 kept the tool's name on the cover.
+#: Full forms are listed before the abbreviation, matching the longest-first
+#: convention above.
 _TITLE_KIND_SUFFIX = re.compile(
-    r"の?(?:プレゼンテーション資料|プレゼン資料|スライド資料|パワポ資料|ピッチ資料|デッキ資料"
-    r"|スライドショー|プレゼンテーション|ピッチデッキ|スライド|プレゼン|パワポ|デッキ|ピッチ|資料"
-    r"|slideshow|slides|slide|powerpoint|pptx|deck|pitch)$",
+    r"の?(?:プレゼンテーション資料|プレゼン資料|スライド資料|パワーポイント資料|パワポ資料|ピッチ資料|デッキ資料"
+    r"|スライドショー|プレゼンテーション|ピッチデッキ|パワーポイント|スライド|プレゼン|パワポ|デッキ|ピッチ|資料"
+    r"|slideshow|slides|slide|powerpoint|pptx|ppt|deck|pitch)$",
     re.IGNORECASE,
 )
 
@@ -153,15 +157,28 @@ def _title_from(request: str, fallback: str) -> str:
 
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって)", request)[0].strip()
     stripped = " ".join(stripped.split())
-    without_kind = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
-    # A dangling particle left where the kind word was ("提案の pptx"→"提案の")
-    # reads worse than the kind word did; drop it, as the document title does.
-    without_kind = re.sub(r"[をのはがにで]+$", "", without_kind).strip()
-    if not without_kind:
+    # Peel a trailing kind word and the particle before it, repeatedly. The most
+    # natural deck request phrases the format twice - 「…のスライドをパワポで作って」
+    # stacks two kind words with a particle between them - and stripping the kind
+    # once then the particle once dropped only the outer word, leaving 「…をパワポ」
+    # with the tool's name on the cover ``<h1>`` and ``<title>`` (C-1465). Drop
+    # the trailing particle first (a dangling 「提案の pptx」→「提案の」 reads worse
+    # than the kind word did, as the document title notes), then the kind word,
+    # and repeat until the tail is a real subject. Each pass only shrinks, so the
+    # equality check terminates it. A single kind word ("会議のスライドを作って")
+    # is unchanged - it settles in one pass.
+    peeled = stripped
+    while True:
+        step = re.sub(r"[をのはがにで]+$", "", peeled).strip()
+        step = _TITLE_KIND_SUFFIX.sub("", step).strip()
+        if step == peeled:
+            break
+        peeled = step
+    if not peeled:
         # The words were only a kind ("スライドを作って") or nothing: the outline's
         # default title is a better cover than 「スライド」 or a blank.
         return fallback
-    return without_kind[:60]
+    return peeled[:60]
 
 
 #: What a passage has to contain to belong under a section. Literal cues, no
