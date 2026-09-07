@@ -842,19 +842,92 @@ def undepicted_subject(request: str, template: str, asked_title: str) -> str:
     that named the genre are taken out. Nothing left means nothing was
     promised beyond the genre, and a caveat there would be its own
     dishonesty.
+
+    **The words are taken off the ENDS, never out of the middle (C-1503).**
+    The first version cut every occurrence wherever it fell and then removed
+    fillers the same way, which quoted the operator saying things they never
+    said: 「落ちてくるものをキャッチする」 came back as 「落ちてくるもをする」
+    - キャッチ gone from the middle, then the 「の」 inside 「もの」 taken with
+    the fillers - and 「忍者のアクション」 came back as 「忍者アクション」.
+    Trimming from the ends can only ever yield a run of the operator's own
+    characters, so the quote is theirs by construction rather than by luck.
+
+    A genre word still sitting INSIDE what is left means the subject and the
+    genre cannot be told apart here, and the honest answer is to say nothing:
+    the catch page above did honour 「キャッチ」, so a caveat naming the whole
+    phrase would be a second lie in the other direction.
+
+    What survives is then checked rather than trusted, because a substring
+    can still be debris. 「怪獣を倒す」 on the kaiju page left 「を倒す」 - a
+    real run of the request, and grammar rather than subject. A caveat
+    quoting a particle is the dishonesty this note exists to avoid.
     """
 
     if not asked_title:
         return ""
-    left = asked_title
+    left = asked_title.strip("「」\"' 　・")
+    genre_words: list[str] = []
     for _label, key, words in GENRES:
         if key != template and key in TEMPLATES:
             continue
-        for word in words:
-            left = re.sub(re.escape(word), "", left, flags=re.IGNORECASE)
-    for filler in ("みたいな", "みたいの", "っぽい", "風の", "風", "の", "な", "みたい"):
-        left = left.replace(filler, "")
-    return left.strip("「」\"' 　・")
+        genre_words.extend(words)
+
+    trimming = True
+    while trimming and left:
+        trimming = False
+        for word in genre_words + list(_SUBJECT_FILLERS):
+            if not word:
+                continue
+            lowered, target = left.lower(), word.lower()
+            if lowered.startswith(target):
+                left = left[len(word) :]
+            elif lowered.endswith(target):
+                left = left[: len(left) - len(word)]
+            else:
+                continue
+            left = left.strip("「」\"' 　・")
+            trimming = True
+            break
+
+    # A genre word still inside is a subject that cannot be quoted apart
+    # from it. Silence beats a caveat about a phrase the page did deliver.
+    if any(word and word.lower() in left.lower() for word in genre_words):
+        return ""
+    return left if _is_quotable_subject(left, request) else ""
+
+
+#: Removed only where they touch an end of the title - see
+#: ``undepicted_subject``. 「の」 is here and is exactly why the removal has
+#: to be anchored: taken from the middle it eats the one inside 「もの」.
+_SUBJECT_FILLERS: tuple[str, ...] = (
+    "みたいな", "みたいの", "っぽい", "風の", "みたい", "風", "の", "な",
+)
+
+#: Particles and other glue. A caveat that opens with one is quoting the
+#: shape of the sentence rather than what it was about (C-1503).
+_SUBJECT_GLUE: tuple[str, ...] = (
+    "を", "が", "に", "へ", "と", "で", "の", "は", "も", "や", "から", "まで",
+)
+
+
+def _is_quotable_subject(subject: str, request: str) -> bool:
+    """Whether this may be quoted back to the operator as their own words.
+
+    Two readings, each with a case behind it. It has to be **their** text -
+    a contiguous run of the request, so no assembled phrase can appear in
+    quotation marks - and it must not open with a particle, which is the
+    shape of the sentence rather than what it was about.
+
+    There is deliberately **no minimum length**. The item suggested rejecting
+    a single character as debris, and that was tried: it silenced 「猫」 and
+    「魚」, which are C-1205's own two examples and perfectly good subjects in
+    Japanese. A one-character residue that IS debris is a particle, and the
+    particle rule already has it.
+    """
+
+    if not subject or subject not in request:
+        return False
+    return not any(subject.startswith(glue) for glue in _SUBJECT_GLUE)
 
 
 def _no_external_assets(html: str) -> bool:

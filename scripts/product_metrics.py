@@ -14173,6 +14173,98 @@ def measure_creation(c: Collector) -> None:
             "分母は 10 ではなくこの数——届かない型を「合格」に数えない。"
         ),
     )
+
+    # --- 正直ノートは操作者自身の言葉を引く (C-1503) ------------------
+    # The caveat 「ただし「X」は絵として出てきません」 quotes the operator.
+    # X was assembled by deleting the genre word wherever it fell, so it
+    # quoted them saying things they never said: 「落ちてくるものをキャッチ
+    # する」 came back as 「落ちてくるもをする」.
+    #
+    # The rate is only half. A page that never printed the caveat would
+    # score 100% on it, and the caveat is a shipped honesty feature
+    # (C-1205), so the scenarios below include the two it was built for and
+    # the judge fails if they fall silent.
+    from sidra_ai.creation.games import undepicted_subject as _quote_subject
+
+    _QUOTE_ASKS = (
+        "落ちてくるものをキャッチするゲームを作って",
+        "怪獣を倒すゲームを作って",
+        "忍者のアクションゲームを作って",
+        "猫のゲームを作って",
+        "魚の 3D ゲームを作って",
+        "宇宙を旅するゲームを作って",
+        "犬が走るゲームを作って",
+        "ドラゴンを育てるゲームを作って",
+        "お寿司を集めるゲームを作って",
+        "雪山を滑るゲームを作って",
+        "宝石を拾うゲームを作って",
+        "ロボットと戦うゲームを作って",
+        "レースゲームを作って",
+        "ゲームを作って",
+    )
+    # The two the caveat exists for: a subject the page does not draw. If
+    # these stop being said, silence is being scored as faithfulness.
+    _QUOTE_MUST_SPEAK = ("猫のゲームを作って", "魚の 3D ゲームを作って")
+    _QUOTE_GLUE = ("を", "が", "に", "へ", "と", "で", "の", "は", "も", "や")
+
+    quote_said: dict[str, str] = {}
+    quote_bad: list[str] = []
+    quote_gaps: list[str] = []
+    for _quote_ask in _QUOTE_ASKS:
+        try:
+            with _quiet():
+                _quote_game = _tune_generate(_quote_ask)
+            _quote_sub = _quote_subject(
+                _quote_ask, _quote_game.template, _quote_game.asked_title
+            )
+        except Exception as exc:  # noqa: BLE001 - a caveat that raises is the finding
+            quote_gaps.append(f"{_quote_ask[:14]}: {type(exc).__name__}")
+            continue
+        if not _quote_sub:
+            continue
+        quote_said[_quote_ask] = _quote_sub
+        if _quote_sub not in _quote_ask:
+            quote_bad.append(f"「{_quote_sub}」は依頼に無い（{_quote_ask[:14]}）")
+        elif any(_quote_sub.startswith(g) for g in _QUOTE_GLUE):
+            quote_bad.append(f"「{_quote_sub}」は助詞で始まる（{_quote_ask[:14]}）")
+
+    silent = [ask for ask in _QUOTE_MUST_SPEAK if ask not in quote_said]
+    if silent:
+        quote_gaps.append(
+            "注釈そのものが消えた: " + "、".join(a[:14] for a in silent)
+            + "（黙れば率は 100% になる——それは直したことにならない）"
+        )
+    if not quote_said and not quote_gaps:
+        quote_gaps.append("注釈が 1 件も出ず、率を測れない")
+
+    faithful = len(quote_said) - len(quote_bad)
+    rate = 100.0 * faithful / len(quote_said) if quote_said else 0.0
+    c.add(
+        "creation_subject_quote_faithful",
+        "正直ノートの引用が依頼の連続部分文字列である率",
+        0.0 if (quote_gaps or quote_bad) else rate,
+        unit="%",
+        kind=OUTCOME,
+        min_move=0.5,
+        detail=(
+            "; ".join(quote_gaps + quote_bad)
+            if (quote_gaps or quote_bad)
+            else f"{len(_QUOTE_ASKS)} 通りの依頼を**実際に生成して**注釈を読み、"
+            f"注釈が出た **{len(quote_said)} 件すべて**で引用が"
+            "**依頼の連続部分文字列**であり、**助詞で始まらない**ことを確かめた。"
+            "ジャンル語を真ん中から抜くのをやめ、**端からだけ削る**ように"
+            "したので、引用は運ではなく**作りとして**操作者の文字列になる"
+            "（真ん中に残ったら主題と切り分けられないので**黙る**——"
+            "キャッチ型は「キャッチ」を実際に作っているので、"
+            "全文を引く注釈は逆向きの嘘になる）。"
+            "**両方向**: C-1205 が作られた 2 例（猫・魚の 3D）は"
+            "**今も注釈を出す**——黙るだけの実装なら率は 100% になるので、"
+            "沈黙を合格に数えない。"
+            "**長さの下限は置かない**: 起票は 1 文字を残骸として弾くよう"
+            "書いていたが、実装して測ると「猫」「魚」——C-1205 自身の 2 例——"
+            "が黙った。1 文字の残骸は助詞であり、助詞の規則が既に拾う。"
+        ),
+    )
     c.add(
         "creation_urgent_tick",
         "終盤の残り数秒が耳にも届く（画面・手に続く第 3 の通路）",
