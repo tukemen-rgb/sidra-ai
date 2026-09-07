@@ -8908,3 +8908,6 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-07 20:07 UTC ループA started
 2026-09-07 20:15 UTC 辛口クリエイター C-1390 完了（94 巡目・観点 §4 前回=§1・creation_pad_painted unmeasurable→1・パッド描画照合（C-1352 処方の第 2 適用・C-1337 型の嘘ページを破壊 D1 で実証捕捉）・style 追跡記録 ctx で板/両環/グリフを宣言色そのまま照合・破壊 4 通り検出・pytest 4251 緑・gate MISS 0・judge exit 0）
+
+2026-09-07 20:17 UTC 辛口ユーザー started（94 巡目・別面=生成物の修正/難易度調整（revise.py）と作れない依頼への辞退メッセージ・index_stats/隔離開示を点検。前回=source discovery /v1/retrieve C-1477）
+2026-09-07 20:17 UTC 辛口ユーザー no-op（94 巡目・複数面を実操作したがいずれも既に正直で <6/10 の起票点なし＝弱い起票より no-op）。点検: (1) 修正パス revise.py——難易度が上限で「難しくして」→ `変更なし（すでにその設定です）` と正直、accent（差し色）は tuning.py の panel_schema で全テンプレ共通のため「差し色」主張は虚偽でない（全ゲームが TUNE_ACCENT を描く）。(2) 作れない依頼「Excelアプリ/動画/曲/スマホアプリ/PDF を作って」→ 辞退文の「いま作れるのは…」は router.registered_kinds() 由来で実在の生成器のみ（アート/スライド/レポート/ゲーム/GIF/3Dモデル/ゲーム制作一式）＝ハードコードでなく正直。(3) index_stats——隔離件数・「未取り込み」対「隔離」の区別・監査ログ読取不能時の available:false を開示済み。近況: 直近 90-93 で deck/document/retrieve を修正済み・gif/art/3D/CLI render も既硬化。**キューを埋めるための弱い起票はしない。**
