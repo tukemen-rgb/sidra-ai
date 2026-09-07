@@ -52,11 +52,15 @@ class GeneratedDocument:
 
 
 #: Document-kind nouns a title should not end with, since the artifact already
-#: is one: 「競合分析のレポート」→「競合分析」 (C-1246). Left as one alternation
-#: with an optional leading 「の」, applied once, and only when something is left
-#: in front - 「レポートを作って」 keeps its fallback rather than emptying out.
+#: is one: 「競合分析のレポート」→「競合分析」 (C-1246). One alternation with an
+#: optional leading 「の」. C-1467: the eight deliverable words C-1458 added to the
+#: intent vocabulary so they route to DOCUMENT and generate - 報告書/議事録/
+#: マニュアル/提案書/仕様書/要件定義書/手順書/説明書 - were never listed here, so
+#: 「会議の議事録」 kept 議事録 on its own heading. Longest first (要件定義書 before
+#: the bare 書 forms), matching the tail-anchored strip.
 _TITLE_KIND_SUFFIX = re.compile(
-    r"の?(?:レポート|ドキュメント|ペーパー|文書|資料|まとめ|report|document|doc)$",
+    r"の?(?:要件定義書|レポート|ドキュメント|ペーパー|報告書|議事録|マニュアル|提案書"
+    r"|仕様書|手順書|説明書|文書|資料|まとめ|report|document|doc)$",
     re.IGNORECASE,
 )
 
@@ -74,12 +78,24 @@ def _title_from(request: str) -> str:
     # in its heading, its 概要 and its confirmation, all beside a file that is a
     # report (C-1246). Then the 「について/に関する」 the request pointed with, so
     # 「広告方針についてのレポート」 does not title 「広告方針について」 and double
-    # the について in the 概要 (C-1255). Both dropped only when a subject remains.
-    trimmed = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
-    trimmed = _TITLE_ABOUT_SUFFIX.sub("", trimmed).strip()
-    trimmed = re.sub(r"[をのはがにで]+$", "", trimmed).strip()
-    if trimmed:
-        stripped = trimmed
+    # the について in the 概要 (C-1255). C-1467: peel the trailing particle, kind
+    # word and about-phrase repeatedly - a request stacks two kind words behind a
+    # particle (「レポートをドキュメントで」) or an about phrase behind a kind word
+    # (「に関する報告書」), and stripping each once dropped only the outer one,
+    # leaving the inner kind word on the cover. Each pass only shrinks, so the
+    # equality check terminates it; a single kind word settles in one pass, and a
+    # request that is only a kind word ("レポートを作って") keeps it rather than
+    # emptying out.
+    peeled = stripped
+    while True:
+        step = re.sub(r"[をのはがにで]+$", "", peeled).strip()
+        step = _TITLE_KIND_SUFFIX.sub("", step).strip()
+        step = _TITLE_ABOUT_SUFFIX.sub("", step).strip()
+        if step == peeled:
+            break
+        peeled = step
+    if peeled:
+        stripped = peeled
     return stripped[:60] or "レポート"
 
 

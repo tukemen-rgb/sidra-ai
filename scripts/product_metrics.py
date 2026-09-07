@@ -1102,6 +1102,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1467: the document twin of C-1465, plus C-1458's follow-through. A report
+    # titled 「会議の議事録」 prints its own kind in its heading (C-1246). The eight
+    # deliverable words C-1458 added to the intent vocabulary were never added to
+    # the title kind list, and stacked kind/about phrases left the inner word. The
+    # title now registers them and peels particle/kind/about until a subject stays.
+    from sidra_ai.evals.document_title_drops_kind_words import (
+        evaluate_document_title_drops_kind_words,
+    )
+
+    doc_title = evaluate_document_title_drops_kind_words()
+    c.add(
+        "document_title_drops_kind_words",
+        "ドキュメントの表題が自分の種別語（議事録/報告書等）を名乗らない",
+        10.0 * doc_title.checks_passed / doc_title.checks_total,
+        detail=f"{doc_title.checks_passed}/{doc_title.checks_total} checks; "
+               "src/sidra_ai/evals/document_title_drops_kind_words.py"
+               + ("" if doc_title.passed else "; " + "; ".join(doc_title.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was
