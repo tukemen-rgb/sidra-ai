@@ -174,6 +174,12 @@ def panel_schema(
             # whatever this says - a buzz is decoration, and nothing is told
             # only this way (§16 事実 2: Android Chrome only).
             {"key": "haptic", "label": "振動", "type": "flag", "default": True},
+            # C-1393. The third channel after volume and haptics: motion.
+            # Off by default - full motion is the authored page - and the
+            # switch only ever ADDS reduction: REDUCED is OS || this, so
+            # an OS-level promise cannot be undone from here (§4, GAG
+            # "Provide an option to turn off / hide background movement").
+            {"key": "motion", "label": "動きを減らす", "type": "flag", "default": False},
         ],
     }
 
@@ -242,6 +248,10 @@ function tuneValues(){const o={};TUNE_SPEC.fields.forEach(function(f){
 /* An explicitly chosen colour wins; otherwise whatever skin the player
    has earned and picked (C-1109); otherwise the theme's own accent. */
 const TUNE_ACCENT=tuneText('accent',skinAccent(tuneField('accent').default));
+/* The motion switch lands here (§4, C-1393): the animation preamble has
+   already read the OS query into REDUCED, and this raises it when the
+   panel's flag is stored. OR, never overwrite - the OS promise stands. */
+try{REDUCED=REDUCED||tuneFlag('motion',false)}catch(e){}
 function tuneWrite(next){const s=tuneStore();if(!s)return false;
   try{s.setItem(TUNE_KEY,JSON.stringify(next));return true}catch(e){return false}}
 /* Applying means re-running this same file. Nothing is rebuilt and nothing
@@ -411,13 +421,68 @@ SPEED_BINDING: dict[str, str] = {
 }
 
 
+#: The motion switch, driven (§4 GAG 増築, C-1393): two runs of the same
+#: page against the same kind of storage. Unseeded, the OS query is the
+#: only voice and REDUCED stays false with FRAME beating; the run then
+#: writes the flag through the page's own tuneSet, whose stored JSON and
+#: reload count are the receipt. Seeded with motion:true, REDUCED comes
+#: up true at load and FRAME is pinned to 0 - the §4×§15 substitutes all
+#: switch on with it.
+MOTION_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+const LS = {};
+globalThis.localStorage = {
+  getItem: (k) => (Object.prototype.hasOwnProperty.call(LS, k) ? LS[k] : null),
+  setItem: (k, v) => { LS[k] = String(v) },
+  removeItem: (k) => { delete LS[k] } };
+SEED_PLACEHOLDER
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+const atLoad = { reduced: REDUCED, frameBeat: FRAME(2, 3, 1000) };
+const wrote = tuneSet('motion', true);
+let storedFlag = false;
+try { storedFlag = JSON.parse(LS[TUNE_KEY]).motion === true } catch (e) {}
+console.log(JSON.stringify({ reduced: atLoad.reduced,
+  frameBeat: atLoad.frameBeat, wrote: wrote, storedFlag: storedFlag,
+  reloads: TUNE_RELOADS }));
+"""
+
+
+def motion_probe(script: str, *, template: str, seeded: bool) -> str:
+    """The page's own script, wrapped so the motion switch can be driven
+    and its next-load effect observed."""
+
+    seed = (
+        f"LS['sidra.tune.{template}']=JSON.stringify({{motion:true}});"
+        if seeded
+        else ""
+    )
+    return MOTION_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "SEED_PLACEHOLDER", seed
+    )
+
+
 __all__ = [
     "AXIS_LABELS",
     "LADDER",
+    "MOTION_PROBE",
     "PREAMBLE_NAMES",
     "PROBE",
     "SPEED_BINDING",
     "TUNE_PREAMBLE",
+    "motion_probe",
     "panel_schema",
     "probe_source",
 ]

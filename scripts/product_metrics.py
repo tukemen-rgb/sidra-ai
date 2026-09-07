@@ -7867,6 +7867,71 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- motion can be reduced from inside the page (§4, C-1393) --------
+    #
+    # REDUCED read only the OS's prefers-reduced-motion; GAG's "Provide
+    # an option to turn off / hide background movement" (intermediate,
+    # Cognitive AND Vision) had no in-page answer. Driven twice: unseeded
+    # storage leaves REDUCED false with FRAME beating, and the page's own
+    # tuneSet writes the flag and fires the reload; storage seeded with
+    # motion:true brings REDUCED up true at load with FRAME pinned. The
+    # OR direction (OS promise never lowered) is the wiring itself.
+    from sidra_ai.creation.tuning import motion_probe as _mo_probe
+
+    mo_gaps: list[str] = []
+    _mo_page = generate_game("ゲームを作って", template="catch").html
+    _mo_m = _scene_re.search(r"<script>(.*?)</script>", _mo_page, _scene_re.S)
+    if _mo_m is None:
+        mo_gaps.append("catch: no script")
+    else:
+        _mo_runs = {}
+        for _mo_seeded in (False, True):
+            try:
+                _mo_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_mo_probe(
+                        _mo_m.group(1), template="catch", seeded=_mo_seeded
+                    ),
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if _mo_run.returncode != 0:
+                    raise ValueError(_mo_run.stderr.strip()[:60])
+                _mo_runs[_mo_seeded] = json.loads(
+                    _mo_run.stdout.strip().splitlines()[-1]
+                )
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                mo_gaps.append(f"catch: probe unavailable ({exc})")
+        if len(_mo_runs) == 2:
+            _mo_off, _mo_on = _mo_runs[False], _mo_runs[True]
+            if _mo_off["reduced"] or _mo_off["frameBeat"] != 1:
+                mo_gaps.append("catch: the bare page already reduces")
+            if not _mo_off["wrote"] or not _mo_off["storedFlag"]:
+                mo_gaps.append("catch: the switch never reaches storage")
+            if _mo_off["reloads"] != 1:
+                mo_gaps.append("catch: the change never asks for the reload")
+            if not _mo_on["reduced"] or _mo_on["frameBeat"] != 0:
+                mo_gaps.append(
+                    "catch: the stored flag never reduces the next load"
+                )
+    c.add(
+        "creation_motion_switch",
+        "動きを減らすスイッチがページ内にある",
+        0.0 if mo_gaps else 1.0,
+        detail=(
+            "; ".join(mo_gaps)
+            if mo_gaps
+            else "catch の実ページ 2 走行: 素の storage で REDUCED false・"
+            "FRAME 拍動＋実 tuneSet('motion',true) が JSON を書き reload を"
+            "発火／motion:true 事前投入の 2 走目で REDUCED true・FRAME 恒 0"
+            "（GAG 中級「背景の動きを切るオプション」の §4 増築。OR 結合＝"
+            "OS の約束はパネルから戻せない。音量・振動に続く第 3 の"
+            "チャンネル）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- an interruption releases the pad too (§22×§4, C-1392) ----------
     #
     # focusRelease lifts the KEYS on blur/pagehide, but PAD_HELD is the

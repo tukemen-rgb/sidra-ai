@@ -32,7 +32,11 @@ from __future__ import annotations
 #: * ``FRAME(n, fps, now)`` - which frame of an ``n``-frame decorative cycle
 #:                  to draw. Pinned to 0 when reduced.
 PREAMBLE = """
-const REDUCED = (typeof matchMedia === 'function')
+/* let, not const (§4 GAG 増築, C-1393): the OS query is the floor, and
+   the tuning panel may RAISE it - TUNE_PREAMBLE ORs in the 「動きを
+   減らす」 flag once storage is readable. Never lowered: the OS promise
+   cannot be argued with from inside the page. */
+let REDUCED = (typeof matchMedia === 'function')
   && matchMedia('(prefers-reduced-motion: reduce)').matches;
 function ease(t){t=Math.min(1,Math.max(0,t));
   return REDUCED ? t : 1-Math.pow(1-t,3)}

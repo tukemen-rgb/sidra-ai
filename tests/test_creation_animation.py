@@ -128,9 +128,9 @@ def test_the_preamble_introduces_only_the_names_it_documents() -> None:
         if line.startswith("function ")
     }
     declared |= {
-        line.split("=")[0].removeprefix("const ").strip()
+        line.split("=")[0].removeprefix("const ").removeprefix("let ").strip()
         for line in PREAMBLE.splitlines()
-        if line.startswith("const ")
+        if line.startswith("const ") or line.startswith("let ")
     }
 
     assert declared == set(PREAMBLE_NAMES)
