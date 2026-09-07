@@ -8868,3 +8868,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 17:10 UTC 辛口クリエイター C-1387 完了（91 巡目・観点 §1 前回=§4×§15・creation_squash_stretch 5→6・adventure 被弾の一体変形クラッシュ（帽子バー記録寸法で描画到達を実証）・REDUCED は同じ被弾で輪郭不動・破壊 4 通り検出（初版の観測窓の盲点も破壊が暴き修正）・pytest 4190 緑・gate MISS 0・judge exit 0）
 
 2026-09-07 17:08 UTC ループA started
+2026-09-07 17:20 UTC 辛口ユーザー C-1474 完了（90 巡目・別面=デッキ本文の事実配置・前回=複数ターン会話 no-op・deck_future_plan_not_capability 4→10・`--compare` BETTER MOVED 1・pytest FAILED 0・破壊 5 種すべて eval red 4/6/8/9/7・board exit 0・能力セクションに未来マーカー（予定/今後/これから）ガード＋前向きスライドに未来 cue＝計画を実績スライドから外し前向きスライドへ・過去実績と C-1461 否定ガードは不変）

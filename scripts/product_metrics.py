@@ -1221,6 +1221,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1474: a status/pitch deck placed 「次はモバイル対応を予定している」 (planned
+    # work) under 「いま出来ること」/「解決」 via the 「対応」 cue, presenting a plan as a
+    # shipped capability and leaving the forward slide falsely blank. A future
+    # marker (予定/今後/これから) now keeps a fact off the capability sections and
+    # routes it to the forward slide. The future-plan twin of C-1461's negation guard.
+    from sidra_ai.evals.deck_future_plan_not_capability import (
+        evaluate_deck_future_plan_not_capability,
+    )
+
+    deck_future = evaluate_deck_future_plan_not_capability()
+    c.add(
+        "deck_future_plan_not_capability",
+        "デッキが予定作業を「いま出来ること/解決」でなく前向きスライドに置く",
+        10.0 * deck_future.checks_passed / deck_future.checks_total,
+        detail=f"{deck_future.checks_passed}/{deck_future.checks_total} checks; "
+               "src/sidra_ai/evals/deck_future_plan_not_capability.py"
+               + ("" if deck_future.passed else "; " + "; ".join(deck_future.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

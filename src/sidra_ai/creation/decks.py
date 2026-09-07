@@ -195,14 +195,14 @@ SECTION_CUES: dict[str, tuple[str, ...]] = {
     "課題": ("課題", "問題", "できない", "困", "ギャップ", "未対応", "gap", "problem"),
     "解決": ("解決", "対応", "実装", "できる", "提供", "returns", "provides", "solution"),
     "根拠となる数字": (),  # decided by the presence of a number, see below
-    "次の一歩": ("次", "予定", "残り", "todo", "roadmap", "backlog", "next"),
+    "次の一歩": ("次", "予定", "残り", "todo", "roadmap", "backlog", "next", "今後", "これから"),
     # C-1461: 「完了/実装/リリース/済」 name work that is now available, the whole
     # point of this slide. Without them 「決済連携の実装は完了した」 matched no cue
     # and the slide was reported as having no evidence though the fact was given.
     "いま出来ること": ("できる", "対応", "提供", "完了", "実装", "リリース", "済",
                   "supports", "provides"),
     "測った数字": (),  # same rule as 根拠となる数字
-    "残っていること": ("残", "未", "todo", "backlog", "gap"),
+    "残っていること": ("残", "未", "todo", "backlog", "gap", "予定", "今後", "これから"),
     "判断が要る点": ("判断", "要判断", "決め", "decision", "trade-off"),
 }
 
@@ -237,9 +237,21 @@ def _cue_present(cue: str, text: str) -> bool:
         start = index + 1
 
 
+#: A fact describing planned/future work is not a current capability, even when
+#: it repeats a capability cue ("次はモバイル対応を予定している" carries 「対応」).
+#: C-1474, the future-plan twin of C-1461's negation guard: a future marker keeps
+#: such a fact off the capability sections so it reaches the outline's
+#: forward-looking slide (次の一歩 / 残っていること), whose cues include these markers.
+#: 完了/実装/リリース済 are past, carry no future marker, and stay a capability.
+_FUTURE_MARKERS = ("予定", "今後", "これから")
+_CAPABILITY_SECTIONS = ("解決", "いま出来ること")
+
+
 def _matches(section: str, fact: Fact) -> bool:
     if section in _NUMERIC_SECTIONS:
         return fact.mentions_number()
+    if section in _CAPABILITY_SECTIONS and any(m in fact.text for m in _FUTURE_MARKERS):
+        return False
     # The heading-word shortcut is negation-guarded too: the section 「解決」
     # appears inside 「未解決」, which is its opposite (C-1461).
     if _cue_present(section, fact.text):
