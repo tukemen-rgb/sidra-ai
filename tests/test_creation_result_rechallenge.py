@@ -86,10 +86,26 @@ def test_the_round_ends_with_a_number(template: str) -> None:
 
 @pytest.mark.parametrize("template", KEYS)
 def test_a_first_go_is_a_personal_best(template: str) -> None:
+    """The first go is always banked - but only a scoring one is celebrated.
+
+    C-1502 split these two: a first round is a record because there is
+    nothing to beat, and the strip used to congratulate a 0 点全敗 on that
+    basis. The banking is unchanged (0 is a real result and the next go has
+    to beat it); the congratulation is withheld. Which templates end this
+    drive on zero is read from the run rather than listed here, so the rule
+    is what is asserted and not a table that goes stale.
+    """
+
     seen = _finish(template)
 
     assert seen["record"] is True
-    assert [line for line in seen["strip"] if "自己ベスト更新" in line], seen["strip"]
+    cheered = [line for line in seen["strip"] if "自己ベスト更新" in line]
+    if seen["score"] > 0:
+        assert cheered, seen["strip"]
+    else:
+        assert not cheered, seen["strip"]
+        # Withheld, not silenced: the honest line is still there.
+        assert [line for line in seen["strip"] if "自己ベスト" in line], seen["strip"]
 
 
 @pytest.mark.parametrize("template", KEYS)

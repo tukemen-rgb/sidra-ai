@@ -14059,6 +14059,101 @@ def measure_creation(c: Collector) -> None:
             "「一度も当たらなかった」は、当たりを見られる計器だけが言える。"
         ),
     )
+
+    # --- 0 点に「自己ベスト更新」と言わない (C-1502) -------------------
+    # The first round is always a record because there is nothing to beat,
+    # so a 0 点全敗の初回 used to be congratulated - the strip praising the
+    # worst run the game can produce. The fix withholds the cheer, not the
+    # record.
+    #
+    # The judge reads BOTH directions off the same runs, because they are
+    # the two ways to get this wrong and the first attempt at the fix made
+    # the second one: a rule that also silenced defeats took the record
+    # away from shooter 得点 54 and puzzle 得点 36, which are genuine
+    # firsts. So a template only counts as honest when a 0 stays quiet AND
+    # a positive score still celebrates.
+    from sidra_ai.creation.round import probe_source as _best_probe
+
+    best_rows: list[dict] = []
+    best_gaps: list[str] = []
+    for _best_key in sorted(_tune_templates):
+        _best_page = _tune_generate("ゲームを作って", template=_best_key).html
+        _best_script = _scene_re.search(
+            r"<script>(.*?)</script>", _best_page, _scene_re.S
+        )
+        if _best_script is None:
+            best_gaps.append(f"{_best_key}: ページに script が無い")
+            continue
+        try:
+            _best_run = _scene_sp.run(
+                ["node", "-"],
+                input=_best_probe(_best_script.group(1), hold=" ", frames=8000),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if _best_run.returncode != 0:
+                best_gaps.append(f"{_best_key}: {_best_run.stderr.strip()[:60]}")
+                continue
+            _best_out = json.loads(_best_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            best_gaps.append(f"{_best_key}: 走らせられない（{type(exc).__name__}）")
+            continue
+        _best_said = any("自己ベスト更新" in line for line in _best_out.get("strip", []))
+        best_rows.append({
+            "template": _best_key,
+            "score": _best_out.get("score"),
+            "record": bool(_best_out.get("record")),
+            "said": _best_said,
+        })
+
+    # Only rounds that actually banked a record exercise this at all.
+    banked = [r for r in best_rows if r["record"] and r["score"] is not None]
+    zeros = [r for r in banked if r["score"] <= 0]
+    scored = [r for r in banked if r["score"] > 0]
+    quiet_zeros = [r["template"] for r in zeros if not r["said"]]
+    # The other direction, and the reason this cannot be earned by silence:
+    # a positive first round that stopped celebrating is a regression, and
+    # it takes the number to zero rather than leaving it high.
+    robbed = [r["template"] for r in scored if not r["said"]]
+    loud_zeros = [r["template"] for r in zeros if r["said"]]
+    if loud_zeros:
+        best_gaps.append(
+            f"0 点なのに「自己ベスト更新」と言った: {', '.join(loud_zeros)}"
+        )
+    if robbed:
+        best_gaps.append(
+            f"得点のある初回から祝いが消えた: {', '.join(robbed)}"
+            "（0 点だけを黙らせるはずが記録そのものを黙らせている）"
+        )
+    if not zeros and not best_gaps:
+        best_gaps.append("0 点で終わる走行を 1 つも作れなかった（未検査）")
+
+    c.add(
+        "creation_zero_best_honest",
+        "0 点の初回に「自己ベスト更新」と言わない型の数",
+        0.0 if best_gaps else float(len(quiet_zeros)),
+        unit="型",
+        kind=OUTCOME,
+        detail=(
+            "; ".join(best_gaps)
+            if best_gaps
+            else f"{len(banked)} 型を**実ページで初回プレイして**リザルト帯の"
+            f"文言を読んだ。0 点で終わった **{len(zeros)} 型**"
+            f"（{', '.join(r['template'] for r in zeros)}）は"
+            f"**{len(quiet_zeros)} 型すべてで祝いを出さず**、"
+            "代わりに元からある正直な行（`自己ベスト 0（あと 1）`）を出す。"
+            f"**両方向**: 得点のあった {len(scored)} 型"
+            f"（{', '.join(r['template'] for r in scored)}）は"
+            "**今も「自己ベスト更新」と言う**——片方だけなら"
+            "「全部黙らせる」実装が満点を取ってしまう。"
+            "**記録そのものは無傷**: 0 も書き込まれ、ゴーストにも残り、"
+            "次の走行はそれを超える必要がある。黙らせたのは祝辞だけ。"
+            f"起票の見積りは 0→10 だったが、**実測で 0 点に到達できるのは"
+            f" {len(zeros)} 型**（他は連打だけで得点が入る）ので、"
+            "分母は 10 ではなくこの数——届かない型を「合格」に数えない。"
+        ),
+    )
     c.add(
         "creation_urgent_tick",
         "終盤の残り数秒が耳にも届く（画面・手に続く第 3 の通路）",

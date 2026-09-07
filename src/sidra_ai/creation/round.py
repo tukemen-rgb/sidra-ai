@@ -427,6 +427,29 @@ function roundBestRead(){try{if(typeof localStorage==='undefined')return null;
 function roundBestWrite(v){try{if(typeof localStorage!=='undefined'){
   localStorage.setItem(ROUND_KEY,String(v))}}catch(e){}}
 function roundBest(){return ROUND_BEST}
+/* Whether this result has anything to celebrate (C-1502, 第1回批評 #11).
+   The bank and the cheer used to be the same flag: a first round is always
+   a record because there is nothing to beat, so 0 点で全敗した初回が
+   「自己ベスト更新」 - the strip congratulating a player on the worst run
+   the game can produce. Measured on the real pages: duel 与ダメージ 0,
+   fishing 得点 0 and platformer 宝石 0 all said it.
+   The record itself is untouched. 0 is still written, still ghosted, still
+   counted - it is a real result and the next round has to beat it. What is
+   withheld is only the congratulation, and what the strip says instead is
+   the honest line it already had for every other round: 自己ベスト 0
+   （あと 1）.
+   **Only the zero, not the defeat.** The item asked for defeats to be
+   excluded too, on the reading that losing is nothing to celebrate. Driven
+   against the real pages, that reading is wrong here: most of these
+   templates END in defeat by design - you play until you die - so
+   ``roundLost()`` is true for an ordinary good run. Excluding it silenced
+   the record on shooter 得点 54, puzzle 得点 36, adventure 宝石 1 and
+   marble スコア 1, all of them genuine firsts. A round you scored in and
+   then lost is still your best round. What was never a best is a round
+   that beat nothing. */
+function roundCheer(){
+  if(!ROUND_RECORD)return false;
+  return ROUND_FINAL!==null&&ROUND_FINAL>0}
 /* The last few runs, in the order they happened (C-1432). A best is one
    number and it only moves upward, so a page that keeps nothing else can
    say 「自己ベスト 24（あと 5）」 for an hour without ever telling a player
@@ -553,7 +576,7 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   let left='';
   if(ROUND_FINAL!==null){
     left=ROUND_LABEL+' '+ROUND_FINAL;
-    if(ROUND_RECORD){left+=' / 自己ベスト更新'}
+    if(roundCheer()){left+=' / 自己ベスト更新'}
     else if(ROUND_BEST!==null&&ROUND_FINAL===ROUND_BEST&&ROUND_TIE_BETTER
       &&ROUND_TIE_BEST!==null){
       /* The score is maxed out, so 「あと 1」 would be a target nobody can
@@ -603,6 +626,8 @@ function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   shieldFrames:ROUND_SHIELD_FRAMES,shield:ROUND_SHIELD,shielded:roundShielded(),
   ended:roundEnded(),limit:ROUND_LIMIT_MS,
   score:ROUND_FINAL,best:ROUND_BEST,record:ROUND_RECORD,
+  cheer:(function(){try{return roundCheer()}catch(e){return null}})(),
+  lost:(function(){try{return roundLost()}catch(e){return null}})(),
   live:roundScore(),
   runs:(function(){try{return roundLog()}catch(e){return null}})(),
   seed:(typeof SEED==='undefined')?null:SEED,
@@ -727,6 +752,10 @@ console.log(JSON.stringify({
   paint: roundPaint.slice(-600),
   strip: roundStrip,
   score: end.score, best: end.best, record: end.record, liveScore: end.live,
+  /* The record and the congratulation, apart (C-1502): a run can set one
+     without earning the other, and a probe that reported only `record`
+     could not tell the fix from the bug. */
+  cheer: end.cheer, lost: end.lost,
   seed: end.seed, daily: end.daily, stamp: end.stamp,
   afterTap: afterTap, afterKey: afterKey, afterRestart: afterRestart,
   breakAt: firstBreak ? firstBreak.ms : null,
