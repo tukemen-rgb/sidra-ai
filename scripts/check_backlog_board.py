@@ -49,6 +49,20 @@ HEADING = re.compile(r"^- \[( |x|~|記録)\] ")
 HEADS = re.compile(r"\*\*(C-\d+)[:：]")
 # A record appended under an item, as its own indented paragraph.
 RECORD = re.compile(r"^\s+\*\*(記録|結果)[ 　]")
+# The stamp a record and its item's completion both carry: the same hand
+# wrote them in the same commit, so a correctly placed pair always agrees.
+#   - [x] 完了 2026-09-06 22:34 UTC ループA（...） **C-1451: ...**
+#         **記録 2026-09-06 22:34 ループA**（...）
+STAMP = re.compile(r"(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})[^（(]*?(ループA|ループB|辛口[^\s（(]*|進捗監視|対話セッション)")
+# The metric an item exists to move, and any metric name quoted in prose.
+# The 「→ 動かす数字:」 label and its name are routinely on different lines,
+# because the briefs are hand-wrapped; ``\s*`` spans the wrap, which is the
+# whole reason this reads the item as a block of text rather than line by
+# line. (Measured: replacing the join with the file as written changes no
+# result - the newline was already inside ``\s``. It is written down here
+# rather than defended by a test that would pass either way.)
+MOVES = re.compile(r"→\s*動かす数字[:：]\s*`?([a-z][a-z0-9_]{6,})`?")
+QUOTED = re.compile(r"`([a-z][a-z0-9_]{6,})`")
 FINISHED = ("x", "記録")
 
 # One collision predates the check and is not a drift: C-1011 was spent
@@ -81,6 +95,97 @@ def read_items(text: str) -> list[dict]:
     return items
 
 
+def _stamp_key(match: "re.Match[str]") -> tuple[str, str, str]:
+    """Date, time and author - never the raw text.
+
+    The heading writes 「2026-09-06 22:34 UTC ループA」 and the record under
+    it writes 「2026-09-06 22:34 ループA」; some older headings drop the UTC
+    on both sides. Comparing the matched strings made the check miss its
+    own live example, which is how this was found.
+    """
+
+    return (match.group(1), match.group(2), match.group(3))
+
+
+def _flat(lines: list[str]) -> str:
+    """The item as one block of text, so a wrapped label still reads."""
+
+    return "\n".join(line.strip() for line in lines)
+
+
+def _record_blocks(item: dict) -> list[tuple[int, list[str]]]:
+    """Each appended record under an item, as (line number, its lines)."""
+
+    blocks: list[tuple[int, list[str]]] = []
+    current: tuple[int, list[str]] | None = None
+    for line_number, line in item["body"]:
+        if RECORD.match(line):
+            if current:
+                blocks.append(current)
+            current = (line_number, [line])
+        elif current:
+            current[1].append(line)
+    if current:
+        blocks.append(current)
+    return blocks
+
+
+def _misplaced_records(items: list[dict]) -> list[str]:
+    """Records that landed on a neighbour rather than on their own item.
+
+    The second invariant only sees a record that lands on an UNFINISHED
+    item, and the board's finished items only ever grow - so half of the
+    places a record can fall were blind. C-1450's record landed on a
+    finished 「[記録]」 item at 22:09 and the check stayed green; two more
+    of the same shape were on the board when this was written.
+
+    What identifies a stray record is that TWO independent things agree
+    with a different item: the stamp it carries (date, time and author -
+    written by the same hand in the same commit as that item's completion
+    line) and a metric name it quotes (that item's 「→ 動かす数字:」). One
+    alone is not enough and misfires on the real board: records discuss
+    their neighbours' metrics all the time (C-1436's names
+    ``creation_puzzle_economy`` only to say it was left intact), and two
+    items can share an hour. Both together have never agreed by accident.
+    """
+
+    home_of: dict[tuple[str, str], int] = {}
+    metric_of: dict[int, set[str]] = {}
+    for item in items:
+        whole = _flat([item["text"]] + [line for _, line in item["body"]])
+        metrics = set(MOVES.findall(whole))
+        metric_of[item["line"]] = metrics
+        stamp = STAMP.search(item["text"])
+        if stamp and metrics:
+            for metric in metrics:
+                home_of[(_stamp_key(stamp), metric)] = item["line"]
+
+    problems: list[str] = []
+    for item in items:
+        for line_number, lines in _record_blocks(item):
+            stamp = STAMP.search(lines[0])
+            if stamp is None:
+                continue
+            key = _stamp_key(stamp)
+            quoted = {name for name in QUOTED.findall(_flat(lines))}
+            # No shortcut for "it names its own item's metric": measured on
+            # the 22:09 board, the stray record named the holder's metric in
+            # passing and that escape hid the very case this exists for. The
+            # two agreements below decide on their own - a record sitting on
+            # its own item resolves to that item and is silent.
+            for name in sorted(quoted):
+                home = home_of.get((key, name))
+                if home is not None and home != item["line"]:
+                    problems.append(
+                        f"L{line_number}: this 記録/結果 carries "
+                        f"{' '.join(key)!r} and quotes `{name}`, which is the "
+                        f"item at L{home} - it belongs there, not under the "
+                        f"item at L{item['line']}"
+                    )
+                    break
+    return problems
+
+
 def check(text: str) -> list[str]:
     """Both invariants, in the order the repairs found them."""
     items = read_items(text)
@@ -100,6 +205,8 @@ def check(text: str) -> list[str]:
                 f"a claim that did not replace the line it claimed)"
             )
         seen.setdefault(item["id"], item["line"])
+
+    problems.extend(_misplaced_records(items))
 
     for item in items:
         if item["box"] in FINISHED:

@@ -14500,17 +14500,25 @@ def measure_creation(c: Collector) -> None:
     _board_mod = _board_import.module_from_spec(_board_spec)
     _board_spec.loader.exec_module(_board_mod)
 
-    # sha -> what that commit repaired, and whether it finished the job.
-    # b835209 fixed one duplicate and left three behind; 832bad0 removed
-    # them two hours later. So its "after" is still red - a true reading,
-    # and the reason this table records the expectation per commit.
+    # The boards those repairs were cleaning up, and what each was about.
+    #
+    # Only the BEFORE side is asserted. The after side used to be asserted
+    # too, and was worth asserting while the check only saw two shapes; with
+    # the third (C-1454) every one of these boards is red afterwards as
+    # well, because one drift from 09-05 19:45 survived every repair until
+    # 09-07 - nobody could see it. Recording that is the point rather than a
+    # disappointment, so the table stopped claiming a green it no longer has.
     _BOARD_REPAIRS = {
-        "b835209": ("C-1439 の重複（3 ブロックは残った）", False),
-        "832bad0": ("重複 3 ブロックと C-1434 の記録位置", True),
-        "ff24e9e": ("C-1440 の記録が C-1442 の下に落ちた", True),
-        "b3a233a": ("C-1357 の重複した作業中行", True),
-        "2099b44": ("C-1442 の記録が C-1443 の下に落ちた", True),
-        "01c68e4": ("C-1443 の記録が C-1444 の下に落ちた", True),
+        "b835209": "C-1439 の重複（3 ブロックは残った）",
+        "832bad0": "重複 3 ブロックと C-1434 の記録位置",
+        "ff24e9e": "C-1440 の記録が C-1442 の下に落ちた",
+        "b3a233a": "C-1357 の重複した作業中行",
+        "2099b44": "C-1442 の記録が C-1443 の下に落ちた",
+        "01c68e4": "C-1443 の記録が C-1444 の下に落ちた",
+        # The blind spot the first two clauses had (C-1454): this record
+        # landed on a FINISHED item, where "an unfinished item holding a
+        # record" never looks.
+        "b6136b2": "C-1450 の記録が完了項目の下へ（死角・9 件目）",
     }
 
     def _board_at(ref):
@@ -14534,7 +14542,7 @@ def measure_creation(c: Collector) -> None:
     live_problems = _board_mod.check(live)
     if live_problems:
         board_gaps.append(f"現在の板が赤い: {live_problems[0]}")
-    for _board_sha, (_board_what, _board_finished) in _BOARD_REPAIRS.items():
+    for _board_sha, _board_what in _BOARD_REPAIRS.items():
         if board_gaps:
             break
         before, problem = _board_at(f"{_board_sha}^")
@@ -14547,17 +14555,6 @@ def measure_creation(c: Collector) -> None:
             )
             break
         board_caught += 1
-        after, problem = _board_at(_board_sha)
-        if problem:
-            board_gaps.append(problem)
-            break
-        repaired = not _board_mod.check(after)
-        if repaired is not _board_finished:
-            board_gaps.append(
-                f"{_board_sha} の修復後が想定と違う"
-                f"（想定={'緑' if _board_finished else '赤'}）"
-            )
-            break
     # The live board has to be able to go red, or "緑" above means only
     # that the check never fires. Both shapes are reconstructed on the real
     # text, by doing to it what the six commits had to undo:
@@ -14597,6 +14594,64 @@ def measure_creation(c: Collector) -> None:
                 board_gaps.append(
                     f"{_board_item['id']} の見出しを 2 度貼っても検査が緑のまま"
                 )
+            # ...and the third shape, on the real board too: move a record
+            # under the FINISHED item below its own, which is where the
+            # first two clauses cannot see it.
+            # The whole block, not its first line: what identifies a stray
+            # record is the stamp on its opening line AND the metric name
+            # its body quotes, so a one-line fragment reproduces neither the
+            # shape nor the evidence. (Measured: moving only the first line
+            # left the board green and the judge said so, which is how this
+            # was caught.)
+            _board_donor = None
+            for _board_cand in _board_items:
+                if _board_cand["box"] not in _board_mod.FINISHED:
+                    continue
+                _board_mine = _board_mod.MOVES.findall(
+                    _board_mod._flat(
+                        [_board_cand["text"]]
+                        + [line for _, line in _board_cand["body"]]
+                    )
+                )
+                if not _board_mine or not _board_mod.STAMP.search(_board_cand["text"]):
+                    continue
+                for _board_start, _board_body in _board_mod._record_blocks(_board_cand):
+                    if not _board_mod.STAMP.search(_board_body[0]):
+                        continue
+                    if set(_board_mine) & set(
+                        _board_mod.QUOTED.findall(_board_mod._flat(_board_body))
+                    ):
+                        _board_donor = (_board_cand, _board_start, _board_body)
+                        break
+                if _board_donor:
+                    break
+            if _board_donor is None:
+                board_gaps.append("自分の計測名を引用する完了記録が板に無い")
+            else:
+                _board_from, _board_start, _board_body = _board_donor
+                _board_next = next(
+                    (
+                        other
+                        for other in _board_items
+                        if other["line"] > _board_from["line"]
+                        and other["box"] in _board_mod.FINISHED
+                    ),
+                    None,
+                )
+                if _board_next is None:
+                    board_gaps.append("移し先になる完了項目が板に無い")
+                else:
+                    _board_moved = list(_board_lines)
+                    del _board_moved[
+                        _board_start - 1 : _board_start - 1 + len(_board_body)
+                    ]
+                    _board_where = _board_next["line"] - len(_board_body)
+                    _board_moved[_board_where:_board_where] = _board_body
+                    if not _board_mod.check("\n".join(_board_moved)):
+                        board_gaps.append(
+                            f"{_board_from['id']} の記録を下の完了項目へ"
+                            "移しても検査が緑のまま"
+                        )
     c.add(
         "backlog_board_consistent",
         "板の完了記録が持ち主の項目から離れない",
@@ -14605,12 +14660,19 @@ def measure_creation(c: Collector) -> None:
             "; ".join(board_gaps)
             if board_gaps
             else f"手で直した **{board_caught} 件の実際の板**（{', '.join(_BOARD_REPAIRS)}）"
-            "を git から取り出して両方向で実測: **修復前の板はすべて赤**、"
-            "**修復後は 5/6 が緑**——`b835209` だけは修復後も赤で、これは誤検知"
-            "ではなく実際に 3 ブロックが残っていた（2 時間後の `832bad0` が消した）。"
-            "落ち方は 2 形しかない: ①同じ C 番号が 2 つの項目を見出しに立つ"
+            "を git から取り出して実測: **修復前の板は 7 枚とも赤**——"
+            "どの回も検査は「まだ終わっていない」と言えた。"
+            "**修復後も 7 枚とも赤**で、これは誤検知ではない: 09-05 19:45 の"
+            "落下 1 件が**どの修復も素通りして 09-07 まで生き残っていた**"
+            "（誰にも見えなかった）。だから後ろ側は主張せず記録に留める——"
+            "**両方向は現在の板の実物で測る**（下）。"
+            "落ち方は 3 形: ①同じ C 番号が 2 つの項目を見出しに立つ"
             "（rebase で戻った複製）②未了の項目が完了記録を抱える（項目の説明と"
-            "後から足した記録の間に新項目が入る＝`ff24e9e` の commit が名指しした原因）。"
+            "後から足した記録の間に新項目が入る＝`ff24e9e` の commit が名指しした原因）"
+            "③**完了済みの項目**が他人の記録を抱える（②の死角・C-1454）——"
+            "**記録が背負う日時＋主体**と**引用する計測名**の**2 つが揃って"
+            "別の項目を指す**ときだけ鳴る。片方だけでは実際の板で誤検知する"
+            "（記録は隣の計測名を平気で引用するし、同じ分に 2 件終わることもある）。"
             "現在の板は緑だが、**その実物に落ち方を作れば赤になる**——"
             "①記録の上に新項目を挿し込む（原因そのもの）②見出しを 2 度貼る。"
             "**緑が「検査が鳴らないだけ」でないことを毎回確かめる**。"

@@ -199,6 +199,116 @@ def test_an_untitled_item_from_before_the_numbering_is_skipped():
     assert board.check(text) == []
 
 
+# --- shape 3: the record lands on a FINISHED item ----------------------
+#
+# The invariant above only looks at unfinished items, and the board's
+# finished ones only ever grow - so half of the places a record can fall
+# were blind. C-1450's record landed on a finished 「[記録]」 item at 22:09
+# and the check stayed green; three more of the same shape were sitting on
+# the board when this was written, the oldest from 09-05.
+#
+# What identifies a stray record is that TWO independent things agree with
+# a different item: the stamp it carries (date, time, author - written by
+# the same hand in the same commit as that item's completion line) and a
+# metric name it quotes. Either alone misfires on the real board.
+
+HOME = "- [x] 完了 2026-09-06 22:34 UTC ループA **C-1451: 指でもポーズ。**"
+HOME_BRIEF = "      → 動かす数字: creation_touch_pause unmeasurable→1"
+NEIGHBOUR = "- [記録] 完了・数字は動かず 2026-09-06 04:34 ループA **C-1441: 幕の検査。**"
+NEIGHBOUR_BRIEF = "      → 動かす数字: creation_attract_demo 8→8"
+STRAY = "      **記録 2026-09-06 22:34 ループA**（`creation_touch_pause` →1）"
+STRAY_BODY = "      10 型を指だけで往復させた。"
+
+
+def test_a_record_on_a_finished_neighbour_is_caught():
+    # The live 22:09 shape, reduced: the record for the item above lands
+    # under the finished item below it.
+    text = _board(
+        HOME,
+        HOME_BRIEF,
+        NEIGHBOUR,
+        NEIGHBOUR_BRIEF,
+        STRAY,
+        STRAY_BODY,
+    )
+    problems = board.check(text)
+    assert len(problems) == 1
+    assert "L6" in problems[0] and "creation_touch_pause" in problems[0]
+
+
+def test_the_same_record_under_its_own_item_is_quiet():
+    text = _board(HOME, HOME_BRIEF, STRAY, STRAY_BODY, NEIGHBOUR, NEIGHBOUR_BRIEF)
+    assert board.check(text) == []
+
+
+def test_quoting_a_neighbours_metric_is_not_enough_on_its_own():
+    """Records discuss their neighbours constantly.
+
+    Measured on the real board: C-1436's record names
+    ``creation_puzzle_economy`` only to say its identity check was left
+    intact. A rule that fired on the metric alone called that misplaced.
+    """
+
+    text = _board(
+        HOME,
+        HOME_BRIEF,
+        "      **記録 2026-09-06 23:55 ループA**（`creation_touch_pause` は無傷）",
+        "      ——隣の恒等式検査には触れていない。",
+    )
+    # Different stamp from the item that owns the metric, so: quiet.
+    assert board.check(text) == []
+
+
+def test_sharing_a_stamp_is_not_enough_on_its_own():
+    """Two items can be finished in the same minute by the same loop."""
+
+    text = _board(
+        HOME,
+        HOME_BRIEF,
+        "- [x] 完了 2026-09-06 22:34 UTC ループA **C-1452: 別件。**",
+        "      → 動かす数字: creation_other_number unmeasurable→1",
+        "      **記録 2026-09-06 22:34 ループA**（実装した）",
+        "      数字の名前は書いていない。",
+    )
+    assert board.check(text) == []
+
+
+def test_a_record_naming_no_metric_stays_silent():
+    """条件③: a wording fix has no number, and that is not a fault."""
+
+    text = _board(
+        HOME,
+        HOME_BRIEF,
+        NEIGHBOUR,
+        NEIGHBOUR_BRIEF,
+        "      **記録 2026-09-06 22:34 ループA**（文言のみ・数字は無い）",
+    )
+    assert board.check(text) == []
+
+
+def test_the_metric_label_is_read_across_a_line_wrap():
+    """The briefs are hand-wrapped, so the label and the name split.
+
+    Every 「→ 動かす数字:」 on the real board ends its line before the name,
+    so a rule that could not read across the wrap would know no item's
+    metric at all. What carries it is ``\s*`` in the pattern rather than
+    any flattening - measured, joining the lines with spaces instead of
+    newlines changes no result, and the checker says so where it joins
+    them instead of pretending a test defends it.
+    """
+
+    text = _board(
+        "- [x] 完了 2026-09-06 22:34 UTC ループA **C-1451: 指でもポーズ。**",
+        "      条件を満たすこと。→ 動かす数字:",
+        "      creation_touch_pause unmeasurable→1（往復を検査）",
+        NEIGHBOUR,
+        NEIGHBOUR_BRIEF,
+        STRAY,
+    )
+    problems = board.check(text)
+    assert len(problems) == 1 and "creation_touch_pause" in problems[0]
+
+
 # --- the one collision that predates the check -------------------------
 
 
