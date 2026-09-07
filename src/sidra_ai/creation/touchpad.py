@@ -374,6 +374,85 @@ def pad_probe(script: str, *, floor_token: str) -> str:
     )
 
 
+#: The pad, painted rather than declared (§4, C-1390): C-1388's judge
+#: computes ratios from padFacts()' declared colours, so a page that draws
+#: no ring but keeps the declaration passes - the C-1337 limit, again.
+#: This probe arms PAD_ON (matchMedia answers per query: coarse pointer
+#: yes, reduced motion no), runs one post-gate frame through a recording
+#: context that tracks fillStyle/strokeStyle/globalAlpha/lineWidth through
+#: save/restore, and checks every padButtons() rect really received the
+#: plate fill, both rings at their widths and full alpha, and its glyph.
+PADPAINT_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = (q) => ({ matches: String(q).indexOf('coarse') >= 0 });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let S = { fill: '', stroke: '', alpha: 1, lw: 1 };
+const stack = [];
+let fills = [], strokes = [], texts = [], pathFills = [];
+const rec = {
+  fillRect: (x, y, w, h) => { fills.push([x, y, w, h, S.fill, S.alpha]) },
+  strokeRect: (x, y, w, h) => { strokes.push([x, y, w, h, S.stroke, S.lw, S.alpha]) },
+  fillText: (txt) => { texts.push([String(txt), S.fill, S.alpha]) },
+  fill: () => { pathFills.push([S.fill, S.alpha]) },
+  save: () => { stack.push({ fill: S.fill, stroke: S.stroke, alpha: S.alpha, lw: S.lw }) },
+  restore: () => { const p = stack.pop(); if (p) S = p },
+};
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy(rec, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: (t, k, v) => { if (k === 'fillStyle') S.fill = v;
+      else if (k === 'strokeStyle') S.stroke = v;
+      else if (k === 'globalAlpha') S.alpha = v;
+      else if (k === 'lineWidth') S.lw = v; return true } }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+const facts = padFacts();
+const buttons = padButtons();
+fills = []; strokes = []; texts = []; pathFills = [];
+run(1);
+const report = buttons.map(b => {
+  const isLetter = b.g.length === 1;
+  return { id: b.id, g: b.g,
+    plate: fills.some(f => f[0] === b.x && f[1] === b.y && f[2] === b.w &&
+      f[3] === b.h && f[4] === facts.plate && f[5] === facts.alpha),
+    ringOut: strokes.some(f => f[0] === b.x && f[1] === b.y && f[2] === b.w &&
+      f[3] === b.h && f[4] === facts.ringOut && f[5] === 4 && f[6] === 1),
+    ringIn: strokes.some(f => f[0] === b.x && f[1] === b.y && f[2] === b.w &&
+      f[3] === b.h && f[4] === facts.ringIn && f[5] === 2 && f[6] === 1),
+    glyph: isLetter
+      ? texts.some(t => t[0] === b.g && t[1] === facts.glyph && t[2] === 1)
+      : null } });
+const arrows = buttons.filter(b => b.g.length > 1).length;
+const arrowGlyphs = pathFills.filter(p => p[0] === facts.glyph && p[1] === 1).length;
+console.log(JSON.stringify({ padOn: PAD_ON, buttons: report,
+  arrows: arrows, arrowGlyphs: arrowGlyphs }));
+"""
+
+
+def padpaint_probe(script: str) -> str:
+    """The page's own script, wrapped so the pad's real paint is compared
+    against its own declaration."""
+
+    return PADPAINT_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "ALIASES",
     "BUTTON_CSS_PX",
@@ -381,8 +460,10 @@ __all__ = [
     "PAD_KEYS",
     "PAD_PREAMBLE",
     "PAD_PROBE",
+    "PADPAINT_PROBE",
     "keys_read",
     "pad_active_declaration",
     "pad_probe",
+    "padpaint_probe",
     "unreachable_keys",
 ]

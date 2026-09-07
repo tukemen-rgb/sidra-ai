@@ -7823,6 +7823,76 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the pad is painted, not declared (§4, C-1390) ------------------
+    #
+    # C-1388's judge computes ratios from padFacts()' DECLARED colours -
+    # a page that draws no ring but keeps the declaration passes (the
+    # C-1337 limit, which C-1352 closed for the HUD). This closes it for
+    # the pad: a style-tracking recording context arms PAD_ON, captures
+    # one post-gate frame, and every padButtons() rect must really have
+    # received the plate fill at the declared alpha, both rings at their
+    # declared colours/widths/full alpha, and its glyph in the declared
+    # glyph colour.
+    from sidra_ai.creation.touchpad import padpaint_probe as _pp_probe
+
+    pp_gaps: list[str] = []
+    for _pp_suffix in ("", "紙のテーマで"):
+        _pp_label = f"catch/{_pp_suffix or 'default'}"
+        _pp_page = generate_game(
+            f"ゲームを作って {_pp_suffix}".strip(), template="catch"
+        ).html
+        _pp_m = _scene_re.search(r"<script>(.*?)</script>", _pp_page, _scene_re.S)
+        if _pp_m is None:
+            pp_gaps.append(f"{_pp_label}: no script")
+            continue
+        try:
+            _pp_run = _scene_sp.run(
+                ["node", "-"],
+                input=_pp_probe(_pp_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _pp_run.returncode != 0:
+                raise ValueError(_pp_run.stderr.strip()[:60])
+            _pp = json.loads(_pp_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            pp_gaps.append(f"{_pp_label}: probe unavailable ({exc})")
+            continue
+        if not _pp["padOn"]:
+            pp_gaps.append(f"{_pp_label}: the coarse pointer never armed the pad")
+            continue
+        if not _pp["buttons"]:
+            pp_gaps.append(f"{_pp_label}: no buttons to paint")
+        for _pp_b in _pp["buttons"]:
+            if not _pp_b["plate"]:
+                pp_gaps.append(f"{_pp_label}: {_pp_b['g']} plate never painted")
+            if not _pp_b["ringOut"] or not _pp_b["ringIn"]:
+                pp_gaps.append(f"{_pp_label}: {_pp_b['g']} ring never painted")
+            if _pp_b["glyph"] is False:
+                pp_gaps.append(f"{_pp_label}: {_pp_b['g']} glyph never painted")
+        if _pp["arrowGlyphs"] < _pp["arrows"]:
+            pp_gaps.append(
+                f"{_pp_label}: arrow glyphs missing "
+                f"({_pp['arrowGlyphs']}/{_pp['arrows']})"
+            )
+    c.add(
+        "creation_pad_painted",
+        "パッドは宣言でなく実際に塗られている",
+        0.0 if pp_gaps else 1.0,
+        detail=(
+            "; ".join(pp_gaps)
+            if pp_gaps
+            else "catch default+紙 の実ページで、PAD_ON を立てた 1 フレームの"
+            "記録 ctx（fillStyle/strokeStyle/globalAlpha/lineWidth を "
+            "save/restore 込みで追跡）が padButtons() 全 4 ボタンに板 α0.72・"
+            "外環 lw4 α1・内環 lw2 α1・グリフ（文字は fillText・矢印は "
+            "path fill）を宣言色そのままで確認（C-1352 の処方の第 2 適用＝"
+            "C-1388 の宣言契約が絵と一致していることの実証）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the shot leaves a trail (§1, C-1389) ---------------------------
     #
     # §1's particle list names three siblings - smoke, debris, trails -
