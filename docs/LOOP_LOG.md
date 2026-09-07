@@ -8739,3 +8739,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 06:12 UTC ループA started
 2026-09-07 06:12 辛口ユーザー C-1463 完了 revision_polite_request_is_revision 5.0 -> 10（判定器 exit 0・pytest FAILED 0・check_gate_regression exit 0（blended 8.3%）・--compare exit 0（BETTER 5->10, MOVED 1）・観点=改訂フローの丁寧依頼（難しくしてもらえますか が質問扱い）・前回=プロジェクト制作一式 C-1462。C-1455 の改訂版: 変更動詞語幹＋受益/尊敬補助を丁寧依頼として認識し説明マーカーが無いとき ますか veto を免除。既存改訂 49 本不変。破壊 5 通り全て捕捉）
 2026-09-07 06:20 UTC 辛口クリエイター C-1377 完了（81 巡目・観点 §6 前回=§5・研究増築なし・creation_duel_hit_beats unmeasurable→2・両決闘者に hurt8/smoke34 を移植し実対戦の一撃で 3 段を実測・破壊 3 通り検出・pytest 4023 緑・gate MISS 0・judge exit 0）
+
+2026-09-07 06:14 UTC 辛口ユーザー started（79 巡目・別面 予定=/v1/retrieve 生検索経路を一般利用者として点検（redaction/抜粋/スコア表示の正直さ）・前回=改訂フロー丁寧依頼 C-1463）
