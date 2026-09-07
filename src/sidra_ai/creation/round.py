@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Sequence
 
 from sidra_ai.creation.juice import HAPTIC_ROUND
 
@@ -837,6 +838,7 @@ __all__ = [
     "HOLD_PROBE",
     "hold_probe_source",
     "PREAMBLE_NAMES",
+    "MASH_PROBE",
     "PROBE",
     "SHIELD_PROBE",
     "TICK_PROBE",
@@ -848,6 +850,7 @@ __all__ = [
     "ROUND_GAP_MS",
     "ROUND_SHIELD_FRAMES",
     "live_gaps",
+    "mash_probe_source",
     "shield_probe_source",
     "tick_probe_source",
     "preamble_for",
@@ -1370,4 +1373,137 @@ def clock_probe_source(
         .replace("HOLD_INPUT", json.dumps(hold))
         .replace("GAP_MS_INPUT", str(int(gap_ms)))
         .replace("GAP_AT_INPUT", str(int(gap_at)))
+    )
+
+
+#: Does mindless mashing win? (C-1501)
+#:
+#: The masher presses one key every frame and steers not at all - the
+#: cheapest possible input, and the one a difficulty label has to answer.
+#: Two readings come back, both from driving the real page:
+#:
+#: * ``struck`` - how many times the SHARED damage sound fired after play
+#:   began. ``sfx('hurt')`` is what every template plays when the player is
+#:   hit, so this is one signal that needs no per-template knowledge.
+#: * ``state`` - what the run ended as, so "never hit AND won" is separable
+#:   from "never hit because it never finished".
+#:
+#: The prologue is excluded by counting only from the frame the template
+#: first accepts input: kaiju roars with the same ``hurt`` sound on its
+#: opening frame, and a probe that counted that would report a masher as
+#: punished by the title card.
+MASH_PROBE = """
+const mNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : mNothing),
+  apply: () => mNothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: false, addEventListener(){}, addListener(){} });
+let mTime = 0;
+globalThis.performance = { now: () => mTime };
+function MContext(){ this.state='running'; this.currentTime=0; this.destination={};
+  this.sampleRate=44100 }
+MContext.prototype.createPeriodicWave = function(){ return { kind:'wave' } };
+MContext.prototype.createOscillator = function(){
+  return { type:'', setPeriodicWave(){},
+    frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+    connect(){}, start(){}, stop(){} } };
+MContext.prototype.createBuffer = function(ch, len){
+  return { getChannelData: () => new Float32Array(len) } };
+MContext.prototype.createBufferSource = function(){
+  return { buffer:null, start(){}, stop(){}, connect(){} } };
+MContext.prototype.createBiquadFilter = function(){
+  return { type:'', frequency:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+    connect(){} } };
+MContext.prototype.createGain = function(){
+  return { gain:{ setValueAtTime(){}, exponentialRampToValueAtTime(){}, value: 0 },
+    connect(){} } };
+globalThis.window = { AudioContext: MContext };
+const mKeys = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') mKeys.push(fn) };
+globalThis.Image = function(){ return mNothing };
+const mStore = {};
+globalThis.localStorage = {
+  getItem: (k) => (k in mStore ? mStore[k] : null),
+  setItem: (k, v) => { mStore[k] = String(v) }, removeItem: (k) => { delete mStore[k] } };
+globalThis.location = { reload: () => {} };
+const mEl = { width: 720, height: 320, style: {}, textContent: '', attrs: {},
+  addEventListener(){}, setAttribute(){}, getAttribute(){ return null }, blur(){},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => mNothing };
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => mEl, querySelector: () => null, getElementById: () => mEl };
+let mQueued = null;
+globalThis.requestAnimationFrame = (fn) => { mQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+/* The shared damage sound, counted around the real sfx so the mute and the
+   volume dial stay inside the measurement. */
+let mStruck = 0, mCounting = false;
+const mRealSfx = sfx;
+sfx = function(name, pitch){
+  if (mCounting && String(name) === 'hurt') { mStruck++ }
+  return mRealSfx.call(this, name, pitch) };
+function mPress(key){ mKeys.forEach(fn => fn({ key: key, code: key,
+  preventDefault(){}, stopImmediatePropagation(){} })) }
+function mStep(){ if (!mQueued) return false;
+  const fn = mQueued; mQueued = null; mTime += 50 / 3; fn(mTime); return true }
+mStep(); mStep();
+mPress(' ');
+/* Only from here: a prologue that roars with the damage sound is not the
+   player being hit (kaiju does exactly that on its first frame). */
+for (let f = 0; f < WARMUP_INPUT; f++) { if (!mStep()) break }
+mCounting = true;
+/* A list, so "presses one key and never steers" can be compared against
+   "presses the same key and also walks". A fix that punished standing
+   still would be indistinguishable from one that punished playing at all
+   if only the first could be driven. */
+const mHold = HOLD_INPUT;
+let mEndedAt = null;
+for (let f = 0; f < FRAMES_INPUT; f++) {
+  mHold.forEach(mPress);
+  if (!mStep()) break;
+  const facts = roundFacts();
+  if (mEndedAt === null && (facts.done || facts.ended)) { mEndedAt = f }
+}
+const mEnd = roundFacts();
+/* The instrument proving itself: the count has to be able to move. A
+   run that reports "never struck" is only evidence if a real call to the
+   shared damage sound would have been seen. */
+const mBeforeSelf = mStruck;
+try { sfx('hurt') } catch (e) {}
+const mSelfCheck = mStruck - mBeforeSelf;
+console.log(JSON.stringify({
+  struck: mBeforeSelf,
+  selfCheck: mSelfCheck,
+  endedAt: mEndedAt,
+  done: !!mEnd.done,
+  ended: !!mEnd.ended,
+  score: mEnd.score,
+  live: mEnd.live,
+  running: mQueued !== null,
+}));
+"""
+
+
+def mash_probe_source(
+    script: str,
+    *,
+    frames: int = 5400,
+    warmup: int = 150,
+    hold: str | Sequence[str] = " ",
+) -> str:
+    """The page's own script, driven by one key held down and nothing else.
+
+    ``warmup`` frames are played before the damage count starts, so an
+    opening that uses the shared damage sound as a roar is not counted as
+    the player being hit. It is longer than kaiju's 90-frame prologue on
+    purpose - the count has to start inside the fight, not on its edge.
+    """
+
+    return (
+        MASH_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("WARMUP_INPUT", str(int(warmup)))
+        .replace("FRAMES_INPUT", str(int(frames)))
+        .replace(
+            "HOLD_INPUT",
+            json.dumps([hold] if isinstance(hold, str) else list(hold)),
+        )
     )

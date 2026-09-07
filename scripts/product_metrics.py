@@ -13790,6 +13790,78 @@ def measure_creation(c: Collector) -> None:
         ),
         kind=OUTCOME,
     )
+
+    # --- 無策の連打が罰せられるか (C-1501) ---------------------------
+    # A difficulty label is a promise about what the game asks of you. This
+    # drives every template at its HARD band with the cheapest possible
+    # input - one key held every frame, no steering at all - and counts the
+    # SHARED damage sound. One signal, no per-template knowledge, and the
+    # probe proves itself on every run: it calls sfx('hurt') once at the
+    # end and reports whether the counter moved, so "never struck" is only
+    # ever reported by an instrument that just demonstrated it can see a
+    # strike.
+    # The templates that HAVE a hard band - a difficulty promise is what is
+    # being checked, so a template with no ladder is out of scope rather
+    # than counted as passing.
+    from sidra_ai.creation.games import _DIFFICULTY as _mash_ladder
+    from sidra_ai.creation.round import mash_probe_source as _mash_probe
+
+    mash_rows: list[dict] = []
+    mash_gaps: list[str] = []
+    for _mash_key in sorted(k for k, v in _mash_ladder.items() if "hard" in v):
+        _mash_page = _tune_generate("難しいゲームを作って", template=_mash_key).html
+        _mash_script = _scene_re.search(
+            r"<script>(.*?)</script>", _mash_page, _scene_re.S
+        )
+        if _mash_script is None:
+            mash_gaps.append(f"{_mash_key}: ページに script が無い")
+            continue
+        try:
+            _mash_run = _scene_sp.run(
+                ["node", "-"],
+                input=_mash_probe(_mash_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if _mash_run.returncode != 0:
+                mash_gaps.append(f"{_mash_key}: {_mash_run.stderr.strip()[:60]}")
+                continue
+            _mash_out = json.loads(_mash_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            mash_gaps.append(f"{_mash_key}: 走らせられない（{type(exc).__name__}）")
+            continue
+        if _mash_out.get("selfCheck") != 1:
+            mash_gaps.append(f"{_mash_key}: 計器が自分の当たりを数えられていない")
+            continue
+        mash_rows.append({"template": _mash_key, **_mash_out})
+
+    punished = [r["template"] for r in mash_rows if r["struck"] > 0]
+    spared = [r["template"] for r in mash_rows if r["struck"] == 0]
+    c.add(
+        "creation_mash_punished",
+        "難易度 hard で無策の連打が敗北または被弾する型の数",
+        0.0 if mash_gaps else float(len(punished)),
+        unit="型",
+        kind=OUTCOME,
+        detail=(
+            "; ".join(mash_gaps)
+            if mash_gaps
+            else f"{len(mash_rows)} 型を **hard の実ページで実際に走らせて**測った"
+            "（1 キーを毎フレーム押すだけ・操舵は一切しない）。"
+            f"罰せられる型 **{len(punished)}**"
+            f"（{', '.join(punished) or 'なし'}）／"
+            f"無傷で通る型 {len(spared)}（{', '.join(spared) or 'なし'}）。"
+            "数えるのは**共有の被弾音 `sfx('hurt')`** の発火数——"
+            "型ごとの内部を知らずに済む 1 本の信号で、"
+            "**プロローグは数えない**（kaiju は開幕の咆哮に同じ音を使うので、"
+            "数え始めを遅らせないとタイトル画面が「罰」に化ける）。"
+            "**計器は毎回自分を証明する**: 走行の最後に `sfx('hurt')` を"
+            "1 回呼んで数字が動くことを確かめており、動かなければその型は"
+            "「無傷」ではなく**測定不能**として落とす——"
+            "「一度も当たらなかった」は、当たりを見られる計器だけが言える。"
+        ),
+    )
     c.add(
         "creation_urgent_tick",
         "終盤の残り数秒が耳にも届く（画面・手に続く第 3 の通路）",
