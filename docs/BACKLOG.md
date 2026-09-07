@@ -6766,6 +6766,28 @@ C-12xx/13xx/14xx はループ用のまま）。
       `\s*` が既に改行を跨ぐので**外しても結果は同じ**。テストで
       守っているふりをせず、そう書いた。
       pytest 3935 passed / 3 skipped / FAILED 0・gate MISS 0/誤検知 0。
+- [ ] **C-1472: ブザー直後の連打が結果を消す——終局の一瞬に短い盾を。**
+      （進捗監視起票 2026-09-07・根拠は round.py 実読＋外部調査:
+      roundRestart は `if(ROUND_DONE)` だけで**ロックアウトが無く**、
+      keydown(R)/canvas pointerdown が DONE の次のフレームから
+      `location.reload()` を即発火する。連打しながらブザーを迎えた
+      プレイヤーは、結果画面「ここまで」・敗因の一言（C-1409 系）・
+      自己ベスト行・リザルト帯を**一度も見ずに**ページごと消す——
+      即リトライ（それ自体は §8 の正しい設計）の裏面の穴。外部調査:
+      ultra-short loop 設計では「成果を一目で読めること」と「摩擦の
+      ない再開」の**両立**が要点とされる（gameindustry.com
+      「The 10-Second Game Loop」 https://www.gameindustry.com/news-industry-happenings/the-10-second-game-loop-and-what-aviator-teaches-about-ultra-short-session-design/
+      確認日 2026-09-07——「users need to understand the stakes and
+      the outcome at a glance」「The cycle resets without friction」）。
+      直し方の例: ROUND_DONE 直後の短い盾（例 400ms/24f 相当）を
+      置き、盾の間は R/タップを再開として数えない——盾の後の 1 押しは
+      従来どおり即再開（摩擦は足さない）。対象はこの時計のブザー経路
+      のみ: 自前の終局を持つ型の R/タップ（kaiju・duel 等）は各自の
+      画面設計に属するので触らない。DONE で時計は止まっているので
+      C-1450 の間隔赦しとは干渉しない）→ 動かす数字:
+      creation_end_shield unmeasurable→1（ブザーと同フレーム〜直後の
+      連打入力で reload が発火せず、盾の後の 1 押しで従来どおり再開
+      することをページ実走行で検査。破壊〔盾の除去〕で 0）
 - [記録] 完了・数字は動かず 2026-09-06 04:34 ループA（判定器 exit 1 = NO MOVEMENT・`creation_attract_demo` **8→8**・どの数字も片方向にも動かず。**起票時にそう書いたとおり**——この項目の仕事は 8 を保つことで、上げる数字は無い。pytest 3672 passed / FAILED 0・gate MISS 0/誤検知 0）**C-1441: 幕の検査が、最後の 1 フレームだけを見ている。**
       **記録 2026-09-06 04:34 ループA**（判定器 exit 1・8→8・回帰ゼロ。
       予告どおりなので差し戻さず main へ入れた。exit 0 ではないので
