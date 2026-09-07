@@ -317,7 +317,7 @@ function draw(now){
      act's floor, and 2.1:1 even on paper (C-1131's check only sees
      the DEFAULT ink misused, so it sailed through). The theme's own
      ink, on the plate, like every other word (C-1334). */
-  cx.fillStyle=HUD_INK;cx.font='12px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
   cx.fillText('相手: '+(CPU_STYLE==='quick'?'早撃ち型':'溜め型'),cv.width/2-40,20)
   cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
   if(p.beam>0&&e.beam>0&&p.beamLane===e.beamLane){

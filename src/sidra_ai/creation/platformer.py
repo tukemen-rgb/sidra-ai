@@ -302,8 +302,8 @@ function draw(now){
     cx.strokeStyle='#dfe7f5';cx.strokeRect(lx-7.5,lamp.y-40.5,15,17);
     /* A number written on the lamp, so it is ink like every other
        word on the page - white on a light theme is not readable (C-1131). */
-    if(!lamp.lit){cx.fillStyle='INK_TOKEN';cx.font='11px ui-monospace,monospace';
-      cx.fillText(String(LAMP_COST),lx-3,lamp.y-28)}}
+    if(!lamp.lit){cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+      cx.fillText(String(LAMP_COST),lx-4,lamp.y-28)}}
   const fx=flag.x-cam;
   if(fx>-40&&fx<W+40){
     cx.fillStyle='#dfe7f5';cx.fillRect(fx-1,flag.y-46,3,46);

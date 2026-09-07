@@ -382,13 +382,13 @@ function drawTile(t,x,y,now){
      text, never colour alone). */
   if(t===12){cx.fillStyle='RAISED_TOKEN';cx.fillRect(x+5,y+3,TILE-10,TILE-6);
     cx.fillStyle='#00000055';cx.fillRect(x+5,y+TILE-7,TILE-10,4);
-    cx.fillStyle='INK_TOKEN';cx.font='11px ui-monospace,monospace';
-    cx.fillText('碑',x+10,y+18)}
+    cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+    cx.fillText('碑',x+9,y+19)}
   if(t===13||t===14||t===15){cx.fillStyle='RAISED_TOKEN';
     cx.fillRect(x+4,y+6,TILE-8,TILE-10);
     cx.fillStyle='#ffffff2e';cx.fillRect(x+4,y+6,TILE-8,3);
-    cx.fillStyle='INK_TOKEN';cx.font='12px ui-monospace,monospace';
-    cx.fillText(KMARKS[t-13],x+10,y+21)}}
+    cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+    cx.fillText(KMARKS[t-13],x+9,y+21)}}
 function diamond(cxp,cyp,r){cx.beginPath();cx.moveTo(cxp,cyp-r);
   cx.lineTo(cxp+r,cyp);cx.lineTo(cxp,cyp+r);cx.lineTo(cxp-r,cyp);cx.closePath()}
 function draw(now){

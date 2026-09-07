@@ -7114,6 +7114,45 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the type floor: every drawn word is at least 13px (§24, C-1375)
+    #
+    # The canvas shrinks from its 720 design width on phones (§18), so
+    # the floor is set where the smallest promoted screen (667px
+    # landscape, x0.926) still clears iOS's smallest type (Caption 2,
+    # 11pt): 13 canvas px. Measured off the built page - every font a
+    # frame can set is a string literal in its script, so the census is
+    # the paint. DOM text (the tuning panel) does not shrink with the
+    # canvas and is out of scope. Counted per template at or above the
+    # floor; any page below collapses to 0.
+    type_gaps: list[str] = []
+    _tf_re = _scene_re
+    for _tf_key in sorted(_TOUCH_TEMPLATES):
+        _tf_page = generate_game("ゲームを作って", template=_tf_key).html
+        _tf_m = _tf_re.search(r"<script>(.*?)</script>", _tf_page, _tf_re.S)
+        if _tf_m is None:
+            type_gaps.append(f"{_tf_key}: no script on the page")
+            continue
+        _tf_sizes = [
+            int(px) for px in _tf_re.findall(r"font='(\d+)px", _tf_m.group(1))
+        ]
+        if not _tf_sizes:
+            type_gaps.append(f"{_tf_key}: no drawn text found by the census")
+        elif min(_tf_sizes) < 13:
+            type_gaps.append(f"{_tf_key}: draws {min(_tf_sizes)}px text")
+    c.add(
+        "creation_hud_text_floor",
+        "描画文字が床 13px 以上の型",
+        0.0 if type_gaps else float(len(_TOUCH_TEMPLATES)),
+        detail=(
+            "; ".join(type_gaps)
+            if type_gaps
+            else "全型の canvas 描画文字が 13px 以上（§24。667px 横持ちの"
+            "縮尺 0.926 で実効 12.0px ≥ iOS 最小型 Caption 2 の 11pt。"
+            "11px の 3 箇所と 12px の 4 箇所を 13px へ）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the boss behind the boss key ----------------------------------
     #
     # §3's modern-Zelda floor is rooms -> boss key -> boss; the adventure's

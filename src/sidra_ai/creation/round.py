@@ -543,7 +543,7 @@ function drawResultStrip(){if(!RCV)return;roundBank();
      twice - and it is drawn under the score rather than beside it so the
      result keeps the line it had. */
   let runs=[];try{runs=roundLog()}catch(e){}
-  if(runs.length>1){c.save();c.font='11px ui-monospace,monospace';
+  if(runs.length>1){c.save();c.font='13px ui-monospace,monospace';
     c.textAlign='left';c.globalAlpha=0.72;
     c.fillText('直近 '+runs.join(' / '),16,H-42);c.restore()}
   let news=null;try{news=skinNews()}catch(e){}
