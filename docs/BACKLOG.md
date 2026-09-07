@@ -2923,7 +2923,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       なので足していない——**測って見えるようにだけしておく**。
       pytest 4321 passed / 3 skipped / FAILED 0・gate MISS 0/誤検知 0。
       Board=13（変化なし）。
-- [ ] **C-1506: roundEnded() が終了を報告しない経路の切り分け。**〔小・要調査〕
+- [~] 作業中 2026-09-07 22:09 UTC ループA **C-1506: roundEnded() が終了を報告しない経路の切り分け。**〔小・要調査〕
       再現: fishing を 5 フレーム間隔のスペース押下で 6000 フレーム駆動→
       ラウンド時計 100 秒・ROUND_BANKED=true・ROUND_DONE=true なのに、
       毎フレーム直後の観測で roundEnded() が一度も true を返さなかった。
