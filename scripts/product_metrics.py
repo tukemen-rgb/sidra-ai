@@ -7584,6 +7584,78 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- being hit stays visible without motion (§4×§15, C-1386) --------
+    #
+    # The adventure's mercy window is told only by the inv blink — a
+    # motion effect the reduced-motion contract removes, leaving the
+    # reduced hero hit with no visible state at all. Driven: one real
+    # hit must cost a heart in both motions; normal motion keeps the
+    # blink (gaps in the hero's draw) with no outline, reduced motion
+    # holds a steady outline for the mercy window and drops it with it.
+    from sidra_ai.creation.adventure import hurt_probe as _av_hurt
+
+    hurt_gaps: list[str] = []
+    _ht_page = generate_game("ゲームを作って", template="adventure").html
+    _ht_m = _scene_re.search(r"<script>(.*?)</script>", _ht_page, _scene_re.S)
+    if _ht_m is None:
+        hurt_gaps.append("adventure: no script")
+    else:
+        try:
+            _ht_runs = {}
+            for _ht_red in (False, True):
+                _ht_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_av_hurt(_ht_m.group(1), reduced=_ht_red),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if _ht_run.returncode != 0:
+                    raise ValueError(_ht_run.stderr.strip()[:60])
+                _ht_runs[_ht_red] = json.loads(
+                    _ht_run.stdout.strip().splitlines()[-1]
+                )
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            hurt_gaps.append(f"adventure: probe unavailable ({exc})")
+        else:
+            _ht_n, _ht_r = _ht_runs[False], _ht_runs[True]
+            for _ht_key, _ht_one in (("normal", _ht_n), ("reduced", _ht_r)):
+                if _ht_one["hpAfter"] != 2 or _ht_one["invAfter"] != 60:
+                    hurt_gaps.append(
+                        f"adventure/{_ht_key}: the hit never landed "
+                        f"(hp {_ht_one['hpAfter']}, inv {_ht_one['invAfter']})"
+                    )
+            if not hurt_gaps:
+                if _ht_n["outlineFrames"] != 0:
+                    hurt_gaps.append(
+                        "adventure: normal motion shows the reduced outline"
+                    )
+                if _ht_n["blinkGaps"] == 0:
+                    hurt_gaps.append("adventure: the blink is gone")
+                if _ht_r["outlineFrames"] < 50:
+                    hurt_gaps.append(
+                        "adventure: the mercy window is invisible without "
+                        f"motion ({_ht_r['outlineFrames']}f)"
+                    )
+                if _ht_r["outlineAfter"] != 0:
+                    hurt_gaps.append(
+                        "adventure: the outline outlives the window"
+                    )
+    c.add(
+        "creation_reduced_hurt_visible",
+        "動きを消しても被弾が見える（実被弾）",
+        0.0 if hurt_gaps else 1.0,
+        detail=(
+            "; ".join(hurt_gaps)
+            if hurt_gaps
+            else "adventure で実被弾 1 発（hp 3→2・inv 60f）を両モーションで"
+            "実測: 通常は点滅が生き（描画欠落 29f）輪郭ゼロ・REDUCED は"
+            "無敵窓のほぼ全域（59/64f）を定常輪郭が立ち窓と同時に消える"
+            "（§4×§15。点滅は動きの演出なので REDUCED では状態表示に置換）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the engine voice: speed made audible (§25, C-1378) -------------
     #
     # The earliest racing engines were nothing but the RPM driving a

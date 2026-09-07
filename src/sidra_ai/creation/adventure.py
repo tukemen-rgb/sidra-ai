@@ -461,6 +461,15 @@ function draw(now){
       const ex=[0,2.5,0,-2.5][hero.dir];
       cx.fillRect(hero.x-5.5+ex,hero.y-6,2.5,3);
       cx.fillRect(hero.x+3+ex,hero.y-6,2.5,3)}}
+  /* The blink is motion, so reduced motion pins the hero solid - which
+     used to erase the invulnerability entirely: no flash, no ring,
+     nothing but the heart row and a sound. The guardian's wind-up
+     already answers this with a steady outline (C-1343's rule made
+     visual), so the hero's mercy window gets the same one: drawn only
+     under REDUCED, only while inv runs, gone the frame it expires
+     (§4×§15, C-1386). */
+  if(hero.inv>0&&REDUCED){cx.strokeStyle='#dfe7f5';cx.lineWidth=2;
+    cx.strokeRect(hero.x-13,hero.y-17,26,28);cx.lineWidth=1}
   if(hero.swing>0){const p=ease(hero.swing/10);cx.strokeStyle='#dfe7f5';
     cx.lineWidth=3;cx.beginPath();
     const ang=[[-2.2,-0.9],[-0.7,0.7],[0.9,2.2],[2.4,3.9]][hero.dir];
@@ -797,6 +806,75 @@ def wreck_probe(script: str) -> str:
     """The page's own script, wrapped so the husks can be counted."""
 
     return WRECK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+#: The mercy window, seen without motion (§4×§15, C-1386): a REDUCED run
+#: takes a real hit and the steady outline must stand while inv runs and
+#: vanish the frame it expires; a normal run keeps its blink (frames
+#: where the hero is not drawn) and never shows the outline.
+HURT_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let frameStrokes = [], frameFills = [];
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    strokeRect: (x, y, w, h) => { frameStrokes.push([w, h]) },
+    fillRect: (x, y, w, h) => { frameFills.push([w, h]) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: () => true }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function frame(){ frameStrokes = []; frameFills = [];
+  if (queued) { const fn = queued; queued = null; fn((F++) * 16) }
+  return { outline: frameStrokes.some(s => s[0] === 26 && s[1] === 28),
+    hero: frameFills.some(f => f[0] === 22 && f[1] === 7) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); frame(); frame();
+/* Into the cave, onto an enemy: a real hit. */
+room = 1;
+const en = enemies[1][0];
+hero.inv = 0; hero.hp = 3; hero.swing = 0;
+hero.x = en.x; hero.y = en.y;
+frame();
+const hpAfter = hero.hp, invAfter = hero.inv;
+/* Hold still through the mercy window and watch every frame. */
+hero.x = OX + 2 * TILE; hero.y = OY + 4 * TILE;
+let outlineFrames = 0, blinkGaps = 0, watched = 0;
+while (hero.inv > 0 && watched++ < 90) {
+  const f = frame();
+  if (f.outline) outlineFrames++;
+  if (!f.hero) blinkGaps++;
+}
+/* And past it: the outline must not outlive the window. */
+let outlineAfter = 0;
+for (let i = 0; i < 20; i++) { if (frame().outline) outlineAfter++ }
+console.log(JSON.stringify({ hpAfter: hpAfter, invAfter: invAfter,
+  watched: watched, outlineFrames: outlineFrames, blinkGaps: blinkGaps,
+  outlineAfter: outlineAfter }));
+"""
+
+
+def hurt_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the mercy window can be seen."""
+
+    return HURT_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
 
 
 #: The dry run, driven (§5, C-1376): with the dice loaded to always miss,
@@ -1182,6 +1260,8 @@ __all__ = [
     "wreck_probe",
     "ECON_PROBE",
     "econ_probe",
+    "HURT_PROBE",
+    "hurt_probe",
     "guard_probe",
     "know_probe",
     "world_probe",
