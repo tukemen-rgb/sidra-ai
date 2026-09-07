@@ -7849,6 +7849,64 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- an interruption releases the pad too (§22×§4, C-1392) ----------
+    #
+    # focusRelease lifts the KEYS on blur/pagehide, but PAD_HELD is the
+    # pad's own state: left alone it keeps the held highlight lit on a
+    # button nobody is touching, and a browser that recycles the
+    # pointerId hands the next tap to padMove/padUp, which eat it.
+    # Driven: one real synthetic touch, then a blur with no pointerup -
+    # the map must empty, the keyup must flow, and the next frame's
+    # plate must be back to the declared colour.
+    from sidra_ai.creation.touchpad import padhold_probe as _ph_probe
+
+    ph_gaps: list[str] = []
+    _ph_page = generate_game("ゲームを作って", template="catch").html
+    _ph_m = _scene_re.search(r"<script>(.*?)</script>", _ph_page, _scene_re.S)
+    if _ph_m is None:
+        ph_gaps.append("catch: no script")
+    else:
+        try:
+            _ph_run = _scene_sp.run(
+                ["node", "-"],
+                input=_ph_probe(_ph_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _ph_run.returncode != 0:
+                raise ValueError(_ph_run.stderr.strip()[:60])
+            _ph = json.loads(_ph_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            ph_gaps.append(f"catch: probe unavailable ({exc})")
+        else:
+            if _ph["heldBefore"] != 1 or _ph["downSent"] != 1:
+                ph_gaps.append("catch: the touch never landed on the pad")
+            elif _ph["heldPlateBefore"] != "held":
+                ph_gaps.append("catch: the held button never lights")
+            else:
+                if _ph["heldAfter"] != 0:
+                    ph_gaps.append("catch: the blur leaves the pad held")
+                if _ph["upSent"] != 1:
+                    ph_gaps.append("catch: the release never sends the keyup")
+                if _ph["heldPlateAfter"] != "plate":
+                    ph_gaps.append("catch: the highlight outlives the touch")
+    c.add(
+        "creation_pad_release",
+        "中断でパッドの指も離れる（実タッチ）",
+        0.0 if ph_gaps else 1.0,
+        detail=(
+            "; ".join(ph_gaps)
+            if ph_gaps
+            else "catch の実ページで合成タッチ（pointerdown・実座標）→held 1 件"
+            "＋held 色の板を実描画→pointerup 無しの blur→PAD_HELD 0 件・"
+            "keyup 1 発送出・次フレームの板は宣言 plate 色へ復帰（§22 の"
+            "解放がパッドの私有状態にも届く。focusRelease の keyup と二重に"
+            "なるが無害・pointerId 再利用の乗っ取りも消える）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the muzzle lights up (§1×§23 事実 4, C-1391) -------------------
     #
     # The talk's bullet trio - bigger bullets, muzzle flash, faster

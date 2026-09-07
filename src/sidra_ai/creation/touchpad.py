@@ -127,6 +127,15 @@ if(PADCV){PADCV.addEventListener('pointerdown',padDown);
   PADCV.addEventListener('pointerup',padUp);
   PADCV.addEventListener('pointercancel',padUp);
   PADCV.addEventListener('pointermove',padMove)}
+/* An interruption releases the pad too (§22×§4, C-1392): focusRelease
+   lifts the KEYS on blur/pagehide, but this map is the pad's own state -
+   left alone it keeps the held highlight lit on a button nobody is
+   touching, and a browser that recycles the pointerId hands the NEXT tap
+   to padMove/padUp, which eat it. The keyup here doubles focusRelease's;
+   keys[k]=false twice is harmless and neither side depends on order. */
+function padRelease(){PAD_HELD.forEach(id=>padKey('keyup',id));PAD_HELD.clear()}
+addEventListener('blur',padRelease);
+addEventListener('pagehide',padRelease);
 function padGlyph(c,b){const cxp=b.x+b.w/2,cyp=b.y+b.h/2,r=Math.min(b.w,b.h)*0.22;
   c.fillStyle='INK_TOKEN';
   if(b.g==='A'||b.g==='R'||b.g==='P'){c.font=Math.round(r*2)+'px ui-monospace,monospace';
@@ -453,6 +462,86 @@ def padpaint_probe(script: str) -> str:
     return PADPAINT_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The interrupted touch, released (§22×§4, C-1392): one real synthetic
+#: touch on a pad button, then a blur with no pointerup - the map must
+#: empty, the keyup must flow, and the next frame's plates must all be
+#: back to the declared plate colour instead of one stuck held highlight.
+PADHOLD_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {}, cvHandlers = {}, sent = [];
+globalThis.matchMedia = (q) => ({ matches: String(q).indexOf('coarse') >= 0 });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.KeyboardEvent = function(type, init){ this.type = type;
+  Object.assign(this, init);
+  this.preventDefault = () => {}; this.stopImmediatePropagation = () => {} };
+globalThis.dispatchEvent = (e) => { sent.push([e.type, e.key]);
+  (handlers[e.type] || []).forEach(fn => fn(e)); return true };
+globalThis.Image = function(){ return nothing };
+let S = { fill: '', alpha: 1 };
+const stack = [];
+let fills = [];
+const rec = {
+  fillRect: (x, y, w, h) => { fills.push([x, y, w, h, S.fill]) },
+  save: () => { stack.push({ fill: S.fill, alpha: S.alpha }) },
+  restore: () => { const p = stack.pop(); if (p) S = p },
+};
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: (type, fn) => {
+    (cvHandlers[type] = cvHandlers[type] || []).push(fn) },
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy(rec, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: (t, k, v) => { if (k === 'fillStyle') S.fill = v;
+      else if (k === 'globalAlpha') S.alpha = v; return true } }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+const facts = padFacts();
+const b0 = padButtons()[0];
+function plateAt(b){ const hit = fills.filter(f => f[0] === b.x && f[1] === b.y &&
+  f[2] === b.w && f[3] === b.h);
+  return hit.length ? hit[hit.length - 1][4] : null }
+/* One real touch on the first button, through the pad's own listener. */
+(cvHandlers.pointerdown || []).forEach(fn => fn({ pointerType: 'touch',
+  pointerId: 7, clientX: b0.x + b0.w / 2, clientY: b0.y + b0.h / 2,
+  preventDefault(){}, stopImmediatePropagation(){} }));
+const heldBefore = PAD_HELD.size;
+const downSent = sent.filter(s => s[0] === 'keydown' && s[1] === b0.id).length;
+fills = []; run(1);
+const heldPlateBefore = plateAt(b0);
+/* The interruption: blur, and no pointerup ever. */
+sent.length = 0;
+(handlers.blur || []).forEach(fn => fn({}));
+const heldAfter = PAD_HELD.size;
+const upSent = sent.filter(s => s[0] === 'keyup' && s[1] === b0.id).length;
+fills = []; run(1);
+const heldPlateAfter = plateAt(b0);
+console.log(JSON.stringify({ heldBefore: heldBefore, downSent: downSent,
+  heldPlateBefore: heldPlateBefore === facts.plate ? 'plate' : 'held',
+  heldAfter: heldAfter, upSent: upSent,
+  heldPlateAfter: heldPlateAfter === facts.plate ? 'plate' : 'held' }));
+"""
+
+
+def padhold_probe(script: str) -> str:
+    """The page's own script, wrapped so the interrupted touch's release
+    can be watched."""
+
+    return PADHOLD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "ALIASES",
     "BUTTON_CSS_PX",
@@ -461,9 +550,11 @@ __all__ = [
     "PAD_PREAMBLE",
     "PAD_PROBE",
     "PADPAINT_PROBE",
+    "PADHOLD_PROBE",
     "keys_read",
     "pad_active_declaration",
     "pad_probe",
     "padpaint_probe",
+    "padhold_probe",
     "unreachable_keys",
 ]
