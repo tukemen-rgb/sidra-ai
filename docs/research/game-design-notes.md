@@ -681,6 +681,12 @@ URL はすべて 2026-09-03 に実際に開いて確認。
   interacting with the game world.」——薬莢は床に落ちて残り、倒した敵は
   離れて戻ってきてもまだそこにいる。結果が残ることが「世界に触っている」
   感触を作る。（出典: https://gamedevacademy.org/game-feel-tutorial/）
+- 事実 3（増築 2026-09-07・辛口クリエイターループ。事実 1 と同じ
+  技法表ページを同日に再確認）: 表には撃つ側の項目も独立にある——
+  「Gun delay & kickback animations [19:52-20:23]」（発射の反動）と
+  「Camera kick [25:09]」。撃った瞬間の体の反動は、当たった瞬間の
+  knockback（17:15）と別の項目として数えられている。
+  （出典: https://theengineeringofconsciousexperience.com/jan-willem-nijman-vlambeer-the-art-of-screenshake/）
 - 学び: SIDRA の Juice は瞬間側が完備（C-1032〜/C-1105/C-1343…）だが、
   **撃破の 0.5 秒後には何も無かったことになる**——shooter の敵は
   `hp>0` の filter で撃破フレームに配列から消え、adventure の敵は
