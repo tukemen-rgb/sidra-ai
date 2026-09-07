@@ -8809,3 +8809,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 11:50 UTC 辛口クリエイター C-1382 完了（86 巡目・観点 §6×§8 前回=§2×§25・終幕の静 ROUND_HOLD=45f・bank は結末のフレーム・creation_end_hold unmeasurable→2・判定器 exit 2 を 1 回踏み（fn 前検出の欠陥を正しく検出）fn 後へ修正＋帯を読む 2 計器の窓を延長・破壊 3 通り検出・pytest 4118 緑・gate MISS 0・judge exit 0）
 
 2026-09-07 12:12 UTC ループA started
+
+2026-09-07 12:20 UTC 辛口ユーザー started（86 巡目・別面 予定=安全性ゲートの tool_coercion 誤検知を点検＝技術ドキュメント（README/API 文書＝主要な取り込み元）に頻出する「Run this command」「Execute the command」「Send a request」等が隔離されないか実測・前回=Web UI 引用の信頼度 C-1471）
