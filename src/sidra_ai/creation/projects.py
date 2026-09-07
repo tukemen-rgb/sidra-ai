@@ -94,6 +94,15 @@ WHOLE_PROJECT_WORDS: tuple[str, ...] = (
     "プロジェクト",
     "まとめて",
     "全部",
+    # C-1462: 「制作一式」 is the project generator's own offered label
+    # (_KIND_LABELS["project"]) and a PROJECT intent word, but it was not a
+    # whole-project word, so 「新機能ローンチのゲーム制作一式を作って」 fell to the
+    # stage matcher, where 「機能」 (inside 新機能, the subject) matched the FEATURES
+    # cue and narrowed a full-set request to features.md alone - while the
+    # summary still said 「制作一式を作りました」. It now forces the whole
+    # production. 「制作一式」 rather than bare 「一式」 keeps 「アセット一式」 (a full
+    # set of assets) narrowed to its own stage.
+    "制作一式",
     "end to end",
     "from scratch",
 )

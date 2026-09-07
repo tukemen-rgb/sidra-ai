@@ -1042,6 +1042,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1462: 「制作一式」 (the project generator's own offered label) was not a
+    # whole-project word, so 「新機能ローンチのゲーム制作一式を作って」 narrowed to
+    # features.md alone (「機能」 inside 新機能 matched the FEATURES cue) while the
+    # summary said 「制作一式を作りました」. 「制作一式」 now forces the whole production;
+    # 「アセット一式」 stays its own stage.
+    from sidra_ai.evals.project_production_set_is_whole import (
+        evaluate_project_production_set_is_whole,
+    )
+
+    project_whole = evaluate_project_production_set_is_whole()
+    c.add(
+        "project_production_set_is_whole",
+        "「制作一式」の依頼が一部工程でなく全工程を生成する",
+        10.0 * project_whole.checks_passed / project_whole.checks_total,
+        detail=f"{project_whole.checks_passed}/{project_whole.checks_total} checks; "
+               "src/sidra_ai/evals/project_production_set_is_whole.py"
+               + ("" if project_whole.passed else "; " + "; ".join(project_whole.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was
