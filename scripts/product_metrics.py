@@ -14643,6 +14643,94 @@ def measure_creation(c: Collector) -> None:
     # naming no theme still renders in the site's own palette. Without it a
     # "themed" generator that had quietly redecorated the default would score
     # full marks here while having changed the product's identity.
+    # --- the instrument that will judge a swapped model (C-1132) ---------
+    #
+    # Every quality number here is measured on echo, because the container
+    # has no GPU. check_model_answers.py is the one instrument meant to run
+    # against the real weights on the owner's PC - one chance, on a machine
+    # nobody here can debug on - so what it does is measured by RUNNING it
+    # against the real API rather than by reading its source. That is how
+    # the first finding arrived: it read payload["model"] as a string and
+    # died on the first answer, having never run end to end.
+    import importlib.util as _acc_import
+
+    _acc_spec = _acc_import.spec_from_file_location(
+        "check_model_answers", ROOT / "scripts" / "check_model_answers.py"
+    )
+    _acc_mod = _acc_import.module_from_spec(_acc_spec)
+    _acc_spec.loader.exec_module(_acc_mod)
+
+    acc_gaps: list[str] = []
+    acc_asked = 0
+    acc_report = ""
+    try:
+        from fastapi.testclient import TestClient as _AccClient
+
+        from sidra_ai.api.app import create_app as _acc_app
+
+        _acc_seen: list[str] = []
+        with _quiet(), _AccClient(_acc_app()) as _acc_api:
+
+            def _acc_ask(question):
+                _acc_seen.append(question)
+                return _acc_api.post("/v1/chat", json={"message": question}).json()
+
+            _acc_out = io.StringIO()
+            with contextlib.redirect_stdout(_acc_out):
+                _acc_code = _acc_mod.main(_acc_ask)
+        acc_report = _acc_out.getvalue()
+        acc_asked = len(_acc_seen)
+        if _acc_code != 0:
+            acc_gaps.append(f"harness exited {_acc_code}")
+    except Exception as exc:  # noqa: BLE001 - a broken instrument is the finding
+        acc_gaps.append(f"harness did not run ({type(exc).__name__}: {exc})")
+
+    _acc_rows = [
+        line for line in acc_report.splitlines() if _scene_re.match(r"^(OK|NG)\s", line)
+    ]
+    _acc_kinds = {}
+    for _, _acc_kind in getattr(_acc_mod, "QUESTIONS", ()):
+        _acc_kinds[_acc_kind] = _acc_kinds.get(_acc_kind, 0) + 1
+    if not acc_gaps:
+        # Asked, and each one answered onto its own row: a question that is
+        # in the table but never reaches the report is not a question.
+        if len(_acc_rows) != acc_asked:
+            acc_gaps.append(f"{acc_asked} 問聞いて {len(_acc_rows)} 行しか出ていない")
+        # ...and the denominators follow the question set rather than the
+        # seven it was written with (the honesty line divided by a literal 2).
+        elif not _scene_re.search(
+            rf"誠実さ \d+/{_acc_kinds.get('absent', 0)}\b", acc_report
+        ):
+            acc_gaps.append("誠実さの分母が設問集合と合っていない")
+        elif not _scene_re.search(
+            rf"引用付き \d+/{sum(n for k, n in _acc_kinds.items() if 'cite' in _acc_mod.AXES[k])}\b",
+            acc_report,
+        ):
+            acc_gaps.append("引用の分母が「引用が意味を持つ設問」と合っていない")
+    c.add(
+        "model_acceptance_questions",
+        "載せ替えたモデルを測る設問数（実走行で数えた）",
+        float(len(_acc_rows)) if not acc_gaps else 0.0,
+        detail=(
+            "; ".join(acc_gaps)
+            if acc_gaps
+            else f"`check_model_answers.py` を**実 API に対して走らせて数えた**"
+            f"（`len(QUESTIONS)` ではなく報告に出た行数）: {len(_acc_rows)} 問。"
+            f"内訳 {', '.join(f'{k} {n}' for k, n in sorted(_acc_kinds.items()))}。"
+            "**元の 7 問は文言も順序も不変**（記録済みの数字が比較可能なまま）で、"
+            "**コード生成 3・長め要約 2・表 1・多段推論 2** を足した——載せ替えた"
+            "モデルが見せ場を持つのはそこ。判定は 3 軸のままだが、**軸ごとの分母が"
+            "設問集合に従う**: 引用は索引から答える設問だけ（生成/推論に引用元は"
+            "無い）、誠実さは根拠を欠く設問だけ（以前は文字通りの 2 で割っていた）。"
+            "**言語率はコード柵の外だけを読む**——「関数を書いて」の答えは設計上"
+            "ほぼ ASCII で、丸ごと読むと正しい答えが 2026-08-27 の事故と同じ顔になる。"
+            "**走らせたから見つかった不具合が 1 件**: `payload['model']` は"
+            "オブジェクトなのに文字列として読んでおり、最初の 1 問で"
+            "AttributeError——この計器は一度も通しで走ったことが無かった"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the board still says what it means ------------------------------
     #
     # C-1447. Three loops append to docs/BACKLOG.md at once, and between
