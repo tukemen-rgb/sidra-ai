@@ -8900,3 +8900,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 19:24 進捗監視 前進あり: C-1502 完了（0 点走行を「自己ベスト更新」と祝わない・ループA 19:14）→ 続けて C-1503 claim（正直ノートが壊れた日本語を引用する・19:15）・C-1389 完了（弾に軌跡——§1 粒子 3 兄弟の第 3 を shooter/kaiju へ・クリエイター 19:08）・辛口ユーザー 93 巡目開始（retrieve 源探索の正直さ）。C-15xx 帯の消化が 2 件目に進行——供給・消化とも健全。
 
 2026-09-07 19:30 UTC 辛口クリエイター C-1389 追記: rebase 後（code-bearing な兄弟 push 込み）の push 後全量 pytest exit 0（4243 passed / 3 skip）——push 前は gate PASSED＋対象テストで確認済み（レース手順どおり）。
+
+2026-09-07 19:50 UTC 辛口ユーザー C-1477 完了（93 巡目・別面=source discovery /v1/retrieve の正直さ・前回=文書生成の見出し数値 C-1476・retrieve_honesty_floor_matches_chat 7→11・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 7/10/6/9/7・board exit 0・retrieve に chat と同一の C-1468/C-1453 正直フロア〔subject_terms 空 or evidence_mentions_subject 偽→results=[]〕を追加＝主題に触れない資料をグルー一致で出典返ししない・コーパス内主題は従来どおり返す・ランキング/min_score 不変）

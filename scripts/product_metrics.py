@@ -239,6 +239,25 @@ def measure_usability(c: Collector) -> None:
     c.add("citation_shows_evidence", "citations an operator can verify", shown,
           detail=detail, kind=OUTCOME)
 
+    # C-1477: the source-discovery endpoint /v1/retrieve lacked chat's honesty
+    # floor (C-1468/C-1453), so a query about something the corpus does not
+    # cover came back with glue-matched documents presented as its sources,
+    # while chat abstained on the same query. retrieve now applies the floor.
+    from sidra_ai.evals.retrieve_honesty_floor_matches_chat import (
+        evaluate_retrieve_honesty_floor_matches_chat,
+    )
+
+    retrieve_floor = evaluate_retrieve_honesty_floor_matches_chat()
+    c.add(
+        "retrieve_honesty_floor_matches_chat",
+        "source discovery が主題に触れない資料を出典として返さない",
+        10.0 * retrieve_floor.checks_passed / retrieve_floor.checks_total,
+        detail=f"{retrieve_floor.checks_passed}/{retrieve_floor.checks_total} checks; "
+               "src/sidra_ai/evals/retrieve_honesty_floor_matches_chat.py"
+               + ("" if retrieve_floor.passed else "; " + "; ".join(retrieve_floor.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # 6. Ask for something to be *made* and have it go somewhere else.
     routed, detail = _measure_creation_routing()
     c.add("creation_routed", "creation requests routed away from Q&A", routed,

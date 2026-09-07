@@ -404,6 +404,20 @@ class SidraService:
         results: list[SearchResult] = self.retriever.search(
             gate_result.content, top_k=top_k, repositories=repositories
         )
+        if results and (
+            not subject_terms(gate_result.content)
+            or not evidence_mentions_subject(
+                gate_result.content, [r.chunk for r in results]
+            )
+        ):
+            # The C-1468/C-1453 floor chat has, one endpoint along: CJK bigram
+            # scoring fills top_k on glue, so a query the corpus does not cover
+            # came back with glue-matched documents as its sources - the exact
+            # failure source discovery must not make. When the query names no
+            # subject, or no retrieved chunk mentions it, there is nothing to
+            # discover: return the honest no-evidence result. Ranking and
+            # min_score are untouched; one subject-term hit keeps today's result.
+            results = []
         _, citations = build_data_context([result.chunk for result in results])
         return {
             "refused": False,
