@@ -315,7 +315,14 @@ def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
             index = text.rfind(fold_kana(word.casefold()))
             if index < 0:
                 continue
-            if best is None or index > best[0]:
+            # Latest position wins (the head noun comes last). On a tie the
+            # longer, more specific cue wins: GAME_WORDS carries "3d" and MODEL3D
+            # carries "3d model", both starting at the same index in an English
+            # 「make a 3D model」, so dict order alone built a game for a 3D-model
+            # request (C-1479). Japanese avoided it because its 「モデル」 cue sits
+            # after 「3d」 and already won by position; English has no such
+            # trailing cue. A later game word (「3Dゲーム」) still wins by position.
+            if best is None or index > best[0] or (index == best[0] and len(word) > len(best[2])):
                 best = (index, kind, word)
     if best is None:
         return None

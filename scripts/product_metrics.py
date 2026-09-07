@@ -1319,6 +1319,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1479: an English "3D model" request tied GAME's "3d" cue and MODEL3D's
+    # "3d model" at one position, and the same-position tie-break (dict order,
+    # GAME first) built a game instead of a 3D model - the wrong artifact kind.
+    from sidra_ai.evals.creation_english_3d_model_not_game import (
+        evaluate_creation_english_3d_model_not_game,
+    )
+
+    en_3d = evaluate_creation_english_3d_model_not_game()
+    c.add(
+        "creation_english_3d_model_not_game",
+        "英語の「3Dモデル」依頼がゲームでなく3D生成器へ向かう",
+        10.0 * en_3d.checks_passed / en_3d.checks_total,
+        detail=f"{en_3d.checks_passed}/{en_3d.checks_total} checks; "
+               "src/sidra_ai/evals/creation_english_3d_model_not_game.py"
+               + ("" if en_3d.passed else "; " + "; ".join(en_3d.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1283: the summary discloses the fish default (C-1267) but the preview
     # HTML - the artifact opened in a browser and forwarded - was titled by the
     # subject over a fish mesh with no word of it, the silent artifact C-1281
