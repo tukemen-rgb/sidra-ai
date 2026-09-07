@@ -7413,17 +7413,52 @@ def measure_creation(c: Collector) -> None:
                 engine_gaps.append("the result screen idles")
             if _en["afterMute"]:
                 engine_gaps.append("M does not silence the engine")
+    # The marble rolls through the same channel (C-1381): each act rolls
+    # faster (ACT_ROLL), so the act change is a pitch step the ears get
+    # before the sky finishes changing.
+    from sidra_ai.creation.marble import engine_probe as _mrb_probe
+
+    _mb_page = generate_game("ゲームを作って", template="marble").html
+    _mb_m = _scene_re.search(r"<script>(.*?)</script>", _mb_page, _scene_re.S)
+    if _mb_m is None:
+        engine_gaps.append("marble: no script on the page")
+    else:
+        try:
+            _mb_run = _scene_sp.run(
+                ["node", "-"],
+                input=_mrb_probe(_mb_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _mb_run.returncode != 0:
+                raise ValueError(_mb_run.stderr.strip()[:60])
+            _mb = json.loads(_mb_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            _mb = None
+            engine_gaps.append(f"marble: probe unavailable ({exc})")
+        if _mb is not None:
+            if _mb["before"]:
+                engine_gaps.append("marble: the title demo rumbles")
+            if not _mb["act0"]["on"]:
+                engine_gaps.append("marble: the roll has no voice")
+            elif not (_mb["act0"]["freq"] < _mb["act1"] < _mb["act2"]):
+                engine_gaps.append("marble: the acts do not step the pitch")
+            if _mb["atEnd"]:
+                engine_gaps.append("marble: the result screen rumbles")
+            if _mb["afterMute"]:
+                engine_gaps.append("marble: M does not silence the roll")
     c.add(
         "creation_engine_voice",
         "速度が連続音で聞こえる型（実走行）",
-        0.0 if engine_gaps else 1.0,
+        0.0 if engine_gaps else 2.0,
         detail=(
             "; ".join(engine_gaps)
             if engine_gaps
-            else "racing を録音 AudioContext で実走行: 速走 94.3Hz/0.044・"
-            "路外の徐行 72.7Hz/0.035＝ピッチもゲインも沈む（§25 事実 2）、"
-            "帯域は 55-110Hz の 1 オクターブ内、タイトルのデモは無音・"
-            "goal で停止・M で 1 フレーム内に消える"
+            else "racing=速走 94.3Hz/0.044・路外の徐行 72.7Hz/0.035＝ピッチも"
+            "ゲインも沈む（§25 事実 2）／marble=幕ごとの加速がピッチの段差 "
+            "97.3→103.7→110Hz（C-1381）。どちらも帯域 55-110Hz の 1 オクターブ"
+            "内・タイトルのデモは無音・終了で停止・M で 1 フレーム内に消える"
         ),
         kind=OUTCOME,
     )

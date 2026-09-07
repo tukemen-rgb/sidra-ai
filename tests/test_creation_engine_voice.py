@@ -59,3 +59,37 @@ def test_the_engine_is_silent_when_nobody_is_racing(heard: dict) -> None:
 def test_m_mutes_the_engine_within_a_frame(heard: dict) -> None:
     assert heard["beforeMute"] is True
     assert heard["afterMute"] is False
+
+
+# --- the marble rolls through the same channel (C-1381) -----------------
+
+from sidra_ai.creation.marble import engine_probe as marble_engine
+
+
+@pytest.fixture(scope="module")
+def rolled() -> dict:
+    html = generate_game("ゲームを作って", template="marble").html
+    script = re.search(r"<script>(.*?)</script>", html, re.S).group(1)
+    run = subprocess.run(
+        ["node", "-"], input=marble_engine(script),
+        capture_output=True, text=True, timeout=180,
+    )
+    assert run.returncode == 0, run.stderr[:400]
+    return json.loads(run.stdout.strip().splitlines()[-1])
+
+
+def test_each_act_steps_the_rolling_pitch(rolled: dict) -> None:
+    assert rolled["act0"]["on"]
+    assert rolled["act0"]["freq"] < rolled["act1"] < rolled["act2"], (
+        "the acts accelerate the roll but not the voice"
+    )
+
+
+def test_the_roll_is_silent_when_nobody_is_rolling(rolled: dict) -> None:
+    assert rolled["before"] is False, "the title's demo rumbles"
+    assert rolled["atEnd"] is False, "the result screen rumbles"
+
+
+def test_m_mutes_the_roll_within_a_frame(rolled: dict) -> None:
+    assert rolled["beforeMute"] is True
+    assert rolled["afterMute"] is False

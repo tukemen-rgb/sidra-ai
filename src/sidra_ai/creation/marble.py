@@ -177,6 +177,16 @@ function step(){
           comboMiss();failBeat(W/2,H*0.6)}}});
     if(things.every(o=>o.done)){state='over';over='コースを走り切った。';
       winBeat(W/2,H*0.5)}}
+  /* The rolling voice (§25, C-1381): the same engine channel the racer
+     sings through, fed the corridor's own pace - each act rolls faster
+     (ACT_ROLL), so the act change is a pitch step the ears get before
+     the sky finishes changing. Gated on the round actually playing:
+     the title's demo rolls this same loop, and a shop window does not
+     rumble. Off the roll the voice is off - a result screen sits still. */
+  let ENG_ON=false;
+  try{ENG_ON=state==='roll'&&gateState()==='playing'}catch(e){ENG_ON=state==='roll'}
+  if(ENG_ON){try{engineTick(rollNow()/(ROLL*1.3))}catch(e){}}
+  else{try{engineStop()}catch(e){}}
   /* A straight corridor's scene is distance (§7 観察 5-6, C-1307): the sky,
      the horizon band and the rails step once per third of the course, and
      the final stretch is rolled at under the brightest sky of the run.
@@ -486,7 +496,82 @@ def ghost_probe_source(
     )
 
 
+#: The rolling voice, heard (§25, C-1381): a fake AudioContext records
+#: the engine channel while the corridor is driven act by act - the pitch
+#: must step up with ACT_ROLL, stay silent on the title, stop at the end,
+#: and die within a frame of M.
+ENGINE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+function FakeOsc(){ this.type = ''; this.frequency = { value: 0 } }
+FakeOsc.prototype.start = function(){};
+FakeOsc.prototype.stop = function(){};
+FakeOsc.prototype.connect = function(){};
+FakeOsc.prototype.disconnect = function(){};
+function FakeCtx(){ this.currentTime = 0; this.state = 'running';
+  this.destination = {} }
+FakeCtx.prototype.createOscillator = function(){ return new FakeOsc() };
+FakeCtx.prototype.createGain = function(){ return { gain: { value: 0,
+    setValueAtTime(){}, exponentialRampToValueAtTime(){}, linearRampToValueAtTime(){} },
+  connect(){}, disconnect(){} } };
+FakeCtx.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { value: 0 }, connect(){}, disconnect(){} } };
+FakeCtx.prototype.createBuffer = function(){ return { getChannelData: () => new Float32Array(8) } };
+FakeCtx.prototype.createBufferSource = function(){ return { buffer: null,
+  loop: false, connect(){}, start(){}, stop(){} } };
+FakeCtx.prototype.resume = function(){};
+globalThis.window = globalThis;
+globalThis.AudioContext = FakeCtx;
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+const before = engineFacts().on;
+key(' ');
+run(10);
+const act0 = { on: engineFacts().on, freq: engineFacts().freq };
+/* Down the corridor, act by act - the position IS the act. */
+ball.z = COURSE / 3 + 5; run(3);
+const act1 = engineFacts().freq;
+ball.z = COURSE * 2 / 3 + 5; run(3);
+const act2 = engineFacts().freq;
+state = 'over'; run(3);
+const atEnd = engineFacts().on;
+state = 'roll'; run(5);
+const beforeMute = engineFacts().on;
+key('m'); run(2);
+const afterMute = engineFacts().on;
+console.log(JSON.stringify({ before: before, act0: act0, act1: act1,
+  act2: act2, atEnd: atEnd, beforeMute: beforeMute, afterMute: afterMute }));
+"""
+
+
+def engine_probe(script: str) -> str:
+    """The page's own script, wrapped so the rolling voice can be heard."""
+
+    return ENGINE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "ENGINE_PROBE",
+    "engine_probe",
     "TRAIL_PROBE",
     "trail_probe",
     "MARBLE_HOW",
