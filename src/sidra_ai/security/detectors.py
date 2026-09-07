@@ -631,14 +631,25 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
         # the secret value, so the trailing lookahead lets those through. Bare
         # "show me the password" has no such word and is still caught; no
         # MUST_CATCH case puts a secret before "field", so recall is unchanged.
+        # C-1459: a question about *where/how a secret is used or configured* is
+        # not a request for its value. "show me where the token is validated in
+        # the code" and "show the config schema for the api_key setting" were
+        # quarantined - ordinary developer questions. A where/which/schema marker
+        # in the gap (a location/structure question) now stops the match, a
+        # trailing "setting(s)" is treated like "field(s)", and a secret directly
+        # followed by "is/was/are/were" is the subject of a usage clause ("the
+        # token is validated"), not the object of the verb. A bare "show me the
+        # password" / "reveal the system prompt" has none of these and is still
+        # caught; no MUST_CATCH case relies on them, so recall is unchanged.
         re.compile(
             r"(?i)\b(reveal|print|show|output|repeat|dump|leak)\b"
-            r"(?:(?!\b(?:how\s+to|how\s+do|how\s+can|how\s+should|steps?|"
-            r"documentation|docs|guide|manual|tutorial)\b)[^.\n]){0,40}\b"
+            r"(?:(?!\b(?:how\s+to|how\s+do|how\s+can|how\s+should|steps?|where|"
+            r"which|documentation|docs|guide|manual|tutorial|schema)\b)[^.\n]){0,40}\b"
             r"(system prompt|(?:your|the\s+system|system|previous|prior|initial|"
             r"original)\s+(?:system\s+)?instructions|api[ _-]?key|token|secret|"
             r"password|credential|\.env)\b"
-            r"(?!\s+fields?\b)"
+            r"(?!\s+(?:fields?|settings?)\b)"
+            r"(?!\s+(?:is|was|are|were)\b)"
         ),
         Severity.CRITICAL,
         "attempts to exfiltrate secrets or the system prompt",

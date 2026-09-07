@@ -981,6 +981,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1459: the exfiltration detector fired on any 「show/reveal/… <secret>」,
+    # so 「show me where the token is validated」 and 「show the config schema for
+    # the api_key setting」 - questions about a secret's location/configuration,
+    # not its value - were quarantined. A where/which/schema gap marker, a
+    # trailing setting(s), and a following is/was/are/were now spare those; a
+    # bare 「show me the password」 is still caught. Recall unchanged.
+    from sidra_ai.evals.gate_exfiltration_allows_usage_questions import (
+        evaluate_gate_exfiltration_allows_usage_questions,
+    )
+
+    exfil_usage = evaluate_gate_exfiltration_allows_usage_questions()
+    c.add(
+        "gate_exfiltration_allows_usage_questions",
+        "安全性ゲートが秘密の所在/設定を問う質問を通し値の要求だけ止める",
+        10.0 * exfil_usage.checks_passed / exfil_usage.checks_total,
+        detail=f"{exfil_usage.checks_passed}/{exfil_usage.checks_total} checks; "
+               "src/sidra_ai/evals/gate_exfiltration_allows_usage_questions.py"
+               + ("" if exfil_usage.passed else "; " + "; ".join(exfil_usage.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was
