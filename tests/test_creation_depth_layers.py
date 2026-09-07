@@ -23,6 +23,7 @@ from sidra_ai.creation.kaiju import probe_source
 from sidra_ai.creation.platformer import probe_source as plat_probe
 from sidra_ai.creation.shooter import probe_source as shooter_probe
 from sidra_ai.creation.catchgame import probe_source as catch_probe
+from sidra_ai.creation.fishing import probe_source as fishing_probe
 
 
 def _lum(hexcolour: str) -> float:
@@ -57,6 +58,9 @@ _REQUESTS = {
     # The sky-only template with no distance in it (C-1365): three still
     # clouds in the border paint at FAR_A, under the falling fruit.
     "catch": "キャッチゲームを作って",
+    # The OTHER sky-only template (C-1379): the pond got the same three
+    # clouds, drawn under the band so the fish swims before its horizon.
+    "fishing": "釣りゲームを作って",
 }
 
 _PROBES = {
@@ -65,6 +69,7 @@ _PROBES = {
     "platformer": plat_probe,
     "shooter": shooter_probe,
     "catch": catch_probe,
+    "fishing": fishing_probe,
 }
 
 
@@ -85,7 +90,7 @@ def _fought(template: str = "kaiju", suffix: str = "") -> dict:
     return json.loads(probe.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("template", ["kaiju", "duel", "platformer", "shooter", "catch"])
+@pytest.mark.parametrize("template", ["kaiju", "duel", "platformer", "shooter", "catch", "fishing"])
 @pytest.mark.parametrize("suffix", ["", "紙のテーマで"])
 def test_the_skyline_sits_between_sky_and_silhouette(template: str, suffix: str) -> None:
     seen = _fought(template, suffix)

@@ -267,12 +267,32 @@ setPal(FISHING_PAL_TOKEN);
    act was sinking the themed ink to ~3:1. */
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
+/* The far layer (§7 観察 7, C-1379): the OTHER all-sky template. The
+   catch got its three still clouds in C-1365; the pond's sky stayed a
+   single flat fill with the band and marker sitting straight on it.
+   Same recipe: fixed positions (no rand() - the seed's spot must not
+   move), no motion (nothing for reduced to freeze), the theme's border
+   paint faded by FAR_A, drawn under the band so the fish swims in
+   front of its own horizon. draw() paints through FAR_A and
+   depthFacts() reports the paints - the shared-constant contract. */
+const FAR_A=0.45;
+function depthFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
+      alpha:FAR_A})}
+  SCENE=keep;return out}
 function step(){setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
   pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}draw();
   requestAnimationFrame(step)}
 function draw(){const w=cv.width,h=cv.height,now=performance.now();
   cx.fillStyle=scenePaint('SURFACE_TOKEN');
-  cx.fillRect(0,0,w,h);const [a,b]=zone();
+  cx.fillRect(0,0,w,h);
+  /* Clouds first, so the band and the fish sit in front (§7, C-1379). */
+  cx.fillStyle=scenePaint('BORDER_TOKEN');cx.globalAlpha=FAR_A;
+  [[0.18,0.14,76],[0.5,0.09,58],[0.84,0.2,66]].forEach(c=>{
+    cx.beginPath();cx.ellipse(c[0]*w,c[1]*h,c[2],c[2]*0.34,0,0,6.284);cx.fill()});
+  cx.globalAlpha=1;
+  const [a,b]=zone();
   cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(40,h/2-26,w-80,52);
   cx.fillStyle='CYAN_TOKEN';cx.globalAlpha=0.28;
   cx.fillRect(40+(w-80)*a,h/2-26,(w-80)*(b-a),52);
