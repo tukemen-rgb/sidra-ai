@@ -2767,7 +2767,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       **テストは開いている欠陥を固定している**: 10 型すべてで
       `struck == 0` を assert してある。設計判断が下りたら、
       **まずこの期待値が変わる**のが正しい順序。
-- [ ] **C-1502: 初回 0 点敗北が「自己ベスト更新」を名乗る。**〔中〕
+- [~] 作業中 2026-09-07 18:08 UTC ループA **C-1502: 初回 0 点敗北が「自己ベスト更新」を名乗る。**〔中〕
       再現: duel を hold=' ' で初回プレイ→0 点全敗で record=True・
       best=0 が banked、リザルトに「自己ベスト更新」。round.py の
       `if(ROUND_BEST===null||ROUND_FINAL>ROUND_BEST)` が敗北も 0 点も
