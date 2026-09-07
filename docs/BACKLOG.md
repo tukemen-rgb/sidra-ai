@@ -2717,7 +2717,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       **残る前提**: 実行は社長 PC（帰国後）。ここでできる準備は
       RUNBOOK 追記（対話セッション済み）と本項目で終わり。
       pytest 3983 passed / 3 skipped / FAILED 0・gate MISS 0/誤検知 0。
-- [ ] **C-1133: 索引の器の昇格（sqlite + FTS5）。**E 節ロードマップに眠って
+- [~] 作業中 2026-09-07 06:14 UTC ループA **C-1133: 索引の器の昇格（sqlite + FTS5）。**E 節ロードマップに眠って
       いた項目の昇格（「探して当てる」強化 = 文脈 105 万への SIDRA 流の答え）。
       **条件が本体**: tokenizer/検索の変更扱いとして 5 リポジトリの
       `check_answerable_regression.py` 必須・判定器の 4 数字（answered/direct/
