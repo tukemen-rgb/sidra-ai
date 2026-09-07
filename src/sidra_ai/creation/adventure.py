@@ -86,7 +86,7 @@ let kprog=0,ksolved=false;
 function knowFacts(){return {progress:kprog,solved:ksolved}}
 const NAMES=['森のはずれ','ひかり苔の洞窟','風の祭壇'];
 let rooms=[],enemies=[],room=0,msg='',msgT=0,guard=null;
-let hero={x:0,y:0,dir:2,hp:3,gems:0,key:false,swing:0,inv:0};
+let hero={x:0,y:0,dir:2,hp:3,gems:0,key:false,swing:0,inv:0,sq:1};
 let state='play';let keyDrop=null;let FIRSTCUT=true;let PITY=0;
 /* What took the hearts, kept apart because the two are different
    mistakes (C-1425): a roamer is something that closed the distance,
@@ -144,7 +144,7 @@ function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
 function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRSTCUT=true;PITY=0;
   kprog=0;ksolved=false;hurtRoam=0;hurtGuard=0;
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
-    charm:false,swing:0,inv:0};
+    charm:false,swing:0,inv:0,sq:1};
   say('ぼうしの勇者、めざめる。')}
 function say(t){msg=t;msgT=140}
 /* The face, as a fact (§1, C-1351): which way the hero faces, whether the
@@ -291,6 +291,7 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   if(!solid(nx,en.y)){en.x=nx}if(!solid(en.x,ny)){en.y=ny}
   if(hero.inv<=0&&d<16){hero.hp--;hurtRoam++;hero.inv=60;sfx('hurt');
     shake(9);hitstop(4);burst(hero.x,hero.y,12,'ALERT_JUICE');
+    if(!REDUCED){hero.sq=0.7}
     hero.x-=en.dx*14;hero.y-=en.dy*14;
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
     else{say('いたい。')}}})}
@@ -327,11 +328,12 @@ function moveGuard(){if(room!==2||!guard||!guard.alive)return;
   if(hero.inv<=0&&Math.hypot(hero.x-guard.x,hero.y-guard.y)<24){
     hero.hp--;hurtGuard++;hero.inv=60;sfx('hurt');shake(10);hitstop(5);
     burst(hero.x,hero.y,14,'ALERT_JUICE');
+    if(!REDUCED){hero.sq=0.7}
     hero.x+=(hero.x-guard.x)/d*20;hero.y+=(hero.y-guard.y)/d*20;
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
     else{say('重い一撃。')}}}
 function hurtFacts(){return {roam:hurtRoam,guard:hurtGuard,
-  total:hurtRoam+hurtGuard,hp:hero.hp,state:state}}
+  total:hurtRoam+hurtGuard,hp:hero.hp,state:state,sq:hero.sq}}
 function guardFacts(){return guard?{alive:guard.alive,hp:guard.hp,max:guard.max,
   mode:guard.mode,wind:guard.wind,x:guard.x,y:guard.y,inv:guard.inv,
   speed:guardSpeed(),windFrames:guardWind(),
@@ -449,8 +451,12 @@ function draw(now){
     cx.fillStyle='#dfe7f5';
     for(let i=0;i<guard.hp;i++){cx.fillRect(guard.x-19+i*6.5,guard.y-37,4,4)}}
   if(!(hero.inv>0&&FRAME(2,3,now)===1)){
-    sprite('hero',hero.x-10,hero.y-8,20,18,'CYAN_TOKEN');
-    cx.fillStyle='#0a2a33';cx.fillRect(hero.x-11,hero.y-14,22,7);
+    /* The hit crush (§1, C-1387): one bottom-anchored joint transform -
+       body, hat bar and both eyes squash together (parts sliding apart
+       read as a glitch, C-1385's judgement). Bit-identical at sq=1. */
+    const hsq=hero.sq,hsw=2-hsq,hb=hero.y+10;
+    sprite('hero',hero.x-10*hsw,hb-18*hsq,20*hsw,18*hsq,'CYAN_TOKEN');
+    cx.fillStyle='#0a2a33';cx.fillRect(hero.x-11*hsw,hb-24*hsq,22*hsw,7*hsq);
     /* Eyes under the hat brim (§1, C-1351): the guard above already has
        them and the hero did not. Three states for a four-way walker -
        right leans them right, left leans left, front is centred - and
@@ -459,8 +465,8 @@ function draw(now){
     const fc=faceFacts();
     if(fc.shown&&!fc.blink){cx.fillStyle='#05070f';
       const ex=[0,2.5,0,-2.5][hero.dir];
-      cx.fillRect(hero.x-5.5+ex,hero.y-6,2.5,3);
-      cx.fillRect(hero.x+3+ex,hero.y-6,2.5,3)}}
+      cx.fillRect(hero.x+(ex-5.5)*hsw,hb-16*hsq,2.5*hsw,3*hsq);
+      cx.fillRect(hero.x+(ex+3)*hsw,hb-16*hsq,2.5*hsw,3*hsq)}}
   /* The blink is motion, so reduced motion pins the hero solid - which
      used to erase the invulnerability entirely: no flash, no ring,
      nothing but the heart row and a sound. The guardian's wind-up
@@ -508,6 +514,9 @@ function step(){const now=performance.now();
   combat(state==='play'&&gateState()==='playing'&&
     ((enemies[room]||[]).some(e=>e.alive&&Math.hypot(e.x-hero.x,e.y-hero.y)<120)
      ||(room===2&&guard!==null&&guard.alive&&Math.hypot(guard.x-hero.x,guard.y-hero.y)<160)));
+  /* The hit crush recovers even on the over screen (racing's reason,
+     C-1385): the settle lives outside the play guard (§1, C-1387). */
+  hero.sq+=(1-hero.sq)*0.25;if(Math.abs(hero.sq-1)<0.01)hero.sq=1;
   if(state==='play'){
     if(hero.swing>0){hero.swing--;
       if(hero.swing===0&&hero.queued){hero.queued=false;swing()}}
@@ -873,6 +882,76 @@ def hurt_probe(script: str, *, reduced: bool = False) -> str:
     """The page's own script, wrapped so the mercy window can be seen."""
 
     return HURT_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
+#: The hit crush, driven (§1, C-1387): one real contact hit must sink the
+#: hero to 0.7 through the squash channel, the silhouette must actually be
+#: drawn crushed (the hat bar's recorded width and height follow the joint
+#: transform), the crush must settle back to exactly 1 within half a
+#: second, and under reduced motion the same hit lands with the outline
+#: unchanged on every frame.
+SQUASH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let frameFills = [];
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillRect: (x, y, w, h) => { frameFills.push([w, h]) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: () => true }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function frame(){ frameFills = [];
+  if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }
+function hatMatches(sq){ return frameFills.some(f =>
+  Math.abs(f[0] - 22 * (2 - sq)) < 1e-6 && Math.abs(f[1] - 7 * sq) < 1e-6) }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); frame(); frame();
+/* Standing still, whole: the silhouette must not breathe on its own. */
+let idleOff = 0;
+for (let i = 0; i < 30; i++) { frame();
+  if (hero.sq !== 1 || !hatMatches(1)) idleOff++ }
+/* Into the cave, onto an enemy: a real hit. */
+room = 1;
+const en = enemies[1][0];
+hero.inv = 0; hero.hp = 3; hero.swing = 0;
+hero.x = en.x; hero.y = en.y;
+frame();
+const hp = hero.hp, hitSq = hero.sq;
+/* Hold still and watch the crush drawn, then released. */
+hero.x = OX + 2 * TILE; hero.y = OY + 4 * TILE;
+let settled = null, crushedDrawn = 0;
+for (let i = 0; i < 40; i++) { frame();
+  /* < 0.95, not < 0.9: the deepest frames sit inside hitstop (no draw)
+     and the blink can skip one more - the crushed band is what matters. */
+  if (hero.sq < 0.95 && hatMatches(hero.sq)) crushedDrawn++;
+  if (settled === null && hero.sq === 1) settled = i + 1 }
+console.log(JSON.stringify({ idleOff: idleOff, hp: hp, hitSq: hitSq,
+  crushedDrawn: crushedDrawn, settled: settled, restSq: hero.sq }));
+"""
+
+
+def squash_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the hit's crush can be watched."""
+
+    return SQUASH_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
         "REDUCED_INPUT", "true" if reduced else "false"
     )
 
@@ -1262,6 +1341,8 @@ __all__ = [
     "econ_probe",
     "HURT_PROBE",
     "hurt_probe",
+    "SQUASH_PROBE",
+    "squash_probe",
     "guard_probe",
     "know_probe",
     "world_probe",
