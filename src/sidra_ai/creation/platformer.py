@@ -770,6 +770,38 @@ console.log(JSON.stringify({ facts0: facts0, goal: goal, boarded: boarded,
 """
 
 
+#: The lantern's books (§5, C-1376): the low road alone - no shelf, no
+#: skill lock - must hold at least LAMP_COST gems, or the lamp is a
+#: price tag on an empty shelf. Read off the built course, not the
+#: source: the seed has already decided every orb.
+ECON_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = () => {};
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+globalThis.requestAnimationFrame = () => 1;
+SCRIPT_PLACEHOLDER
+console.log(JSON.stringify({
+  low: orbs.filter(o => !o.shelf).length,
+  shelf: orbs.filter(o => o.shelf).length,
+  cost: LAMP_COST,
+}));
+"""
+
+
+def econ_probe(script: str) -> str:
+    """The page's own script, wrapped so the course's books can be read."""
+
+    return ECON_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def route_probe(script: str, *, drive: int = 2400) -> str:
     """The page's own script, wrapped so both roads can be driven.
 
@@ -845,6 +877,8 @@ def face_probe(script: str, *, reduced: bool = False) -> str:
 
 __all__ = [
     "PLATFORMER_DIFFICULTY",
+    "ECON_PROBE",
+    "econ_probe",
     "FACE_PROBE",
     "LAMP_SFX_PROBE",
     "SQUASH_PROBE",

@@ -7173,6 +7173,96 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the sinks stay affordable in the worst case (§5, C-1376) -------
+    #
+    # §5's own source makes tap/sink BALANCE the rule, and the balance
+    # has a worst case: the adventure's only tap is 14 tufts that never
+    # regrow, so before the pity floor about one run in twenty-nine
+    # ended below the shrine's 3 gems - a sink turned signboard. Judged
+    # by driving the dry run: with the dice loaded to always miss, the
+    # real blade cuts every tuft and must still bank 5 (shrine 3 + door
+    # 2), the shrine must accept them, and the loaded-to-hit ceiling run
+    # must bank one gem per tuft with no pity fired. The platformer's
+    # books are read off the built course at all three difficulties: the
+    # low road alone must hold LAMP_COST.
+    from sidra_ai.creation.adventure import econ_probe as _adv_econ
+    from sidra_ai.creation.platformer import econ_probe as _plat_econ
+
+    afford_gaps: list[str] = []
+    _af_page = generate_game("ゲームを作って", template="adventure").html
+    _af_m = _scene_re.search(r"<script>(.*?)</script>", _af_page, _scene_re.S)
+    if _af_m is None:
+        afford_gaps.append("adventure: no script on the page")
+    else:
+        for _af_dice, _af_kind in ((0.99, "dry"), (0.0, "wet")):
+            try:
+                _af_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_adv_econ(_af_m.group(1), dice=_af_dice),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if _af_run.returncode != 0:
+                    raise ValueError(_af_run.stderr.strip()[:60])
+                _af = json.loads(_af_run.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                afford_gaps.append(f"adventure {_af_kind}: probe unavailable ({exc})")
+                continue
+            if _af["cuts"] != _af["grass"]:
+                afford_gaps.append(f"adventure {_af_kind}: the blade missed tufts")
+            elif _af_kind == "dry":
+                if _af["gems"] < 5:
+                    afford_gaps.append(
+                        f"adventure dry: {_af['gems']} gems cannot buy both sinks"
+                    )
+                elif not _af["shrine"] or _af["shrine"]["maxhpAfter"] != _af["shrine"]["maxhpBefore"] + 1:
+                    afford_gaps.append("adventure dry: the shrine took no gems")
+            elif _af["gems"] != _af["grass"] + 1:
+                afford_gaps.append(
+                    f"adventure wet: {_af['gems']} gems for {_af['grass']} tufts - "
+                    "the floor leaks into lucky runs"
+                )
+    for _af_req in ("ゲームを作って", "難しいゲームを作って", "やさしいゲームを作って"):
+        _af_page = generate_game(_af_req, template="platformer").html
+        _af_m = _scene_re.search(r"<script>(.*?)</script>", _af_page, _scene_re.S)
+        if _af_m is None:
+            afford_gaps.append(f"platformer {_af_req}: no script")
+            continue
+        try:
+            _af_run = _scene_sp.run(
+                ["node", "-"],
+                input=_plat_econ(_af_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _af_run.returncode != 0:
+                raise ValueError(_af_run.stderr.strip()[:60])
+            _af = json.loads(_af_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            afford_gaps.append(f"platformer {_af_req}: probe unavailable ({exc})")
+            continue
+        if _af["low"] < _af["cost"]:
+            afford_gaps.append(
+                f"platformer {_af_req}: the low road holds {_af['low']} gems "
+                f"against a {_af['cost']}-gem lamp"
+            )
+    c.add(
+        "creation_sink_affordable",
+        "最悪ケースでもシンクに届く型",
+        0.0 if afford_gaps else 2.0,
+        detail=(
+            "; ".join(afford_gaps)
+            if afford_gaps
+            else "adventure=サイコロ常時外しの実走行で床 5 個（祠 3＋扉 2 に"
+            "ちょうど）・祠の実購入・常時当たりで 1 草 1 個＝救済が幸運へ"
+            "漏れない／platformer=3 難度の実コースで低ルート ≥ LAMP_COST"
+            "（§5 の釣り合いを最悪ケースで保証）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the boss behind the boss key ----------------------------------
     #
     # §3's modern-Zelda floor is rooms -> boss key -> boss; the adventure's

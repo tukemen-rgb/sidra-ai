@@ -87,7 +87,7 @@ function knowFacts(){return {progress:kprog,solved:ksolved}}
 const NAMES=['森のはずれ','ひかり苔の洞窟','風の祭壇'];
 let rooms=[],enemies=[],room=0,msg='',msgT=0,guard=null;
 let hero={x:0,y:0,dir:2,hp:3,gems:0,key:false,swing:0,inv:0};
-let state='play';let keyDrop=null;let FIRSTCUT=true;
+let state='play';let keyDrop=null;let FIRSTCUT=true;let PITY=0;
 /* What took the hearts, kept apart because the two are different
    mistakes (C-1425): a roamer is something that closed the distance,
    the guardian is a telegraphed blow that landed anyway. Counting
@@ -141,7 +141,7 @@ function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
      next to the door bites the hero before the room is even visible */
   ||Math.abs(x-1)+Math.abs(y-4)<5);
   return {x:OX+x*TILE+8,y:OY+y*TILE+8,dx:0,dy:0,t:0,alive:true}}
-function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRSTCUT=true;
+function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRSTCUT=true;PITY=0;
   kprog=0;ksolved=false;hurtRoam=0;hurtGuard=0;
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
     charm:false,swing:0,inv:0};
@@ -176,11 +176,17 @@ function swing(){if(state!=='play')return;
     const t=rooms[room][ty][tx];
     if(t===2){rooms[room][ty][tx]=0;sfx('cut');
       burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,10,'ACCENT_JUICE');
-      /* The first cut always pays. After that the odds are the odds -
-         what §8 asks for is a first success, not an easier game. */
-      if(FIRSTCUT||rand()<0.34){FIRSTCUT=false;
+      /* The first cut always pays. After that the odds are the odds,
+         with a floor (§5, C-1376): the world holds 14 tufts and nothing
+         regrows, so an unlucky tail could close every sink - about one
+         run in twenty-nine used to end below the shrine's 3. Two misses
+         in a row make the third cut pay for certain, which puts the
+         worst case at 1+4=5 gems: the shrine's 3 with the door's 2 to
+         spare, while the expected run feels the same odds as before. */
+      if(FIRSTCUT||PITY>=2||rand()<0.34){FIRSTCUT=false;PITY=0;
         hero.gems++;say('草のかげに宝石があった。');sfx('gem');
-        burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,14,'ALERT_JUICE')}}
+        burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,14,'ALERT_JUICE')}
+      else{PITY++}}
     /* The boss stands behind the boss key (§3): the key alone is only half
        the lock while the guardian is on its feet. */
     if(t===7){if(!hero.key){say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}
@@ -793,6 +799,92 @@ def wreck_probe(script: str) -> str:
     return WRECK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The dry run, driven (§5, C-1376): with the dice loaded to always miss,
+#: the real blade cuts every tuft in the village and the floor must still
+#: hand over 5 gems - the shrine's 3 with the door's 2 to spare - and the
+#: shrine must actually accept them. A second pass with the dice loaded
+#: to always hit checks the ceiling: 14 tufts, 14 gems, no pity fired.
+ECON_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+/* The dice, loaded. The world is already built, so only the cut rolls
+   (and other runtime rolls) are touched. */
+rand = () => DICE_PLACEHOLDER;
+function cutAll(){
+  let cuts = 0;
+  for (let ty = 0; ty < GH; ty++) for (let tx = 0; tx < GW; tx++) {
+    if (rooms[0][ty][tx] !== 2) continue;
+    hero.hp = 99; hero.swing = 0;
+    hero.x = OX + tx * TILE + TILE / 2 - 20;
+    hero.y = OY + ty * TILE + TILE / 2;
+    hero.dir = 1;
+    key(' '); run(1); cuts++;
+  }
+  return cuts;
+}
+room = 0;
+const grassBefore = (() => { let n = 0;
+  for (const row of rooms[0]) for (const t of row) if (t === 2) n++;
+  return n })();
+const cuts = cutAll();
+const gems = hero.gems;
+/* The shrine takes them - find it wherever it stands. */
+let shrine = null;
+for (let r = 0; r < 3; r++) for (let ty = 0; ty < GH; ty++)
+  for (let tx = 0; tx < GW; tx++)
+    if (rooms[r][ty][tx] === 9) shrine = { r: r, tx: tx, ty: ty };
+let shrineBought = null;
+if (shrine) {
+  room = shrine.r;
+  const hpBefore = hero.maxhp, gemsBefore = hero.gems;
+  hero.hp = 99; hero.swing = 0;
+  hero.x = OX + shrine.tx * TILE + TILE / 2 - 20;
+  hero.y = OY + shrine.ty * TILE + TILE / 2;
+  hero.dir = 1;
+  key(' '); run(1);
+  shrineBought = { maxhpBefore: hpBefore, maxhpAfter: hero.maxhp,
+    gemsBefore: gemsBefore, gemsAfter: hero.gems };
+}
+console.log(JSON.stringify({
+  grass: grassBefore, cuts: cuts, gems: gems, shrine: shrineBought,
+}));
+"""
+
+
+def econ_probe(script: str, *, dice: float) -> str:
+    """The page's own script, wrapped with the dice loaded to ``dice``.
+
+    ``dice`` above the cut odds (0.99) is the dry run the floor exists
+    for; below them (0.0) is the ceiling run where pity never fires.
+    """
+
+    return ECON_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "DICE_PLACEHOLDER", repr(dice)
+    )
+
+
 #: One blow on the guardian, and the sixty frames after it (§6 観察 2,
 #: C-1343): the flash must stand, the smoke must outlive it, and the
 #: smoke must clear - three beats, read off guardFacts frame by frame.
@@ -1088,6 +1180,8 @@ __all__ = [
     "WORLD_PROBE",
     "WRECK_PROBE",
     "wreck_probe",
+    "ECON_PROBE",
+    "econ_probe",
     "guard_probe",
     "know_probe",
     "world_probe",
