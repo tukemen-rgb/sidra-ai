@@ -179,7 +179,11 @@ SECTION_CUES: dict[str, tuple[str, ...]] = {
     "解決": ("解決", "対応", "実装", "できる", "提供", "returns", "provides", "solution"),
     "根拠となる数字": (),  # decided by the presence of a number, see below
     "次の一歩": ("次", "予定", "残り", "todo", "roadmap", "backlog", "next"),
-    "いま出来ること": ("できる", "対応", "提供", "supports", "provides"),
+    # C-1461: 「完了/実装/リリース/済」 name work that is now available, the whole
+    # point of this slide. Without them 「決済連携の実装は完了した」 matched no cue
+    # and the slide was reported as having no evidence though the fact was given.
+    "いま出来ること": ("できる", "対応", "提供", "完了", "実装", "リリース", "済",
+                  "supports", "provides"),
     "測った数字": (),  # same rule as 根拠となる数字
     "残っていること": ("残", "未", "todo", "backlog", "gap"),
     "判断が要る点": ("判断", "要判断", "決め", "decision", "trade-off"),
@@ -191,13 +195,40 @@ SECTION_CUES: dict[str, tuple[str, ...]] = {
 _NUMERIC_SECTIONS = ("根拠となる数字", "測った数字")
 
 
+#: A cue immediately preceded by one of these is negated: 「対応」 in 「未対応」,
+#: 「実装」 in 「未実装」, 「解決」 in 「未解決」. C-1461: substring cue matching placed
+#: 「未対応の不具合が 3 件残っている」 under いま出来ること (via 「対応」) - a problem shown
+#: as a capability - and 残っていること was then reported as having no evidence.
+#: A negated cue no longer counts for the positive section it stands for; the
+#: fact still reaches 残っていること through its own 「残」/「未」 cue (「未」 begins the
+#: word, so it is not itself preceded by a negation), and 課題's explicit
+#: 「未対応」 cue is unaffected because the check reads the character before the
+#: cue, not inside it.
+_NEGATION_PREFIXES = ("未", "非", "不")
+
+
+def _cue_present(cue: str, text: str) -> bool:
+    """Whether ``cue`` occurs in ``text`` in a form that is not negated."""
+
+    start = 0
+    while True:
+        index = text.find(cue, start)
+        if index < 0:
+            return False
+        if index == 0 or text[index - 1] not in _NEGATION_PREFIXES:
+            return True
+        start = index + 1
+
+
 def _matches(section: str, fact: Fact) -> bool:
     if section in _NUMERIC_SECTIONS:
         return fact.mentions_number()
-    if section in fact.text:
+    # The heading-word shortcut is negation-guarded too: the section 「解決」
+    # appears inside 「未解決」, which is its opposite (C-1461).
+    if _cue_present(section, fact.text):
         return True
     text = fact.text.casefold()
-    return any(cue.casefold() in text for cue in SECTION_CUES.get(section, ()))
+    return any(_cue_present(cue.casefold(), text) for cue in SECTION_CUES.get(section, ()))
 
 
 def _bullets_for(

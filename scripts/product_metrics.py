@@ -1022,6 +1022,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1461: deck section cues matched as substrings, so 「対応」 matched inside
+    # 「未対応」 and 「未対応の不具合が残っている」 was shown under いま出来ること (a problem
+    # as a capability) while 残っていること was reported as having no evidence. A
+    # cue preceded by 未/非/不 no longer counts for the positive section, and
+    # 完了/実装/リリース/済 route completed work to いま出来ること.
+    from sidra_ai.evals.deck_negated_cue_not_capability import (
+        evaluate_deck_negated_cue_not_capability,
+    )
+
+    deck_negated = evaluate_deck_negated_cue_not_capability()
+    c.add(
+        "deck_negated_cue_not_capability",
+        "デッキが否定形の根拠（未対応等）を能力スライドに載せない",
+        10.0 * deck_negated.checks_passed / deck_negated.checks_total,
+        detail=f"{deck_negated.checks_passed}/{deck_negated.checks_total} checks; "
+               "src/sidra_ai/evals/deck_negated_cue_not_capability.py"
+               + ("" if deck_negated.passed else "; " + "; ".join(deck_negated.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was
