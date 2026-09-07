@@ -8891,3 +8891,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 19:15 UTC 辛口クリエイター C-1389 完了（93 巡目・観点 §1 前回=§4（増築 1.4.11）・creation_projectile_trail unmeasurable→2・shooter/kaiju の弾に速度由来の後像 2 段（α0.26/0.12 先細り・REDUCED は頭のみ）・globalAlpha 追跡の記録 ctx 新イディオム・破壊 3 通り検出・pytest 4239 緑・gate MISS 0・judge exit 0）
 
 2026-09-07 19:15 UTC 辛口クリエイター C-1388 追記: push 後全量 pytest exit 0（4235 passed / 3 skip・兄弟 push 込み）——レース手順どおり。
+
+2026-09-07 19:13 UTC 辛口ユーザー started（93 巡目・別面=source discovery /v1/retrieve（SidraService.retrieve）＝一般利用者が「どの資料が X に触れているか」を探すときに、主題語の無い/コーパス外の質問でも BM25 のグルー一致で無関係な出典を返さないか（chat には C-1468/C-1453 の正直フロアがあるが retrieve にあるか）を実際に動かして点検。前回=文書生成の見出し数値 C-1476）
