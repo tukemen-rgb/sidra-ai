@@ -695,3 +695,35 @@ URL はすべて 2026-09-03 に実際に開いて確認。
   motion なので REDUCED では積まない（adventure の静止残骸は常に描く）。
 - SIDRA での反映先: C-1374（adventure の残骸・shooter の破片・判定器
   creation_permanence）
+
+## 24. 文字サイズの床（外部調査 2026-09-07・辛口クリエイターループ）
+
+§4 はコントラスト（WCAG 4.5:1）・C-1234 は押せる大きさ（48dp）・§18 は
+遊び面の広さまで来たが、**描かれる文字の大きさそのもの**の床が無かった
+ための増築。URL は 2026-09-07 に実際に開いて確認。
+
+- 事実 1: ゲームアクセシビリティガイドラインの基本項目に「読みやすい
+  既定文字サイズ」があり、定量の参照値として「Amazon TV have
+  10-foot-UI guidelines that include text size recommendations, of
+  **28px minimum when viewed on a 1080p screen**」を挙げ、「**use 28px
+  as a minimum rather than a target, aim to exceed it wherever
+  possible**」と言う（弱視はこの床でも読めないので超えるほど良い）。
+  1080p 基準の相対床＝画面高の約 2.6%。
+  （出典: https://gameaccessibilityguidelines.com/use-an-easily-readable-default-font-size/）
+- 事実 2: iOS の型スケールは **Caption 2 = 11pt が最小**（既定設定。
+  Body は 17pt/行送り 22pt）——システム全体で 11pt を下回る型が存在
+  しない＝プラットフォームの実質的な床。
+  （出典: https://codershigh.github.io/guidelines/ios/human-interface-guidelines/visual-design/typography/index.html）
+- 学び: SIDRA の canvas は 720 設計幅が CSS で縮む（§18）ので、床は
+  **実効サイズ**で決める。推奨の遊び方（横持ち・C-1415/C-1416）での
+  最小画面 667px 幅では縮尺 0.926——canvas 13px は実効 12.0px で iOS の
+  床 11pt を上回るが、**11px は実効 10.2px で床を割り、12px は 11.1px
+  で余白 1% しかない**。現物 census: cx.font 32 箇所中 13px が 18・
+  20px が 8・16px が 2、そして **11px が 3・12px が 4**（adventure の
+  石碑・duel の相手ラベル・platformer のランプ価格・round の履歴・
+  startscreen の操作 2 行——後 2 者は共有プリアンブルで全 10 型に載る）。
+  床は「canvas 描画文字 ≥ 13px（720 基準）」——18 箇所の事実上の標準と
+  同値で、最小横持ちでも iOS の床の上に立つ。DOM 側（調整パネル等）は
+  canvas と違い縮まないので対象外。
+- SIDRA での反映先: C-1375（7 箇所を 13px へ・判定器
+  creation_hud_text_floor）
