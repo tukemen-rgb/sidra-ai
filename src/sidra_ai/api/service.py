@@ -597,8 +597,11 @@ class SidraService:
             results = self.retriever.search(
                 searched_query, top_k=top_k, repositories=repositories,
             )
-        if results and not evidence_mentions_subject(
-            searched_query, [r.chunk for r in results]
+        if results and (
+            not subject_terms(searched_query)
+            or not evidence_mentions_subject(
+                searched_query, [r.chunk for r in results]
+            )
         ):
             # CJK bigram scoring fills top_k even when the corpus knows
             # nothing about the subject: 「天気を教えて」 matched five chunks
@@ -606,6 +609,16 @@ class SidraService:
             # marketing copy. Ranking and min_score stay untouched; the floor
             # only converts all-glue evidence into the honest no-evidence
             # answer. One subject-term hit anywhere keeps today's behavior.
+            #
+            # A bare elaboration phrase with no subject of its own -
+            # 「もっと詳しく」「詳しく教えて」 as a first message, or after the
+            # client dropped the history - has an empty ``subject_terms`` that
+            # the floor could not rule on, so it returned True and a generic
+            # glue hit (「詳し」 out of 「詳しく」 landing on an unrelated doc)
+            # was cited as fact (C-1468, the standalone twin of C-1453's
+            # history-carry). When the searched query still names no subject
+            # after any history carry, there is nothing to ground on: abstain,
+            # the same honest no-evidence answer 「続けて」「教えて」 already get.
             results = []
         data_context, citations = build_data_context([r.chunk for r in results])
         self._attach_excerpts(citations, [r.chunk for r in results], query)

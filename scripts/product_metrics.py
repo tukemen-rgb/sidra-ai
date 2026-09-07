@@ -1122,6 +1122,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1468: the standalone twin of C-1453. A subject-less phrase as a first
+    # message (「もっと詳しく」) has no previous question to carry and no subject of
+    # its own, so the honesty floor could not rule and a generic glue hit was
+    # cited as fact. The floor now abstains when the searched query names no
+    # subject after any history carry - there is nothing to ground on.
+    from sidra_ai.evals.standalone_subjectless_query_abstains import (
+        evaluate_standalone_subjectless_query_abstains,
+    )
+
+    standalone_subjectless = evaluate_standalone_subjectless_query_abstains()
+    c.add(
+        "standalone_subjectless_query_abstains",
+        "主語の無い単発質問（もっと詳しく等）が的外れな引用でなく正直に無根拠と答える",
+        10.0 * standalone_subjectless.checks_passed / standalone_subjectless.checks_total,
+        detail=f"{standalone_subjectless.checks_passed}/{standalone_subjectless.checks_total} checks; "
+               "src/sidra_ai/evals/standalone_subjectless_query_abstains.py"
+               + ("" if standalone_subjectless.passed else "; " + "; ".join(standalone_subjectless.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was
