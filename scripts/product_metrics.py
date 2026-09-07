@@ -1162,6 +1162,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1470: the revision detector knew the adjectival difficulty words
+    # (難しく/簡単に) but not the explicit idiom 「難易度を上げて/下げて」 - the
+    # adjustment vocabulary named no 難易度を上げ/下げ form, and the change-verb
+    # gate lacked 上げて/下げて (an instruction with no して in it, like C-1117's
+    # やめて). Both are now recognised; the ambiguous 「レベルを上げて」 stays out.
+    from sidra_ai.evals.revision_difficulty_idiom import (
+        evaluate_revision_difficulty_idiom,
+    )
+
+    revision_difficulty = evaluate_revision_difficulty_idiom()
+    c.add(
+        "revision_difficulty_idiom",
+        "「難易度を上げて/下げて」が難しく/簡単にと同じく難易度を変える",
+        10.0 * revision_difficulty.checks_passed / revision_difficulty.checks_total,
+        detail=f"{revision_difficulty.checks_passed}/{revision_difficulty.checks_total} checks; "
+               "src/sidra_ai/evals/revision_difficulty_idiom.py"
+               + ("" if revision_difficulty.passed else "; " + "; ".join(revision_difficulty.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

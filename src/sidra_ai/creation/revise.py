@@ -84,8 +84,19 @@ _BACK_REFERENCES: tuple[str, ...] = (
 #: Adjustment vocabulary. Speed words map onto the difficulty ladder because
 #: speed *is* what the ladder changes (`_DIFFICULTY` maps difficulty to
 #: SPEED/BAND); a separate speed axis would let the two disagree.
-_HARDER: tuple[str, ...] = ("難しく", "むずかしく", "ハードに", "速く", "はやく", "歯ごたえ")
-_EASIER: tuple[str, ...] = ("簡単に", "かんたんに", "やさしく", "易しく", "遅く", "おそく", "ゆっくりに")
+#: C-1470: the adjectival forms above, plus the explicit idiom a player reaches
+#: for after making a game - 「難易度を上げて/高くして」. Kept to the 「難易度を…」
+#: forms so a bare 「上げて」 (「レベルを上げて」) does not read as a difficulty
+#: change; the 上げて/下げて verbs are added to ``_CHANGE_VERBS`` so the gate lets
+#: the instruction through.
+_HARDER: tuple[str, ...] = (
+    "難しく", "むずかしく", "ハードに", "速く", "はやく", "歯ごたえ",
+    "難易度を上げ", "難易度をあげ", "難易度を高く",
+)
+_EASIER: tuple[str, ...] = (
+    "簡単に", "かんたんに", "やさしく", "易しく", "遅く", "おそく", "ゆっくりに",
+    "難易度を下げ", "難易度をさげ", "難易度を低く",
+)
 
 #: The panel's second axis, in words (C-1117). Deliberately *not* mapped
 #: onto easier/harder: what the axis means differs per template - more
@@ -140,6 +151,16 @@ _CHANGE_VERBS: tuple[str, ...] = (
     "止めて",
     "戻して",
     "もどして",
+    # C-1470: 「難易度を上げて／下げて」 is an instruction with no して in it,
+    # exactly like the やめて／止めて above. Widening the gate does not widen
+    # what counts as a revision on its own - an adjustment still has to be
+    # recognised afterwards, so 「レベルを上げて」 passes here but finds none.
+    "上げて",
+    "上げる",
+    "あげて",
+    "下げて",
+    "下げる",
+    "さげて",
 )
 
 #: A polite request to change the game, phrased as a courteous imperative or a
