@@ -13392,6 +13392,124 @@ def measure_creation(c: Collector) -> None:
             tick_gaps.append(trouble)
         else:
             tick_ok.append(key)
+
+    # --- 終局の一瞬の盾 (C-1472) -------------------------------------
+    # Restarting this clock's round is a real page reload, so a mash carried
+    # through the buzzer did not skip the result screen - it destroyed it.
+    # The claim is a conjunction and the judge has to be able to falsify
+    # either half: nothing reloads while the shield is up, AND the first
+    # press after it comes down reloads at once. A build that simply stopped
+    # restarting would satisfy the first half alone.
+    from sidra_ai.creation.round import (
+        ROUND_SHIELD_FRAMES as _shield_frames,
+        shield_probe_source as _shield_probe,
+    )
+
+    _SHIELD_BUZZER = ("catch", "fishing", "platformer")
+    _SHIELD_OWN = ("duel", "marble", "shooter")
+
+    def _shield_drive(template, *, mash="key"):
+        page = _tune_generate("ゲームを作って", template=template).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            return None, f"{template}: ページに script が無い"
+        try:
+            done = _scene_sp.run(
+                ["node", "-"],
+                input=_shield_probe(script.group(1), mash=mash),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if done.returncode != 0:
+                return None, f"{template}/{mash}: 走行が失敗した（{done.stderr.strip()[:70]}）"
+            return json.loads(done.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}/{mash}: 走らせられない（{type(exc).__name__}）"
+
+    shield_gaps: list[str] = []
+    shield_ok: list[str] = []
+    shield_seen = {"shielded": 0, "late": 0}
+    shield_hold = None
+    for template in _SHIELD_BUZZER:
+        for mash in ("key", "tap"):
+            run, problem = _shield_drive(template, mash=mash)
+            if problem:
+                shield_gaps.append(problem)
+                continue
+            label = f"{template}/{mash}"
+            up = [f for f in run["mash"] if f["shielded"]]
+            down = [f for f in run["mash"] if not f["shielded"]]
+            if run["buzzerAt"] is None:
+                shield_gaps.append(f"{label}: ブザーまで届かなかった")
+            elif run["atBuzzer"] != 0:
+                shield_gaps.append(f"{label}: 連打前にもう reload している")
+            elif not up:
+                shield_gaps.append(f"{label}: 盾が一度も張られない")
+            elif any(f["reloads"] for f in up):
+                shield_gaps.append(f"{label}: 盾の内側で reload が起きた")
+            elif not down:
+                shield_gaps.append(f"{label}: 盾が下りなかった（連打が届かない）")
+            # The second half, and the reason this is not just "block R":
+            # the first press after the shield has to reload on that frame,
+            # not one later.
+            elif run["firstReloadAt"] != down[0]["frame"]:
+                shield_gaps.append(
+                    f"{label}: 盾が下りた最初の 1 押しで再開しない"
+                    f"（{down[0]['frame']} で下りて {run['firstReloadAt']} で reload）"
+                )
+            elif "ここまで" not in run["said"]:
+                shield_gaps.append(f"{label}: 守っているはずの結果画面が出ていない")
+            elif run["shield"] >= run["hold"]:
+                shield_gaps.append(
+                    f"{label}: 盾が「R / タップでもう一度」より長い"
+                    f"（{run['shield']}f >= {run['hold']}f）"
+                )
+            else:
+                shield_ok.append(label)
+                shield_seen["shielded"] += len(up)
+                shield_seen["late"] += 1
+                shield_hold = run["hold"]
+    # Scope: a template with an ending of its own owns its own R, and the
+    # shield must never engage there. Read from a run, not from the gate's
+    # source.
+    shield_scoped: list[str] = []
+    for template in _SHIELD_OWN:
+        run, problem = _shield_drive(template)
+        if problem:
+            shield_gaps.append(problem)
+        elif run["doneAtStop"]:
+            shield_scoped.append(f"{template}(時計で終わった)")
+        elif any(f["shieldFrames"] for f in run["mash"]):
+            shield_gaps.append(f"{template}: 自前の終局なのに盾が動いた")
+        else:
+            shield_scoped.append(template)
+
+    c.add(
+        "creation_end_shield",
+        "ブザー直後の連打が結果を消さない（終局の一瞬の盾）",
+        0.0 if (shield_gaps or not shield_ok) else 1.0,
+        detail=(
+            "; ".join(shield_gaps)
+            if shield_gaps
+            else f"{len(shield_ok)} 通り（{', '.join(shield_ok)}）を"
+            "**ブザーをまたいで毎フレーム連打しながら実走行**して測った。"
+            f"盾の内側 {shield_seen['shielded']} フレーム分の入力で "
+            "`location.reload()` は **1 度も起きず**、"
+            "**盾が下りた最初の 1 押しでその場で再開する**"
+            "（1 フレーム後ではない——盾は摩擦を足さない）。"
+            "**両方向**: 片方だけなら「再開できないページ」が通ってしまうので、"
+            "止まることと戻れることを別々に読む。守っている画面が実在することも"
+            "同じ走行から読む（「ここまで」が描かれている）。"
+            f"盾は {_shield_frames}f で、「R / タップでもう一度」が出る "
+            f"{shield_hold}f より**短い**——待てと言っておいて無視する時間は作らない。"
+            f"**適用範囲**: 自前の終局を持つ {len(shield_scoped)} 型"
+            f"（{', '.join(shield_scoped)}）では盾は 1 フレームも動かない"
+            "（`ROUND_DONE`＝この時計のブザーだけが張る）。"
+            "キーとタップを別々に走らせるので、片方だけ塞いだページは落ちる。"
+        ),
+        kind=OUTCOME,
+    )
     c.add(
         "creation_urgent_tick",
         "終盤の残り数秒が耳にも届く（画面・手に続く第 3 の通路）",

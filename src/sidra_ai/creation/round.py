@@ -351,7 +351,18 @@ function drawRoundEnd(){if(!RCV)return;
    is no end screen to preserve: re-running the page is the whole restart,
    and it is the same one the tuning panel uses (C-1113). A template that
    ended on its own never gets here - its own R still owns that. */
-function roundRestart(){if(!ROUND_DONE)return;
+/* The shield (§8 事実 3, C-1472): a player who was mashing when the buzzer
+   arrived used to reload the page on the very next frame, never having seen
+   「ここまで」, the reason line, or their own record. The whole restart is a
+   `location.reload()`, so that press does not skip a screen - it destroys
+   it. For ROUND_SHIELD frames after the buzzer, R and a tap are simply not
+   counted as a restart; the press AFTER that is the immediate restart it
+   always was. Nothing is queued: swallowing the mash and honouring the next
+   press is what keeps this from becoming a delay somebody has to wait out.
+   Only this clock's buzzer path is shielded - a template with an ending of
+   its own owns its own R (kaiju, duel), and that is its screen to design. */
+function roundShielded(){return ROUND_DONE&&ROUND_SHIELD_FRAMES<=ROUND_SHIELD}
+function roundRestart(){if(!ROUND_DONE||roundShielded())return;
   try{if(typeof location!=='undefined'&&location&&typeof location.reload==='function'){
     location.reload()}}catch(e){}}
 addEventListener('keydown',function(e){
@@ -365,6 +376,11 @@ if(RCV){RCV.addEventListener('pointerdown',function(){if(ROUND_DONE){roundRestar
    first frame, so an R pressed inside the quiet still keeps the record. */
 const ROUND_HOLD=45;
 let ROUND_END_FRAMES=0;
+/* Counted only over the buzzer, not over a template's own ending, so a game
+   that finished by itself long before the clock cannot spend the shield on
+   the player's behalf. */
+const ROUND_SHIELD=ROUND_SHIELD_TOKEN;
+let ROUND_SHIELD_FRAMES=0;
 /* Outermost wrapper, installed after the pad: the banner has to be the last
    thing drawn, and holding the frame must not stop the loop. */
 /* Counted AFTER the template's frame, in the same spot the strip used to
@@ -375,7 +391,8 @@ function roundEndBeat(){
   if(ROUND_DONE||roundEnded()){
     if(ROUND_END_FRAMES===0){try{roundBank()}catch(e){}}
     ROUND_END_FRAMES++}
-  else{ROUND_END_FRAMES=0}}
+  else{ROUND_END_FRAMES=0}
+  if(ROUND_DONE){ROUND_SHIELD_FRAMES++}else{ROUND_SHIELD_FRAMES=0}}
 const ROUND_RAF=requestAnimationFrame;
 requestAnimationFrame=function(fn){
   return ROUND_RAF(function tick(t){
@@ -578,6 +595,7 @@ function drawResultStrip(){if(!RCV)return;roundBank();
 function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   tie:roundTieFacts(),
   endFrames:ROUND_END_FRAMES,hold:ROUND_HOLD,banked:ROUND_BANKED,
+  shieldFrames:ROUND_SHIELD_FRAMES,shield:ROUND_SHIELD,shielded:roundShielded(),
   ended:roundEnded(),limit:ROUND_LIMIT_MS,
   score:ROUND_FINAL,best:ROUND_BEST,record:ROUND_RECORD,
   live:roundScore(),
@@ -765,6 +783,14 @@ ROUND_URGENT_MS = 3_000
 #: because hitstop withholds the drawing while the loop keeps running.
 ROUND_GAP_MS = 1_000
 
+#: Frames after the buzzer during which R and a tap are not a restart
+#: (C-1472). 24 frames is ~400ms at 60fps: long enough that a mash carried
+#: through the buzzer does not erase the result, short enough that anybody
+#: who looked up and then pressed feels nothing. It expires well before
+#: ``ROUND_HOLD`` (45) puts 「R / タップでもう一度」 on the screen, so the
+#: shield is invisible to a player who waits for the prompt.
+ROUND_SHIELD_FRAMES = 24
+
 #: Where the badge goes: the band directly under the templates' own HUD
 #: row, on the right. Chosen by measurement rather than by eye - every
 #: template was driven and its paint recorded, and this band is the only
@@ -791,6 +817,7 @@ def preamble_for(template: str) -> str:
         .replace("ROUND_SHOW_TOKEN", str(ROUND_SHOW_MS))
         .replace("ROUND_URGENT_TOKEN", str(ROUND_URGENT_MS))
         .replace("ROUND_GAP_TOKEN", str(ROUND_GAP_MS))
+        .replace("ROUND_SHIELD_TOKEN", str(ROUND_SHIELD_FRAMES))
         .replace("ROUND_CLOCK_BOX_TOKEN", json.dumps(list(ROUND_CLOCK_BOX)))
         .replace("ROUND_HAPTIC_TOKEN", json.dumps(list(HAPTIC_ROUND)))
         .replace("ROUND_NAME_TOKEN", json.dumps(template))
@@ -807,6 +834,7 @@ __all__ = [
     "hold_probe_source",
     "PREAMBLE_NAMES",
     "PROBE",
+    "SHIELD_PROBE",
     "TICK_PROBE",
     "ROUND_LIVE",
     "ROUND_SCORE",
@@ -814,7 +842,9 @@ __all__ = [
     "ROUND_PREAMBLE",
     "ROUND_SECONDS",
     "ROUND_GAP_MS",
+    "ROUND_SHIELD_FRAMES",
     "live_gaps",
+    "shield_probe_source",
     "tick_probe_source",
     "preamble_for",
     "probe_source",
@@ -1173,6 +1203,125 @@ for (let f = 0; f < FRAMES_INPUT; f++) {
 console.log(JSON.stringify({ frames: tkFrames, urgentAt: roundClockFacts().urgentAt,
   limit: roundClockFacts().limit, muted: !!MUTE_INPUT }));
 """
+
+
+#: Does a mash carried through the buzzer erase the result? (C-1472)
+#:
+#: The page is driven for real: the round is started, a key or a tap is
+#: repeated on every frame across the buzzer, and the count of
+#: ``location.reload()`` calls is read frame by frame. The one thing this
+#: has to be able to say is *when* the reload happened, because "the shield
+#: works" and "restart is broken" produce the same total.
+SHIELD_PROBE = """
+const shNothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : shNothing),
+  apply: () => shNothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: false, addEventListener(){}, addListener(){} });
+let shTime = 0;
+globalThis.performance = { now: () => shTime };
+const shKeys = [], shPointers = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') shKeys.push(fn) };
+globalThis.Image = function(){ return shNothing };
+const shStore = {};
+globalThis.localStorage = {
+  getItem: (k) => (k in shStore ? shStore[k] : null),
+  setItem: (k, v) => { shStore[k] = String(v) }, removeItem: (k) => { delete shStore[k] } };
+/* The whole measurement. A reload is the page being destroyed, so counting
+   it is counting the result screens that never got read. */
+let shReloads = 0;
+globalThis.location = { reload: () => { shReloads++ } };
+/* Recording, not swallowing: 「ここまで」 has to be on the screen for the
+   shield to be protecting anything. */
+const shText = [];
+const shEl = { width: 720, height: 320, style: {}, textContent: '', attrs: {},
+  addEventListener: (type, fn) => { if (type === 'pointerdown') shPointers.push(fn) },
+  setAttribute(){}, getAttribute(){ return null }, blur(){},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({ fillText: (t) => { shText.push(String(t)) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : shNothing)),
+    set: () => true }) };
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => shEl, querySelector: () => null, getElementById: () => shEl };
+let shQueued = null;
+globalThis.requestAnimationFrame = (fn) => { shQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function shPress(){ shKeys.forEach(fn => fn({ key: 'r', code: 'KeyR',
+  preventDefault(){}, stopImmediatePropagation(){} })) }
+function shTap(){ shPointers.forEach(fn => fn({ pointerType: 'touch', pointerId: 1,
+  clientX: 360, clientY: 160, preventDefault(){}, stopImmediatePropagation(){} })) }
+function shPoke(){ if (MASH_INPUT === 'tap') { shTap() } else { shPress() } }
+function shStep(){ if (!shQueued) return false;
+  const fn = shQueued; shQueued = null; shTime += 50 / 3; fn(shTime); return true }
+shStep(); shStep();
+shKeys.forEach(fn => fn({ key: ' ', code: 'Space',
+  preventDefault(){}, stopImmediatePropagation(){} }));
+/* Play to the buzzer without touching R, so the mash starts exactly where
+   the item says it does - at the buzzer, not before it. */
+let shBuzzerAt = null;
+for (let f = 0; f < FRAMES_INPUT; f++) {
+  if (!shStep()) break;
+  if (roundFacts().done) { shBuzzerAt = f; break }
+}
+const shAtBuzzer = { reloads: shReloads, facts: roundFacts() };
+/* Every frame of the mash, with the reload count as it stood: the frame a
+   reload first appears on is the number that decides this. */
+const shMash = [];
+let shFirstReload = null;
+for (let f = 0; f < MASH_FRAMES_INPUT; f++) {
+  shPoke();
+  if (shFirstReload === null && shReloads > 0) { shFirstReload = f }
+  shMash.push({ frame: f, reloads: shReloads,
+    shieldFrames: roundFacts().shieldFrames, shielded: roundFacts().shielded });
+  if (!shStep()) break;
+}
+/* The other direction: after the mash stops, one press has to restart the
+   way it always did. Nothing was queued, so this is a fresh press. */
+const shBeforeLate = shReloads;
+shPoke();
+shStep();
+console.log(JSON.stringify({
+  buzzerAt: shBuzzerAt,
+  atBuzzer: shAtBuzzer.reloads,
+  /* Whether the template had ended on its own by the time the mash began.
+     Without this, "the buzzer never fired" cannot be told apart from "the
+     page stopped scheduling", and the scope claim rests on that difference. */
+  endedByItself: !!shAtBuzzer.facts.ended,
+  doneAtStop: !!shAtBuzzer.facts.done,
+  mash: shMash,
+  firstReloadAt: shFirstReload,
+  reloadsAfterMash: shBeforeLate,
+  reloadsAfterOneLatePress: shReloads,
+  shield: roundFacts().shield,
+  hold: roundFacts().hold,
+  said: shText.slice(-40),
+  running: shQueued !== null,
+}));
+"""
+
+
+def shield_probe_source(
+    script: str,
+    *,
+    frames: int = 4200,
+    mash_frames: int = 60,
+    mash: str = "key",
+) -> str:
+    """The page's own script, driven with a mash carried through the buzzer.
+
+    ``mash`` is ``"key"`` or ``"tap"`` - both restart the round and both have
+    to be shielded, and a probe that only ever pressed R would pass against a
+    build that shielded the keyboard and left the canvas open.
+    """
+
+    # MASH_FRAMES_INPUT before FRAMES_INPUT: the shorter name is a substring
+    # of the longer one, and replacing it first turns the other into
+    # ``MASH_4200``. Caught by running the probe, not by reading it.
+    return (
+        SHIELD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("MASH_FRAMES_INPUT", str(int(mash_frames)))
+        .replace("FRAMES_INPUT", str(int(frames)))
+        .replace("MASH_INPUT", json.dumps(mash))
+    )
 
 
 def tick_probe_source(
