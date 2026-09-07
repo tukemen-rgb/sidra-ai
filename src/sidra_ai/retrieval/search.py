@@ -84,6 +84,12 @@ _MAX_CHUNKS_PER_DOCUMENT = 2
 #: Keep the most discriminative corpus-present terms and bound the inner loop.
 _MAX_SCORING_QUERY_TERMS = 128
 
+#: How many candidates to score per requested result when a candidate source is
+#: attached and the caller did not name a pool size. Measured rather than
+#: guessed: see ``scripts/measure_fts5_candidates.py`` for the curve of pool
+#: size against the 38-question judge on the real 3,759-chunk corpus.
+_DEFAULT_CANDIDATE_MULTIPLIER = 40
+
 
 def tokenize(text: str) -> list[str]:
     """NFKC-normalized, case-folded Latin words plus CJK character bigrams."""
@@ -290,12 +296,31 @@ class BM25Retriever:
     more than the scoring budget, the rarest terms are retained first. This
     keeps a 32k-character API query from becoming a per-request CPU amplifier
     while preserving the most discriminative lexical evidence.
+
+    An optional ``candidate_source`` (see
+    :mod:`sidra_ai.retrieval.candidates`) may shortlist which chunks the
+    scoring loop visits on an **unfiltered** search, where the BM25 statistics
+    are the precomputed whole-corpus ones and a shortlisted chunk therefore
+    scores identically to what it would have scored in a full scan. It is
+    consulted nowhere else, it may decline, and the default of ``None`` is the
+    behaviour that shipped - the scoring itself is never delegated, because
+    C-1464 measured what delegating it costs.
     """
 
-    def __init__(self, store: DocumentStore, *, k1: float = 1.5, b: float = 0.75) -> None:
+    def __init__(
+        self,
+        store: DocumentStore,
+        *,
+        k1: float = 1.5,
+        b: float = 0.75,
+        candidate_source: Any | None = None,
+        candidate_pool: int = 0,
+    ) -> None:
         self.store = store
         self.k1 = k1
         self.b = b
+        self.candidate_source = candidate_source
+        self.candidate_pool = candidate_pool
         self._chunks: tuple[Chunk, ...] = ()
         self._term_frequencies: list[Counter[str]] = []
         self._lengths: list[int] = []
@@ -314,8 +339,12 @@ class BM25Retriever:
         self._lengths = []
         self._document_frequency = Counter()
 
+        collecting = self.candidate_source is not None
+        token_lists: list[list[str]] = []
         for chunk in chunks:
             tokens = tokenize(chunk.content)
+            if collecting:
+                token_lists.append(tokens)
             counts = Counter(tokens)
             self._term_frequencies.append(counts)
             self._lengths.append(len(tokens))
@@ -325,6 +354,11 @@ class BM25Retriever:
             sum(self._lengths) / len(self._lengths) if self._lengths else 0.0
         )
         self._indexed_count = len(chunks)
+
+        if collecting:
+            # The tokens, not the chunks: tokenizing is the entire cost of
+            # building a candidate index and it has just been paid above.
+            self.candidate_source.reindex(token_lists)
 
     @staticmethod
     def _idf_for_counts(total: int, frequency: int) -> float:
@@ -361,6 +395,8 @@ class BM25Retriever:
         )
         type_filter = None if source_types is None else set(source_types)
 
+        unfiltered = repository_filter is None and type_filter is None
+
         eligible_positions: list[int] = []
         for position, chunk in enumerate(self._chunks):
             provenance = chunk.provenance
@@ -379,17 +415,38 @@ class BM25Retriever:
         # A filtered search is its own BM25 corpus. Computing IDF/length
         # statistics from excluded repositories lets unrelated data change a
         # scoped query's score and can flip ranking or min_score decisions.
-        filtered_document_frequency: Counter[str] = Counter()
-        filtered_total_length = 0
-        for position in eligible_positions:
-            filtered_document_frequency.update(self._term_frequencies[position].keys())
-            filtered_total_length += self._lengths[position]
+        if unfiltered:
+            filtered_document_frequency = self._document_frequency
+            filtered_total_length = sum(self._lengths)
+        else:
+            filtered_document_frequency = Counter()
+            filtered_total_length = 0
+            for position in eligible_positions:
+                filtered_document_frequency.update(
+                    self._term_frequencies[position].keys()
+                )
+                filtered_total_length += self._lengths[position]
 
         filtered_total = len(eligible_positions)
         filtered_average_length = filtered_total_length / filtered_total
         query_terms = _bounded_query_terms(query_terms, filtered_document_frequency)
         if not query_terms:
             return []
+
+        # Narrowing, only where narrowing cannot change a score. The statistics
+        # above are the whole-corpus ones on this branch, so scoring a subset
+        # gives every scored chunk the identical score it would have had; the
+        # only way the answer moves is a chunk that never got offered. On the
+        # filtered branch the statistics were derived *from* the eligible set,
+        # which had to be walked anyway - there is nothing left to save, so the
+        # candidate source is not consulted rather than trusted out of scope.
+        if unfiltered and self.candidate_source is not None:
+            pool = self.candidate_pool or top_k * _DEFAULT_CANDIDATE_MULTIPLIER
+            candidates = self.candidate_source.positions(query_terms, limit=pool)
+            if candidates is not None:
+                eligible_positions = candidates
+                if not eligible_positions:
+                    return []
 
         scored: list[SearchResult] = []
         for position in eligible_positions:

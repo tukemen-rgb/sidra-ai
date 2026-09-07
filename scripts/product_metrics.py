@@ -16024,10 +16024,180 @@ def measure_observability(c: Collector) -> None:
           kind=OUTCOME)
 
 
+
+def measure_retrieval_scale(c: Collector) -> None:
+    """Did narrowing WHICH chunks get scored leave the ranking untouched? (C-1466)
+
+    C-1464 measured replacing this project's BM25 with SQLite FTS5 outright
+    and it cost an answer, because FTS5's ``bm25()`` is fixed at k1=1.2 where
+    this corpus is tuned to k1=1.5. C-1466 keeps the scorer and takes only the
+    shortlist, so the claim this number stands for is a conjunction, and the
+    judge has to be able to falsify either half:
+
+    * the product path's scores are **identical** to a full scan's, question
+      by question, position by position - otherwise the number is 0 no matter
+      how much work was skipped;
+    * work was actually skipped - counted, not timed, so the number is the
+      same on a loaded machine as on an idle one.
+
+    Two readings keep the number from being self-congratulatory. Removing the
+    candidate source has to send it back to the whole corpus, and starving the
+    pool has to change some score vector - if it did not, the retriever would
+    not be consuming the shortlist at all and any reading here would be about
+    an unused code path.
+
+    **The number counts chunks scored, not chunks skipped, and lower is
+    better.** C-1466 filed it the other way round ("破壊で 0"), and that
+    reading is inflatable: every loop that writes a document enlarges the
+    corpus, so "chunks skipped" would climb on its own and be bankable as
+    work nobody did. Chunks *scored* cannot be moved that way. It is capped by
+    the candidate pool however large the corpus grows, adding documents can
+    only push it up, and lowering it by shrinking the pool breaks the identity
+    check above, which sends it to the whole corpus. The break the item named
+    is still run and still caught - it simply shows up as the number returning
+    to a full scan rather than as a zero.
+    """
+
+    import importlib.util
+    from types import SimpleNamespace
+
+    from sidra_ai.evals.outcome_questions import OUTCOME_QUESTIONS
+    from sidra_ai.retrieval.candidates import CandidateSource, fts5_available
+    from sidra_ai.retrieval.embedding import build_retriever
+    from sidra_ai.retrieval.search import BM25Retriever
+
+    if not fts5_available():
+        c.unmeasurable(
+            "index_scale_docs", "順位を落とさずに省いた採点断片数",
+            "この Python の SQLite に FTS5 が無い",
+        )
+        return
+
+    spec = importlib.util.spec_from_file_location(
+        "_measure_outcomes_for_scale",
+        Path(__file__).resolve().parent / "measure_outcomes.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    repository = "tukemen-rgb/sidra-ai"
+    targets = [(repository, Path(__file__).resolve().parents[1])]
+    with _quiet():
+        gate = module.SecurityGate(module.GatePolicy(), allowed_repositories=[repository])
+        store = module.DocumentStore(gate)
+        module.ingest(targets, store, gate)
+
+    total = len(tuple(store.chunks()))
+    questions = [q.question for q in OUTCOME_QUESTIONS]
+    top_k = 5
+
+    class _Declining(CandidateSource):
+        """The removal, as an object: an index that is present but says nothing."""
+
+        def reindex(self, token_lists):
+            for _ in token_lists:
+                pass
+
+        def positions(self, query_terms, *, limit):
+            return None
+
+    class _Counting(CandidateSource):
+        """Passes every call through and records the size of each shortlist."""
+
+        def __init__(self, inner):
+            self.inner, self.sizes = inner, []
+
+        def reindex(self, token_lists):
+            self.inner.reindex(token_lists)
+
+        def positions(self, query_terms, *, limit):
+            offered = self.inner.positions(query_terms, limit=limit)
+            self.sizes.append(total if offered is None else len(offered))
+            return offered
+
+    def _vector(results):
+        return [(r.chunk.chunk_id, round(r.score, 9)) for r in results]
+
+    plain = BM25Retriever(store)
+    product = build_retriever(SimpleNamespace(embedding_model_path=""), store)
+    counter = _Counting(product.candidate_source)
+    product.candidate_source = counter
+
+    scale_gaps: list[str] = []
+    with _quiet():
+        want = [_vector(plain.search(q, top_k=top_k)) for q in questions]
+        got = [_vector(product.search(q, top_k=top_k)) for q in questions]
+        starved = BM25Retriever(
+            store, candidate_source=product.candidate_source.inner, candidate_pool=1
+        )
+        thin = [_vector(starved.search(q, top_k=top_k)) for q in questions]
+        # The break the item named, run rather than asserted: a retriever
+        # whose candidate source declines has nothing to skip.
+        broken_counter = _Counting(_Declining())
+        broken = BM25Retriever(store, candidate_source=broken_counter)
+        removed = [_vector(broken.search(q, top_k=top_k)) for q in questions]
+
+    scores_differ = [
+        q for q, a, b in zip(questions, want, got)
+        if [s for _, s in a] != [s for _, s in b]
+    ]
+    ids_differ = sum(1 for a, b in zip(want, got) if a != b)
+    scored_sizes = sorted(counter.sizes)
+    median = scored_sizes[len(scored_sizes) // 2] if scored_sizes else total
+
+    if not counter.sizes:
+        scale_gaps.append("製品の経路が候補生成を一度も使っていない")
+    elif scores_differ:
+        scale_gaps.append(
+            f"点数が全走査と違う質問が {len(scores_differ)} 問"
+            f"（例: {scores_differ[0][:24]}）"
+        )
+    elif any(size != total for size in broken_counter.sizes):
+        scale_gaps.append("候補生成を外しても全断片を採点していない")
+    elif removed != want:
+        scale_gaps.append("候補生成を外した経路が全走査と一致しない")
+    elif thin == want:
+        scale_gaps.append(
+            "候補を 1 件に絞っても結果が変わらない"
+            "——絞り込みが効いていないので採点数に意味が無い"
+        )
+    elif median >= total:
+        scale_gaps.append("全断片を採点している（絞り込めていない）")
+
+    c.add(
+        "index_scale_docs",
+        "順位を保ったまま 1 検索が採点する断片数（中央値・少ないほど良い）",
+        float(total) if scale_gaps else float(median),
+        unit="断片",
+        direction="down",
+        kind=OUTCOME,
+        # A rebuilt corpus shifts this by a chunk or two without anything
+        # about retrieval changing. Ten is the smallest move that cannot come
+        # from one added file.
+        min_move=10.0,
+        detail=(
+            "; ".join(scale_gaps) + f"——全走査 {total} 断片に戻して報告"
+            if scale_gaps
+            else f"実コーパス {total} 断片・判定器 {len(questions)} 問を"
+            f"**製品の経路（`build_retriever`）で実際に引いて全走査と突き合わせた**: "
+            f"点数の並びは {len(questions)}/{len(questions)} 問で**全走査と同一**の"
+            f"まま、採点したのは 1 検索あたり中央値 **{median}/{total} 断片**。"
+            f"上位の断片 ID まで一致したのは {len(questions) - ids_differ}/"
+            f"{len(questions)} 問——差が出るとすれば**点数が完全に同点の断片の"
+            "入れ替わり**で、悪い断片が良い断片を押し出したものではない"
+            "（`candidates.py` に明記）。**両方向**: 候補を 1 件に絞ると結果が"
+            "変わる（＝絞り込みは本当に効いている）、候補生成を外すと"
+            f"{total} 断片＝全走査に戻る。**時計ではなく採点回数**なので"
+            "機械の負荷で動かず、断片を書き足しても下がらない"
+            "（候補上限で頭打ち・増えるのは悪化方向だけ）。"
+        ),
+    )
+
 COLLECTORS = (
     ("usable", measure_usability),
     ("fresh", measure_freshness),
     ("answers", measure_answer_quality),
+    ("scale", measure_retrieval_scale),
     ("boss", measure_boss_questions),
     ("creation", measure_creation),
     ("cost", measure_cost),

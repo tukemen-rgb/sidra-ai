@@ -355,9 +355,18 @@ def build_retriever(settings, store) -> Retriever:
     full Settings machinery.
     """
 
+    from sidra_ai.retrieval.candidates import Fts5CandidateSource
     from sidra_ai.retrieval.search import BM25Retriever
 
-    lexical = BM25Retriever(store)
+    # FTS5 shortlists which chunks BM25 scores on an unfiltered search; BM25
+    # still does all the scoring, so the k1=1.5 this corpus was tuned to and
+    # the filter-scoped statistics both survive. Measured on the real 3,761
+    # chunk corpus: the judge's top-5 is identical to a full scan on every one
+    # of its 40 questions from a pool of 25 upward, and the product's pool is
+    # 200. Search 14.8ms -> 3.6ms. The way back is one argument: construct
+    # ``BM25Retriever(store)`` with no candidate source and the full scan is
+    # what runs. See scripts/measure_fts5_candidates.py for the curve.
+    lexical = BM25Retriever(store, candidate_source=Fts5CandidateSource())
     model_path = getattr(settings, "embedding_model_path", "") or ""
     if not model_path:
         return lexical
