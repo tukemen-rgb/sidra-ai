@@ -37,7 +37,12 @@ from sidra_ai.creation.games import (
     save_game,
     validate_game_html,
 )
-from sidra_ai.creation.intent import _MAKE_VERBS, _QUESTION_MARKERS, fold_kana
+from sidra_ai.creation.intent import (
+    _EXPLANATION_QUESTION,
+    _MAKE_VERBS,
+    _QUESTION_MARKERS,
+    fold_kana,
+)
 from sidra_ai.creation.router import CreationOutcome
 from sidra_ai.creation.intent import CreationKind
 from sidra_ai.creation.themes import DEFAULT_THEME, select_theme
@@ -137,6 +142,22 @@ _CHANGE_VERBS: tuple[str, ...] = (
     "もどして",
 )
 
+#: A polite request to change the game, phrased as a courteous imperative or a
+#: request-question: a change verb te-form followed by a benefactive/honorific
+#: auxiliary - 「難しくしてもらえますか」「配色を変えてください」. C-1463 is the twin of
+#: C-1455 for revision: these end in 「ますか」/「ください」, which the shared
+#: ``_QUESTION_MARKERS`` veto treats as a question, so a polite revision request
+#: fell to the RAG no-evidence wall. A change stem plus a benefactive is a
+#: request, not a question, and survives the veto unless it is also an
+#: explanation question (``_EXPLANATION_QUESTION``). Folded to katakana to match
+#: the normalised text the detector compares against.
+_POLITE_REVISION = re.compile(fold_kana(
+    r"(?:して|変えて|かえて|直して|なおして|やめて|止めて|戻して|もどして|"
+    r"上げて|下げて|増やして|減らして|強くして|弱くして)"
+    r"(?:(?:ください|下さい|くださ|ちょうだい)"
+    r"|(?:もらえ|もらい|いただけ|いただき|頂け|頂き|くれ)[^。\n]{0,8}?か)"
+))
+
 
 @dataclass(frozen=True)
 class RevisionIntent:
@@ -169,7 +190,14 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         return RevisionIntent(is_revision=False)
     if any(fold_kana(verb.casefold()) in text for verb in _MAKE_VERBS):
         return RevisionIntent(is_revision=False)
-    if any(fold_kana(marker.casefold()) in text for marker in _QUESTION_MARKERS):
+    # A polite request ("難しくしてもらえますか") ends in 「ますか」, which the shared
+    # question-marker veto would treat as a question; it is courtesy, not an
+    # asking verb, so it is exempt unless it is also an explanation question
+    # (C-1463, the revision twin of C-1455).
+    polite_request = bool(_POLITE_REVISION.search(text)) and not _EXPLANATION_QUESTION.search(text)
+    if not polite_request and any(
+        fold_kana(marker.casefold()) in text for marker in _QUESTION_MARKERS
+    ):
         return RevisionIntent(is_revision=False)
     if not any(fold_kana(word.casefold()) in text for word in _BACK_REFERENCES):
         return RevisionIntent(is_revision=False)

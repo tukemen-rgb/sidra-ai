@@ -1062,6 +1062,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1463: the twin of C-1455 for revision. detect_revision_intent shared the
+    # creation detector's 「ますか」 veto, so a polite request to change a game
+    # (「難しくしてもらえますか」) was read as a question and fell to the RAG wall.
+    # A change stem plus a benefactive is now a request, exempt from the veto
+    # unless it is also an explanation question.
+    from sidra_ai.evals.revision_polite_request_is_revision import (
+        evaluate_revision_polite_request_is_revision,
+    )
+
+    revision_polite = evaluate_revision_polite_request_is_revision()
+    c.add(
+        "revision_polite_request_is_revision",
+        "丁寧な修正依頼（難しくしてもらえますか等）が改訂に接続する",
+        10.0 * revision_polite.checks_passed / revision_polite.checks_total,
+        detail=f"{revision_polite.checks_passed}/{revision_polite.checks_total} checks; "
+               "src/sidra_ai/evals/revision_polite_request_is_revision.py"
+               + ("" if revision_polite.passed else "; " + "; ".join(revision_polite.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was
