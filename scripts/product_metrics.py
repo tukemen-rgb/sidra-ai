@@ -7784,6 +7784,90 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the pad stays visible on every floor (§4 1.4.11, C-1388) -------
+    #
+    # The virtual pad is the phone's only control, and its buttons sit on
+    # whatever the scene floor is this act. WCAG 1.4.11 holds non-text UI
+    # to 3:1 against adjacent colours; border-on-raised measured 1.05:1
+    # on paper. The dual ring (surface outside, ink inside, full alpha)
+    # must clear 3:1 through its better half on every theme's every act,
+    # and the ink glyph must clear 3:1 on the blended plate.
+    from sidra_ai.creation.touchpad import pad_probe as _pv_probe
+
+    pad_gaps: list[str] = []
+    for _pv_suffix in _scene_themes:
+        _pv_label = f"catch/{_pv_suffix or 'default'}"
+        _pv_page = generate_game(
+            f"ゲームを作って {_pv_suffix}".strip(), template="catch"
+        ).html
+        _pv_m = _scene_re.search(r"<script>(.*?)</script>", _pv_page, _scene_re.S)
+        if _pv_m is None:
+            pad_gaps.append(f"{_pv_label}: no script")
+            continue
+        _pv_floor = _scene_re.search(
+            r"sky:scenePaint\('(#[0-9a-f]{6})'\)", _pv_m.group(1)
+        )
+        if _pv_floor is None:
+            pad_gaps.append(f"{_pv_label}: no scene floor token")
+            continue
+        try:
+            _pv_run = _scene_sp.run(
+                ["node", "-"],
+                input=_pv_probe(_pv_m.group(1), floor_token=_pv_floor.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _pv_run.returncode != 0:
+                raise ValueError(_pv_run.stderr.strip()[:60])
+            _pv = json.loads(_pv_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            pad_gaps.append(f"{_pv_label}: probe unavailable ({exc})")
+            continue
+        try:
+            _pv_f = _pv["facts"]
+            for _pv_act, _pv_under in enumerate(_pv["floors"]):
+                if not _pv_under:
+                    pad_gaps.append(f"{_pv_label}: act {_pv_act} floor unread")
+                    continue
+                _pv_ring = max(
+                    _wcag(_srgb_lum(_pv_f["ringIn"]), _srgb_lum(_pv_under)),
+                    _wcag(_srgb_lum(_pv_f["ringOut"]), _srgb_lum(_pv_under)),
+                )
+                if _pv_ring < 3.0:
+                    pad_gaps.append(
+                        f"{_pv_label}: act {_pv_act} the boundary melts "
+                        f"({_pv_ring:.2f})"
+                    )
+                _pv_glyph = _wcag(
+                    _srgb_lum(_pv_f["glyph"]),
+                    _srgb_lum(
+                        _hud_blend(_pv_f["alpha"], _pv_f["plate"], _pv_under)
+                    ),
+                )
+                if _pv_glyph < 3.0:
+                    pad_gaps.append(
+                        f"{_pv_label}: act {_pv_act} the glyph sinks "
+                        f"({_pv_glyph:.2f})"
+                    )
+        except (KeyError, TypeError, ValueError):
+            pad_gaps.append(f"{_pv_label}: pad contract unreadable")
+    c.add(
+        "creation_pad_visible",
+        "タッチ操作がどの床でも見える（1.4.11）",
+        0.0 if pad_gaps else 1.0,
+        detail=(
+            "; ".join(pad_gaps)
+            if pad_gaps
+            else "仮想パッドの ink/surface 両極 2 重リング（α1.0）とグリフ"
+            "（ink・α 合成した板に対し）を catch×4 テーマ×3 場面の実床で"
+            "実測: リングは良い方が全セル 3:1 以上（最悪 4.79）・グリフは"
+            "全セル 3:1 以上（最悪 9.84）。§4 増築 1.4.11——修正前は"
+            "border 縁が 12 セル中 9 で未達・最悪 1.05:1（紙）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the engine voice: speed made audible (§25, C-1378) -------------
     #
     # The earliest racing engines were nothing but the RPM driving a

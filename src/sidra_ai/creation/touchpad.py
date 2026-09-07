@@ -128,7 +128,7 @@ if(PADCV){PADCV.addEventListener('pointerdown',padDown);
   PADCV.addEventListener('pointercancel',padUp);
   PADCV.addEventListener('pointermove',padMove)}
 function padGlyph(c,b){const cxp=b.x+b.w/2,cyp=b.y+b.h/2,r=Math.min(b.w,b.h)*0.22;
-  c.fillStyle='BORDER_TOKEN';
+  c.fillStyle='INK_TOKEN';
   if(b.g==='A'||b.g==='R'||b.g==='P'){c.font=Math.round(r*2)+'px ui-monospace,monospace';
     c.textAlign='center';c.textBaseline='middle';c.fillText(b.g,cxp,cyp);
     c.textAlign='left';c.textBaseline='alphabetic';return}
@@ -137,13 +137,25 @@ function padGlyph(c,b){const cxp=b.x+b.w/2,cyp=b.y+b.h/2,r=Math.min(b.w,b.h)*0.2
   c.lineTo(cxp-d[0]*r+d[1]*r,cyp-d[1]*r+d[0]*r);
   c.lineTo(cxp-d[0]*r-d[1]*r,cyp-d[1]*r-d[0]*r);
   c.closePath();c.fill()}
+/* The pad's contrast contract (§4 WCAG 1.4.11, C-1388): the buttons sit
+   on whatever the scene floor is this act, and the floor's luminance
+   moves per act (§7's reserved brightness), so no single ring colour can
+   hold 3:1 everywhere - border-on-raised measured 1.05:1 on paper. Two
+   concentric rings at the theme's luminance extremes (surface outside,
+   ink inside, both full alpha) guarantee one of the pair clears 3:1 on
+   any floor. The translucent plate stays - it is backdrop, not boundary. */
+function padFacts(){return {plate:'RAISED_TOKEN',alpha:0.72,
+  ringOut:'SURFACE_TOKEN',ringIn:'INK_TOKEN',glyph:'INK_TOKEN'}}
 function drawPad(){if(!PAD_ON||!PADCV)return;
-  const c=PADCV.getContext('2d');c.save();c.globalAlpha=0.72;
+  const c=PADCV.getContext('2d');c.save();
   padButtons().forEach(b=>{
     const held=[...PAD_HELD.values()].includes(b.id);
+    c.globalAlpha=0.72;
     c.fillStyle=held?'CYAN_TOKEN':'RAISED_TOKEN';
     c.fillRect(b.x,b.y,b.w,b.h);
-    c.strokeStyle='BORDER_TOKEN';c.lineWidth=2;c.strokeRect(b.x,b.y,b.w,b.h);
+    c.globalAlpha=1;
+    c.strokeStyle='SURFACE_TOKEN';c.lineWidth=4;c.strokeRect(b.x,b.y,b.w,b.h);
+    c.strokeStyle='INK_TOKEN';c.lineWidth=2;c.strokeRect(b.x,b.y,b.w,b.h);
     padGlyph(c,b)});
   c.restore()}
 /* Wrapped once, so the pad is drawn after whatever the game just drew. */
@@ -324,13 +336,53 @@ def unreachable_keys(script: str) -> set[str]:
     return keys_read(script) - set(PAD_KEYS)
 
 
+#: The pad's contrast contract, read off a built page (§4 1.4.11, C-1388):
+#: padFacts() reports the substituted plate/ring/glyph colours and the
+#: probe walks the page's own scenePaint through all three acts so the
+#: judge computes ratios against the floors the pad actually sits on.
+PAD_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = () => {};
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+globalThis.requestAnimationFrame = () => 0;
+SCRIPT_PLACEHOLDER
+const facts = padFacts();
+const floors = [];
+const keep = (typeof SCENE !== 'undefined') ? SCENE : 0;
+for (let i = 0; i < 3; i++) {
+  try { SCENE = i; floors.push(scenePaint(FLOOR_PLACEHOLDER)) }
+  catch (e) { floors.push(null) } }
+try { SCENE = keep } catch (e) {}
+console.log(JSON.stringify({ facts: facts, floors: floors }));
+"""
+
+
+def pad_probe(script: str, *, floor_token: str) -> str:
+    """The page's own script, wrapped so the pad's colours and the acts'
+    real floors come back together."""
+
+    return PAD_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "FLOOR_PLACEHOLDER", f"'{floor_token}'"
+    )
+
+
 __all__ = [
     "ALIASES",
     "BUTTON_CSS_PX",
     "GAP_CSS_PX",
     "PAD_KEYS",
     "PAD_PREAMBLE",
+    "PAD_PROBE",
     "keys_read",
     "pad_active_declaration",
+    "pad_probe",
     "unreachable_keys",
 ]
