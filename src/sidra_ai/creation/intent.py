@@ -123,6 +123,17 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
     # overlapping is exactly where a silent regression would live.
     CreationKind.PROJECT: (
         "企画から",
+        # 「一式」 is what makes these projects, not 「企画」 (C-1504). The
+        # bare noun stays out on purpose: C-1263 drew the line at a single
+        # 企画/計画 document, and 「ゲームの企画を作って」 is still one
+        # document. Measured before the words went in - the same noun gave
+        # three different answers: 「ゲームの企画一式を作って」 delivered a
+        # fishing game titled 「ゲームの企画一式」, 「企画一式を作って」 was
+        # declined as unknown, and 「ゲームを企画から作って」 ran the
+        # project. Both spellings are listed because 「企画書一式」 does not
+        # contain 「企画一式」 as a run of characters.
+        "企画一式",
+        "企画書一式",
         "一連",
         "一通り",
         "プロジェクト",

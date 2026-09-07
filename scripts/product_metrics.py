@@ -12367,6 +12367,14 @@ def measure_creation(c: Collector) -> None:
         ("RPG を作って", "game", None),
         ("音ゲーを作って", "game", None),
         ("タワーディフェンスを作って", "game", None),
+        # C-1504: the same noun answered three ways. 「ゲームの企画一式を
+        # 作って」 delivered a fishing game titled 「ゲームの企画一式」,
+        # 「企画一式を作って」 was declined, and 「ゲームを企画から作って」
+        # ran the project. Both spellings are here because 「企画書一式」 is
+        # not a superstring of 「企画一式」 and one fix could pass without
+        # the other.
+        ("ゲームの企画一式を作って", "project", None),
+        ("ゲームの企画書一式を作って", "project", None),
     )
     kana_ok = 0
     kana_misses = []
