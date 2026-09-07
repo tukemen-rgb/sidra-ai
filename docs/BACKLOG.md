@@ -2800,7 +2800,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       現行の BM25 のまま——速さと係数の両取り。実装していないので
       数字は無い。C-1466 として起票する。
       pytest 4047 passed / 3 skipped / FAILED 0・gate MISS 0/誤検知 0。
-- [x] 完了 2026-09-07 09:35 UTC ループA（判定器 exit 0・`index_scale_docs` **NEW 63 断片**・第二判定器で 5 リポジトリ実測して**4 数字すべて据え置き**〔answered 14/38・direct 12/18・言換 2/20・MRR 0.284・弁別 +23.7pt〕・pytest FAILED 0・gate MISS 0/誤検知 0） **C-1466: FTS5 を候補生成に、順位付けは現行 BM25 のまま（両取りの案）。**
+- [x] 完了 2026-09-07 09:54 UTC ループA（判定器 exit 0・`index_scale_docs` **NEW 63 断片**・第二判定器で 5 リポジトリ実測して**4 数字すべて据え置き**〔answered 14/38・direct 12/18・言換 2/20・MRR 0.284・弁別 +23.7pt〕・pytest FAILED 0・gate MISS 0/誤検知 0） **C-1466: FTS5 を候補生成に、順位付けは現行 BM25 のまま（両取りの案）。**
       （ループA 起票 2026-09-07・C-1464 の実測が指した設計。**まだ実装も
       測定もしていない**）FTS5 を丸ごとの置き換えにすると、この corpus に
       合わせた **k1=1.5** とフィルタ範囲の BM25 統計を捨てることになり、
@@ -2814,7 +2814,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
       ③現行 BM25 単体への戻し道。
       → 動かす数字: index_scale_docs（順位を落とさずに検索の傾きを
       下げた実測。破壊〔候補生成を外す〕で 0）
-      **記録 2026-09-07 09:35 ループA**（`src/sidra_ai/retrieval/candidates.py`
+      **記録 2026-09-07 09:54 ループA**（`src/sidra_ai/retrieval/candidates.py`
       新設・`scripts/measure_fts5_candidates.py` 新設・製品の既定経路を変更）
       **成立した**。FTS5 は「どの断片を採点するか」だけを答え、点数は現行
       BM25 が全部つける。**無フィルタの検索では BM25 統計が全コーパス分
