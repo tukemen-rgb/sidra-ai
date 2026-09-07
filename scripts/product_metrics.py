@@ -1202,6 +1202,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1473: tool_coercion flagged 「Run this command」「Send a request」 - the shape
+    # of nearly every README, quarantining the primary ingestion corpus. Real
+    # coercion carries shell/to https://, still caught; the bare command/request
+    # targets are dropped. Same shape as the C-1452/1457/1459 false-positive fixes.
+    from sidra_ai.evals.gate_tool_coercion_allows_doc_commands import (
+        evaluate_gate_tool_coercion_allows_doc_commands,
+    )
+
+    tool_coercion_doc = evaluate_gate_tool_coercion_allows_doc_commands()
+    c.add(
+        "gate_tool_coercion_allows_doc_commands",
+        "ゲートが「Run this command」等の技術文書を隔離しない（実強制は捕捉維持）",
+        10.0 * tool_coercion_doc.checks_passed / tool_coercion_doc.checks_total,
+        detail=f"{tool_coercion_doc.checks_passed}/{tool_coercion_doc.checks_total} checks; "
+               "src/sidra_ai/evals/gate_tool_coercion_allows_doc_commands.py"
+               + ("" if tool_coercion_doc.passed else "; " + "; ".join(tool_coercion_doc.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

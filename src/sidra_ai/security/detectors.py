@@ -671,9 +671,18 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str], Severity, str], ...] = (
     ),
     (
         "tool_coercion",
+        # C-1473: a bare "command" or "request" after the verb is the shape of
+        # nearly every technical README - 「Run this command to install」「Send a
+        # request to the API」 - and flagging them quarantined the primary
+        # ingestion corpus. The real coercion is a *shell* execution or an
+        # *outbound URL* write ("run this shell command: curl …", "send a POST
+        # request to https://…"), which carry shell / to https:// / this url and
+        # still match; the bare command/request targets are dropped. No MUST_CATCH
+        # case is a tool_coercion case, so recall is unchanged (the same shape as
+        # the C-1266/1276/1279/1459 exfiltration false-positive fixes).
         re.compile(
             r"(?i)\b(run|execute|curl|wget|send|post|push|commit|merge|delete|"
-            r"deploy)\b[^.\n]{0,30}\b(command|shell|request|to https?://|this url)\b"
+            r"deploy)\b[^.\n]{0,30}\b(shell|to https?://|this url)\b"
         ),
         Severity.HIGH,
         "attempts to make the assistant take an outbound or write action",
