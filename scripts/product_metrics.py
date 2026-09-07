@@ -920,6 +920,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1456: sidra-ask returned exit 3 (documented as a safety refusal) for
+    # every refusal, so a model-backend-unavailable outage - an operational
+    # failure the docstring assigns to exit 1 - came back under the code a
+    # script uses for a content-policy refusal. The exit code now follows the
+    # cause: gate block/quarantine and an output-guard withholding are safety
+    # refusals (3); a backend that produced no answer is operational (1).
+    from sidra_ai.evals.cli_refusal_exit_code_by_cause import (
+        evaluate_cli_refusal_exit_code_by_cause,
+    )
+
+    cli_exit = evaluate_cli_refusal_exit_code_by_cause()
+    c.add(
+        "cli_refusal_exit_code_by_cause",
+        "sidra-ask の拒否終了コードが原因（安全性 3／運用不能 1）に一致する",
+        10.0 * cli_exit.checks_passed / cli_exit.checks_total,
+        detail=f"{cli_exit.checks_passed}/{cli_exit.checks_total} checks; "
+               "src/sidra_ai/evals/cli_refusal_exit_code_by_cause.py"
+               + ("" if cli_exit.passed else "; " + "; ".join(cli_exit.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

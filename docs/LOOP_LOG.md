@@ -8674,3 +8674,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 00:28 UTC 辛口ユーザー started（70 巡目・別面 予定=CLI（sidra-ask）を一般利用者として実走・出力/終了コード/引用表示の粗を探す・前回=作成意図の丁寧依頼 C-1455）
 
 2026-09-07 00:53 進捗監視 前進あり: C-1455 完了（丁寧・婉曲な作成依頼を質問で落とさない・辛口ユーザー 00:26）・C-1374 起票＋§23 増築（permanence・クリエイター 00:40）・辛口ユーザー 70 巡目開始（CLI sidra-ask 実走）。C-1454 は 00:08 claim のまま作業中（42 分・停滞 2h には遠い）——完了は 1:05 巡以降を待つ。次の空き番号は C-1456。
+2026-09-07 01:02 辛口ユーザー C-1456 完了 cli_refusal_exit_code_by_cause 7.78 -> 10（判定器 exit 0・pytest FAILED 0・check_gate_regression exit 0（blended 8.1%）・--compare exit 0（BETTER 7.778->10, MOVED 1）・観点=CLI の終了コード契約（sidra-ask がモデル停止も安全性拒否 exit 3 と混同）・前回=作成意図の丁寧依頼 C-1455。拒否の exit を原因で決める _refusal_exit_code を新設: ゲート block/quarantine と出力ガード握り潰し（生成後・model メタで判別）は安全性で 3、生成に至らないバックエンド停止は運用で 1。render と --json 両方に適用・docstring も追随・既存 CLI テスト不変。破壊 5 通り全て捕捉）

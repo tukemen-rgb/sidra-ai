@@ -15,9 +15,11 @@ from. It adds no capability the API does not already have.
 Exit codes are distinct so a script can tell the cases apart:
 
   0  answered
-  1  could not reach the API, or the API returned an error
+  1  could not reach the API, or the API returned an error (including the
+     model backend being unavailable, so no answer could be produced)
   2  refused to run - unsafe configuration or bad usage
-  3  the security gate refused to answer
+  3  refused for safety - the security gate blocked the input or history, or
+     the output guard withheld a generated answer
 
 Two properties this file is responsible for
 -------------------------------------------
@@ -196,6 +198,31 @@ def _print_citations(
         print(f"  [{label}] {reference}{suffix}")
 
 
+def _refusal_exit_code(payload: dict[str, Any]) -> int:
+    """The exit code for a refused response.
+
+    Exit 3 is documented as "refused for safety"; exit 1 as "the API returned
+    an error". Every refusal used to return 3, which put a **model backend
+    unavailable** outage - an operational failure the docstring assigns to
+    exit 1 - under the same code a script uses for a policy refusal (C-1456).
+
+    A refusal is a *safety* refusal when the input gate blocked it
+    (``security.decision`` is ``block``/``quarantine``, covering the message
+    gate and the conversation-history gate) or when the output guard withheld a
+    generated answer. The guard runs only after generation, so a ``model``
+    metadata block means an answer was produced and then withheld (safety, 3);
+    its absence with an ``allow`` decision means generation never happened
+    (operational, 1). Keyed on the payload's shape, not on the reason text.
+    """
+
+    decision = (payload.get("security") or {}).get("decision")
+    if decision in ("quarantine", "block"):
+        return 3
+    if payload.get("model"):
+        return 3
+    return 1
+
+
 def render(payload: dict[str, Any]) -> int:
     """Print one chat response. Returns the process exit code."""
 
@@ -222,7 +249,7 @@ def render(payload: dict[str, Any]) -> int:
         # the gate somehow surfaced any; never the empty-index note.
         _print_citations(payload, clean, note_when_empty=False)
         _report_stripped(clean)
-        return 3
+        return _refusal_exit_code(payload)
 
     answer = clean(payload.get("answer", "")).strip()
     print(answer if answer else "(空の回答)")
@@ -397,7 +424,7 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
         # json.dumps escapes control characters, so the raw view is safe to
         # print without stripping anything from it.
         print(json.dumps(payload_out, ensure_ascii=False, indent=2))
-        return 3 if payload_out.get("refused") else 0
+        return _refusal_exit_code(payload_out) if payload_out.get("refused") else 0
 
     return render(payload_out)
 
