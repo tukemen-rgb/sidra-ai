@@ -727,3 +727,33 @@ URL はすべて 2026-09-03 に実際に開いて確認。
   canvas と違い縮まないので対象外。
 - SIDRA での反映先: C-1375（7 箇所を 13px へ・判定器
   creation_hud_text_floor）
+
+## 25. 速度は連続音で聞かせる——エンジン声（外部調査 2026-09-07・辛口クリエイターループ）
+
+§2 は単発の合成・§10 は BGM・§21 は譲り合いまで来たが、**ゲーム状態を
+連続的に鳴らす声**（エンジン音＝速度の可聴化）の基準が無かったための
+増築。URL は 2026-09-07 に実際に開いて確認。
+
+- 事実 1: **最初期のレースゲームのエンジン音は「RPM が矩形波のピッチを
+  駆動する」だけの実装**で、「An increase in RPM meant an increase in
+  the pitch of the engine note and, **even at this basic level,
+  communicated to the player their current speed**」。音は「エンジンの
+  唸りの力と激情を、速度の純粋な表現と感覚としてスピーカーから直接
+  プレイヤーの脳へ渡せる」——視覚では不可能な伝達。ただし**劇的に
+  ピッチを振ると合成臭が出る**（当時のタイトルの識別点）。
+  （出典: http://blog.lostchocolatelab.com/2012/05/racing-game-sound-study.html）
+- 事実 2: ピッチシフト・ループは**最も単純で処理も容量も最小の技法**。
+  代償は不自然さで、「**samples can start to sound stretched if you
+  pitch them up or down further than 500 RPM**」＝振り幅は控えめに保つ。
+  ミキシングはスロットルを離したら「**drop the Engine layer by a few
+  dB off throttle**」——減速は音量も少し下がる。
+  （出典: https://www.boomlibrary.com/blog/the-car-engine-sound-primer-mike-caviezel/）
+- 学び: SIDRA の racing は離散 sfx 3 種（衝突・ラップ・取得）だけで、
+  **速度そのものが無音**——速度計バーは見なければ分からない。チップ風
+  合成（§2）にはまさに事実 1 の「矩形波ピッチ駆動」が era-appropriate
+  で、振り幅は 1 オクターブ程度に抑え（事実 1/2 の合成臭警告）、
+  減速でピッチと一緒にゲインも下げる（事実 2）。連続音は M 消音・
+  音量パネル・§21 のダッキングに従い、単発 sfx の下に置く（§21 の
+  乱発警告の連続音版＝小さく敷く）。
+- SIDRA での反映先: C-1378（racing のエンジン声・判定器
+  creation_engine_voice。marble の転がり音は別の動詞なので将来候補）
