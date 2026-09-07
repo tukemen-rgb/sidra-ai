@@ -6748,6 +6748,52 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a mashed round still ends --------------------------------------
+    #
+    # C-1500: hitstop skips the tick but not the key handlers. In the
+    # fishing template - the default every declined request falls back to -
+    # the sweep marker was therefore still parked inside the zone it just
+    # scored in while the world was frozen, so every further press landed
+    # another hit and re-armed the stop before a single tick could run.
+    # Mashing the one action key froze the round clock for as long as the
+    # finger lasted (measured: 183ms of round time across 100 wall seconds)
+    # while the score climbed without bound - and the moment the player
+    # stopped, that farmed number was banked as a personal best.
+    #
+    # Checked by *playing every template in node* with the action key
+    # pressed on every frame, because mashing is what an excited eight-
+    # year-old does first: the round must still reach its end inside the
+    # probe's frame budget (5000 frames ≈ 83s of wall time against a 60s
+    # round) and bank a finished score. A template that ends on the clock
+    # cannot restart inside the probe, so one round is asked of each.
+    mash_gaps: list[str] = []
+    mash_ok: list[str] = []
+    for key in sorted(_afk_templates):
+        mashed, problem = _afk_run(key, _afk_asks[key], " ")
+        if problem:
+            mash_gaps.append(problem)
+            continue
+        # The round ended if anything came out of it: a banked score, the
+        # page's own DONE state, or a recorded loss. A stalled clock shows
+        # none of these - score stays null and the strip never opens.
+        if mashed["score"] is None and not mashed["done"] and not mashed["lost"]:
+            mash_gaps.append(f"{key}: a mashed round never reached its end")
+            continue
+        mash_ok.append(key)
+    c.add(
+        "creation_mash_round_ends",
+        "連打してもラウンドは終わる",
+        float(len(mash_ok)) if not mash_gaps else 0.0,
+        detail=(
+            "; ".join(mash_gaps)
+            if mash_gaps
+            else f"{len(mash_ok)} 型で実走行: アクションキーを毎フレーム押しても"
+            "ラウンドは時間内に終わって結果が banked される。"
+            "fishing の凍結マーカー無限ヒット（時計停止＋無限得点）の再発検知"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a best that can still be beaten --------------------------------
     #
     # C-1124: four templates score against a ceiling - laps out of three,

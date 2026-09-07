@@ -281,8 +281,14 @@ function depthFacts(){const keep=SCENE,out=[];
     out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
       alpha:FAR_A})}
   SCENE=keep;return out}
+let CAST_ARMED=true;
 function step(){setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
-  pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}draw();
+  pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}
+  /* The sweep moved, so the next press is a real decision again (C-1500).
+     Hitstop skips this whole function, which is exactly what keeps a
+     mashed press from scoring twice against one marker position. */
+  CAST_ARMED=true;
+  draw();
   requestAnimationFrame(step)}
 function draw(){const w=cv.width,h=cv.height,now=performance.now();
   cx.fillStyle=scenePaint('SURFACE_TOKEN');
@@ -328,7 +334,22 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
 function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
   hits:hits,crits:crits,crit:CRIT,
   casts:casts,scene:SCENE,ms:ROUND_MS}}
-function cast(){casts++;const [a,b]=zone();
+function cast(){
+  /* One throw per drawn frame (C-1500). Hitstop skips the tick but not
+     the key handlers, so during the stop the marker was still parked in
+     the zone it just scored in - every further press landed another hit,
+     which re-armed the stop before the tick could ever run. Mashing
+     therefore froze the round clock for as long as the finger lasted
+     (measured: 183ms of round time across 100 wall seconds) while the
+     score climbed without bound. Guarding on HITSTOP alone is not
+     enough: the press that lands on the exact frame the stop expires
+     re-freezes a world that still has not moved. So a cast arms only
+     when the sweep has actually advanced - CAST_ARMED is set by step()
+     and spent here. The swallowed press is not a miss either: the run
+     only breaks on a cast (C-1426), and no cast happened. */
+  if(!CAST_ARMED)return;
+  CAST_ARMED=false;
+  casts++;const [a,b]=zone();
   if(pos>=a&&pos<=b){hits++;
     /* Asked once, so the number paid and the number shown cannot
        disagree: comboHit() returns the multiplier this cast earned. */

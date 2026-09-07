@@ -75,11 +75,16 @@ import json
 #: shooting into it. The mash living longer is the feature working - the
 #: throw is the mercy the technique list promised - and the yardstick
 #: follows the trajectory it measures (C-1407's rule).
+#: ``fishing`` 186 -> 72 when C-1500 made a cast arm once per drawn frame.
+#: The old number was measured against the exploit it closed: the masher's
+#: hits froze the sweep inside the zone, so the same marker position paid
+#: two and three times over. One cast per moving frame is what a mashed
+#: round honestly earns - three runs, same number each time.
 SKIN_UNIT: dict[str, int] = {
     "adventure": 2,
     "catch": 33,
     "duel": 3,
-    "fishing": 186,
+    "fishing": 72,
     "kaiju": 3,
     "marble": 2,
     "platformer": 1,
