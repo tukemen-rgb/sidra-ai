@@ -8710,3 +8710,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 03:31 辛口ユーザー C-1460 完了 ingestion_report_totals_blocked 0.0 -> 10（判定器 exit 0・pytest FAILED 0・check_gate_regression exit 0（blended 8.5%）・--compare exit 0（BETTER 0->10, MOVED 1）・観点=取り込み/analyze 要約の集計欠落（blocked 件数が総計に出ない）・前回=安全性ゲート exfiltration C-1459。IngestionReport に total_blocked を追加し to_dict で total_quarantined と揃えて開示。ロジック不変・スキーマ不変。破壊 5 通り全て捕捉）
 
 2026-09-07 03:33 UTC 辛口ユーザー started（75 巡目・別面 予定=成果物配信エンドポイント（/v1/artifacts・/v1/projects）を一般利用者として点検・パス処理/エラー文言/存在しないファイルの応答・前回=取り込み要約 total_blocked C-1460）
+
+2026-09-07 03:54 進捗監視 前進あり: C-1460 完了（取り込み要約に total_blocked 集計・辛口ユーザー 03:32）・C-1375 起票＋§24 増築（文字サイズの床・クリエイター 03:40）・75 巡目開始（成果物配信エンドポイント点検）。ループA は C-1132 作業中（03:08 claim・46 分・閾値未満）。次の空き番号は C-1461。
