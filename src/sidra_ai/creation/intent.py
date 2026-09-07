@@ -170,6 +170,22 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "記事",
         "レポート",
         "報告書",
+        # C-1458: common Japanese document deliverables were unrecognised, so
+        # 「議事録を作って」「マニュアルを作って」「提案書を作って」 fell to UNKNOWN and
+        # were answered as a Q&A search instead of building the grounded report
+        # the document generator produces (the same drop C-1455 fixed for polite
+        # phrasing). These are all written documents the generator already
+        # builds from evidence; a request that also names another kind still
+        # resolves by the latest-match rule ("ゲームのマニュアル" is a document
+        # about a game). Business-plan wording (企画/計画) is deliberately left
+        # out so the C-1263 boundary with the game-production bundle is unmoved.
+        "議事録",
+        "マニュアル",
+        "提案書",
+        "仕様書",
+        "要件定義書",
+        "手順書",
+        "説明書",
         "document",
         "report",
         "article",

@@ -961,6 +961,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
+    # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
+    # answered as a Q&A search instead of building the grounded report the
+    # document generator produces. These nouns now route to DOCUMENT;
+    # business-plan wording (企画/計画) is left out to keep the C-1263 boundary.
+    from sidra_ai.evals.document_deliverables_route import (
+        evaluate_document_deliverables_route,
+    )
+
+    doc_deliverables = evaluate_document_deliverables_route()
+    c.add(
+        "document_deliverables_route",
+        "議事録・マニュアル・提案書等の作成依頼がレポート生成に接続する",
+        10.0 * doc_deliverables.checks_passed / doc_deliverables.checks_total,
+        detail=f"{doc_deliverables.checks_passed}/{doc_deliverables.checks_total} checks; "
+               "src/sidra_ai/evals/document_deliverables_route.py"
+               + ("" if doc_deliverables.passed else "; " + "; ".join(doc_deliverables.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was
