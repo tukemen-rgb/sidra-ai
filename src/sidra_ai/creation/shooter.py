@@ -66,7 +66,7 @@ setPal(SHOOTER_PAL_TOKEN);
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 /* The hit's other half, as a fact (§1, C-1361). */
-function kbFacts(){return {kvx:ship.kvx,x:ship.x,hp:ship.hp}}
+function kbFacts(){return {kvx:ship.kvx,x:ship.x,hp:ship.hp,rk:ship.rk}}
 /* The far layer (§7 観察 7, C-1360): the starfield's parallax already had
    a speed gradient and no contrast gradient - every star was the same
    hardcoded #ffffff44, so a fast star and a slow one read as the same
@@ -110,7 +110,7 @@ function wreckSpawn(f){if(REDUCED)return;
     vx:(i-1)*0.7,vy:1.2+i*0.6,r:5-(i%2)*2,rot:i*2.1})}}
 function wreckFacts(){return {alpha:WRECK_A,
   debris:debris.map(d=>({x:d.x,y:d.y}))}}
-function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0};shots=[];foes=[];debris=[];score=0;kills=0;wave=0;
+function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0,rk:0};shots=[];foes=[];debris=[];score=0;kills=0;wave=0;
   t=0;state='play';fire=false;rs=(SEED>>>0)||1;
   spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];grazeReset();
   /* A new go starts at x1. Carrying a run across a restart would hand
@@ -133,6 +133,10 @@ addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;
 cv.addEventListener('pointerdown',()=>{if(state==='play'){fire=true}else{reset()}});
 cv.addEventListener('pointerup',()=>{fire=false});
 function shoot(){if(ship.cool>0)return;ship.cool=9;
+  /* The gun kicks (§1×§23 事実 3, C-1380): three pixels of recoil the
+     shot pushes back through the hull, gone in a third of a second.
+     Motion, so reduced keeps the ship perfectly still. */
+  if(!REDUCED){ship.rk=3}
   shots.push({x:ship.x,y:ship.y-16});sfx('fire')}
 function step(){const now=performance.now();
   combat(state==='play'&&gateState()==='playing');
@@ -144,6 +148,8 @@ function step(){const now=performance.now();
        played out by the shared part through the same bounds the arrows
        respect. Kept under REDUCED - position is gameplay, not decoration. */
     partsThrowX(ship,SHIP,W-SHIP);
+    /* the recoil settles the way it arrived: fast and small (C-1380) */
+    ship.rk*=0.7;if(ship.rk<0.2)ship.rk=0;
     if(fire)shoot();
     if(--spawnIn<=0){spawn();spawnIn=Math.max(8,Math.round(WAVE*ACT_GAP[actOf()]))}
     shots.forEach(s=>{s.y-=7});
@@ -211,12 +217,15 @@ function draw(now){
     cx.lineTo(f.x,f.y-f.r*0.1);cx.lineTo(f.x+f.r,f.y-f.r*0.6);
     cx.closePath();cx.fill()});
   const flick=FRAME(3,14,now);
+  /* The whole hull rides the recoil (C-1380): nose, wings and flame
+     together, so the kick reads as the body moving, not a glitch. */
+  const sy=ship.y+ship.rk;
   cx.fillStyle='RAISED_TOKEN';
-  cx.beginPath();cx.moveTo(ship.x,ship.y-SHIP);
-  cx.lineTo(ship.x-SHIP*0.8,ship.y+SHIP*0.7);
-  cx.lineTo(ship.x+SHIP*0.8,ship.y+SHIP*0.7);cx.closePath();cx.fill();
+  cx.beginPath();cx.moveTo(ship.x,sy-SHIP);
+  cx.lineTo(ship.x-SHIP*0.8,sy+SHIP*0.7);
+  cx.lineTo(ship.x+SHIP*0.8,sy+SHIP*0.7);cx.closePath();cx.fill();
   cx.fillStyle='CYAN_TOKEN';
-  cx.fillRect(ship.x-3,ship.y+SHIP*0.7,6,6+flick*3);
+  cx.fillRect(ship.x-3,sy+SHIP*0.7,6,6+flick*3);
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<ship.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
@@ -397,6 +406,55 @@ def kb_probe(script: str) -> str:
     return KB_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The gun's kick, watched frame by frame (§1×§23 事実 3, C-1380): one
+#: real shot must push the hull back three pixels and settle fast; under
+#: reduced motion the same shot moves nothing.
+KICK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(4);
+const idle = kbFacts().rk;
+/* One held trigger, one frame: the shot and its kick. */
+ev('keydown', ' ');
+run(1);
+const onFire = kbFacts().rk;
+ev('keyup', ' ');
+const trace = [];
+for (let i = 0; i < 10; i++){ run(1); trace.push(kbFacts().rk) }
+console.log(JSON.stringify({ idle: idle, onFire: onFire, trace: trace,
+  shots: shots.length }));
+"""
+
+
+def kick_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the recoil can be watched."""
+
+    return KICK_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 #: A kill, then gravity (§23, C-1374): the chunks appear where the hull
 #: died, fall every frame, and drain once they leave the screen. Under
 #: reduced motion nothing is spawned at all.
@@ -454,6 +512,8 @@ def wreck_probe(script: str, *, reduced: bool = False) -> str:
 
 __all__ = [
     "KB_PROBE",
+    "KICK_PROBE",
+    "kick_probe",
     "kb_probe",
     "WRECK_PROBE",
     "wreck_probe",

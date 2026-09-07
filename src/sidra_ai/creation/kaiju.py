@@ -117,6 +117,11 @@ function fire(){if(state!=='fight')return;
      queued shot, fired the frame the cannon is ready. */
   if(me.cool>0){me.queued=true;return}
   me.cool=11;
+  /* The gun kicks (§1×§23 事実 3, C-1380): the cannon's push sinks the
+     walker for a beat, through the same squash channel the stomp crush
+     uses - settle, draw and the reduced-motion exemption all ride along
+     for free. Softer than the crush (0.94 vs 0.7): a shot is not a hit. */
+  if(!REDUCED){me.sq=Math.min(me.sq,0.94)}
   shots.push({x:me.x,y:GROUND-26,vy:-7});sfx('fire')}
 function hitLeg(){boss.legHp--;boss.hurt=8;boss.smoke=34;shake(3);burst(legX(),GROUND-70,7,'ALERT_JUICE');
   sfx('cut');
@@ -635,6 +640,56 @@ console.log(JSON.stringify({
 """
 
 
+#: The cannon's kick, watched frame by frame (§1×§23 事実 3, C-1380):
+#: one real shot in the fight must sink the walker through the squash
+#: channel and settle back to 1; under reduced motion nothing sinks.
+KICK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(110);
+/* No stomp in the window, so the sink can only be the cannon's. */
+boss.timer = 900; cracks.length = 0;
+const idle = kbFacts().sq;
+me.cool = 0;
+key(' ');
+const onFire = kbFacts().sq;
+const trace = [];
+for (let i = 0; i < 30; i++){ run(1); trace.push(kbFacts().sq) }
+console.log(JSON.stringify({ state: state, idle: idle, onFire: onFire,
+  trace: trace, shots: shots.length }));
+"""
+
+
+def kick_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the cannon's sink can be watched."""
+
+    return KICK_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 def kb_probe(script: str) -> str:
     """The page's own script, wrapped so the throw can be measured."""
 
@@ -823,6 +878,8 @@ __all__ = [
     "WAKE_PROBE",
     "wake_probe",
     "KB_PROBE",
+    "KICK_PROBE",
+    "kick_probe",
     "kb_probe",
     "SQUASH_PROBE",
     "squash_probe",

@@ -7274,6 +7274,71 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the gun kicks back (§1×§23 事実 3, C-1380) ---------------------
+    #
+    # The technique table counts firing recoil apart from being hit:
+    # the duel's release had its snap since C-1358, while the shooter's
+    # shoot() and the kaiju's fire() moved nothing. Driven: one real
+    # shot must kick the body (3px of hull recoil / a 0.94 sink through
+    # the squash channel), settle within a third of a second, and under
+    # reduced motion the same shot fires with the body perfectly still.
+    from sidra_ai.creation.kaiju import kick_probe as _kj_kick
+    from sidra_ai.creation.shooter import kick_probe as _sh_kick
+
+    kick_gaps: list[str] = []
+    for _kk_key, _kk_builder, _kk_field, _kk_rest in (
+        ("shooter", _sh_kick, "rk-style", 0.0),
+        ("kaiju", _kj_kick, "sq-style", 1.0),
+    ):
+        _kk_page = generate_game("ゲームを作って", template=_kk_key).html
+        _kk_m = _scene_re.search(r"<script>(.*?)</script>", _kk_page, _scene_re.S)
+        if _kk_m is None:
+            kick_gaps.append(f"{_kk_key}: no script")
+            continue
+        try:
+            _kk_runs = {}
+            for _kk_red in (False, True):
+                _kk_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_kk_builder(_kk_m.group(1), reduced=_kk_red),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if _kk_run.returncode != 0:
+                    raise ValueError(_kk_run.stderr.strip()[:60])
+                _kk_runs[_kk_red] = json.loads(
+                    _kk_run.stdout.strip().splitlines()[-1]
+                )
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            kick_gaps.append(f"{_kk_key}: probe unavailable ({exc})")
+            continue
+        _kk_n, _kk_r = _kk_runs[False], _kk_runs[True]
+        if _kk_n["shots"] != 1 or _kk_r["shots"] != 1:
+            kick_gaps.append(f"{_kk_key}: the trigger fired {_kk_n['shots']} shots")
+            continue
+        if _kk_n["onFire"] == _kk_n["idle"]:
+            kick_gaps.append(f"{_kk_key}: the shot moves nothing")
+        elif _kk_n["trace"][-1] != _kk_rest:
+            kick_gaps.append(
+                f"{_kk_key}: the recoil never settles ({_kk_n['trace'][-1]})"
+            )
+        if _kk_r["onFire"] != _kk_r["idle"]:
+            kick_gaps.append(f"{_kk_key}: reduced motion still kicks")
+    c.add(
+        "creation_gun_kick",
+        "撃った瞬間に体が反応する型（実発射）",
+        0.0 if kick_gaps else 2.0,
+        detail=(
+            "; ".join(kick_gaps)
+            if kick_gaps
+            else "実発射 1 発で shooter は機体 3px 後退→7f で復帰・kaiju は "
+            "squash 経路で 0.94 に沈み→7f で 1 へ（§23 事実 3 の gun "
+            "kickback。REDUCED では同じ 1 発が撃てて体は不動）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the engine voice: speed made audible (§25, C-1378) -------------
     #
     # The earliest racing engines were nothing but the RPM driving a
