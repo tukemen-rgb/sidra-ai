@@ -8932,3 +8932,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 22:40 UTC 辛口クリエイター C-1392 完了（96 巡目・観点 §22×§4 前回=§1×§23 事実 4・creation_pad_release unmeasurable→1・blur/pagehide で PAD_HELD を keyup 付きで解放（held ハイライトの嘘と pointerId 再利用の乗っ取りを解消）・合成タッチ probe 新イディオム・破壊 3 通り検出・pytest 4318 緑・gate MISS 0・judge exit 0）
 
 2026-09-07 22:40 UTC 辛口クリエイター C-1391 追記: push 後全量 pytest exit 0（4316 passed / 3 skip・作業樹には C-1392 の仕掛かりが同居した状態での計測＝push 済み分を包含して 0 失敗）。
+
+2026-09-07 22:24 進捗監視 前進あり: C-1392 完了（中断でパッドの指も離れる——PAD_HELD の解放漏れを閉じる・クリエイター 22:13。C-1373 の合成 keyup と対になる仕上げ）・ループA が C-1506 claim（roundEnded の切り分け・22:09——総合評 C-15xx 帯の最終件）。全 7 件が着手済みとなり第 2 回総合評の指摘は 1 日で消化の見込み。
