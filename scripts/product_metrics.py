@@ -1343,6 +1343,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1475: the tail twin of C-1270. `_candidate_starts` dropped every window
+    # start closer to the end than the cap, so an answer written in a chunk's
+    # last ~200 characters (conclusions, values, 「…に設定されている」) had no
+    # candidate window to open on and the excerpt clipped it at the far edge.
+    from sidra_ai.evals.excerpt_reaches_paragraph_tail import (
+        evaluate_excerpt_reaches_paragraph_tail,
+    )
+
+    excerpt_tail = evaluate_excerpt_reaches_paragraph_tail()
+    c.add(
+        "excerpt_reaches_paragraph_tail",
+        "段落末尾に書かれた答えにも引用抜粋の窓が開く",
+        10.0 * excerpt_tail.checks_passed / excerpt_tail.checks_total,
+        detail=f"{excerpt_tail.checks_passed}/{excerpt_tail.checks_total} checks; "
+               "src/sidra_ai/evals/excerpt_reaches_paragraph_tail.py"
+               + ("" if excerpt_tail.passed else "; " + "; ".join(excerpt_tail.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1271: the art palette is fixed to the GAMEYARD brand (cyan on dark), so
     # a request naming a colour - 「青い海のアート」 - was drawn cyan and pink with
     # no word that the colour had been ignored, while the title quoted it back.

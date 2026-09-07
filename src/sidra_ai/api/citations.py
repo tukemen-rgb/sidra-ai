@@ -140,12 +140,15 @@ def _candidate_starts(content: str) -> list[int]:
     and a sentence-ending mark begins the next sentence, which in Japanese prose
     is the only boundary a one-line paragraph offers.
 
-    Starts too close to the end are dropped - a window there would be shorter
-    than the cap and would score lower for having less text in it, not for
-    being less relevant.
+    A boundary in the last ``MAX_CITATION_EXCERPT_CHARS`` is offered too, not
+    dropped (C-1475). The window it yields is shorter than the cap, but scoring
+    counts *distinct* matched query terms, so a short window that holds the whole
+    answering sentence never scores below an earlier window that clips it. The
+    old cutoff instead left the tail of every chunk un-openable, so an answer
+    written there - a conclusion, a value, a 「…に設定されている」 - was shown only
+    as its first half, the exact failure C-1270's tie-break exists to prevent.
     """
 
-    last_useful_start = len(content) - MAX_CITATION_EXCERPT_CHARS
     starts = [0]
     for index, char in enumerate(content):
         if len(starts) >= _MAX_CANDIDATES:
@@ -159,7 +162,7 @@ def _candidate_starts(content: str) -> list[int]:
         start = index + 1
         while start < len(content) and content[start] in _BOUNDARY_SKIP:
             start += 1
-        if start > last_useful_start:
+        if start >= len(content):
             break
         if start > starts[-1]:
             starts.append(start)
