@@ -612,6 +612,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1476: `_title_from` copies the request's subject onto the cover, so a
+    # request naming a figure (「解約率30%の改善レポート」) put that number in the
+    # heading beside 「数字はすべて下の出典から」, where `validate_document` (body
+    # only) could not see it - an unsourced headline statistic read as verified.
+    # The report now discloses a title number the evidence does not confirm.
+    from sidra_ai.evals.document_title_number_disclosed import (
+        evaluate_document_title_number_disclosed,
+    )
+
+    title_number = evaluate_document_title_number_disclosed()
+    c.add(
+        "document_title_number_disclosed",
+        "出典に無いタイトルの数値を文書が黙って裏書きせず開示する",
+        10.0 * title_number.checks_passed / title_number.checks_total,
+        detail=f"{title_number.checks_passed}/{title_number.checks_total} checks; "
+               "src/sidra_ai/evals/document_title_number_disclosed.py"
+               + ("" if title_number.passed else "; " + "; ".join(title_number.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1256: generative art has two patterns and any request that names
     # neither silently became flow, with the summary saying only 「パターン:
     # flow」. Games decline unsupported requests and list what they can make;

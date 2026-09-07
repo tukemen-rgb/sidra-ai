@@ -131,6 +131,23 @@ def generate_document(
     lines: list[str] = [f"# {title}", "", f"> SIDRA AI が {stamp} に生成。数字はすべて下の出典から。", ""]
     unfilled: list[str] = []
 
+    # The module's rule - a number appears only if it was retrieved - held for
+    # the body but not the cover. `_title_from` copies the request's subject
+    # onto the heading, so a request naming a figure (「解約率30%の改善レポート」
+    # 「2024年度の売上」) put that number in the title beside the preamble's
+    # promise 「数字はすべて下の出典から」, and `validate_document` could not see
+    # it: its number check starts below the first heading. A headline statistic
+    # nothing in the evidence supports then read as a sourced, verified figure.
+    # Disclosed where the reader looks for gaps - without reprinting the digit,
+    # because a number the evidence does not carry is exactly what the validator
+    # catches, and the honest disclosure is *that* a figure went unconfirmed,
+    # not to smuggle it into the body (the set-aside line's C-1281 choice).
+    evidence_text = " ".join(f"{fact.text} {fact.source}" for fact in retrieved)
+    title_has_unsourced_number = any(
+        token and token not in evidence_text
+        for token in (number.strip() for number in NUMBER.findall(title))
+    )
+
     lines += ["## 概要", ""]
     if retrieved:
         # Not the first retrieved fact copied whole: that fact also opens
@@ -190,6 +207,11 @@ def generate_document(
         lines.append(
             "- 依頼と主題が重ならないと判断した根拠は、この文書には載せていません"
             "（依頼を具体的にすると入ります）。"
+        )
+    if title_has_unsourced_number:
+        lines.append(
+            "- タイトルに含まれる数値は、索引した根拠では確認できませんでした"
+            "（社長がご確認ください）。"
         )
     lines.append("")
     unfilled.append("まだ埋まっていないこと")
