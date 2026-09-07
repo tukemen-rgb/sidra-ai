@@ -1182,6 +1182,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1471: the web twin of C-1469. The CLI shows a citation's trust level in
+    # Japanese; the browser page - the surface most operators use - showed the
+    # redaction flags from the same payload but never read c.trust_level, so an
+    # Issue/PR body's EXTERNAL trust was invisible there. The page now surfaces
+    # it with the same labels, internal_repo suppressed.
+    from sidra_ai.evals.ui_citation_trust_label_shown import (
+        evaluate_ui_citation_trust_label_shown,
+    )
+
+    ui_trust = evaluate_ui_citation_trust_label_shown()
+    c.add(
+        "ui_citation_trust_label_shown",
+        "Web UI の引用が信頼度（外部/未検証等）を CLI と同じく日本語で示す",
+        10.0 * ui_trust.checks_passed / ui_trust.checks_total,
+        detail=f"{ui_trust.checks_passed}/{ui_trust.checks_total} checks; "
+               "src/sidra_ai/evals/ui_citation_trust_label_shown.py"
+               + ("" if ui_trust.passed else "; " + "; ".join(ui_trust.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1267: the 3D generator named no shape and any request matching no shape
     # word silently became the fish mesh (art C-1256 / GIF C-1258, third time).
     # The summary now names the shape, an unnamed request says the default was

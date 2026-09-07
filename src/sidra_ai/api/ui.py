@@ -208,6 +208,19 @@ ASK_PAGE = """<!doctype html>
         held.textContent = " \uff08\u629c\u7c8b\u3092\u79d8\u533f\uff09";
         item.appendChild(held);
       }
+      // C-1471: the source's trust level, the web twin of the CLI's C-1469.
+      // internal_repo is the norm and is suppressed; an Issue/PR body is
+      // EXTERNAL - third-party authored - and a reader deserves to see that,
+      // the safety signal the CLI already surfaces. Same Japanese labels; an
+      // unknown value falls back to its raw form rather than vanishing.
+      // textContent only, so nothing here is ever rendered as markup.
+      if (c.trust_level && c.trust_level !== "internal_repo") {
+        var TRUST_LABELS = {external: "\u5916\u90e8", unverified: "\u672a\u691c\u8a3c", operator: "\u904b\u7528\u8005", system: "\u30b7\u30b9\u30c6\u30e0"};
+        var trust = document.createElement("span");
+        trust.className = "note";
+        trust.textContent = " \uff08" + (TRUST_LABELS[c.trust_level] || c.trust_level) + "\uff09";
+        item.appendChild(trust);
+      }
       list.appendChild(item);
     });
     sources.appendChild(list);
