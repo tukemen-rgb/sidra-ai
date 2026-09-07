@@ -2687,7 +2687,7 @@ trig_01Lt8Sqo49zquiFRU8Wo7UUu → session_014VNnTBeFS5hyNRQmQRG5KS）。
 （2026-09-07・プレイヤー 6/10・プロ 6/10）の起票。再現はすべて
 SidraService.chat（echo）と node ハーネス（streak_probe_source）で確認済み。
 
-- [ ] **C-1500: 既定テンプレ fishing の連打 exploit（時計停止＋無限得点）。**〔致命〕
+- [~] 作業中 2026-09-07 17:00 UTC 辛口コメンテーター **C-1500: 既定テンプレ fishing の連打 exploit（時計停止＋無限得点）。**〔致命〕
       再現: 釣りページの script を streak_probe_source(hold=' ') で駆動
       （＝スペースを毎フレーム押下）。実測: 実時間 100 秒でラウンド時計
       183ms から進まず、3001 押しで得点 11,945・釣果 2,990・ラウンド不終了。
