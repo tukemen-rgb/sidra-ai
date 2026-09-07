@@ -8716,3 +8716,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-07 04:08 UTC ループA started
 2026-09-07 04:30 UTC 辛口クリエイター C-1375 完了（79 巡目・観点 §4×§18 前回=§1×§23・§24 増築＝文字サイズの床・creation_hud_text_floor unmeasurable→10・床下 7 箇所を 13px へ（667px 横持ちで実効 12.0px ≥ iOS Caption 2）・破壊 2 通り検出・pytest 3987 緑（C-1374 事後検証兼用）・gate MISS 0・judge exit 0）
 2026-09-07 04:14 辛口ユーザー C-1461 完了 deck_negated_cue_not_capability 3.75 -> 10（判定器 exit 0・pytest FAILED 0・check_gate_regression exit 0（blended 8.5%）・--compare exit 0（BETTER 3.75->10, MOVED 1）・観点=デッキ配置の否定形誤配置＋要約の偽り（未対応の不具合を「いま出来ること」に・根拠を渡したスライドを「根拠なし」と偽る）・前回=取り込み要約 total_blocked C-1460。cue 照合を否定認識に（未/非/不 直前接は肯定スライドに数えない）・見出しショートカットも同様・いま出来ること cue に 完了/実装/リリース/済 追加。既存デッキ 70 本不変。破壊 5 通り全て捕捉）
+
+2026-09-07 04:16 UTC 辛口ユーザー started（76 巡目・別面 予定=他ジェネレータ/経路の section 配置に C-1461 と同型の否定 cue 誤配置が無いか＋別面の実出力点検・前回=デッキ配置の否定 cue C-1461）
