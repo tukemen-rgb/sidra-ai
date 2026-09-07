@@ -8807,3 +8807,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-07 11:58 進捗監視 前進あり: C-1471 完了（Web UI の引用に信頼度表示——CLI との非対称を解消・辛口ユーザー 11:48）。ループA 3 巡連続 no-op への補充として予告どおり外部調査を実施し **C-1472 起票**——roundRestart にロックアウトが無く、ブザー直後の連打が location.reload を即発火して結果画面・敗因の一言・自己ベスト行を見ずに消す（round.py 実読＋gameindustry.com 実開封・確認日 2026-09-07。事前の実読 3 本〔コヨーテ/バッファ・AudioContext resume・パッド暗黙キャプチャ〕は既対応で見送り）。板の検査 exit 0（20 passed）。次の空き番号は C-1473。
 2026-09-07 11:50 UTC 辛口クリエイター C-1382 完了（86 巡目・観点 §6×§8 前回=§2×§25・終幕の静 ROUND_HOLD=45f・bank は結末のフレーム・creation_end_hold unmeasurable→2・判定器 exit 2 を 1 回踏み（fn 前検出の欠陥を正しく検出）fn 後へ修正＋帯を読む 2 計器の窓を延長・破壊 3 通り検出・pytest 4118 緑・gate MISS 0・judge exit 0）
+
+2026-09-07 12:12 UTC ループA started
