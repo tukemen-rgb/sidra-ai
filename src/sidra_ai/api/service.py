@@ -16,6 +16,7 @@ from sidra_ai.creation.evidence import Fact, plain_text, whole_sentences
 from sidra_ai.creation.intent import CreationKind, detect_creation_intent
 from sidra_ai.creation.revise import build_game_reviser, detect_revision_intent
 from sidra_ai.creation.copy_writer import build_copy_writer
+from sidra_ai.creation.proposer import build_param_proposer
 from sidra_ai.creation.router import CreationRouter, build_default_router
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
 from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline, IngestionReport
@@ -173,9 +174,14 @@ class SidraService:
         # builder: it may rename what was made and nothing else. On the echo
         # default the writer declines before calling anything, so a clean
         # checkout keeps the wording it has always produced.
+        # ...and as a *parameter proposer* (C-1135): it may choose the page's
+        # starting numbers, inside the span the template's author shipped, and
+        # nothing else. Same shape as the copy writer, including the echo
+        # decline - a clean checkout builds the page its table always built.
         self.creation_router = creation_router or build_default_router(
             data_dir=str(data_dir),
             copy_writer=build_copy_writer(self.model),
+            param_proposer=build_param_proposer(self.model),
         )
         # The revision path (C-1112) shares the artifacts directory with the
         # game generator: what one writes, the other must be able to find.

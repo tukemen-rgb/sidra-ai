@@ -18,12 +18,15 @@ from sidra_ai.creation.vocabulary import labels_for
 from sidra_ai.creation.games import undepicted_subject
 from sidra_ai.creation.games import (
     TEMPLATES,
+    _DIFFICULTY,
+    choose_template,
     detect_genre,
     generate_game,
     save_game,
     validate_game_html,
 )
 from sidra_ai.creation.copy_writer import CopyWriter, copy_metadata
+from sidra_ai.creation.proposer import ParamProposer
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.revise import save_meta
@@ -31,7 +34,11 @@ from sidra_ai.creation.router import CreationOutcome
 from sidra_ai.creation.themes import select_theme
 
 
-def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = None):
+def build_game_generator(
+    data_dir: str | Path,
+    copy_writer: CopyWriter | None = None,
+    param_proposer: ParamProposer | None = None,
+):
     def generate(
         message: str,
         intent: CreationIntent,
@@ -46,7 +53,21 @@ def build_game_generator(data_dir: str | Path, copy_writer: CopyWriter | None = 
         # this line first reached for do not exist on it, and a footer that
         # raised would have taken the whole game down for a citation line.
         evidence = [fact.source for fact in (retrieved or []) if fact.source]
-        game = generate_game(message, evidence=evidence or None)
+        # The model picks the page's starting parameters, inside the span the
+        # author shipped (C-1135). Asked before the page is built - unlike the
+        # copy, these are what it is built FROM - and thrown away wholesale if
+        # anything about the reply is wrong: `panel_schema` clamps every axis
+        # it keeps, and a proposer with no model returns {} so the page is the
+        # one today's table builds.
+        key = choose_template(message)
+        proposed = (
+            param_proposer(message, key, tuple(pair[1] for pair in _DIFFICULTY[key].values()))
+            if param_proposer
+            else {}
+        )
+        game = generate_game(
+            message, evidence=evidence or None, panel=proposed or None
+        )
         # The model is asked *after* the page is built and only about its
         # wording. `with_copy` ignores empty strings and returns `self` when
         # nothing changed, so a writer that declines costs one dict lookup

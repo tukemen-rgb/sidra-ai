@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 from sidra_ai.creation.copy_writer import CopyWriter
+from sidra_ai.creation.proposer import ParamProposer
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent, CreationKind
 
@@ -125,6 +126,7 @@ def build_default_router(
     *,
     data_dir: str | None = None,
     copy_writer: "CopyWriter | None" = None,
+    param_proposer: "ParamProposer | None" = None,
 ) -> CreationRouter:
     """The router the API uses.
 
@@ -154,7 +156,10 @@ def build_default_router(
         from sidra_ai.creation.model3d_job import build_model3d_generator
 
         router.register(CreationKind.DECK, build_deck_generator(data_dir, None, copy_writer))
-        router.register(CreationKind.GAME, build_game_generator(data_dir, copy_writer))
+        router.register(
+            CreationKind.GAME,
+            build_game_generator(data_dir, copy_writer, param_proposer),
+        )
         router.register(CreationKind.MODEL3D, build_model3d_generator(data_dir))
 
         from sidra_ai.creation.gif_job import build_gif_generator

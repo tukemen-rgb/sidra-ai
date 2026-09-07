@@ -14702,6 +14702,107 @@ def measure_creation(c: Collector) -> None:
     # naming no theme still renders in the site's own palette. Without it a
     # "themed" generator that had quietly redecorated the default would score
     # full marks here while having changed the product's identity.
+    # --- the model may choose the numbers, inside the envelope (C-1135) --
+    #
+    # The gap GPT-6 makes obvious: a big model writes anything and nothing
+    # checks it; this one checks everything and writes the same page twice.
+    # 「レース作って」 twice was one file, because every number came from a
+    # table. Not solved with a seed - that is variety nobody chose - but by
+    # letting the model propose and then discarding whatever the template's
+    # author did not ship.
+    #
+    # Both halves are measured on real pages: the same request with two
+    # different proposals must give two different files, and an absurd
+    # proposal must still give a page the existing checker passes. The third
+    # reading is the one that makes this measurable here at all - on echo,
+    # the page is byte for byte the one the table always built.
+    import tempfile as _var_temp
+
+    from sidra_ai.creation.game_job import build_game_generator as _var_job
+    from sidra_ai.creation.games import (
+        _DIFFICULTY as _var_ladder,
+        choose_template as _var_pick,
+        validate_game_html as _var_check,
+    )
+    from sidra_ai.creation.intent import detect_creation_intent as _var_intent
+    from sidra_ai.creation.proposer import build_param_proposer as _var_build
+    from sidra_ai.models.base import GenerationResult as _var_result
+
+    _VAR_REQUEST = "レース作って"
+    _var_template = _var_pick(_VAR_REQUEST)
+    _var_bands = tuple(pair[1] for pair in _var_ladder[_var_template].values())
+
+    class _VarModel:
+        requires_paid_api = False
+
+        def __init__(self, text, backend="llama"):
+            self.text, self.backend = text, backend
+
+        def generate(self, request):
+            return _var_result(text=self.text, backend=self.backend, model="fake")
+
+    def _var_page(proposer):
+        with _var_temp.TemporaryDirectory() as _var_dir:
+            _var_job(_var_dir, None, proposer)(_VAR_REQUEST, _var_intent(_VAR_REQUEST))
+            pages = sorted(Path(_var_dir).rglob("*.html"))
+            return pages[0].read_text(encoding="utf-8") if pages else ""
+
+    variety_gaps: list[str] = []
+    try:
+        with _quiet():
+            _var_plain = _var_page(None)
+            _var_echo = _var_page(_var_build(_VarModel('{"band": 9000}', backend="echo")))
+            _var_one = _var_page(_var_build(_VarModel('{"accent": "#4fd1c5"}')))
+            _var_two = _var_page(_var_build(_VarModel('{"accent": "#ff8800"}')))
+            _var_wild = _var_page(
+                _var_build(_VarModel('{"band": 9000, "accent": "not a colour"}'))
+            )
+    except Exception as exc:  # noqa: BLE001 - a generator that raises is the finding
+        variety_gaps.append(f"ページを作れなかった（{type(exc).__name__}: {exc}）")
+        _var_plain = _var_echo = _var_one = _var_two = _var_wild = ""
+    if not variety_gaps:
+        if not _var_plain:
+            variety_gaps.append("既定のページ自体が作れていない")
+        # 1. Silence changes nothing. Without this the whole feature could be
+        #    a no-op and every other reading below would still hold.
+        elif _var_echo != _var_plain:
+            variety_gaps.append("echo なのにページが既定と違う（挙動不変が崩れている）")
+        # 2. A model that proposes actually moves the page...
+        elif _var_one == _var_plain:
+            variety_gaps.append("モデルが提案してもページが既定のまま")
+        # 3. ...and two proposals are two pages. This is the variety.
+        elif _var_one == _var_two:
+            variety_gaps.append("提案が違うのに同じページが出た")
+        elif "#4fd1c5" not in _var_one or "#ff8800" not in _var_two:
+            variety_gaps.append("提案した色がページに届いていない")
+        # 4. The guarantee: an absurd proposal is still a page the author
+        #    could have shipped, read off the existing checker.
+        elif not _var_check(_var_wild)["playable"]:
+            variety_gaps.append("無茶な提案でページが壊れた")
+        elif "not a colour" in _var_wild:
+            variety_gaps.append("色でない文字列がページに届いた")
+    c.add(
+        "creation_variety_verified",
+        "同じ依頼でも毎回違う——ただし作者が出荷した範囲の中で",
+        0.0 if variety_gaps else 1.0,
+        detail=(
+            "; ".join(variety_gaps)
+            if variety_gaps
+            else f"`{_VAR_REQUEST}` を **5 通り実際に生成して比べた**（{_var_template}）: "
+            "**echo ではページが既定と 1 バイトも変わらない**（重みの無い"
+            "チェックアウトの既定路——これが無ければ以下は全部「何もして"
+            "いない実装」でも通る）。提案するモデルを差すとページが変わり、"
+            "**提案が違えば違うページ**（同じ依頼が 1 ファイルではなくなった）。"
+            "**無茶な提案でも壊れない**: band 9000 は作者が出荷した最大値へ"
+            f"畳まれ（{min(_var_bands)}〜{max(_var_bands)}）、色でない文字列は"
+            "**ページに届かない**（accent は識別子として埋め込まれるので、"
+            "ここだけは「悪いパラメータ」では済まない）。最後は既存の"
+            "`validate_game_html` が playable と言うことで確かめる——"
+            "**種ではなくモデルの選択**で、検証は今まで通り"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the instrument that will judge a swapped model (C-1132) ---------
     #
     # Every quality number here is measured on echo, because the container
