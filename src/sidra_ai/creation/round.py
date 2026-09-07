@@ -942,15 +942,32 @@ const hHold = HOLD_INPUT;
 const before = roundLogFacts();
 hKey(' ');
 hStep(2, null);
+/* A round is over when the TEMPLATE ends it or when the CLOCK does, and
+   this loop used to ask only the first (C-1506). Two ways that was wrong,
+   both measured rather than reasoned about:
+   * fishing and catch have no end state at all - ``ROUND_LIVE`` is empty,
+     so ``roundEnded()`` is structurally false forever;
+   * and for every other template it never fired either, because the buzzer
+     arrives first and the wrapper then stops calling the template's frame,
+     freezing it in a live state.
+   So the break was dead code on all ten and the loop ran its full 4000
+   every time, working only because the guard outlasted the round. Asking
+   both questions - the pair ``share.py`` and ``adapt.py`` already ask - is
+   what makes the guard a guard again instead of the exit. */
 let guard = 0;
 while (guard++ < 4000) {
   hStep(1, hHold);
-  let done = false; try { done = roundEnded() } catch (e) { done = false }
+  let done = false;
+  try { done = roundEnded() || ROUND_DONE } catch (e) { done = false }
   if (done) break;
 }
-/* The strip is what banks the round, so let it draw. */
+/* The strip is what banks the round, so let it draw - and the strip waits
+   out the ending's quiet beat (``ROUND_HOLD``, 45 frames) before it paints.
+   Six steps used to be enough only because the loop above overran by
+   ~3,760 iterations and spent the beat by accident; now that it stops at
+   the buzzer, the wait has to be asked for (C-1506). */
 hDrawn.length = 0;
-hStep(6, null);
+hStep(60, null);
 const facts = roundFacts();
 console.log(JSON.stringify({
   score: facts.score, best: facts.best,

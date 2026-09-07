@@ -216,16 +216,24 @@ const before = dailyStreakFacts();
 if (PLAY_INPUT) {
   sKey(' ');
   sStep(2, null);
+  /* The clock ends a round too (C-1506). Asking only ``roundEnded()`` was
+     dead code on every template - fishing and catch have no end state, and
+     the rest are frozen live by the buzzer before they reach theirs - so
+     this loop always ran its full guard. */
   let guard = 0;
   while (guard++ < 4000) {
     sStep(1, HOLD_INPUT);
-    let done = false; try { done = roundEnded() } catch (e) { done = false }
+    let done = false;
+    try { done = roundEnded() || ROUND_DONE } catch (e) { done = false }
     if (done) break;
   }
 }
-/* The strip is what banks the round, so let it draw. */
+/* The strip is what banks the round, so let it draw - and it waits out the
+   ending's quiet beat (``ROUND_HOLD``, 45 frames) first. Six steps used to
+   be enough only because the loop above overran and spent the beat by
+   accident (C-1506). */
 sDrawn.length = 0;
-sStep(6, null);
+sStep(60, null);
 console.log(JSON.stringify({
   stamp: dailyStamp(), on: dailyOn(), board: dailyBoard(),
   before: before, after: dailyStreakFacts(),
