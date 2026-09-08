@@ -40,6 +40,20 @@
   ブラウザの自動再生制限があるため、AudioContext は最初のユーザー操作で resume する。
 - SIDRA での反映先: C-1017（creation/audio.py として自作合成。jsfxr のコードは
   移植しない＝パラメータ設計の考え方のみ参考）**→ 反映済み 2026-08-29（C-1017 完了、12 種の SFX を 4 テンプレに配線）**
+- 事実（増築 2026-09-08・辛口クリエイターループ。URL は同日に実際に開いて
+  確認）: **StereoPannerNode は音を左右のステレオ像に置く 1 ノード**——
+  「a simple stereo panner node that can be used to pan an audio stream
+  left or right」。pan は a-rate AudioParam で **-1=左端・0=中央・+1=右端**、
+  equal-power の低コスト実装で、PannerNode のはるかに簡易な代替として
+  導入された。Baseline: Widely available（2021-04 以来全主要ブラウザ）。
+  （出典: https://developer.mozilla.org/en-US/docs/Web/API/StereoPannerNode）
+- 学び: SIDRA の 12 音は全部**中央**で鳴る。画面には左右が常にある——
+  shooter の撃墜は f.x で・kaiju の脚は legX() で起きる——のに、耳は
+  どこで起きたかを教わらない。§2 の合成品質・§14 の反復変化・§21 の
+  譲り合いまで来て、**定位だけが無い**。sfx に正規化 x（0..1）の第 3
+  引数を足し、±0.8 に絞って（端に張り付けない）出来事の位置を耳へ。
+- SIDRA での反映先: C-1394（sfx の定位——shooter 撃墜と kaiju 脚打の
+  2 サイトから・判定器 creation_sfx_pan）
 
 ## 3. ロック＆キー構造（ゼルダ型の骨格）
 
