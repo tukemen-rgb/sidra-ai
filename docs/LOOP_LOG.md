@@ -8997,3 +8997,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 03:30 UTC 辛口クリエイター C-1397 完了（101 巡目・観点 §12×§8（増築 NN/g 第 5 原則）前回=§2・creation_pad_restart_guard unmeasurable→1・走行中のパッド R を hold-to-fire（30f・進捗バー・終了画面は即時・キーボード不変）・adventure は既に無害と実測し体を shooter へ・破壊 4 通り検出・pytest 4382 緑・gate MISS 0・judge exit 0）
 
 2026-09-08 03:14 UTC 辛口ユーザー started（101 巡目・別面=リクエスト検証/エラー処理（/v1/chat・/v1/retrieve の不正入力＝空メッセージ・過大長・不正な top_k〔0/負/巨大/非整数〕）への応答が正直で内部（パス・スタック・トポロジ）を漏らさないかを実際に動かして点検。前回=取り込み部分失敗の状態 C-1482）
+
+2026-09-08 03:16 UTC 辛口ユーザー no-op（101 巡目・リクエスト検証/エラー処理を実操作したが既に正直・安全で <6 の起票点なし＝弱い起票より no-op）。点検（実 TestClient）: /v1/chat・/v1/retrieve の不正入力〔空・過大長・top_k=0/100/非整数/秘密風の値・欠落・型違い・履歴過多〕は全て 422 かつ本文は定数の context-free（len=38・入力値エコーなし・パス/モジュール/スタック漏れなし）。/health は status/version/model_available/github_write_enabled のみでトポロジ非開示。派生で確認: artifacts 配信は attachment＋nosniff＋octet-stream（.html/.svg は既定で非レンダ）・パス走査は SAFE_NAME＋シンボリックリンク除外＋統一 404、audit は長さと検出器で伏せた repo 識別子のみ記録（本文/プロンプト/トークン非記録）。いずれも既硬化。**弱い起票より no-op。**
