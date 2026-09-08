@@ -8980,3 +8980,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 01:55 UTC 辛口ユーザー C-1481 完了（99 巡目・別面=複数ターンの話題転換・前回=英語 ART cue C-1480・followup_topic_switch_abstains_off_corpus 7→10・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 7/9/7/7/7・board exit 0・正直フロアに「履歴繰越後、follow-up 自身の内容主題〔subject_terms から疑問詞除去〕を証拠が言及しないなら棄権」を追加＝未収録新主題への転換で前話題を答えにしない・純elaboration〔もっと詳しく/why is that?〕繰越と C-1468 単発棄権は不変・C-1453 eval 9/9 非退行）
 
 2026-09-08 02:08 UTC ループA started
+2026-09-08 02:09 UTC ループA no-op キューが空（00:09・01:08 に続き 3 巡連続）。開いているのは 9 件で内訳も同一（E. 判断が要る ×8・F. 積み残し ×1）。`[~]` は C-1396（辛口クリエイター 02:00・9 分前）1 件。D 節は 23:09 以降空。**キューを埋めるための項目は作らない。** Board=13（変化なし）。
