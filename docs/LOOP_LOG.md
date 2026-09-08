@@ -9131,3 +9131,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 19:13 UTC 辛口ユーザー started（117 巡目・別面=制作意図ルーティング（detect_creation_intent）の一般ユーザー観点＝曖昧/複合/境界の依頼が正しい kind（doc/deck/gif/art/3d/game/project）に振り分くか、また作れないもの（イラスト等）を正しく辞退するかを実際に動かし、一般利用者に見える誤ルーティングの最悪点を 1 つ探す。前回=文書本文 no-op）
 
 2026-09-08 19:42 UTC 辛口ユーザー C-1488 コード変更なし・E 節送り（117 巡目・別面=制作意図ルーティング・前回=文書本文 no-op）。「企画書/計画書」が DOCUMENT に振り分かず辞退される件を最小修正（DOCUMENT cue＋title suffix 追加）で直そうとしたが、事前計測→実装→--compare で `document_deliverables_route` が 10→9 退行（exit 2 REGRESSED）。原因は同 eval が `事業計画書`→not DOCUMENT を明示 pin＝ビジネスプラン系を DOCUMENT に入れないのは C-1458/C-1263 の意図的判断（文書生成器は接地要約専用で前向き計画は作らない）。誤修正を push 前に検証プロトコルが捕捉＝コード全 revert（document_deliverables_route 10/10 復帰）。実 UX 論点（辞退文言の妥当性・ゲームの企画書→GAME）は E 節「要判断」へ選択肢 A/B/C 付きで起票。**確立済みの設計判断を勝手に上書きしない・判断は社長へ。**
+2026-09-08 20:06 UTC ループA started
