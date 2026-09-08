@@ -398,6 +398,17 @@ def _only_digits(value: str) -> str:
     return re.sub(r"\D", "", value)
 
 
+def _all_same_digit(digits: str) -> bool:
+    """An all-identical-digit run (000-0000-0000, 000000000000, 0000...0000) is a
+    form placeholder, never a real phone / My Number / card, so the numeric PII
+    detectors skip it (C-1487 for phone; C-1489 for national_id and card, where an
+    all-zeros card even passes Luhn). Real values have varied digits, so recall on
+    genuine PII is unchanged.
+    """
+
+    return len(digits) > 0 and len(set(digits)) == 1
+
+
 _MY_NUMBER = re.compile(
     _TOKEN_BOUNDARY_BEFORE + r"\d{4}[-\s]?\d{4}[-\s]?\d{4}" + _TOKEN_BOUNDARY_AFTER
 )
@@ -469,11 +480,9 @@ class PIIDetector:
                 if len(digits) not in lengths:
                     continue
                 # An all-same-digit run (000-0000-0000, +1-1111-1111) is a form
-                # placeholder, never a real number, so quarantining it only holds
-                # a benign document from the index (C-1487). Real numbers have
-                # varied digits, so skipping this shape costs no recall on genuine
-                # PII. Mirrors the secret detector's placeholder exemption.
-                if len(set(digits)) == 1:
+                # placeholder, never a real number (C-1487; shared with national_id
+                # and card via _all_same_digit as of C-1489).
+                if _all_same_digit(digits):
                     continue
                 spans.append((start, end, label))
                 findings.append(
@@ -492,6 +501,10 @@ class PIIDetector:
             digits = re.sub(r"[ \-]", "", match.group())
             if not (13 <= len(digits) <= 19) or not _luhn_ok(digits):
                 continue
+            # An all-zeros card passes Luhn (0 % 10 == 0) but is a placeholder,
+            # never a real card - skip it like the phone detector (C-1489).
+            if _all_same_digit(digits):
+                continue
             start, end = match.span()
             spans.append((start, end, "payment_card"))
             findings.append(
@@ -509,6 +522,10 @@ class PIIDetector:
         for match in _MY_NUMBER.finditer(content):
             start, end = match.span()
             if any(s <= start and end <= e for s, e, _ in spans):
+                continue
+            # An all-same-digit 12-digit run is a My Number placeholder, not PII
+            # (C-1489, the national_id twin of the C-1487 phone exemption).
+            if _all_same_digit(_only_digits(match.group())):
                 continue
             spans.append((start, end, "national_id"))
             findings.append(

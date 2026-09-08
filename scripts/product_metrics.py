@@ -1188,6 +1188,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1489: the C-1487 follow-through for the other numeric PII detectors. An
+    # all-same-digit My Number (000000000000) or card (0000 0000 0000 0000, which
+    # passes Luhn) is a form placeholder, so quarantining it only held a benign
+    # document from the index. Real values have varied digits, so recall is
+    # unchanged; the shared _all_same_digit helper now covers phone/national_id/card.
+    from sidra_ai.evals.gate_allows_placeholder_national_id_and_card import (
+        evaluate_gate_allows_placeholder_national_id_and_card,
+    )
+
+    gate_ph_num = evaluate_gate_allows_placeholder_national_id_and_card()
+    c.add(
+        "gate_allows_placeholder_national_id_and_card",
+        "安全性ゲートが全桁同一のプレースホルダ番号（マイナンバー/カード）を通し実番号だけ隔離する",
+        10.0 * gate_ph_num.checks_passed / gate_ph_num.checks_total,
+        detail=f"{gate_ph_num.checks_passed}/{gate_ph_num.checks_total} checks; "
+               "src/sidra_ai/evals/gate_allows_placeholder_national_id_and_card.py"
+               + ("" if gate_ph_num.passed else "; " + "; ".join(gate_ph_num.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the
