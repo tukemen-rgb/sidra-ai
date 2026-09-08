@@ -7922,6 +7922,65 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a thumb slip cannot erase the run (§12 事実 4, C-1397) ---------
+    #
+    # The pad's R sits right above A, and seven templates reset
+    # unconditionally mid-run - NN/g's error-prone condition: one slip,
+    # fifty seconds gone, no warning. Driven on shooter: a mid-run tap
+    # must send nothing and reset nothing; a full hold must paint its
+    # progress bar, send exactly one key pair and really reset; the end
+    # screen keeps the instant R (§8's instant retry), and the keyboard
+    # path is untouched by construction.
+    from sidra_ai.creation.touchpad import padr_probe as _pr_probe
+
+    pr_gaps: list[str] = []
+    _pr_page = generate_game("ゲームを作って", template="shooter").html
+    _pr_m = _scene_re.search(r"<script>(.*?)</script>", _pr_page, _scene_re.S)
+    if _pr_m is None:
+        pr_gaps.append("shooter: no script")
+    else:
+        try:
+            _pr_run = _scene_sp.run(
+                ["node", "-"],
+                input=_pr_probe(_pr_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _pr_run.returncode != 0:
+                raise ValueError(_pr_run.stderr.strip()[:60])
+            _pr = json.loads(_pr_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            pr_gaps.append(f"shooter: probe unavailable ({exc})")
+        else:
+            if _pr["tap"]["sent"] != 0 or _pr["tap"]["score"] != 777:
+                pr_gaps.append("shooter: a mid-run tap still erases the run")
+            if not _pr["bar"]:
+                pr_gaps.append("shooter: the hold gives no receipt")
+            if _pr["held"]["down"] != 1 or _pr["held"]["up"] != 1:
+                pr_gaps.append(
+                    f"shooter: the hold sent {_pr['held']['down']} restarts"
+                )
+            elif _pr["held"]["score"] != 0:
+                pr_gaps.append("shooter: the completed hold never resets")
+            if _pr["endDown"] != 1 or _pr["stateAfter"] != "play":
+                pr_gaps.append("shooter: the end screen lost its instant R")
+    c.add(
+        "creation_pad_restart_guard",
+        "親指スリップでランが消えない（実タッチ）",
+        0.0 if pr_gaps else 1.0,
+        detail=(
+            "; ".join(pr_gaps)
+            if pr_gaps
+            else "shooter の実ページで、走行中のパッド R タップ→r 不送出・"
+            "score 777 不変／30f ホールド→進捗バー実描画・keydown+keyup "
+            "ちょうど 1 組・reset 実発火（score 0）／終了画面のタップ→即時 "
+            "1 発で state=play（§12 事実 4 NN/g Error Prevention。"
+            "キーボード経路は不変・§8 の即リトライは終了画面で維持）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the message stays long enough to read (§4 増築, C-1395) --------
     #
     # say() gave every message a flat 140/150 frames, so the 22-char door

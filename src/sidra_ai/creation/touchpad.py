@@ -64,6 +64,16 @@ const PADCV=document.getElementById('stage');
 const PAD_BTN=%(button)d,PAD_GAP=%(gap)d;
 let PAD_ON=matchMedia('(pointer:coarse)').matches;
 const PAD_HELD=new Map();
+/* The restart guard (§12 事実 4, C-1397): the pad's R sits right above
+   A, so a thumb slip mid-run erased the run with no warning - NN/g's
+   error-prone condition. Mid-run the button arms a hold instead of
+   firing; RESTART_HOLD frames later the pair of key events flows as
+   ever. End screens (roundEnded) keep the instant R - §8's instant
+   retry - and the keyboard path is untouched. */
+const RESTART_HOLD=30;
+let PAD_RH_PID=null,PAD_RHOLD=0;
+function padRunLive(){try{
+  return !(typeof roundEnded==='function'&&roundEnded())}catch(e){return true}}
 if(PADCV){PADCV.style.touchAction='none'}
 function padScale(){const r=PADCV.getBoundingClientRect();
   return r.width?PADCV.width/r.width:1}
@@ -117,10 +127,16 @@ function padDown(ev){
   /* The pad owns this tap: templates also treat a canvas tap as "act", and
      a press on the D-pad must not fire the action too. */
   ev.preventDefault();ev.stopImmediatePropagation();
-  PAD_HELD.set(ev.pointerId,b.id);padKey('keydown',b.id)}
+  PAD_HELD.set(ev.pointerId,b.id);
+  if(b.id==='r'&&padRunLive()){PAD_RH_PID=ev.pointerId;PAD_RHOLD=0;return}
+  padKey('keydown',b.id)}
 function padUp(ev){const id=PAD_HELD.get(ev.pointerId);if(id===undefined)return;
   ev.preventDefault();ev.stopImmediatePropagation();
-  PAD_HELD.delete(ev.pointerId);padKey('keyup',id)}
+  PAD_HELD.delete(ev.pointerId);
+  /* A pending restart hold released early is a cancel, not a keyup:
+     no keydown ever went out for it. */
+  if(ev.pointerId===PAD_RH_PID){PAD_RH_PID=null;PAD_RHOLD=0;return}
+  padKey('keyup',id)}
 function padMove(ev){if(PAD_HELD.has(ev.pointerId)){
   ev.preventDefault();ev.stopImmediatePropagation()}}
 if(PADCV){PADCV.addEventListener('pointerdown',padDown);
@@ -133,7 +149,8 @@ if(PADCV){PADCV.addEventListener('pointerdown',padDown);
    touching, and a browser that recycles the pointerId hands the NEXT tap
    to padMove/padUp, which eat it. The keyup here doubles focusRelease's;
    keys[k]=false twice is harmless and neither side depends on order. */
-function padRelease(){PAD_HELD.forEach(id=>padKey('keyup',id));PAD_HELD.clear()}
+function padRelease(){PAD_RH_PID=null;PAD_RHOLD=0;
+  PAD_HELD.forEach(id=>padKey('keyup',id));PAD_HELD.clear()}
 addEventListener('blur',padRelease);
 addEventListener('pagehide',padRelease);
 function padGlyph(c,b){const cxp=b.x+b.w/2,cyp=b.y+b.h/2,r=Math.min(b.w,b.h)*0.22;
@@ -156,6 +173,11 @@ function padGlyph(c,b){const cxp=b.x+b.w/2,cyp=b.y+b.h/2,r=Math.min(b.w,b.h)*0.2
 function padFacts(){return {plate:'RAISED_TOKEN',alpha:0.72,
   ringOut:'SURFACE_TOKEN',ringIn:'INK_TOKEN',glyph:'INK_TOKEN'}}
 function drawPad(){if(!PAD_ON||!PADCV)return;
+  /* The hold ticks with the pad's own frame: reach the threshold and the
+     usual key pair flows - one restart, exactly as if R were pressed. */
+  if(PAD_RH_PID!==null){PAD_RHOLD++;
+    if(PAD_RHOLD>=RESTART_HOLD){padKey('keydown','r');padKey('keyup','r');
+      PAD_HELD.delete(PAD_RH_PID);PAD_RH_PID=null;PAD_RHOLD=0}}
   const c=PADCV.getContext('2d');c.save();
   padButtons().forEach(b=>{
     const held=[...PAD_HELD.values()].includes(b.id);
@@ -165,7 +187,11 @@ function drawPad(){if(!PAD_ON||!PADCV)return;
     c.globalAlpha=1;
     c.strokeStyle='SURFACE_TOKEN';c.lineWidth=4;c.strokeRect(b.x,b.y,b.w,b.h);
     c.strokeStyle='INK_TOKEN';c.lineWidth=2;c.strokeRect(b.x,b.y,b.w,b.h);
-    padGlyph(c,b)});
+    padGlyph(c,b);
+    /* The hold's receipt: a bar filling across the R button. State, not
+       decoration, so it draws under reduced motion too. */
+    if(b.id==='r'&&PAD_RH_PID!==null){c.fillStyle='CYAN_TOKEN';
+      c.fillRect(b.x+2,b.y+b.h-5,(b.w-4)*Math.min(1,PAD_RHOLD/RESTART_HOLD),3)}});
   c.restore()}
 /* Wrapped once, so the pad is drawn after whatever the game just drew. */
 const PAD_RAF=requestAnimationFrame;
@@ -542,6 +568,92 @@ def padhold_probe(script: str) -> str:
     return PADHOLD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The restart guard, driven (§12 事実 4, C-1397): a mid-run tap on the
+#: pad's R must send nothing and change nothing; a full hold must send
+#: exactly one keydown/keyup pair and really reset; the bar must be on
+#: screen mid-hold; and on the end screen the same tap fires instantly.
+PADR_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {}, cvHandlers = {}, sent = [];
+globalThis.matchMedia = (q) => ({ matches: String(q).indexOf('coarse') >= 0 });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.KeyboardEvent = function(type, init){ this.type = type;
+  Object.assign(this, init);
+  this.preventDefault = () => {}; this.stopImmediatePropagation = () => {} };
+globalThis.dispatchEvent = (e) => { sent.push([e.type, e.key]);
+  (handlers[e.type] || []).forEach(fn => fn(e)); return true };
+globalThis.Image = function(){ return nothing };
+let fills = [];
+const rec = {
+  fillRect: (x, y, w, h) => { fills.push([x, y, w, h]) },
+  save(){}, restore(){},
+};
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: (type, fn) => {
+    (cvHandlers[type] = cvHandlers[type] || []).push(fn) },
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy(rec, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: () => true }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+function touch(type, pid, x, y){
+  (cvHandlers[type] || []).forEach(fn => fn({ pointerType: 'touch',
+    pointerId: pid, clientX: x, clientY: y,
+    preventDefault(){}, stopImmediatePropagation(){} }));
+}
+function rSent(){ return sent.filter(s => s[1] === 'r') }
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+const rb = padButtons().filter(b => b.id === 'r')[0];
+const cxr = rb.x + rb.w / 2, cyr = rb.y + rb.h / 2;
+/* A mid-run tap: nothing may flow, nothing may reset. */
+score = 777;
+touch('pointerdown', 7, cxr, cyr);
+touch('pointerup', 7, cxr, cyr);
+run(2);
+const tap = { sent: rSent().length, score: score };
+/* A full hold: the bar on screen halfway, one key pair at the end. */
+touch('pointerdown', 8, cxr, cyr);
+run(15);
+fills = []; run(1);
+const bar = fills.some(f => f[0] === rb.x + 2 && f[1] === rb.y + rb.h - 5 &&
+  f[2] > 0 && f[2] < rb.w - 4 && f[3] === 3);
+run(20);
+touch('pointerup', 8, cxr, cyr);
+const held = { down: rSent().filter(s => s[0] === 'keydown').length,
+  up: rSent().filter(s => s[0] === 'keyup').length, score: score };
+/* The end screen keeps the instant R (§8). */
+state = 'over';
+sent.length = 0;
+touch('pointerdown', 9, cxr, cyr);
+const endDown = rSent().filter(s => s[0] === 'keydown').length;
+touch('pointerup', 9, cxr, cyr);
+run(1);
+console.log(JSON.stringify({ tap: tap, bar: bar, held: held,
+  endDown: endDown, stateAfter: state }));
+"""
+
+
+def padr_probe(script: str) -> str:
+    """The page's own script, wrapped so the restart guard's three moods
+    - tap, hold, end screen - can be watched."""
+
+    return PADR_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
     "ALIASES",
     "BUTTON_CSS_PX",
@@ -551,10 +663,12 @@ __all__ = [
     "PAD_PROBE",
     "PADPAINT_PROBE",
     "PADHOLD_PROBE",
+    "PADR_PROBE",
     "keys_read",
     "pad_active_declaration",
     "pad_probe",
     "padpaint_probe",
     "padhold_probe",
+    "padr_probe",
     "unreachable_keys",
 ]
