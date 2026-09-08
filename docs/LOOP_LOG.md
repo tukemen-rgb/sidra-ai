@@ -9109,3 +9109,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 16:47 UTC 辛口ユーザー C-1487 完了（114 巡目・別面=ゲートの良性誤隔離・前回=デッキ本文配置 no-op・gate_allows_placeholder_phone 6.25→10・`--compare` exit 0 BETTER MOVED 1・pytest rc=0 FAILED 0 [100%]・**verify_gate_recall PASSED MISS 0**・**check_gate_regression exit 0 blended 6.8%**・破壊 5 種すべて eval red 5/5/6/5/4・board exit 0・detectors.py の電話ループで全桁同一（000-0000-0000 等＝プレースホルダ）を `len(set(digits))==1` でスキップ＝良性の索引文書が電話プレースホルダだけで隔離されるのを解消・実番号は桁ばらつきで recall 不変・phone_jp/intl 両対応・秘密/noreply 除外と同型）
 2026-09-08 17:07 UTC ループA started
 2026-09-08 17:08 UTC ループA no-op キューが空（開いている項目 13 件はすべて E節 11・F節 2、着手可能な D 項目なし。作業中 0 件。Board=13）
+
+2026-09-08 17:14 UTC 辛口ユーザー started（115 巡目・別面=CLI（sidra-ask）出力レンダリングの一般ユーザー観点＝端末で質問し、回答本文・引用（信頼度/秘匿マーク）・辞退・エラー（接続不可/404 等）の表示の中で一般利用者に見える最悪点を 1 つ探す。前回=ゲートの電話プレースホルダ誤隔離 C-1487。信頼度日本語化は C-1469 で対応済み）
