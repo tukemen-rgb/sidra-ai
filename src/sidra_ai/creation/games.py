@@ -350,6 +350,9 @@ function cast(){
   if(!CAST_ARMED)return;
   CAST_ARMED=false;
   casts++;const [a,b]=zone();
+  /* Where the marker stands is where the sound lands (§2 増築, C-1396):
+     the sweep is the whole game, so its x is the event's x. */
+  const mx=(40+(cv.width-80)*pos)/cv.width;
   if(pos>=a&&pos<=b){hits++;
     /* Asked once, so the number paid and the number shown cannot
        disagree: comboHit() returns the multiplier this cast earned. */
@@ -358,14 +361,14 @@ function cast(){
        scales with the risk that was taken, not just with success. */
     if(Math.abs(pos-SPOT)<=(BAND/2)*CRIT){crits++;
       score+=scorePop(cv.width/2,cv.height/2,pay+FISH_CRIT);
-      if(flashGate())flash=1;msg='ど真ん中。会心。';sfx('gem');
+      if(flashGate())flash=1;msg='ど真ん中。会心。';sfx('gem',1,mx);
       shake(6);hitstop(3);burst(cv.width/2,cv.height/2,22,'ACCENT_JUICE')}
     else{score+=scorePop(cv.width/2,cv.height/2,pay);
-      if(flashGate())flash=1;msg='かかった。';sfx('catch');
+      if(flashGate())flash=1;msg='かかった。';sfx('catch',1,mx);
       shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}}
   /* Only a cast can break the run (C-1426). The sweep between casts is
      what the game asks a player to wait through, so it costs nothing. */
-  else{comboMiss();msg='逃げられた。';sfx('clash');shake(1.5)}}
+  else{comboMiss();msg='逃げられた。';sfx('clash',1,mx);shake(1.5)}}
 addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});
 cv.addEventListener('pointerdown',cast);
 step();
@@ -451,10 +454,12 @@ function step(){t++;
       /* The run is worth what it is worth at the moment it pays out
          (C-1405). Asked once, so the points added and the number drawn
          cannot disagree. */
-      caught++;score+=scorePop(i.x*cv.width,cv.height-30,comboHit());sfx('catch');
+      caught++;score+=scorePop(i.x*cv.width,cv.height-30,comboHit());
+      /* the fruit's own x, for the ear too (§2 増築, C-1396) */
+      sfx('catch',1,i.x);
       if(!REDUCED)BSQ=0.6;
       shake(2);burst(i.x*cv.width,cv.height-30,10,'ACCENT_JUICE')}
-    else{comboMiss();missed++;sfx('clash');shake(5);hitstop(2)}return false});
+    else{comboMiss();missed++;sfx('clash',1,i.x);shake(5);hitstop(2)}return false});
   setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,w,h);
   /* Clouds first, so the fruit falls in front of them (§7, C-1365). */

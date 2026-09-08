@@ -7983,6 +7983,8 @@ def measure_creation(c: Collector) -> None:
     # normalised x and clamped to ±0.8. Driven: engineered kills at known
     # x must record pans matching (x/W*2-1)*0.8 to the digit, everything
     # positionless before them must have built no panner at all.
+    from sidra_ai.creation.catchgame import pan_probe as _ct_pan
+    from sidra_ai.creation.fishing import pan_probe as _fi_pan
     from sidra_ai.creation.kaiju import pan_probe as _kj_pan
     from sidra_ai.creation.shooter import pan_probe as _sh_pan
 
@@ -7990,8 +7992,16 @@ def measure_creation(c: Collector) -> None:
     for _pn_key, _pn_builder, _pn_req in (
         ("shooter", _sh_pan, "ゲームを作って"),
         ("kaiju", _kj_pan, "巨大怪獣と戦うゲームを作って"),
+        # C-1396: the third and fourth bodies - the two templates whose
+        # whole game IS a horizontal position (the sweep marker, the
+        # falling fruit), left centred by C-1394's first pass.
+        ("fishing", _fi_pan, "魚釣りゲームを作って"),
+        ("catch", _ct_pan, "フルーツキャッチを作って"),
     ):
-        _pn_page = generate_game(_pn_req, template=_pn_key).html
+        _pn_page = generate_game(
+            _pn_req,
+            **({"template": _pn_key} if _pn_key in ("shooter", "kaiju") else {}),
+        ).html
         _pn_m = _scene_re.search(r"<script>(.*?)</script>", _pn_page, _scene_re.S)
         if _pn_m is None:
             pan_gaps.append(f"{_pn_key}: no script")
@@ -8033,15 +8043,16 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_sfx_pan",
         "音が起きた場所から聞こえる型（実撃）",
-        0.0 if pan_gaps else 2.0,
+        0.0 if pan_gaps else 4.0,
         detail=(
             "; ".join(pan_gaps)
             if pan_gaps
-            else "実駆動の撃墜（shooter 右 x600→+0.533・左 x120→-0.533）と"
-            "脚打（kaiju legX→+0.365）の pan が (x/W*2-1)*0.8 と桁まで一致・"
-            "位置なしの音（開始チャープ・覚醒ロア等）は panner を 1 つも"
-            "作らない（§2 増築 StereoPannerNode・±0.8 で端に張り付けない・"
-            "createStereoPanner 不在ブラウザは従来の中央経路へ graceful）"
+            else "実駆動の撃墜（shooter 右/左）・脚打（kaiju legX）・実キャスト"
+            "（fishing: 会心と外しがマーカー x で）・実受け/落とし（catch: "
+            "果実の x で）の全 pan が (x/W*2-1)*0.8 と桁まで一致・位置なしの"
+            "音は panner を 1 つも作らない（§2 増築 StereoPannerNode・±0.8・"
+            "graceful fallback。C-1394 の 2 体に横位置がゲームそのものの "
+            "2 体を追加＝4 体）"
         ),
         kind=OUTCOME,
     )

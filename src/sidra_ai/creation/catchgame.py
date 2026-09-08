@@ -273,7 +273,82 @@ def catch_face_probe(script: str, *, reduced: bool = False) -> str:
     ).replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The catch, heard under the fruit (§2 増築, C-1396): one real catch
+#: with an item dropped into the pinned basket at x=0.2, one real miss
+#: beside it at x=0.8, and both recorded pans must match the item's own
+#: x through (x*2-1)*0.8 - while every sound before them built no panner.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+const before = pans.length;
+px = 0.2; shown = 0.2;
+items.length = 0;
+items.push({ x: 0.2, y: 0.925 });
+run(1);
+px = 0.2; shown = 0.2;
+items.length = 0;
+items.push({ x: 0.8, y: 0.925 });
+run(1);
+const expected = [(0.2 * 2 - 1) * 0.8, (0.8 * 2 - 1) * 0.8];
+console.log(JSON.stringify({ before: before, caught: caught, missed: missed,
+  pans: pans, expected: expected }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so the catch's stereo position can
+    be read off the audio graph."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "PAN_PROBE",
+    "pan_probe",
     "BOUNCE_PROBE",
     "CATCH_FACE_PROBE",
     "HOLD_PROBE",
