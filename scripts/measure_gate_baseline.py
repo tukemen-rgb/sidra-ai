@@ -25,13 +25,44 @@ SKIP_DIRS = {".git", "node_modules", ".next", "dist", "build", "__pycache__",
              ".venv", "venv", ".pytest_cache", "coverage", ".sidra"}
 
 
+def _nested_checkout_roots(repo_root: Path) -> set[Path]:
+    """Directories below ``repo_root`` that are checkouts in their own right.
+
+    A git worktree left under the repository - the tooling puts them in
+    ``.claude/worktrees/`` - is a second copy of the same files, and walking
+    into it counts every document twice or more. That silently moves any
+    number derived from "how many documents does this repository have",
+    which is exactly what this module exists to produce.
+
+    Measured on this container: two leftover agent worktrees took the
+    document count from 1,802 to 4,011 and the false-positive rate from 6.3%
+    to 7.3%, with **no document newly flagged** - the rate moved because the
+    denominator did. The copies are gitignored, so they were never part of
+    the repository whose documents this counts.
+
+    Detected structurally rather than by name: a checkout carries its own
+    ``.git`` entry, so any directory below the root that has one is not this
+    repository's content, whatever it is called.
+    """
+
+    roots: set[Path] = set()
+    for marker in repo_root.rglob(".git"):
+        parent = marker.parent
+        if parent != repo_root:
+            roots.add(parent)
+    return roots
+
+
 def iter_documents(repo_root: Path, repository: str):
     """Yield (kind, path, content) for README, docs and source files."""
 
+    nested = _nested_checkout_roots(repo_root)
     for path in sorted(repo_root.rglob("*")):
         if not path.is_file():
             continue
         if any(part in SKIP_DIRS for part in path.parts):
+            continue
+        if any(root in path.parents for root in nested):
             continue
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
