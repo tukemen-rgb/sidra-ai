@@ -1,6 +1,55 @@
 # SIDRA AI v0.1 Architecture
 
-## Shape
+## 概要（日本語）— SIDRA 全体の構成
+
+この文書は英語で書かれている。運用者は日本語で質問するので、日本語の要約を
+同じ文書の中に置く。**規範は英語の本文の側**で、食い違ったら英語が正しい
+（理由と実測は `docs/SECURITY.md` の「概要（日本語）」と `docs/BACKLOG.md`
+C-1152）。
+
+- **全体の流れ** — GitHub（読み取り専用）→ 取り込み（コミット差分と、
+  コミットを伴わずに変わる PR/課題の巡回）→ **セキュリティ関門**（遮断／隔離／
+  許可）→ 許可されたものだけを断片化して索引と BM25 検索 → **データ封筒**
+  （指示ではなくデータとして包む）→ 局所模型（`echo` / `ollama` / `llama_cpp`）
+  → localhost に閉じた API。`api/service.py` が組み立ての起点で、他は単独で
+  試験できる葉になっている。
+- **各部の責任** — 出所（provenance）は構築時に検証する。設定は環境駆動で、
+  秘密は保持せず参照時に読む。取り込みは GET のみ。検索は許可された内容だけ。
+  模型は検証済みの局所背後実装しか選べず、**有料 API は登録できない**。
+  評価は網も模型の重みも無しで走る。
+- **v0.1 の後に足した Fetch Plane（ウェブ取得）の境界** — 許可ホストは既定で
+  **ゼロ**、https の 443 のみ、DNS と IP と転送先を毎回検証し、危ないものが
+  混ざったら通さずに閉じる。ライブラリとして存在するだけで **API には
+  繋がっていない**ので、「ウェブ調査が動く」という意味ではない。
+- **差分取り込み** — 状態は `.sidra/state.json` に、リポジトリごとに 1 件。
+  HEAD が動いたら比較して差分だけ取る。HEAD が動かなくても PR や課題の本文は
+  変わるので、別の手掛かりで定期的に見に行く。状態が進むのは収集と索引が
+  最後まで通ったときだけで、途中で失敗したら次回やり直す。**変化が無い
+  リポジトリは模型を 1 語も使わない。**
+- **RAG のデータ構造** — 文書と断片は同じ出所情報を持つ。`license` は
+  「不明」を明示的に記録する（「調べていない」と「ライセンスが無い」を
+  区別するため）。信頼度は一様ではなく、README や `docs/` は内部、課題や PR の
+  本文と取得したウェブは外部。**どれもデータであって、模型に指示はできない。**
+- **検索** — 純 Python の BM25、決定的、埋め込みサービスに依存しない。
+  日本語は正規化した 2 文字組で扱う。重複や古い断片が上位を占めないように
+  多様化と退役を入れている。
+- **模型層** — システムプロンプトとデータ文脈は別の欄なので、取得した文章が
+  指示の場所へ紛れ込むことがない。順序は システム → データ → 質問 に固定。
+  非 echo の起動は「審査済みの目録 → 設定と厳密一致 → NVIDIA の空き VRAM を
+  その場で観測 → 経路決定 → 文脈長の上限 → アダプタ → 待ち受け」で、
+  どこかが欠けたら**待ち受ける前に閉じる**。観測に失敗しても 6GiB と
+  決め打ちで進むことはしない。
+- **API の面** — `GET /health`（認証不要・状態だけ）、`GET /`（認証つきの
+  質問画面）、`GET /openapi.json`、`GET /v1/index`（何が索引されているかの
+  件数だけ）、`POST /v1/retrieve`（模型を使わない検索）、`POST /v1/chat`
+  （根拠つきの応答。「作って」の依頼は検索の前に判定して生成器へ回す）、
+  `POST /v1/github/analyze`。**書き込み・配備・課金・外部送信・ウェブ取得の
+  経路は存在しない。**
+- **意図して無いもの** — GitHub への書き込み、配備、外部送信、課金、
+  有料 LLM への退避、ベクトルデータベースの必須化、一般のウェブ調査、
+  複数ノード対応（速度制限と索引は 1 プロセス内）。
+
+## Shape（全体の形 — 取り込みから応答までの流れ図）
 
 ```text
 GitHub (read-only)
@@ -49,7 +98,7 @@ runtime-enabled.
 can be tested on its own. Fetch Plane remains constructor-injected and outside
 that API composition root until a separate reviewed exposure change is made.
 
-## Module responsibilities
+## Module responsibilities（各部の責任 — どの部品が何を守るか）
 
 | Module | Responsibility | Key invariant |
 | --- | --- | --- |
@@ -63,7 +112,7 @@ that API composition root until a separate reviewed exposure change is made.
 | `evals/` | offline security/grounding regression suite | runs with no network and no model weights |
 | `api/` | private HTTP surface | four service routes plus one guarded schema endpoint; interactive docs disabled; no write/deploy/Web-fetch route exists |
 
-## Post-v0.1 Fetch Plane boundary
+## Post-v0.1 Fetch Plane boundary（ウェブ取得の境界 — 既定で許可ホストはゼロ）
 
 The current integration candidate implements the approved read-only Fetch Plane
 as a separate capability rather than a generic outbound HTTP client for Core or
@@ -100,7 +149,7 @@ These are library-level candidate guarantees, not a statement that Web fetching
 is enabled on `main` or on any home PC. Any future API/settings wiring changes
 the exposure boundary and requires separate review and exact-SHA validation.
 
-## Differential ingestion
+## Differential ingestion（差分取り込み — 変わった分だけ読む仕組み）
 
 State lives in `.sidra/state.json`, one record per repository. It tracks the
 last successfully ingested commit SHA plus a local completion timestamp used
@@ -128,7 +177,7 @@ Each run:
 An idle repository therefore uses bounded read-only freshness checks and zero
 model tokens unless material source content changed.
 
-## RAG data structure
+## RAG data structure（RAG のデータ構造 — 出所と信頼度の持ち方）
 
 Every `Document` and every `Chunk` carries the same `Provenance`:
 
@@ -149,7 +198,7 @@ Trust is not uniform across a repository:
 
 All three are DATA. None can instruct the model.
 
-## Retrieval
+## Retrieval（検索 — BM25 と日本語の扱い）
 
 BM25 in pure Python, deterministic, no embedding service dependency. Japanese
 is handled with normalized CJK character bigrams. Retrieval diversity and
@@ -157,7 +206,7 @@ logical-source retirement keep overlapping/stale chunks from dominating the
 current context. A later local embedding backend must preserve the same
 security/provenance contract.
 
-## Model layer
+## Model layer（模型層 — 局所模型の選択と VRAM の審査）
 
 `LocalModelAdapter` takes the system prompt and DATA context as separate
 fields, so retrieved content cannot be concatenated into an instruction slot
@@ -196,7 +245,7 @@ design. Ollama/llama.cpp normal `SidraService` construction cannot bypass the
 reviewed-manifest/observed-VRAM path; explicit model injection remains only for
 tests/embedding callers and is not used by the `sidra-api` entry point.
 
-## API surface
+## API surface（API の面 — 公開している経路の一覧）
 
 - `GET /health` — minimal unauthenticated health status, no repository/content details.
 - `GET /` — authenticated/rate-limited single-page asking UI. A constant, self-contained
@@ -223,7 +272,7 @@ tests/embedding callers and is not used by the `sidra-api` entry point.
 
 No Web-fetch, write, deploy, billing, external-send, or mutation route exists.
 
-## What is deliberately not here
+## What is deliberately not here（意図して入れていないもの）
 
 - No GitHub write path, deploy, outbound message/send capability, or billing.
 - No paid/external LLM fallback.

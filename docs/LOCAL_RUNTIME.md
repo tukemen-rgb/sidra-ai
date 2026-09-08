@@ -4,7 +4,57 @@ This guide prepares a home/owned PC for the verified SIDRA AI v0.1 runtime.
 It is an installation and verification procedure, **not** evidence that any
 particular PC has already been configured.
 
-## Safety baseline
+## 概要（日本語）— ローカルで動かす手順
+
+この文書は英語で書かれている。運用者は日本語で質問するので、日本語の要約を
+同じ文書の中に置く。**規範は英語の本文の側**で、食い違ったら英語が正しい
+（理由と実測は `docs/SECURITY.md` の「概要（日本語）」と `docs/BACKLOG.md`
+C-1152）。
+
+これは**自分の PC に SIDRA を用意して確かめるための手順書**であって、
+「この PC はもう設定済みだ」という証拠ではない。
+
+- **安全の前提** — 専用の Python 仮想環境で動かす。API は `127.0.0.1` に
+  閉じる。背後実装は `echo` / `ollama` / `llama_cpp` の 3 つだけ。推論の
+  受け口も loopback に閉じる。模型のファイルは別の段取りで先に置いておき、
+  外部 LLM への退避経路を足さない。トークン・模型ファイル・隔離データ・
+  本番データをコミットしない。`.sidra/` は索引や隔離した中身を持つので
+  機微として扱う。**通常の動作に、有料の LLM API も GitHub トークンも要らない。**
+- **手順 1: Python 環境を作る** — Python 3.11 以上と Git。専用の venv。
+- **手順 2: 模型を足す前に、まず素の状態で通す** — `python -m pytest`、
+  `sidra-evals`、`python -m sidra_ai.local_preflight`、`sidra-api --check`。
+  事前検査は模型も起動せず、待ち受けもせず、GitHub も外部通信もしない。
+  `sidra-api --check` は**実際の組み立てを最後まで行ってから、待ち受ける
+  直前で終了する**検査で、ここが通らないうちに本番起動してはいけない。
+- **手順 3: 環境変数の注意** — `.env` は**雛形にすぎない**。v0.1 は `.env` を
+  自動で読まないので、環境変数として実際に設定すること。ファイルを
+  コピーしただけでは設定されていない。
+- **手順 4: 模型を選ぶ前に VRAM を測る** — 同梱の `nvidia-smi` 探査で
+  総量と空きだけを見る。**引数の数だけで模型を選ばない。** 重みの実測、
+  KV キャッシュの伸び、想定する文脈長、余裕分を記録する。必要量が不明なら
+  閉じる方に倒す。
+- **手順 5: 模型と目録（manifest）を先に置く** — 模型はリポジトリの外
+  （例 `C:\SIDRA\models`）に置く。配布元・厳密な識別子と版・ファイル名か
+  Ollama のタグ・GGUF なら SHA-256・ライセンス・量子化の種別・測った VRAM を
+  記録する。`latest` のような動く名前は来歴として不十分。
+- **手順 6: API を起動して確かめる** — `sidra-api --check` を通してから
+  `sidra-api`。別の端末で `/health` を叩く。非 echo のときは先に
+  `<SIDRA_DATA_DIR>/model-manifest.json` を置く。目録が無い・VRAM 探査に
+  失敗した・容量が足りない・模型が一致しない、はいずれも**設計どおりの
+  起動失敗**で、迂回せず設定の側を直す。
+- **手順 7: GitHub の取り込みを確かめる** — 公開リポジトリならトークンは要らない。
+  `POST /v1/github/analyze` に対象を渡す。取り込んだ内容はデータのまま関門を
+  通り、出所と引用を保つ。
+- **「SIDRA 対応済み」と言ってよい条件（16 項目）** — 専用 venv、`pytest` 全通過、
+  `sidra-evals` 通過、事前検査が `ok: true`、`sidra-api --check` 成功、
+  待ち受けが loopback のみ、背後実装が 3 つのいずれか、模型の来歴と完全性の
+  記録、審査済み目録、非 echo 起動時の VRAM 実観測、設定と目録の厳密一致、
+  文脈上限の維持、公開待ち受けなしでの起動、`/health` 成功と模型の利用可能表示、
+  有料 LLM への退避なし、**本番公開・GAMEYARD/CreatorYard 接続・課金・外部への
+  書き込みや送信・破壊的操作を一切有効にしていないこと**。
+  どれか 1 つでも落ちたら、そこで止める。安全側の関門を緩めて進めない。
+
+## Safety baseline（安全の前提 — 設定と運用で守り続けること）
 
 Keep these invariants throughout setup and normal operation:
 
@@ -23,7 +73,7 @@ Keep these invariants throughout setup and normal operation:
 
 The normal runtime can work with no paid LLM API and no GitHub token.
 
-### Current non-echo runtime status
+### Current non-echo runtime status（echo 以外を動かすときの現状 — 目録と VRAM の審査）
 
 For normal `SidraService` startup, Ollama/llama.cpp now require the verified
 fail-closed admission path:
@@ -42,7 +92,7 @@ assumption, and routing never silently substitutes a different model.
 being verified does **not** mean a specific home PC is already configured,
 measured, or SIDRA-ready; the machine-specific checks below still apply.
 
-## 1. Install the Python environment
+## 1. Install the Python environment（手順 1: Python 環境を用意する）
 
 Requirements:
 
@@ -77,7 +127,7 @@ python -m pip install -e ".[dev]"
 Package download is an **installation/build activity**. Normal Core runtime
 operation should not depend on package-registry access or an external LLM API.
 
-## 2. Run the offline baseline before adding a real model
+## 2. Run the offline baseline before adding a real model（手順 2: 模型を足す前に素の状態で全部通す）
 
 ```bash
 python -m pytest
@@ -107,7 +157,7 @@ probe at actual service assembly/startup.
 If the preflight reports a blocked provider SDK, create a clean dedicated venv
 rather than modifying another project's environment.
 
-## 3. Environment configuration: important `.env` note
+## 3. Environment configuration: important `.env` note（手順 3: 環境変数の設定 —`.env` は雛形にすぎない）
 
 `.env.example` is a **template only**. SIDRA AI v0.1 does not load `.env`
 automatically and does not depend on `python-dotenv`. Export/set variables in
@@ -138,7 +188,7 @@ comments, or command history. A GitHub token is optional for public repositories
 If private-repository access is needed, use a fine-grained **read-only** token
 for the shortest practical local session.
 
-## 4. Check local NVIDIA VRAM before choosing a model
+## 4. Check local NVIDIA VRAM before choosing a model（手順 4: 模型を選ぶ前に VRAM を測る）
 
 SIDRA includes a bounded, shell-free `nvidia-smi` probe. The preflight reports
 only total/free MiB and the local device index; it does not start a model.
@@ -153,7 +203,7 @@ The routing layer caps admission by observed free VRAM. Do not choose a model
 from parameter count alone. Record measured weight memory, KV-cache growth,
 planned context, and a safety reserve; unknown memory demand fails closed.
 
-## 5. Pre-stage a local model artifact and routing manifest
+## 5. Pre-stage a local model artifact and routing manifest（手順 5: 模型と審査済み目録を先に置く）
 
 Model acquisition belongs to an explicit staging step, separate from Core
 runtime operation. Keep model artifacts outside the Git repository, for example
@@ -258,7 +308,7 @@ The preflight validates environment/endpoint locality without generating text.
 Normal `sidra-api` startup then independently requires the reviewed manifest and
 fresh observed-VRAM admission before binding the API socket.
 
-## 6. Start and verify the SIDRA API
+## 6. Start and verify the SIDRA API（手順 6: API を起動して `/health` で確かめる）
 
 Run the no-bind startup assembly check first, then start with the dependency-free
 baseline:
@@ -301,7 +351,7 @@ After successful non-echo startup, verify `/health` over loopback and perform a
 small local generation before considering the machine real-model ready. The
 model server itself must also remain loopback-only.
 
-## 7. GitHub RAG verification
+## 7. GitHub RAG verification（手順 7: GitHub の取り込みを確かめる）
 
 Public repositories require no token. If an optional read-only GitHub token is
 configured, v0.1 pins authenticated ingestion to `https://api.github.com` and
@@ -318,7 +368,7 @@ curl -X POST http://127.0.0.1:8787/v1/github/analyze \
 The retrieved material remains DATA, passes through the Security Gate, and must
 retain provenance/citations.
 
-## Acceptance criteria for an owned-PC install
+## Acceptance criteria for an owned-PC install（「SIDRA 対応済み」と言ってよい条件の一覧）
 
 Do not call the machine "SIDRA-ready" until all applicable checks are true:
 

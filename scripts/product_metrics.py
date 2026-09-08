@@ -18108,6 +18108,9 @@ def measure_retrieval_scale(c: Collector) -> None:
     # Counted rather than timed: what is watched is how many chunks the next
     # query has to read after one document arrives. Only the new ones is the
     # right answer; the whole index is the old one.
+    #
+    # The document added is a fixed one, so the count does not depend on the
+    # corpus - see the comment where it is built.
     reindex_gaps: list[str] = []
     reread = -1
     added_chunks = -1
@@ -18135,9 +18138,24 @@ def measure_retrieval_scale(c: Collector) -> None:
         grow_retriever.search(questions[0], top_k=5)
         before_chunks = len(tuple(live_store.chunks()))
 
+        # A fixed document, not whichever one the corpus happens to yield
+        # first. It used to copy `next(iter(documents()))`, which was README,
+        # so the number this metric reports moved whenever anybody edited
+        # README - and it moved as a REGRESSION, because a longer document
+        # produces more chunks to re-read. That happened: C-1152 added a
+        # Japanese summary to README and this read 11 -> 13 while the property
+        # it exists for held exactly (13 chunks added, 13 re-read, none of the
+        # other 3,288). A number that reports the size of its own input is
+        # not measuring the code. This text is constant, so a rise in the
+        # reading is now a rise in work per chunk added, which is the thing.
         newcomer = next(iter(live_store.documents()))
+        probe_content = "\n\n".join(
+            f"## 第 {i} 節\n\n収益化の方針と審査の基準について書いた段落。"
+            "掲載順は売らない。個人情報は公開の場所へ置かない。" * 6
+            for i in range(12)
+        )
         replacement = module.Document(
-            content=newcomer.content,
+            content=probe_content,
             provenance=module.Provenance(
                 source=newcomer.provenance.source,
                 repository=newcomer.provenance.repository,
@@ -18190,6 +18208,84 @@ def measure_retrieval_scale(c: Collector) -> None:
                 "（204 文書目の 1 検索）。**同じ索引になることは別に確かめて"
                 "いる**——tests/test_retrieval_incremental_index.py が一括構築との"
                 "一致を pin し、追記でない変化を追記と誤認する破壊で落ちる"
+            )
+        ),
+    )
+
+    # --- the operator asks in Japanese; the core documents were English ---
+    #
+    # Six of this repository's documents - SECURITY, LOCAL_RUNTIME,
+    # ARCHITECTURE, README, INTEGRATION_V01, COLLABORATION - were written
+    # entirely in English, and neither half of retrieval could reach them
+    # from a Japanese question. Measured (C-1152): same document, same
+    # embedding model, asked in English it is rank 24 of 3,286; asked in
+    # Japanese, 2,676. Crossing languages costs 0.112 of cosine and the whole
+    # corpus spans 0.116, so the language penalty is very nearly the entire
+    # range the score has to work with. A bigger model does not fix that.
+    #
+    # This number exists because the fix - a Japanese summary inside each
+    # document - moved nothing any other instrument here watches. A repair
+    # nothing measures is a repair that decays silently.
+    #
+    # Honest about what it is: these ten questions were written in-house,
+    # like the judge's 38. They are the questions the operator would ask
+    # about these six documents, fixed before the repair was designed, and
+    # the summaries were written from each document's own section headings
+    # rather than from this list. That is the discipline available; it is not
+    # a guarantee against fitting.
+    reach_asks = (
+        ("SIDRA のセキュリティ方針は", "docs/SECURITY.md"),
+        ("プロンプト注入への対策は", "docs/SECURITY.md"),
+        ("秘密や個人情報が索引に入らないのはなぜ", "docs/SECURITY.md"),
+        ("ローカルで動かす手順を教えて", "docs/LOCAL_RUNTIME.md"),
+        ("VRAM はどれくらい必要ですか", "docs/LOCAL_RUNTIME.md"),
+        ("全体の構成はどうなっていますか", "docs/ARCHITECTURE.md"),
+        ("差分取り込みの仕組みは", "docs/ARCHITECTURE.md"),
+        ("SIDRA を始めるにはどうすればいい", "README.md"),
+        ("AI 同士の共同作業の決まりは", "docs/COLLABORATION.md"),
+        ("main へ昇格させる条件は", "docs/INTEGRATION_V01.md"),
+    )
+    reach_gaps: list[str] = []
+    reached = 0
+    missed: list[str] = []
+    try:
+        reach_retriever = BM25Retriever(store)
+        for ask, wanted in reach_asks:
+            hits = reach_retriever.search(ask, top_k=5, repositories=[repository])
+            if any(wanted in hit.chunk.provenance.path for hit in hits):
+                reached += 1
+            else:
+                missed.append(wanted)
+    except Exception as exc:  # noqa: BLE001 - a broken probe is not a number
+        reach_gaps.append(f"{type(exc).__name__}: {exc}")
+
+    c.add(
+        "retrieval_japanese_reach",
+        "日本語の質問で、目的の中核文書が上位 5 件に入る数（多いほど良い）",
+        float(reached),
+        unit="問",
+        direction="up",
+        kind=OUTCOME,
+        detail=(
+            "; ".join(reach_gaps)
+            if reach_gaps
+            else (
+                f"{len(reach_asks)} 問中 **{reached} 問**"
+                + (f"（届かない: {', '.join(sorted(set(missed)))}）" if missed else "")
+                + "。英語で書かれた中核文書 6 件に、日本語の質問から届くか。"
+                "**模型の問題ではない**——同じ文書・同じ埋め込み模型で、質問を"
+                "英語にすると 3,286 断片中 24 位、日本語にすると 2,676 位"
+                "（C-1152）。言語をまたぐ減点 cos 0.112 が、コーパス全体の"
+                "関連度の幅 0.116 とほぼ同じなので順位に残らない。直したのは"
+                "文書の側（各文書に日本語の概要を置いた）。**この数字が見るのは"
+                "届くかどうかであって、答えの良し悪しではない**——後者は"
+                "判定器 38 問の担当。文書が英語だけに戻ることは"
+                "tests/test_every_document_is_reachable_in_japanese.py が"
+                "止める。**これらの質問文は `docs/BACKLOG.md` にも書かれて"
+                "いて、その文書自身も索引に入っている**——ただし数えるのは"
+                "「目的の文書が上位 5 件に入るか」なので、記録が競合しても"
+                "**数字は下がる方にしか動かない**（実測: 記録を書いた後も"
+                "10/10 で、BACKLOG も LOOP_LOG も上位 3 件に現れない）"
             )
         ),
     )

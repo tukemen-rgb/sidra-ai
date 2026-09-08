@@ -1,6 +1,51 @@
 # SIDRA AI v0.1 Security Model
 
-## Threat model
+## 概要（日本語）— SIDRA のセキュリティ方針
+
+この文書は英語で書かれている。運用者は日本語で質問するので、日本語の要約を
+本文と同じ文書の中に置く。**規範は英語の本文の側にあり、この節はその要約**で
+あって、食い違ったときは英語の本文が正しい。
+
+なぜ要約を置くかは実測がある。同じ文書・同じ埋め込み模型で、質問を英語にすると
+この文書は 3,286 断片中 **24 位**、同じ意味の質問を日本語にすると **2,676 位**に
+落ちる。言語をまたぐ費用（cos 0.112）がコーパス全体の関連度の幅（0.116）より
+大きいためで、模型の入れ替えでは直らない（`docs/BACKLOG.md` C-1152）。
+
+- **脅威モデル** — SIDRA は第三者が書き込めるリポジトリを読む。課題の本文・
+  PR の説明・コミットメッセージは「信頼された設備の中に届く、攻撃者が書ける
+  文章」として扱う。想定する脅威は 5 つ: プロンプト注入、秘密（資格情報）の
+  伝播、個人情報の伝播、権限範囲のはみ出し、API の露出。
+- **不変条件 1: GitHub 参照は読み取り専用** — `GET` しか通らない。書き込みの
+  経路が存在しないので、トークンの権限設定を間違えても書き込みにならない。
+  独立した 3 か所（クライアント・輸送層・全モジュールの構文木検査）で強制する。
+- **不変条件 2: 外部の文章は「データ」であって「指示」ではない** — 取り込んだ
+  内容は指示権限を持てない。区切り記号の偽装や不可視文字も無効化する。最も
+  重要なのは**強制できる操作が無い**こと: 書き込みも配備も送信も支出も無いので、
+  注入が成功しても得られるのは誤った回答であって、行動ではない。
+- **不変条件 3: 秘密と個人情報は索引に入らない** — 秘密・個人情報・注入の
+  3 系統の検出器を全入力にかけ、`ALLOW`（該当箇所を伏せて索引）/
+  `QUARANTINE`（索引から外して隔離）/ `BLOCK`（索引にも模型にも渡さない）を
+  **理由付きで**決める。黙って消すことはしない。
+- **不変条件 4: API は既定で非公開** — 既定の待ち受けは `127.0.0.1:8787`。
+  外へ出すには明示の許可と 24 文字以上のトークンが要る。秘密は設定の項目では
+  なく環境から都度読むので、ログや設定の書き出しに現れない。模型の出力も別の
+  関門で検査し、秘密や個人情報が見つかったら回答全体を差し替える。
+- **運用の規則** — 資格情報・トークン・パスワード・個人情報を、コード・
+  コミット・課題・PR・ログ・試験データへ書かない。`.sidra/` は git 管理外で、
+  秘密を含み得るファイルは 0600 で作る。
+- **v0.1 で判っている穴（12 件）** — 直っていないことを隠さずに並べてある。
+  要点は「速度制限は 1 プロセス内でしか効かない」「監査の記録は最善努力
+  （落ちた件数は数えられる）」「注入検出は発見的で、新しい言い回しは漏らす」
+  「SIDRA は自分自身のセキュリティ実装を検索できない（検出器の原文が攻撃文字列
+  そのものなので隔離される。これは**直さないと決めた**）」など。
+- **主張の確かめ方** — `pytest` と `python scripts/verify_gate_recall.py`。
+  後者は「今も捕まえるべき 20 件」と「もう誤検出してはいけない 9 件」を両方向に
+  試す。検出器を緩めて誤検出を減らすと本物の検出が黙って消えることがあり、
+  差分を読んでも見分けが付かないため。
+- **報告** — セキュリティ上の問題は公開の課題に書かず、SIDRA STUDIO の運用者へ
+  非公開で伝える。
+
+## Threat model（脅威モデル — 何を攻撃と想定しているか）
 
 SIDRA AI reads repositories that third parties can write to. An issue body,
 a PR description, or a commit message is attacker-controllable text that
@@ -15,9 +60,9 @@ arrives inside otherwise trusted infrastructure. The primary threats:
    sanctioned set of repositories.
 5. **Exposure** — the private API becomes reachable from the network.
 
-## The four invariants
+## The four invariants（4 つの不変条件 — この設計が守ると約束すること）
 
-### 1. GitHub access is read-only
+### 1. GitHub access is read-only（GitHub は読み取り専用 — 書き込みの経路が無い）
 
 Enforced in three independent places:
 
@@ -30,7 +75,7 @@ Enforced in three independent places:
 There is no token scope to misconfigure into a write, because there is no
 code path that would use it.
 
-### 2. External content is DATA, never instructions
+### 2. External content is DATA, never instructions（外部の文章はデータであって指示ではない — プロンプト注入への対策）
 
 Capability-level, not prompt-level:
 
@@ -50,7 +95,7 @@ Capability-level, not prompt-level:
 Prompt-level defenses are treated as advisory. The guarantee is the absent
 capability.
 
-### 3. Secrets and PII never reach the index
+### 3. Secrets and PII never reach the index（秘密と個人情報は索引に入らない — 検出器と隔離の仕組み）
 
 The gate runs three detector families over every input:
 
@@ -91,7 +136,7 @@ fingerprint only for an explicit allowlist of high-search-space secret classes;
 PII and low-entropy/unknown secret classes are fingerprint-free to avoid a
 stable offline-guessing oracle.
 
-### 4. The API is private by default
+### 4. The API is private by default（API は既定で非公開 — 待ち受け・認証・監査・出力の関門）
 
 - Default bind is `127.0.0.1:8787`.
 - Binding elsewhere requires `SIDRA_ALLOW_PUBLIC_BIND=true` **and**
@@ -125,7 +170,7 @@ representations. Secret-like or high-confidence PII findings withhold the whole
 answer; detector failures fail closed and the original blocked output is not
 persisted by the guard.
 
-## Operational rules
+## Operational rules（運用の規則 — 書いてはいけないもの、ファイルの権限）
 
 - No credential, token, password or personal data in code, commits, issues,
   PRs, logs or test fixtures. Every credential-shaped string in this
@@ -140,7 +185,7 @@ persisted by the guard.
   model, so an unattended server cannot spend inference on its own. Its
   status is not on `/health`, which stays unauthenticated and topology-free.
 
-## Known gaps in v0.1
+## Known gaps in v0.1（v0.1 で判っている穴 — 直っていないことの一覧）
 
 These are real and should be closed or explicitly accepted before widening the
 runtime boundary:
@@ -324,7 +369,7 @@ runtime boundary:
    fact. It now names `source` and `repository` for a size rejection; see
    gap 6 for exactly which BLOCKs get that and which do not.
 
-## Verifying these claims
+## Verifying these claims（主張の確かめ方 — 実際に走らせる 2 つの命令）
 
 Do not take the table above on trust. Two commands check the parts that can
 be checked mechanically:
@@ -346,7 +391,7 @@ to nine, dropping a real detection. The tests passed. It was caught by a
 review that ran the recall set, and only after an eight-digit case was added
 to it - the check was only ever as good as its cases.
 
-## Reporting
+## Reporting（報告 — 脆弱性を見つけたときの連絡先）
 
 Do not open a public issue for a security problem in this repository. Raise
 it privately with the SIDRA STUDIO operator.
