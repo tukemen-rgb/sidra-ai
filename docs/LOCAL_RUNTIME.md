@@ -319,6 +319,23 @@ sidra-api --check
 sidra-api
 ```
 
+**`sidra-api` が見つからないと言われたら**（Windows でよく起きる。pip の
+`Scripts` ディレクトリが PATH に入っていないだけ）、同じものがモジュールとしても
+起動できる:
+
+```bash
+python -m sidra_ai.api.server --check
+python -m sidra_ai.api.server
+```
+
+`sidra-evals` / `sidra-ask` / `sidra-quarantine` も同様に
+`python -m sidra_ai.evals.runner` / `python -m sidra_ai.api.ask_cli` /
+`python -m sidra_ai.security.quarantine_cli` で起動できる。
+**環境変数はウィンドウごとに別**なので、`set` / `$env:` で設定したのと
+**同じウィンドウ**で起動すること——別の窓で起動すると設定を失って `echo` に
+落ち、そのまま静かに動いてしまう（起動時の `model backend :` の行で確認できる。
+manifest がある機械で echo になっていれば注意書きも出る）。
+
 The check must report success before the real bind step. It exercises the same
 settings/service/app assembly but exits before uvicorn import or the API socket.
 A check failure is a stop condition; do not bypass it by starting the server

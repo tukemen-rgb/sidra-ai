@@ -98,6 +98,50 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def staged_model_but_running_echo(settings: Settings) -> str:
+    """A warning for the one silent failure this startup has, or "".
+
+    ``echo`` is a supported backend and the clean-machine default, so warning
+    on every echo start would be noise nobody reads. What is not normal is
+    ``echo`` on a machine where somebody has already staged a real model: the
+    reviewed manifest is written by ``scripts/setup_real_model.py`` and only
+    exists because an operator ran it here.
+
+    That combination has a known cause. On Windows the environment is set per
+    terminal, so starting the server from a *new* window loses
+    ``SIDRA_MODEL_BACKEND`` and the process falls back to ``echo`` - and
+    everything then works, quietly, answering with an echo backend. The owner
+    lost time to exactly this on 2026-09-02: the banner said
+    ``model backend : echo`` and there was nothing to say that was unintended.
+
+    Deliberately a warning and not a refusal. Running echo on a machine that
+    also has a real model staged is a legitimate thing to want - it is how the
+    offline suite and a clean-machine check are run - so this says what it
+    sees and gets out of the way.
+    """
+
+    if settings.model_backend != "echo":
+        return ""
+    from pathlib import Path
+
+    from sidra_ai.api.model_admission import MODEL_MANIFEST_FILENAME
+
+    try:
+        staged = (Path(settings.data_dir) / MODEL_MANIFEST_FILENAME).is_file()
+    except OSError:  # an unreadable data dir is not this function's problem
+        return ""
+    if not staged:
+        return ""
+    return (
+        "  注意          : この機械には審査済みモデルの manifest があるのに、"
+        "今回は echo で起動しています。\n"
+        "                  意図した通りならこのままで構いません。実モデルの"
+        "つもりなら、環境変数はウィンドウごとに\n"
+        "                  別なので、SIDRA_MODEL_BACKEND を"
+        "「このウィンドウで」設定し直してから起動してください。"
+    )
+
+
 def _print_banner(settings: Settings) -> None:
     scope = "loopback only" if settings.is_localhost_only else "EXPOSED BEYOND LOOPBACK"
     print(f"SIDRA AI  http://{settings.host}:{settings.port}  ({scope})")
@@ -105,6 +149,9 @@ def _print_banner(settings: Settings) -> None:
     print(f"  repositories  : {len(settings.allowed_repositories)} allowlisted")
     print("  github access : read-only")
     print(f"  auth token    : {'configured' if settings.api_token else 'not set'}")
+    warning = staged_model_but_running_echo(settings)
+    if warning:
+        print(warning)
 
 
 if __name__ == "__main__":  # pragma: no cover
