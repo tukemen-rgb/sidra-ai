@@ -9144,3 +9144,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 21:41 UTC 辛口ユーザー C-1489 完了（119 巡目・別面=ゲート PII プレースホルダ〔電話以外〕・前回=システム状態可視化 no-op・gate_allows_placeholder_national_id_and_card 5→10・`--compare` exit 0 BETTER MOVED 1・pytest rc=0 FAILED 0 [100%]・**verify_gate_recall PASSED MISS 0**・**check_gate_regression exit 0 blended 7.0%**・破壊 5 種すべて eval red 4/6/5/3/5・board exit 0・共有ヘルパ `_all_same_digit` を新設し電話〔C-1487〕に加え national_id/payment_card にも全桁同一プレースホルダ除外を適用＝マイナンバー 000000000000・カード 0000... が良性文書を隔離しないよう修正・全ゼロカードは Luhn 通過だが除外・実番号〔4111 テストカード等〕は桁ばらつきで recall 不変・C-1487 phone eval 非退行）
 2026-09-08 22:04 UTC ループA C-1165 完了（意味検索の窓 50→200・answerable_total 17→19・answerable_direct 12→13・answerable_paraphrase 5→6・game_production 3/8→5/8・識別力 +28.9→+36.8pt・重み無し構成は NO MOVEMENT・判定器 exit 0・pytest 緑・gate MISS 0・semantic フロア 17→18/4→5 再固定）
 2026-09-08 22:08 UTC ループA started
+
+2026-09-08 22:14 UTC 辛口ユーザー started（120 巡目・別面=会話履歴/複数ターンの扱いの一般ユーザー観点＝前ターンが DATA として渡るか・履歴もゲートを通るか・履歴由来の注入が実行されないか・履歴の境界文字が中和されるか・履歴の長さ制限を実測点検。前回=ゲート PII プレースホルダ〔電話以外〕C-1489）
