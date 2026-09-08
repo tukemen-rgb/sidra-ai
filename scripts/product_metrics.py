@@ -7922,6 +7922,75 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the finger hears the victory too (§16×§6, C-1399) --------------
+    #
+    # C-1316 built winBeat as failBeat's heavier mirror in shake, burst
+    # and sound; C-1413's haptic was wired into the loss alone, so defeat
+    # buzzed while victory stayed silent - §6's biggest-moment weighting
+    # inverted on exactly one channel. Driven: one loss then one win must
+    # record [18, 21] with the win heavier; four more wins into the same
+    # window send at most the gate's three; reduced motion and the
+    # panel's switch each silence the same win completely.
+    from sidra_ai.creation.juice import win_haptic_probe as _wh_probe
+
+    wh_gaps: list[str] = []
+    _wh_page = generate_game("フルーツキャッチを作って").html
+    _wh_m = _scene_re.search(r"<script>(.*?)</script>", _wh_page, _scene_re.S)
+    if _wh_m is None:
+        wh_gaps.append("catch: no script")
+    else:
+        _wh_runs = {}
+        for _wh_label, _wh_kw in (
+            ("normal", {}),
+            ("reduced", {"reduced": True}),
+            ("off", {"panel_off": True}),
+        ):
+            try:
+                _wh_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_wh_probe(_wh_m.group(1), **_wh_kw),
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if _wh_run.returncode != 0:
+                    raise ValueError(_wh_run.stderr.strip()[:60])
+                _wh_runs[_wh_label] = json.loads(
+                    _wh_run.stdout.strip().splitlines()[-1]
+                )
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                wh_gaps.append(f"catch/{_wh_label}: probe unavailable ({exc})")
+        if len(_wh_runs) == 3:
+            _wh_n = _wh_runs["normal"]
+            if len(_wh_n["pair"]) != 2:
+                wh_gaps.append(
+                    f"catch: the victory stays silent ({_wh_n['pair']})"
+                )
+            elif not _wh_n["pair"][1] > _wh_n["pair"][0]:
+                wh_gaps.append(
+                    f"catch: the loss outweighs the win ({_wh_n['pair']})"
+                )
+            if _wh_n["total"] > 3:
+                wh_gaps.append("catch: the gate lets the buzz hammer")
+            for _wh_label in ("reduced", "off"):
+                if _wh_runs[_wh_label]["total"] != 0:
+                    wh_gaps.append(f"catch: {_wh_label} still buzzes")
+    c.add(
+        "creation_win_haptic",
+        "勝利も指に届く（実走行）",
+        0.0 if wh_gaps else 1.0,
+        detail=(
+            "; ".join(wh_gaps)
+            if wh_gaps
+            else "catch の実ページで failBeat→winBeat が [18, 21] を記録"
+            "（勝利が shake と同比 16/14 で一段重い・§6 の最大の見せ場が"
+            "触覚でも成立）・同一窓の連打 4 発は門番で 3 発止まり・"
+            "REDUCED とパネル haptic=false は同じ勝利を完全無音（C-1413 の"
+            "全ガードが 1 行の追加にそのまま乗る）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a thumb slip cannot erase the run (§12 事実 4, C-1397) ---------
     #
     # The pad's R sits right above A, and seven templates reset

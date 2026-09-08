@@ -59,6 +59,12 @@ PREAMBLE_NAMES: tuple[str, ...] = (
 #: A hit is one tap; a round confirming itself is two, which is the same
 #: "one event / one summary" shape the sound and the banner already use.
 HAPTIC_HIT = 18
+
+#: The win's buzz (§16×§6, C-1399): one step heavier than the hit, by the
+#: same ratio the shake pair uses (18 × 16/14 ≈ 21). C-1316 built winBeat
+#: as failBeat's heavier mirror in shake, burst and sound - the finger
+#: was the one channel where defeat outweighed victory.
+HAPTIC_WIN = 21
 HAPTIC_ROUND = (12, 60, 12)
 
 #: How many pulses may fire inside one 60-frame window. The same number and
@@ -143,7 +149,11 @@ let WIN_BEATS=0;
 function winBeat(x,y){WIN_BEATS++;
   shake(%(wshake)d);hitstop(%(whitstop)d);
   burst(x===undefined?0:x,y===undefined?0:y,%(wparts)d,'ACCENT_JUICE');
-  try{sfx('win')}catch(e){}}
+  try{sfx('win')}catch(e){}
+  /* ...and the finger hears it too (§16×§6, C-1399): the same haptic()
+     that carries the loss, one step heavier - REDUCED silence, the panel
+     switch and the 60-frame gate all ride along for free. */
+  try{haptic(%(hapticWin)d)}catch(e){}}
 function winBeats(){return WIN_BEATS}
 /* The flash budget (§15, WCAG 2.3.1): a full-screen flash may switch ON
    at most three times in any one second - measured, the duel's mash fire
@@ -257,6 +267,7 @@ requestAnimationFrame=function(fn){
     "hitstop": FAIL_HITSTOP,
     "parts": FAIL_PARTICLES,
     "hapticHit": HAPTIC_HIT,
+    "hapticWin": HAPTIC_WIN,
     "hapticMax": HAPTIC_MAX,
     "popMax": POP_MAX,
     "popLife": POP_LIFE,
@@ -406,7 +417,74 @@ def page_probe_source(
     )
 
 
+#: The victory's buzz, driven (§16×§6, C-1399): on a real page, one loss
+#: then one win must record patterns [HAPTIC_HIT, HAPTIC_WIN] with the
+#: win the heavier; hammering four more wins into the same window sends
+#: at most the gate's three; reduced motion and the panel's haptic switch
+#: each silence the same win completely.
+WINHAPTIC_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+const LS = {};
+globalThis.localStorage = {
+  getItem: (k) => (Object.prototype.hasOwnProperty.call(LS, k) ? LS[k] : null),
+  setItem: (k, v) => { LS[k] = String(v) },
+  removeItem: (k) => { delete LS[k] } };
+SEED_PLACEHOLDER
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+failBeat(0, 0);
+winBeat(0, 0);
+const pair = hapticFacts().sent.slice();
+/* Four more wins into the same window: the gate must hold the line. */
+winBeat(0, 0); winBeat(0, 0); winBeat(0, 0); winBeat(0, 0);
+const windowSent = hapticFacts().window;
+console.log(JSON.stringify({ pair: pair, total: hapticFacts().sent.length,
+  windowSent: windowSent }));
+"""
+
+
+def win_haptic_probe(script: str, *, reduced: bool = False,
+                     panel_off: bool = False, template: str = "catch") -> str:
+    """The page's own script, wrapped so the victory's buzz - and both of
+    its silencers - can be watched."""
+
+    seed = (
+        f"LS['sidra.tune.{template}']=JSON.stringify({{haptic:false}});"
+        if panel_off
+        else ""
+    )
+    return (
+        WINHAPTIC_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("REDUCED_INPUT", "true" if reduced else "false")
+        .replace("SEED_PLACEHOLDER", seed)
+    )
+
+
 __all__ = [
+    "WINHAPTIC_PROBE",
+    "win_haptic_probe",
     "FAIL_HITSTOP",
     "FAIL_PARTICLES",
     "FAIL_SHAKE",
