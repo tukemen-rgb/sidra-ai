@@ -1,0 +1,108 @@
+# 性能の競合比較（2026-09-08）
+
+社長指示「同業他社と比較してシドラAIの弱点を調べて弱点克服して。特に性能」への
+調査記録。**一次情報のみ**（公式ドキュメント・ベンチマークリポジトリ・開発者の
+実測）、全 URL を 2026-09-08 に確認。丸写しはせず数値と出典のみ。開けなかった
+URL は使っていない（末尾に明記）。
+
+対応は BACKLOG「### C-0o」。
+
+## 1. 純 Python BM25 の相場 — SIDRA の設計が最も問われる項目
+
+BM25S 公式ベンチ（シングルスレッド Xeon @2.70GHz、BEIR、QPS を ms/query に換算）:
+
+| データセット | 文書数 | rank_bm25（純 Python） | BM25S | Elasticsearch |
+|---|---|---|---|---|
+| scidocs | 25K | 111 ms | 1.3 ms | 56 ms |
+| trec-covid | 171K | **676 ms** | 11.7 ms | 136 ms |
+| quora | 523K | 847 ms | 5.4 ms | 46 ms |
+| nq | 2.68M | **10,000 ms** | 23.9 ms | 82 ms |
+
+出典: https://github.com/xhluca/bm25s ・文書数は https://github.com/beir-cellar/beir
+
+Rust/C++ 系（英語 Wikipedia 約 5GB、中央値）: IResearch 236µs / Lucene 294µs /
+Tantivy 428µs（OR top_100）。出典: https://serenedb.com/blog/search-benchmark-game-overview
+
+**SIDRA の実測（2026-09-08・実コーパスを複製して規模を作った）**: 10 万断片で
+検索 p50 **27.8ms**。純 Python BM25 の相場（17 万文書で 676ms）に対して**桁で
+速い**。理由は C-1466 の FTS5 候補生成で、BM25 の採点自体は残したまま
+「どの断片を採点するか」だけを FTS5 に選ばせているため。**この項目は他社に
+負けていない。**ただし候補生成が効くのは無フィルタ検索だけで、リポジトリを
+絞る検索は全走査に戻る（`search.py` の設計上の限界。将来の課題）。
+
+## 2. ベクトル検索の相場
+
+sqlite-vec（総当たり、M1 mini、10 万ベクトル）: 384 次元で **75ms 未満**、
+3072 次元 214ms。出典: https://alexgarcia.xyz/blog/2024/sqlite-vec-stable-release/index.html
+
+組み込み 3 種（M2 MBP、1536 次元、10 万件、p50）: LanceDB 約 2ms / Chroma 約 1ms /
+sqlite-vec 約 5ms。メモリは sqlite-vec 約 50MB が最小。
+出典: https://kanopylabs.com/blog/lancedb-vs-chroma-vs-sqlite-vec
+
+**SIDRA の位置**: そもそもベクトルを保存していなかった（下記 3）。e5-small の
+384 次元は相場表で最も有利な帯なので、外部 DB を増やさなくても追いつける。
+
+## 3. 埋め込みは索引時に 1 回払うもの — ここが SIDRA の最大の欠陥だった
+
+sentence-transformers 公式の速度表: 384 次元 6 層クラスで GPU 18,000 クエリ/秒・
+CPU 750 クエリ/秒（短文）。出典: https://sbert.net/docs/sentence_transformer/pretrained_models.html
+
+業界の前提は「**埋め込みは索引時に 1 回**」。SIDRA は**クエリごとに候補 50 件の
+本文を毎回エンコードし直していた**（1 クエリ約 25,600 トークン）。
+
+**実測**: 意味検索の検索 p50 **3,316ms**。→ 本文を鍵にしたキャッシュで **40ms**
+（83 倍）。C-1137 で修正済み・判定器の数字は 1 つも動かない（40 問の上位 5 件が
+全問一致）。
+
+## 4. ローカル LLM の速度 — 社長機の構造的な弱点
+
+llama.cpp 公式ベンチ（Llama-2 7B Q4_0、`-ngl 99`）:
+
+| GPU | prefill pp512 (t/s) | decode tg128 (t/s) |
+|---|---|---|
+| **GTX 1660** | **148.91** | 41.35 |
+| RTX 3060 12GB | 2,137.50 | 75.57 |
+| RTX 4060 Ti | 3,394.63 | 63.86 |
+
+出典: https://github.com/ggml-org/llama.cpp/discussions/15013
+
+**構造的な事実**: GTX 16 シリーズは Tensor コアを持たないため、行列積が支配的な
+**prefill だけが 1/14〜1/23** に落ちる（decode は 1.8 倍差に収まる）。RAG は
+「長い入力・短い出力」なので**最も相性が悪い世代**。
+
+含意（推定であり実測ではない）: 3B・チャンク 1200 文字 × 5 件のプロンプトは
+4,000〜6,000 トークン級 → prefill だけで 10〜17 秒。**ハード据え置きで効く手は
+プロンプトを短くすること**（チャンク長・top_k）だけ。
+
+## 5. 体感の目標値
+
+- Nielsen: 0.1 秒＝即応、1.0 秒＝思考が途切れない上限、10 秒＝注意の限界。
+  出典: https://www.nngroup.com/articles/response-times-3-important-limits/
+- 2026 年の LLM サービング SLO: **RAG チャットの TTFT p99 = 400ms**、
+  トークン間 80ms。300ms で遅延に気づかなくなり、800ms で離脱が測定可能に。
+  出典: https://www.spheron.network/blog/llm-inference-slo-ttft-itl-latency-budget-guide-2026/
+
+**SIDRA の位置**: `/v1/chat` は非ストリーミング（SSE 0 件）なので
+**TTFT = 全応答時間**。C-1137 で検索は 3.3 秒→40ms になったが、生成側は
+prefill が支配する。→ C-1139（ストリーミングの可否は出力ガードとの設計衝突が
+あるため、まず「できない理由」を測ってから決める）。
+
+## 6. 取り込みスループット
+
+Wikipedia 1,000 万トークンの取り込み: R2R 62.97s / LlamaIndex 81.54s /
+Haystack 276.27s / LangChain 510.04s。RAGFlow は単一ファイルで 1,630〜3,800s。
+出典: https://github.com/SciPhi-AI/RAG-Performance
+
+フレームワークのオーケストレーション層自体は 3.53〜14ms/クエリで、**そこは
+差にならない**。出典: https://aimultiple.com/rag-frameworks
+
+**SIDRA の実測**: 索引構築は 10 万断片で 50 秒（C-1138 で 37% 短縮済み）。
+比較対象の BM25S は 268 万文書の索引を mmap で 0.53 秒ロード（in-memory は
+8.61 秒）。**索引の永続化と増分更新は未実装**——次の課題（C-1140）。
+
+## 原典に到達できず使わなかったもの
+
+ann-benchmarks.com と qdrant.tech/benchmarks の具体 QPS-recall 値（本文になく
+図の中）、BM25S 論文 PDF 本体（同一データを持つ公式 README で代替）、
+pgvector 対 Qdrant のベンダーブログ数値、ollama の qwen2.5:3b の CPU 実測値、
+GTX 1660 Ti の FP16 TFLOPS 値。
