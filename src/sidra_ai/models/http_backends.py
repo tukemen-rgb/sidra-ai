@@ -229,13 +229,22 @@ class OllamaAdapter(_HTTPAdapter):
                 raise ModelUnavailableError("ollama context cap is invalid")
             generation_options["num_ctx"] = routed_context_tokens
 
-        return {
+        payload: dict[str, Any] = {
             "model": self.model,
             "system": request.system_prompt,
             "prompt": self._data_and_question(request),
             "stream": stream,
             "options": generation_options,
         }
+        # Only when the operator asked for it. Ollama's own default (five
+        # minutes) applies otherwise, and sending its default explicitly
+        # would make a setting look configured when nobody configured it.
+        # The value's shape is checked at settings validation, not here: a
+        # backend is the wrong place to learn what a duration looks like.
+        keep_alive = self.options.get("keep_alive")
+        if keep_alive:
+            payload["keep_alive"] = str(keep_alive)
+        return payload
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         raw = self._post("/api/generate", self._payload(request, stream=False))

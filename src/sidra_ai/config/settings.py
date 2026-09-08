@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Iterable
@@ -134,6 +135,12 @@ def _validate_allowed_repositories(repositories: Iterable[str]) -> None:
         seen.add(normalized)
 
 
+#: Ollama's ``keep_alive`` accepts a Go duration ("10m", "1h30m", "45s"), a
+#: bare number of seconds, or -1 for "never unload". Anchored and bounded so a
+#: stray value cannot become anything but a duration.
+_KEEP_ALIVE = re.compile(r"-?\d{1,6}(?:\.\d{1,3})?(?:ns|us|ms|s|m|h)?(?:\d{1,6}(?:ns|us|ms|s|m|h))*")
+
+
 @dataclass(frozen=True)
 class Settings:
     """Immutable runtime configuration."""
@@ -179,6 +186,23 @@ class Settings:
     """Base URL for Ollama / llama.cpp server backends. Local by default."""
 
     model_max_output_tokens: int = 512
+
+    model_keep_alive: str = ""
+    """How long Ollama should keep the model resident after a request.
+
+    Empty (the default) sends nothing, so Ollama keeps its own behaviour -
+    five minutes, after which the next question pays a full model load before
+    it can even begin reading the prompt. That reload is invisible in every
+    number this project measures, because it happens on the machine that has
+    the weights and none of the harnesses here do.
+
+    It is a setting rather than a new default because the trade is the
+    operator's: a value like ``30m`` or ``-1`` (forever) buys a fast first
+    question at the cost of holding the model's VRAM on a machine that may
+    also be used for something else. Accepted verbatim by Ollama, which
+    parses Go durations (``10m``, ``2h``, ``-1`` to never unload, ``0`` to
+    unload immediately).
+    """
 
     # --- GitHub ingestion (read-only) ------------------------------------
     github_api_base: str = DEFAULT_GITHUB_API_BASE
@@ -230,6 +254,7 @@ class Settings:
             model_name=os.environ.get("SIDRA_MODEL_NAME", "sidra-local-v0"),
             model_endpoint=os.environ.get("SIDRA_MODEL_ENDPOINT", ""),
             model_max_output_tokens=_env_int("SIDRA_MODEL_MAX_OUTPUT_TOKENS", 512),
+            model_keep_alive=os.environ.get("SIDRA_MODEL_KEEP_ALIVE", "").strip(),
             github_api_base=os.environ.get(
                 "SIDRA_GITHUB_API_BASE", DEFAULT_GITHUB_API_BASE
             ).strip(),
@@ -390,6 +415,17 @@ class Settings:
 
         if self.model_max_output_tokens <= 0:
             raise UnsafeConfigurationError("model_max_output_tokens must be positive")
+
+        if self.model_keep_alive and not _KEEP_ALIVE.fullmatch(self.model_keep_alive):
+            # Validated here rather than trusted through to the daemon: the
+            # value is interpolated into a JSON body, and a setting whose bad
+            # value only shows up as a confusing backend error is a setting
+            # nobody can debug. The shapes allowed are exactly the ones Ollama
+            # documents.
+            raise UnsafeConfigurationError(
+                "model_keep_alive must be a duration like '30m', '2h', "
+                "'-1' (never unload) or '0' (unload at once)"
+            )
 
         if self.max_items_per_source <= 0:
             raise UnsafeConfigurationError("max_items_per_source must be positive")

@@ -85,6 +85,11 @@ def build_runtime_model(
         adapter_options: dict[str, object] = {}
         if settings.model_endpoint:
             adapter_options["endpoint"] = settings.model_endpoint
+        if settings.model_keep_alive:
+            # Passed through rather than interpreted: how long to hold the
+            # weights is an operator decision about their machine, and the
+            # only backend that understands it is the one that receives it.
+            adapter_options["keep_alive"] = settings.model_keep_alive
 
         admission = admit_configured_adapter_with_nvidia_probe(
             manifest,
