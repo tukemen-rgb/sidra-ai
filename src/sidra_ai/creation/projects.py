@@ -28,6 +28,7 @@ import hashlib
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from html import escape
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -214,12 +215,16 @@ def _title_from(request: str) -> str:
 
 
 def _front_matter(title: str, stage: str, evidence: tuple[str, ...]) -> str:
+    # Escape the title (from the request) and every source label (an indexed
+    # Issue/PR path, EXTERNAL trust) so HTML in either is displayed, not executed,
+    # in a Markdown renderer that permits inline HTML (C-1486, the projects twin
+    # of the document C-1483). The stored .title stays raw for the chat summary.
     sources = (
-        "\n".join(f"- {line}" for line in evidence)
+        "\n".join(f"- {escape(line, quote=False)}" for line in evidence)
         if evidence
         else "- （このステージに使える索引の根拠は見つかりませんでした）"
     )
-    return f"# {title} — {stage}\n\n> SIDRA AI が生成した骨格です。中身は各ステージの担当が埋めます。\n\n## 根拠にした索引\n\n{sources}\n"
+    return f"# {escape(title, quote=False)} — {stage}\n\n> SIDRA AI が生成した骨格です。中身は各ステージの担当が埋めます。\n\n## 根拠にした索引\n\n{sources}\n"
 
 
 def _scenario_skeleton(title: str, evidence: tuple[str, ...]) -> str:

@@ -9079,3 +9079,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 13:10 UTC ループA no-op キューが空（開いている項目 13 件はすべて E節 11・F節 2、着手可能な D 項目なし。作業中 0 件。Board=13）
 
 2026-09-08 13:17 UTC 辛口ユーザー started（111 巡目・別面=プロジェクト雛形（project）生成の一般ユーザー観点＝「〜のプロジェクトを作って」で実際に生成し、雛形の中身（ファイル構成・README/コード）・根拠の扱い・空/退化入力・エスケープ・要約の正直さの中で一般利用者に見える最悪点を 1 つ探す。前回=生成アート no-op。制作/編集/中核を一巡したので未操作の projects へ）
+
+2026-09-08 13:54 UTC 辛口ユーザー C-1486 完了（111 巡目・別面=プロジェクト雛形生成・前回=生成アート no-op・project_escapes_html_in_files 4→10・`--compare` exit 0 BETTER 4→10 MOVED 1・pytest rc=0 FAILED 0 [100%]・破壊 5 種すべて eval red 8/7/8/7/7・board exit 0・projects の .md（scenario/structure/features/production-log）が依頼文由来 title と索引した Issue/PR 由来の出典ラベルを生 HTML で書いていた＝格納型 XSS を、`html.escape` を story._header/story._sources/projects._front_matter/records._clean の 4 か所に適用して無害化。文書 C-1483・デッキ/アート/GIF/3D と対称に。.title/要約は生のまま・game.html〔games.py 既 escape〕不変・検出器非変更で gate 対象外）

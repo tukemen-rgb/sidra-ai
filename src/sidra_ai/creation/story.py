@@ -24,6 +24,7 @@ is what makes the whole path measurable on a container that has no weights.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape
 
 from sidra_ai.creation.games import TEMPLATES, choose_difficulty, choose_template
 from sidra_ai.creation.games import _DIFFICULTY  # noqa: PLC2701 - the real numbers
@@ -177,12 +178,18 @@ def plan_for(request: str) -> ProductionPlan:
 def _sources(evidence: tuple[str, ...]) -> str:
     if not evidence:
         return "- （このステージに使える索引の根拠は見つかりませんでした）"
-    return "\n".join(f"- {line}" for line in evidence)
+    # Source labels are the path of an indexed Issue/PR body (EXTERNAL trust):
+    # escape them so HTML in a label is displayed, not executed, when the .md is
+    # opened in a Markdown renderer that permits inline HTML (C-1486, the projects
+    # twin of the document C-1483).
+    return "\n".join(f"- {escape(line, quote=False)}" for line in evidence)
 
 
 def _header(title: str, stage: str, evidence: tuple[str, ...]) -> str:
+    # The title comes from the request; escape it in the heading for the same
+    # reason (C-1486). The stored .title stays raw for the chat summary.
     return (
-        f"# {title} — {stage}\n\n"
+        f"# {escape(title, quote=False)} — {stage}\n\n"
         "> SIDRA AI が生成。**数値と操作は同じディレクトリの game.html が"
         "実際に使うもの**で、文章ではなく生成器から引いています。\n\n"
         f"## 根拠にした索引\n\n{_sources(evidence)}\n"

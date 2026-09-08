@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from html import escape
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -73,12 +74,17 @@ def _clean(value: object) -> str:
     replaced rather than trusted. Length is capped for the same reason the
     audit log caps its fields: a log line an operator cannot read end to end
     is a log line nobody reads.
+
+    HTML is escaped too (C-1486): a source label is the path of an indexed
+    Issue/PR body (EXTERNAL trust), and this line is Markdown that a renderer
+    permitting inline HTML would execute - the same neutralisation the report
+    (C-1483) and the other stage files apply.
     """
 
     text = str(value)
     text = re.sub(r"[\r\n|]+", " ", text)
     text = " ".join(text.split())
-    return text[:200]
+    return escape(text[:200], quote=False)
 
 
 def format_record(

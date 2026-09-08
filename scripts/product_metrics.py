@@ -670,6 +670,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1486: the projects twin of C-1483. The project scaffold wrote its .md
+    # files raw - the request became the stage-heading title, and an evidence
+    # source label (an indexed Issue/PR path, EXTERNAL trust) went into the 根拠
+    # list and the production-log line - so a <script> in either executed when
+    # the .md was opened in an HTML-permitting Markdown renderer. It now escapes
+    # the title and every source label the .md files carry.
+    from sidra_ai.evals.project_escapes_html_in_files import (
+        evaluate_project_escapes_html_in_files,
+    )
+
+    proj_escape = evaluate_project_escapes_html_in_files()
+    c.add(
+        "project_escapes_html_in_files",
+        "プロジェクト雛形が題名/出典の HTML をエスケープし XSS を無害化する",
+        10.0 * proj_escape.checks_passed / proj_escape.checks_total,
+        detail=f"{proj_escape.checks_passed}/{proj_escape.checks_total} checks; "
+               "src/sidra_ai/evals/project_escapes_html_in_files.py"
+               + ("" if proj_escape.passed else "; " + "; ".join(proj_escape.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1256: generative art has two patterns and any request that names
     # neither silently became flow, with the summary saying only 「パターン:
     # flow」. Games decline unsupported requests and list what they can make;
