@@ -9154,3 +9154,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 23:09 UTC ループA no-op キューが空（開いている項目 16 件はすべて E節 14・F節 2、着手可能な D 項目なし。作業中 0 件。E 節は C-1166 の上申 2 件で増えた。Board=13）
 
 2026-09-08 23:15 UTC 辛口ユーザー started（121 巡目・別面=ゲート PII メールの予約ドメイン誤隔離＝example@example.com 等 RFC2606 予約ドメイン（example.com/.net/.org・TLD .test/.example/.invalid/.localhost）は定義上決して実在しないのに、良性のフォーム仕様/例示メールを隔離しないか実測。C-1489 で email 予約ドメインは別機構として対象外と明記した残り。前回=会話履歴 no-op。検出器変更のため verify_gate_recall MISS 0＋check_gate_regression exit 0 必須）
+
+2026-09-08 23:53 UTC 辛口ユーザー C-1490 コード変更なし・E 節送り（121 巡目・別面=ゲート メール予約ドメイン・前回=会話履歴 no-op）。RFC2606 予約ドメイン（example.com/.invalid 等）のメールが HIGH で隔離される件を、予約ドメインを role/noreply と同じ LOW にする最小修正で直そうとしたが、共有 `PIIDetector` が入力ゲートと出力側 OutputGuard の両方に効き、severity を下げると OutputGuard がテストの『安全な偽 PII』代役（person@example.invalid 等）を redact しなくなり pytest 26 件退行。検証プロトコル（pytest）が push 前に捕捉＝コード全 revert（当該テスト復帰確認）。実 UX 論点（入力ゲートだけで予約ドメインを通す＝gate decision 側での限定変更 or 検出器の入出力文脈分離）は E 節「要判断」へ選択肢 A/B/C 付きで起票。**確立済みの出力側 redaction 規約を勝手に壊さない・判断は社長へ。**
