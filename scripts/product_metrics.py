@@ -957,6 +957,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1482: the background refresher recorded a tick as clean success unless
+    # the whole ingest raised, so a single repository persistently failing to
+    # fetch (while others succeed) was hidden from the status the operator polls.
+    from sidra_ai.evals.refresher_reports_partial_failure import (
+        evaluate_refresher_reports_partial_failure,
+    )
+
+    refresher_partial = evaluate_refresher_reports_partial_failure()
+    c.add(
+        "refresher_reports_partial_failure",
+        "背景リフレッシャの状態が repo 単位の部分失敗を隠さず出す",
+        10.0 * refresher_partial.checks_passed / refresher_partial.checks_total,
+        detail=f"{refresher_partial.checks_passed}/{refresher_partial.checks_total} checks; "
+               "src/sidra_ai/evals/refresher_reports_partial_failure.py"
+               + ("" if refresher_partial.passed else "; " + "; ".join(refresher_partial.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1454: creation intent required a bare imperative ('作って') and treated
     # 'ますか' as a question veto, so a polite request ('資料を作成いただけますか',
     # 'アートを描いてください') - how Japanese operators actually phrase it - was

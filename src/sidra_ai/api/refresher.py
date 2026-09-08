@@ -53,6 +53,11 @@ class RefreshStatus:
     last_success_at: str = ""
     last_error_type: str = ""
     repositories_changed: int = 0
+    #: How many repositories reported an error in the most recent completed
+    #: refresh (C-1482). ``ingest_all`` does not raise on a per-repo fetch
+    #: failure, so without this a repository persistently failing to fetch while
+    #: others succeed was invisible here - the status said clean success.
+    repositories_failed: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -66,6 +71,7 @@ class RefreshStatus:
             "last_success_at": self.last_success_at,
             "last_error_type": self.last_error_type,
             "repositories_changed": self.repositories_changed,
+            "repositories_failed": self.repositories_failed,
         }
 
 
@@ -144,12 +150,16 @@ class BackgroundRefresher:
         """One tick. Never raises: a failed refresh is recorded, not fatal."""
 
         changed = 0
+        failed = 0
         error_type = ""
         try:
             report = self.ingest()
-            changed = sum(
-                1 for r in getattr(report, "repositories", ()) if getattr(r, "changed", False)
-            )
+            repos = getattr(report, "repositories", ())
+            changed = sum(1 for r in repos if getattr(r, "changed", False))
+            # ingest_all does not raise on a per-repo fetch failure; the error
+            # rides on that repository's report. Count them so a persistent
+            # partial failure is visible in the status (C-1482).
+            failed = sum(1 for r in repos if getattr(r, "error", ""))
         except Exception as exc:  # noqa: BLE001 - the loop must outlive a failure
             error_type = type(exc).__name__
 
@@ -166,4 +176,7 @@ class BackgroundRefresher:
                 self._status.last_error_type = ""
                 self._status.last_success_at = now
                 self._status.repositories_changed += changed
+                # Replaced, not accumulated: the useful signal is how many
+                # repositories are failing *now*, which clears when they recover.
+                self._status.repositories_failed = failed
             return RefreshStatus(**vars(self._status))

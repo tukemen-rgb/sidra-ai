@@ -8990,3 +8990,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 02:55 UTC 辛口クリエイター C-1396 追記: push 後全量 pytest exit 0（4379 passed / 3 skip）——初回 push は docs-only の兄弟 push に負け rebase 再走で着地（レース手順どおり・追い上げは docs-only）。
 
 2026-09-08 02:54 進捗監視 前進あり: C-1397 claim（パッド R の走行中ホールド化——NN/g 第 5 原則の §12 増築・クリエイター 02:39）。辛口ユーザー 100 巡目（取り込み部分失敗の正直さ）実行中——仕掛かり 2 本進行中で異常なし。
+2026-09-08 02:55 UTC 辛口ユーザー C-1482 完了（100 巡目・別面=取り込みの部分失敗の正直さ（背景リフレッシャ状態）・前回=複数ターン話題転換 C-1481・refresher_reports_partial_failure 6→10・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 7/8/9/7/9・board exit 0・`RefreshStatus` に repositories_failed を追加＝ある repo が持続的に取り込み失敗しても他が成功すれば「成功」と偽っていた状態面に、直近 tick の失敗 repo 数を正直に出す〔回復で 0 に戻る〕・consecutive_failures/last_success の意味は不変・全体例外の記録も不変）
