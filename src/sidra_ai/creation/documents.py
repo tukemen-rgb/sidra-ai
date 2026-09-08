@@ -71,6 +71,21 @@ _TITLE_KIND_SUFFIX = re.compile(
 #: the tail so a subject that merely contains 「について」 mid-phrase is untouched.
 _TITLE_ABOUT_SUFFIX = re.compile(r"(?:について(?:の)?|に関して(?:の)?|に関する)$")
 
+#: The file format a request names to say how to render the document
+#: (「売上のレポートをWordで作って」「競合分析をPDFでまとめて」). C-1484, the document
+#: twin of the deck C-1465. The tail-anchored kind strip cannot reach a kind word
+#: pushed off the tail by a trailing 「…をWordで」, and the format word is not a
+#: kind word, so it rode into the title (「売上のレポートをWord」). Gated to a
+#: preceding を/の - which is where the instrumental phrase puts the format word,
+#: and which キーワード/パスワード never satisfy (their ワード follows ス/ー), so a
+#: subject that merely ends in ワード survives; a bare leading 「Wordで報告書」
+#: (no subject to corrupt) fails the lookbehind and is left alone rather than
+#: peeled to nothing.
+_DOC_FORMAT_SUFFIX = re.compile(
+    r"(?<=[をの])(?:ワード|エクセル|word|excel|pdf|docx|xlsx)$",
+    re.IGNORECASE,
+)
+
 
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
@@ -90,6 +105,7 @@ def _title_from(request: str) -> str:
     peeled = stripped
     while True:
         step = re.sub(r"[をのはがにで]+$", "", peeled).strip()
+        step = _DOC_FORMAT_SUFFIX.sub("", step).strip()
         step = _TITLE_KIND_SUFFIX.sub("", step).strip()
         step = _TITLE_ABOUT_SUFFIX.sub("", step).strip()
         if step == peeled:

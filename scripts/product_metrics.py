@@ -1217,6 +1217,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1484: the document twin of the deck C-1465. A request that named the file
+    # format (「売上のレポートをWordで作って」) left the format word on the cover -
+    # 「売上のレポートをWord」 - because the tail-anchored kind strip could not reach
+    # a kind word pushed off the tail by 「…をWordで」. The title now peels a format
+    # word that sits right after を/の, which real subjects (キーワード/パスワード)
+    # never satisfy, so the subject survives and the format word drops.
+    from sidra_ai.evals.document_title_drops_format_words import (
+        evaluate_document_title_drops_format_words,
+    )
+
+    doc_fmt_title = evaluate_document_title_drops_format_words()
+    c.add(
+        "document_title_drops_format_words",
+        "ドキュメントの表題が依頼のファイル形式語（Word/PDF等）を残さない",
+        10.0 * doc_fmt_title.checks_passed / doc_fmt_title.checks_total,
+        detail=f"{doc_fmt_title.checks_passed}/{doc_fmt_title.checks_total} checks; "
+               "src/sidra_ai/evals/document_title_drops_format_words.py"
+               + ("" if doc_fmt_title.passed
+                  else "; " + "; ".join(doc_fmt_title.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1468: the standalone twin of C-1453. A subject-less phrase as a first
     # message (「もっと詳しく」) has no previous question to carry and no subject of
     # its own, so the honesty floor could not rule and a generic glue hit was
