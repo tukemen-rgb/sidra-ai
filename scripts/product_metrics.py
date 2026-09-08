@@ -893,6 +893,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1485: the GIF follow-through to the document C-1467/C-1255. gifs._title_from
+    # stripped a trailing kind word once and never the about-phrase, so stacked
+    # kind words (「猫のアニメーションGIF」→「猫のアニメーション」) and about-phrases
+    # (「海に関するアニメGIF」→「海に関する」) kept the inner word on the cover and in
+    # the summary. It now peels particle/kind/about repeatedly until a subject stays.
+    from sidra_ai.evals.gif_title_drops_stacked_kind_and_about import (
+        evaluate_gif_title_drops_stacked_kind_and_about,
+    )
+
+    gif_title = evaluate_gif_title_drops_stacked_kind_and_about()
+    c.add(
+        "gif_title_drops_stacked_kind_and_about",
+        "GIF の題名が積み重なった種名や about 句を残さない",
+        10.0 * gif_title.checks_passed / gif_title.checks_total,
+        detail=f"{gif_title.checks_passed}/{gif_title.checks_total} checks; "
+               "src/sidra_ai/evals/gif_title_drops_stacked_kind_and_about.py"
+               + ("" if gif_title.passed else "; " + "; ".join(gif_title.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1266: the exfiltration_ja detector matched any secret word … 教えて, so
     # 「パスワードの再設定手順を教えて」 (a how-to question) was quarantined while
     # blunter injections passed. It now tolerates a 手順/方法 between the secret

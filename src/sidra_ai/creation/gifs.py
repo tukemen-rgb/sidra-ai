@@ -274,17 +274,32 @@ _TITLE_KIND_SUFFIX = re.compile(
     r"の?(?:アニメーション|アニメ画像|アニメgif|アニメ|gif|animation)$", re.IGNORECASE
 )
 
+#: The 「について/に関する」 phrase a request points its subject with, so
+#: 「海に関するアニメGIF」 does not title 「海に関する」 (C-1485, the GIF twin of the
+#: document C-1255). Anchored to the tail so a subject that merely contains it
+#: mid-phrase is untouched.
+_TITLE_ABOUT_SUFFIX = re.compile(r"(?:について(?:の)?|に関して(?:の)?|に関する)$")
+
 
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって|出力して)", request)[0]
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     # The subject alone: 「猫のGIF」 says GIF in its title and again in the summary
-    # 「…のアニメ GIF」 (C-1265). Dropped only when a subject remains, exposed
-    # particle cleaned after; a bare 「GIFを作って」 keeps its default title.
-    trimmed = _TITLE_KIND_SUFFIX.sub("", stripped).strip()
-    trimmed = re.sub(r"[をのはがにで]+$", "", trimmed).strip()
-    if trimmed:
-        stripped = trimmed
+    # 「…のアニメ GIF」 (C-1265). C-1485: peel the trailing particle, kind word and
+    # about-phrase repeatedly - a request stacks two kind words (「猫のアニメーション
+    # GIF」) or an about-phrase behind a kind word (「海に関するアニメGIF」), and
+    # stripping each once left the inner word on the cover. Each pass only shrinks,
+    # so the equality check terminates it; a bare 「GIFを作って」 keeps its default.
+    peeled = stripped
+    while True:
+        step = re.sub(r"[をのはがにで]+$", "", peeled).strip()
+        step = _TITLE_KIND_SUFFIX.sub("", step).strip()
+        step = _TITLE_ABOUT_SUFFIX.sub("", step).strip()
+        if step == peeled:
+            break
+        peeled = step
+    if peeled:
+        stripped = peeled
     return stripped[:60] or "アニメ画像"
 
 
