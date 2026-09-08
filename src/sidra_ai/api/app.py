@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import hmac
+import threading
 import time
 from collections import OrderedDict, deque
 from pathlib import Path
@@ -87,6 +88,20 @@ class RateLimiter:
         self.per_minute = per_minute
         self.max_clients = max_clients
         self._hits: OrderedDict[str, deque[float]] = OrderedDict()
+        #: The chat route is a synchronous endpoint, so requests are served
+        #: from a thread pool and several can be inside `check` at once. Its
+        #: shape is check-then-act - read the window's length, decide, then
+        #: append - and the interpreter is free to switch threads between the
+        #: reading and the appending. Every thread that read the length before
+        #: any of them appended is then let through.
+        #:
+        #: Reproduced by shortening the switch interval: 64 threads against a
+        #: limit of 60 let **100** requests through in one window. Rare on an
+        #: idle machine and not rare under the load a limiter exists for.
+        #:
+        #: The critical section is a few microseconds of list work, so there
+        #: is nothing to weigh against holding it.
+        self._lock = threading.Lock()
 
     @staticmethod
     def _prune_window(window: deque[float], now: float) -> None:
@@ -104,6 +119,10 @@ class RateLimiter:
             del self._hits[client]
 
     def check(self, client: str) -> bool:
+        with self._lock:
+            return self._check_locked(client)
+
+    def _check_locked(self, client: str) -> bool:
         now = time.monotonic()
         window = self._hits.get(client)
 

@@ -26,6 +26,8 @@ for a different scale is how a filter stops meaning what its author meant.
 
 from __future__ import annotations
 
+import threading
+
 import abc
 import math
 import os
@@ -144,6 +146,14 @@ class EmbeddingRetriever(Retriever):
         #: over whatever the lexical pass shortlisted, not a recency-skewed
         #: workload, so LRU's bookkeeping would cost more than it saves.
         self._vector_cache_max = 200_000
+        #: The memo is shared by every thread the server answers from, and
+        #: "clear if full, then write" is two steps. Without this a clear
+        #: landing between them left a thread reading a key it had just
+        #: written and finding it gone - handled, but by degrading the answer
+        #: to the lexical order rather than by being correct. The lock covers
+        #: only dictionary work; the model call stays outside it, so two
+        #: questions still encode in parallel.
+        self._vector_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     @property
@@ -212,7 +222,10 @@ class EmbeddingRetriever(Retriever):
         # before. One batched call either way, so a cold cache costs exactly
         # what the uncached version cost and a warm one costs the query alone.
         wanted = [c.content for c in candidates]
-        missing = list(dict.fromkeys(t for t in wanted if t not in self._vectors))
+        with self._vector_lock:
+            missing = list(
+                dict.fromkeys(t for t in wanted if t not in self._vectors)
+            )
         try:
             vectors = self._backend.encode([query] + missing)
         except Exception:  # noqa: BLE001 - ranking must not become an outage
@@ -223,14 +236,19 @@ class EmbeddingRetriever(Retriever):
             return candidates[:top_k]
 
         query_vector = vectors[0]
-        if missing:
-            if len(self._vectors) + len(missing) > self._vector_cache_max:
-                self._vectors.clear()
-            self._vectors.update(zip(missing, vectors[1:]))
-        try:
-            chunk_vectors = [self._vectors[text] for text in wanted]
-        except KeyError:  # noqa: PERF203 - a cleared cache mid-update is not fatal
-            return candidates[:top_k]
+        fresh = dict(zip(missing, vectors[1:]))
+        with self._vector_lock:
+            if missing:
+                if len(self._vectors) + len(missing) > self._vector_cache_max:
+                    self._vectors.clear()
+                self._vectors.update(fresh)
+            try:
+                chunk_vectors = [
+                    self._vectors[text] if text in self._vectors else fresh[text]
+                    for text in wanted
+                ]
+            except KeyError:  # noqa: PERF203 - a racing clear is not fatal
+                return candidates[:top_k]
         semantic_order = sorted(
             range(len(candidates)),
             key=lambda i: cosine(query_vector, chunk_vectors[i]),
