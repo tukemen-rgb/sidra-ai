@@ -127,6 +127,84 @@ def http_ask(base: str, token: str = ""):
     return ask
 
 
+#: What a failure to reach the server means, and what to do about it.
+#:
+#: The owner has seen the old behaviour: fifteen identical
+#: ``NG ... (URLError)`` lines and no idea which of "the server is not
+#: running", "the token is wrong" and "the model is loading" he was looking
+#: at. A class name is not a diagnosis, and repeating it once per question
+#: makes one fact look like fifteen failures.
+#:
+#: ``fatal`` means the cause cannot change between questions, so asking the
+#: remaining fourteen learns nothing and only delays the message.
+def diagnose(exc: BaseException) -> tuple[str, bool]:
+    """A Japanese explanation and next step for a failed request."""
+
+    import http.client
+    import socket
+    import urllib.error
+
+    if isinstance(exc, urllib.error.HTTPError):
+        if exc.code in (401, 403):
+            return (
+                "サーバーには届いていますが、認証で断られました（"
+                f"HTTP {exc.code}）。SIDRA_API_TOKEN を設定しているなら "
+                "--token に同じ値を渡してください。",
+                True,
+            )
+        if exc.code == 429:
+            return (
+                "速度制限にかかりました（HTTP 429）。少し待ってから"
+                "もう一度実行してください。",
+                True,
+            )
+        if 500 <= exc.code < 600:
+            return (
+                f"サーバー内部でエラーになりました（HTTP {exc.code}）。"
+                "サーバーを起動した窓の表示を確認してください。",
+                False,
+            )
+        return (f"サーバーが HTTP {exc.code} を返しました。", True)
+
+    if isinstance(exc, urllib.error.URLError):
+        cause = exc.reason
+        if isinstance(cause, (ConnectionRefusedError, ConnectionResetError)):
+            return (
+                "サーバーに繋がりません。SIDRA が起動していないようです。"
+                "リポジトリの場所で `py -m sidra_ai.api.server` を実行し、"
+                "起動した窓はそのまま開いておいてください（--base の宛先も"
+                "合っているか確認）。",
+                True,
+            )
+        if isinstance(cause, socket.timeout):
+            return (
+                "サーバーが時間内に応答しませんでした。モデルの読み込み中か、"
+                "1 問に 180 秒以上かかっています。",
+                False,
+            )
+        return (
+            f"サーバーに繋がりません（{type(cause).__name__}）。"
+            "--base の宛先と、サーバーが起動しているかを確認してください。",
+            True,
+        )
+
+    if isinstance(exc, (socket.timeout, TimeoutError)):
+        return (
+            "応答が 180 秒以内に返りませんでした。モデルの読み込み中か、"
+            "その 1 問が特に重い可能性があります。",
+            False,
+        )
+    if isinstance(exc, http.client.RemoteDisconnected):
+        return ("サーバーが接続を切りました。サーバー側の表示を確認してください。", False)
+    if isinstance(exc, json.JSONDecodeError):
+        return (
+            "サーバーの応答が JSON ではありませんでした。--base が SIDRA 以外の"
+            "何かを指している可能性があります。",
+            True,
+        )
+    return (f"予期しない失敗（{type(exc).__name__}）。", False)
+
+
 def main(ask=None) -> int:
     """Ask every question and print the three axes.
 
@@ -150,12 +228,36 @@ def main(ask=None) -> int:
     scored = {axis: [0, 0] for axis in ("jp", "cite", "honest")}
     asked = 0
     echo_mode = False
+    stopped = ""
     for question, kind in QUESTIONS:
         try:
             payload = ask(question)
         except Exception as exc:  # noqa: BLE001 - a dead server is the finding
-            print(f"NG  {question[:24]}  ({type(exc).__name__})")
+            # A class name is not a diagnosis, and one broken machine printed
+            # once per question looks like fifteen separate failures. Say what
+            # it means and, when the cause cannot change between questions,
+            # stop rather than repeat it fourteen more times.
+            message, fatal = diagnose(exc)
+            print(f"NG  {question[:24]}  {message}")
+            if fatal:
+                stopped = message
+                break
             continue
+
+        # The server answered, but said it could not reach the model. Scoring
+        # that as prose would report an empty answer as a *language* failure -
+        # the very incident this instrument exists to catch - while the real
+        # cause is that nothing generated anything. It is also the same for
+        # every question, so it is reported once.
+        if payload.get("refusal") == "model_unavailable":
+            stopped = (
+                "サーバーは動いていますが、ローカルモデルに繋がっていません。"
+                "Ollama / llama.cpp が起動しているか、サーバー起動時の "
+                "「model backend」が echo のままになっていないかを確認してください。"
+            )
+            print(f"NG  {question[:24]}  {stopped}")
+            break
+
         asked += 1
         answer = payload.get("answer") or ""
         # ``model`` is an object (backend, name, token estimates, cost), not
@@ -185,6 +287,14 @@ def main(ask=None) -> int:
         )
 
     print("-" * 56)
+    if stopped:
+        # Nothing below this line would mean anything: the denominators
+        # describe the questions that were actually asked, and the run ended
+        # early on purpose.
+        print("測定を中止しました（同じ原因で残りも失敗するため）。")
+        print(stopped)
+        print(f"回答できたのは {asked}/{len(QUESTIONS)} 問。原因を直してから再実行してください。")
+        return 1
     if echo_mode:
         print("echo backend detected: language numbers describe echo, not the model")
     print(f"設問 {asked}/{len(QUESTIONS)} 問に回答")
