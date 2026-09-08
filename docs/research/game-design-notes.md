@@ -422,7 +422,24 @@ URL はすべて 2026-09-03 に実際に開いて確認。
   押しっぱなしが 1 歩で止まる。
   （出典: https://developer.mozilla.org/en-US/docs/Games/Techniques/Control_mechanisms/Desktop_with_mouse_and_keyboard）
 - SIDRA での反映先: C-1328（catch の押しっぱなし移動——10 型で唯一の
-  keydown 刻み移動をフラグ＋毎フレームに）
+  keydown 刻み移動をフラグ＋毎フレームに）**→ 反映済み**
+- 事実 4（増築 2026-09-08・辛口クリエイターループ。URL は同日に実際に
+  開いて確認）: NN/g ユーザビリティ 10 原則の**第 5 原則 Error
+  Prevention**——「the best designs carefully prevent problems from
+  occurring in the first place. Either eliminate error-prone conditions,
+  or check for them and present users with a confirmation option before
+  they commit to the action.」エラーは slips（不注意の無意識エラー）と
+  mistakes（誤解の意識エラー）に分かれ、**破壊的操作の前には確認の壁**。
+  第 3 原則も Undo/Redo と明確な出口を求める。
+  （出典: https://www.nngroup.com/articles/ten-usability-heuristics/）
+- 学び: SIDRA の R は走行中でも**即時全消し**。キーボードの R は意図的な
+  手の移動だが、**パッドの R ボタンは A（アクション）の真上**——親指の
+  slip 1 回で 50 秒のランが無警告で消える、事実 4 の言う error-prone
+  condition そのもの。確認ダイアログは大げさ・§8 の即リトライは殺せない
+  ので、**走行中のパッド R だけ hold-to-fire（30f・進捗バー付き）**、
+  終了画面（roundEnded）は従来どおり即時。キーボード経路は不変。
+- SIDRA での反映先: C-1397（パッド R の走行中ホールド化・判定器
+  creation_pad_restart_guard）
 
 ## 13. リスクリワードとコンボ（外部調査 2026-09-03・進捗監視ループ）
 
