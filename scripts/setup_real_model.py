@@ -66,9 +66,55 @@ def _ollama(endpoint: str, path: str, payload: dict | None = None) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
+def choose_model(requested: str, installed: list[str]) -> tuple[str, str]:
+    """Which Ollama tag to describe, and what to say about the choice.
+
+    Returns ``(tag, message)``; an empty tag means "stop and read the message".
+
+    This used to default to a hard-coded ``qwen2.5:3b``, and that default cost
+    the owner a round trip on the machine this script exists for: his tag is
+    ``qwen2.5:3b-instruct-q4_K_M``, so a plain run failed with "that model is
+    not installed" while the model he wanted sat right there. A default that
+    names a specific tag is authoritative-looking and wrong on any machine
+    that pulled a different quantization - which is every machine, because the
+    quantization is chosen for the card.
+
+    So there is no default now. With one model installed there is nothing to
+    guess; with several, the script lists them and stops, because picking one
+    for somebody is the same guessing this file refuses to do elsewhere
+    ("量子化ラベルが取得できません（推測では書きません）").
+    """
+
+    if requested:
+        if requested in installed:
+            return requested, ""
+        return "", (
+            f"NG  モデル {requested!r} が Ollama に入っていません\n"
+            "    入っているモデル: " + (", ".join(sorted(installed)) or "(なし)")
+        )
+
+    if not installed:
+        return "", (
+            "NG  Ollama にモデルが 1 つも入っていません\n"
+            "    先に `ollama pull <モデル名>` で取得してください"
+        )
+    if len(installed) == 1:
+        only = installed[0]
+        return only, f"    --model の指定が無いので、入っている 1 つを使います: {only}"
+    return "", (
+        "NG  どのモデルを設定するか決められません（入っているものが複数あります）\n"
+        "    入っているモデル: " + ", ".join(sorted(installed)) + "\n"
+        "    --model にそのうち 1 つを指定して再実行してください"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", default="qwen2.5:3b", help="Ollama model tag")
+    parser.add_argument(
+        "--model",
+        default="",
+        help="Ollama のモデルタグ。省略すると、入っているものが 1 つならそれを使う",
+    )
     args = parser.parse_args()
 
     endpoint = os.environ.get("SIDRA_MODEL_ENDPOINT", "http://127.0.0.1:11434")
@@ -87,11 +133,14 @@ def main() -> int:
         return 1
 
     records = {item.get("name", ""): item for item in tags.get("models", [])}
-    record = records.get(args.model)
-    if record is None:
-        print(f"NG  モデル {args.model!r} が Ollama に入っていません")
-        print("    入っているモデル: " + (", ".join(sorted(records)) or "(なし)"))
+    model, note = choose_model(args.model, sorted(records))
+    if not model:
+        print(note)
         return 1
+    if note:
+        print(note)
+    args.model = model
+    record = records[model]
 
     size_bytes = int(record.get("size") or 0)
     if size_bytes <= 0:
