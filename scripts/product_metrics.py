@@ -651,6 +651,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1483: the report (.md) was the one HTML-bearing artifact that did not
+    # escape fact/request content, so a <script> from an EXTERNAL-trust Issue/PR
+    # body rode through the index into the document raw - a stored XSS when the
+    # .md is opened in a Markdown renderer that permits inline HTML.
+    from sidra_ai.evals.document_escapes_html_in_evidence import (
+        evaluate_document_escapes_html_in_evidence,
+    )
+
+    doc_escape = evaluate_document_escapes_html_in_evidence()
+    c.add(
+        "document_escapes_html_in_evidence",
+        "レポートが事実/依頼文の HTML をエスケープし XSS を無害化する",
+        10.0 * doc_escape.checks_passed / doc_escape.checks_total,
+        detail=f"{doc_escape.checks_passed}/{doc_escape.checks_total} checks; "
+               "src/sidra_ai/evals/document_escapes_html_in_evidence.py"
+               + ("" if doc_escape.passed else "; " + "; ".join(doc_escape.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1256: generative art has two patterns and any request that names
     # neither silently became flow, with the summary saying only 「パターン:
     # flow」. Games decline unsupported requests and list what they can make;

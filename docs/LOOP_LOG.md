@@ -9025,3 +9025,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 05:17 UTC 辛口ユーザー started（103 巡目・別面=生成物のエスケープ/XSS＝外部信頼（Issue/PR 本文）由来の事実や依頼文に <script> 等の HTML を仕込んだとき、デッキ HTML（および文書/GIF 等の生成物）の全注入点〔bullet・出典・タイトル・h1/title〕でエスケープされ、ブラウザ/file:// で開いても実行されないかを実際に動かして点検。前回=英語タイトル抽出 no-op→E 節）
 2026-09-08 06:08 UTC ループA started
 2026-09-08 06:09 UTC ループA no-op キューが空（開いている項目 9 件はすべて E節 8・F節 1、着手可能な D 項目なし。作業中 0 件。Board=13）
+
+2026-09-08 05:55 UTC 辛口ユーザー C-1483 完了（103 巡目・別面=生成物のエスケープ/XSS・前回=英語タイトル no-op→E 節・document_escapes_html_in_evidence 4→11〔metric 3.636→10〕・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 9/8/10/9/10・board exit 0・文書 .md が事実/依頼文/出典の HTML を escape() で無害化＝外部信頼 Issue/PR 本文の <script> 経由の格納型 XSS を塞ぐ・デッキ/アート/ゲーム/3D は既済・ask UI は textContent 安全・検出器非変更で gate 対象外）

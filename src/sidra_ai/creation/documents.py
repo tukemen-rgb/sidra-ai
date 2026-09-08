@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 
 from sidra_ai.creation.evidence import NUMBER, Fact, plain_text
@@ -124,11 +125,22 @@ def generate_document(
     """
 
     title = _title_from(request)
+    # C-1483: the deck/art/game/3D preview all run fact and request text through
+    # `escape()` before it enters their HTML; the report (.md) did not, so a
+    # `<script>` on a fact or in the request title - allowed into the index by
+    # the gate, which screens for secrets and injection, not HTML - was written
+    # raw and ran when the file was opened in a Markdown renderer that permits
+    # inline HTML. Escape at markdown-construction: the tag then shows as the
+    # literal text the source held. `title` stays raw for `.title` and the number
+    # check; `safe_title` is the escaped form the document displays. quote=False
+    # keeps apostrophes/quotes literal for a file meant to be read and edited -
+    # neutralising `<`, `>` and `&` is what stops a tag from forming.
+    safe_title = escape(title, quote=False)
     stamp = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
     retrieved = [fact for fact in (facts or []) if fact.text.strip()]
     sources = list(dict.fromkeys(fact.source for fact in retrieved if fact.source))
 
-    lines: list[str] = [f"# {title}", "", f"> SIDRA AI が {stamp} に生成。数字はすべて下の出典から。", ""]
+    lines: list[str] = [f"# {safe_title}", "", f"> SIDRA AI が {stamp} に生成。数字はすべて下の出典から。", ""]
     unfilled: list[str] = []
 
     # The module's rule - a number appears only if it was retrieved - held for
@@ -158,7 +170,7 @@ def generate_document(
         # what the document *is* instead. No digit reaches the line, so the
         # fabrication validator has nothing to catch.
         lines += [
-            f"この文書は「{title}」について、索引した資料から見つかった根拠を"
+            f"この文書は「{safe_title}」について、索引した資料から見つかった根拠を"
             "出典つきで下に整理したものです。"
             "確定していない点は〔社長が埋める欄〕として残しています。",
             "",
@@ -194,7 +206,7 @@ def generate_document(
                 sources_by_text[text].append(label)
         for text in order:
             labels = " / ".join(sources_by_text[text])
-            lines.append(f"- {text}（出典: {labels}）")
+            lines.append(f"- {escape(text, quote=False)}（出典: {escape(labels, quote=False)}）")
     else:
         lines.append(f"- {BLANK}")
         unfilled.append("わかっていること")
@@ -218,7 +230,7 @@ def generate_document(
 
     lines += ["## 出典", ""]
     if sources:
-        lines += [f"- {source}" for source in sources]
+        lines += [f"- {escape(source, quote=False)}" for source in sources]
     else:
         lines.append("- （この依頼で索引から根拠は見つかりませんでした）")
     lines.append("")
