@@ -1337,6 +1337,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1480: ART carried the fewest English cues; Japanese 「壁紙」「アート」 route
+    # to ART but English "wallpaper"/"abstract art"/"digital art" fell to UNKNOWN,
+    # so an English speaker could not reach the abstract art SIDRA makes.
+    from sidra_ai.evals.creation_english_art_parity import (
+        evaluate_creation_english_art_parity,
+    )
+
+    en_art = evaluate_creation_english_art_parity()
+    c.add(
+        "creation_english_art_parity",
+        "英語の「壁紙/抽象アート」依頼が ART 生成器へ届く",
+        10.0 * en_art.checks_passed / en_art.checks_total,
+        detail=f"{en_art.checks_passed}/{en_art.checks_total} checks; "
+               "src/sidra_ai/evals/creation_english_art_parity.py"
+               + ("" if en_art.passed else "; " + "; ".join(en_art.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1283: the summary discloses the fish default (C-1267) but the preview
     # HTML - the artifact opened in a browser and forwarded - was titled by the
     # subject over a fish mesh with no word of it, the silent artifact C-1281

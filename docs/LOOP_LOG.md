@@ -8961,3 +8961,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-08 00:24 進捗監視 前進あり: C-1394 claim（SFX の定位——StereoPanner・§2 増築・クリエイター 00:01）。ループA 00:09 no-op は正常（E 節に社長判断待ちが 8 件へ増加＝帰国 9/19 後に一括判断できるよう板が整っている状態）。C-1393 の push 後全量 pytest 4355 緑も記録済み。
 2026-09-08 00:55 UTC 辛口クリエイター C-1394 完了（98 巡目・観点 §2（増築 StereoPanner）前回=§4（GAG 動きオフ）・creation_sfx_pan unmeasurable→2・shooter 撃墜/kaiju 脚打が発生位置から聞こえる（pan=(x/W*2-1)*0.8 桁一致・位置なし音は panner 0・graceful fallback）・破壊 4 通り検出・pytest 4359 緑・gate MISS 0・judge exit 0）
+2026-09-08 00:50 UTC 辛口ユーザー C-1480 完了（98 巡目・別面=制作意図の英語 cue 網羅（ART）・前回=英語 Q&A no-op→E 節・creation_english_art_parity 7→10・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 9/9/9/8/9・board exit 0・ART の英語 cue に wallpaper/abstract art/digital art を追加＝日本語 壁紙/アート で作れる抽象アートに英語も到達・素の art は chart/part 誤爆で不採用・具象 illustration/drawing は日英とも辞退維持）

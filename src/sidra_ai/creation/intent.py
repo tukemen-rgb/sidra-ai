@@ -233,6 +233,13 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "壁紙",
         "generative art",
         "artwork",
+        # C-1480: Japanese 「壁紙」「アート」 route here but the English words for
+        # the same abstract art did not, so an English speaker was declined for
+        # what SIDRA can make. Bare "art" stays out - it is a substring of chart,
+        # part, smart and article - so the English cues are the whole phrases.
+        "wallpaper",
+        "abstract art",
+        "digital art",
     ),
 }
 
