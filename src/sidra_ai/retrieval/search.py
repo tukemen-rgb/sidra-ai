@@ -407,7 +407,30 @@ class BM25Retriever:
         self,
         store: DocumentStore,
         *,
-        k1: float = 1.5,
+        #: Term-frequency saturation. 1.2 is what Lucene and Elasticsearch
+        #: default to; this was 1.5, an outlier with no record of ever having
+        #: been measured on this corpus. Moving to the standard value is the
+        #: change - not tuning to an optimum found on our own 38 questions.
+        #:
+        #: Measured over the five repositories before adopting it. BM25 alone,
+        #: which is what the owner runs today: answered 15 -> 16, paraphrase
+        #: 2 -> 3, MRR 0.293 -> 0.302, direct and discrimination unchanged.
+        #: With the reranker: every count identical (18/13/5), MRR
+        #: 0.349 -> 0.353. The plateau is broad - 0.6, 0.9 and 1.2 give the
+        #: identical reading - which is what a real effect looks like rather
+        #: than a tie-break landing well; 2.0 is worse on every axis (14/38).
+        #:
+        #: **The hypothesis that motivated the sweep was wrong, and that is
+        #: recorded rather than buried.** Five direct-wording questions miss
+        #: while their answering chunk sits at lexical rank 11-130, beaten by
+        #: long generated logs that repeat one query word. Lower saturation
+        #: should have helped exactly that, and it fixed *none* of the five at
+        #: any value. The small gain here therefore comes from somewhere the
+        #: diagnosis does not explain, and those five stay open (C-1163).
+        k1: float = 1.2,
+        #: Length normalisation, at the textbook value. Chunks are capped at
+        #: 1,200 characters, so there is little length spread for this to act
+        #: on; it has not been swept for that reason.
         b: float = 0.75,
         candidate_source: Any | None = None,
         candidate_pool: int = 0,
