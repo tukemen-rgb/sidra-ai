@@ -153,7 +153,8 @@ function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
   lostBeam:lostBeam||0,lostClash:lostClash||0}}
 function overload(f){f.stun=STUN_FRAMES;f.hold=false;f.charge=0;f.over=0;
   if(!REDUCED){f.sq=0.7}
-  sfx('hurt');shake(9);hitstop(4);burst(f.x,LANES[f.lane],16,'ALERT_JUICE')}
+  /* heard at the fighter it happens to (§2 増築, C-1398) */
+  sfx('hurt',1,f.x/cv.width);shake(9);hitstop(4);burst(f.x,LANES[f.lane],16,'ALERT_JUICE')}
 function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spark=0;mash=0;
   lostBeam=0;lostClash=0;
   rs=(SEED>>>0)||1}
@@ -208,7 +209,11 @@ function cpu(){if(e.stun>0){e.stun--;return}
       e.hitLock=(p.lane===e.beamLane);e.aim=-1;
       e.beam=e.charge;
       e.charge=0;if(flashGate())flash=1;sfx('fire')}}}
-function hit(who){who.hp--;if(flashGate())flash=1;sfx('hurt');
+function hit(who){who.hp--;if(flashGate())flash=1;
+  /* WHO got hit is a left-or-right fact - the ear learns it too (§2
+     増築, C-1398): the struck fighter's own x, the same one the burst
+     and the knock already use. */
+  sfx('hurt',1,who.x/cv.width);
   who.hurt=8;who.smoke=34;
   if(!REDUCED){who.sq=0.7}
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
@@ -717,7 +722,81 @@ def squash_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The blow, heard on the side it landed (§2 増築, C-1398): the real
+#: volley drive from BEAT_PROBE - the player's beam onto the stunned CPU,
+#: then the CPU's own volley onto the standing player - and each hit's
+#: recorded pan must match the struck fighter's x through (x/W*2-1)*0.8,
+#: while fire/charge/clash and every other positionless sound builds no
+#: panner at all.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const keyHandlers = [];
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') keyHandlers.push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
+const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+keyHandlers.forEach(fn => fn(press));
+run(2);
+const before = pans.length;
+/* The player's volley onto the stunned CPU (BEAT_PROBE's drive). */
+p.hold = true; run(40);
+e.stun = 400; e.lane = p.lane; e.hold = false; e.beam = 0;
+fire(p);
+let guard = 0;
+while (e.hp === 3 && guard++ < 120) run(1);
+const eHitPans = pans.slice();
+/* Then the CPU's own volley on the standing player. */
+e.stun = 0;
+guard = 0;
+while (p.hp === 3 && guard++ < 2000) run(1);
+console.log(JSON.stringify({ before: before, eHp: e.hp, pHp: p.hp,
+  pans: pans,
+  expected: [(e.x / cv.width * 2 - 1) * 0.8, (p.x / cv.width * 2 - 1) * 0.8] }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so each blow's stereo side can be
+    read off the audio graph."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "PAN_PROBE",
+    "pan_probe",
     "DUEL_DIFFICULTY",
     "DUEL_HOW",
     "DUEL_SCRIPT",

@@ -8064,6 +8064,7 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.fishing import pan_probe as _fi_pan
     from sidra_ai.creation.kaiju import pan_probe as _kj_pan
     from sidra_ai.creation.shooter import pan_probe as _sh_pan
+    from sidra_ai.creation.duel import pan_probe as _du_pan
 
     pan_gaps: list[str] = []
     for _pn_key, _pn_builder, _pn_req in (
@@ -8074,6 +8075,9 @@ def measure_creation(c: Collector) -> None:
         # falling fruit), left centred by C-1394's first pass.
         ("fishing", _fi_pan, "魚釣りゲームを作って"),
         ("catch", _ct_pan, "フルーツキャッチを作って"),
+        # C-1398: the fifth body - the one template whose whole subject
+        # is left versus right, where the ear finally learns WHO was hit.
+        ("duel", _du_pan, "光線で撃ち合う対戦ゲームを作って"),
     ):
         _pn_page = generate_game(
             _pn_req,
@@ -8120,7 +8124,7 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_sfx_pan",
         "音が起きた場所から聞こえる型（実撃）",
-        0.0 if pan_gaps else 4.0,
+        0.0 if pan_gaps else 5.0,
         detail=(
             "; ".join(pan_gaps)
             if pan_gaps
@@ -8129,7 +8133,7 @@ def measure_creation(c: Collector) -> None:
             "果実の x で）の全 pan が (x/W*2-1)*0.8 と桁まで一致・位置なしの"
             "音は panner を 1 つも作らない（§2 増築 StereoPannerNode・±0.8・"
             "graceful fallback。C-1394 の 2 体に横位置がゲームそのものの "
-            "2 体を追加＝4 体）"
+            "2 体と、左右対決そのものの duel（実打ち合いで CPU 被弾 +0.556/プレイヤー被弾 -0.556）を加え 5 体）"
         ),
         kind=OUTCOME,
     )
