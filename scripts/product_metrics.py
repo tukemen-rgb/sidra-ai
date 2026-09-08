@@ -17890,6 +17890,40 @@ def measure_retrieval_scale(c: Collector) -> None:
     # the query itself is re-deriving a vector it already holds.
     from sidra_ai.retrieval.embedding import EmbeddingRetriever
 
+    class _WalkCountingStore:
+        """Passes the store through and counts provenance reads on chunks.
+
+        Eligibility is decided by reading each chunk's provenance, so counting
+        those reads counts the walk without a clock.
+        """
+
+        def __init__(self, inner) -> None:
+            self._inner = inner
+            self.provenance_reads = 0
+
+        def chunks(self):
+            outer = self
+
+            class _Counted:
+                def __init__(self, chunk) -> None:
+                    self._chunk = chunk
+
+                def __getattr__(self, name):
+                    if name == "provenance":
+                        outer.provenance_reads += 1
+                    return getattr(self._chunk, name)
+
+                def __eq__(self, other):
+                    return self._chunk == getattr(other, "_chunk", other)
+
+                def __hash__(self):
+                    return hash(self._chunk)
+
+            return [_Counted(chunk) for chunk in self._inner.chunks()]
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
     class _CountingBackend:
         name = "counting-stub"
 
@@ -17950,6 +17984,55 @@ def measure_retrieval_scale(c: Collector) -> None:
                 "機械の負荷では動かない。実測（e5-small・実コーパス）では"
                 "この違いが検索 p50 **3,316ms → 40ms**。判定器の 4 数字は"
                 "**1 つも動かない**（40 問の上位 5 件が全問一致することを確認済み）"
+            )
+        ),
+    )
+
+    # --- narrowing the corpus should cost less, not more ----------------
+    #
+    # Measured before the fix, at 32,820 chunks: 9.8 ms unfiltered against
+    # 189 ms narrowed to one repository. Asking for a fifth of the corpus
+    # took 19x the time, because the eligible set and its filter-scoped BM25
+    # statistics were rebuilt from the whole index on every call.
+    #
+    # Counted, not timed, like the numbers above: what is watched is how many
+    # chunks a *repeat* filtered search has to look at to decide eligibility.
+    # A first call has to walk; a second identical one is re-deriving a set it
+    # already holds.
+    walk_gaps: list[str] = []
+    walked_repeat = -1
+    try:
+        counting_store = _WalkCountingStore(store)
+        walk_retriever = BM25Retriever(counting_store)
+        scoped = [repository]
+        walk_retriever.search(questions[0], top_k=5, repositories=scoped)
+        counting_store.provenance_reads = 0
+        walk_retriever.search(questions[0], top_k=5, repositories=scoped)
+        walked_repeat = counting_store.provenance_reads
+    except Exception as exc:  # noqa: BLE001 - a broken probe is not a number
+        walk_gaps.append(f"{type(exc).__name__}: {exc}")
+
+    c.add(
+        "retrieval_repeat_filter_walk",
+        "同じ絞り込み検索をもう一度したときに素性を読み直す断片の数（少ないほど良い）",
+        float(max(walked_repeat, 0)),
+        unit="断片",
+        direction="down",
+        kind=OUTCOME,
+        detail=(
+            "; ".join(walk_gaps)
+            if walk_gaps
+            else (
+                f"2 回目の絞り込み検索が素性を読んだ断片は **{walked_repeat} 件**"
+                f"（索引は {total} 断片）。絞り込みの対象集合とその統計は"
+                "索引と絞り込み条件だけで決まるので、毎回作り直すのは答えの"
+                "分かっている計算のやり直し。実測ではこの違いが"
+                "**189ms → 24ms**（32,820 断片・1 リポジトリへ絞った場合）。"
+                "索引が変われば覚えた集合は捨てる（`_ensure_index`）ので、"
+                "取り込み直後の検索が古い集合を返すことはない"
+                "。**この数字が見るのは省いた仕事であって、古い集合を返さない"
+                "ことではない**——後者は tests/test_retrieval_caches.py の担当で、"
+                "無効化を外すとそちらが落ちることを確認している"
             )
         ),
     )

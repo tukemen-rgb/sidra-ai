@@ -397,6 +397,11 @@ class BM25Retriever:
         self.b = b
         self.candidate_source = candidate_source
         self.candidate_pool = candidate_pool
+        #: Eligible positions and filter-scoped BM25 statistics, per filter.
+        #: See the note in `search`: both are pure functions of the index and
+        #: the filter, and rebuilding them per call is what made a narrowed
+        #: search 19x slower than an unnarrowed one.
+        self._filter_cache: dict[tuple[Any, ...], tuple[tuple[int, ...], Counter, int]] = {}
         self._chunks: tuple[Chunk, ...] = ()
         self._term_frequencies: list[Counter[str]] = []
         self._lengths: list[int] = []
@@ -404,11 +409,33 @@ class BM25Retriever:
         self._average_length = 0.0
         self._indexed_count = -1
 
+    #: How many distinct filters to remember. The key comes from the caller,
+    #: so an unbounded memo is a memory leak an unusual client could drive.
+    _FILTER_CACHE_MAX = 64
+
+    def _remember_filter(
+        self,
+        key: tuple[Any, ...],
+        positions: tuple[int, ...],
+        document_frequency: Counter,
+        total_length: int,
+    ) -> None:
+        # Cleared whole rather than evicted one at a time: a handful of
+        # filters is the real access pattern, and LRU bookkeeping on that
+        # costs more than it saves.
+        if len(self._filter_cache) >= self._FILTER_CACHE_MAX:
+            self._filter_cache.clear()
+        self._filter_cache[key] = (positions, document_frequency, total_length)
+
     # ------------------------------------------------------------------
     def _ensure_index(self) -> None:
         chunks = tuple(self.store.chunks())
         if self._indexed_count == len(chunks) and self._chunks == chunks:
             return
+
+        # Positions are indices into `self._chunks`; a rebuilt index makes
+        # every remembered set meaningless, so they go together.
+        self._filter_cache.clear()
 
         self._chunks = chunks
         self._term_frequencies = []
@@ -473,35 +500,74 @@ class BM25Retriever:
 
         unfiltered = repository_filter is None and type_filter is None
 
-        eligible_positions: list[int] = []
-        for position, chunk in enumerate(self._chunks):
-            provenance = chunk.provenance
-            if (
-                repository_filter is not None
-                and provenance.repository.lower() not in repository_filter
-            ):
-                continue
-            if type_filter is not None and provenance.source_type not in type_filter:
-                continue
-            eligible_positions.append(position)
+        # Asking for *less* corpus used to cost more time than asking for all
+        # of it - measured at 32,820 chunks: 9.8 ms unfiltered against 189 ms
+        # narrowed to one repository, 19x the wrong way. Nothing about the
+        # narrowing is expensive; what was expensive is that the eligible set
+        # and its BM25 statistics were rebuilt from scratch on every call,
+        # though they depend on nothing but the index and the filter. Both are
+        # memoised here, keyed by the filter, and thrown away wholesale by
+        # `_ensure_index` when the index changes - so a stale set cannot
+        # outlive the chunks it describes.
+        cache_key: tuple[Any, ...] | None = None
+        cached = None
+        if not unfiltered:
+            cache_key = (
+                None if repository_filter is None else frozenset(repository_filter),
+                None if type_filter is None else frozenset(type_filter),
+            )
+            cached = self._filter_cache.get(cache_key)
 
-        if not eligible_positions:
-            return []
-
-        # A filtered search is its own BM25 corpus. Computing IDF/length
-        # statistics from excluded repositories lets unrelated data change a
-        # scoped query's score and can flip ranking or min_score decisions.
-        if unfiltered:
-            filtered_document_frequency = self._document_frequency
-            filtered_total_length = sum(self._lengths)
+        if cached is not None:
+            # The memo holds exactly what the walk below would have produced.
+            eligible_positions = list(cached[0])
+            filtered_document_frequency = cached[1]
+            filtered_total_length = cached[2]
+            if not eligible_positions:
+                return []
         else:
-            filtered_document_frequency = Counter()
-            filtered_total_length = 0
-            for position in eligible_positions:
-                filtered_document_frequency.update(
-                    self._term_frequencies[position].keys()
+            eligible_positions = []
+            for position, chunk in enumerate(self._chunks):
+                provenance = chunk.provenance
+                if (
+                    repository_filter is not None
+                    and provenance.repository.lower() not in repository_filter
+                ):
+                    continue
+                if type_filter is not None and provenance.source_type not in type_filter:
+                    continue
+                eligible_positions.append(position)
+
+            if not eligible_positions:
+                if cache_key is not None:
+                    # An empty result is a fact about the filter too, and
+                    # re-deriving it is the same walk over the whole index.
+                    self._remember_filter(cache_key, (), Counter(), 0)
+                return []
+
+            # A filtered search is its own BM25 corpus. Computing IDF/length
+            # statistics from excluded repositories lets unrelated data change
+            # a scoped query's score and can flip ranking or min_score
+            # decisions.
+            if unfiltered:
+                filtered_document_frequency = self._document_frequency
+                filtered_total_length = sum(self._lengths)
+            else:
+                filtered_document_frequency = Counter()
+                filtered_total_length = 0
+                for position in eligible_positions:
+                    filtered_document_frequency.update(
+                        self._term_frequencies[position].keys()
+                    )
+                    filtered_total_length += self._lengths[position]
+
+            if cache_key is not None:
+                self._remember_filter(
+                    cache_key,
+                    tuple(eligible_positions),
+                    filtered_document_frequency,
+                    filtered_total_length,
                 )
-                filtered_total_length += self._lengths[position]
 
         filtered_total = len(eligible_positions)
         filtered_average_length = filtered_total_length / filtered_total
