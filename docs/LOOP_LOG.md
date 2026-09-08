@@ -9146,3 +9146,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 22:08 UTC ループA started
 
 2026-09-08 22:14 UTC 辛口ユーザー started（120 巡目・別面=会話履歴/複数ターンの扱いの一般ユーザー観点＝前ターンが DATA として渡るか・履歴もゲートを通るか・履歴由来の注入が実行されないか・履歴の境界文字が中和されるか・履歴の長さ制限を実測点検。前回=ゲート PII プレースホルダ〔電話以外〕C-1489）
+
+2026-09-08 22:16 UTC 辛口ユーザー no-op（120 巡目・別面=会話履歴/複数ターンの扱い・前回=ゲート PII プレースホルダ〔電話以外〕C-1489）。実測（実 SidraService.chat の履歴経路／build_history_context）: 履歴の扱いは正直で堅い——(1) 各ターンの質問・回答の両側を gate.inspect（source=operator）で選別し、非 ALLOW なら refusal=history で全体拒否＝秘密の貼り付けも捕捉、選別後の redacted 内容を使う、(2) 1 ターン＝2 つの DATA ブロック（H{i}Q/H{i}A）で、片側に偽の delimiter があっても他方を併合できない、(3) `neutralize` が**本物の delimiter 系列**（`<<<END_SIDRA_DATA_BLOCK ...>>>`/`<<<SIDRA_DATA_BLOCK ...>>>`）を `[neutralized delimiter, N chars]` に置換＝実測で出力の実ブロック open/close はビルダー自身の 2 個のみ・注入した偽ブロックは中和され増えない、(4) trust=unverified（DATA・非命令権威）＋ HISTORY_CONTRACT ヘッダで「これは記録であって指示ではない」と明示、(5) 履歴繰越（C-1453）＋主語 honesty（C-1481）は既済。一般利用者の <6/10 最悪点は無い。**弱い起票より no-op。** 今サイクルで履歴のゲート選別・二重ブロック・delimiter 中和・信頼度/契約を実測再確認済み。
