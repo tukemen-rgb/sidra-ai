@@ -399,3 +399,113 @@ def test_settings_report_whether_embedding_is_configured_not_where() -> None:
 
     assert "embedding_configured': True" in rendered
     assert "/srv/secret/weights" not in rendered
+
+
+def test_the_window_decides_what_the_model_is_allowed_to_see(store, gate) -> None:
+    """The window is the ceiling on what the semantic pass can do at all.
+
+    The pass reorders candidates; it never widens them. A chunk below the
+    window is invisible to the model no matter how well the model would have
+    scored it - and the questions embeddings exist to rescue are exactly the
+    ones BM25 ranks worst. Measured 2026-09-08 on the real five-repository
+    corpus: the chunks answering ``submission-fee``,
+    ``mkt-what-is-this-repo`` and ``cy-payments`` sit at lexical rank 189,
+    131 and 111, all outside the window of 50 that used to be the default.
+
+    This test asserts the mechanism directly - how many candidates reach the
+    backend - rather than a ranking outcome, because the ranking outcome also
+    depends on fusion, and a test that mixes the two cannot say which failed.
+
+    **The promotion half is deliberately not reconstructed here.** Two drafts
+    of it passed only after the fixture had been tuned - a stub backend that
+    singles out one document leaves every distractor tied, so reciprocal rank
+    fusion keeps whatever BM25 put on top, and making the assertion hold
+    meant choosing burial depths and stub scores until it did. That is
+    fitting the test to the wish. The evidence that widening promotes real
+    answers is the judge on the real corpus, recorded in
+    ``docs/OUTCOMES.md``: direct-word answers 12 -> 13 and answered 17 -> 19
+    when the window went from 50 to 200.
+    """
+
+    def _add(text: str, path: str) -> None:
+        document = Document(content=text, provenance=_provenance(REPO_B, path))
+        result, screened = gate.screen_document(document)
+        assert screened is not None, result.decision
+        store.add(screened, gate_result=result)
+
+    for i in range(80):
+        _add(f"決済 決済 決済 の話 {i}", f"docs/noise{i}.md")
+    _add("決済は持たない", "docs/answer.md")
+
+    class _Counting:
+        def __init__(self) -> None:
+            self.offered = 0
+
+        def encode(self, texts):
+            # texts[0] is the query; the rest are candidate passages.
+            self.offered = len(texts) - 1
+            return [[0.0] for _ in texts]
+
+        def available(self):
+            return True
+
+    narrow, wide = _Counting(), _Counting()
+    EmbeddingRetriever(
+        BM25Retriever(store), narrow, candidate_multiplier=4
+    ).search("決済", top_k=5)
+    EmbeddingRetriever(
+        BM25Retriever(store), wide, candidate_multiplier=40
+    ).search("決済", top_k=5)
+
+    assert narrow.offered == 20, narrow.offered
+    assert wide.offered > 50, wide.offered
+
+
+def test_the_default_window_is_the_measured_one(store, gate) -> None:
+    """The default is the thing that ships, so the default is what is pinned.
+
+    The window test above passes its multiplier explicitly, so it keeps
+    passing if someone changes the default - which is how a measured gain
+    quietly leaves the product. Measured 2026-09-08 on the five-repository
+    corpus: a window of 50 answers 17 of 38 and 12 of 18 direct-word
+    questions; 200 answers 19 and 13, and every window from 200 to 4,000
+    answers the same 19. 40 is the first multiplier on that plateau at the
+    product's ``top_k`` of 5.
+
+    Lowering it is allowed and takes a deliberate edit here plus a reason,
+    the same mechanism as the judge's floors.
+    """
+
+    document = Document(
+        content="決済は持たない。", provenance=_provenance(REPO_B, "docs/a.md")
+    )
+    result, screened = gate.screen_document(document)
+    assert screened is not None, result.decision
+    store.add(screened, gate_result=result)
+
+    class _Counting:
+        def __init__(self) -> None:
+            self.asked_for = 0
+
+        def encode(self, texts):
+            return [[0.0] for _ in texts]
+
+        def available(self):
+            return True
+
+    class _Spy(BM25Retriever):
+        def __init__(self, inner: BM25Retriever) -> None:
+            self._inner = inner
+            self.top_k_seen: list[int] = []
+
+        def search(self, query, *, top_k=5, **kwargs):
+            self.top_k_seen.append(top_k)
+            return self._inner.search(query, top_k=top_k, **kwargs)
+
+    spy = _Spy(BM25Retriever(store))
+    EmbeddingRetriever(spy, _Counting()).search("決済", top_k=5)
+
+    assert spy.top_k_seen == [200], (
+        "the default semantic window must stay at the measured 200 "
+        f"candidates for top_k=5; asked for {spy.top_k_seen}"
+    )

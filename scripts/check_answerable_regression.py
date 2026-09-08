@@ -140,9 +140,17 @@ MIN_DIRECT = 10
 #: floor moving 2 -> 4 is the point of C-982: the tier now covers all five
 #: repositories, and a machine with weights answering five of them must not
 #: be allowed to drop back to two while the headline holds.
-SEMANTIC_MIN_ANSWERED = 17
+#: Re-pinned 2026-09-08 after the semantic candidate window went from 50 to
+#: 200 (``EmbeddingRetriever.candidate_multiplier`` 10 -> 40, measured there):
+#: 19/38 answered, 13/18 direct, 6/20 paraphrased, discrimination +36.8. One
+#: below each, same slack policy. This is a real gain rather than a re-pin to
+#: a moved denominator - the question set did not change, the no-weights
+#: configuration measured NO MOVEMENT on the same corpus, and discrimination
+#: went up rather than down, so it was not bought by returning more plausible
+#: neighbours.
+SEMANTIC_MIN_ANSWERED = 18
 SEMANTIC_MIN_DIRECT = 12
-SEMANTIC_MIN_PARAPHRASE = 4
+SEMANTIC_MIN_PARAPHRASE = 5
 
 #: One, as of 2026-08-19: `para-cy-unfinished-work` retrieves
 #: "完成度で人を落とさない" at rank 2 on the product-identical corpus. The

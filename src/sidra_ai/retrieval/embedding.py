@@ -136,21 +136,56 @@ class EmbeddingRetriever(Retriever):
         lexical: Retriever,
         backend: EmbeddingBackend | None = None,
         *,
-        candidate_multiplier: int = 10,
+        candidate_multiplier: int = 40,
     ) -> None:
         self._lexical = lexical
         self._backend = backend or NoEmbeddingBackend()
         #: How far down the lexical list to look for chunks the semantic pass
         #: can promote. Bounded because encoding is the expensive half.
-        #: Measured over the 26-question set on the five repositories:
-        #: 10, 20, 40 and 80 all answer the same 13 questions, so the window
-        #: buys nothing past 50 chunks - the misses are either outside any
-        #: window lexically or ones the model demotes when it does see them.
-        #: What widening does move is discrimination, downward (+30.8pt at
-        #: 10 and 20, +26.9 at 40, +23.1 at 80): a bigger window feeds the
-        #: reranker more plausible-looking foreign chunks. 10 keeps the best
+        #:
+        #: **The window is the ceiling on what semantic retrieval can do at
+        #: all.** The pass reorders candidates; it never widens them. A chunk
+        #: below the window is invisible to the model no matter how well the
+        #: model would have scored it - and the questions embeddings exist to
+        #: rescue are exactly the ones BM25 ranks worst. Measured 2026-09-08
+        #: on the real five-repository corpus: the chunks answering
+        #: ``submission-fee``, ``mkt-what-is-this-repo`` and ``cy-payments``
+        #: sit at lexical rank 189, 131 and 111, all far outside a window of
+        #: 50, while the model ranks the first two 26th and 22nd once it is
+        #: allowed to see them.
+        #:
+        #: Swept on the 38-question set (``scripts/measure_outcomes.py``
+        #: judge, weights present), window = ``top_k * multiplier`` at
+        #: ``top_k`` 5, against 3,937 chunks:
+        #:
+        #:   mult  window  answered  direct  para  discrimination    MRR  warm
+        #:     10      50        17      12     5          +28.9  0.327  24ms
+        #:     20     100        17      12     5          +26.3  0.327  31ms
+        #:     40     200        19      13     6          +36.8  0.342  30ms
+        #:     80     400        19      13     6          +34.2  0.361  37ms
+        #:    160     800        19      13     6          +34.2  0.359  44ms
+        #:    320    1600        19      13     6          +34.2  0.359  50ms
+        #:    800    4000        19      13     6          +34.2  0.359  50ms
+        #:
+        #: 40 is the *first* point on the plateau, not the best-looking row:
+        #: every window from 200 to 4,000 answers the same 19, so the counts
+        #: stop being evidence past 200 and what is left is a third decimal of
+        #: MRR, which is not floored and not worth 7ms. Discrimination rises
+        #: rather than falls, so this is not a gain bought by returning more
+        #: plausible neighbours.
+        #:
+        #: **This reverses the note that stood here, and the reversal is a
+        #: different measurement rather than a contradiction.** That note read:
+        #: "Measured over the 26-question set: 10, 20, 40 and 80 all answer
+        #: the same 13 questions, so the window buys nothing past 50 chunks.
+        #: What widening does move is discrimination, downward (+30.8pt at 10
+        #: and 20, +26.9 at 40, +23.1 at 80). 10 keeps the best
         #: discrimination, the best measured MRR (0.436 against 0.429 at 20),
-        #: and half the encoding cost of 20.
+        #: and half the encoding cost of 20." It was taken on a 26-question
+        #: set and a smaller corpus; the set has since grown to 38 and the
+        #: corpus to 3,937 chunks. Both readings are believed correct about
+        #: what they measured. Anyone re-opening this must re-measure rather
+        #: than pick the number they prefer from the two.
         self._candidate_multiplier = max(1, candidate_multiplier)
         #: Chunk vectors, keyed by the content that produced them.
         #:
