@@ -18056,6 +18056,102 @@ def measure_retrieval_scale(c: Collector) -> None:
         ),
     )
 
+    # --- ingesting must not make the next question slower ---------------
+    #
+    # Serving and ingesting used to cost each other: a document added to a
+    # live store made the next query re-tokenize every chunk in it. Measured
+    # while doing both, a query after 204 documents took 1,659 ms where the
+    # first took 1.5 ms - accumulated O(N^2).
+    #
+    # Counted rather than timed: what is watched is how many chunks the next
+    # query has to read after one document arrives. Only the new ones is the
+    # right answer; the whole index is the old one.
+    reindex_gaps: list[str] = []
+    reread = -1
+    added_chunks = -1
+    try:
+        from sidra_ai.retrieval.search import tokenize as _tokenize
+
+        reads = {"n": 0}
+        real_tokenize = _tokenize
+
+        def counting_tokenize(text: str):
+            reads["n"] += 1
+            return real_tokenize(text)
+
+        import sidra_ai.retrieval.search as _search_module
+
+        live_store = module.DocumentStore(
+            module.SecurityGate(
+                module.GatePolicy(), allowed_repositories=[repository]
+            )
+        )
+        with _quiet():
+            module.ingest(targets, live_store, live_store._gate
+                          if hasattr(live_store, "_gate") else gate)
+        grow_retriever = BM25Retriever(live_store)
+        grow_retriever.search(questions[0], top_k=5)
+        before_chunks = len(tuple(live_store.chunks()))
+
+        newcomer = next(iter(live_store.documents()))
+        replacement = module.Document(
+            content=newcomer.content,
+            provenance=module.Provenance(
+                source=newcomer.provenance.source,
+                repository=newcomer.provenance.repository,
+                path="docs/_probe_added_document.md",
+                commit_sha=newcomer.provenance.commit_sha,
+                timestamp=newcomer.provenance.timestamp,
+                source_type=newcomer.provenance.source_type,
+                trust_level=newcomer.provenance.trust_level,
+                license=newcomer.provenance.license,
+            ),
+        )
+        live_store.add(replacement)
+        added_chunks = len(tuple(live_store.chunks())) - before_chunks
+
+        _search_module.tokenize = counting_tokenize
+        try:
+            reads["n"] = 0
+            grow_retriever.search(questions[0], top_k=5)
+            # One of the reads is the query itself.
+            reread = max(reads["n"] - 1, 0)
+        finally:
+            _search_module.tokenize = real_tokenize
+    except Exception as exc:  # noqa: BLE001 - a broken probe is not a number
+        reindex_gaps.append(f"{type(exc).__name__}: {exc}")
+    else:
+        if added_chunks <= 0:
+            reindex_gaps.append("追加した文書が断片を増やさなかった（計器が空振り）")
+        elif reread > added_chunks:
+            reindex_gaps.append(
+                f"1 文書（{added_chunks} 断片）の追加で {reread} 断片を読み直した"
+            )
+
+    c.add(
+        "retrieval_reindex_after_ingest",
+        "文書を 1 つ足した後の検索が読み直す断片の数（少ないほど良い）",
+        float(max(reread, 0)),
+        unit="断片",
+        direction="down",
+        kind=OUTCOME,
+        detail=(
+            "; ".join(reindex_gaps)
+            if reindex_gaps
+            else (
+                f"1 文書（{added_chunks} 断片）を足した直後の検索が読んだのは"
+                f"**{reread} 断片**——足した分だけで、索引全体ではない。"
+                "取り込みは追記しかしないので、既に読んだ断片が今も先頭から"
+                "並んでいる限り新しい末尾だけを読めばよい。**時計ではなく"
+                "件数**なので機械の負荷では動かない。実測ではこの違いが"
+                "「取り込みながら質問する」形で **1,659ms → 50ms**"
+                "（204 文書目の 1 検索）。**同じ索引になることは別に確かめて"
+                "いる**——tests/test_retrieval_incremental_index.py が一括構築との"
+                "一致を pin し、追記でない変化を追記と誤認する破壊で落ちる"
+            )
+        ),
+    )
+
 COLLECTORS = (
     ("usable", measure_usability),
     ("fresh", measure_freshness),

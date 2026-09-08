@@ -437,6 +437,45 @@ class BM25Retriever:
         # every remembered set meaningless, so they go together.
         self._filter_cache.clear()
 
+        # Ingestion only appends, and rebuilding the whole index for each
+        # appended document is what made the two cost each other: measured
+        # while ingesting and serving together, a query after 204 documents
+        # took 1,659 ms where the first took 1.5 ms - the accumulated O(N^2).
+        # When the chunks we indexed are still a prefix of the ones the store
+        # holds, only the tail is new, and only the tail is worth reading.
+        #
+        # The tail is prepared into locals first and committed only once the
+        # candidate index has accepted its half. A source that declines leaves
+        # this object untouched and the full rebuild below runs exactly as it
+        # always did - half an index is not a state this can end up in.
+        if (
+            self._indexed_count >= 0
+            and len(chunks) > self._indexed_count
+            and chunks[: self._indexed_count] == self._chunks
+        ):
+            appended_counts: list[Counter] = []
+            appended_lengths: list[int] = []
+            appended_tokens: list[list[str]] = []
+            collecting_tail = self.candidate_source is not None
+            for chunk in chunks[self._indexed_count :]:
+                tokens = tokenize(chunk.content)
+                appended_counts.append(Counter(tokens))
+                appended_lengths.append(len(tokens))
+                if collecting_tail:
+                    appended_tokens.append(tokens)
+
+            if not collecting_tail or self.candidate_source.extend(appended_tokens):
+                self._term_frequencies.extend(appended_counts)
+                self._lengths.extend(appended_lengths)
+                for counts in appended_counts:
+                    self._document_frequency.update(counts.keys())
+                self._chunks = chunks
+                self._indexed_count = len(chunks)
+                self._average_length = (
+                    sum(self._lengths) / len(self._lengths) if self._lengths else 0.0
+                )
+                return
+
         self._chunks = chunks
         self._term_frequencies = []
         self._lengths = []

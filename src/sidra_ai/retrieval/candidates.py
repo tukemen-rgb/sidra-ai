@@ -82,6 +82,19 @@ class CandidateSource:
         """
         raise NotImplementedError
 
+    def extend(self, token_lists: Iterable[Sequence[str]]) -> bool:
+        """Append newly indexed chunks, or return ``False`` to decline.
+
+        A store that only grows - which is what ingestion does - should not
+        make its index start over. Declining is always safe: the retriever
+        falls back to re-tokenizing everything and calling :meth:`reindex`,
+        which is what happened before this existed. The positions appended
+        must continue the retriever's own numbering, so a source that cannot
+        guarantee that must decline rather than guess.
+        """
+
+        return False
+
     def positions(self, query_terms: Sequence[str], *, limit: int) -> list[int] | None:
         """Positions worth scoring, best first, or ``None`` to decline."""
         raise NotImplementedError
@@ -171,6 +184,41 @@ class Fts5CandidateSource(CandidateSource):
             return
         self._count = count
         self._db = db
+
+    def extend(self, token_lists: Iterable[Sequence[str]]) -> bool:
+        """Insert new rows after the last one, keeping rowid == position + 1.
+
+        The whole point: an ingestion that adds one document used to make the
+        next query rebuild this table from every chunk in the store. Measured
+        while ingesting and serving at the same time, one query after 204
+        documents took 1.66 s where the first took 1.5 ms.
+        """
+
+        rows = []
+        with self._lock:
+            if self._db is None:
+                return False
+            count = self._count
+            for tokens in token_lists:
+                count += 1
+                rows.append((count, " ".join(tokens)))
+            if not rows:
+                return True
+            try:
+                self._db.executemany(
+                    "INSERT INTO chunks(rowid, body) VALUES (?, ?)", rows
+                )
+            except sqlite3.Error:
+                # A half-applied append is worse than none: drop the index so
+                # `positions` declines and the retriever scans everything,
+                # rather than answering from a table missing rows nobody knows
+                # about.
+                self._db.close()
+                self._db = None
+                self._count = 0
+                return False
+            self._count = count
+            return True
 
     # ------------------------------------------------------------------
     @staticmethod
