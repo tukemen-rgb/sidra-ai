@@ -105,39 +105,58 @@ def _is_grammar_only(token: str) -> bool:
     return bool(_KANA_ONLY.match(token)) or not _INTERROGATIVE.isdisjoint(token)
 
 
-#: Memo for the CJK keep/drop decision, which is the hot path of indexing:
-#: a corpus tokenizes to millions of tokens drawn from a vocabulary orders of
-#: magnitude smaller, so the same bigram is judged over and over. Measured on
-#: the real corpus scaled to 32,740 chunks: index build 13.8s -> 6.2s, of
-#: which the tokenizer's own share fell 8.15s -> 0.9s.
+#: Memo for the keep/drop decision, which is the hot path of indexing, and -
+#: measured after the fact - the reason the index was as large as it was.
 #:
-#: A plain dict rather than ``lru_cache`` because the wrapper's bookkeeping is
-#: a measurable share of a call this cheap, and it is cleared wholesale on
-#: reaching the cap rather than evicting one entry at a time - the access
-#: pattern here is a scan over a fixed vocabulary, not a recency-skewed
-#: workload, so LRU's advantage does not apply and its cost does.
-_CJK_KEEP_CACHE: dict[str, bool] = {}
-_CJK_KEEP_CACHE_MAX = 400_000
+#: It answers two questions at once. **Which tokens survive**: a corpus
+#: tokenizes to millions of tokens drawn from a vocabulary orders of magnitude
+#: smaller, so the same bigram was being judged over and over (index build
+#: 13.8s -> 6.2s at 32,740 chunks, the tokenizer's own share 8.15s -> 0.9s).
+#: **Which string object represents them**: `run[i:i+2]` builds a *new* string
+#: every time, so a corpus held one object per token rather than one per
+#: distinct token - measured at 1,440,000 objects for 24 distinct values, and
+#: 680 MB of postings for a 32,860-chunk index. Handing back the memo's own
+#: key makes every chunk that contains a term share one instance of it.
+#:
+#: The rule is the CJK one for both scripts, which is not a widening: a Latin
+#: token cannot be kana-only and cannot contain 何/誰, so the grammar half is
+#: provably False for ASCII and the rule reduces to the stopword test it
+#: already had. Memoised, that provable-False costs one evaluation per
+#: distinct word rather than one per occurrence.
+#:
+#: A plain dict rather than ``lru_cache``: the wrapper's bookkeeping is a
+#: measurable share of a call this cheap, and the access pattern is a scan
+#: over a fixed vocabulary rather than a recency-skewed workload, so LRU's
+#: advantage does not apply and its cost does. ``sys.intern`` would share the
+#: strings too, but its table is unbounded and the text is not ours.
+_TOKEN_CACHE: dict[str, str | None] = {}
+_TOKEN_CACHE_MAX = 400_000
+_MISSING = object()
 
 
-def _keep_cjk(token: str) -> bool:
-    """Whether one CJK token survives the stopword and grammar filters.
+def _canonical(token: str) -> str | None:
+    """The shared instance of ``token`` if it survives the filters, else None.
 
-    Latin tokens deliberately do not come through here: ``_KANA_ONLY`` cannot
-    match ASCII and ``何``/``誰`` cannot appear in it, so the grammar test is
-    provably False for every one of them and running it was pure cost.
+    Returning the memo's key rather than the argument is the whole point: the
+    key is one object that every later equal token becomes, instead of each
+    occurrence carrying its own copy into the postings.
     """
 
-    hit = _CJK_KEEP_CACHE.get(token)
-    if hit is not None:
-        return hit
-    keep = token not in _STOPWORDS and not _is_grammar_only(token)
-    if len(_CJK_KEEP_CACHE) >= _CJK_KEEP_CACHE_MAX:
-        # An unbounded memo on attacker-supplied text is a memory leak with
+    hit = _TOKEN_CACHE.get(token, _MISSING)
+    if hit is not _MISSING:
+        return hit  # type: ignore[return-value]
+    keep: str | None = (
+        token
+        if token not in _STOPWORDS and not _is_grammar_only(token)
+        else None
+    )
+    if len(_TOKEN_CACHE) >= _TOKEN_CACHE_MAX:
+        # An unbounded memo on text we did not write is a memory leak with
         # extra steps. The corpus vocabulary is far below this cap, so the
-        # clear is a safety valve rather than part of normal operation.
-        _CJK_KEEP_CACHE.clear()
-    _CJK_KEEP_CACHE[token] = keep
+        # clear is a safety valve rather than part of normal operation -
+        # and losing it costs sharing, never correctness.
+        _TOKEN_CACHE.clear()
+    _TOKEN_CACHE[token] = keep
     return keep
 
 
@@ -164,23 +183,23 @@ def tokenize(text: str) -> list[str]:
     """NFKC-normalized, case-folded Latin words plus CJK character bigrams."""
 
     normalized = unicodedata.normalize("NFKC", text).casefold()
-    # Latin is filtered once, here: the second stopword pass this function
-    # used to run over the same tokens could not remove anything the first
-    # had not, and the grammar test it also ran on them is provably False for
-    # ASCII (see `_keep_cjk`).
-    tokens = [t for t in _LATIN.findall(normalized) if t not in _STOPWORDS]
+    canonical = _canonical
+    tokens: list[str] = []
+    for word in _LATIN.findall(normalized):
+        shared = canonical(word)
+        if shared is not None:
+            tokens.append(shared)
 
-    keep = _keep_cjk
     for run in _CJK_RUN.findall(normalized):
         if len(run) == 1:
-            if keep(run):
-                tokens.append(run)
+            shared = canonical(run)
+            if shared is not None:
+                tokens.append(shared)
             continue
-        tokens.extend(
-            token
-            for token in (run[i : i + 2] for i in range(len(run) - 1))
-            if keep(token)
-        )
+        for i in range(len(run) - 1):
+            shared = canonical(run[i : i + 2])
+            if shared is not None:
+                tokens.append(shared)
 
     return tokens
 
