@@ -18,6 +18,7 @@ from __future__ import annotations
 import abc
 import math
 import re
+import threading
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass
@@ -402,6 +403,24 @@ class BM25Retriever:
         #: the filter, and rebuilding them per call is what made a narrowed
         #: search 19x slower than an unnarrowed one.
         self._filter_cache: dict[tuple[Any, ...], tuple[tuple[int, ...], Counter, int]] = {}
+        #: One search at a time, and one index build at a time.
+        #:
+        #: The API's chat route is a synchronous FastAPI endpoint, which means
+        #: requests are served from a thread pool - so two questions arriving
+        #: together were two threads rebuilding the same lists. Reproduced on
+        #: 6 of 6 attempts with eight threads on a fresh 9,849-chunk index:
+        #: `_term_frequencies` ended up with 77,999 entries against 9,849
+        #: chunks, because each thread reset the list and then appended a full
+        #: copy. Positions index into those lists, so a misaligned pair scores
+        #: the wrong chunk with the right number - the quiet kind of wrong.
+        #:
+        #: A lock around the whole search rather than a copy-on-write snapshot,
+        #: deliberately: this serialises search, and search is 22 ms at 98,490
+        #: chunks against a default rate limit of 60 requests per minute, so
+        #: the contention is theoretical while the corruption was measured.
+        #: The way to make searches concurrent again, if that day comes, is to
+        #: swap an immutable snapshot in rather than to remove this.
+        self._index_lock = threading.RLock()
         self._chunks: tuple[Chunk, ...] = ()
         self._term_frequencies: list[Counter[str]] = []
         self._lengths: list[int] = []
@@ -527,6 +546,24 @@ class BM25Retriever:
     ) -> list[SearchResult]:
         """Return score-ranked chunks with filter-scoped BM25 statistics."""
 
+        with self._index_lock:
+            return self._search_locked(
+                query,
+                top_k=top_k,
+                repositories=repositories,
+                source_types=source_types,
+                min_score=min_score,
+            )
+
+    def _search_locked(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        repositories: Sequence[str] | None = None,
+        source_types: Iterable[SourceType] | None = None,
+        min_score: float = 0.0,
+    ) -> list[SearchResult]:
         self._ensure_index()
         query_terms = tuple(dict.fromkeys(tokenize(query)))
         if not query_terms or not self._chunks or top_k <= 0:
