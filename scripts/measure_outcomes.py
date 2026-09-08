@@ -129,10 +129,24 @@ def iter_files(repo_root: Path):
     The answer key is skipped: see ``EXCLUDED_FROM_CORPUS``.
     """
 
+    # A git worktree left under the repository - the tooling puts them in
+    # `.claude/worktrees/` - is a second copy of the same documents, and
+    # walking into one inflates every number derived from this corpus.
+    # Measured once for real: two leftovers took the gate baseline's document
+    # count from 1,802 to 4,011 and moved a rate that nothing had actually
+    # changed (C-1148). Detected by structure, not by name: a directory below
+    # the root carrying its own `.git` is a separate checkout.
+    nested = {
+        marker.parent
+        for marker in repo_root.rglob(".git")
+        if marker.parent != repo_root
+    }
     for path in sorted(repo_root.rglob("*")):
         if not path.is_file():
             continue
         if any(part in SKIP_DIRS for part in path.parts):
+            continue
+        if any(root in path.parents for root in nested):
             continue
         if not is_documentation_path(path.relative_to(repo_root).as_posix()):
             continue
