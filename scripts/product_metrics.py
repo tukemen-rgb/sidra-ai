@@ -7885,6 +7885,77 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the message stays long enough to read (§4 増築, C-1395) --------
+    #
+    # say() gave every message a flat 140/150 frames, so the 22-char door
+    # hint left at 9.4 chars/second - 2.4x the Japanese subtitle standard
+    # (Netflix TTSG I.19: up to 4 characters per second). Driven with the
+    # page's own literals: the shortest must show for exactly the old
+    # flat count (bit-compat), the longest for 15 frames a character.
+    from sidra_ai.creation.adventure import say_probe as _av_say
+    from sidra_ai.creation.platformer import say_probe as _pf_say
+
+    say_gaps: list[str] = []
+    for _sy_key, _sy_builder, _sy_floor in (
+        ("adventure", _av_say, 140),
+        ("platformer", _pf_say, 150),
+    ):
+        _sy_page = generate_game("ゲームを作って", template=_sy_key).html
+        _sy_m = _scene_re.search(r"<script>(.*?)</script>", _sy_page, _scene_re.S)
+        if _sy_m is None:
+            say_gaps.append(f"{_sy_key}: no script")
+            continue
+        _sy_lits = _scene_re.findall(r"say\('([^']+)'\)", _sy_m.group(1))
+        if not _sy_lits:
+            say_gaps.append(f"{_sy_key}: no say literals to read")
+            continue
+        _sy_short = min(_sy_lits, key=len)
+        _sy_long = max(_sy_lits, key=len)
+        try:
+            _sy_run = _scene_sp.run(
+                ["node", "-"],
+                input=_sy_builder(
+                    _sy_m.group(1), short=_sy_short, long=_sy_long
+                ),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _sy_run.returncode != 0:
+                raise ValueError(_sy_run.stderr.strip()[:60])
+            _sy = json.loads(_sy_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            say_gaps.append(f"{_sy_key}: probe unavailable ({exc})")
+            continue
+        _sy_want_short = max(_sy_floor, len(_sy_short) * 15)
+        if _sy["shortShown"] != _sy_want_short:
+            say_gaps.append(
+                f"{_sy_key}: the short line shows {_sy['shortShown']}f "
+                f"for {_sy_want_short}f"
+            )
+        _sy_want_long = max(_sy_floor, len(_sy_long) * 15)
+        if _sy["longShown"] < _sy_want_long:
+            _sy_cps = len(_sy_long) / (_sy["longShown"] / 60.0)
+            say_gaps.append(
+                f"{_sy_key}: {len(_sy_long)} chars leave at "
+                f"{_sy_cps:.1f} chars/s"
+            )
+    c.add(
+        "creation_say_readable",
+        "メッセージが読み切れる速さで残る（実表示）",
+        0.0 if say_gaps else 2.0,
+        detail=(
+            "; ".join(say_gaps)
+            if say_gaps
+            else "adventure/platformer の実ページで、頁自身の最短文と最長文を"
+            "頁自身の say() で実表示し描画フレームを計数: 最短文は旧一律値"
+            "ぴったり（140/150f・ビット互換）・最長文（25/17 文字）は 15f/"
+            "文字＝375/255f で実効 4.0 文字/秒（§4 増築・Netflix 日本語 "
+            "TTSG I.19「Up to 4 characters per second」）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the sound comes from where it happened (§2 増築, C-1394) -------
     #
     # All twelve voices played dead centre while the screen always had a

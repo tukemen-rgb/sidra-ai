@@ -35,6 +35,8 @@ and juice preambles.
 
 from __future__ import annotations
 
+import json
+
 #: Words that pick this template. 「横スクロール」 routes here only when no
 #: earlier genre claims the sentence: 「横スクロールシューティング」 is a
 #: shooter, and both the router and the honesty table say so.
@@ -157,7 +159,9 @@ function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;
   me={x:60,y:230,vy:0,ground:false,coyote:0,buffer:0,held:false,gems:0,
     cpX:60,cpY:262,sq:1,look:1};
   say('足場を渡って、旗まで。')}
-function say(t){msg=t;msgT=150}
+/* Long enough to READ (§4 増築, C-1395): 15 frames a character = the
+   4 chars/second subtitle standard; the old 150 stays as the floor. */
+function say(t){msg=t;msgT=Math.max(150,Math.round(t.length*15))}
 /* The face, as a fact: which way the eyes point, whether they are lifted
    by the rise, and whether this frame is the blink (§1, C-1348). */
 function faceFacts(){return {look:me.look,up:me.vy<-1,
@@ -875,7 +879,68 @@ def face_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The message stays long enough to read (§4 増築, C-1395): the page's
+#: own say() is driven with the page's own literals - a short one that
+#: must show for exactly the old flat count (bit-compat), and the longest
+#: one, whose frame count must reach 15 frames a character = the 4
+#: characters-per-second Japanese subtitle standard.
+SAY_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let texts = [];
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillText: (s) => { texts.push(String(s)) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: () => true }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(300);
+function countShown(text){
+  say(text);
+  let n = 0, guard = 0;
+  while (msgT > 0 && guard++ < 3000) {
+    texts = []; run(1);
+    if (texts.indexOf(text) >= 0) n++;
+  }
+  return n }
+const shortShown = countShown(SHORT_PLACEHOLDER);
+const longShown = countShown(LONG_PLACEHOLDER);
+console.log(JSON.stringify({ shortShown: shortShown, longShown: longShown }));
+"""
+
+
+def say_probe(script: str, *, short: str, long: str) -> str:
+    """The page's own script, wrapped so the message's real display time
+    can be counted for the page's own words."""
+
+    return (
+        SAY_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("SHORT_PLACEHOLDER", json.dumps(short, ensure_ascii=False))
+        .replace("LONG_PLACEHOLDER", json.dumps(long, ensure_ascii=False))
+    )
+
+
 __all__ = [
+    "SAY_PROBE",
+    "say_probe",
     "PLATFORMER_DIFFICULTY",
     "ECON_PROBE",
     "econ_probe",

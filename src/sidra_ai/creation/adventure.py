@@ -25,6 +25,8 @@ generator keeps.
 
 from __future__ import annotations
 
+import json
+
 #: Words that pick this template. 「ゼルダ」 lands here so the request in the
 #: directive routes at all; what happens to the *name* is the title guard's
 #: job, not the router's.
@@ -146,7 +148,12 @@ function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRST
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
     charm:false,swing:0,inv:0,sq:1};
   say('ぼうしの勇者、めざめる。')}
-function say(t){msg=t;msgT=140}
+/* Long enough to READ (§4 増築, C-1395): the Japanese subtitle standard
+   is 4 characters per second, and a flat 140 frames pushed the 22-char
+   door hint out at 9.4/s. Fifteen frames a character IS 4/s at 60fps;
+   the old 140 stays as the floor, so anything nine characters or under
+   is bit-identical to what it always was. */
+function say(t){msg=t;msgT=Math.max(140,Math.round(t.length*15))}
 /* The face, as a fact (§1, C-1351): which way the hero faces, whether the
    eyes are visible at all - facing up is the back of the head, and a back
    has no eyes to draw - and whether this frame is the blink. Under
@@ -886,6 +893,65 @@ def hurt_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The message stays long enough to read (§4 増築, C-1395): the page's
+#: own say() is driven with the page's own literals - a short one that
+#: must show for exactly the old flat count (bit-compat), and the longest
+#: one, whose frame count must reach 15 frames a character = the 4
+#: characters-per-second Japanese subtitle standard.
+SAY_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let texts = [];
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => new Proxy({
+    fillText: (s) => { texts.push(String(s)) } }, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: () => true }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(300);
+function countShown(text){
+  say(text);
+  let n = 0, guard = 0;
+  while (msgT > 0 && guard++ < 3000) {
+    texts = []; run(1);
+    if (texts.indexOf(text) >= 0) n++;
+  }
+  return n }
+const shortShown = countShown(SHORT_PLACEHOLDER);
+const longShown = countShown(LONG_PLACEHOLDER);
+console.log(JSON.stringify({ shortShown: shortShown, longShown: longShown }));
+"""
+
+
+def say_probe(script: str, *, short: str, long: str) -> str:
+    """The page's own script, wrapped so the message's real display time
+    can be counted for the page's own words."""
+
+    return (
+        SAY_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("SHORT_PLACEHOLDER", json.dumps(short, ensure_ascii=False))
+        .replace("LONG_PLACEHOLDER", json.dumps(long, ensure_ascii=False))
+    )
+
+
 #: The hit crush, driven (§1, C-1387): one real contact hit must sink the
 #: hero to 0.7 through the squash channel, the silhouette must actually be
 #: drawn crushed (the hat bar's recorded width and height follow the joint
@@ -1317,6 +1383,8 @@ def adv_face_probe(script: str, *, reduced: bool = False) -> str:
 
 
 __all__ = [
+    "SAY_PROBE",
+    "say_probe",
     "ADVENTURE_DIFFICULTY",
     "ADVENTURE_HOW",
     "ADVENTURE_SCRIPT",
