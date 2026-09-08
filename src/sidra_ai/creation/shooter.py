@@ -166,7 +166,7 @@ function step(){const now=performance.now();
            points added and the number drawn cannot disagree. `kills` stays
            the raw count because 「撃墜 N 機」 is a count. */
         f.hp=0;s.y=-99;kills++;score+=scorePop(f.x,f.y,comboHit());
-        sfx('hurt');shake(4);burst(f.x,f.y,12,'ACCENT_JUICE');
+        sfx('hurt',1,f.x/W);shake(4);burst(f.x,f.y,12,'ACCENT_JUICE');
         wreckSpawn(f)}})});
     foes.forEach(f=>{if(f.hp<=0)return;
       /* One distance, one radius, two answers (C-1406). The kill radius is
@@ -585,6 +585,77 @@ def muzzle_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The kill, heard where it happened (§2 増築, C-1394): two engineered
+#: kills - one right of centre, one left - and the recorded pan values
+#: must match (x/W*2-1)*0.8 in sign and to the digit, while everything
+#: fired before them (start chirp included) built no panner at all.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(4);
+const before = pans.length;
+foes.length = 0;
+foes.push({ x: 600, y: 200, vy: 0, vx: 0, r: 13, hp: 1 });
+shots.push({ x: 600, y: 205 });
+run(1);
+foes.push({ x: 120, y: 200, vy: 0, vx: 0, r: 13, hp: 1 });
+shots.push({ x: 120, y: 205 });
+run(1);
+const expected = [(600 / W * 2 - 1) * 0.8, (120 / W * 2 - 1) * 0.8];
+console.log(JSON.stringify({ before: before, kills: kills,
+  pans: pans, expected: expected }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so the kill's stereo position can
+    be read off the audio graph."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 #: A kill, then gravity (§23, C-1374): the chunks appear where the hull
 #: died, fall every frame, and drain once they leave the screen. Under
 #: reduced motion nothing is spawned at all.
@@ -645,9 +716,11 @@ __all__ = [
     "KICK_PROBE",
     "TRAIL_PROBE",
     "MUZZLE_PROBE",
+    "PAN_PROBE",
     "kick_probe",
     "trail_probe",
     "muzzle_probe",
+    "pan_probe",
     "kb_probe",
     "WRECK_PROBE",
     "wreck_probe",

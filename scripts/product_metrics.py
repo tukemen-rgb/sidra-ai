@@ -7867,6 +7867,77 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the sound comes from where it happened (§2 増築, C-1394) -------
+    #
+    # All twelve voices played dead centre while the screen always had a
+    # left and a right. One StereoPannerNode (§2 増築: pan -1..+1,
+    # Baseline since 2021) between the gain and the destination, fed a
+    # normalised x and clamped to ±0.8. Driven: engineered kills at known
+    # x must record pans matching (x/W*2-1)*0.8 to the digit, everything
+    # positionless before them must have built no panner at all.
+    from sidra_ai.creation.kaiju import pan_probe as _kj_pan
+    from sidra_ai.creation.shooter import pan_probe as _sh_pan
+
+    pan_gaps: list[str] = []
+    for _pn_key, _pn_builder, _pn_req in (
+        ("shooter", _sh_pan, "ゲームを作って"),
+        ("kaiju", _kj_pan, "巨大怪獣と戦うゲームを作って"),
+    ):
+        _pn_page = generate_game(_pn_req, template=_pn_key).html
+        _pn_m = _scene_re.search(r"<script>(.*?)</script>", _pn_page, _scene_re.S)
+        if _pn_m is None:
+            pan_gaps.append(f"{_pn_key}: no script")
+            continue
+        try:
+            _pn_run = _scene_sp.run(
+                ["node", "-"],
+                input=_pn_builder(_pn_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if _pn_run.returncode != 0:
+                raise ValueError(_pn_run.stderr.strip()[:60])
+            _pn = json.loads(_pn_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            pan_gaps.append(f"{_pn_key}: probe unavailable ({exc})")
+            continue
+        if _pn["before"] != 0:
+            pan_gaps.append(f"{_pn_key}: a positionless sound built a panner")
+        _pn_exp = _pn["expected"] if isinstance(_pn["expected"], list) else [
+            _pn["expected"]
+        ]
+        if len(_pn["pans"]) != len(_pn_exp):
+            pan_gaps.append(
+                f"{_pn_key}: {len(_pn['pans'])} pans for "
+                f"{len(_pn_exp)} placed hits"
+            )
+            continue
+        for _pn_got, _pn_want in zip(_pn["pans"], _pn_exp):
+            if abs(_pn_got - _pn_want) > 1e-9:
+                pan_gaps.append(
+                    f"{_pn_key}: the ear points wrong "
+                    f"({_pn_got:.4f} for {_pn_want:.4f})"
+                )
+        if _pn_key == "shooter" and len(_pn["pans"]) == 2:
+            if not (_pn["pans"][0] > 0 and _pn["pans"][1] < 0):
+                pan_gaps.append("shooter: left and right do not separate")
+    c.add(
+        "creation_sfx_pan",
+        "音が起きた場所から聞こえる型（実撃）",
+        0.0 if pan_gaps else 2.0,
+        detail=(
+            "; ".join(pan_gaps)
+            if pan_gaps
+            else "実駆動の撃墜（shooter 右 x600→+0.533・左 x120→-0.533）と"
+            "脚打（kaiju legX→+0.365）の pan が (x/W*2-1)*0.8 と桁まで一致・"
+            "位置なしの音（開始チャープ・覚醒ロア等）は panner を 1 つも"
+            "作らない（§2 増築 StereoPannerNode・±0.8 で端に張り付けない・"
+            "createStereoPanner 不在ブラウザは従来の中央経路へ graceful）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- motion can be reduced from inside the page (§4, C-1393) --------
     #
     # REDUCED read only the OS's prefers-reduced-motion; GAG's "Provide

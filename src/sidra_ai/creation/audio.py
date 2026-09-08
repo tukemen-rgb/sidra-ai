@@ -179,7 +179,7 @@ function engineStop(){if(ENGINE){try{ENGINE.osc.stop()}catch(e){}
 function engineFacts(){return {on:!!ENGINE,rate:ENGINE_RATE,
   freq:ENGINE?ENGINE.osc.frequency.value:0,
   gain:ENGINE?ENGINE.g.gain.value:0,f0:ENGINE_F0,span:ENGINE_SPAN}}
-function sfx(name,pitch){
+function sfx(name,pitch,at){
   /* Zero is silence, not a very quiet sound. Scheduling one would hand
      exponentialRampToValueAtTime a start value of 0, which has no defined
      ramp, and would build a node graph for something nobody can hear. */
@@ -222,7 +222,17 @@ function sfx(name,pitch){
     const gain=AC.createGain();
     gain.gain.setValueAtTime(vol,t0);
     gain.gain.exponentialRampToValueAtTime(0.001,t0+dur);
-    gain.connect(AC.destination);
+    /* Where it happened, for the ear (§2 増築, C-1394): a caller that
+       KNOWS a screen position hands it here normalised (0..1), and one
+       StereoPannerNode places the sound - clamped to ±0.8 so nothing
+       sits hard against one speaker. No position, or no panner support
+       (it is Baseline since 2021, but graceful anyway): the old centre
+       path, byte for byte. The win fanfare has no position and stays. */
+    if(typeof at==='number'&&isFinite(at)&&typeof AC.createStereoPanner==='function'){
+      const pn=AC.createStereoPanner();
+      pn.pan.setValueAtTime(Math.max(-0.8,Math.min(0.8,(at*2-1)*0.8)),t0);
+      gain.connect(pn);pn.connect(AC.destination);
+    }else{gain.connect(AC.destination)}
     if(wave==='noise'){
       /* sfxr's explosion family is not a tone at all (§2): white noise
          through a low-pass that falls from f0 to f1. The buffer is built

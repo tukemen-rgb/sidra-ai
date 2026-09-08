@@ -128,7 +128,7 @@ function fire(){if(state!=='fight')return;
     me.mz=3}
   shots.push({x:me.x,y:GROUND-26,vy:-7});sfx('fire')}
 function hitLeg(){boss.legHp--;boss.hurt=8;boss.smoke=34;shake(3);burst(legX(),GROUND-70,7,'ALERT_JUICE');
-  sfx('cut');
+  sfx('cut',1,legX()/W);
   /* The leg buckling is the only way the head comes down. Three beats:
      flash, smoke that stays, silhouette back out of it (観察 2). */
   if(boss.legHp<=0){boss.phase='open';boss.head=GROUND-150;boss.timer=BEAT*2;
@@ -824,6 +824,74 @@ def muzzle_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The leg hit, heard where the leg stands (§2 増築, C-1394): one
+#: engineered hit on the pacing leg, and the recorded pan must match
+#: (legX()/W*2-1)*0.8 - to the right of centre, where the monster is -
+#: while everything before it (wake roar, crack charge) stayed centred.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(110);
+boss.timer = 900; cracks.length = 0;
+const before = pans.length;
+shots.push({ x: legX(), y: GROUND - 70, vy: 0 });
+run(1);
+const expected = (legX() / W * 2 - 1) * 0.8;
+console.log(JSON.stringify({ state: state, before: before,
+  legHp: boss.legHp, pans: pans, expected: expected }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so the leg hit's stereo position
+    can be read off the audio graph."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def kb_probe(script: str) -> str:
     """The page's own script, wrapped so the throw can be measured."""
 
@@ -1015,9 +1083,11 @@ __all__ = [
     "KICK_PROBE",
     "TRAIL_PROBE",
     "MUZZLE_PROBE",
+    "PAN_PROBE",
     "kick_probe",
     "trail_probe",
     "muzzle_probe",
+    "pan_probe",
     "kb_probe",
     "SQUASH_PROBE",
     "squash_probe",
