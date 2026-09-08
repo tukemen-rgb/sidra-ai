@@ -6,6 +6,7 @@ pipeline is testable without an HTTP client.
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -188,6 +189,7 @@ class SidraService:
 
         self.state_store = state_store or StateStore(data_dir / "state.json")
         self._client = client
+        self._client_lock = threading.Lock()
 
         # A request to *make* something is not a question, and the ordinary
         # chat path would answer it as one. The router is empty until a
@@ -213,8 +215,13 @@ class SidraService:
     # ------------------------------------------------------------------
     @property
     def client(self) -> GitHubReadOnlyClient:
+        # Check-then-act under a thread pool: two callers could each build a
+        # client, and each client owns its own connection pool and its own
+        # rate-limit view of GitHub. One is what the read budget was sized for.
         if self._client is None:
-            self._client = GitHubReadOnlyClient(self.settings)
+            with self._client_lock:
+                if self._client is None:
+                    self._client = GitHubReadOnlyClient(self.settings)
         return self._client
 
     def _pipeline(self) -> GitHubIngestionPipeline:

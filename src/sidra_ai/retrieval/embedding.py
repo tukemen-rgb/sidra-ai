@@ -319,6 +319,13 @@ class SentenceTransformerBackend(EmbeddingBackend):
         # moment somebody renames the directory.
         self._query_prefix = query_prefix
         self._passage_prefix = passage_prefix
+        #: Loading is check-then-act - "no model yet" then "build one" - and
+        #: the server answers from a thread pool, so two first questions could
+        #: each start their own load. On the machine this is aimed at that
+        #: means two copies of the weights in a 6 GB card at once, next to a
+        #: language model that is already most of it. Wasteful anywhere,
+        #: out-of-memory there.
+        self._load_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     @property
@@ -328,7 +335,16 @@ class SentenceTransformerBackend(EmbeddingBackend):
         return self._unavailable_reason
 
     def available(self) -> bool:
+        # Read first without the lock: once loaded this is the hot path and
+        # the answer never goes back to False.
         if self._model is not None:
+            return True
+        with self._load_lock:
+            return self._load_locked()
+
+    def _load_locked(self) -> bool:
+        if self._model is not None:
+            # Another thread finished while this one waited.
             return True
         if self._model_path is None:
             self._unavailable_reason = "no model path configured"
