@@ -9134,3 +9134,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 20:06 UTC ループA started
 
 2026-09-08 20:14 UTC 辛口ユーザー started（118 巡目・別面=システム状態の可視化（health/index_stats/quarantine 集計）の一般ユーザー/運用者観点＝索引件数・リポジトリ別・隔離集計・リフレッシャ状態が実状態を正直かつ完全に見せるか、隠れた不整合（数え落とし・古い値・偽の成功）が無いかを実測点検。前回=制作意図ルーティング C-1488 は E 節送り。C-1482 は refresher 部分失敗）
+
+2026-09-08 20:16 UTC 辛口ユーザー no-op（118 巡目・別面=システム状態の可視化・前回=制作意図ルーティング C-1488 E 節送り）。実測（実 SidraService.health／index_stats／_quarantine_summary）: 状態報告は正直で堅い——(1) health は status/version/model_available/github_write_enabled のみ＝リポジトリ名/モデル名/エンドポイント/件数/例外を出さない（未認証プローブ向けに意図的に最小）、(2) index_stats は許可リストの全 repo を 0 件でも列挙（未取り込みは `IngestionState.get` が既定 RepositoryState を返し None クラッシュしない・実測 5 repo すべて docs=0/last_ingested 空/quar=0/err=False）＋許可外 repo は extra 群に分離、per-repo は件数/source_types/隔離数/has_error（メッセージは出さず bool のみ）、(3) _quarantine_summary は読めないとき `{'available': False}` を返す＝ゼロを偽装しない（実測: quarantine.jsonl をディレクトリに置換して available=False 確認）。一般利用者/運用者の <6/10 最悪点は無い。**弱い起票より no-op。** refresher 部分失敗は C-1482 で対応済み。今サイクルで health/index_stats/隔離集計の正直さ・未取り込み耐性・読み取り失敗の扱いを実測再確認済み。
