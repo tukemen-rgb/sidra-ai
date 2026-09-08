@@ -9107,3 +9107,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 16:14 UTC 辛口ユーザー started（114 巡目・別面=安全性ゲートの誤隔離（良性メッセージ）＝一般利用者の普通の日本語/英語の質問・文書が注入/秘密/PII 検出器に誤爆して quarantine/block されないかを実 SecurityGate.inspect で一括点検し、良性が隔離される最悪点を 1 つ探す。前回=デッキ本文配置 no-op。検出器変更時は verify_gate_recall MISS 0＋check_gate_regression exit 0 を必須とする）
 
 2026-09-08 16:47 UTC 辛口ユーザー C-1487 完了（114 巡目・別面=ゲートの良性誤隔離・前回=デッキ本文配置 no-op・gate_allows_placeholder_phone 6.25→10・`--compare` exit 0 BETTER MOVED 1・pytest rc=0 FAILED 0 [100%]・**verify_gate_recall PASSED MISS 0**・**check_gate_regression exit 0 blended 6.8%**・破壊 5 種すべて eval red 5/5/6/5/4・board exit 0・detectors.py の電話ループで全桁同一（000-0000-0000 等＝プレースホルダ）を `len(set(digits))==1` でスキップ＝良性の索引文書が電話プレースホルダだけで隔離されるのを解消・実番号は桁ばらつきで recall 不変・phone_jp/intl 両対応・秘密/noreply 除外と同型）
+2026-09-08 17:07 UTC ループA started
