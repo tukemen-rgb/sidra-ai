@@ -18049,6 +18049,84 @@ def measure_retrieval_scale(c: Collector) -> None:
         ),
     )
 
+    # --- a vector's length belongs to the vector, not to the comparison --
+    #
+    # The memo above removed the model calls from a repeat query, which left
+    # the ranking arithmetic as what a warm query spends itself on. Ranking N
+    # candidates calls a cosine N times, and a cosine over two vectors
+    # recomputes both their lengths - the query's N times over, and each
+    # chunk's every time it is ever ranked, though the chunk's vector was
+    # memoised exactly because it does not change. Over 384 dimensions that
+    # was two thirds of the step.
+    #
+    # Counted, not timed, like its neighbours: square roots per repeat query.
+    # One is the whole ranking's share; two per candidate is the old shape.
+    import math as _math
+    import sidra_ai.retrieval.embedding as _embedding_module
+
+    root_gaps: list[str] = []
+    roots = -1
+    ranked = -1
+    try:
+        root_backend = _CountingBackend()
+        root_semantic = EmbeddingRetriever(BM25Retriever(store), root_backend)
+        root_question = questions[0] if questions else "競合はどこですか"
+        root_semantic.search(root_question, top_k=5)  # warm the memo
+        ranked = len(root_semantic._vectors)
+
+        counted = {"n": 0}
+
+        class _CountingMath:
+            def __getattr__(self, name):
+                return getattr(_math, name)
+
+            @staticmethod
+            def sqrt(value):
+                counted["n"] += 1
+                return _math.sqrt(value)
+
+        real_math = _embedding_module.math
+        _embedding_module.math = _CountingMath()
+        try:
+            root_semantic.search(root_question, top_k=5)
+        finally:
+            _embedding_module.math = real_math
+        roots = counted["n"]
+    except Exception as exc:  # noqa: BLE001 - a broken probe is not a number
+        root_gaps.append(f"{type(exc).__name__}: {exc}")
+    else:
+        if ranked < 2:
+            root_gaps.append("候補が 1 件以下（計器が空振り）")
+        elif roots > ranked:
+            root_gaps.append(f"候補 {ranked} 件に対し平方根 {roots} 回")
+
+    c.add(
+        "rerank_lengths_per_repeat_query",
+        "同じ質問をもう一度したときにベクトルの長さを計算する回数（少ないほど良い）",
+        float(max(roots, 0)),
+        unit="回",
+        direction="down",
+        kind=OUTCOME,
+        detail=(
+            "; ".join(root_gaps)
+            if root_gaps
+            else (
+                f"候補 {ranked} 件を並べ替えるのに長さを計算したのは "
+                f"**{roots} 回**（質問の分だけ）。長さは**ベクトル 1 本の性質**"
+                "なのに、cosine は**組ごと**に呼ばれるので、素直に書くと"
+                f"質問の長さを {ranked} 回、断片の長さを毎回——"
+                "断片のベクトルは「変わらないから」記憶してあるのに、である。"
+                "384 次元では並べ替えの計算の**約 3 分の 2** がこれだった。"
+                "**時計ではなく回数**なので機械の負荷では動かない。"
+                "**答えは 1 ビットも動かない**——同じ内積を同じ 2 つの長さの積で"
+                "割るので、`cosine` と厳密に一致する"
+                "（tests/test_rerank_computes_each_length_once.py が実コーパス"
+                "相当の候補集合で順序ごと突き合わせ、長さを取り違える破壊で"
+                "落ちることも確認済み）"
+            )
+        ),
+    )
+
     # --- narrowing the corpus should cost less, not more ----------------
     #
     # Measured before the fix, at 32,820 chunks: 9.8 ms unfiltered against

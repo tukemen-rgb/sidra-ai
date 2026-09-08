@@ -95,6 +95,34 @@ def cosine(a: Sequence[float], b: Sequence[float]) -> float:
     return dot / (na * nb)
 
 
+def vector_norm(vector: Sequence[float]) -> float:
+    """The length of ``vector``. Split out so it can be computed once."""
+
+    return math.sqrt(sum(x * x for x in vector))
+
+
+def cosine_with_norms(
+    a: Sequence[float], norm_a: float, b: Sequence[float], norm_b: float
+) -> float:
+    """:func:`cosine`, with the two lengths supplied instead of recomputed.
+
+    Identical arithmetic - the same dot product divided by the same product
+    of the same two lengths - so results are bit-for-bit what :func:`cosine`
+    returns, and that equality is pinned by a test over the real corpus.
+
+    It exists because a length is a property of one vector while cosine is
+    called once per *pair*. Ranking 50 candidates against one query called
+    this 50 times and each call recomputed both lengths: the query's 50 times
+    over, and each chunk's every time that chunk was ever ranked, though the
+    chunk vector itself was memoised precisely because it does not change.
+    Two thirds of the arithmetic in the ranking step was that.
+    """
+
+    if len(a) != len(b) or norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return sum(x * y for x, y in zip(a, b)) / (norm_a * norm_b)
+
+
 class EmbeddingRetriever(Retriever):
     """Lexical retrieval, with a semantic pass when weights are present.
 
@@ -138,6 +166,12 @@ class EmbeddingRetriever(Retriever):
         #: file can hand the same id to different text, which would serve a
         #: stale vector. Content cannot lie about what it is.
         self._vectors: dict[str, Sequence[float]] = {}
+        #: Each cached vector's length, keyed identically and cleared with it.
+        #: A length depends only on the vector, and the vector is memoised
+        #: because it does not change - so recomputing the length on every
+        #: comparison was the same wasted work the vector memo already
+        #: removed, one level down. See :func:`cosine_with_norms`.
+        self._norms: dict[str, float] = {}
         #: Bound on the cache. 384-dimension vectors are ~1.5 KB each as
         #: Python floats, so this is a few hundred MB at the cap - and the
         #: cap exists for the corpus that outgrows memory, not for normal
@@ -237,22 +271,29 @@ class EmbeddingRetriever(Retriever):
 
         query_vector = vectors[0]
         fresh = dict(zip(missing, vectors[1:]))
+        # Outside the lock: this is arithmetic on vectors nobody else holds
+        # yet, and the lock covers dictionary work only.
+        fresh_norms = {text: vector_norm(vector) for text, vector in fresh.items()}
         with self._vector_lock:
             if missing:
                 if len(self._vectors) + len(missing) > self._vector_cache_max:
                     self._vectors.clear()
+                    self._norms.clear()
                 self._vectors.update(fresh)
+                self._norms.update(fresh_norms)
             try:
                 chunk_vectors = [
                     self._vectors[text] if text in self._vectors else fresh[text]
                     for text in wanted
                 ]
+                chunk_norms = [
+                    self._norms[text] if text in self._norms else fresh_norms[text]
+                    for text in wanted
+                ]
             except KeyError:  # noqa: PERF203 - a racing clear is not fatal
                 return candidates[:top_k]
-        semantic_order = sorted(
-            range(len(candidates)),
-            key=lambda i: cosine(query_vector, chunk_vectors[i]),
-            reverse=True,
+        semantic_order = self._semantic_order(
+            query_vector, chunk_vectors, chunk_norms
         )
 
         fused = self._fuse(len(candidates), semantic_order)
@@ -261,6 +302,33 @@ class EmbeddingRetriever(Retriever):
         # these numbers, and a fused score would look like the same quantity
         # while meaning something else.
         return [candidates[i] for i in ordered[:top_k]]
+
+    # ------------------------------------------------------------------
+    def _semantic_order(
+        self,
+        query_vector: Sequence[float],
+        chunk_vectors: Sequence[Sequence[float]],
+        chunk_norms: Sequence[float],
+    ) -> list[int]:
+        """Candidate indices, most similar first.
+
+        A named step rather than an expression inside ``search`` so that a
+        test can rank the same candidates with the plain :func:`cosine` and
+        compare the two orders. Without the seam, an error that pairs a chunk
+        with another chunk's length passes every check that looks at one
+        number at a time - which the first draft of the test for this did.
+        """
+
+        # The query's length, once for the whole ranking rather than once per
+        # candidate; each chunk's came with its vector out of the memo.
+        query_norm = vector_norm(query_vector)
+        return sorted(
+            range(len(chunk_vectors)),
+            key=lambda i: cosine_with_norms(
+                query_vector, query_norm, chunk_vectors[i], chunk_norms[i]
+            ),
+            reverse=True,
+        )
 
     # ------------------------------------------------------------------
     @staticmethod
