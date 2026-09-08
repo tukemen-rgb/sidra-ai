@@ -30,6 +30,23 @@ from sidra_ai.retrieval.store import DocumentStore
 _LATIN = re.compile(r"[A-Za-z0-9_]+")
 _CJK_RUN = re.compile(r"[぀-ゟ゠-ヿ一-鿿]+")
 
+#: A number written flush against its unit - ``200MB``, ``60fps``, ``3km`` -
+#: is a single Latin run, so the unit is invisible to a query that writes it
+#: on its own. That is not a ranking preference, it is a miss: ``zip は 1 件
+#: 最大 200MB`` and ``最大サイズは何 MB ですか`` share the concept and match
+#: on nothing. Measured on the real five-repository corpus (2026-09-08): the
+#: chunk answering the upload-size question sat at rank 15 with the unit
+#: glued and at rank 6 with it emitted.
+#:
+#: The unit is emitted *in addition to* the glued token, never instead of it,
+#: so no query that matched ``200mb`` before stops matching. Two characters
+#: minimum: ``1080p`` -> ``p`` is not a unit anyone searches for, and a
+#: single letter is noise in the postings. English ordinals (``1st`` ->
+#: ``st``) also pass this rule; they are left in rather than denylisted,
+#: because a list of exceptions fitted to one corpus is the thing that breaks
+#: on the next one.
+_GLUED_UNIT = re.compile(r"^[0-9]+([a-z_]{2,6})$")
+
 #: C-1136 rerank coefficients, all off by default until measurement says
 #: otherwise (the constants are module-level so the experiment harness can
 #: sweep them and the adopted values are visible in one place). COVERAGE
@@ -189,6 +206,11 @@ def tokenize(text: str) -> list[str]:
         shared = canonical(word)
         if shared is not None:
             tokens.append(shared)
+        glued = _GLUED_UNIT.match(word)
+        if glued is not None:
+            unit = canonical(glued.group(1))
+            if unit is not None:
+                tokens.append(unit)
 
     for run in _CJK_RUN.findall(normalized):
         if len(run) == 1:
