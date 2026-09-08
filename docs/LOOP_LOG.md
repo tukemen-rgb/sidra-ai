@@ -9041,3 +9041,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 08:14 UTC 辛口ユーザー started（106 巡目・別面=GIF 生成物の一般ユーザー観点＝「〜のGIFを作って」等でアニメ GIF/プレビューを実際に生成し、タイトル抽出・フレーム内容・キャプション・エスケープ・パレット・空/退化入力の扱いの中で一般利用者に見える最悪点を 1 つ探す。前回=依頼形式のタイトル混入 C-1484）
 
 2026-09-08 08:54 UTC 辛口ユーザー C-1485 完了（106 巡目・別面=GIF 生成物の一般ユーザー観点・前回=依頼形式のタイトル混入 C-1484・gif_title_drops_stacked_kind_and_about 5→10・`--compare` exit 0 BETTER 5→10 MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 7/7/8/4/9・board exit 0・`gifs.py` の `_title_from` を文書 C-1467 と同じ反復 peel ループに置換＋`_TITLE_ABOUT_SUFFIX`（について/に関する）追加＝「猫のアニメーション GIF」→「猫」・「海に関するアニメ GIF」→「海」・要約の二重が消える・bare kind と語頭アニメ主題は不変・単一 kind〔C-1265〕非退行・検出器非変更で gate 対象外）
+2026-09-08 09:07 UTC ループA started
