@@ -9152,3 +9152,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 22:2x UTC ループA C-1166 記録（cy-payments は検索の失敗ではなかった・起票の前提 2 つとも外れ・製品は上位 5 件で答えている・marker 完全一致 1 本と PII 検疫の 2 件を E 節へ上申・retrieval 無変更・pytest 緑・gate MISS 0）
 2026-09-08 23:09 UTC ループA started
 2026-09-08 23:09 UTC ループA no-op キューが空（開いている項目 16 件はすべて E節 14・F節 2、着手可能な D 項目なし。作業中 0 件。E 節は C-1166 の上申 2 件で増えた。Board=13）
+
+2026-09-08 23:15 UTC 辛口ユーザー started（121 巡目・別面=ゲート PII メールの予約ドメイン誤隔離＝example@example.com 等 RFC2606 予約ドメイン（example.com/.net/.org・TLD .test/.example/.invalid/.localhost）は定義上決して実在しないのに、良性のフォーム仕様/例示メールを隔離しないか実測。C-1489 で email 予約ドメインは別機構として対象外と明記した残り。前回=会話履歴 no-op。検出器変更のため verify_gate_recall MISS 0＋check_gate_regression exit 0 必須）
