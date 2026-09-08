@@ -9001,3 +9001,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 03:16 UTC 辛口ユーザー no-op（101 巡目・リクエスト検証/エラー処理を実操作したが既に正直・安全で <6 の起票点なし＝弱い起票より no-op）。点検（実 TestClient）: /v1/chat・/v1/retrieve の不正入力〔空・過大長・top_k=0/100/非整数/秘密風の値・欠落・型違い・履歴過多〕は全て 422 かつ本文は定数の context-free（len=38・入力値エコーなし・パス/モジュール/スタック漏れなし）。/health は status/version/model_available/github_write_enabled のみでトポロジ非開示。派生で確認: artifacts 配信は attachment＋nosniff＋octet-stream（.html/.svg は既定で非レンダ）・パス走査は SAFE_NAME＋シンボリックリンク除外＋統一 404、audit は長さと検出器で伏せた repo 識別子のみ記録（本文/プロンプト/トークン非記録）。いずれも既硬化。**弱い起票より no-op。**
 
 2026-09-08 03:24 進捗監視 前進あり: C-1482 完了（リフレッシャが取り込みの部分失敗を状態に出す・辛口ユーザー 02:51）・C-1397 完了（親指スリップでランが消えない——パッド R の走行中ホールド化・クリエイター 03:13）・101 巡目はリクエスト検証/エラー処理・artifacts 配信・audit の点検で全て既硬化＝正直な no-op。ループA 4 巡連続 no-op は既知の構造（E 節判断待ち）。次の空き番号は C-1483。
+
+2026-09-08 03:50 UTC 辛口クリエイター C-1397 追記: rebase 後（code-bearing な兄弟 push 込み）の push 後全量 pytest exit 0（4386 passed / 3 skip）——push 前は gate PASSED＋対象テストで確認済み（レース手順どおり）。
