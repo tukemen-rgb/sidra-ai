@@ -268,6 +268,12 @@ tests/embedding callers and is not used by the `sidra-api` entry point.
   clear request — a question about how to make something, or a request naming no artifact
   — stays on the question path, and an unregistered kind still answers as a question.
   A generator's summary crosses `OutputGuard` exactly as model output does.
+  When a turn ends without an answer the response carries `refusal`, a fixed code —
+  `gate`, `history`, `model_unavailable` or `output_guard` — beside the English `reason`.
+  The code is a closed set and coarser than `reason`, so it discloses nothing that field
+  does not: no endpoint, no model name, no backend diagnostics. It exists because the
+  operator's next step differs per case and `reason` is audit prose, not something a
+  caller can branch on.
 - `POST /v1/github/analyze` — authenticated/rate-limited read-only GitHub ingestion + analysis.
 
 No Web-fetch, write, deploy, billing, external-send, or mutation route exists.

@@ -424,6 +424,7 @@ class SidraService:
         if gate_result.decision is not Decision.ALLOW:
             return {
                 "refused": True,
+                "refusal": "gate",
                 "reason": "; ".join(gate_result.reasons) or "blocked by security gate",
                 "results": [],
                 "security": gate_result.to_dict(),
@@ -503,6 +504,7 @@ class SidraService:
             return {
                 "answer": "",
                 "refused": True,
+                "refusal": "gate",
                 "reason": "; ".join(gate_result.reasons) or "blocked by security gate",
                 "security": gate_result.to_dict(),
                 "citations": [],
@@ -520,6 +522,7 @@ class SidraService:
                     return {
                         "answer": "",
                         "refused": True,
+                        "refusal": "history",
                         "reason": "conversation history blocked by security gate",
                         "security": side_result.to_dict(),
                         "citations": [],
@@ -542,6 +545,7 @@ class SidraService:
             return {
                 "answer": guarded_summary.content,
                 "refused": guarded_summary.blocked,
+                "refusal": "output_guard" if guarded_summary.blocked else "",
                 "reason": guarded_summary.reason
                 or ("creation output withheld by security guard" if guarded_summary.blocked else ""),
                 "citations": [],
@@ -575,6 +579,7 @@ class SidraService:
                 return {
                     "answer": guarded_summary.content,
                     "refused": guarded_summary.blocked,
+                    "refusal": "output_guard" if guarded_summary.blocked else "",
                     "reason": guarded_summary.reason
                     or ("creation output withheld by security guard" if guarded_summary.blocked else ""),
                     "citations": [],
@@ -614,6 +619,7 @@ class SidraService:
             return {
                 "answer": guarded_summary.content,
                 "refused": False,
+                "refusal": "",
                 "reason": "",
                 "citations": [],
                 "security": gate_result.to_dict(),
@@ -701,6 +707,7 @@ class SidraService:
             return {
                 "answer": "",
                 "refused": True,
+                "refusal": "model_unavailable",
                 "reason": "model backend unavailable",
                 "security": gate_result.to_dict(),
                 "citations": citations,
@@ -718,6 +725,7 @@ class SidraService:
             return {
                 "answer": guarded_output.content,
                 "refused": True,
+                "refusal": "output_guard",
                 "reason": guarded_output.reason or "model output withheld by security guard",
                 "citations": citations,
                 "security": gate_result.to_dict(),
@@ -728,6 +736,7 @@ class SidraService:
         return {
             "answer": guarded_output.content,
             "refused": False,
+            "refusal": "",
             "reason": "",
             "citations": citations,
             "security": gate_result.to_dict(),

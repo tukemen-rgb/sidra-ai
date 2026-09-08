@@ -131,6 +131,9 @@ class RetrieveResult(BaseModel):
 
 class RetrieveResponse(BaseModel):
     refused: bool = False
+    #: See :class:`ChatResponse.refusal`. Only "gate" or "" can appear here -
+    #: this route never reaches the model or the output guard.
+    refusal: str = ""
     reason: str = ""
     results: list[RetrieveResult] = Field(default_factory=list)
     security: dict[str, Any] = Field(default_factory=dict)
@@ -141,6 +144,15 @@ class RetrieveResponse(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     refused: bool = False
+    #: Which refusal this was, as a fixed code rather than prose: "gate",
+    #: "history", "model_unavailable", "output_guard", or "" when nothing was
+    #: refused. ``reason`` is the English audit text and varies with the
+    #: detector that fired; a caller that has to *act* on a refusal needs a
+    #: value it can branch on, and the browser page needs one to choose which
+    #: Japanese sentence to show. Deliberately a closed set and coarser than
+    #: ``reason``, so it discloses nothing that field does not already: no
+    #: endpoint, no model name, no backend diagnostics.
+    refusal: str = ""
     reason: str = ""
     citations: list[Citation] = Field(default_factory=list)
     security: dict[str, Any] = Field(default_factory=dict)

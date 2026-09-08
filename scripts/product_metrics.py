@@ -229,6 +229,78 @@ def measure_usability(c: Collector) -> None:
     c.add("ask_from_browser", "ask a question from a browser", served,
           detail=detail, kind=OUTCOME)
 
+    # 4b. A refusal has to say which refusal it was.
+    #
+    # Four different things end a question without an answer - the gate
+    # blocked it, a replayed turn was blocked, the model backend is not
+    # running, the output guard withheld the answer - and the page used to
+    # tell the operator the same thing about three of them: wait and try
+    # again. Waiting fixes none of the three. Counted rather than asserted:
+    # how many of the codes the service can actually set have wording of
+    # their own on the page. Static on both sides, so no browser is needed.
+    import ast as _ast
+    import re as _re
+
+    from sidra_ai.api.ui import ASK_PAGE as _ASK_PAGE
+
+    refusal_detail = ""
+    distinct_messages = 0
+    service_codes: set[str] = set()
+    try:
+        service_source = (
+            Path(__file__).resolve().parents[1]
+            / "src" / "sidra_ai" / "api" / "service.py"
+        ).read_text(encoding="utf-8")
+        for node in _ast.walk(_ast.parse(service_source)):
+            if not isinstance(node, _ast.Dict):
+                continue
+            for key, value in zip(node.keys, node.values):
+                if isinstance(key, _ast.Constant) and key.value == "refusal":
+                    for inner in _ast.walk(value):
+                        if isinstance(inner, _ast.Constant) and isinstance(
+                            inner.value, str
+                        ) and inner.value:
+                            service_codes.add(inner.value)
+        worded = {
+            code: message
+            for code, message in _re.findall(r'\n\s+(\w+): "((?:[^"\\]|\\.)+)"', _ASK_PAGE)
+            if code in service_codes
+        }
+        distinct_messages = len(set(worded.values()))
+    except Exception as exc:  # noqa: BLE001 - a broken probe is not a number
+        refusal_detail = f"{type(exc).__name__}: {exc}"
+
+    c.add(
+        "refusals_with_their_own_next_step",
+        "回答が出なかった理由ごとに、別々の「次にすること」を言える数（多いほど良い）",
+        float(distinct_messages),
+        unit="通り",
+        direction="up",
+        kind=OUTCOME,
+        detail=(
+            refusal_detail
+            if refusal_detail
+            else (
+                f"サービスが返し得る理由は **{len(service_codes)} 通り**"
+                f"（{', '.join(sorted(service_codes))}）で、画面がそれぞれに"
+                f"**別々の文言**を持っているのは **{distinct_messages} 通り**。"
+                "以前は `security.decision` しか見ていなかったので、"
+                "「関門が止めた」以外の 3 つが同じ文「少し時間をおいて、もう一度」"
+                "に落ちていた。**待って直るものは 1 つも無い**——止まっている模型は"
+                "止まったまま、弾かれた履歴は弾かれたまま、差し止めた回答は"
+                "何度でも差し止められる。理由ごとに次の一手が違うので文言も違う"
+                "必要がある。**画面を動かして選ばせる検査**は "
+                "tests/test_refusal_says_what_to_do_next.py（node で実行）。"
+                "**この数字の読み方に注意**: 変更前は API が理由の符号を"
+                "返していなかったので、この計器は **0 通り**と出る。"
+                "しかし当時の画面がまったく無言だったわけではなく、"
+                "`security.decision` を使って**2 通り**（関門が止めた／それ以外）"
+                "までは言い分けていた。0 → 4 の「0」は"
+                "「符号が無い」であって「文言が無い」ではない"
+            )
+        ),
+    )
+
     # 5. Check the answer against its evidence without leaving the response.
     #
     # Exercised end to end rather than grepped for a field name: a schema that

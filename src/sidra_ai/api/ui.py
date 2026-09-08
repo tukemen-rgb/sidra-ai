@@ -159,21 +159,41 @@ ASK_PAGE = """<!doctype html>
     while (node.firstChild) { node.removeChild(node.firstChild); }
   }
 
+  function refusalMessage(result) {
+      // The API reason is the gate's English audit text; a Japanese user needs
+      // Japanese and a next step, not the audit trail (C-1238). The raw
+      // English reason is left in the API response for consumers, not shown.
+      //
+      // Chosen by result.refusal, a fixed code the service sets on every
+      // refusal (C-1157). It used to be chosen by security.decision, which
+      // could only tell a gate refusal from everything else - so four
+      // different situations shared one message that told the operator to
+      // wait and try again. Waiting fixes exactly none of them: a stopped
+      // model stays stopped, a blocked history stays blocked, and a withheld
+      // answer is withheld the same way every time. The advice has to differ
+      // because the next step differs.
+      var refusalMsg = {
+        gate: "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u5165\u529b\u304c\u5b89\u5168\u6027\u30c1\u30a7\u30c3\u30af\u306b\u304b\u304b\u308a\u307e\u3057\u305f\u3002\u6307\u793a\u306e\u4e0a\u66f8\u304d\u3084\u79d8\u5bc6\u60c5\u5831\u3092\u542b\u3080\u8868\u73fe\u3092\u907f\u3051\u3001\u8a00\u3044\u63db\u3048\u3066\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002",
+        history: "\u56de\u7b54\u3092\u51fa\u305b\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u3053\u308c\u307e\u3067\u306e\u4f1a\u8a71\u306e\u4e2d\u306b\u5b89\u5168\u6027\u30c1\u30a7\u30c3\u30af\u306b\u304b\u304b\u308b\u5185\u5bb9\u304c\u3042\u308a\u307e\u3057\u305f\u3002\u4f1a\u8a71\u3092\u3084\u308a\u76f4\u3059\u304b\u3001\u305d\u306e\u90e8\u5206\u3092\u5916\u3057\u3066\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002",
+        model_unavailable: "\u56de\u7b54\u3092\u51fa\u305b\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u30ed\u30fc\u30ab\u30eb\u30e2\u30c7\u30eb\u306b\u63a5\u7d9a\u3067\u304d\u3066\u3044\u307e\u305b\u3093\u3002\u5f85\u3063\u3066\u3082\u76f4\u308a\u307e\u305b\u3093\u2014\u2014\u30e2\u30c7\u30eb\uff08Ollama / llama.cpp\uff09\u304c\u8d77\u52d5\u3057\u3066\u3044\u308b\u304b\u3001\u30b5\u30fc\u30d0\u30fc\u8d77\u52d5\u6642\u306e\u300cmodel backend\u300d\u304c echo \u306e\u307e\u307e\u306b\u306a\u3063\u3066\u3044\u306a\u3044\u304b\u3092\u78ba\u304b\u3081\u3066\u304f\u3060\u3055\u3044\u3002",
+        output_guard: "\u56de\u7b54\u3092\u51fa\u305b\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u7b54\u3048\u306e\u4e2d\u306b\u79d8\u5bc6\u3084\u500b\u4eba\u60c5\u5831\u3089\u3057\u304d\u7b87\u6240\u304c\u898b\u3064\u304b\u3063\u305f\u306e\u3067\u3001\u5168\u4f53\u3092\u5dee\u3057\u6b62\u3081\u307e\u3057\u305f\u3002\u540c\u3058\u8cea\u554f\u306a\u3089\u540c\u3058\u7d50\u679c\u306b\u306a\u308a\u307e\u3059\u3002"
+      }[result.refusal];
+      if (!refusalMsg) {
+        // An unknown or absent code: say what is known and nothing more.
+        var decision = (result.security || {}).decision;
+        refusalMsg = (decision === "quarantine" || decision === "block")
+          ? "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u5165\u529b\u304c\u5b89\u5168\u6027\u30c1\u30a7\u30c3\u30af\u306b\u304b\u304b\u308a\u307e\u3057\u305f\u3002\u6307\u793a\u306e\u4e0a\u66f8\u304d\u3084\u79d8\u5bc6\u60c5\u5831\u3092\u542b\u3080\u8868\u73fe\u3092\u907f\u3051\u3001\u8a00\u3044\u63db\u3048\u3066\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002"
+          : "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u56de\u7b54\u3092\u51fa\u305b\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u5c11\u3057\u6642\u9593\u3092\u304a\u3044\u3066\u3001\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002";
+      }
+    return refusalMsg;
+  }
+
   function render(result) {
     // Text nodes only. Retrieved content is DATA, so it is never parsed as
     // markup here, whatever a document happens to contain.
     answer.textContent = result.answer || "";
     if (result.refused) {
-      // The API reason is the gate's English audit text; a Japanese user needs
-      // Japanese and a next step, not the audit trail (C-1238). Chosen by the
-      // machine-readable security.decision: a gate refusal (quarantine/block)
-      // asks for a rephrase, any other refusal asks to retry. The raw English
-      // reason is left in the API response for consumers, not shown here.
-      var decision = (result.security || {}).decision;
-      var refusalMsg = (decision === "quarantine" || decision === "block")
-        ? "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u5165\u529b\u304c\u5b89\u5168\u6027\u30c1\u30a7\u30c3\u30af\u306b\u304b\u304b\u308a\u307e\u3057\u305f\u3002\u6307\u793a\u306e\u4e0a\u66f8\u304d\u3084\u79d8\u5bc6\u60c5\u5831\u3092\u542b\u3080\u8868\u73fe\u3092\u907f\u3051\u3001\u8a00\u3044\u63db\u3048\u3066\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002"
-        : "\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u56de\u7b54\u3092\u51fa\u305b\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u5c11\u3057\u6642\u9593\u3092\u304a\u3044\u3066\u3001\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002";
-      statusLine.textContent = refusalMsg;
+      statusLine.textContent = refusalMessage(result);
     }
     clear(sources);
     var citations = result.citations || [];
