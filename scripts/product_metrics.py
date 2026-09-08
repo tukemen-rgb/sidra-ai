@@ -938,6 +938,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1481: the history-carry (C-1453) fired for a follow-up naming a NEW
+    # subject the corpus does not cover, so a mid-conversation topic switch got
+    # the previous topic's documents as its answer. The floor now abstains when
+    # the follow-up's own content subject is absent from the carried evidence.
+    from sidra_ai.evals.followup_topic_switch_abstains_off_corpus import (
+        evaluate_followup_topic_switch_abstains_off_corpus,
+    )
+
+    topic_switch = evaluate_followup_topic_switch_abstains_off_corpus()
+    c.add(
+        "followup_topic_switch_abstains_off_corpus",
+        "会話中に未収録の新主題へ話題転換すると前話題で答えず棄権する",
+        10.0 * topic_switch.checks_passed / topic_switch.checks_total,
+        detail=f"{topic_switch.checks_passed}/{topic_switch.checks_total} checks; "
+               "src/sidra_ai/evals/followup_topic_switch_abstains_off_corpus.py"
+               + ("" if topic_switch.passed else "; " + "; ".join(topic_switch.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1454: creation intent required a bare imperative ('作って') and treated
     # 'ますか' as a question veto, so a polite request ('資料を作成いただけますか',
     # 'アートを描いてください') - how Japanese operators actually phrase it - was

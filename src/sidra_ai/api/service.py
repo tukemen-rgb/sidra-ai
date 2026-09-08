@@ -82,6 +82,29 @@ _KIND_LABELS: dict[str, str] = {
 }
 
 
+#: Latin interrogatives that ``subject_terms`` keeps (they are Latin words) but
+#: which name no topic - 「why is that?」 is an elaboration of the previous turn,
+#: not a new subject. Japanese interrogatives are hiragana and ``subject_terms``
+#: already drops them, so this list is English-only. Used to tell an elaboration
+#: follow-up (carry the topic) from a genuine topic switch (C-1481).
+_INTERROGATIVES = frozenset(
+    {"why", "how", "what", "when", "where", "who", "which", "whose", "whom"}
+)
+
+
+def _own_content_subject(query: str) -> tuple[str, ...]:
+    """The follow-up's own subject terms, minus bare interrogatives.
+
+    Empty for a pure elaboration (「もっと詳しく」「why is that?」); non-empty when the
+    follow-up names a topic of its own (「料金プランは？」).
+    """
+
+    return tuple(
+        term for term in subject_terms(query)
+        if term.casefold() not in _INTERROGATIVES
+    )
+
+
 class SidraService:
     """The application, assembled."""
 
@@ -615,6 +638,19 @@ class SidraService:
             not subject_terms(searched_query)
             or not evidence_mentions_subject(
                 searched_query, [r.chunk for r in results]
+            )
+            # C-1481: after a history carry, the searched query mixes the
+            # previous subject with the follow-up's, so the check above passes
+            # on the *previous* subject even when the follow-up switched to a new
+            # topic the corpus does not cover - the old answer served to a new
+            # question. When the carry happened and the follow-up names its own
+            # content subject (not just an interrogative) that the evidence
+            # mentions nowhere, abstain. A pure elaboration has no content
+            # subject and is left to ground on the topic under discussion.
+            or (
+                searched_query != query
+                and _own_content_subject(query)
+                and not evidence_mentions_subject(query, [r.chunk for r in results])
             )
         ):
             # CJK bigram scoring fills top_k even when the corpus knows

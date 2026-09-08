@@ -8977,3 +8977,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 01:55 UTC 辛口クリエイター C-1395 追記: rebase 後（code-bearing な兄弟 push 込み）の push 後全量 pytest exit 0（4371 passed / 3 skip）——push 前は gate PASSED＋対象テストで確認済み（レース手順どおり）。
 
 2026-09-08 01:54 進捗監視 前進あり: C-1396 claim（SFX 定位の第 3・第 4 の体——fishing/catch・クリエイター 01:36）・C-1395 の push 後全量 pytest 4371 緑を確認。辛口ユーザー 99 巡目（話題転換）実行中——仕掛かり 2 本進行中で異常なし。
+2026-09-08 01:55 UTC 辛口ユーザー C-1481 完了（99 巡目・別面=複数ターンの話題転換・前回=英語 ART cue C-1480・followup_topic_switch_abstains_off_corpus 7→10・`--compare` BETTER MOVED 1・pytest rc=0 FAILED 0・破壊 5 種すべて eval red 7/9/7/7/7・board exit 0・正直フロアに「履歴繰越後、follow-up 自身の内容主題〔subject_terms から疑問詞除去〕を証拠が言及しないなら棄権」を追加＝未収録新主題への転換で前話題を答えにしない・純elaboration〔もっと詳しく/why is that?〕繰越と C-1468 単発棄権は不変・C-1453 eval 9/9 非退行）
