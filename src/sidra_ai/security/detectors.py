@@ -465,7 +465,15 @@ class PIIDetector:
                 start, end = match.span()
                 if any(s <= start and end <= e for s, e, _ in spans):
                     continue
-                if len(_only_digits(match.group())) not in lengths:
+                digits = _only_digits(match.group())
+                if len(digits) not in lengths:
+                    continue
+                # An all-same-digit run (000-0000-0000, +1-1111-1111) is a form
+                # placeholder, never a real number, so quarantining it only holds
+                # a benign document from the index (C-1487). Real numbers have
+                # varied digits, so skipping this shape costs no recall on genuine
+                # PII. Mirrors the secret detector's placeholder exemption.
+                if len(set(digits)) == 1:
                     continue
                 spans.append((start, end, label))
                 findings.append(

@@ -1169,6 +1169,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1487: the PII phone detector quarantined an all-same-digit placeholder
+    # (000-0000-0000) that a form spec or design Issue carries, holding the whole
+    # benign document from the index. A real number never has all-identical
+    # digits, so skipping that shape costs no recall while releasing the benign doc.
+    from sidra_ai.evals.gate_allows_placeholder_phone import (
+        evaluate_gate_allows_placeholder_phone,
+    )
+
+    gate_ph_phone = evaluate_gate_allows_placeholder_phone()
+    c.add(
+        "gate_allows_placeholder_phone",
+        "安全性ゲートが全桁同一のプレースホルダ電話を通し実番号だけ隔離する",
+        10.0 * gate_ph_phone.checks_passed / gate_ph_phone.checks_total,
+        detail=f"{gate_ph_phone.checks_passed}/{gate_ph_phone.checks_total} checks; "
+               "src/sidra_ai/evals/gate_allows_placeholder_phone.py"
+               + ("" if gate_ph_phone.passed else "; " + "; ".join(gate_ph_phone.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the
