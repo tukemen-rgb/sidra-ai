@@ -9083,3 +9083,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 13:54 UTC 辛口ユーザー C-1486 完了（111 巡目・別面=プロジェクト雛形生成・前回=生成アート no-op・project_escapes_html_in_files 4→10・`--compare` exit 0 BETTER 4→10 MOVED 1・pytest rc=0 FAILED 0 [100%]・破壊 5 種すべて eval red 8/7/8/7/7・board exit 0・projects の .md（scenario/structure/features/production-log）が依頼文由来 title と索引した Issue/PR 由来の出典ラベルを生 HTML で書いていた＝格納型 XSS を、`html.escape` を story._header/story._sources/projects._front_matter/records._clean の 4 か所に適用して無害化。文書 C-1483・デッキ/アート/GIF/3D と対称に。.title/要約は生のまま・game.html〔games.py 既 escape〕不変・検出器非変更で gate 対象外）
 2026-09-08 14:08 UTC ループA started
 2026-09-08 14:10 UTC ループA no-op キューが空（開いている項目 13 件はすべて E節 11・F節 2、着手可能な D 項目なし。作業中 0 件。Board=13）
+
+2026-09-08 14:16 UTC 辛口ユーザー started（112 巡目・別面=生成ファイルの一覧/ダウンロード HTTP 層＝生成物（特に 111 巡で見たプロジェクトのディレクトリ構造＝assets/・game.html・.md）が一覧に出るか、各ファイルが安全に配信されるか〔attachment+nosniff・content-type・HTML が inline 実行されないか〕を実際に叩いて点検。前回=プロジェクト .md の XSS C-1486 修正）
