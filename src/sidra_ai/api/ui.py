@@ -403,9 +403,35 @@ ASK_PAGE = """<!doctype html>
     var token = document.getElementById("token").value;
 
     send.disabled = true;
-    statusLine.textContent = "\u554f\u3044\u5408\u308f\u305b\u4e2d\u2026";
     answer.textContent = "";
     clear(sources);
+
+    // A question takes as long as the machine takes, and on a modest GPU that
+    // is tens of seconds - long past the point where an unchanging line reads
+    // as a hang rather than as work (Nielsen's ten-second limit; see
+    // docs/research/perf-competitive-2026-09-08.md). Nothing here can make the
+    // model faster, so the page says what it honestly knows: how long it has
+    // been waiting, and which part of the work that duration is likely in.
+    // Client-side only - no request, no API change, nothing new to trust.
+    var waitingSince = Date.now();
+    function waitingText() {
+      var seconds = Math.floor((Date.now() - waitingSince) / 1000);
+      var line = "\u554f\u3044\u5408\u308f\u305b\u4e2d\u2026";
+      if (seconds >= 1) { line += " " + seconds + " \u79d2"; }
+      if (seconds >= 8) {
+        line += "\uff08\u8003\u3048\u3066\u3044\u307e\u3059\u3002\u521d\u56de\u306f\u30e2\u30c7\u30eb\u306e\u8aad\u307f\u8fbc\u307f\u3067\u9577\u304f\u306a\u308a\u307e\u3059\uff09";
+      } else if (seconds >= 3) {
+        line += "\uff08\u8cc7\u6599\u3092\u63a2\u3057\u3066\u3044\u307e\u3059\uff09";
+      }
+      return line;
+    }
+    statusLine.textContent = waitingText();
+    var waitingTimer = setInterval(function () {
+      statusLine.textContent = waitingText();
+    }, 1000);
+    function stopWaiting() {
+      if (waitingTimer) { clearInterval(waitingTimer); waitingTimer = null; }
+    }
 
     var headers = { "Content-Type": "application/json" };
     if (token) { headers["Authorization"] = "Bearer " + token; }
@@ -425,6 +451,7 @@ ASK_PAGE = """<!doctype html>
       }
       return response.json();
     }).then(function (result) {
+      stopWaiting();
       statusLine.textContent = "";
       render(result);
       // Only a real exchange joins the conversation: a refusal or an empty
@@ -438,8 +465,12 @@ ASK_PAGE = """<!doctype html>
       loadArtifacts();
       loadProjects();
     }).catch(function (error) {
+      stopWaiting();
       statusLine.textContent = "\u5931\u6557: " + reason(error);
     }).then(function () {
+      // Belt and braces: a timer left running would keep overwriting whatever
+      // the page settled on, including an error message.
+      stopWaiting();
       send.disabled = false;
     });
   });
