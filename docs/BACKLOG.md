@@ -3055,7 +3055,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       同一秒に収まり、**古い `.pyc` が読まれて破壊試験が嘘をついた**。
       破壊試験は毎回 `__pycache__` を消してから取り直している。
 
-- [~] 作業中 2026-09-08 21:09 UTC ループA **語彙側に分割した残り 3 問（`submission-fee` / `cy-mvp-scope` / `mkt-what-is-this-repo`）。**（2026-09-08 ループA が上の訂正から分割起票）
+- [~] 作業中 2026-09-08 21:07 UTC ループA **語彙側に分割した残り 3 問（`submission-fee` / `cy-mvp-scope` / `mkt-what-is-this-repo`）。**（2026-09-08 ループA が上の訂正から分割起票）
       **どれも順位の問題ではない**——質問の語が文書に 1 つも無い。
       「費用」対「無料」、「機能」対「Story のみ」、英字 `marketing` 対
       片仮名「マーケティング」。**BM25 の係数では原理的に届かない。**
