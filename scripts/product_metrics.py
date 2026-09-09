@@ -1229,6 +1229,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1509: the flat generators stamp artifact names to the second, so two
+    # saves of one kind inside one second reduced to the same name and the
+    # second silently overwrote the first (save_game already guarded this; the
+    # flat savers did not). Each now routes through unique_path, so the second
+    # save becomes …-2 and both files survive.
+    from sidra_ai.evals.flat_artifacts_survive_same_second_save import (
+        evaluate_flat_artifacts_survive_same_second_save,
+    )
+
+    flat_collide = evaluate_flat_artifacts_survive_same_second_save()
+    c.add(
+        "flat_artifacts_survive_same_second_save",
+        "同一秒内の 2 回保存で先の生成物を上書きせず両方を残す（gif/art/document/deck/model3d）",
+        10.0 * flat_collide.checks_passed / flat_collide.checks_total,
+        detail=f"{flat_collide.checks_passed}/{flat_collide.checks_total} checks; "
+               "src/sidra_ai/evals/flat_artifacts_survive_same_second_save.py"
+               + ("" if flat_collide.passed else "; " + "; ".join(flat_collide.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the

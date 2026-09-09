@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sidra_ai.creation.artifact_paths import unique_path
+
 WIDTH = 120
 HEIGHT = 90
 FRAMES = 10
@@ -343,7 +345,7 @@ def save_gif(gif: GeneratedGif, data_dir: str | Path) -> Path:
     directory = Path(data_dir) / "artifacts"
     directory.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    path = directory / f"gif-{gif.motif}-{stamp}.gif"
+    path = unique_path(directory, f"gif-{gif.motif}-{stamp}", ".gif")
     path.write_bytes(gif.data)
     return path
 

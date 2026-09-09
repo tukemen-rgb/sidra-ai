@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 
+from sidra_ai.creation.artifact_paths import unique_path
+
 #: Shared with the game generator so a deck and a game made by the same tool
 #: look like they came from the same place.
 from sidra_ai.creation.evidence import NUMBER, Fact, plain_text, whole_sentences
@@ -417,7 +419,7 @@ def save_deck(deck: GeneratedDeck, data_dir: str | Path, *, now: datetime | None
     stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
     directory = Path(data_dir) / "artifacts"
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"deck-{deck.outline}-{stamp}.html"
+    path = unique_path(directory, f"deck-{deck.outline}-{stamp}", ".html")
     path.write_text(deck.html, encoding="utf-8")
     return path
 

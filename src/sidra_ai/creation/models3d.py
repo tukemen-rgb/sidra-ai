@@ -23,6 +23,7 @@ from html import escape
 from pathlib import Path
 from random import Random
 
+from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.games import _javascript_parses, _no_external_assets, _script_of
 
 # GAMEYARD tokens as linear-ish RGB triples for MTL diffuse colours.
@@ -433,8 +434,11 @@ def save_model3d(
     stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
     directory = Path(data_dir) / "artifacts"
     directory.mkdir(parents=True, exist_ok=True)
-    stem = f"model3d-{model.shape}-{stamp}"
-    obj_path = directory / f"{stem}.obj"
+    # Three files share one stem. Reserve it via the .obj so a same-second
+    # second save gets -2 for the whole set instead of overwriting the first
+    # (C-1509); the mtl/preview then follow the reserved stem.
+    obj_path = unique_path(directory, f"model3d-{model.shape}-{stamp}", ".obj")
+    stem = obj_path.stem
     mtl_path = directory / f"{stem}.mtl"
     preview_path = directory / f"{stem}-preview.html"
     obj_path.write_text(

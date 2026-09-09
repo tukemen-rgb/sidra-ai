@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 
+from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.evidence import NUMBER, Fact, plain_text
 
 #: Same constant as the deck's, same reason: the renderer and the validator
@@ -263,7 +264,7 @@ def save_document(document: GeneratedDocument, data_dir: str | Path) -> Path:
     directory = Path(data_dir) / "artifacts"
     directory.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    path = directory / f"doc-report-{stamp}.md"
+    path = unique_path(directory, f"doc-report-{stamp}", ".md")
     path.write_text(document.markdown, encoding="utf-8")
     return path
 

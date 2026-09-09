@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 
+from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.games import _javascript_parses, _no_external_assets, _script_of
 
 #: The DESIGN.md tokens, written once so the page and the tests agree.
@@ -335,7 +336,7 @@ def save_art(art: GeneratedArt, data_dir: str | Path) -> Path:
     directory = Path(data_dir) / "artifacts"
     directory.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    path = directory / f"art-{art.pattern}-{stamp}.html"
+    path = unique_path(directory, f"art-{art.pattern}-{stamp}", ".html")
     path.write_text(art.html, encoding="utf-8")
     return path
 
