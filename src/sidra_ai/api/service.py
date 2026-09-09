@@ -562,7 +562,10 @@ class SidraService:
         # 「難しいゲームを作って」 by construction, not by ordering luck.
         revision = detect_revision_intent(query)
         if revision.is_revision:
-            outcome = self.game_reviser(query, revision)
+            # C-1519: the conversation's own artifacts decide what 「それ」
+            # means. Without this the target was whatever this process
+            # wrote last, across callers.
+            outcome = self.game_reviser(query, revision, screened_history)
             # Same boundary as a generator's summary: text this process
             # produced from a request, scanned before any caller sees it.
             guarded_summary = self.output_guard.scan(outcome.summary)

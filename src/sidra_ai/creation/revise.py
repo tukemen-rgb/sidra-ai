@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from collections.abc import Sequence
 from pathlib import Path
 
 from sidra_ai.creation.games import undepicted_subject
@@ -583,7 +584,39 @@ def _previous_version(
     return None
 
 
-def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | None:
+#: A name this conversation claims to have made. Every generator and every
+#: reviser puts the title in 「」 in its own sign-off, so the turn a client
+#: replays carries the name whether or not the client understood it.
+_QUOTED_TITLE = re.compile(r"[「『]([^」』\n]{1,40})[」』]")
+
+
+def titles_in_history(
+    history: Sequence[tuple[str, str]] | None,
+) -> list[str]:
+    """The artifacts this conversation's own turns name, newest last.
+
+    ``chat`` is stateless by contract - "the client replays them, which
+    means every turn is a claim rather than a record" - so this is read as
+    a claim, and used only to *narrow*. A conversation cannot reach an
+    artifact it does not name, and naming one it did not make buys nothing:
+    typing that name in the message already did that (C-1126).
+    """
+
+    names: list[str] = []
+    for turn in history or ():
+        if len(turn) < 2:
+            continue
+        for name in _QUOTED_TITLE.findall(str(turn[1])):
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def find_target_meta(
+    data_dir: str | Path,
+    message: str,
+    history: Sequence[tuple[str, str]] | None = None,
+) -> tuple[Path, dict] | None:
     """Pick the game a revision message refers to.
 
     Four rules, most specific first.
@@ -633,6 +666,27 @@ def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | 
             candidates.append((path, meta))
     if not candidates:
         return None
+    # C-1519: what the conversation itself made, before what the machine
+    # happens to hold. 「それを難しくして」 means the thing this conversation
+    # is about, and reading it as "whatever was written to this directory
+    # last" edited another person's artifact and reported success under its
+    # name - measured with two callers sharing one data directory, which is
+    # what a served process is.
+    #
+    # Only ever a narrowing. A history that names nothing (an ordinary
+    # question-and-answer conversation) changes nothing, and one that names
+    # only artifacts that are not here refuses below rather than falling
+    # through to somebody else's newest.
+    remembered = titles_in_history(history)
+    if remembered:
+        own = [
+            (path, meta)
+            for path, meta in candidates
+            if str(meta.get("title") or "") in remembered
+        ]
+        if not own:
+            return None
+        candidates = own
     # The name first: it can only mean one page, where a genre can mean
     # several and 「latest」 means whichever happened to be last.
     for path, meta in candidates:
@@ -719,8 +773,12 @@ def _panel_after(template: str, panel: dict, adjustments: dict) -> dict:
 def build_game_reviser(data_dir: str | Path):
     """The revision handler the API calls; mirrors a generator's shape."""
 
-    def revise(message: str, intent: RevisionIntent) -> CreationOutcome:
-        found = find_target_meta(data_dir, message)
+    def revise(
+        message: str,
+        intent: RevisionIntent,
+        history: Sequence[tuple[str, str]] | None = None,
+    ) -> CreationOutcome:
+        found = find_target_meta(data_dir, message, history)
         if found is None:
             # Honest and terminal: falling through to the question path
             # would answer a request we understood with something else.
@@ -730,9 +788,24 @@ def build_game_reviser(data_dir: str | Path):
             # among the things that have been made" used to share a sentence
             # that only fitted the first, so an operator who mistyped a name
             # was told to go and create something they had already created.
-            made = existing_titles(data_dir)
-            if made:
-                shown = "」「".join(made[:5])
+            # Three different facts, three different sentences. C-1511 split
+            # the first two - "nothing has been made" and "what you named is
+            # not among the things that have been made" - because one
+            # sentence only fitted the first. C-1519 adds the third, and it
+            # is not a variant of either: the conversation's own artifacts
+            # are gone from this machine. Offering the titles that *are*
+            # here would be both wrong and a crossing - it reads another
+            # caller's names out to this one.
+            here = existing_titles(data_dir)
+            remembered = titles_in_history(history)
+            if remembered and not [name for name in remembered if name in here]:
+                shown = "」「".join(remembered[:5])
+                summary = (
+                    f"この会話で作った「{shown}」が見つかりません。"
+                    "もう一度作るか、今あるものを名前で指定してください。"
+                )
+            elif here:
+                shown = "」「".join((remembered or here)[:5])
                 summary = (
                     "その名前のゲームは見つかりません。"
                     f"あるのは「{shown}」です。"

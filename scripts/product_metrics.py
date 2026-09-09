@@ -16044,6 +16044,129 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 「それ」はこの会話のものを指す (C-1519) -------------------------
+    #
+    # Driven through the real HTTP path with two callers sharing one
+    # process - which is what a served process is. A makes a fishing game,
+    # B makes a racing game, then A says 「それを難しくして」 replaying A's
+    # own history. The answer used to be 「レース」を修正しました: B's
+    # artifact, edited and reported back to A under its own name, with the
+    # result byte-identical to passing no history at all.
+    #
+    # Both directions. Not, as first written, a guard against "always pick
+    # the oldest" - once the history has narrowed to one candidate every
+    # ordering rule agrees, so ordering is out of reach here (a break test
+    # said so). What the A/B pair establishes is that the target follows
+    # the history rather than being a constant, and the no-history and
+    # names-nothing cases below establish that it narrows only when the
+    # conversation actually names something.
+    from dataclasses import replace as _hist_replace
+
+    from sidra_ai.api.service import SidraService as _HistService
+    from sidra_ai.config.settings import Settings as _HistSettings
+    from sidra_ai.models.echo import EchoModelAdapter as _HistModel
+
+    # Driven at ``SidraService.chat`` rather than over HTTP. Measured first:
+    # standing the whole app up inside this script costs **108 seconds**
+    # (3m18s -> 5m06s for the full run, against 9.5s for the same seven calls
+    # in a bare process), which put the script past the 300s budget
+    # ``test_script_runs_and_prints_a_table`` pins. The boundary this number
+    # is about is ``chat`` handing the history to the reviser; the HTTP layer
+    # above it only turns a payload into those tuples, and ``test_api`` and
+    # ``test_revision_follows_the_conversation`` cover that.
+    #
+    # Its own data directory: this judge *makes* artifacts, and writing them
+    # into the operator's would leave two games behind on every run.
+    _hist_dir = _tempfile.mkdtemp(prefix="metrics-history-")
+    _hist_service = _HistService(
+        settings=_hist_replace(_HistSettings(), data_dir=_hist_dir),
+        model=_HistModel(),
+    )
+
+    def _hist_say(text, history=None):
+        return _hist_service.chat(text, history=history or None).get("answer", "")
+
+    _hist_made = {}
+    for _hist_req in ("釣りゲームを作って", "レースゲームを作って"):
+        _hist_made[_hist_req] = _hist_say(_hist_req)
+        time.sleep(1.1)
+
+    _hist_bad, _hist_ok = [], []
+    if "「釣り」" not in _hist_made["釣りゲームを作って"]:
+        _hist_bad.append("下準備: 釣りが作れていない")
+    if "「レース」" not in _hist_made["レースゲームを作って"]:
+        _hist_bad.append("下準備: レースが作れていない")
+    if not _hist_bad:
+        # A's turn, replaying A's own history. Must reach 釣り, never レース.
+        _a_answer = _hist_say(
+            "それを難しくして", [("釣りゲームを作って", _hist_made["釣りゲームを作って"])]
+        )
+        if "「釣り」を修正しました" in _a_answer:
+            _hist_ok.append("A の履歴つき「それを難しくして」→ 釣り")
+        else:
+            _hist_bad.append(f"A の「それ」が自分のものに届かない: {_a_answer[:50]}")
+        if "レース" in _a_answer:
+            _hist_bad.append("A の「それ」が B の成果物に届いた")
+        # B's turn: the answer must follow the history it is given.
+        _b_answer = _hist_say(
+            "それを難しくして", [("レースゲームを作って", _hist_made["レースゲームを作って"])]
+        )
+        if "「レース」を修正しました" in _b_answer:
+            _hist_ok.append("B の履歴つき「それを難しくして」→ レース")
+        else:
+            _hist_bad.append(f"B の「それ」が自分のものに届かない: {_b_answer[:50]}")
+        # No history, and a history that names nothing: unchanged behaviour.
+        _bare_answer = _hist_say("それを難しくして")
+        if "を修正しました" not in _bare_answer:
+            _hist_bad.append(f"履歴なしの修正が壊れた: {_bare_answer[:50]}")
+        else:
+            _hist_ok.append("履歴なし（CLI 経路）は従来どおり最新")
+        _qa_answer = _hist_say(
+            "それを難しくして", [("収益化の方針は？", "掲載順は売らないことです。")]
+        )
+        if "を修正しました" not in _qa_answer:
+            _hist_bad.append(f"成果物を名指ししない履歴で修正が断られた: {_qa_answer[:50]}")
+        else:
+            _hist_ok.append("成果物を名指ししない履歴は何も狭めない")
+        # The conversation's own artifact is not on this machine: a third
+        # fact, with its own sentence, and no other caller's title in it.
+        _gone_answer = _hist_say(
+            "それを難しくして", [("将棋ゲームを作って", "「将棋」を作りました（難易度 normal）。")]
+        )
+        if "この会話で作った「将棋」が見つかりません" not in _gone_answer:
+            _hist_bad.append(f"この会話のものが無いことを言わない: {_gone_answer[:50]}")
+        elif "レース" in _gone_answer or "釣り" in _gone_answer:
+            _hist_bad.append("断り文が他の利用者の題名を読み上げた")
+        else:
+            _hist_ok.append("この会話のものが無いときは、そう言う")
+
+    c.add(
+        "creation_revision_follows_history",
+        "「それ」がこの会話で作ったものを指す",
+        0.0 if _hist_bad else 1.0,
+        detail=(
+            "; ".join(_hist_bad)
+            if _hist_bad
+            else "**実 `SidraService.chat` を、1 プロセスを 2 人で共有して測った**"
+            "（配信中のプロセスとはそういうものである）。"
+            f"**{len(_hist_ok)} 通り**: {'・'.join(_hist_ok)}。"
+            "**両方向**——A の「それ」が A のものに届くだけでは足りないので、"
+            "B の「それ」が B のものに届くことも同じ数字に入れた"
+            "（履歴を入れ替えると答えも入れ替わる＝定数ではない）。"
+            "**順序の保証ではない**: 履歴が候補を 1 件に絞った後は"
+            "どの順序規則でも同じ答えになるので、そこは履歴なしの経路と"
+            "`creation_revision_targeting` が持つ。"
+            "**履歴は主張であって記録ではない**（`chat` の契約どおり）ので、"
+            "**狭めるだけ**に使う: 名指ししていない成果物には届かず、"
+            "自分が作っていないものを名乗っても得は無い"
+            "——その題名を打てば元から届く（C-1126）。"
+            "**断り文は 3 種類目を足した**: この会話の成果物がこの機械に無い、"
+            "は「何も作っていない」とも「その名前が無い」とも別の事実で、"
+            "**今あるものを読み上げると他の利用者の題名を渡してしまう**"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the number said where it was earned (§1, C-1418) ----------------
     #
     # The score has only ever moved as a total in the corner, so which act
