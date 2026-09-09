@@ -102,6 +102,10 @@ class Metric:
 @dataclass
 class Collector:
     metrics: list[Metric] = field(default_factory=list)
+    #: Seconds per section, in the order they ran (C-1521). Kept here rather
+    #: than printed as it goes, because a loop reads this *after* a run has
+    #: already surprised it.
+    timings: list[tuple[str, float]] = field(default_factory=list)
 
     def add(self, *args, **kwargs) -> None:
         self.metrics.append(Metric(*args, **kwargs))
@@ -16238,6 +16242,75 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 走った時間を、走りながら申告する (C-1521) -----------------------
+    #
+    # ``test_script_runs_and_prints_a_table`` allows this script 300 seconds
+    # and the script takes 200-300 of them, so on a loaded machine (three
+    # loops share one here) the same tree is green or red depending on the
+    # weather. The timeout itself says nothing about which, so a loop that
+    # sees one has to go and measure - this one spent most of a cycle doing
+    # exactly that, and twice reached the wrong answer before instrumenting.
+    #
+    # This does not make the script faster. It makes the script *say* where
+    # its time went, every run, so the next loop reads it instead of
+    # rediscovering it. Both directions: the report has to exist, and it has
+    # to be honest - sections that do not account for the wall clock would
+    # send the next loop looking in the wrong place, which is worse than no
+    # report at all.
+    _clock_bad: list[str] = []
+    _clock_note: list[str] = []
+    _clock_sections = list(c.timings)
+    if not _clock_sections:
+        _clock_bad.append("節ごとの秒数を 1 つも持っていない")
+    else:
+        _clock_accounted = sum(seconds for _, seconds in _clock_sections)
+        # Measured against the wall clock this run has taken so far. The
+        # sections cannot exceed it, and should be most of it - what is left
+        # is import and the sections still to run, this one included.
+        _clock_wall = time.monotonic() - _START
+        if _clock_accounted > _clock_wall + 1.0:
+            _clock_bad.append(
+                f"節の合計 {_clock_accounted:.1f}s が実時間 {_clock_wall:.1f}s を超えている"
+            )
+        _clock_slowest = max(_clock_sections, key=lambda pair: pair[1])
+        _clock_note.append(
+            f"ここまで {len(_clock_sections)} 節 {_clock_accounted:.1f}s"
+            f"（実時間 {_clock_wall:.1f}s）・最も高いのは "
+            f"`{_clock_slowest[0]}` の {_clock_slowest[1]:.1f}s"
+        )
+        # The report itself, rendered exactly as a run prints it.
+        _clock_text = _runtime_report(c, _clock_wall)
+        for _needed in ("a run is allowed", "Slowest sections:"):
+            if _needed not in _clock_text:
+                _clock_bad.append(f"報告に「{_needed}」が無い")
+        if f"{SUBPROCESS_BUDGET_SECONDS:.0f}s" not in _clock_text:
+            _clock_bad.append("報告が予算の秒数を言わない")
+        if _clock_slowest[0] not in _clock_text:
+            _clock_bad.append("報告が最も高い節を挙げない")
+
+    c.add(
+        "metrics_runtime_attributed",
+        "判定器が、自分の走った時間の内訳を申告する",
+        0.0 if _clock_bad else 1.0,
+        detail=(
+            "; ".join(_clock_bad)
+            if _clock_bad
+            else "**この走行そのものを測って報告する**。" + "・".join(_clock_note) + "。"
+            f"予算は **{SUBPROCESS_BUDGET_SECONDS:.0f} 秒**"
+            "（`test_script_runs_and_prints_a_table` が subprocess を切る値）で、"
+            "報告は**残り秒数と高い節 5 つ**を毎回出す——`--json` と `--compare` "
+            "でも stderr に出るので、驚いた走行がどのモードでも読める。"
+            "**両方向**: 報告が在るだけでは足りないので、"
+            "**節の合計が実時間を超えないこと**と"
+            "**最も高い節が報告に載ること**も同じ数字に入れた"
+            "——嘘の内訳は、報告が無いより悪い（次のループを外れた場所へ送る）。"
+            "**速くはしていない**。この項目が直すのは「timeout が理由を言わない」"
+            "ことで、実際このループは 1 サイクルの大半を切り分けに使い、"
+            "**区間計測を入れるまで 2 度とも見立てを外した**"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the number said where it was earned (§1, C-1418) ----------------
     #
     # The score has only ever moved as a total in the corner, so which act
@@ -19693,13 +19766,67 @@ COLLECTORS = (
 )
 
 
+#: What ``tests/test_product_metrics.py`` allows this script per run. Named
+#: here so the report can say how close it came instead of leaving a loop to
+#: rediscover the number from a traceback (C-1521).
+SUBPROCESS_BUDGET_SECONDS = 300.0
+
+
+def _runtime_report(collector: "Collector", elapsed: float) -> str:
+    """Where the time went, worst first, against the budget."""
+
+    ranked = sorted(collector.timings, key=lambda pair: pair[1], reverse=True)
+    accounted = sum(seconds for _, seconds in collector.timings)
+    headroom = SUBPROCESS_BUDGET_SECONDS - elapsed
+    lines = [
+        f"{elapsed:.1f}s of the {SUBPROCESS_BUDGET_SECONDS:.0f}s a run is "
+        f"allowed ({headroom:+.1f}s of headroom; "
+        f"{accounted:.1f}s accounted for by sections)."
+    ]
+    if headroom < 60:
+        lines.append(
+            "  Close to the budget: a loaded machine can push this run over, "
+            "and the timeout will not say why. Slowest sections:"
+        )
+    else:
+        lines.append("  Slowest sections:")
+    for name, seconds in ranked[:5]:
+        share = (seconds / elapsed * 100) if elapsed else 0.0
+        lines.append(f"    {name:<14s} {seconds:6.1f}s  {share:4.1f}%")
+    return "\n".join(lines)
+
+
+#: When this process started measuring. The runtime judge compares the
+#: sections against it, and a module-level start is the only honest baseline
+#: for a section that runs partway through (C-1521).
+_START = time.monotonic()
+
+
 def collect() -> Collector:
+    """Run every section, and remember what each one cost.
+
+    C-1521: ``test_script_runs_and_prints_a_table`` gives this script 300
+    seconds, and the script takes 200-300 of them - so on a loaded machine
+    (three loops share one here) the same tree is green or red depending on
+    what else is running. That would be tolerable if the failure said so.
+    It does not: a loop that pushed a change and saw a timeout has no way to
+    tell its own cost from the weather, and the only honest response is to
+    go and measure, which cost this loop most of a cycle. The section times
+    are that measurement, taken every run and reported without being asked.
+
+    A section that raises is still timed - a probe that hangs and then fails
+    is exactly the thing this is for.
+    """
+
     c = Collector()
     for name, fn in COLLECTORS:
+        started = time.monotonic()
         try:
             fn(c)
         except Exception as exc:  # noqa: BLE001 - one broken probe is not a crash
             c.unmeasurable(f"{name}_probe", f"{name} probe", f"{type(exc).__name__}: {exc}")
+        finally:
+            c.timings.append((name, time.monotonic() - started))
     return c
 
 
@@ -19824,6 +19951,10 @@ def main() -> int:
     collector = collect()
     elapsed = time.monotonic() - started
 
+    # Printed in every mode, including --json and --compare: the run that
+    # surprises a loop is rarely the one it asked for a table from (C-1521).
+    print(_runtime_report(collector, elapsed), file=sys.stderr)
+
     if args.save:
         Path(args.save).write_text(
             json.dumps(_snapshot(collector), indent=2, ensure_ascii=False),
@@ -19853,6 +19984,7 @@ def main() -> int:
              if m.value == 0 and m.direction == "up" and m.kind == OUTCOME]
     print(f"{len(collector.metrics)} numbers in {elapsed:.1f}s; "
           f"{len(stuck)} outcome(s) still at zero")
+    print(_runtime_report(collector, elapsed))
     print("\nDone means one of these moved. A commit is not one of these.")
     print("Specifically an [outcome]: a [guard] that held and a [context]")
     print("count that grew are not evidence that anything outside changed.")
