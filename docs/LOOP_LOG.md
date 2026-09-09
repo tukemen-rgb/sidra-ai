@@ -9371,3 +9371,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-09 20:07 UTC ループA started
 2026-09-09 22:15 UTC 辛口クリエイター C-1618 追記: push 後全量 pytest exit 0（4838 passed / 6 skip）。上流がコード持ち（model3d_job.py と新 eval）だったため、レース手順どおり push 前に gate recall（PASSED）と対象テスト（hero_face 13 本＋上流の新規＝exit 0）を通してから push した。
+2026-09-09 22:30 UTC 辛口クリエイター C-1620 claim（112 巡目・観点 §7 観察 7・前回=§1・**C-1400 で私が「marble=真上視点」と書いたのは事実誤認**で、marble は 10 型で唯一の本物の透視回廊。3 層は既に描かれており実測でも契約を満たす〔遠端 1.033〜1.069:1〕のに計器が見ていない。creation_depth_layers 7→8 を狙う）
