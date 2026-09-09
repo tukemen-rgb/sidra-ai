@@ -788,6 +788,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1619: the art summary led with 「パターン: {key}」, printing the internal
+    # key (flow/orbits) on a Japanese page while 3D/GIF and the summary's own
+    # default note use Japanese labels. Now it uses PATTERN_LABELS (C-1259's
+    # fix, one generator along).
+    from sidra_ai.evals.art_summary_pattern_label_japanese import (
+        evaluate_art_summary_pattern_label_japanese,
+    )
+
+    art_label = evaluate_art_summary_pattern_label_japanese()
+    c.add(
+        "art_summary_pattern_label_japanese",
+        "アート要約がパターンを日本語ラベル（フロー/軌道）で示し内部キーを出さない",
+        10.0 * art_label.checks_passed / art_label.checks_total,
+        detail=f"{art_label.checks_passed}/{art_label.checks_total} checks; "
+               "src/sidra_ai/evals/art_summary_pattern_label_japanese.py"
+               + ("" if art_label.passed else "; " + "; ".join(art_label.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1284: the summary discloses the flow default (C-1271) but the art HTML -
     # the artifact opened in a browser and forwarded - was titled by the subject
     # over a flow drawing with no word of it, the silent artifact C-1281/C-1283

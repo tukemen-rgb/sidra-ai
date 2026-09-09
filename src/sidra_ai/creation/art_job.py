@@ -36,7 +36,11 @@ def build_art_generator(data_dir: str | Path):
         if verdict["valid"]:
             summary = (
                 f"「{art.title}」のジェネラティブアートを作りました"
-                f"（パターン: {art.pattern}、seed {art.seed}）。"
+                # C-1619: the Japanese label, not the internal key - 3D/GIF and
+                # this summary's own default note already read フロー/軌道, so
+                # 「パターン: flow」 leaked the key and clashed with 「既定の『フロー』」
+                # in one reply (C-1259, one generator along).
+                f"（パターン: {PATTERN_LABELS.get(art.pattern, art.pattern)}、seed {art.seed}）。"
                 "HTML をブラウザで開くとその場で描画され、同じ依頼なら同じ絵になります。"
             )
             # The request named no pattern, so the default was used. Say so and
