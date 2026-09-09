@@ -16421,6 +16421,88 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 題名から制作動詞が落ちる言語 (C-1516) ---------------------------
+    #
+    # Japanese puts the making verb at the end, so one trailing pattern took
+    # it off and 「レースゲームを作って」 became 「レース」. English puts it at
+    # the front, nothing took it off, and `make me a racing game` was the
+    # page's own title - the whole request, heading included. A longer one
+    # ("please make a racing game") ran past the 24-character limit and fell
+    # back to the *Japanese* default title, so an English request was
+    # answered with 「タイミング釣り」.
+    #
+    # Counted as languages rather than cases, because that is the thing that
+    # was missing: the rule existed for one language and not the other.
+    from sidra_ai.creation.games import _title_from as _verb_title
+
+    _verb_langs: list[str] = []
+    _verb_bad: list[str] = []
+    _verb_fallback = "タイミング釣り"
+
+    # Japanese, unchanged - and checked, because a shared helper is where a
+    # fix for one language quietly breaks the other.
+    _jp = [
+        (q, want) for q, want in (
+            ("レースゲームを作って", "レース"),
+            ("パズルゲームを作って", "パズル"),
+            ("猫のゲームを作って", "猫"),
+        )
+        if _verb_title(q, _verb_fallback) != want
+    ]
+    if _jp:
+        _verb_bad.extend(f"日本語が壊れた: {q}→{_verb_title(q, _verb_fallback)!r}" for q, _ in _jp)
+    else:
+        _verb_langs.append("日本語（文末の作って）")
+
+    _en = [
+        (q, want) for q, want in (
+            ("make me a racing game", "racing"),
+            ("Create a puzzle game", "puzzle"),
+            ("build a shooting game", "shooting"),
+            # 25 characters: the case that used to answer in Japanese.
+            ("please make a racing game", "racing"),
+        )
+        if _verb_title(q, _verb_fallback) != want
+    ]
+    if _en:
+        _verb_bad.extend(f"英語が落ちない: {q}→{_verb_title(q, _verb_fallback)!r}" for q, _ in _en)
+    else:
+        _verb_langs.append("英語（文頭の make/create/build…）")
+
+    # Both directions: a request that names a thing without asking for it
+    # keeps every word it used, in either language. Removing the tail
+    # unconditionally would turn `racing game` into `racing`, which is a
+    # wider rule than the Japanese one and not what this fixes.
+    for _kept, _why in (
+        ("racing game", "動詞の無い英語"),
+        ("a racing game", "冠詞だけの英語"),
+        ("レースゲーム", "動詞の無い日本語"),
+    ):
+        if _verb_title(_kept, _verb_fallback) != _kept:
+            _verb_bad.append(
+                f"{_why}が削られた: {_kept}→{_verb_title(_kept, _verb_fallback)!r}"
+            )
+
+    c.add(
+        "creation_title_drops_make_verb",
+        "題名から制作動詞が落ちる言語の数",
+        0.0 if _verb_bad else float(len(_verb_langs)),
+        detail=(
+            "; ".join(_verb_bad)
+            if _verb_bad
+            else f"**{len(_verb_langs)} 言語**（{'・'.join(_verb_langs)}）で、"
+            "依頼文の制作動詞が題名から落ちる。"
+            "英語は**文頭**に動詞が来るので文末の規則が届かず、"
+            "`make me a racing game` が**そのままページの表題**だった。"
+            "25 文字の「please make a racing game」は長さ上限を超えて"
+            "**日本語の既定題名**へ落ちていた（英語の依頼に「タイミング釣り」）。"
+            "**両方向**: 動詞を伴わない `racing game`／`a racing game`／"
+            "「レースゲーム」は**語を 1 つも落とさない**"
+            "——末尾を無条件に削ると日本語より広い規則になってしまう"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- 走った時間を、走りながら申告する (C-1521) -----------------------
     #
     # ``test_script_runs_and_prints_a_table`` allows this script 300 seconds

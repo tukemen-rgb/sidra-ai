@@ -824,6 +824,24 @@ def _is_only_difficulty(text: str) -> bool:
     return left.strip("「」\"' 　・のなをがはでゲームgame") == ""
 
 
+#: The English shape of ``_STRIP`` (C-1516). Japanese puts the making verb
+#: at the end, so one trailing pattern took it off and 「レースゲームを作って」
+#: became 「レース」. English puts it at the front, nothing took it off, and
+#: `make me a racing game` was the page's own title - request and all.
+#:
+#: The tail is only removed when the head matched, which keeps this the same
+#: rule as the Japanese one rather than a wider one: 「レースゲーム」 with no
+#: verb keeps both its words, so `racing game` keeps both of its.
+_STRIP_EN_HEAD = re.compile(
+    r"^\s*(?:hey\s+|hi\s+)?(?:please\s+)?"
+    r"(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
+    r"(?:make|create|build|generate|design|produce|draw|write)\s+"
+    r"(?:me\s+)?(?:a|an|the)\s+",
+    re.IGNORECASE,
+)
+_STRIP_EN_TAIL = re.compile(r"\s*(?:game|please)\s*[.!?]*\s*$", re.IGNORECASE)
+
+
 def _title_from(request: str, fallback: str) -> str:
     """Use the operator's own words when they named the thing.
 
@@ -832,6 +850,14 @@ def _title_from(request: str, fallback: str) -> str:
     """
 
     stripped = _STRIP.sub("", request.strip()).strip("「」\"' 　")
+    # C-1516: the same removal, for the language that puts the verb first.
+    # Without it an English request titled its own page `make me a racing
+    # game`, and a longer one ("please make a racing game", 25 characters)
+    # ran past the length limit below and fell back to the *Japanese*
+    # default title - an English request answered with 「タイミング釣り」.
+    without_head = _STRIP_EN_HEAD.sub("", stripped, count=1)
+    if without_head != stripped:
+        stripped = _STRIP_EN_TAIL.sub("", without_head, count=1).strip("\"' ") or stripped
     # A request that named only a difficulty has no subject: titling the page
     # 「むずかしい」 and then claiming its subject cannot be drawn is one word
     # playing both roles (C-1235). Fall back to the template's own title, the
