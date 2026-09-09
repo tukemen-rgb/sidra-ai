@@ -3130,7 +3130,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       security / retrieval / chunker / tokenizer は触っていないので、
       gate 回帰判定器と回答可能率判定器はどちらも対象外。
 
-- [ ] **C-1522: 判定器の 93% を `creation` 節 1 つが使っている。**〔中〕
+- [~] 作業中 2026-09-09 16:08 UTC ループA **C-1522: 判定器の 93% を `creation` 節 1 つが使っている。**〔中〕
       （2026-09-09 15:2x UTC ループA 起票・C-1521 の**初回実行の実測**から）
       実測（C-1521 で入れた内訳報告の 1 回目）: 全体 **300.4s** のうち
       **`creation` 279.3s（93.0%）**。answers 9.4s・gate 7.0s・scale 2.8s・
