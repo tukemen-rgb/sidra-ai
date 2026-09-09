@@ -176,7 +176,12 @@ addEventListener('keydown',e=>{keys[e.key]=true;
   if(e.key==='ArrowLeft'||e.key==='ArrowRight')e.preventDefault();
   if(e.key==='r'||e.key==='R')reset()});
 addEventListener('keyup',e=>{keys[e.key]=false});
-function step(){
+function step(now){
+  /* The world advances on real time, not on this display's refresh rate
+     (§26, C-1607). Drawing is NOT gated: on a 120Hz screen the picture
+     still lands 120 times a second, the course just stops travelling
+     twice as far while it does. */
+  if(!TICK(now)){draw();return requestAnimationFrame(step)}
   if(state==='race'){
     lapT++;
     /* Steering is the one mechanic four templates had each written out
@@ -798,6 +803,88 @@ console.log(JSON.stringify({
 """
 
 
+#: The world's speed against the display's speed (§26, C-1607). Drives a
+#: real race with rAF turned at a chosen refresh rate and reports how far
+#: the course travelled in three REAL seconds, so "is this game the same
+#: game on a 120Hz phone" is a measurement rather than an argument. A
+#: second of warm-up first: the round gate and the accumulator both have
+#: first frames, and they are not what this is asking about.
+RATE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => paintCounter }) };
+/* Counts paints so the claim "drawing is NOT gated" can be measured: on
+   a 120Hz screen the picture must still land 120 times a second even
+   though the world only advances 60. */
+let PAINTS = 0;
+const paintCounter = new Proxy({}, {
+  get(t, k){
+    if (k === 'fillRect') return () => { PAINTS++ };
+    if (k === 'createLinearGradient' || k === 'createRadialGradient')
+      return () => ({ addColorStop(){} });
+    if (k === 'measureText') return () => ({ width: 10 });
+    if (k in t) return t[k];
+    return () => undefined },
+  set(t, k, v){ t[k] = v; return true } });
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+const RATE = RATE_INPUT, STEP = 1000 / RATE, STALL = STALL_INPUT;
+let MS = 0, FRAMES = 0, ADVANCED = 0;
+/* A frame that moved the course is a frame the world stepped on. Counted
+   from the outside, so nothing in the page has to know it is measured. */
+function run(n){ for (let i = 0; i < n && queued; i++) {
+  const fn = queued; queued = null; MS += STEP; FRAMES++;
+  const before = raceFacts().dist; fn(MS);
+  if (raceFacts().dist !== before) { ADVANCED++ } } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+key('keydown', ' '); key('keyup', ' ');
+run(Math.round(RATE));
+/* Optionally hand the page one enormous gap - a backgrounded tab - and
+   see whether it banks the debt and spends it afterwards (§26 事実 4). */
+if (STALL > 0 && queued) { const fn = queued; queued = null; MS += STALL; fn(MS) }
+const d0 = raceFacts().dist, f0 = FRAMES, m0 = MS, p0 = PAINTS, a0 = ADVANCED;
+run(Math.round(RATE * 3));
+console.log(JSON.stringify({
+  hz: RATE,
+  dist: Math.round((raceFacts().dist - d0) * 100) / 100,
+  realMs: Math.round(MS - m0),
+  frames: FRAMES - f0,
+  advanced: ADVANCED - a0,
+  paints: PAINTS - p0,
+  clockMs: Math.round(roundFacts().ms)
+}));
+"""
+
+
+def rate_probe(script: str, *, hz: float, stall_ms: float = 0.0) -> str:
+    """Drive the race with rAF firing at ``hz`` and report real-time speed.
+
+    ``stall_ms`` hands the page one huge gap between callbacks first - a
+    backgrounded tab - so the accumulator can be shown not to bank the
+    debt and spend it once the tab comes back.
+    """
+
+    return (
+        RATE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("RATE_INPUT", repr(float(hz)))
+        .replace("STALL_INPUT", repr(float(stall_ms)))
+    )
+
+
 def haze_probe(script: str) -> str:
     """Drive a real race one frame and report what the road was painted at."""
 
@@ -819,6 +906,8 @@ __all__ = [
     "trail_probe",
     "HAZE_PROBE",
     "haze_probe",
+    "RATE_PROBE",
+    "rate_probe",
     "RACING_DIFFICULTY",
     "RACING_HOW",
     "RACING_SCRIPT",

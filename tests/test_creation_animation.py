@@ -127,11 +127,19 @@ def test_the_preamble_introduces_only_the_names_it_documents() -> None:
         for line in PREAMBLE.splitlines()
         if line.startswith("function ")
     }
-    declared |= {
-        line.split("=")[0].removeprefix("const ").removeprefix("let ").strip()
-        for line in PREAMBLE.splitlines()
-        if line.startswith("const ") or line.startswith("let ")
-    }
+    # One declaration may introduce several names (C-1607 added
+    # ``const TICK_MS = ..., TICK_MIN = ..., TICK_CAP = ...``). Reading
+    # only the first declarator would let the rest into the page's scope
+    # without this contract ever seeing them - exactly the collision the
+    # test exists to catch.
+    for line in PREAMBLE.splitlines():
+        for keyword in ("const ", "let "):
+            if not line.startswith(keyword):
+                continue
+            for declarator in line.removeprefix(keyword).split(","):
+                name = declarator.split("=")[0].strip()
+                if name:
+                    declared.add(name)
 
     assert declared == set(PREAMBLE_NAMES)
 

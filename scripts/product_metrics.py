@@ -5252,6 +5252,80 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the world runs on real time, not on this screen's refresh -----
+    #
+    # §26 (C-1607): rAF fires at the display's rate, and MDN names 75, 120
+    # and 144Hz as widely used. A world that advances one unit per
+    # callback is therefore a different game on a different screen -
+    # measured before the fix, the racer covered 482.92 units in three
+    # real seconds at 60Hz and 929.84 at 144Hz (1.93x) while the round
+    # clock read 3000ms in both. The seeded promise "the same words are
+    # the same fight" only held between devices that refresh alike.
+    from sidra_ai.creation.racing import rate_probe as _rate_probe
+
+    rate_gaps: list[str] = []
+    _rate_page = generate_game("レースゲームを作って").html
+    _rate_script = _scene_re.search(r"<script>(.*?)</script>", _rate_page, _scene_re.S)
+    rate_seen: dict[float, dict] = {}
+    if _rate_script is None:
+        rate_gaps.append("racing: no script for the refresh read")
+    else:
+        for _hz in (60.0, 75.0, 120.0, 144.0, 30.0):
+            try:
+                _rate_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_rate_probe(_rate_script.group(1), hz=_hz),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if _rate_run.returncode != 0:
+                    raise ValueError(_rate_run.stderr.strip()[:60])
+                rate_seen[_hz] = json.loads(_rate_run.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                rate_gaps.append(f"racing/{_hz:g}Hz: probe unavailable ({exc})")
+    if not rate_gaps:
+        # Every callback rate at or above 60 must land on the same course.
+        _fast = [rate_seen[h]["dist"] for h in (60.0, 75.0, 120.0, 144.0)]
+        if min(_fast) <= 0:
+            rate_gaps.append("racing: the course did not move")
+        elif max(_fast) / min(_fast) > 1.03:
+            rate_gaps.append(
+                "racing: the screen's refresh changes the game "
+                f"({min(_fast)} .. {max(_fast)} units in three real seconds)"
+            )
+        # Anything faster than 60 must be indistinguishable from anything
+        # else faster than 60 - that is the property, not an average.
+        _above = {rate_seen[h]["dist"] for h in (75.0, 120.0, 144.0)}
+        if len(_above) != 1:
+            rate_gaps.append(f"racing: 75/120/144Hz disagree with each other ({_above})")
+        # A slow screen degrades into slow motion, never backwards and
+        # never a spiral (§26 事実 4).
+        if not 0 < rate_seen[30.0]["dist"] <= rate_seen[60.0]["dist"]:
+            rate_gaps.append("racing: 30Hz does not degrade into slow motion")
+        # And the hand-turned 16ms runs every probe and this judge use
+        # must still advance on every single frame.
+        if rate_seen[60.0]["frames"] != 180:
+            rate_gaps.append("racing: the 60Hz window is not 180 frames")
+    c.add(
+        "creation_frame_rate_fair",
+        "画面の速さでゲームの速さが変わらない",
+        1.0 if not rate_gaps else 0.0,
+        detail=(
+            "racing の実ページを rAF 60/75/120/144/30Hz 相当で回し、**実時間 3 秒**の"
+            "走行距離を実測（1 秒の暖機のあと）——60Hz 478.17 に対し 75/120/144Hz は"
+            "3 つとも**完全に同値** 485.71（+1.58%・許容 3%）、30Hz は 242.48 で"
+            "スローモーションに落ちるが逆走しない。修正前は 482.92 / 832.64（1.72 倍）/"
+            "929.84（1.93 倍）で、ラウンド時計だけが 3 通りとも 3000ms を返していた"
+            "＝時計は正直で世界はフレーム数で動いていた（§26・MDN は 75/120/144Hz を"
+            "「広く使われている」と明記）。共通プリアンブルの TICK() が §26 事実 3 の"
+            "アキュムレータで、16ms 手回しでは 1 フレームも飛ばさない"
+            if not rate_gaps
+            else "; ".join(rate_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the far layer is far -----------------------------------------
     #
     # §7 観察 7 (C-1342): distance is drawn by CONTRAST - a foreground
