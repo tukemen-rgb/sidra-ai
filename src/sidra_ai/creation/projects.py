@@ -400,7 +400,12 @@ def scaffold_project(
             # regenerating the game. It falls back to the plain shapes when a
             # file is missing, so an emptied assets/ costs the look, not play.
             game = generate_game(
-                request, evidence=list(evidence) or None, sprites=asset_paths
+                request, evidence=list(evidence) or None, sprites=asset_paths,
+                # C-1621: carry the project's canonical title, not one the game
+                # re-derives from the raw request - that kept 「制作一式」 and made
+                # game.html disagree with every .md, the exact per-stage
+                # re-derivation the note above warns against.
+                title_override=title,
             )
             (root / "game.html").write_text(game.html, encoding="utf-8")
         elif stage is Stage.LOG:

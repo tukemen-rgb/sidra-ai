@@ -1388,6 +1388,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1621: the project's game.html re-derived its title from the raw request
+    # and kept 「制作一式」, so the game disagreed with every .md in the same
+    # bundle. The GAME stage now passes the project's canonical title, the same
+    # one the documents use.
+    from sidra_ai.evals.project_game_title_matches_documents import (
+        evaluate_project_game_title_matches_documents,
+    )
+
+    proj_game_title = evaluate_project_game_title_matches_documents()
+    c.add(
+        "project_game_title_matches_documents",
+        "制作一式の game.html の題名が同じ束の .md 群と一致する",
+        10.0 * proj_game_title.checks_passed / proj_game_title.checks_total,
+        detail=f"{proj_game_title.checks_passed}/{proj_game_title.checks_total} checks; "
+               "src/sidra_ai/evals/project_game_title_matches_documents.py"
+               + ("" if proj_game_title.passed else "; " + "; ".join(proj_game_title.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1606: 「描いて」 (draw) was missing from the make-verbs, so 「絵を描いて」 fell
     # to the no-evidence answer that tells a maker to ingest a repo (C-1261),
     # and 「アートを描いて」 was missed. The verb now routes a draw request to the
