@@ -8914,6 +8914,8 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.kaiju import pan_probe as _kj_pan
     from sidra_ai.creation.shooter import pan_probe as _sh_pan
     from sidra_ai.creation.duel import pan_probe as _du_pan
+    from sidra_ai.creation.marble import pan_probe as _mb_pan
+    from sidra_ai.creation.racing import pan_probe as _rc_pan
 
     pan_gaps: list[str] = []
     for _pn_key, _pn_builder, _pn_req in (
@@ -8927,6 +8929,14 @@ def measure_creation(c: Collector) -> None:
         # C-1398: the fifth body - the one template whose whole subject
         # is left versus right, where the ear finally learns WHO was hit.
         ("duel", _du_pan, "光線で撃ち合う対戦ゲームを作って"),
+        # C-1616: the sixth and seventh bodies - the two templates that
+        # were already computing the x for the burst and handing the ear
+        # nothing. marble pans by LANE position rather than screen x: a
+        # gate scores almost level with the ball, where the projection
+        # magnifies a wide gate to -540 on a 720 canvas and would saturate
+        # the panner at every gate that is not dead ahead.
+        ("marble", _mb_pan, "玉転がしゲームを作って"),
+        ("racing", _rc_pan, "レースゲームを作って"),
     ):
         _pn_page = generate_game(
             _pn_req,
@@ -8973,7 +8983,7 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_sfx_pan",
         "音が起きた場所から聞こえる型（実撃）",
-        0.0 if pan_gaps else 5.0,
+        0.0 if pan_gaps else 7.0,
         detail=(
             "; ".join(pan_gaps)
             if pan_gaps
@@ -8982,7 +8992,14 @@ def measure_creation(c: Collector) -> None:
             "果実の x で）の全 pan が (x/W*2-1)*0.8 と桁まで一致・位置なしの"
             "音は panner を 1 つも作らない（§2 増築 StereoPannerNode・±0.8・"
             "graceful fallback。C-1394 の 2 体に横位置がゲームそのものの "
-            "2 体と、左右対決そのものの duel（実打ち合いで CPU 被弾 +0.556/プレイヤー被弾 -0.556）を加え 5 体）"
+            "2 体と、左右対決そのものの duel（実打ち合いで CPU 被弾 +0.556/プレイヤー被弾 -0.556）を加え 5 体。"
+            "C-1616 で 6・7 体目——**どちらも burst 用に x をもう計算していた**: "
+            "marble は左右のゲートを実際に通して ∓0.6（**レーン位置**で正規化。"
+            "ゲートは玉とほぼ同じ高さで得点するため、その距離の射影では"
+            "幅のあるゲートが 720 の画布で -540 まで拡大されて panner が"
+            "飽和する——実測して screen x を棄却した）、racing は"
+            "走行線の左右で障害物を実際にかすめ／ぶつけて 3 つの pan が"
+            "(x/W*2-1)*0.8 と桁一致）"
         ),
         kind=OUTCOME,
     )

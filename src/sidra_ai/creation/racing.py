@@ -162,12 +162,16 @@ function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,sq:c
   onRoad:onRoad(),times:times.slice(),lapT:lapT}}
 /* A hit is a cost, not an ending: the pace is cut, a short grace window
    keeps one obstacle from billing twice, and the clock keeps running. */
-function hitObstacle(){grace=45;spd=Math.max(PACE*0.35,spd*0.45);
+/* hx is the obstacle's own x (§2 増築, C-1616): burst already knew where
+   the hit was, the ear did not. Defaulted to the car so a caller without
+   one still gets the old centre-ish sound rather than NaN. */
+function hitObstacle(hx){grace=45;spd=Math.max(PACE*0.35,spd*0.45);
   /* Squash & stretch, the crash half (§1, C-1385): the hit crushes the
      body for a beat through C-1332's recipe; under reduced motion the
      silhouette never changes. */
   if(!REDUCED){car.sq=0.7}
-  shake(5);hitstop(3);sfx('clash');burst(car.x,CARY,10,'ALERT_JUICE')}
+  shake(5);hitstop(3);sfx('clash',1,(typeof hx==='number'?hx:car.x)/W);
+  burst(car.x,CARY,10,'ALERT_JUICE')}
 function crossLine(){times.push(lapT);lapT=0;
   if(lap>=LAPS){state='goal';winBeat(car.x,CARY-20)}
   else{lap++;sfx('key')}}
@@ -203,7 +207,7 @@ function step(now){
       nextObs+=GAP+rand()*GAP}
     obs=obs.filter(o=>{
       if(grace===0&&Math.abs(o.d-dist)<14&&Math.abs(o.x-car.x)<26){
-        hitObstacle();return false}
+        hitObstacle(o.x);return false}
       /* Counted as it goes by, so "I got past one" is a thing the page
          knows rather than a thing only the player felt. */
       if(o.d<=dist-14){passed++;
@@ -216,7 +220,7 @@ function step(now){
         const near=Math.abs(o.x-car.x);
         if(near>=26&&near<46){slips++;
           spd=Math.min(PACE*1.4,spd+PACE*0.3);
-          sfx('catch');burst(car.x,CARY-8,8,'ACCENT_JUICE')}
+          sfx('catch',1,o.x/W);burst(car.x,CARY-8,8,'ACCENT_JUICE')}
         return false}
       return o.d>dist-60});
     if(dist>=lap*LAP)crossLine()}
@@ -897,7 +901,110 @@ def probe_source(script: str) -> str:
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The obstacle's place, as heard (§2 増築, C-1616). Two obstacles are
+#: clipped - one left of the racing line, one right - and one is passed at
+#: slipstream range, with the panner values read off the real audio graph.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+/* The engine note and the start are positionless. */
+const before = pans.length;
+/* Clip one obstacle on the left of the road and one on the right: the
+   crash is what the ear should place. */
+function clip(side){
+  /* Run until the crash registers rather than a fixed count: the previous
+     crash's hitstop(3) swallows whole callbacks, and two frames of a
+     frozen world hit nothing. */
+  const f = raceFacts();
+  const want = pans.length + 1;
+  /* The obstacle sits 20px off the racing line - inside the 26px hitbox,
+     so it still lands, and NOT on top of the car. Parking the car on the
+     obstacle would make car.x and o.x the same number, and the check
+     could not tell "where the hit was" from "where I was". */
+  const x = f.road + side * 20;
+  obs.length = 0; grace = 0; car.x = f.road;
+  obs.push({ d: f.dist + 4, x: x });
+  for (let i = 0; i < 30 && pans.length < want; i++) {
+    grace = 0; car.x = f.road;
+    run(1);
+  }
+  return x;
+}
+const leftX = clip(-1);
+const rightX = clip(1);
+const crashes = pans.length - before;
+/* Now a clean pass at slipstream range - close, but not a hit. */
+/* A clean pass at slipstream range: close enough to pay, far enough not
+   to hit. The obstacle has to get 14 units BEHIND the car to count, which
+   at the post-crash crawl takes a while - so drive until it is counted. */
+const g = raceFacts();
+obs.length = 0; grace = 45; car.x = g.road;
+const slipX = g.road + 34;
+obs.push({ d: g.dist + 30, x: slipX });
+for (let i = 0; i < 300 && !raceFacts().slips; i++) {
+  car.x = g.road;
+  run(1);
+}
+console.log(JSON.stringify({ before: before, pans: pans, crashes: crashes,
+  expected: [(leftX / W * 2 - 1) * 0.8, (rightX / W * 2 - 1) * 0.8,
+             (slipX / W * 2 - 1) * 0.8],
+  slips: raceFacts().slips }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so a crash's stereo place can be read."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "PAN_PROBE",
+    "pan_probe",
     "SQUASH_PROBE",
     "squash_probe",
     "ENGINE_PROBE",

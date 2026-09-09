@@ -20,13 +20,18 @@ from sidra_ai.creation.catchgame import pan_probe as catch_pan
 from sidra_ai.creation.duel import pan_probe as duel_pan
 from sidra_ai.creation.fishing import pan_probe as fishing_pan
 from sidra_ai.creation.kaiju import pan_probe as kaiju_pan
+from sidra_ai.creation.marble import pan_probe as marble_pan
+from sidra_ai.creation.racing import pan_probe as racing_pan
 from sidra_ai.creation.shooter import pan_probe as shooter_pan
 
 _PROBES = {"shooter": shooter_pan, "kaiju": kaiju_pan,
-           "fishing": fishing_pan, "catch": catch_pan, "duel": duel_pan}
+           "fishing": fishing_pan, "catch": catch_pan, "duel": duel_pan,
+           "marble": marble_pan, "racing": racing_pan}
 _REQUESTS = {"shooter": "ゲームを作って", "kaiju": "巨大怪獣と戦うゲームを作って",
              "fishing": "魚釣りゲームを作って", "catch": "フルーツキャッチを作って",
-             "duel": "光線で撃ち合う対戦ゲームを作って"}
+             "duel": "光線で撃ち合う対戦ゲームを作って",
+             "marble": "玉転がしゲームを作って",
+             "racing": "レースゲームを作って"}
 
 
 def _drive(template: str) -> dict:
@@ -44,7 +49,9 @@ def _drive(template: str) -> dict:
     return json.loads(run.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("template", ["shooter", "kaiju", "fishing", "catch", "duel"])
+@pytest.mark.parametrize(
+    "template", ["shooter", "kaiju", "fishing", "catch", "duel", "marble", "racing"]
+)
 def test_positionless_sounds_build_no_panner(template: str) -> None:
     got = _drive(template)
     assert got["before"] == 0, "a positionless sound built a panner"
@@ -87,3 +94,31 @@ def test_duel_hits_tell_left_from_right() -> None:
     for pan, want in zip(got["pans"], got["expected"]):
         assert abs(pan - want) < 1e-9, "the ear points wrong"
     assert got["pans"][0] > 0 > got["pans"][1], "the sides do not separate"
+
+
+def test_marble_gates_tell_left_from_right() -> None:
+    """C-1616: the pan is the LANE position, not the screen x.
+
+    A gate scores almost level with the ball, and the projection at that
+    range magnifies a wide gate to -540 on a 720 canvas - screen x would
+    saturate the panner at every gate that is not dead ahead.
+    """
+
+    got = _drive("marble")
+    assert got["gates"] == 2, "the engineered gates never scored"
+    assert len(got["pans"]) == 2
+    for pan, want in zip(got["pans"], got["expected"]):
+        assert abs(pan - want) < 1e-9, "the ear points wrong"
+    assert got["pans"][0] < 0 < got["pans"][1], "the lane does not separate"
+
+
+def test_racing_places_the_crash_and_the_slipstream() -> None:
+    """C-1616: which side you clipped, and which side you shaved past."""
+
+    got = _drive("racing")
+    assert got["crashes"] == 2, "the engineered crashes never landed"
+    assert got["slips"] == 1, "the engineered slipstream never paid"
+    assert len(got["pans"]) == 3
+    for pan, want in zip(got["pans"], got["expected"]):
+        assert abs(pan - want) < 1e-9, "the ear points wrong"
+    assert got["pans"][0] != got["pans"][1], "both crashes sound identical"

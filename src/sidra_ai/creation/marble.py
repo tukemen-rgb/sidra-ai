@@ -166,12 +166,22 @@ function step(rt){
             /* The risk pays in points AND in feel: the hot gate rings a
                brighter bell and kicks the camera harder (§13: the reward
                has to change the play, not decorate it). */
-            if(o.hot){score+=scorePop(proj(o.x,10,NEAR+40).x,H*0.55,pay+GATE_BASE);
-              hotTaken++;sfx('key');shake(4);
-              burst(proj(o.x,10,NEAR+40).x,H*0.55,16,'ALERT_JUICE')}
-            else{score+=scorePop(proj(o.x,10,NEAR+40).x,H*0.55,pay);
-              sfx('catch');shake(2);
-              burst(proj(o.x,10,NEAR+40).x,H*0.55,10,'ACCENT_JUICE')}}
+            /* The gate's own place, for the ear too (§2 増築, C-1616).
+               Which side of the lane a gate was taken on is the shape of
+               the run, and it was the one channel that could not hear it.
+               The pan is the LANE position, not the screen x the burst
+               uses: a gate is scored when it is almost level with the
+               ball, and the projection at that range magnifies x so far
+               that a wide gate lands at -540 on a 720 canvas. Screen x
+               would saturate the panner at every gate that is not nearly
+               dead ahead; the lane says left and right honestly. */
+            const gx=proj(o.x,10,NEAR+40).x,gpan=(o.x+LANE)/(2*LANE);
+            if(o.hot){score+=scorePop(gx,H*0.55,pay+GATE_BASE);
+              hotTaken++;sfx('key',1,gpan);shake(4);
+              burst(gx,H*0.55,16,'ALERT_JUICE')}
+            else{score+=scorePop(gx,H*0.55,pay);
+              sfx('catch',1,gpan);shake(2);
+              burst(gx,H*0.55,10,'ACCENT_JUICE')}}
           /* Through the posts or past them: a gate that went by outside
              them is the miss this run is broken by. marble has no fall -
              the entry said 「落下」 but the only way out of the corridor is
@@ -574,7 +584,92 @@ def engine_probe(script: str) -> str:
     return ENGINE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The gate's place, as heard (§2 増築, C-1616). Two gates are taken -
+#: one hard left, one hard right - and the panner values are read off the
+#: audio graph the page really built.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+/* Everything so far - the engine note, the start - is positionless. */
+const before = pans.length;
+/* Two gates, one hard left and one hard right, taken at the ball's own
+   position so both actually score. */
+function takeGate(x, hot){
+  /* A gate scores when it passes the ball within GATEW, so put the ball
+     on it and let it come by. */
+  things.length = 0;
+  ball.x = x;
+  things.push({ z: ball.z + 60, kind: 'gate', x: x, hot: hot });
+  /* A far sentinel that never arrives: with an empty course the run ends
+     ('コースを走り切った') and the second gate would never be reached. */
+  things.push({ z: ball.z + 500000, kind: 'gate', x: 0 });
+  for (let i = 0; i < 400 && !things[0].done; i++) run(1);
+  return marbleFacts().gates;
+}
+const leftGates = takeGate(-(LANE - 30), true);
+const rightGates = takeGate(LANE - 30, false);
+const expected = [
+  ((-(LANE - 30) + LANE) / (2 * LANE) * 2 - 1) * 0.8,
+  ((LANE - 30 + LANE) / (2 * LANE) * 2 - 1) * 0.8,
+];
+console.log(JSON.stringify({ before: before, pans: pans,
+  expected: expected, gates: rightGates }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so a gate's stereo place can be read."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "PAN_PROBE",
+    "pan_probe",
     "ENGINE_PROBE",
     "engine_probe",
     "TRAIL_PROBE",
