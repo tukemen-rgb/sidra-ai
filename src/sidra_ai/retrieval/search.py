@@ -263,6 +263,32 @@ _SUBJECT_RUN = re.compile(r"[゠-ヿ一-鿿]{2,}")
 #: anything longer is matched three characters at a time (C-1510).
 _SUBJECT_WINDOW = 3
 
+#: A subject written with one kanji - 犬, 猫, 魚 - has no run to be found in:
+#: ``_SUBJECT_RUN`` needs two characters, and the bigram side cannot help
+#: because ``_CJK_RUN`` spans hiragana, so 「犬の飼い方」 yields 犬の / の飼 /
+#: 飼い / い方 and every one of them is dropped for containing kana. Measured
+#: 2026-09-09: the subject of 「犬の飼い方のレポートを書いて」 was **absent
+#: from both units**, so the report filter had nothing to judge with and kept
+#: five unrelated facts under the word 「根拠」 (C-1512); the same hole let a
+#: revision for 「猫のゲーム」 land on a different game (C-1511b).
+#:
+#: Taking every lone kanji would be worse than the hole. 「犬の飼い方」 also
+#: contains 飼 and 方, and 「書いて」 contains 書 - stems and tails of inflected
+#: words, which as probes would match almost any chunk and quietly weaken the
+#: honesty floor they feed. The boundary tells them apart without a word list:
+#: a bare noun is **not preceded by kana** (it does not continue an inflected
+#: word) and **is followed by a particle or the end of the sentence**. 犬 is
+#: preceded by nothing and followed by の; 飼 follows の but precedes い; 方
+#: follows い. Measured over the phrasings in the two defects, this yields
+#: 犬・猫・魚 and nothing else - no 方, no 飼, no 書.
+#:
+#: A list of exceptions would have been fitted to those three words. This is
+#: a rule about where a word can end, so it is testable on phrasings nobody
+#: has written down yet.
+_LONE_KANJI_SUBJECT = re.compile(
+    r"(?<![ぁ-ゟ゠-ヿ一-鿿])([゠-ヿ一-鿿])(?=[のをはがにへとでもやか、。\s]|$)"
+)
+
 
 def subject_evidence_probes(query: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Latin subject words, and the CJK substrings that prove a shared subject.
@@ -293,6 +319,8 @@ def subject_evidence_probes(query: str) -> tuple[tuple[str, ...], tuple[str, ...
             continue
         for start in range(len(run) - _SUBJECT_WINDOW + 1):
             windows.append(run[start : start + _SUBJECT_WINDOW])
+    # One-character subjects, which no run can contain (see the note above).
+    windows.extend(_LONE_KANJI_SUBJECT.findall(normalized))
     return latin, tuple(dict.fromkeys(windows))
 
 
