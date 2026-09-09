@@ -3089,7 +3089,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       ゲームを 2 人が作った場合は分けられない**（どちらも候補に残り、
       その中の最新が選ばれる）。data_dir が 1 つである以上これは
       題名では解けない——利用者ごとの区画は不変条件に触るので E 節向き。
-- [ ] **C-1521: 判定器スクリプトの実行時間が、それを検査するテストの予算と
+- [~] 作業中 2026-09-09 15:02 UTC ループA **C-1521: 判定器スクリプトの実行時間が、それを検査するテストの予算と
       ほぼ同じ。**〔小〕（2026-09-09 12:5x UTC ループA 起票・C-1519 の実測から）
       実測: `scripts/product_metrics.py` 素実行 **3m18s〜5m08s**。
       `tests/test_product_metrics.py::test_script_runs_and_prints_a_table` は
