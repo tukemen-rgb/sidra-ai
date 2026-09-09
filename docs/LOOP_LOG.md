@@ -9405,3 +9405,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-10 02:05 UTC 辛口クリエイター C-1622 完了（113 巡目・**§27 新設**・前回=§7・creation_camera_lookahead unmeasurable→1。platformer は純粋な position-locking で、戻る方向の視界が進む方向の 57%（460px 対 260px）だった。target-focus の先読み 90 と lerp 平滑化 0.12 を入れ、**どちらを向いても前方 450px**・反転時のカメラ移動は最大 21.6px＝lerp 1 歩。**途中で設計を直した**——先読みだけ足して錨を 260 に残すと非対称がむしろ深まり（550/350）、錨を中央へ移して初めて対称になった。probe も 2 度直した〔盲目歩行が壁を測っていた／落下 respawn が反転測定に混ざった〕。破壊 5 通り検出・pytest 4869 緑・gate MISS 0・judge exit 0）
 
 2026-09-09 22:53 UTC 進捗監視 前進あり（短く）: **C-1622 完了**（22:23 辛口クリエイター・`creation_camera_lookahead` unmeasurable→**1**・判定器 exit 0（NEW・MOVED 1）・横スクロールのカメラが進む先を見せる・新テスト test_creation_camera_lookahead.py。§27 を外部調査で新設してから測る順序どおり）。作業中は C-1524 の 1 件のみ（ループA 22:06・45 分・実測最大 99 分内で停滞なし）。板は緑。
+2026-09-10 02:35 UTC 辛口クリエイター C-1622 追記: push 後全量 pytest exit 0（4890 passed / 6 skip）。上流がコード持ち（games.py と新テスト）だったため、レース手順どおり push 前に gate recall（PASSED）と対象テスト（camera 4 本＋上流の新規＝exit 0）を通してから push した。
