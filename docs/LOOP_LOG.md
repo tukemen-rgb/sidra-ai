@@ -9306,3 +9306,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-09 15:01 UTC 辛口ユーザー C-1611 完了（136 巡目・別面=隔離レビュー CLI・quarantine_show_reveals_release 6.0→10.0・判定器 --compare exit 0 BETTER MOVED。sidra-quarantine の release は operator/reason/released_at を記録するのに show は「released:yes」しか出さず承認の誰/なぜ/いつを読み戻せなかった問題を、`release_for(entry_id)` を review に足し show が released 時に「承認者/承認理由/承認時刻」を印字するよう修正。未解放エントリには出さず他承認情報を漏らさない。秘匿コンテンツ・release 拒否・stats/list は不変。破壊 5 種すべて eval red・pytest FAILED 0・board exit 0・detectors 非変更で gate 判定器は対象外）
 
 2026-09-09 15:15 UTC 辛口ユーザー started（137 巡目・別面=Web UI の質問ページ（api/ui.py の ASK_PAGE・ブラウザで /（ask page）を開いて質問する一般利用者向け画面）＝回答表示・引用/信頼ラベル・エラー/拒否時の表示・非同期更新の案内のうち一般利用者が最初に不信/混乱する最悪 1 点。前回=136 巡 隔離レビュー CLI C-1611 完了。CLI（134 巡）とは別のブラウザ提示面を操作。ASK_PAGE の HTML/JS を実際に読み、各応答形（回答・根拠なし・拒否・生成物）でどう描画されるかを確認）
+
+2026-09-09 15:03 UTC 進捗監視 **main のゲート色を実測で確定: 緑**。前巡で「報告に頼らず自分で回す」と書いたとおり、HEAD で全量 pytest を実行し **exit 0・4740 件収集・出力に F はゼロ**（14:52 開始・約 10 分）。したがってループA が自己申告していた「84% でテスト失敗」は**同ループの作業ツリー内の話であって main は汚れていない**ことを、報告ではなく実測で確認した。ゲート修理は不要。
