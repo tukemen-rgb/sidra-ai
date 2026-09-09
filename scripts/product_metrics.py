@@ -5509,6 +5509,78 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the camera leads, and does not snap ---------------------------
+    #
+    # §27 (C-1622): Scroll Back names the platformer's old behaviour -
+    # pure position-locking, cam = me.x - 260 recomputed in draw() - as
+    # the technique with no lookahead, and warns that it jerks on a
+    # direction change. Measured before the fix: the hero was pinned at
+    # 260 of 720, so the walk out saw 460px ahead and the walk back to the
+    # lantern saw 260. The aim now leans by CAM_LOOK toward me.look (the
+    # facing C-1348 already keeps for the eyes) from a centred anchor, and
+    # the camera lerps toward it.
+    from sidra_ai.creation.platformer import camera_probe as _cam_probe
+
+    cam_gaps: list[str] = []
+    _cam_page = generate_game("ジャンプで進むゲームを作って").html
+    _cam_script = _scene_re.search(r"<script>(.*?)</script>", _cam_page, _scene_re.S)
+    _cm: dict = {}
+    if _cam_script is None:
+        cam_gaps.append("platformer: no script")
+    else:
+        try:
+            _cam_run = _scene_sp.run(
+                ["node", "-"],
+                input=_cam_probe(_cam_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _cam_run.returncode != 0:
+                raise ValueError(_cam_run.stderr.strip()[:60])
+            _cm = json.loads(_cam_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            cam_gaps.append(f"platformer: probe unavailable ({exc})")
+    if _cm:
+        _ahead_r = _cm.get("viewAheadRight") or 0
+        _ahead_l = _cm.get("viewAheadLeft") or 0
+        # A centred camera with no lean gives 360 each way; the lean has to
+        # actually buy view, or there is no lookahead.
+        if min(_ahead_r, _ahead_l) < 400:
+            cam_gaps.append(
+                f"platformer: the camera does not lead ({_ahead_l} left, {_ahead_r} right)"
+            )
+        elif abs(_ahead_r - _ahead_l) > 5:
+            cam_gaps.append(
+                f"platformer: the view is lopsided ({_ahead_l} left, {_ahead_r} right)"
+            )
+        # Turning around must not move the world in one step (§27 事実 2).
+        elif (_cm.get("maxJump") or 999) > 30:
+            cam_gaps.append(
+                f"platformer: the camera snaps on a turn ({_cm.get('maxJump')}px in a frame)"
+            )
+        elif not _cm.get("onScreen"):
+            cam_gaps.append("platformer: the hero left the screen")
+    c.add(
+        "creation_camera_lookahead",
+        "カメラが進む先を見せる",
+        0.0 if cam_gaps else 1.0,
+        detail=(
+            "; ".join(cam_gaps)
+            if cam_gaps
+            else "platformer の実ページで自機を面の中ほどに留め、**向きだけ**変えて"
+            "カメラの定常を実測: 右向きで自機は画面 x=270・左向きで 450＝"
+            "**どちらを向いても前方に 450px**。修正前は自機が x=260 に釘付けの"
+            "純粋な position-locking で、進む方向 460px に対し**戻る方向は 260px"
+            "（57%）**だった（§27 事実 2「先読みが無い」）。向き反転をまたいだ"
+            "1 フレームのカメラ移動は最大 21.6px＝lerp の 1 歩ぶんで、"
+            "世界が飛ばない（事実 4 の平滑化。先読みだけ入れて平滑化が無ければ"
+            "反転で 180px 飛ぶ）。向きの信号 me.look は C-1348 が顔のために"
+            "入れたものをそのまま使っている"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the far layer is far -----------------------------------------
     #
     # §7 観察 7 (C-1342): distance is drawn by CONTRAST - a foreground

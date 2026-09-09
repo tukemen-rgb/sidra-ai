@@ -95,6 +95,25 @@ const W=cv.width,H=cv.height;
    on the exact landing frame instead of being dropped (§12, C-1310).
    Coyote and buffer are the two halves of the same forgiveness. */
 const GRAV=0.42,JUMP=-7.2,CUT=-2.6,RUN=2.4,COYOTE=6,BUFFER=5,LAMP_COST=5;
+/* The camera (§27, C-1622). What this template had was pure
+   position-locking - cam = me.x - 260, recomputed inside draw() - which
+   Scroll Back names as the technique with 'plenty of view space in all
+   directions' and no lookahead, and which jerks on a direction change
+   because the world moves the instant the hero does. On a 720 canvas a
+   hero pinned at 260 sees 460px ahead running right and 260px running
+   left: the walk back to the lantern got 57% of the view the walk out
+   did.
+   CAM_LOOK is target-focus (§27 事実 5): the aim leans the way the hero
+   faces, and me.look already carries that - C-1348 added it for the
+   eyes. CAM_EASE is lerp-smoothing (§27 事実 4), which is also what
+   stops the lean itself from snapping when the hero turns around.
+   The anchor moves to the middle of the canvas: with a 260 anchor the
+   lean only deepened the imbalance (550 ahead running right, 350 running
+   left). Centred and leaning by 90, the hero sits at 270 facing right and
+   450 facing left - 450px of view ahead EITHER way, where the old locked
+   camera gave 460 one way and 260 the other. */
+const CAM_LOOK=90,CAM_EASE=0.12;
+function camAim(){return Math.max(0,Math.min(LW-W,me.x-W/2+CAM_LOOK*me.look))}
 setPal(PLAT_PAL_TOKEN);
 /* HUD contract (§4 WCAG 1.4.3, C-1337): draw() paints through these
    constants, so hudFacts() reports what the frame shows. The progress-
@@ -107,7 +126,7 @@ function hudFacts(){const keep=SCENE,sk=[];
   SCENE=keep;return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A,skies:sk}}
 /* seeded LCG: same request, same course - the regeneration promise. */
 let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/2147483647}
-let plats,orbs,lamp,flag,LW,me,state,respawns,msg,msgT,SHELF,SHELF_BASE;
+let plats,orbs,lamp,flag,LW,me,state,respawns,msg,msgT,SHELF,SHELF_BASE,cam;
 function build(){
   /* The first and last ledges are fixed so the opening steps and the goal
      are always fair; the seed decides everything between them. Gaps stay
@@ -158,6 +177,9 @@ function build(){
 function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;
   me={x:60,y:230,vy:0,ground:false,coyote:0,buffer:0,held:false,gems:0,
     cpX:60,cpY:262,sq:1,look:1};
+  /* Start ON the aim, not at zero: a run that opens by sliding the world
+     into place would read as a glitch. */
+  cam=camAim();
   say('足場を渡って、旗まで。')}
 /* Long enough to READ (§4 増築, C-1395): 15 frames a character = the
    4 chars/second subtitle standard; the old 150 stays as the floor. */
@@ -273,6 +295,10 @@ function step(rt){const now=performance.now();
        lantern, not the pit. Walking back overwrites a bucket - the trail
        means "where you were, here, last time". */
     ghostSample(me.x,me.y)}
+  /* The camera closes the gap to its aim every frame, in play and out
+     of it, so the goal screen settles instead of freezing mid-slide
+     (§27 事実 4). */
+  cam+=(camAim()-cam)*CAM_EASE;
   draw(now);requestAnimationFrame(step)}
 function seg(){return me.x<LW*0.34?0:me.x<LW*0.72?1:2}
 function draw(now){
@@ -280,7 +306,7 @@ function draw(now){
      stretch keeps the brightest値 for last (§7 観察 5-6). */
   setScene(seg());
   cx.fillStyle=scenePaint('BG_TOKEN');cx.fillRect(0,0,W,H);
-  const cam=Math.max(0,Math.min(LW-W,me.x-260));
+  /* cam is state now (§27, C-1622); step() eases it toward camAim(). */
   /* distance is contrast, not colour (§7 観察 7): a faint far ridge on a
      slower scroll. FAR_A is the contract (C-1354), not decoration. */
   cx.globalAlpha=FAR_A;cx.fillStyle=scenePaint('RAISED_TOKEN');
@@ -943,7 +969,83 @@ def say_probe(script: str, *, short: str, long: str) -> str:
     )
 
 
+#: The camera's lead, driven (§27, C-1622). The hero is walked right
+#: until the camera settles, then left, and where it sits on screen is
+#: read back - the view ahead is what is left of the canvas past it.
+CAMERA_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+/* The blink is a fact about the wall clock (faceFacts reads
+   performance.now itself), so this probe's clock ticks with the frames
+   instead of being pinned to zero. */
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+const held = {};
+function hold(k, on){ held[k] = on }
+globalThis.__held = held;
+function key(type, k){
+  const e = { key: k, code: k, preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+key('keydown', ' '); key('keyup', ' ');
+run(3);
+/* The hero is held at a mid-level spot and only the FACING is changed, so
+   what is measured is the camera's own behaviour rather than the level's
+   pits and walls. Walking there blind runs off the end or falls in. */
+const MID = Math.round(LW / 2);
+let lastCam = cam, jumped = 0;
+function settle(look, frames){
+  for (let i = 0; i < frames; i++) {
+    me.x = MID; me.look = look; me.y = 200; me.vy = 0;
+    run(1);
+    jumped = Math.max(jumped, Math.abs(cam - lastCam));
+    lastCam = cam;
+  }
+  return me.x - cam;
+}
+const rightScreenX = settle(1, 200);
+/* Now turn around. The single-frame camera move across the turn is what
+   §27 事実 2 says a locked camera gets wrong. */
+jumped = 0;
+const leftScreenX = settle(-1, 200);
+const turnJump = jumped;
+console.log(JSON.stringify({
+  W: W, lock: 260,
+  rightScreenX: Math.round(rightScreenX * 100) / 100,
+  leftScreenX: Math.round(leftScreenX * 100) / 100,
+  viewAheadRight: Math.round((W - rightScreenX) * 100) / 100,
+  viewAheadLeft: Math.round(leftScreenX * 100) / 100,
+  maxJump: Math.round(turnJump * 100) / 100,
+  onScreen: rightScreenX > 0 && rightScreenX < W
+    && leftScreenX > 0 && leftScreenX < W,
+  camLook: CAM_LOOK, camEase: CAM_EASE
+}));
+"""
+
+
+def camera_probe(script: str) -> str:
+    """The page's own script, wrapped so the camera's lead can be measured."""
+
+    return CAMERA_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "CAMERA_PROBE",
+    "camera_probe",
     "SAY_PROBE",
     "say_probe",
     "PLATFORMER_DIFFICULTY",
