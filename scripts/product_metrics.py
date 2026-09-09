@@ -12431,25 +12431,37 @@ def measure_creation(c: Collector) -> None:
 
     skin_gaps: list[str] = []
     skin_ok: list[str] = []
-    for key in sorted(_tune_templates):
+    # C-1522: the three runs a template needs are independent of each other
+    # and of every other template's, so they are spawned together instead of
+    # in a queue - 30 node processes on four cores. The results come back in
+    # the order asked for, so the checking below reads exactly as it did.
+    _skin_keys = sorted(_tune_templates)
+    _skin_jobs = []
+    for _skin_key in _skin_keys:
+        _earned = _skin_spec(_skin_key)["skins"][1]
+        _total_key, _pick_key = f"sidra.total.{_skin_key}", f"sidra.skin.{_skin_key}"
+        _skin_jobs.extend([
+            # Nothing played yet: only the free colour, and the rest priced.
+            lambda k=_skin_key: _skin_run(k, stored={}),
+            # The same earned total in both runs, so the only difference
+            # between them is which colour is being worn. Picking happens
+            # after the round, so this run doubles as the picker check.
+            lambda k=_skin_key, t=_total_key, e=_earned: _skin_run(
+                k, stored={t: str(e["at"])}, pick=e["id"]
+            ),
+            lambda k=_skin_key, t=_total_key, pk=_pick_key, e=_earned: _skin_run(
+                k, stored={t: str(e["at"]), pk: e["id"]}
+            ),
+        ])
+    _skin_results = in_parallel(_skin_jobs)
+    for _skin_index, key in enumerate(_skin_keys):
         spec = _skin_spec(key)
         earned = spec["skins"][1]
         total_key, pick_key = f"sidra.total.{key}", f"sidra.skin.{key}"
-        # Nothing played yet: only the free colour, and the rest priced.
-        zero, problem = _skin_run(key, stored={})
-        if problem:
-            skin_gaps.append(problem)
-            continue
-        # The same earned total in both runs, so the only difference
-        # between them is which colour is being worn. Picking happens
-        # after the round, so this run doubles as the picker check.
-        plain, problem = _skin_run(key, stored={total_key: str(earned["at"])}, pick=earned["id"])
-        if problem:
-            skin_gaps.append(problem)
-            continue
-        worn, problem = _skin_run(
-            key, stored={total_key: str(earned["at"]), pick_key: earned["id"]}
+        (zero, problem), (plain, plain_problem), (worn, worn_problem) = (
+            _skin_results[_skin_index * 3 : _skin_index * 3 + 3]
         )
+        problem = problem or plain_problem or worn_problem
         if problem:
             skin_gaps.append(problem)
             continue
@@ -19844,6 +19856,37 @@ COLLECTORS = (
     ("gate", measure_gate),
     ("observable", measure_observability),
 )
+
+
+def in_parallel(jobs, workers: int = 4):
+    """Run independent probes across cores, results in the order given.
+
+    C-1522, and measured before it was written: the ``creation`` section
+    spends **88%** of its time in **1,122 node spawns**, one per probe, and
+    the machine has four cores that sit idle while they queue. There is no
+    hot spot to fix - the top site is 11% and the top eighteen are 146s of
+    230s - so the only lever that reaches the whole section is running the
+    spawns at the same time rather than one after another.
+
+    Two cheaper theories were measured first and dropped: memoising
+    identical scripts recovers **11.6s** (only 11% of the runs repeat), and
+    a warm node process would recover the **46s** of startup (41ms x 1122)
+    at the cost of running every probe in a shared interpreter, which
+    changes what a probe means.
+
+    Threads, not processes: the work is ``subprocess.run`` waiting on a
+    child, which holds no GIL. Results come back in the order the jobs were
+    given, so a caller's own sequential reasoning about them is unchanged -
+    that is the property that makes this safe to drop into a judge.
+    """
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    jobs = list(jobs)
+    if len(jobs) < 2:
+        return [job() for job in jobs]
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return [future.result() for future in [pool.submit(job) for job in jobs]]
 
 
 #: What ``tests/test_product_metrics.py`` allows this script per run. Named
