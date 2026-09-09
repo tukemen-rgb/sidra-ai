@@ -174,7 +174,7 @@ class EchoModelAdapter(LocalModelAdapter):
         # Japanese prose puts none after 「。」, so a whole 「…です。…です。」 block
         # counted as one sentence and the per-block budget never fired - the
         # answer dumped the entire block (to 400 chars) in the product's main
-        # language (C-1517). A CJK terminator (。！？) ends a sentence on its own;
+        # language (C-1518). A CJK terminator (。！？) ends a sentence on its own;
         # an ASCII terminator (.!?) only when whitespace follows, so 「3.14」 and
         # 「e.g.」 are not cut. Slicing the original preserves its spacing, so no
         # space is inserted between Japanese sentences that had none.

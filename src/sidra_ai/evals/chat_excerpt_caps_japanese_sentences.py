@@ -1,6 +1,6 @@
 """Does the chat excerpt cap Japanese sentences the way it caps English?
 
-C-1517. The echo ``_lead`` limited each citation's excerpt to
+C-1518. The echo ``_lead`` limited each citation's excerpt to
 ``max_sentences_per_block`` (2) informative sentences, but it split sentences
 on ``(?<=[.。!?！？])\\s+`` - whitespace required after the terminator. Japanese
 prose puts no space after 「。」, so a whole 「…です。…です。…です。」 block counted

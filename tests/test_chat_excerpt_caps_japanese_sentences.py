@@ -1,4 +1,4 @@
-"""C-1517: the chat excerpt must cap Japanese sentences like English.
+"""C-1518: the chat excerpt must cap Japanese sentences like English.
 
 ``_lead`` split on whitespace after a terminator, which Japanese omits after
 「。」, so a Japanese block counted as one sentence and the two-sentence cap

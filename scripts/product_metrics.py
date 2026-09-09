@@ -1249,7 +1249,7 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # C-1517: the echo excerpt capped each citation at two sentences, but its
+    # C-1518: the echo excerpt capped each citation at two sentences, but its
     # split required whitespace after the terminator - which Japanese prose
     # omits after 「。」 - so a Japanese block counted as one sentence and the cap
     # never fired, dumping the whole block (to 400 chars) in the main language.
