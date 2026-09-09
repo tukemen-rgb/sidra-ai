@@ -167,7 +167,7 @@ def test_no_template_stalls_behind_the_gate(template: str) -> None:
 
 @pytest.mark.parametrize("template", sorted(_TEMPLATES))
 def test_both_screens_play_the_same_game(template: str) -> None:
-    """±12 steps of slack: hitstop is still counted in callbacks (C-1611)."""
+    """±12 steps of slack: hitstop is still counted in callbacks (C-1614)."""
 
     slow, fast = _steps(template, 60)["steps"], _steps(template, 120)["steps"]
     assert abs(fast - slow) <= 12, f"{template}: {slow} vs {fast} steps"
@@ -187,7 +187,7 @@ def test_every_callback_asks_the_gate(template: str) -> None:
     for hz in (60, 120):
         got = _steps(template, hz)
         # hitstop swallows a callback before the gate is reached, and is
-        # still counted in callbacks rather than time (C-1611) - measured
+        # still counted in callbacks rather than time (C-1614) - measured
         # at 8 in three seconds at worst. A template that dropped the gate
         # misses all 120 or 240.
         missed = got["frames"] - got["calls"]

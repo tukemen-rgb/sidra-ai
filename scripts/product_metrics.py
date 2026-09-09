@@ -5374,7 +5374,7 @@ def measure_creation(c: Collector) -> None:
         if len(seen) != 2:
             continue
         slow, fast = seen[60.0], seen[120.0]
-        # hitstop swallows a callback before the gate is reached (C-1611),
+        # hitstop swallows a callback before the gate is reached (C-1614),
         # measured at 8 in three seconds at worst; a dropped gate misses
         # every one of them.
         if (slow["frames"] - slow["calls"] > 20) or (
@@ -5427,7 +5427,7 @@ def measure_creation(c: Collector) -> None:
             "描画は 120Hz 側が 1.8 倍以上＝絵は画面の速さのまま。"
             "±12 の余裕は hitstop がまだフレーム数で数えられているぶん"
             "（60Hz の方が世界の歩を多く失う。duel 175・catch 172・racing 177 対 180）"
-            "——C-1611 として分離起票済み。"
+            "——C-1614 として分離起票済み。"
             "検査は 3 段: (a) 全コールバックが門に**尋ねる**（calls==frames。"
             "門を外した型はこれで落ちる） (b) 門は 60/秒しか通さない (c) 型が"
             "自前の世界時計 t/lapT を持つ 5 型（shooter・kaiju・marble・catch・racing）"
