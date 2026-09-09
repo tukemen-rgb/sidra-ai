@@ -252,21 +252,92 @@ def subject_terms(query: str) -> tuple[str, ...]:
     )
 
 
+#: Katakana/kanji runs with no hiragana in them: the closest thing to a word
+#: boundary the CJK side of this tokenizer has. Latin already has real word
+#: boundaries and is matched whole, which is why it is not in this class.
+_SUBJECT_RUN = re.compile(r"[゠-ヿ一-鿿]{2,}")
+
+#: How much of a CJK subject a chunk must contain before it counts as proof
+#: the chunk is about that subject. Two characters is all the bigram index can
+#: express, so a two-character subject (天気, 株価) is still matched whole;
+#: anything longer is matched three characters at a time (C-1510).
+_SUBJECT_WINDOW = 3
+
+
+def subject_evidence_probes(query: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Latin subject words, and the CJK substrings that prove a shared subject.
+
+    Split because the two scripts carry word boundaries differently. A Latin
+    word arrives already delimited, so it is proved by the whole word. A CJK
+    run has no delimiters, which is why the index is built from bigrams - and
+    a single bigram is not proof of a shared subject, because a two-character
+    slice of one word lands inside unrelated longer words all the time.
+    """
+
+    normalized = unicodedata.normalize("NFKC", query).casefold()
+    #: A one-letter Latin token is the Latin form of the same fragment
+    #: problem: 「ビタミン C の一日の摂取量は？」 offers ``c``, which occurs in
+    #: every chunk that mentions a C-number backlog item. It stays in
+    #: scoring, where a lone letter is harmless; it is simply not proof.
+    latin = tuple(
+        dict.fromkeys(
+            term
+            for term in tokenize(query)
+            if len(term) > 1 and not _CJK_CHAR.search(term)
+        )
+    )
+    windows: list[str] = []
+    for run in _SUBJECT_RUN.findall(normalized):
+        if len(run) <= _SUBJECT_WINDOW:
+            windows.append(run)
+            continue
+        for start in range(len(run) - _SUBJECT_WINDOW + 1):
+            windows.append(run[start : start + _SUBJECT_WINDOW])
+    return latin, tuple(dict.fromkeys(windows))
+
+
 def evidence_mentions_subject(query: str, chunks: Iterable[Chunk]) -> bool:
-    """Whether any chunk shares at least one subject term with the query.
+    """Whether any chunk actually shares a subject with the query.
 
     This is the honesty floor for answer composition, not a ranking change:
     when every retrieved chunk matched only cross-word glue bigrams, the
     "evidence" is about the shape of the sentence, and composing a cited
     answer from it presents unrelated material as fact. A query with no
-    subject terms at all cannot be judged and returns True, leaving the
-    existing behavior untouched.
+    subject at all cannot be judged and returns True, leaving the existing
+    behavior untouched.
+
+    **One shared bigram was not proof** (C-1510). The floor asked whether any
+    chunk shared a single subject *term*, and a term here is two characters,
+    so on Japanese it cleared on a fragment of some unrelated word: measured
+    over this repository's own 386 chunks, 「ラーメンの美味しい茹で方を教えて」
+    passed because ラーメン's 『メン』 occurs inside 『ドキュメント』 (and 『ラー』
+    inside 『エラー』) - the word ラーメン appears nowhere in the corpus. Six of
+    eight off-topic questions cleared the floor this way and came back as five
+    cited excerpts. Latin was never affected, because a Latin word is matched
+    whole; the fix gives the CJK side the nearest thing it can have, a
+    three-character contiguous window, which 『ドキュメント』 does not share with
+    ラーメン while 『ゲート』 still proves a question about セキュリティゲート.
     """
 
-    wanted = set(subject_terms(query))
-    if not wanted:
-        return True
-    return any(wanted.intersection(tokenize(chunk.content)) for chunk in chunks)
+    latin, windows = subject_evidence_probes(query)
+    if not latin and not windows:
+        # Nothing this rule can say. A one-character subject (「犬」) is a whole
+        # word the bigram index cannot form a window from, and dropping to
+        # "keep everything" there would *loosen* the floor while fixing it -
+        # so the old term test still decides those, unchanged.
+        wanted = set(subject_terms(query))
+        if not wanted:
+            return True
+        return any(wanted.intersection(tokenize(chunk.content)) for chunk in chunks)
+    latin_wanted = set(latin)
+    for chunk in chunks:
+        if latin_wanted and latin_wanted.intersection(tokenize(chunk.content)):
+            return True
+        if windows:
+            content = unicodedata.normalize("NFKC", chunk.content).casefold()
+            if any(window in content for window in windows):
+                return True
+    return False
 
 
 def _bounded_query_terms(

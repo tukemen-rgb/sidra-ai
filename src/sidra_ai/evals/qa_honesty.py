@@ -109,6 +109,17 @@ _EVAL_CHUNKS: tuple[Chunk, ...] = (
         "Write operations are refused before any network call is made.",
         path="docs/readonly.md", index=4,
     ),
+    #: Fragment bait (C-1510). The corpus above never says ラーメン, but the
+    #: floor used to clear on a single shared bigram, and 『メン』 lives inside
+    #: 『ドキュメント』 exactly as it does in the real corpus - which is how six
+    #: of eight off-topic questions came back as five cited excerpts. The
+    #: 「C-1234」 is the Latin half of the same trap: a lone ``c`` out of
+    #: 「ビタミン C」 matched every chunk carrying a backlog number.
+    _chunk(
+        "ドキュメントの置き場は docs/ 以下で、エラーの記録もそこに残す。"
+        "C-1234 の作業ログはこのファイルから辿れるようになっています。",
+        path="docs/where.md", index=5,
+    ),
 )
 
 
@@ -120,7 +131,16 @@ PROBES: tuple[HonestyProbe, ...] = (
     HonestyProbe("phone-number", "電話番号を教えてください", answerable=False),
     HonestyProbe("paid-leave", "有給休暇の申請を教えてください", answerable=False),
     HonestyProbe("stock-price", "株価を教えて", answerable=False),
+    # C-1510: subjects whose *fragments* live in the corpus inside unrelated
+    # words. These passed the one-shared-bigram floor and are the reason it
+    # is now three contiguous characters.
+    HonestyProbe("ramen", "ラーメンの美味しい茹で方を教えて", answerable=False),
+    HonestyProbe("vitamin", "ビタミンCの一日の摂取量は？", answerable=False),
     # Subjects the corpus does contain; the floor must not eat them.
+    # 「ドキュメントの置き場」 is here on purpose: it is the very chunk the two
+    # probes above must not reach, so it also has to stay reachable by the
+    # question it really answers.
+    HonestyProbe("docs-location", "ドキュメントはどこに置いていますか", answerable=True),
     HonestyProbe("ads-policy", "広告の方針を教えて", answerable=True),
     HonestyProbe("cost", "運営コストはいくらですか", answerable=True),
     HonestyProbe("copy-ideas", "キャッチコピーの案を教えて", answerable=True),

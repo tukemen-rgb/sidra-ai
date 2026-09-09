@@ -2701,6 +2701,121 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the same floor, over a corpus nobody wrote for it ---------------
+    #
+    # C-1510. The number above is measured on five hand-written chunks, and
+    # it read a perfect 10 through the whole failure: a five-chunk corpus
+    # has no room for the accident that actually broke the floor, which is
+    # an unrelated *longer* word containing a slice of the subject. Over
+    # this repository's own 386 chunks, six of eight off-topic questions
+    # came back as five cited excerpts - 「ラーメンの美味しい茹で方を教えて」
+    # cleared it because 『メン』 is inside 『ドキュメント』.
+    #
+    # So this one asks the same question of a corpus written for other
+    # reasons entirely. Ingestion is 0.3s and deterministic (the checkout on
+    # disk), which is the only reason a real corpus belongs in an offline
+    # instrument at all.
+    _off_topic = (
+        "ラーメンの美味しい茹で方を教えて",
+        "今日の東京の天気は？",
+        "確定申告の期限はいつですか",
+        "犬と猫はどちらが飼いやすい？",
+        "新幹線で大阪まで何時間かかる？",
+        "ビタミンCの一日の摂取量は？",
+        "ピアノの練習は何歳から始めるべき？",
+        "この会社の株価を教えて",
+    )
+    # The contrast, and the only reason the number above is worth anything:
+    # refusing everything would score a perfect eight.
+    _on_topic = (
+        "セキュリティゲートはどんな検出をしますか",
+        "完了条件はどう判定していますか",
+        "索引はどこに保存されますか",
+        "Is the ingestion client read-only?",
+    )
+    try:
+        import sys as _real_sys
+
+        if str(ROOT / "scripts") not in _real_sys.path:
+            _real_sys.path.insert(0, str(ROOT / "scripts"))
+        from measure_outcomes import ingest as _real_ingest
+        from sidra_ai.api.service import SidraService as _RealService
+        from sidra_ai.config.settings import Settings as _RealSettings
+        from sidra_ai.models.echo import EchoModelAdapter as _RealEcho
+        from sidra_ai.retrieval.store import DocumentStore as _RealStore
+        from sidra_ai.security.gate import GatePolicy as _RealPolicy
+        from sidra_ai.security.gate import SecurityGate as _RealGate
+
+        _repo = "tukemen-rgb/sidra-ai"
+        _real_gate = _RealGate(_RealPolicy(), allowed_repositories=[_repo])
+        _real_store = _RealStore(_real_gate)
+        # This probe's own paperwork is its answer key, the mirror image of
+        # EXCLUDED_FROM_CORPUS. Measured the hard way: filing 「ラーメンの
+        # 美味しい茹で方を教えて」 in the backlog put ラーメン into the corpus, and
+        # this number fell 6 -> 4 on a commit that changed no code at all -
+        # the floor was right and the instrument had been contaminated by the
+        # write-up of the bug it measures. Any file naming the questions
+        # below has to stay out of the corpus they are asked against.
+        _real_ingest(
+            [(_repo, ROOT)],
+            _real_store,
+            _real_gate,
+            also_excluded=(
+                "docs/BACKLOG.md",
+                "docs/research/commentary-scores.md",
+                "docs/LOOP_LOG.md",
+            ),
+        )
+        with _quiet():
+            # Echo for the same reason the probe above uses it: this number is
+            # about whether an answer is composed at all, and it must read the
+            # same on a machine with no weights.
+            _real_service = _RealService(
+                _RealSettings(allowed_repositories=(_repo,)),
+                model=_RealEcho(),
+                store=_real_store,
+                gate=_real_gate,
+            )
+
+        def _cited(question):
+            reply = _real_service.chat(question, repositories=[_repo])
+            return len(reply.get("citations") or [])
+
+        _bluffed = [q for q in _off_topic if _cited(q)]
+        _silenced = [q for q in _on_topic if not _cited(q)]
+    except Exception as exc:  # noqa: BLE001 - an instrument never blocks the run
+        _bluffed, _silenced = None, None
+        _real_detail = f"probe unavailable ({type(exc).__name__}: {exc})"
+        _real_value = None
+    else:
+        _refused = len(_off_topic) - len(_bluffed)
+        _real_value = 0.0 if _silenced else float(_refused)
+        if _silenced:
+            _real_detail = (
+                "答えられる質問を黙らせた: " + "; ".join(_silenced)
+            )
+        else:
+            _real_detail = (
+                f"{_refused}/{len(_off_topic)} 件の無関係な質問を引用ゼロで断り、"
+                f"答えられる {len(_on_topic)} 件は全部残した"
+                f"（このリポジトリ自身 {len(_real_store.chunks())} チャンクを"
+                "実際に索引して chat 経路で測定）"
+            )
+            if _bluffed:
+                _real_detail += (
+                    "。**まだ断れない**: " + "; ".join(_bluffed)
+                    + " —— どれも主題語そのものではなく、実在するが topic を"
+                    "運ばない一般語（今日・会社）1 個で通っている。断片一致とは"
+                    "別の原因なので C-1517（IDF）で扱う"
+                )
+    c.add(
+        "qa_offtopic_honest_real_corpus",
+        "無関係な質問を断れる（実コーパス）",
+        _real_value,
+        detail=_real_detail,
+        kind=OUTCOME,
+    )
+
     # The number that would actually tell us whether search works.
     # Read the question set that exists rather than a filename that never
     # did: this probe reported 0 while 18 real questions were already in

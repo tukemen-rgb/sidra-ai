@@ -106,7 +106,7 @@ def head_sha(repo_root: Path) -> str:
 EXCLUDED_FROM_CORPUS = ("src/sidra_ai/evals/outcome_questions.py",)
 
 
-def iter_files(repo_root: Path):
+def iter_files(repo_root: Path, *, also_excluded: tuple[str, ...] = ()):
     """Yield (relative_path, content) for the files the pipeline would ingest.
 
     Scope comes from :func:`sidra_ai.ingestion.scope.is_documentation_path`,
@@ -126,7 +126,13 @@ def iter_files(repo_root: Path):
     be read from a checkout, and ``max_items_per_source`` bounds each real
     repository at 50 documentation files while this walk has no bound.
 
-    The answer key is skipped: see ``EXCLUDED_FROM_CORPUS``.
+    The answer key is skipped: see ``EXCLUDED_FROM_CORPUS``. A caller may
+    skip more with ``also_excluded``, for the same reason and without
+    changing the corpus every other measurement sees: a probe whose own
+    write-up lives in this repository hands itself its answer key too. The
+    honesty floor's off-topic questions (C-1510) are the measured case -
+    filing 「ラーメンの美味しい茹で方を教えて」 in ``docs/BACKLOG.md`` put ラーメン
+    into the corpus, and the instrument read a fixed floor as broken.
     """
 
     # A git worktree left under the repository - the tooling puts them in
@@ -150,7 +156,8 @@ def iter_files(repo_root: Path):
             continue
         if not is_documentation_path(path.relative_to(repo_root).as_posix()):
             continue
-        if path.relative_to(repo_root).as_posix() in EXCLUDED_FROM_CORPUS:
+        relative = path.relative_to(repo_root).as_posix()
+        if relative in EXCLUDED_FROM_CORPUS or relative in also_excluded:
             continue
         try:
             content = path.read_text(encoding="utf-8")
@@ -173,14 +180,20 @@ def ingest(
     targets: list[tuple[str, Path]],
     store: DocumentStore,
     gate: SecurityGate,
+    *,
+    also_excluded: tuple[str, ...] = (),
 ) -> dict:
-    """Ingest each repository through the real gate; report what got in."""
+    """Ingest each repository through the real gate; report what got in.
+
+    ``also_excluded`` is passed through to :func:`iter_files`; see the note
+    there about a probe's own paperwork becoming its answer key.
+    """
 
     per_repo: dict[str, dict] = {}
     for repository, root in targets:
         sha = head_sha(root)
         counts = {"total": 0, "allow": 0, "quarantine": 0, "block": 0}
-        for rel_path, content in iter_files(root):
+        for rel_path, content in iter_files(root, also_excluded=also_excluded):
             counts["total"] += 1
             provenance = Provenance(
                 source="github",
