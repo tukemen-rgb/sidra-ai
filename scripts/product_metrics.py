@@ -1270,6 +1270,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1602: the ingestion summary's per-repo findings roll-up listed the same
+    # detector label once per document, so 「secret:github_token」 on three files
+    # read as three separate leaks. to_dict now dedups it order-preservingly;
+    # the counts still carry how many, this list carries which kinds.
+    from sidra_ai.evals.ingestion_findings_deduplicated import (
+        evaluate_ingestion_findings_deduplicated,
+    )
+
+    ingest_dedup = evaluate_ingestion_findings_deduplicated()
+    c.add(
+        "ingestion_findings_deduplicated",
+        "取り込みサマリの findings が検出種別ごとに 1 回（文書数ぶん重複しない）",
+        10.0 * ingest_dedup.checks_passed / ingest_dedup.checks_total,
+        detail=f"{ingest_dedup.checks_passed}/{ingest_dedup.checks_total} checks; "
+               "src/sidra_ai/evals/ingestion_findings_deduplicated.py"
+               + ("" if ingest_dedup.passed else "; " + "; ".join(ingest_dedup.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the

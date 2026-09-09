@@ -207,7 +207,15 @@ class RepositoryReport:
             "blocked": self.blocked,
             "skipped_reason": self.skipped_reason,
             "error": self.error,
-            "findings": list(self.findings),
+            # A roll-up of the finding *kinds* this repository surfaced, one per
+            # distinct label: the same detector firing on several documents added
+            # its label once per document (extend, above), so the summary listed
+            # 「secret:github_token」 three times and read as three separate leaks.
+            # The counts (indexed/quarantined/blocked) carry how many; this list
+            # carries which kinds, and a per-document view lives in the quarantine
+            # CLI. Order-preserving dedup, as decks/documents dedup their sources
+            # (C-1237/1241/1242). C-1602.
+            "findings": list(dict.fromkeys(self.findings)),
         }
 
 
