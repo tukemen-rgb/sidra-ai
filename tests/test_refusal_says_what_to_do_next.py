@@ -59,7 +59,7 @@ _REPO = "owner/alpha"
 #: Every code the service can set, and what the operator has to do about it.
 #: Kept here rather than imported so that adding a code to the service without
 #: giving the page words for it fails this file.
-CODES = ("gate", "history", "model_unavailable", "output_guard")
+CODES = ("gate", "history", "model_unavailable", "output_guard", "empty")
 
 
 # --------------------------------------------------------------- the service

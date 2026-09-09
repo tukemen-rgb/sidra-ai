@@ -15501,6 +15501,63 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 空行は質問ではない (C-1515) ------------------------------------
+    #
+    # Measured through the real HTTP path: ``chat("   ")`` answered
+    # 「現時点では十分な根拠がありません…確認した質問: 」 - a claim about a
+    # search that never had a query, which reads to the operator as "your
+    # topic is not in the corpus". Both directions, because "refuse
+    # everything" would score full marks on the first half alone.
+    from fastapi.testclient import TestClient as _EmptyClient
+
+    from sidra_ai.api.app import create_app as _empty_create_app
+
+    _empty_client = _EmptyClient(_empty_create_app())
+
+    def _ask(text: str) -> dict:
+        response = _empty_client.post("/v1/chat", json={"message": text})
+        return response.json() if response.status_code == 200 else {}
+
+    _blank_ok, _blank_bad = [], []
+    for _blank in ("   ", "\t\n ", "\u3000"):
+        _body = _ask(_blank)
+        if (
+            _body.get("refusal") == "empty"
+            and "十分な根拠がありません" not in (_body.get("answer") or "")
+            and "何について" in (_body.get("answer") or "")
+        ):
+            _blank_ok.append(repr(_blank))
+        else:
+            _blank_bad.append(f"{_blank!r}: {(_body.get('answer') or '(422)')[:40]}")
+
+    # A real question the corpus cannot answer must still get the honest
+    # no-evidence sentence: that one is true, because a search happened.
+    _real = _ask("こんにちは")
+    _real_ok = (
+        not _real.get("refused")
+        and "十分な根拠がありません" in (_real.get("answer") or "")
+    )
+
+    c.add(
+        "chat_empty_question_asked_back",
+        "空行に「根拠がありません」と答えない（聞き返す）",
+        0.0 if (_blank_bad or not _real_ok) else 1.0,
+        detail=(
+            "; ".join(_blank_bad + ([] if _real_ok else ["実質問が壊れた"]))
+            if (_blank_bad or not _real_ok)
+            else f"**実 HTTP 経路で測った**。空白のみ {len(_blank_ok)} 通り"
+            f"（{', '.join(_blank_ok)}——半角・タブ改行・全角空白）は"
+            "**検索も引用もせず聞き返す**（`refusal: empty`）。"
+            "**両方向**: 答えの無い実質問「こんにちは」は**今も**"
+            "「十分な根拠がありません」と正直に言う——片方だけなら"
+            "「全部聞き返す」実装が満点を取る。"
+            "**空文字列 `\"\"` は別の話**で、HTTP schema の `min_length=1` が"
+            "既に 422 で弾いている（起票は同じ 1 件として書かれていたが、"
+            "実測すると片方は最初から通っていなかった）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- 存在しない名指しを黙って吸収しない (C-1511) --------------------
     #
     # Reproduced through the real reviser: make a fishing game and a

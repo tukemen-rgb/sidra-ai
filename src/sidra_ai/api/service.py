@@ -499,6 +499,30 @@ class SidraService:
         already said.
         """
 
+        # Nothing was asked, so nothing can be answered - and saying
+        # 「現時点では十分な根拠がありません」 to a blank line is a claim about
+        # a search that never had a query (C-1515). Measured 2026-09-09:
+        # ``chat("   ")`` returned that sentence with 「確認した質問: 」 and an
+        # empty subject, which reads as "we looked and your topic is not in
+        # the corpus". The honest answer to no question is to ask for one.
+        #
+        # The HTTP schema already rejects ``""`` with 422 (``min_length=1``),
+        # so only whitespace reaches here; the check lives in the service
+        # rather than the schema because every caller deserves the same
+        # answer, and because widening a validation contract is a bigger
+        # decision than fixing a sentence.
+        if not message.strip():
+            return {
+                "answer": (
+                    "質問が空のようです。何について調べますか。"
+                    "リポジトリの内容についてお答えできます。"
+                ),
+                "refused": True,
+                "refusal": "empty",
+                "reason": "the message was empty or whitespace only",
+                "citations": [],
+            }
+
         gate_result = self.gate.inspect(message, source="operator", repository="")
         if gate_result.decision is not Decision.ALLOW:
             return {
