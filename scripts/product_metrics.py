@@ -5157,6 +5157,40 @@ def measure_creation(c: Collector) -> None:
         racing_edge
     ):
         edge_gaps.append(f"{missing}: no edge contract reported")
+    # The pair standing at 3:1 says nothing about how much of the road it
+    # stands along (C-1603). The ticks marked 12 units in every 110, so
+    # the contract above was satisfied on 19 of 80 row slots and the rest
+    # of the boundary was carried by the tarmac's own 1.012:1 against the
+    # roadside - below 1.4.11's 3:1 for a graphical object the player has
+    # to read, and being off the road halves the pace. One extra node run
+    # reads what a real frame actually painted.
+    from sidra_ai.creation.racing import haze_probe as _edge_cover_probe
+
+    cover_gaps: list[str] = []
+    cover_rows, cover_slots = 0.0, 0
+    _cover_page = generate_game("レースゲームを作って").html
+    _cover_script = _scene_re.search(r"<script>(.*?)</script>", _cover_page, _scene_re.S)
+    if _cover_script is None:
+        cover_gaps.append("racing: no script for the coverage read")
+    else:
+        try:
+            _cover_run = _scene_sp.run(
+                ["node", "-"],
+                input=_edge_cover_probe(_cover_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _cover_run.returncode != 0:
+                raise ValueError(_cover_run.stderr.strip()[:60])
+            _cover = json.loads(_cover_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            cover_gaps.append(f"racing: coverage probe unavailable ({exc})")
+        else:
+            if not _cover["dashRows"]:
+                cover_gaps.append("racing: the ticks' rhythm was paved over")
+            cover_rows = float(_cover["boundedRows"])
+            cover_slots = int(_cover["rowSlots"])
     c.add(
         "creation_racing_edge",
         "路肩がどのテーマでも読める",
@@ -5165,9 +5199,36 @@ def measure_creation(c: Collector) -> None:
             "racing × 4 テーマ × 全 3 場面で、二色ペアの道標（暗芯＋明縁）の"
             "どちらか一方が道路とコース外の両方に ≥3.0:1 で立ち、ペア自身も"
             "≥3.0:1。旧・単色 #dfe7f5 は紙テーマで全場面 1.03〜1.16:1＝境界"
-            "がゲーム全体で見えなかった（§4・境界は情報）"
+            "がゲーム全体で見えなかった（§4・境界は情報）。"
+            "**どれだけの長さに立っているかは creation_edge_coverage が測る**"
+            "——この契約は色の話で、被覆の話ではない（C-1603）"
             if not edge_gaps
             else "; ".join(edge_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- ...and it stands along the whole road -------------------------
+    #
+    # The pair standing at 3:1 says nothing about how much of the road it
+    # stands along (C-1603), and the two are independent enough to be
+    # separate numbers: the colours were right and the coverage was 24%.
+    c.add(
+        "creation_edge_coverage",
+        "路肩の道標が立っている行数",
+        cover_rows if not cover_gaps else 0.0,
+        detail=(
+            f"実フレームを記録して実測——{int(cover_rows)}/{cover_slots} 行スロットが"
+            "左右**両側**に道標を持つ。旧・道標は 110 進むごと 12 の窓にしか"
+            "描かれず 19/80＝24% で、残る 76% の境界は路面と路外の 1.012:1"
+            "（既定テーマ・C-1400 実測。紙/ターミナル/dusk でも 1.067〜1.087）"
+            "が担っていた＝WCAG 1.4.11 が「内容の理解に必要な図形」に求める"
+            "3:1 を全テーマで大きく下回る。路外は実測で速度 3→1.66 と"
+            "ほぼ半減する罰つきなので、これは雰囲気ではなく判断に要る情報。"
+            "C-1287 の二色ペアをそのまま細い連続線として全行に引き、"
+            "12/110 の太いダッシュは速度のリズムとして線の上に残した"
+            if not cover_gaps
+            else "; ".join(cover_gaps)
         ),
         kind=OUTCOME,
     )

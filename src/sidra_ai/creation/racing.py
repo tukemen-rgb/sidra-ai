@@ -256,7 +256,20 @@ function draw(){
   /* Edge ticks and the start/finish band are a light neutral, not an
      accent: the boundary is information and has to survive every scene
      palette (§4 - colour is never the only carrier). */
+  /* ...and it is information on EVERY row, not one row in four (§4 +
+     WCAG 1.4.11, C-1603). The ticks below mark 12 units in every 110, so
+     the boundary stood at 3:1 on a quarter of the screen and, everywhere
+     else, at whatever the tarmac happened to differ from the roadside by
+     - measured at 1.012:1 on the default theme (C-1400). Being on the
+     road is not mood: off it the pace halves. So the same two-tone pair
+     that the ticks are made of runs the whole length as a thin line, and
+     the ticks stay on top of it: the line says where the road is, the
+     ticks still say how fast it is going by. */
   for(let y=0;y<H;y+=4){const d=dist+(CARY-y),rx=roadAt(d);
+    cx.fillStyle=EDGE_A;
+    cx.fillRect(rx-ROADW/2,y,4,4);cx.fillRect(rx+ROADW/2-4,y,4,4);
+    cx.fillStyle=EDGE_B;
+    cx.fillRect(rx-ROADW/2+1,y,2,4);cx.fillRect(rx+ROADW/2-3,y,2,4);
     if(((d%110)+110)%110<12){
       cx.fillStyle=EDGE_A;
       cx.fillRect(rx-ROADW/2,y,5,4);cx.fillRect(rx+ROADW/2-5,y,5,4);
@@ -762,6 +775,22 @@ console.log(JSON.stringify({
   roadFirst: rowIdx.length ? Math.min.apply(null, rowIdx.map(e => e[1])) : null,
   edgeCount: edges.length,
   edgeAlphas: Array.from(new Set(edges.map(p => p.alpha))).sort(),
+  /* Coverage (§4 + WCAG 1.4.11, C-1603): how many of the frame's row
+     slots carry a boundary mark on BOTH sides of the road. Before the
+     continuous line this was 19 of 80 - the ticks' 12-in-110 window -
+     and everywhere else the boundary was carried by the tarmac's own
+     1.012:1 against the roadside. */
+  rowSlots: Math.ceil(H / 4),
+  boundedRows: (function(){
+    const byY = {};
+    edges.filter(p => p.y % 4 === 0).forEach(p => {
+      (byY[p.y] = byY[p.y] || []).push(p.x) });
+    return Object.keys(byY).filter(y => {
+      const xs = byY[y];
+      return Math.max.apply(null, xs) - Math.min.apply(null, xs) > ROADW / 2;
+    }).length })(),
+  /* The ticks' own rhythm must survive underneath the line. */
+  dashRows: Array.from(new Set(edges.filter(p => p.w === 5).map(p => p.y))).length,
   obsAlphas: Array.from(new Set(others
     .filter(p => p.w === 22 && p.h === 22).map(p => p.alpha))).sort(),
   obsYs: others.filter(p => p.w === 22 && p.h === 22).map(p => p.y).sort((a,b)=>a-b)
