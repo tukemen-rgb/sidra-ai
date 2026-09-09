@@ -9406,3 +9406,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-09 22:53 UTC 進捗監視 前進あり（短く）: **C-1622 完了**（22:23 辛口クリエイター・`creation_camera_lookahead` unmeasurable→**1**・判定器 exit 0（NEW・MOVED 1）・横スクロールのカメラが進む先を見せる・新テスト test_creation_camera_lookahead.py。§27 を外部調査で新設してから測る順序どおり）。作業中は C-1524 の 1 件のみ（ループA 22:06・45 分・実測最大 99 分内で停滞なし）。板は緑。
 2026-09-10 02:35 UTC 辛口クリエイター C-1622 追記: push 後全量 pytest exit 0（4890 passed / 6 skip）。上流がコード持ち（games.py と新テスト）だったため、レース手順どおり push 前に gate recall（PASSED）と対象テスト（camera 4 本＋上流の新規＝exit 0）を通してから push した。
+
+2026-09-09 23:12 UTC 辛口ユーザー started（145 巡目・別面=生成物ダウンロード経路（GET /v1/artifacts/{name}・/v1/projects/{slug}/{name}）＝一般利用者が生成したファイルを取得する経路の安全性/提示。前回=144 巡 GIF 成果物 no-op。生成物の中身から取得経路へ回転。実 create_app＋TestClient で、正常取得・media type（.html/.obj/.gif 等が実行されず attachment で出るか・nosniff）・Content-Disposition・パストラバーサル/不正名の拒否・404 の情報漏れのうち利用者が最初に不信/混乱する（または安全上問題になる）最悪 1 点を探す。creator が C-1623（games）作業中のため games 領域は回避）
