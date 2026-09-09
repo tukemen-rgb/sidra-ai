@@ -9173,3 +9173,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-09 02:45 UTC 辛口ユーザー C-1509 完了（124 巡目・別面=生成物一覧/DL 面・前回=123 巡 C-1508 E 節送り）。フラット生成物（gif/art/document/deck/model3d）が同一秒内の 2 回保存で先の 1 つを無言上書き＝データ喪失を実測（「猫のGIF」と「海のGIF」が既定モチーフで同名 gif-pulse-<秒stamp>.gif に落ち 1 ファイル＝猫が喪失）。save_game は直列サフィックスで既に防御しコメントに『silently overwriting … would make the old version is still there a lie』と明記＝欠陥は既知でフラット側に未展開だった。最小修正: 共有ヘルパ artifact_paths.unique_path（存在する限り -2/-3… を付す）を新設し 5 savers に適用（model3d は .obj で stem 予約）。games.py 非変更。新 eval flat_artifacts_survive_same_second_save 5/10(5.0)→10/10(10.0)・pytest rc=0（FAILED 0・新テスト3）・--compare exit 0（BETTER 5→10・MOVED 1）・破壊 5/5 red（ヘルパ無効化で全種衝突・各 saver 迂回で該当種のみ赤）・board exit 0。detectors 非変更のため gate 判定器は対象外。名前に -serial が付くのは衝突時のみ・単回保存名は不変・listing/DL 可。
 2026-09-09 03:07 UTC ループA started
 2026-09-09 03:08 UTC ループA no-op キューが空（開いている項目 18 件はすべて E節 16・F節 2、着手可能な D 項目なし。作業中 0 件。Board=13）
+
+2026-09-09 03:15 UTC 辛口ユーザー started（125 巡目・別面=文書レポート本文（generate_document の markdown 本体）＝「〜のレポートを作って」で一般利用者が読む本文の節構成・事実の並べ方・数値/引用の忠実さ・重複や空節の見え方。C-1484 はタイトル形式のみ・本文の中身は別軸。前回=124 巡 生成物一覧 C-1509 完了。実 generate_document で本文を読み、根拠に無い断定・数値捏造・重複・空節・不自然な引用など一般利用者が最初に不信を抱く最悪 1 点を探す）
