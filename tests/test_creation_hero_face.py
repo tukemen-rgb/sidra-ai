@@ -20,6 +20,7 @@ from sidra_ai.creation.catchgame import catch_face_probe
 from sidra_ai.creation.duel import face_probe as duel_face_probe
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.kaiju import face_probe as kaiju_face_probe
+from sidra_ai.creation.marble import face_probe as marble_face_probe
 from sidra_ai.creation.platformer import face_probe
 
 
@@ -208,4 +209,44 @@ def test_reduced_motion_keeps_the_pilot_eyes_open() -> None:
     seen = _piloted(reduced=True)
 
     assert seen["legRight"] == 1
+    assert seen["blinkFrames"] == 0, "reduced motion still blinks"
+
+
+def _rolled(*, reduced: bool = False) -> dict:
+    """C-1618: the marble, the one avatar on screen at all times."""
+
+    if shutil.which("node") is None:
+        pytest.skip("node is required to drive the page")
+    page = generate_game("玉転がしゲームを作って").html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=marble_face_probe(script.group(1), reduced=reduced),
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])
+
+
+def test_the_marble_watches_what_is_coming_and_blinks() -> None:
+    seen = _rolled()
+
+    assert seen["lookRight"] == 1, "a gate to the right never pulls the eyes"
+    assert seen["lookLeft"] == -1, "a gate to the left never pulls the eyes"
+    assert seen["lookCentred"] == 0, "a gate just off centre still pulls the eyes"
+    # ...and the look reaches the paint, not just the contract (C-1615's
+    # lesson): the pair is really drawn and really moves.
+    assert seen["eyesDrawn"] >= 2, "the eyes never reach the paint"
+    assert seen["eyeXRight"] > seen["eyeXLeft"], "the drawn eyes do not move"
+    assert seen["blinkFrames"] > 0, "the marble never blinks"
+    assert seen["longestBlink"] <= 12, "the eyes stay shut"
+
+
+def test_reduced_motion_keeps_the_marble_eyes_open() -> None:
+    seen = _rolled(reduced=True)
+
+    assert seen["lookRight"] == 1, "the look is not decoration - it stays"
     assert seen["blinkFrames"] == 0, "reduced motion still blinks"

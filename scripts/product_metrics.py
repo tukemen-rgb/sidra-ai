@@ -6265,15 +6265,63 @@ def measure_creation(c: Collector) -> None:
             face_gaps.append(
                 f"{_kf_label}: the eyes stay shut ({_kf.get('longestBlink')} frames)"
             )
+    # The marble (C-1618): the sixth face, and the one avatar that is on
+    # screen at all times. What to look AT was already being computed for
+    # marbleFacts - the next unfinished thing ahead - so only the eyes
+    # were missing.
+    from sidra_ai.creation.marble import face_probe as _mf_probe
+
+    for _mf_reduced in (False, True):
+        _mf_label = f"marble{'（reduced）' if _mf_reduced else ''}"
+        _mf_page = generate_game("玉転がしゲームを作って").html
+        _mf_script = _scene_re.search(r"<script>(.*?)</script>", _mf_page, _scene_re.S)
+        if _mf_script is None:
+            face_gaps.append(f"{_mf_label}: no script")
+            continue
+        try:
+            _mf_run = _scene_sp.run(
+                ["node", "-"],
+                input=_mf_probe(_mf_script.group(1), reduced=_mf_reduced),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _mf_run.returncode != 0:
+                raise ValueError(_mf_run.stderr.strip()[:60])
+            _mf = json.loads(_mf_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            face_gaps.append(f"{_mf_label}: probe unavailable ({exc})")
+            continue
+        if _mf.get("lookRight") != 1 or _mf.get("lookLeft") != -1:
+            face_gaps.append(f"{_mf_label}: the marble never watches what is coming")
+        elif _mf.get("lookCentred") != 0:
+            face_gaps.append(f"{_mf_label}: a gate just off centre still pulls the eyes")
+        elif (_mf.get("eyesDrawn") or 0) < 2:
+            face_gaps.append(f"{_mf_label}: the eyes never reach the paint")
+        elif not (
+            _mf.get("eyeXRight") is not None
+            and _mf.get("eyeXLeft") is not None
+            and _mf["eyeXRight"] > _mf["eyeXLeft"]
+        ):
+            face_gaps.append(f"{_mf_label}: the drawn eyes do not move with the look")
+        if _mf_reduced:
+            if _mf.get("blinkFrames"):
+                face_gaps.append(f"{_mf_label}: reduced motion still blinks")
+        elif not _mf.get("blinkFrames"):
+            face_gaps.append(f"{_mf_label}: the marble never blinks")
+        elif _mf.get("longestBlink", 0) > 12:
+            face_gaps.append(
+                f"{_mf_label}: the eyes stay shut ({_mf.get('longestBlink')} frames)"
+            )
     # C-1351 redefined the value from 0/1 to the NUMBER of heroes whose
     # face contract holds - any gap anywhere still collapses it to 0
     # (両定義: 旧 0/1 は platformer 時点で 1、新定義の変更前も adventure
     # 未実装のため 1、変更後 2). C-1353 adds the basket, C-1355 the
-    # duellist, C-1363 the kaiju pilot: 5.
+    # duellist, C-1363 the kaiju pilot, C-1618 the marble: 6.
     c.add(
         "creation_hero_face",
         "目が動きを追う主人公の数",
-        0.0 if face_gaps else 5.0,
+        0.0 if face_gaps else 6.0,
         detail=(
             "; ".join(face_gaps)
             if face_gaps
@@ -6286,7 +6334,10 @@ def measure_creation(c: Collector) -> None:
             "レーンへ縦に傾き（下 1・上 -1・同レーンで正面）、敵は平らな"
             "バイザーのまま。kaiju の実対峙: 操縦席の目が巨獣の脚へ傾き"
             "（右 1・左 -1・真下で正面）＝画面の主題を主人公が見ている。"
-            "五者とも"
+            "marble の実転がし（C-1618）: 次に来る物が右なら目が右（look=1）・"
+            "左で -1・レーン 1 割の不感帯に入る真正面で 0＝ほぼ正面のゲートで"
+            "目が左右にちらつかない。見る対象は marbleFacts が既に計算していた"
+            "「次の未通過の物」で、目にだけ渡っていなかった。**目が塗りまで届くことも実測**——記録 ctx で 1 フレームの fillRect を読み、瞳 2 つが実際に描かれ、右を見た時の平均 x が左を見た時より 65px 右にある。六者とも"
             "reduced-motion では FRAME が目を開いたまま留める＝顔は一切"
             "動かない（§1 の技法表で最後まで残っていた「キャラの目や表情」）"
         ),

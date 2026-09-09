@@ -287,6 +287,14 @@ function step(rt){
   cx.arc(bp.x,bp.y,br,0,6.2832);cx.fill();
   cx.fillStyle=shade(TUNE_ACCENT,1);cx.beginPath();
   cx.arc(bp.x-br*0.28,bp.y-br*0.3,br*0.62,0,6.2832);cx.fill();
+  /* The eyes sit on the lit side and lean toward what is coming (§1,
+     C-1618). Scaled by br so they shrink with the perspective like the
+     rest of the marble, and pinned open under reduced motion because
+     FRAME returns 0 there - the same line the other five faces use. */
+  const fc=faceFacts();
+  if(!fc.blink){cx.fillStyle='#05070f';const ex=fc.look*br*0.22;
+    cx.fillRect(bp.x-br*0.42+ex,bp.y-br*0.34,br*0.2,br*0.34);
+    cx.fillRect(bp.x+br*0.22+ex,bp.y-br*0.34,br*0.2,br*0.34)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(32,12,330,24);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
@@ -300,6 +308,22 @@ function step(rt){
   requestAnimationFrame(step)}
 /* Read back off the running page: where the run is, which act the sky is
    in, and the next thing ahead, so a probe can roll the course by hand. */
+/* The face (§1, C-1618): the marble looks at what is coming. Every other
+   template's hero already watches the subject of its own screen - the
+   platformer's run, catch's lowest fruit, duel's enemy lane, the kaiju
+   cockpit's leg - and the marble is the one avatar on screen at all
+   times with nothing to look with. The thing to look AT was already
+   being computed for marbleFacts: the next unfinished thing ahead.
+   A tenth of the lane is the dead zone, so a gate almost dead ahead
+   reads as straight rather than flickering left and right. */
+function faceLook(){let best=null;
+  things.forEach(o=>{if(o.done||best)return;
+    if(o.z-ball.z>0)best=o});
+  if(!best)return 0;
+  const gap=LANE*0.1;
+  return best.x>ball.x+gap?1:best.x<ball.x-gap?-1:0}
+function faceFacts(){return {look:faceLook(),
+  blink:FRAME(40,6,performance.now())===1}}
 function marbleFacts(){let next=null;
   things.forEach(o=>{if(o.done||next)return;
     if(o.z-ball.z>0)next={kind:o.kind,x:o.x,dz:o.z-ball.z}});
@@ -667,7 +691,123 @@ def pan_probe(script: str) -> str:
     return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The marble's look, driven (§1, C-1618). The next thing is placed to
+#: one side and the reported look read back, then the blink is counted
+#: over five hundred frames - and under reduced motion it must never
+#: close, because FRAME pins the cycle to 0 there.
+FACE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+/* The clock ticks with the frames (C-1348's lesson): a zero-pinned
+   performance.now freezes the wall-clock FRAME and the blink never
+   comes. */
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => rec }) };
+/* The eyes have to reach the PAINT, not just the contract (C-1615's
+   lesson). Every fillRect of a frame is kept; the eyes are the only ones
+   narrower than a few pixels. */
+let RECTS = [];
+const rec = new Proxy({}, {
+  get(t, k){
+    if (k === 'fillRect') return (x, y, w, h) => { RECTS.push({x: x, w: w}) };
+    if (k === 'createLinearGradient' || k === 'createRadialGradient')
+      return () => ({ addColorStop(){} });
+    if (k === 'measureText') return () => ({ width: 10 });
+    if (k in t) return t[k];
+    return () => undefined },
+  set(t, k, v){ t[k] = v; return true } });
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+/* Put the next thing to one side of the marble and read where it looks.
+   A far sentinel keeps the course from finishing between readings. */
+function lookAt(dx){
+  things.length = 0;
+  ball.x = 0;
+  things.push({ z: ball.z + 300, kind: 'gate', x: dx });
+  things.push({ z: ball.z + 500000, kind: 'gate', x: 0 });
+  RECTS = [];
+  run(1);
+  /* The frame's fills are the sky (720), the HUD plate (330) and the two
+     eyes. The marble is drawn very near - the projection scale at its own
+     depth is about 11x - so an eye is around 29px wide, not the couple of
+     pixels its br*0.2 suggests on paper. Anything between is the pair. */
+  const eyes = RECTS.filter(r => r.w > 1 && r.w < 100);
+  return { look: faceFacts().look, eyes: eyes.length,
+    eyeX: eyes.length ? eyes.reduce((a, r) => a + r.x, 0) / eyes.length : null };
+}
+const right = lookAt(LANE * 0.6);
+const left = lookAt(-LANE * 0.6);
+/* Just inside the dead zone, NOT dead centre: at exactly zero the eyes sit
+   straight whether a dead zone exists or not, and the check would pass on
+   a page that has none. */
+const centred = lookAt(LANE * 0.05);
+const lookRight = right.look, lookLeft = left.look, lookCentred = centred.look;
+/* Then count the blink over five hundred frames. */
+let blinkFrames = 0, longest = 0, streak = 0;
+for (let i = 0; i < 500; i++) {
+  run(1);
+  if (faceFacts().blink) { blinkFrames++; streak++; if (streak > longest) longest = streak }
+  else { streak = 0 }
+}
+console.log(JSON.stringify({ lookRight: lookRight, lookLeft: lookLeft,
+  lookCentred: lookCentred, blinkFrames: blinkFrames, longestBlink: longest,
+  eyesDrawn: right.eyes, eyeXRight: right.eyeX, eyeXLeft: left.eyeX,
+  reduced: REDUCED_INPUT }));
+"""
+
+
+def face_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the marble's look can be read."""
+
+    return FACE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
+
 __all__ = [
+    "FACE_PROBE",
+    "face_probe",
     "PAN_PROBE",
     "pan_probe",
     "ENGINE_PROBE",
