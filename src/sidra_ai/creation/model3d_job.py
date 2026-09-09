@@ -45,6 +45,13 @@ def build_model3d_generator(data_dir: str | Path):
                 f"面 {verdict['faces']}）。"
                 ".obj は Windows の 3D ビューアーでそのまま開けます。"
                 "プレビュー HTML はブラウザで回転表示できます。"
+                # C-1617: the .obj's colours (the palette) resolve only from the
+                # companion .mtl via mtllib; without it beside the .obj a viewer
+                # shows a grey model. 「そのまま開けます」 reads as self-sufficient,
+                # so a non-expert opens the .obj alone and loses every colour -
+                # the same "tell the truth about the artifact" honesty the deck
+                # (C-1274) and colour note (C-1272) already carry.
+                "色（配色）は隣に保存された .mtl から付くので、.obj と一緒に置いてください。"
             )
             # The request named no shape, so the fish default was used. Say so
             # and list the shapes that can be asked for - a reader who asked for

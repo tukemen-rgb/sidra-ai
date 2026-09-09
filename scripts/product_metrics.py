@@ -1748,6 +1748,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1617: the .obj's colours resolve only from the companion .mtl, but the
+    # summary named the .obj and preview and never the .mtl - a non-expert who
+    # opens the .obj alone gets a silently colourless model. The summary now
+    # names the .mtl and says to keep the two together.
+    from sidra_ai.evals.model3d_summary_names_mtl_companion import (
+        evaluate_model3d_summary_names_mtl_companion,
+    )
+
+    m3d_mtl = evaluate_model3d_summary_names_mtl_companion()
+    c.add(
+        "model3d_summary_names_mtl_companion",
+        "3D 要約が色は隣の .mtl から来ると伝え .obj と一緒に置くよう案内する",
+        10.0 * m3d_mtl.checks_passed / m3d_mtl.checks_total,
+        detail=f"{m3d_mtl.checks_passed}/{m3d_mtl.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_summary_names_mtl_companion.py"
+               + ("" if m3d_mtl.passed else "; " + "; ".join(m3d_mtl.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1479: an English "3D model" request tied GAME's "3d" cue and MODEL3D's
     # "3d model" at one position, and the same-position tie-break (dict order,
     # GAME first) built a game instead of a 3D model - the wrong artifact kind.
