@@ -1249,6 +1249,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1517: the echo excerpt capped each citation at two sentences, but its
+    # split required whitespace after the terminator - which Japanese prose
+    # omits after 「。」 - so a Japanese block counted as one sentence and the cap
+    # never fired, dumping the whole block (to 400 chars) in the main language.
+    # _lead now finds boundaries by position (CJK terminators split on their
+    # own), capping Japanese like English.
+    from sidra_ai.evals.chat_excerpt_caps_japanese_sentences import (
+        evaluate_chat_excerpt_caps_japanese_sentences,
+    )
+
+    excerpt_cap = evaluate_chat_excerpt_caps_japanese_sentences()
+    c.add(
+        "chat_excerpt_caps_japanese_sentences",
+        "チャット回答の抜粋が日本語の複数文も英語と同じく 2 文に制限する",
+        10.0 * excerpt_cap.checks_passed / excerpt_cap.checks_total,
+        detail=f"{excerpt_cap.checks_passed}/{excerpt_cap.checks_total} checks; "
+               "src/sidra_ai/evals/chat_excerpt_caps_japanese_sentences.py"
+               + ("" if excerpt_cap.passed else "; " + "; ".join(excerpt_cap.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the

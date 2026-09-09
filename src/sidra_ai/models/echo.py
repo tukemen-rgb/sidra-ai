@@ -169,16 +169,28 @@ class EchoModelAdapter(LocalModelAdapter):
         # already do (C-1212; symbols only, every literal survives), and let
         # short fragments ride along without consuming a sentence slot.
         collapsed = plain_text(content)
-        sentences = re.split(r"(?<=[.。!?！？])\s+", collapsed)
-        take = 0
+        # Sentence boundaries by position, not by splitting on whitespace: the
+        # old `(?<=[.。!?！？])\s+` required a space *after* the terminator, but
+        # Japanese prose puts none after 「。」, so a whole 「…です。…です。」 block
+        # counted as one sentence and the per-block budget never fired - the
+        # answer dumped the entire block (to 400 chars) in the product's main
+        # language (C-1517). A CJK terminator (。！？) ends a sentence on its own;
+        # an ASCII terminator (.!?) only when whitespace follows, so 「3.14」 and
+        # 「e.g.」 are not cut. Slicing the original preserves its spacing, so no
+        # space is inserted between Japanese sentences that had none.
+        boundary = re.compile(r"[。！？]|[.!?](?=\s)")
+        start = 0
         informative = 0
-        for sentence in sentences:
-            take += 1
-            if len(sentence.strip()) >= _MIN_INFORMATIVE:
+        end = len(collapsed)
+        for match in boundary.finditer(collapsed):
+            cut = match.end()
+            if len(collapsed[start:cut].strip()) >= _MIN_INFORMATIVE:
                 informative += 1
                 if informative >= self.max_sentences_per_block:
+                    end = cut
                     break
-        lead = " ".join(sentences[:take]).strip()
+            start = cut
+        lead = collapsed[:end].strip()
         return (lead[:400] + "...") if len(lead) > 400 else lead or "(empty)"
 
     def _result(
