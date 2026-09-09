@@ -66,7 +66,7 @@ setPal(SHOOTER_PAL_TOKEN);
 const HUD_INK='INK_TOKEN',HUD_PLATE='SURFACE_TOKEN',HUD_A=0.7;
 function hudFacts(){return {ink:HUD_INK,plate:HUD_PLATE,alpha:HUD_A}}
 /* The hit's other half, as a fact (§1, C-1361). */
-function kbFacts(){return {kvx:ship.kvx,x:ship.x,hp:ship.hp,rk:ship.rk}}
+function kbFacts(){return {kvx:ship.kvx,x:ship.x,hp:ship.hp,rk:ship.rk,sq:ship.sq}}
 /* The far layer (§7 観察 7, C-1360): the starfield's parallax already had
    a speed gradient and no contrast gradient - every star was the same
    hardcoded #ffffff44, so a fast star and a slow one read as the same
@@ -110,7 +110,7 @@ function wreckSpawn(f){if(REDUCED)return;
     vx:(i-1)*0.7,vy:1.2+i*0.6,r:5-(i%2)*2,rot:i*2.1})}}
 function wreckFacts(){return {alpha:WRECK_A,
   debris:debris.map(d=>({x:d.x,y:d.y}))}}
-function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0,rk:0,mz:0};shots=[];foes=[];debris=[];score=0;kills=0;wave=0;
+function reset(){ship={x:W/2,y:H-34,hp:3,cool:0,kvx:0,rk:0,mz:0,sq:1};shots=[];foes=[];debris=[];score=0;kills=0;wave=0;
   t=0;state='play';fire=false;rs=(SEED>>>0)||1;
   spawnIn=Math.round(WAVE);actSpawn=[0,0,0];actVy=[0,0,0];grazeReset();
   /* A new go starts at x1. Carrying a run across a restart would hand
@@ -179,6 +179,15 @@ function step(){const now=performance.now();
       f.hp=0;ship.hp--;comboMiss();sfx('clash');shake(11);hitstop(5);
       wreckSpawn(f);
       ship.kvx=(ship.x<f.x?-1:1)*7;
+      /* Squash & stretch, the rammed side (§1, C-1601): the heaviest hit
+         in any of the ten templates - shake 11, five frames of hitstop,
+         a knockback - and the only body it left the shape of untouched.
+         0.7 and the quarter-step settle are racing's numbers (C-1332),
+         because this is the same event: something solid hit the hull.
+         Under REDUCED the silhouette never changes, the rule the recoil
+         and the muzzle flash above already follow - the knockback stays
+         either way, since position is gameplay and not decoration. */
+      if(!REDUCED){ship.sq=0.7}
       grazeStruck(gd,gk);grazeLost();
       burst(ship.x,ship.y,18,'ALERT_JUICE');
       if(ship.hp<=0){state='over';failBeat(ship.x,ship.y)}}
@@ -190,6 +199,10 @@ function step(){const now=performance.now();
      chunks freeze mid-air would read as a bug, not a consequence. */
   debris.forEach(d=>{d.x+=d.vx;d.y+=d.vy;d.rot+=0.15});
   debris=debris.filter(d=>d.y<H+20);
+  /* The hull settles by quarter-steps and snaps, outside the play gate
+     for the wreckage's reason: a ship frozen mid-crush on the 'over'
+     screen would read as a bug (C-1601, racing's C-1332 line). */
+  ship.sq+=(1-ship.sq)*0.25;if(Math.abs(ship.sq-1)<0.01)ship.sq=1;
   draw(now);requestAnimationFrame(step)}
 function draw(now){
   /* The act is read off the play clock, not the wave count: the round is
@@ -227,18 +240,25 @@ function draw(now){
   /* The whole hull rides the recoil (C-1380): nose, wings and flame
      together, so the kick reads as the body moving, not a glitch. */
   const sy=ship.y+ship.rk;
+  /* One transform for the whole hull (§1, C-1601): nose, wings, flame and
+     the muzzle flash below all crush together, anchored at the tail line
+     so the ship squats instead of sinking through itself. At sq=1 every
+     coordinate is bit-identical to the old literals - racing's C-1385
+     contract, same shape. */
+  const ssq=ship.sq,ssw=2-ssq,BY=sy+SHIP*0.7;
+  const SX=dx=>ship.x+dx*ssw,SY=y=>BY+(y-BY)*ssq;
   cx.fillStyle='RAISED_TOKEN';
-  cx.beginPath();cx.moveTo(ship.x,sy-SHIP);
-  cx.lineTo(ship.x-SHIP*0.8,sy+SHIP*0.7);
-  cx.lineTo(ship.x+SHIP*0.8,sy+SHIP*0.7);cx.closePath();cx.fill();
+  cx.beginPath();cx.moveTo(SX(0),SY(sy-SHIP));
+  cx.lineTo(SX(-SHIP*0.8),SY(sy+SHIP*0.7));
+  cx.lineTo(SX(SHIP*0.8),SY(sy+SHIP*0.7));cx.closePath();cx.fill();
   cx.fillStyle='CYAN_TOKEN';
-  cx.fillRect(ship.x-3,sy+SHIP*0.7,6,6+flick*3);
+  cx.fillRect(SX(-3),SY(sy+SHIP*0.7),6*ssw,(6+flick*3)*ssq);
   /* Muzzle flash (§1×§23 事実 4, C-1391): the middle of the talk's
      shot trio [10:13-10:58]. Two frames of light at the nose, the same
      !REDUCED event as the kick. (Worded without the b-word on purpose:
      the graze test reads 「no enemy shots」 off this page's text.) */
   if(ship.mz>0){cx.globalAlpha=0.85;
-    cx.fillRect(ship.x-3,sy-SHIP-6,6,6);cx.globalAlpha=1}
+    cx.fillRect(SX(-3),SY(sy-SHIP-6),6*ssw,6*ssq);cx.globalAlpha=1}
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<ship.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
@@ -417,6 +437,110 @@ def kb_probe(script: str) -> str:
     """The page's own script, wrapped so the throw can be measured."""
 
     return KB_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+#: The rammed hull, watched frame by frame (§1, C-1601). A real ram, then
+#: the crush read off kbFacts every frame - and, because a number that
+#: never reaches the paint is not a deformation, a recording context that
+#: keeps the hull triangle's own points so the drawn silhouette can be
+#: shown to change with it. Flying and firing untouched must leave the
+#: shape alone, and under reduced motion the ram must not bend it at all.
+SQUASH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+let PTS = [], HULL = null;
+const CTX = { globalAlpha: 1, fillStyle: '', strokeStyle: '', lineWidth: 1,
+  font: '', textAlign: '', globalCompositeOperation: '', lineJoin: '',
+  lineCap: '', shadowBlur: 0, shadowColor: '' };
+const STACK = [];
+const rec = new Proxy(CTX, {
+  get(t, k){
+    if (k in t && typeof t[k] !== 'function') return t[k];
+    if (k === 'save') return () => { STACK.push(Object.assign({}, CTX)) };
+    if (k === 'restore') return () => { Object.assign(CTX, STACK.pop() || {}) };
+    if (k === 'beginPath') return () => { PTS = [] };
+    if (k === 'moveTo' || k === 'lineTo') return (x, y) => { PTS.push([x, y]) };
+    /* The hull is the only three-point path the page draws - a foe is
+       four - so it is picked out by shape, not by a token name this
+       wrapper is not built to substitute. */
+    if (k === 'fill') return () => { if (PTS.length === 3) HULL = PTS.slice() };
+    if (k === 'createLinearGradient' || k === 'createRadialGradient')
+      return () => ({ addColorStop(){} });
+    if (k === 'measureText') return () => ({ width: 10 });
+    return () => undefined },
+  set(t, k, v){ t[k] = v; return true } });
+/* Only the motion query answers yes. A stub that says yes to everything
+   also turns the touchpad on (pointer:coarse), and its buttons put more
+   three-point paths on the canvas - which would be read as the hull. */
+globalThis.matchMedia = (q) =>
+  ({ matches: REDUCED_INPUT && /reduce/.test(String(q)) });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => rec }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+function span(){ if (!HULL) return null;
+  const xs = HULL.map(p => p[0]), ys = HULL.map(p => p[1]);
+  return { w: Math.max.apply(null, xs) - Math.min.apply(null, xs),
+    h: Math.max.apply(null, ys) - Math.min.apply(null, ys) } }
+key('keydown', ' '); key('keyup', ' ');
+run(4);
+/* First: fly and fire, untouched. Nothing here may bend the hull - the
+   recoil moves it, the muzzle flash lights it, neither deforms it. */
+key('keydown', 'ArrowLeft');
+/* Space stays DOWN for the whole stretch: the gun has a nine-frame
+   cooldown, so forty frames of held fire is four real shots and four
+   real recoils. Steering without shooting would let a crush wired into
+   shoot() go unnoticed. */
+key('keydown', ' ');
+let restSq = [], restSpan = [], restShots = 0;
+for (let i = 0; i < 40; i++){ run(1); restSq.push(kbFacts().sq);
+  if (kbFacts().rk > 0) restShots++;
+  const s = span(); if (s) restSpan.push(Math.round(s.w * 1e6) / 1e6) }
+key('keyup', ' '); key('keyup', 'ArrowLeft');
+const restShape = restSpan.length ? restSpan[0] : null;
+/* Now the ram. */
+foes.push({ x: ship.x + 3, y: ship.y, vy: 0, vx: 0, r: 13, hp: 1 });
+run(1);
+const hitSq = kbFacts().sq, hitShape = span();
+const track = [];
+for (let i = 0; i < 30; i++){ run(1); track.push(kbFacts().sq) }
+const settled = kbFacts().sq;
+console.log(JSON.stringify({
+  hp: kbFacts().hp,
+  restSq: Array.from(new Set(restSq)).sort(),
+  restShapes: Array.from(new Set(restSpan)).length,
+  restShots: restShots,
+  hitSq: hitSq,
+  settled: settled,
+  settledIn: track.findIndex(v => v === 1),
+  restW: restShape, hitW: hitShape ? hitShape.w : null,
+  hitH: hitShape ? hitShape.h : null,
+  reduced: REDUCED_INPUT
+}));
+"""
+
+
+def squash_probe(script: str, *, reduced: bool = False) -> str:
+    """The page's own script, wrapped so the ram's crush can be watched."""
+
+    return SQUASH_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
 
 
 #: The gun's kick, watched frame by frame (§1×§23 事実 3, C-1380): one
@@ -713,6 +837,8 @@ def wreck_probe(script: str, *, reduced: bool = False) -> str:
 
 __all__ = [
     "KB_PROBE",
+    "SQUASH_PROBE",
+    "squash_probe",
     "KICK_PROBE",
     "TRAIL_PROBE",
     "MUZZLE_PROBE",

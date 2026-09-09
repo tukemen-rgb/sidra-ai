@@ -5610,10 +5610,62 @@ def measure_creation(c: Collector) -> None:
             squash_gaps.append(f"{_sq_label}: the crush never reaches the paint")
         elif _sq["settled"] is None or _sq["settled"] > 30:
             squash_gaps.append(f"{_sq_label}: the crush never settles ({_sq['settled']})")
+    # The rammed hull (C-1601): the seventh body, and the one taking the
+    # heaviest hit in any template - shake 11, five frames of hitstop and
+    # a knockback - while keeping its shape. The probe also records the
+    # hull triangle's own points, so the crush provably reaches the paint,
+    # and it flies and fires untouched first: the recoil moves the ship,
+    # it must not deform it.
+    from sidra_ai.creation.shooter import squash_probe as _sh_sq_probe
+
+    for _sq_reduced in (False, True):
+        _sq_label = f"shooter{'（reduced）' if _sq_reduced else ''}"
+        _sq_page = generate_game("シューティングゲームを作って").html
+        _sq_script = _scene_re.search(r"<script>(.*?)</script>", _sq_page, _scene_re.S)
+        if _sq_script is None:
+            squash_gaps.append(f"{_sq_label}: no script")
+            continue
+        try:
+            _sq_run = _scene_sp.run(
+                ["node", "-"],
+                input=_sh_sq_probe(_sq_script.group(1), reduced=_sq_reduced),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _sq_run.returncode != 0:
+                raise ValueError(_sq_run.stderr.strip()[:60])
+            _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            squash_gaps.append(f"{_sq_label}: probe unavailable ({exc})")
+            continue
+        if _sq["hp"] != 2:
+            squash_gaps.append(f"{_sq_label}: the ram cost {3 - _sq['hp']} lives")
+        elif not _sq_reduced and not _sq["restShots"]:
+            squash_gaps.append(f"{_sq_label}: the probe never fired")
+        elif _sq["restSq"] != [1] or _sq["restShapes"] != 1:
+            squash_gaps.append(f"{_sq_label}: flying and firing deforms the hull")
+        elif _sq_reduced:
+            # The drawn width is a float that has been through the crush
+            # transform at sq=1, so it comes back as 35.19999999999999
+            # rather than 35.2: the question is whether the silhouette
+            # moved, not whether the arithmetic is bit-identical.
+            if _sq["hitSq"] != 1 or abs(_sq["hitW"] - _sq["restW"]) > 1e-6:
+                squash_gaps.append(
+                    f"{_sq_label}: reduced motion still crushes ({_sq['hitSq']})"
+                )
+        elif _sq["hitSq"] is None or _sq["hitSq"] > 0.9:
+            squash_gaps.append(f"{_sq_label}: the ram never crushes ({_sq['hitSq']})")
+        elif _sq["hitW"] is None or _sq["hitW"] <= _sq["restW"]:
+            squash_gaps.append(f"{_sq_label}: the crush never reaches the paint")
+        elif _sq["settledIn"] < 0 or _sq["settledIn"] > 30:
+            squash_gaps.append(
+                f"{_sq_label}: the crush never settles ({_sq['settledIn']})"
+            )
     c.add(
         "creation_squash_stretch",
         "イベントで体が伸びて潰れる型",
-        6.0 if not squash_gaps else 0.0,
+        7.0 if not squash_gaps else 0.0,
         detail=(
             "platformer の実ジャンプ（上昇 >1.1・着地 <0.9・0.5 秒で収束・"
             "立ち姿不動）＋ catch の実受け（受けの瞬間 <0.9・0.5 秒で復元・"
@@ -5623,9 +5675,15 @@ def measure_creation(c: Collector) -> None:
             "復元・無操作不動）＋ racing の実衝突（障害物で 0.7 に潰れ・0.5 秒で"
             "復元・巡航中は不動）＋ adventure の実被弾（接触で 0.7・帽子バーの"
             "記録寸法が一体変換に追随＝描画到達を実証・0.5 秒で復元・立ち姿"
-            "不動）を毎フレーム観測。reduced-motion では全型とも"
+            "不動）＋ shooter の実体当たり（C-1601・10 型で最も重い一撃＝"
+            "shake 11・hitstop 5・ノックバック kvx±7 を受けながら形だけ不変"
+            "だった船体。撃ちながら流している 40 フレームは sq も船体三角形の"
+            "実寸も 1 種類のまま＝反動は動かすが変形させない、体当たりで 0.775・"
+            "船体幅 35.2→43.12px＝潰れが塗りまで届く・15 フレームで復元）"
+            "を毎フレーム観測。reduced-motion では全型とも"
             "全フレーム 1＝輪郭は一切変わらない（§1 の拡縮バウンス、跳ぶ側と"
-            "受ける側と打ち合う側と撃たれる側とぶつかる側と斬られる側）"
+            "受ける側と打ち合う側と撃たれる側とぶつかる側と斬られる側と"
+            "体当たりされる側）"
             if not squash_gaps
             else "; ".join(squash_gaps)
         ),
