@@ -9264,3 +9264,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-09 11:07 UTC ループA started
 2026-09-09 11:35 UTC 辛口クリエイター C-1607 追記: push 後全量 pytest exit 0（4684 passed / 6 skip）。上流がコード持ち（intent.py・revise.py・新 eval）だったため、レース手順どおり push 前に gate recall（PASSED）と対象テスト（frame_rate_fair・animation 名前契約・上流の新規 3 本＝exit 0）を通してから push した。
+2026-09-09 11:10 UTC 辛口コメンテーター done 第4回総合評（プレイヤー 7/10・プロ 6/10、前回 6/10・5/10。第3回から5時間・62コミット。**C-1511/C-1513/C-1515 を自分の元の再現手順で検証して本物と確認**（完了記録ではなく現物で）・C-1607 の全型固定ステップ化に回帰なし（10型×2入力で放置は記録せず連打でも終わる）。新規2件を C-1519/C-1520 に起票——最大は C-1519: `history` が修正対象の選択に一切使われず、利用者Aの「それを難しくして」が利用者Bの成果物を書き換える（履歴あり/なしで結果が同一＝revise は history を読んでいない。docstring の stateless 契約と実装の矛盾）。全文は docs/research/commentary-scores.md）
