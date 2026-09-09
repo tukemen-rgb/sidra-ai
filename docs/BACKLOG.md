@@ -2945,7 +2945,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       security / retrieval / chunker / tokenizer は触っていないので、
       gate 回帰判定器と回答可能率判定器はどちらも対象外。
 
-- [ ] **C-1513b: 指示語の無い裸の「元に戻して」が、まだ質問扱いのまま。**〔小〕
+- [~] 作業中 2026-09-09 11:08 UTC ループA **C-1513b: 指示語の無い裸の「元に戻して」が、まだ質問扱いのまま。**〔小〕
       （2026-09-09 10:2x UTC ループA が C-1513 から分割・**実測済み**）
       実測: `detect_revision_intent("元に戻して")` は False。理由は
       `_BACK_REFERENCES` に 1 つも当たらないから（裸の「難しくして」と同型）。
