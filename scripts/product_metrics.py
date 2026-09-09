@@ -15901,6 +15901,13 @@ def measure_creation(c: Collector) -> None:
         "ロボットと戦うゲームを作って",
         "レースゲームを作って",
         "ゲームを作って",
+        # C-1514: the particle at the *end*. C-1503 gave the caveat a rule
+        # against opening with one; these are the same dishonesty read from
+        # the other side, and none of them was in this list.
+        "3D のコースを転がるゲームを作って",
+        "巨大な敵と戦うゲームを作って",
+        "山を登るゲームを作って",
+        "空を飛ぶゲームを作って",
     )
     # The two the caveat exists for: a subject the page does not draw. If
     # these stop being said, silence is being scored as faithfulness.
@@ -15927,6 +15934,12 @@ def measure_creation(c: Collector) -> None:
             quote_bad.append(f"「{_quote_sub}」は依頼に無い（{_quote_ask[:14]}）")
         elif any(_quote_sub.startswith(g) for g in _QUOTE_GLUE):
             quote_bad.append(f"「{_quote_sub}」は助詞で始まる（{_quote_ask[:14]}）")
+        elif any(
+            len(_quote_sub) > len(g) and _quote_sub.endswith(g) for g in _QUOTE_GLUE
+        ):
+            # C-1514. Same rule, other end: 「コースを」 quotes the operator
+            # saying a fragment of their sentence, not what they asked for.
+            quote_bad.append(f"「{_quote_sub}」は助詞で終わる（{_quote_ask[:14]}）")
 
     silent = [ask for ask in _QUOTE_MUST_SPEAK if ask not in quote_said]
     if silent:
@@ -15951,7 +15964,7 @@ def measure_creation(c: Collector) -> None:
             if (quote_gaps or quote_bad)
             else f"{len(_QUOTE_ASKS)} 通りの依頼を**実際に生成して**注釈を読み、"
             f"注釈が出た **{len(quote_said)} 件すべて**で引用が"
-            "**依頼の連続部分文字列**であり、**助詞で始まらない**ことを確かめた。"
+            "**依頼の連続部分文字列**であり、**助詞で始まらず、助詞で終わらない**ことを確かめた（C-1514 で末尾側を足した——「コースを」は依頼の連続部分文字列ではあるが、操作者が言っていない断片を言わせている）。"
             "ジャンル語を真ん中から抜くのをやめ、**端からだけ削る**ように"
             "したので、引用は運ではなく**作りとして**操作者の文字列になる"
             "（真ん中に残ったら主題と切り分けられないので**黙る**——"

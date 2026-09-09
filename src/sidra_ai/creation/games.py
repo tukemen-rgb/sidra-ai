@@ -935,6 +935,25 @@ def undepicted_subject(request: str, template: str, asked_title: str) -> str:
             trimming = True
             break
 
+    # C-1514: the same trimming, for the particle at the *end*. C-1503 gave
+    # the caveat a rule against opening with one, and 「を倒す」 stopped being
+    # quoted - but 「3D のコースを転がるゲームを作って」 still left 「コースを」,
+    # which is the identical dishonesty read from the other side.
+    #
+    # Trimmed rather than rejected, because trimming is what the operator
+    # meant: 「コースを」 becomes 「コース」, a caveat that names the subject,
+    # where rejecting it would say nothing about a page that really did not
+    # draw a course. Anchored to the end like everything above, so what
+    # survives is still a run of the operator's own characters.
+    trimming = True
+    while trimming and left:
+        trimming = False
+        for glue in _SUBJECT_GLUE:
+            if len(left) > len(glue) and left.endswith(glue):
+                left = left[: len(left) - len(glue)].strip("「」\"' 　・")
+                trimming = True
+                break
+
     # A genre word still inside is a subject that cannot be quoted apart
     # from it. Silence beats a caveat about a phrase the page did deliver.
     if any(word and word.lower() in left.lower() for word in genre_words):
