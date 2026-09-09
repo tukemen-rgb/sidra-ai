@@ -362,6 +362,57 @@ def _distinctive_name(meta: dict) -> str:
     return undepicted_subject(str(meta.get("request") or title), template, title)
 
 
+def _targeting_text(message: str) -> str:
+    """The message with the *new* title taken out.
+
+    Genre words inside a title being set are not a statement about which
+    page is meant: 「ゲームのタイトルを「ゼルダの冒険」にして」 asks to rename
+    the current page, and 冒険 there is part of the new name, not a request
+    for the adventure game. Reading it as targeting made the refusal added
+    for C-1511 fire on a legitimate rename - caught by
+    ``test_title_revision_still_passes_the_trademark_guard`` rather than by
+    the battery of phrasings written for the fix, which is why the battery
+    is not the whole test.
+
+    Only the genre step uses this. The name step is left reading the whole
+    message, because that is what it did before and no defect has been
+    measured there; narrowing it here would be an unmeasured change riding
+    along with a measured one.
+    """
+
+    for pattern in (_TITLE_QUOTED, _TITLE_PLAIN):
+        match = pattern.search(message)
+        if match:
+            return message[: match.start()] + message[match.end() :]
+    return message
+
+
+def existing_titles(data_dir: str | Path) -> list[str]:
+    """The titles a revision could actually name, newest first.
+
+    Used to tell an operator what *does* exist when the name they used
+    matched nothing. Listing them is the difference between a refusal that
+    helps ("あるのは「宇宙のシューティング」です") and one that only says no.
+    """
+
+    directory = Path(data_dir) / "artifacts"
+    if not directory.is_dir():
+        return []
+    paths = sorted(
+        directory.glob("game-*.meta.json"),
+        key=lambda p: (p.stat().st_mtime, p.name),
+        reverse=True,
+    )
+    titles: list[str] = []
+    for path in paths:
+        meta = _load_meta(path)
+        if meta is not None and meta["template"] in TEMPLATES:
+            title = str(meta.get("title") or "").strip()
+            if title and title not in titles:
+                titles.append(title)
+    return titles
+
+
 def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | None:
     """Pick the game a revision message refers to.
 
@@ -411,11 +462,27 @@ def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | 
         named = _distinctive_name(meta)
         if named and named in message:
             return path, meta
-    requested = detect_genre(message)
-    if requested is not None and requested.supported:
-        for path, meta in candidates:
-            if meta["template"] == requested.template:
-                return path, meta
+    requested = detect_genre(_targeting_text(message))
+    if requested is not None:
+        if requested.supported:
+            for path, meta in candidates:
+                if meta["template"] == requested.template:
+                    return path, meta
+        # The message named a kind, and nothing of that kind is here -
+        # either because none was made, or because it is a kind this
+        # project does not make at all (「テトリスのゲームを難しくして」
+        # names 落ち物パズル, which has no template).
+        #
+        # Falling through to "latest" here is C-1511: the message asserted
+        # an identity, the identity matched nothing, and the edit landed on
+        # whatever happened to be newest - then reported back under *its*
+        # name, so the operator reads 「宇宙のシューティングを修正しました」
+        # in answer to a sentence about a game of shogi. A wrong name is
+        # information, not noise: it usually means the operator has lost
+        # track of what exists, and the one thing that cannot help them is
+        # silently editing something else. The caller turns this into a
+        # refusal that names what does exist.
+        return None
     return candidates[0]
 
 
@@ -473,13 +540,29 @@ def build_game_reviser(data_dir: str | Path):
         if found is None:
             # Honest and terminal: falling through to the question path
             # would answer a request we understood with something else.
+            #
+            # Two different refusals, because they are two different facts
+            # (C-1511). "Nothing has been made" and "what you named is not
+            # among the things that have been made" used to share a sentence
+            # that only fitted the first, so an operator who mistyped a name
+            # was told to go and create something they had already created.
+            made = existing_titles(data_dir)
+            if made:
+                shown = "」「".join(made[:5])
+                summary = (
+                    "その名前のゲームは見つかりません。"
+                    f"あるのは「{shown}」です。"
+                    "どれを修正するか、名前で指定してください。"
+                )
+            else:
+                summary = (
+                    "修正の依頼と受け取りましたが、修正できる生成済みゲームが"
+                    "見つかりません。先に「◯◯ゲームを作って」で作成してください。"
+                )
             return CreationOutcome(
                 kind=CreationKind.GAME,
                 handled=True,
-                summary=(
-                    "修正の依頼と受け取りましたが、修正できる生成済みゲームが"
-                    "見つかりません。先に「◯◯ゲームを作って」で作成してください。"
-                ),
+                summary=summary,
                 details={"revision": intent.adjustments, "target": ""},
             )
         _, meta = found

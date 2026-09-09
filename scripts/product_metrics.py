@@ -15325,6 +15325,101 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 存在しない名指しを黙って吸収しない (C-1511) --------------------
+    #
+    # Reproduced through the real reviser: make a fishing game and a
+    # shooter, then say 「テトリスのゲームを難しくして」. No falling-block
+    # game was ever made - the project has no template for one - and the
+    # answer came back 「『宇宙のシューティング』を修正しました」. The
+    # message asserted an identity, the identity matched nothing, and the
+    # edit landed on whatever was newest, reported under *its* name.
+    #
+    # Measured by running the real reviser over a real data directory, both
+    # ways: a named kind that is absent must refuse, and a named kind that
+    # is present must still be found. One direction alone is worthless -
+    # "refuse everything" scores full marks on the first half.
+    import tempfile as _tempfile
+
+    from sidra_ai.creation.intent import detect_creation_intent as _absent_intent
+    from sidra_ai.creation.revise import (
+        build_game_reviser as _build_reviser,
+        detect_revision_intent as _detect_revision,
+        find_target_meta as _find_target,
+    )
+    from sidra_ai.creation.router import build_default_router as _absent_router_factory
+
+    _absent_dir = _tempfile.mkdtemp(prefix="metrics-absent-name-")
+    _absent_router = _absent_router_factory(data_dir=_absent_dir)
+    for _request in ("忍者のゲームを作って", "宇宙のシューティングを作って"):
+        _absent_router.route(_request, _absent_intent(_request), [])
+        time.sleep(1.1)
+    _absent_revise = _build_reviser(_absent_dir)
+
+    # Absent identities: each must refuse rather than edit something else.
+    _absent_cases = (
+        ("テトリスのゲームを難しくして", "落ち物パズル（作れない型）"),
+        ("さっきのパズルのゲームを難しくして", "パズル（作っていない）"),
+        ("さっきのレースのゲームを難しくして", "レース（作っていない）"),
+    )
+    _refused = []
+    _absorbed = []
+    for _message, _why in _absent_cases:
+        _outcome = _absent_revise(_message, _detect_revision(_message))
+        if "見つかりません" in _outcome.summary and "宇宙のシューティング" in _outcome.summary:
+            _refused.append(_why)
+        else:
+            _absorbed.append(f"{_why}: {_outcome.summary[:40]}")
+
+    # Present identities and bare asks: must still land, or the refusal is
+    # just a broken reviser scoring well.
+    _still_lands = []
+    _lost = []
+    for _message, _want in (
+        ("さっきのシューティングのゲームを難しくして", "shooter"),
+        ("さっきのを難しくして", "shooter"),
+        ("それを難しくして", "shooter"),
+    ):
+        _found = _find_target(_absent_dir, _message)
+        if _found is not None and _found[1]["template"] == _want:
+            _still_lands.append(_message)
+        else:
+            _lost.append(_message)
+
+    # The half this does NOT fix, measured rather than assumed: 「将棋」 and
+    # 「猫」 name no genre, so nothing in the vocabulary separates them from
+    # sentence glue and they still fall through. Counted here so the gap is
+    # visible in the number's own report instead of only in the backlog.
+    _name_half = []
+    for _message in ("さっきの将棋のゲームを難しくして", "猫のゲームを難しくして"):
+        if _find_target(_absent_dir, _message) is not None:
+            _name_half.append(_message)
+
+    c.add(
+        "creation_absent_name_refused",
+        "存在しない名指しを、黙って別のゲームに向けない",
+        0.0 if (_absorbed or _lost) else 1.0,
+        detail=(
+            "; ".join(_absorbed + _lost)
+            if (_absorbed or _lost)
+            else "**実際の修正器を実データ上で走らせて測った**。"
+            f"存在しない名指し **{len(_refused)} 通り**"
+            f"（{'・'.join(_refused)}）は**すべて拒否**し、"
+            "**あるものの名前を挙げて返す**"
+            "（「その名前のゲームは見つかりません。あるのは「…」です」）。"
+            f"**両方向**: 名指しが実在する場合と指示語だけの場合 "
+            f"{len(_still_lands)} 通りは**今も正しく届く**——片方だけなら"
+            "「全部拒否する」実装が満点を取る。"
+            "**「作っていない」と「1 つも作っていない」は別の文**にした"
+            "（後者だけに合う文言を両方に使っていた）。"
+            f"**直っていない半分も測ってある**: ジャンル語を含まない名指し"
+            f"（{'・'.join(_name_half)}）は **{len(_name_half)} 件とも今も"
+            "最新に落ちる**。語彙が「将棋」と助詞を区別できないため。"
+            "分割項目として BACKLOG に残した——**直った分だけを数え、"
+            "残りは見えるところに置く**"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the number said where it was earned (§1, C-1418) ----------------
     #
     # The score has only ever moved as a total in the corner, so which act
