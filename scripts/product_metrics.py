@@ -15927,8 +15927,35 @@ def measure_creation(c: Collector) -> None:
     # nothing to undo says so, and a bare undo is still not a revision.
     if _detect_revision("さっきのゲームのタイトルを元に戻して").adjustments != {"title": "元"}:
         _undo_bad.append("「タイトルを元に戻して」の意味が変わった")
-    if _detect_revision("元に戻して").is_revision:
-        _undo_bad.append("指示語の無い「元に戻して」が修正依頼になった")
+    # C-1513b: the bare form, both ways. It must reach the previous version
+    # (it is the sentence a person types right after a change), and an undo
+    # carrying an object must not - 「設定を元に戻してください」 and three more
+    # of this product's own questions flipped into the reviser under the
+    # wider rule that was measured and rejected, and the question-marker
+    # veto does not stop them because 「戻して＋ください」 reads as courtesy.
+    for _bare in ("元に戻して", "元に戻してください", "元通りにして", "取り消して"):
+        if not _detect_revision(_bare).adjustments.get("revert"):
+            _undo_bad.append(f"裸の「{_bare}」が修正依頼にならない")
+    for _object_undo in (
+        "設定を元に戻してください", "権限を元に戻してください",
+        "quarantine を元に戻して", "索引を元通りにして",
+        "元に戻す手順を教えて",
+    ):
+        if _detect_revision(_object_undo).is_revision:
+            _undo_bad.append(f"製品への質問「{_object_undo}」を修正器が横取りした")
+    _bare_dir = _tempfile.mkdtemp(prefix="metrics-undo-bare-")
+    _bare_router = _absent_router_factory(data_dir=_bare_dir)
+    _bare_router.route("忍者のゲームを作って", _absent_intent("忍者のゲームを作って"), [])
+    time.sleep(1.1)
+    _bare_revise = _build_reviser(_bare_dir)
+    _bare_revise("さっきのゲームを難しくして", _detect_revision("さっきのゲームを難しくして"))
+    time.sleep(1.1)
+    _bare_out = _bare_revise("元に戻して", _detect_revision("元に戻して"))
+    if "一つ前の版に戻しました" not in _bare_out.summary:
+        _undo_bad.append(f"裸の「元に戻して」が前の版へ届かない: {_bare_out.summary[:40]}")
+    _bare_after = _find_target(_bare_dir, "難しくして")
+    if _bare_after is None or _bare_after[1]["difficulty"] != "normal":
+        _undo_bad.append("裸の「元に戻して」で難易度が戻っていない")
     _undo_fresh = _tempfile.mkdtemp(prefix="metrics-undo-fresh-")
     _fresh_router = _absent_router_factory(data_dir=_undo_fresh)
     _fresh_router.route("猫のゲームを作って", _absent_intent("猫のゲームを作って"), [])
@@ -15951,9 +15978,17 @@ def measure_creation(c: Collector) -> None:
             "残っています」と言う約束の側を壊さない）。"
             "**両方向**: 「タイトルを元に戻して」は**今も「元」への改名**"
             "（取り消しは他の変更が名指しされていないときだけ話す）、"
-            "指示語の無い「元に戻して」は**今も修正依頼にしない**、"
             "戻す先が無いときは**「戻せる前の版がありません」と言う**"
-            "——片方だけなら「何でも戻す」実装が満点を取る"
+            "——片方だけなら「何でも戻す」実装が満点を取る。"
+            "**C-1513b で裸形の両方向を足した**: 指示語の無い「元に戻して」"
+            "「元に戻してください」「元通りにして」「取り消して」は**前の版へ届き**、"
+            "**目的語を持つ取り消し**——「設定を元に戻してください」「権限を…」"
+            "「quarantine を元に戻して」「索引を元通りにして」「元に戻す手順を教えて」"
+            "——は**製品への質問として今も通す**。"
+            "**この 5 文は、慣用句そのものを参照語にする案を実測で落とした証拠**"
+            "（出荷済み 1,255 文字列のうち反転はこの検査自身の 1 件だけだったが、"
+            "**製品の話題の側で 4 件反転した**。目的語があるかどうかが分かれ目で、"
+            "裸形は何も名指ししないので他に意味が無い）"
         ),
         kind=OUTCOME,
     )

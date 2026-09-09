@@ -186,10 +186,106 @@ def test_a_named_change_still_wins_over_the_undo_idiom() -> None:
     assert "revert" not in intent.adjustments
 
 
-def test_bare_undo_without_a_referent_is_still_declined() -> None:
-    """Measured and deliberately left alone: 「元に戻して」 on its own carries
-    no back-reference, exactly like a bare 「難しくして」, and making the undo
-    idiom its own referent would put every 「設定を元に戻してください」 into
-    the reviser. Recorded in the backlog instead of guessed at here."""
+@pytest.mark.parametrize(
+    "message",
+    [
+        "元に戻して",
+        "元に戻してください",
+        "元に戻してもらえますか",
+        "元通りにして",
+        "取り消して",
+        "もう一度元に戻して",
+        "やっぱり元に戻して",
+        "元に戻して。",
+    ],
+)
+def test_a_bare_undo_is_its_own_referent(message: str) -> None:
+    """C-1513b. This is the sentence a person reaches for immediately after
+    a change, and it carried no back-reference word, so it fell to the
+    question path and got the RAG no-evidence wall."""
 
-    assert detect_revision_intent("元に戻して").is_revision is False
+    intent = detect_revision_intent(message)
+    assert intent.is_revision is True
+    assert intent.adjustments == {"revert": "1"}
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        # An object names what to restore, and it is not the game. All four
+        # are questions this product can be asked, and all four flipped to
+        # revisions under the wider rule that was measured and rejected.
+        "設定を元に戻してください",
+        "権限を元に戻してください",
+        "quarantine を元に戻して",
+        "索引を元通りにして",
+        # Asking how is not asking to.
+        "元に戻す手順を教えて",
+        "元に戻す方法は？",
+        # The idiom followed by anything else is no longer only the idiom,
+        # so it is no longer unambiguous. These are what the end of the
+        # match guards; without it both read as an undo.
+        "元に戻してもいいですか",
+        "元に戻してと伝えてください",
+        # Still a rename, as C-1513 settled.
+        "タイトルを元に戻して",
+    ],
+)
+def test_an_undo_with_an_object_is_not_about_the_game(message: str) -> None:
+    assert detect_revision_intent(message).is_revision is False
+
+
+def test_no_shipped_question_becomes_an_undo() -> None:
+    """The measurement the split demanded, kept as a test.
+
+    The population is every question the four eval sets ask plus every
+    Japanese literal in this suite - 1,200-odd strings. Nothing outside
+    this file's own revision phrasings may read as an undo. Widening the
+    referent table instead put 「設定を元に戻してください」 and three more of
+    the product's own questions into the reviser, which is why the rule is
+    the bare form and not the idiom.
+    """
+
+    import re
+    from pathlib import Path
+
+    literal = re.compile(r'"([^"\\\n]{4,120})"')
+    tests = Path(__file__).parent
+    stolen = []
+    for path in sorted(tests.glob("*.py")):
+        if path.name == Path(__file__).name:
+            continue
+        for text in literal.findall(path.read_text(encoding="utf-8")):
+            if not any("\u3040" <= ch <= "\u9fff" for ch in text):
+                continue
+            if detect_revision_intent(text).adjustments.get("revert"):
+                stolen.append(f"{path.name}: {text[:60]}")
+
+    for module in ("qa_honesty", "boss_questions", "outcome_questions"):
+        evals = __import__(f"sidra_ai.evals.{module}", fromlist=["*"])
+        for name in dir(evals):
+            value = getattr(evals, name)
+            if not isinstance(value, (list, tuple)):
+                continue
+            for item in value:
+                asked = item if isinstance(item, str) else getattr(item, "question", None)
+                if isinstance(asked, str) and detect_revision_intent(asked).adjustments.get(
+                    "revert"
+                ):
+                    stolen.append(f"{module}: {asked[:60]}")
+
+    assert stolen == [], f"the reviser would steal these: {stolen}"
+
+
+def test_the_bare_undo_reaches_the_previous_version() -> None:
+    directory = _make("忍者のゲームを作って")
+    revise = build_game_reviser(directory)
+
+    harder = "さっきのゲームを難しくして"
+    revise(harder, detect_revision_intent(harder))
+    time.sleep(1.1)
+
+    outcome = revise("元に戻して", detect_revision_intent("元に戻して"))
+
+    assert "一つ前の版に戻しました" in outcome.summary
+    assert find_target_meta(directory, "難しくして")[1]["difficulty"] == "normal"

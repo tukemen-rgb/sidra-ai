@@ -149,7 +149,40 @@ _REVERT_WORDS: tuple[str, ...] = (
     "元通り", "もとどおり", "取り消し", "取消し", "取り消して", "取消して",
 )
 
-#: 「タイトルを「◯◯」にして」/「名前を◯◯に変えて」. The quoted form wins
+#: An undo that is the *whole* message (C-1513b). 「元に戻して」 typed on its
+#: own is the sentence a person reaches for immediately after a change, and
+#: it carried no ``_BACK_REFERENCES`` word, so it fell to the question path
+#: and got the RAG no-evidence wall - the same hole C-1257 filled for the
+#: demonstratives.
+#:
+#: Filling it by making the undo idiom a referent was measured first, as the
+#: split required, and rejected: over 1,255 shipped strings (the four eval
+#: question sets plus every Japanese literal in the suite) exactly one flips,
+#: and it is this project's own test - but the sentences that flip are the
+#: domain's own. 「設定を元に戻してください」, 「権限を元に戻してください」,
+#: 「quarantine を元に戻して」 and 「索引を元通りにして」 are questions about
+#: the product, and the reviser would have taken all four. The question-marker
+#: veto does not stop them: ``_POLITE_REVISION`` exempts 「戻して＋ください」
+#: as courtesy, which is right for a revision and wrong for these.
+#:
+#: What separates them is an object. 「設定を」「権限を」「索引を」 name what to
+#: restore, and it is not the game; a bare undo names nothing, so there is
+#: nothing else it could mean. So only the bare form counts - the idiom, any
+#: politeness, and nothing else.
+#: Matched with ``fullmatch``: the guard *is* that nothing else is in the
+#: sentence, so start and end are both anchored on purpose rather than by
+#: the accident of which regex method the caller reached for.
+_BARE_UNDO = re.compile(
+    r"(?:もう一度|もういちど|やっぱり|やはり)?\s*"
+    r"(?:元に戻して|元にもどして|もとに戻して|もとにもどして"
+    r"|元通りにして|もとどおりにして|取り消して|取消して|取り消しして)"
+    r"(?:ください|下さい|くださる|ちょうだい|頂戴"
+    r"|もらえますか|もらえませんか|もらえます|いただけますか|いただけませんか"
+    r"|ほしい|欲しい|くれ|ね|よ|な)*"
+    r"[\s。、！!？?]*"
+)
+
+#: 「タイトルを「◯◯」にして」/「名前を◯◯に変えて」. The quoted form wins#: 「タイトルを「◯◯」にして」/「名前を◯◯に変えて」. The quoted form wins
 #: when both appear; the unquoted form stops at the particle.
 _TITLE_QUOTED = re.compile(r"(?:タイトル|名前|題名)を?[「『\"']([^」』\"']{1,24})[」』\"']")
 _TITLE_PLAIN = re.compile(r"(?:タイトル|名前|題名)を([^\s「『にへと]{1,24})に")
@@ -242,7 +275,13 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         fold_kana(marker.casefold()) in text for marker in _QUESTION_MARKERS
     ):
         return RevisionIntent(is_revision=False)
-    if not any(fold_kana(word.casefold()) in text for word in _BACK_REFERENCES):
+    # C-1513b: a bare undo is its own referent. It points at the last change
+    # rather than at a page, which is why no word in the table matched it -
+    # and why widening that table was the wrong way to let it through.
+    bare_undo = bool(_BARE_UNDO.fullmatch(message.strip()))
+    if not bare_undo and not any(
+        fold_kana(word.casefold()) in text for word in _BACK_REFERENCES
+    ):
         return RevisionIntent(is_revision=False)
     if not any(fold_kana(verb) in text for verb in _CHANGE_VERBS):
         return RevisionIntent(is_revision=False)
