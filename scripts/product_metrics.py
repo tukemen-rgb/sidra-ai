@@ -15637,10 +15637,12 @@ def measure_creation(c: Collector) -> None:
         else:
             _lost.append(_message)
 
-    # The half this does NOT fix, measured rather than assumed: 「将棋」 and
-    # 「猫」 name no genre, so nothing in the vocabulary separates them from
-    # sentence glue and they still fall through. Counted here so the gap is
-    # visible in the number's own report instead of only in the backlog.
+    # The half this did NOT fix when C-1511 shipped, measured rather than
+    # assumed: 「将棋」 and 「猫」 name no genre, so nothing in the vocabulary
+    # separated them from sentence glue and they fell through. C-1511b
+    # closed it; the two phrasings stay here, now gating the number, so a
+    # regression to the silent edit costs this metric rather than only
+    # showing up in prose.
     _name_half = []
     for _message in ("さっきの将棋のゲームを難しくして", "猫のゲームを難しくして"):
         if _find_target(_absent_dir, _message) is not None:
@@ -15649,10 +15651,10 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_absent_name_refused",
         "存在しない名指しを、黙って別のゲームに向けない",
-        0.0 if (_absorbed or _lost) else 1.0,
+        0.0 if (_absorbed or _lost or _name_half) else 1.0,
         detail=(
-            "; ".join(_absorbed + _lost)
-            if (_absorbed or _lost)
+            "; ".join(_absorbed + _lost + _name_half)
+            if (_absorbed or _lost or _name_half)
             else "**実際の修正器を実データ上で走らせて測った**。"
             f"存在しない名指し **{len(_refused)} 通り**"
             f"（{'・'.join(_refused)}）は**すべて拒否**し、"
@@ -15663,11 +15665,87 @@ def measure_creation(c: Collector) -> None:
             "「全部拒否する」実装が満点を取る。"
             "**「作っていない」と「1 つも作っていない」は別の文**にした"
             "（後者だけに合う文言を両方に使っていた）。"
-            f"**直っていない半分も測ってある**: ジャンル語を含まない名指し"
-            f"（{'・'.join(_name_half)}）は **{len(_name_half)} 件とも今も"
-            "最新に落ちる**。語彙が「将棋」と助詞を区別できないため。"
-            "分割項目として BACKLOG に残した——**直った分だけを数え、"
-            "残りは見えるところに置く**"
+            "**起票時に直っていなかった半分は C-1511b で閉じた**——"
+            "ジャンル語を含まない名指し（将棋・猫）も今は落ちない。"
+            "この 2 通りは**この数字の合否条件に入れてある**ので、"
+            "黙って最新に落ちる挙動が戻ればここが 0 になる"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- 名指しがジャンル語でなくても、無いものは無いと言う (C-1511b) -----
+    #
+    # The other half of the same failure. C-1511 could only refuse when the
+    # named thing happened to be a word `detect_genre` knows, so 「さっきの
+    # 将棋のゲームを難しくして」 - an identity asserted just as plainly -
+    # still edited whatever was newest and reported success under *its*
+    # name. 将棋 is invisible to the vocabulary for the reason measured in
+    # C-1512: 「将棋の」 is one kana-glued run, and every bigram of it
+    # carries hiragana.
+    #
+    # Both directions, through the real reviser on a real data directory.
+    # The second half is the whole point: the split warned that a subject
+    # rule would refuse 「色のほうを変えて」 and 「前のゲームを簡単にして」, so
+    # the pointer phrasings are measured here and not merely asserted.
+    _subject_refused = []
+    _subject_absorbed = []
+    for _message, _why in (
+        ("さっきの将棋のゲームを難しくして", "将棋（ジャンル語でない・指示語つき）"),
+        ("猫のゲームを難しくして", "猫（ジャンル語でない・1 文字）"),
+        ("将棋のゲームをやさしくして", "将棋（文頭）"),
+        ("チェスのゲームを赤にして", "チェス（カタカナ）"),
+    ):
+        _outcome = _absent_revise(_message, _detect_revision(_message))
+        if "見つかりません" in _outcome.summary and "宇宙のシューティング" in _outcome.summary:
+            _subject_refused.append(_why)
+        else:
+            _subject_absorbed.append(f"{_why}: {_outcome.summary[:40]}")
+
+    _subject_lands = []
+    _subject_over = []
+    for _message, _want in (
+        # Named, and it really is here.
+        ("忍者のゲームを難しくして", "忍者"),
+        # The genre rule still owns the words it knows.
+        ("さっきのシューティングのゲームを難しくして", "宇宙のシューティング"),
+        # Nothing asserted at all: the latest.
+        ("さっきのゲームを難しくして", "宇宙のシューティング"),
+        # Pointer words say *which one*, not *what about*. These are shipped
+        # phrasings; refusing them is the over-narrowing to watch for.
+        ("前のゲームを簡単にして", "宇宙のシューティング"),
+        ("今のゲームを紙の配色にしてもらえますか", "宇宙のシューティング"),
+        ("最新のゲームを難しくして", "宇宙のシューティング"),
+        ("昨日のゲームを難しくして", "宇宙のシューティング"),
+        # A subject inside a *new* title is not a statement about which page
+        # is meant - this renames the shooter.
+        ("さっきのゲームのタイトルを「猫のゲーム」にして", "宇宙のシューティング"),
+    ):
+        _found = _find_target(_absent_dir, _message)
+        if _found is not None and _found[1].get("title") == _want:
+            _subject_lands.append(_message)
+        else:
+            _subject_over.append(f"{_message}: {_found[1].get('title') if _found else '拒否された'}")
+
+    c.add(
+        "creation_named_subject_refused",
+        "ジャンル語でない名指しでも、無いものは無いと言う",
+        0.0 if (_subject_absorbed or _subject_over) else 1.0,
+        detail=(
+            "; ".join(_subject_absorbed + _subject_over)
+            if (_subject_absorbed or _subject_over)
+            else "**実際の修正器を実データ上で走らせて測った**。"
+            f"ジャンル語を含まない名指し **{len(_subject_refused)} 通り**"
+            f"（{'・'.join(_subject_refused)}）は**すべて拒否**し、"
+            "**あるものの名前を挙げて返す**。"
+            f"**両方向**: 実在する名指し・ジャンル語・指示語・"
+            f"「前の」「今の」「最新の」「昨日の」のような**どれかを指す語** "
+            f"{len(_subject_lands)} 通りは**今も正しく届く**——"
+            "片方だけなら「全部拒否する」実装が満点を取る。"
+            "**起票時の警告は実測で 2 重に外れていた**: 「色のほうを変えて」"
+            "「難易度のほうを上げて」は誤拒否の心配以前に**修正依頼と認識"
+            "されていない**（`detect_revision_intent` が False）。"
+            "規則の引き金を「ほう」ではなく**「ゲーム」の語**に置いたので、"
+            "この 2 文はそもそも規則に届かない"
         ),
         kind=OUTCOME,
     )

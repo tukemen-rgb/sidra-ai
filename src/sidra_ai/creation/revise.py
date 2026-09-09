@@ -387,6 +387,63 @@ def _targeting_text(message: str) -> str:
     return message
 
 
+#: 「Xのゲーム」 - the message saying what the page it means is *about*.
+#: C-1511b: the genre rule (C-1511) only refuses when X happens to be a
+#: word the genre table knows, so 「さっきの将棋のゲームを難しくして」 and
+#: 「猫のゲームを難しくして」 asserted an identity just as plainly and still
+#: fell through to "latest". X is the non-hiragana run in front of の
+#: because that is where the assertion lives: 「猫の」 as a whole is glued
+#: together by the kana, and every bigram of it carries hiragana, which is
+#: why ``subject_terms`` cannot see 猫 either (measured, C-1512).
+#:
+#: The trigger is deliberately 「ゲーム」 and not 「ほう」/「やつ」. Those were
+#: the phrasings the split warned would over-refuse (「色のほうを変えて」,
+#: 「難易度のほうを上げて」) - and measuring them first, as the item asked,
+#: showed the warning pointed at the wrong risk twice over: neither is a
+#: revision at all (``detect_revision_intent`` returns False for both,
+#: because 「色」 and 「難易度」 without a referent are not evidence a game is
+#: meant), and requiring the word ゲーム excludes them anyway. What is left
+#: is the sentence that says, in so many words, "the X game".
+_NAMED_SUBJECT = re.compile(r"([゠-ヿ一-鿿A-Za-z0-9]{1,12})の(?:ゲーム|げーむ)")
+
+#: Words that answer *which one*, not *what about*. 「前のゲームを簡単にして」
+#: and 「今のゲームを紙の配色にしてもらえますか」 are shipped phrasings (both
+#: pinned by tests) and both put a word in front of 「のゲーム」 - so without
+#: this the fix would refuse two requests that land correctly today, which
+#: is the over-narrowing the split told us to measure before shipping.
+#:
+#: 前 / 今 / 昨日 are not listed twice: they are already ``_BACK_REFERENCES``
+#: entries and are matched from there. The rest are the same part of speech
+#: and are listed because no table in this project holds them yet.
+#:
+#: A pointer word nobody thought of is not a silent wrong edit - it is a
+#: refusal that says what does exist and asks which one. That asymmetry is
+#: the whole reason this rule is allowed to be a vocabulary: the failure it
+#: replaces edits the wrong file and reports success under its name.
+_POINTER_WORDS: frozenset[str] = frozenset(
+    {"今日", "本日", "最新", "最後", "最初", "直前", "前回", "今回", "以前", "昔",
+     "別", "元", "先"}
+)
+
+
+def _asserted_subject(message: str) -> str:
+    """What the message says the page is about, or "" if it says nothing.
+
+    Reads the same text the genre step reads - a subject inside a *new*
+    title is not a statement about which page is meant (「タイトルを
+    「猫のゲーム」にして」 renames the current one), and that phrasing was
+    measured to match here before ``_targeting_text`` was applied.
+    """
+
+    for word in _NAMED_SUBJECT.findall(_targeting_text(message)):
+        if word in _POINTER_WORDS:
+            continue
+        if word in _BACK_REFERENCES or f"{word}の" in _BACK_REFERENCES:
+            continue
+        return word
+    return ""
+
+
 def existing_titles(data_dir: str | Path) -> list[str]:
     """The titles a revision could actually name, newest first.
 
@@ -416,7 +473,7 @@ def existing_titles(data_dir: str | Path) -> list[str]:
 def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | None:
     """Pick the game a revision message refers to.
 
-    Three rules, most specific first.
+    Four rules, most specific first.
 
     **What it was called.** 「猫のほうを難しくして」 means the cat game, and
     nothing else can be meant - but 猫 is not a genre word, so before
@@ -431,6 +488,13 @@ def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | 
 
     **What kind it is.** 「レースのほうを難しくして」 finds the racing game
     even when a puzzle was generated afterwards.
+
+    **What it says it is about.** 「さっきの将棋のゲームを難しくして」 names a
+    game as plainly as 「テトリスのゲーム」 does, but 将棋 is in no genre
+    table, so before C-1511b it was indistinguishable from sentence glue
+    and the edit landed on whatever was newest. A 「Xのゲーム」 whose X is
+    not a pointer word refuses here for the same reason the genre rule
+    refuses: the identity matched nothing.
 
     **Otherwise the latest**, which is what a bare 「難しくして」 means.
 
@@ -482,6 +546,13 @@ def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | 
         # track of what exists, and the one thing that cannot help them is
         # silently editing something else. The caller turns this into a
         # refusal that names what does exist.
+        return None
+    # C-1511b: the same assertion, made with a word the genre table does not
+    # know. 「さっきの将棋のゲームを難しくして」 named a game; no page here is
+    # about 将棋 (the name rule above had every title to match against and
+    # matched none); so the honest answer is the one C-1511 already writes -
+    # name what exists and ask which - not an edit to whatever was newest.
+    if _asserted_subject(message):
         return None
     return candidates[0]
 

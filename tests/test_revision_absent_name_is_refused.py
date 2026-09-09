@@ -115,20 +115,17 @@ def test_nothing_made_yet_keeps_its_own_wording() -> None:
     assert existing_titles(empty) == []
 
 
-def test_the_unfixed_half_is_recorded_rather_than_implied(made: str) -> None:
-    """The boundary, pinned so it cannot be mistaken for a closed defect.
+def test_the_half_this_test_used_to_pin_as_unfixed_is_closed(made: str) -> None:
+    """This asserted the defect until C-1511b closed it.
 
-    「将棋」 names no genre, so this still lands on the latest. Asserting the
-    defect keeps the split item honest: when someone fixes it, this test
-    fails and points at the record instead of passing silently.
+    It said: 「将棋」 names no genre, so this still lands on the latest -
+    fail when someone fixes it, and point at the record instead of passing
+    silently. That is what happened, so the assertion is inverted rather
+    than deleted: the boundary it was guarding is now the behaviour, and a
+    regression to the silent edit has to fail somewhere.
     """
 
-    found = find_target_meta(made, "さっきの将棋のゲームを難しくして")
-
-    assert found is not None and found[1]["template"] == "shooter", (
-        "if this now refuses, the name half of C-1511 is fixed - update "
-        "docs/BACKLOG.md and delete this test"
-    )
+    assert find_target_meta(made, "さっきの将棋のゲームを難しくして") is None
 
 
 @pytest.mark.parametrize(
