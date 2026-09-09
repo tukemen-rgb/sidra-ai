@@ -39,7 +39,12 @@ def build_gif_generator(data_dir: str | Path):
                 f"「{gif.title}」のアニメ GIF を作りました"
                 f"（絵柄: {motif_label}・{verdict['frames']} フレーム・"
                 f"{verdict['width']}×{verdict['height']}・ループ再生）。"
-                "生成ファイル一覧からダウンロードして、ブラウザや画像ビューアーで開けます。"
+                # Channel-neutral, like every other generator's summary (art,
+                # game, 3D): say how to open the file, and let each channel
+                # surface where it is (the web file list, or sidra-ask's
+                # 「生成ファイル:」 line). Naming 「生成ファイル一覧」 sent a CLI
+                # reader to a list a terminal does not have (C-1610).
+                "ブラウザや画像ビューアーで開けます。"
             )
             # The request named no motif, so the default was used. Say so and
             # name the motif that can be asked for - a reader who asked for

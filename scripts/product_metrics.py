@@ -861,6 +861,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1610: the GIF summary alone pointed a reader at 「生成ファイル一覧」 - the
+    # web UI's file list, which a sidra-ask terminal reader does not have. Every
+    # other generator describes opening the file directly; the GIF now matches.
+    from sidra_ai.evals.gif_summary_channel_neutral import (
+        evaluate_gif_summary_channel_neutral,
+    )
+
+    gif_channel = evaluate_gif_summary_channel_neutral()
+    c.add(
+        "gif_summary_channel_neutral",
+        "GIF の要約が Web UI 専用の「一覧」案内を出さず両チャンネルで通る",
+        10.0 * gif_channel.checks_passed / gif_channel.checks_total,
+        detail=f"{gif_channel.checks_passed}/{gif_channel.checks_total} checks; "
+               "src/sidra_ai/evals/gif_summary_channel_neutral.py"
+               + ("" if gif_channel.passed else "; " + "; ".join(gif_channel.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1259: every generated game's subtitle printed 「テンプレート <key>」 -
     # the internal template key, in English, on a Japanese page. Now it reads
     # 「ジャンル <日本語>」. Checked on the real generated HTML for all ten
