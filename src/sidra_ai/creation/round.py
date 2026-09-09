@@ -1233,7 +1233,13 @@ sfx = function(name, pitch){ const at = tkBuilt.length;
   tkCalls.push({ name: String(name), built: tkBuilt.length - at,
     pitch: (typeof pitch === 'number') ? pitch : null });
   return out };
-function tkPress(key){ tkKeys.forEach(fn => fn({ key: key, code: key,
+/* `code` is not the key (C-1623). Space's code is 'Space'; sending ' '
+   reaches nothing that gates on e.code, which is how the mash probe next
+   door spent five thousand frames pressing a key no page was listening
+   for. Harmless here today - the only key this one holds is ArrowLeft,
+   whose code IS 'ArrowLeft' - and corrected so it stays that way. */
+function tkPress(key){ tkKeys.forEach(fn => fn({ key: key,
+  code: key === ' ' ? 'Space' : key,
   preventDefault(){}, stopImmediatePropagation(){} })) }
 function tkStep(){ if (!tkQueued) return false;
   const fn = tkQueued; tkQueued = null; tkTime += 50 / 3; fn(tkTime); return true }
@@ -1487,8 +1493,29 @@ const mRealSfx = sfx;
 sfx = function(name, pitch){
   if (mCounting && String(name) === 'hurt') { mStruck++ }
   return mRealSfx.call(this, name, pitch) };
-function mPress(key){ mKeys.forEach(fn => fn({ key: key, code: key,
+/* Both halves of the event, because the ten pages do not agree on which
+   one they read (C-1623): kaiju fires on `e.key===' '`, shooter, duel,
+   puzzle and fishing on `e.code==='Space'`. Sending `code: ' '` - a code
+   that does not exist - drove the first group and left the second
+   untouched, so "one key every frame" was measured on a shooter that
+   fired 0 shots in 5400 frames. */
+function mPress(key){ mKeys.forEach(fn => fn({ key: key,
+  code: key === ' ' ? 'Space' : key,
   preventDefault(){}, stopImmediatePropagation(){} })) }
+/* What "punished" is read off (C-1623). The shared damage SOUND is not a
+   verdict: shooter plays sfx('hurt') when a FOE dies and does not play it
+   when the ship does, so a run in which the player was killed came back
+   as "unscathed", and duel's plays for whichever fighter was hit. The
+   shared FAILURE BEAT is the one signal that means the player lost - it
+   is what roundLost() already reads.
+   The round clock rings it too, once, when the buzzer goes, and every
+   unattended run reaches the buzzer. So only beats that land while the go
+   is still being PLAYED are punishment; the buzzer's own is not. */
+let mFails = 0, mBeaten = 0;
+const mRealFail = failBeat;
+failBeat = function(x, y){
+  if (mCounting) { mFails++; if (!ROUND_DONE) { mBeaten++ } }
+  return mRealFail.call(this, x, y) };
 function mStep(){ if (!mQueued) return false;
   const fn = mQueued; mQueued = null; mTime += 50 / 3; fn(mTime); return true }
 mStep(); mStep();
@@ -1513,12 +1540,22 @@ const mEnd = roundFacts();
 /* The instrument proving itself: the count has to be able to move. A
    run that reports "never struck" is only evidence if a real call to the
    shared damage sound would have been seen. */
-const mBeforeSelf = mStruck;
+const mBeforeSelf = mStruck, mBeatenFinal = mBeaten, mFailsBefore = mFails;
 try { sfx('hurt') } catch (e) {}
 const mSelfCheck = mStruck - mBeforeSelf;
+/* Read AFTER the beaten count is banked: a run that ended on its own
+   terms (racing reaches its goal) leaves ROUND_DONE false, so the proving
+   call would otherwise land in the count it is proving. */
+try { failBeat(0, 0) } catch (e) {}
+const mFailCheck = mFails - mFailsBefore;
 console.log(JSON.stringify({
+  beaten: mBeatenFinal,
+  failCheck: mFailCheck,
+  fails: mFailsBefore,
   struck: mBeforeSelf,
   selfCheck: mSelfCheck,
+  state: mEnd.state,
+  reason: mEnd.reason,
   endedAt: mEndedAt,
   done: !!mEnd.done,
   ended: !!mEnd.ended,
@@ -1538,10 +1575,17 @@ def mash_probe_source(
 ) -> str:
     """The page's own script, driven by one key held down and nothing else.
 
-    ``warmup`` frames are played before the damage count starts, so an
-    opening that uses the shared damage sound as a roar is not counted as
-    the player being hit. It is longer than kaiju's 90-frame prologue on
+    ``warmup`` frames are played before counting starts, so an opening
+    that uses the shared damage sound as a roar is not counted as the
+    player being hit. It is longer than kaiju's 90-frame prologue on
     purpose - the count has to start inside the fight, not on its edge.
+
+    Two counts come back and they are not the same reading (C-1623).
+    ``beaten`` is the shared FAILURE BEAT rung while the go was still
+    being played, which is the one signal that means the player lost.
+    ``struck`` is the shared damage SOUND, kept because it is worth
+    seeing and never used as the verdict: it fires for a foe's death in
+    the shooter and stays silent for the ship's own.
     """
 
     return (

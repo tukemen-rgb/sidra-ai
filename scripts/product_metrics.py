@@ -15783,11 +15783,18 @@ def measure_creation(c: Collector) -> None:
     # A difficulty label is a promise about what the game asks of you. This
     # drives every template at its HARD band with the cheapest possible
     # input - one key held every frame, no steering at all - and counts the
-    # SHARED damage sound. One signal, no per-template knowledge, and the
-    # probe proves itself on every run: it calls sfx('hurt') once at the
-    # end and reports whether the counter moved, so "never struck" is only
-    # ever reported by an instrument that just demonstrated it can see a
-    # strike.
+    # SHARED failure beat. One signal, no per-template knowledge, and the
+    # probe proves itself on every run: it rings the beat once at the end
+    # and reports whether the counter moved, so "never beaten" is only ever
+    # reported by an instrument that just demonstrated it can see a defeat.
+    #
+    # This number was 0 for as long as it existed and neither half of that
+    # was true (C-1623). The driver sent `code: ' '` for the space bar, a
+    # code no browser produces, so the five templates that gate on e.code
+    # were never touched - the shooter fired 0 shots in 5400 frames of
+    # "mashing". And the count read the damage SOUND, which in the shooter
+    # means a foe died and is silent when the ship does, so a run that
+    # ended in the player's death was reported as unscathed.
     # The templates that HAVE a hard band - a difficulty promise is what is
     # being checked, so a template with no ladder is out of scope rather
     # than counted as passing.
@@ -15819,13 +15826,25 @@ def measure_creation(c: Collector) -> None:
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             mash_gaps.append(f"{_mash_key}: 走らせられない（{type(exc).__name__}）")
             continue
-        if _mash_out.get("selfCheck") != 1:
-            mash_gaps.append(f"{_mash_key}: 計器が自分の当たりを数えられていない")
+        # Both counters, because the run reports two different things and
+        # only one of them is the verdict (C-1623).
+        if _mash_out.get("selfCheck") != 1 or _mash_out.get("failCheck") != 1:
+            mash_gaps.append(f"{_mash_key}: 計器が自分の負けを数えられていない")
             continue
         mash_rows.append({"template": _mash_key, **_mash_out})
 
-    punished = [r["template"] for r in mash_rows if r["struck"] > 0]
-    spared = [r["template"] for r in mash_rows if r["struck"] == 0]
+    punished = [r["template"] for r in mash_rows if r["beaten"] > 0]
+    spared = [r["template"] for r in mash_rows if r["beaten"] == 0]
+    #: How the untouched go actually ended, so "came through unscathed" and
+    #: "won" are not read as the same result.
+    spared_shown = [
+        "{}({})".format(
+            r["template"],
+            "time" if r["reason"] == "time" else (r["state"] or r["reason"] or "?"),
+        )
+        for r in mash_rows
+        if r["beaten"] == 0
+    ]
     c.add(
         "creation_mash_punished",
         "難易度 hard で無策の連打が敗北または被弾する型の数",
@@ -15839,15 +15858,23 @@ def measure_creation(c: Collector) -> None:
             "（1 キーを毎フレーム押すだけ・操舵は一切しない）。"
             f"罰せられる型 **{len(punished)}**"
             f"（{', '.join(punished) or 'なし'}）／"
-            f"無傷で通る型 {len(spared)}（{', '.join(spared) or 'なし'}）。"
-            "数えるのは**共有の被弾音 `sfx('hurt')`** の発火数——"
-            "型ごとの内部を知らずに済む 1 本の信号で、"
-            "**プロローグは数えない**（kaiju は開幕の咆哮に同じ音を使うので、"
+            f"無傷で通る型 {len(spared)}（{', '.join(spared_shown) or 'なし'}）。"
+            "括弧はその放置した走行がどう終わったか——`goal` や `won` が出ている型は"
+            "**無傷どころか勝って終わっている**。"
+            "数えるのは**共有の失敗ビート `failBeat`**——`roundLost()` が読んでいる、"
+            "「プレイヤーが負けた」を一意に指す 1 本の信号で、型ごとの内部を知らずに済む。"
+            "**ラウンド時計のブザー自身もこれを鳴らす**ので、"
+            "**まだ遊んでいる間に鳴ったぶん**だけを罰に数える"
+            "（放置した走行は必ずブザーに達するので、数えれば全型が「罰せられた」に化ける）。"
+            "**共有の被弾音 `sfx('hurt')` は使わない**（C-1623）——"
+            "shooter ではそれは**敵が死ぬ音**であり**自機が死んでも鳴らない**ので"
+            "「殴られたか」を意味せず、duel では両者の被弾を指す。"
+            "**プロローグは数えない**（kaiju は開幕の咆哮に被弾音を使うので、"
             "数え始めを遅らせないとタイトル画面が「罰」に化ける）。"
-            "**計器は毎回自分を証明する**: 走行の最後に `sfx('hurt')` を"
-            "1 回呼んで数字が動くことを確かめており、動かなければその型は"
-            "「無傷」ではなく**測定不能**として落とす——"
-            "「一度も当たらなかった」は、当たりを見られる計器だけが言える。"
+            "**計器は毎回自分を証明する**: 走行の最後に失敗ビートと被弾音を"
+            "1 回ずつ鳴らして両方の数字が動くことを確かめており、"
+            "動かなければその型は「無傷」ではなく**測定不能**として落とす——"
+            "「一度も負けなかった」は、負けを見られる計器だけが言える。"
         ),
     )
 
