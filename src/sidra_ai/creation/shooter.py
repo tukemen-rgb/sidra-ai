@@ -138,7 +138,12 @@ function shoot(){if(ship.cool>0)return;ship.cool=9;
      Motion, so reduced keeps the ship perfectly still. */
   if(!REDUCED){ship.rk=3;ship.mz=2}
   shots.push({x:ship.x,y:ship.y-16});sfx('fire')}
-function step(){const now=performance.now();
+function step(rt){const now=performance.now();
+  /* The world advances on real time, not on this display's refresh
+     rate (§26, C-1608 — the gate C-1607 built and racing proved).
+     Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
+     second, the world just stops happening twice as fast. */
+  if(!TICK(rt)){draw(now);return requestAnimationFrame(step)}
   combat(state==='play'&&gateState()==='playing');
   if(state==='play'){t++;
     if(ship.cool>0)ship.cool--;

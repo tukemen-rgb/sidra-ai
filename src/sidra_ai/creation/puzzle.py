@@ -250,7 +250,10 @@ function draw(now){
     cx.font='13px ui-monospace,monospace';
     const b='得点 '+score+(((typeof roundAskReady!=='function'||roundAskReady()))?' / SPACE か R でもう一度':'');
     cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}}
-function step(){settle();draw(performance.now());requestAnimationFrame(step)}
+/* Only the settling is the world here (§26, C-1608); the picture is
+   drawn every callback either way. */
+function step(rt){if(TICK(rt))settle();
+  draw(performance.now());requestAnimationFrame(step)}
 /* Read back off the running page: how far the board is from rest, and a
    group whose pop is guaranteed to drop something (a member with a foreign
    tile directly above), so a probe measures a real fall, not a lucky one. */

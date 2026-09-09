@@ -5305,72 +5305,126 @@ def measure_creation(c: Collector) -> None:
 
     # --- the world runs on real time, not on this screen's refresh -----
     #
-    # §26 (C-1607): rAF fires at the display's rate, and MDN names 75, 120
-    # and 144Hz as widely used. A world that advances one unit per
-    # callback is therefore a different game on a different screen -
-    # measured before the fix, the racer covered 482.92 units in three
-    # real seconds at 60Hz and 929.84 at 144Hz (1.93x) while the round
-    # clock read 3000ms in both. The seeded promise "the same words are
-    # the same fight" only held between devices that refresh alike.
-    from sidra_ai.creation.racing import rate_probe as _rate_probe
+    # §26 (C-1607 built the gate, C-1608 wired the other nine): rAF fires
+    # at the display's rate, and MDN names 75, 120 and 144Hz as widely
+    # used. A world that advances once per callback is a different game on
+    # a different screen - measured before the fix, the racer covered
+    # 482.92 units in three real seconds at 60Hz and 929.84 at 144Hz
+    # (1.93x) while the round clock read 3000ms in both.
+    #
+    # Measured per template rather than per mechanic: TICK is a function
+    # declaration in the page's own scope, so the probe wraps it and counts
+    # how often the world was allowed to advance. No template has to know
+    # it is being measured, and "progress" needs no per-template meaning.
+    from sidra_ai.creation.animation import tick_probe as _tick_probe
 
     rate_gaps: list[str] = []
-    _rate_page = generate_game("レースゲームを作って").html
-    _rate_script = _scene_re.search(r"<script>(.*?)</script>", _rate_page, _scene_re.S)
-    rate_seen: dict[float, dict] = {}
-    if _rate_script is None:
-        rate_gaps.append("racing: no script for the refresh read")
-    else:
-        for _hz in (60.0, 75.0, 120.0, 144.0, 30.0):
+    _rate_targets = (
+        ("shooter", "シューティングゲームを作って"),
+        ("kaiju", "巨大怪獣と戦うゲームを作って"),
+        ("platformer", "ジャンプで進むゲームを作って"),
+        ("adventure", "迷宮を冒険するゲームを作って"),
+        ("duel", "光線で撃ち合う対戦ゲームを作って"),
+        ("puzzle", "パズルゲームを作って"),
+        ("marble", "玉転がしゲームを作って"),
+        ("fishing", "魚釣りゲームを作って"),
+        ("catch", "フルーツキャッチを作って"),
+        ("racing", "レースゲームを作って"),
+    )
+    for _label, _request in _rate_targets:
+        _rate_page = generate_game(_request).html
+        _rs = _scene_re.search(r"<script>(.*?)</script>", _rate_page, _scene_re.S)
+        if _rs is None:
+            rate_gaps.append(f"{_label}: no script")
+            continue
+        seen: dict[float, dict] = {}
+        for _hz in (60.0, 120.0):
             try:
-                _rate_run = _scene_sp.run(
+                _rr = _scene_sp.run(
                     ["node", "-"],
-                    input=_rate_probe(_rate_script.group(1), hz=_hz),
+                    input=_tick_probe(_rs.group(1), hz=_hz),
                     capture_output=True,
                     text=True,
                     timeout=180,
                 )
-                if _rate_run.returncode != 0:
-                    raise ValueError(_rate_run.stderr.strip()[:60])
-                rate_seen[_hz] = json.loads(_rate_run.stdout.strip().splitlines()[-1])
+                if _rr.returncode != 0:
+                    raise ValueError(_rr.stderr.strip()[:60])
+                seen[_hz] = json.loads(_rr.stdout.strip().splitlines()[-1])
             except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-                rate_gaps.append(f"racing/{_hz:g}Hz: probe unavailable ({exc})")
-    if not rate_gaps:
-        # Every callback rate at or above 60 must land on the same course.
-        _fast = [rate_seen[h]["dist"] for h in (60.0, 75.0, 120.0, 144.0)]
-        if min(_fast) <= 0:
-            rate_gaps.append("racing: the course did not move")
-        elif max(_fast) / min(_fast) > 1.03:
+                rate_gaps.append(f"{_label}/{_hz:g}Hz: probe unavailable ({exc})")
+                break
+        if len(seen) != 2:
+            continue
+        slow, fast = seen[60.0], seen[120.0]
+        # Every callback must ASK the gate. A template that dropped the
+        # gate would otherwise read as a stall rather than as a sprint,
+        # because STEPS counts what the gate answered, not what the world
+        # did.
+        # hitstop swallows a callback before the gate is reached (C-1609),
+        # measured at 8 in three seconds at worst; a dropped gate misses
+        # every one of the 180/360.
+        if (slow["frames"] - slow["calls"] > 20) or (
+            fast["frames"] - fast["calls"] > 20
+        ):
             rate_gaps.append(
-                "racing: the screen's refresh changes the game "
-                f"({min(_fast)} .. {max(_fast)} units in three real seconds)"
+                f"{_label}: the gate is not consulted every frame "
+                f"({fast['calls']}/{fast['frames']})"
             )
-        # Anything faster than 60 must be indistinguishable from anything
-        # else faster than 60 - that is the property, not an average.
-        _above = {rate_seen[h]["dist"] for h in (75.0, 120.0, 144.0)}
-        if len(_above) != 1:
-            rate_gaps.append(f"racing: 75/120/144Hz disagree with each other ({_above})")
-        # A slow screen degrades into slow motion, never backwards and
-        # never a spiral (§26 事実 4).
-        if not 0 < rate_seen[30.0]["dist"] <= rate_seen[60.0]["dist"]:
-            rate_gaps.append("racing: 30Hz does not degrade into slow motion")
-        # And the hand-turned 16ms runs every probe and this judge use
-        # must still advance on every single frame.
-        if rate_seen[60.0]["frames"] != 180:
-            rate_gaps.append("racing: the 60Hz window is not 180 frames")
+        # ...and where the template keeps a world clock of its own, the
+        # world itself must agree - this is what catches a page that asks
+        # the gate and then ignores the answer.
+        elif fast["world"] is not None and (
+            fast["world"] > 190 or abs(fast["world"] - slow["world"]) > 12
+        ):
+            rate_gaps.append(
+                f"{_label}: the world clock ran on regardless "
+                f"({slow['world']} vs {fast['world']})"
+            )
+        # Three real seconds may never buy more than three seconds of world.
+        # Before the gate this read 360 at 120Hz.
+        elif fast["steps"] > 190:
+            rate_gaps.append(
+                f"{_label}: 120Hz steps the world {fast['steps']} times in three seconds"
+            )
+        elif min(slow["steps"], fast["steps"]) < 150:
+            rate_gaps.append(
+                f"{_label}: the world stalled ({slow['steps']}/{fast['steps']} steps)"
+            )
+        # The two screens must be playing the same game. The slack is for
+        # hitstop, which is still counted in callbacks rather than in time
+        # and so costs a 60Hz screen a few more steps than a 120Hz one.
+        elif abs(fast["steps"] - slow["steps"]) > 12:
+            rate_gaps.append(
+                f"{_label}: 60Hz and 120Hz disagree "
+                f"({slow['steps']} vs {fast['steps']} steps)"
+            )
+        # ...and only the WORLD is gated: the picture keeps the screen's rate.
+        elif not slow["paints"] or fast["paints"] / slow["paints"] < 1.8:
+            rate_gaps.append(
+                f"{_label}: drawing was gated too "
+                f"({slow['paints']} vs {fast['paints']} paints)"
+            )
     c.add(
         "creation_frame_rate_fair",
-        "画面の速さでゲームの速さが変わらない",
-        1.0 if not rate_gaps else 0.0,
+        "画面の速さでゲームの速さが変わらない型",
+        float(len(_rate_targets)) if not rate_gaps else 0.0,
         detail=(
-            "racing の実ページを rAF 60/75/120/144/30Hz 相当で回し、**実時間 3 秒**の"
-            "走行距離を実測（1 秒の暖機のあと）——60Hz 478.17 に対し 75/120/144Hz は"
-            "3 つとも**完全に同値** 485.71（+1.58%・許容 3%）、30Hz は 242.48 で"
-            "スローモーションに落ちるが逆走しない。修正前は 482.92 / 832.64（1.72 倍）/"
-            "929.84（1.93 倍）で、ラウンド時計だけが 3 通りとも 3000ms を返していた"
-            "＝時計は正直で世界はフレーム数で動いていた（§26・MDN は 75/120/144Hz を"
-            "「広く使われている」と明記）。共通プリアンブルの TICK() が §26 事実 3 の"
-            "アキュムレータで、16ms 手回しでは 1 フレームも飛ばさない"
+            "10 型すべてを rAF 60Hz / 120Hz 相当で回し、**実時間 3 秒**に世界が"
+            "何歩進んだかを実測（共通の TICK を probe 側から包んで数える＝型ごとの"
+            "「進み」の定義が要らない）。修正前は 120Hz で 360 歩＝2 倍。いま 10 型とも"
+            "120Hz でも 180 歩前後（≤190・≥150）で 60Hz と ±12 歩以内、"
+            "描画は 120Hz 側が 1.8 倍以上＝絵は画面の速さのまま。"
+            "±12 の余裕は hitstop がまだフレーム数で数えられているぶん"
+            "（60Hz の方が世界の歩を多く失う。duel 175・catch 172・racing 177 対 180）"
+            "——C-1609 として分離起票済み。"
+            "検査は 3 段: (a) 全コールバックが門に**尋ねる**（calls==frames。"
+            "門を外した型はこれで落ちる） (b) 門は 60/秒しか通さない (c) 型が"
+            "自前の世界時計 t/lapT を持つ 5 型（shooter・kaiju・marble・catch・racing）"
+            "では**世界そのもの**の進みも 180 前後。**残る 5 型（platformer・adventure・"
+            "duel・fishing・puzzle）は世界時計を持たないので、門に尋ねて答えを"
+            "無視する型は捕まらない**——この穴は C-1610 に分離した。racing の距離での実測は C-1607 の"
+            "creation_frame_rate_fair 初版と同じ（60Hz 478.17 に対し 75/120/144Hz が"
+            "完全同値 485.71）"
             if not rate_gaps
             else "; ".join(rate_gaps)
         ),

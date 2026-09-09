@@ -515,7 +515,12 @@ function shade(a,b){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.
   cx.fillText(a,cv.width/2-a.length*10,cv.height/2-8);
   cx.font='13px ui-monospace,monospace';
   cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}
-function step(){const now=performance.now();
+function step(rt){const now=performance.now();
+  /* The world advances on real time, not on this display's refresh
+     rate (§26, C-1608 — the gate C-1607 built and racing proved).
+     Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
+     second, the world just stops happening twice as fast. */
+  if(!TICK(rt)){draw(now);return requestAnimationFrame(step)}
   /* Only fighting when something is actually near: the quiet stretches of a
      dungeon are what make the loud ones read as loud (§6 観察 4). */
   combat(state==='play'&&gateState()==='playing'&&

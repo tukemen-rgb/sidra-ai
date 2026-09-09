@@ -129,8 +129,13 @@ cv.addEventListener('pointerdown',()=>{if(state!=='roll'){reset()}});
 function shade(hex,k){const n=parseInt(hex.slice(1),16);
   const r=Math.round(((n>>16)&255)*k),g=Math.round(((n>>8)&255)*k),b=Math.round((n&255)*k);
   return 'rgb('+r+','+g+','+b+')'}
-function step(){
-  if(state==='roll'){t++;
+/* The world advances on real time, not on this display's refresh rate
+   (§26, C-1608). The whole simulation already lives in one block, so
+   the gate is one condition; the engine note and the picture below it
+   run every callback, as they should. */
+function step(rt){
+  const ADV=TICK(rt);
+  if(state==='roll'&&ADV){t++;
     /* The shared steering part (C-1114), in world units rather than
        pixels: the part does not care which space it is moving in. */
     partsSteerX(ball,3.4,-LANE+14,LANE-14);

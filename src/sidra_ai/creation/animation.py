@@ -173,6 +173,85 @@ console.log(JSON.stringify({ reduced: REDUCED, scheduled: scheduled, ran: ran })
 """
 
 
+#: Steps against seconds, for any template (§26, C-1608). ``TICK`` is a
+#: function declaration in the page's own scope, so this harness can wrap
+#: it after the script has loaded and count how many times the world was
+#: allowed to advance - without any template needing to know it is being
+#: measured, and without a per-template idea of "progress". Paints are
+#: counted too, because the promise is that only the WORLD is gated: the
+#: picture still lands at the screen's own rate.
+TICK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+let PAINTS = 0;
+const rec = new Proxy({}, {
+  get(t, k){
+    if (k === 'fillRect' || k === 'fillText' || k === 'fill' || k === 'stroke')
+      return () => { PAINTS++ };
+    if (k === 'createLinearGradient' || k === 'createRadialGradient')
+      return () => ({ addColorStop(){} });
+    if (k === 'measureText') return () => ({ width: 10 });
+    if (k in t) return t[k];
+    return () => undefined },
+  set(t, k, v){ t[k] = v; return true } });
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => rec }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+/* Wrap the shared gate now that the page has declared it. */
+let STEPS = 0, CALLS = 0;
+const _TICK = TICK;
+TICK = function(now){ CALLS++; const go = _TICK(now); if (go) { STEPS++ } return go };
+/* A world clock, where the template happens to keep one. STEPS only says
+   the gate was ASKED and what it answered; a template that asks and then
+   ignores the answer would still look right. Where `t` (or racing's lapT)
+   exists it is incremented inside the simulation, so its advance is the
+   world's own account of itself. */
+function worldClock(){
+  if (typeof t === 'number') { return t }
+  if (typeof lapT === 'number') { return lapT }
+  return null }
+const RATE = RATE_INPUT, MSPF = 1000 / RATE;
+let MS = 0, FRAMES = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) {
+  const fn = queued; queued = null; MS += MSPF; FRAMES++; fn(MS) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+/* Past whatever start screen this template has, then a second of warm-up:
+   first frames are not what this is asking about. */
+key('keydown', ' '); key('keyup', ' ');
+run(Math.round(RATE));
+const s0 = STEPS, c0 = CALLS, p0 = PAINTS, f0 = FRAMES, m0 = MS, w0 = worldClock();
+run(Math.round(RATE * 3));
+console.log(JSON.stringify({
+  hz: RATE, steps: STEPS - s0, calls: CALLS - c0, paints: PAINTS - p0,
+  world: w0 === null ? null : worldClock() - w0,
+  frames: FRAMES - f0, realMs: Math.round(MS - m0)
+}));
+"""
+
+
+def tick_probe(script: str, *, hz: float) -> str:
+    """Count how often a page's world advances in three real seconds."""
+
+    return TICK_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "RATE_INPUT", repr(float(hz))
+    )
+
+
 def loop_probe(script: str, *, reduced: bool, frames: int = 40) -> str:
     """The page's script wrapped so its loop can be counted in node."""
 
@@ -191,6 +270,8 @@ def with_animation(script: str) -> str:
 
 __all__ = [
     "LOOP_PROBE",
+    "TICK_PROBE",
+    "tick_probe",
     "PREAMBLE",
     "PREAMBLE_NAMES",
     "loop_probe",

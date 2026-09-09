@@ -211,7 +211,12 @@ addEventListener('keyup',e=>{keys[e.key]=false;
 cv.addEventListener('pointerdown',()=>{
   if(state==='play'){if(!me.held){me.held=true;tryJump()}}else{reset()}});
 cv.addEventListener('pointerup',()=>{cutJump()});
-function step(){const now=performance.now();
+function step(rt){const now=performance.now();
+  /* The world advances on real time, not on this display's refresh
+     rate (§26, C-1608 — the gate C-1607 built and racing proved).
+     Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
+     second, the world just stops happening twice as fast. */
+  if(!TICK(rt)){draw(now);return requestAnimationFrame(step)}
   if(state==='play'){
     if(K('ArrowLeft')){me.x=Math.max(10,me.x-RUN);me.look=-1}
     if(K('ArrowRight')){me.x=Math.min(LW-10,me.x+RUN);me.look=1}

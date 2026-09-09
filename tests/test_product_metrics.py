@@ -57,21 +57,28 @@ def _measured_keys(metrics) -> set[str]:
 def test_every_metric_the_backlog_names_exists(metrics) -> None:
     """A backlog item cannot promise to move a number nobody measures.
 
-    An in-progress claim is the one exception (C-1332 found this red on a
-    sibling's open claim): the loop workflow pushes the claim first -
-    naming the brand-new number it intends to create - and lands the
-    metric in the same cycle's completion push, so between those two
-    pushes the name legitimately has no measurement yet. Only an item
-    that is not still marked ``[~]`` while naming a number nobody
-    measures is the drift this guards against.
+    Work that has not landed yet is the exception (C-1332 found this red
+    on a sibling's open claim; C-1608 found it again on an unstarted
+    one). The loop workflow names the brand-new number it intends to
+    create when it writes the item down, and lands the metric in the
+    completion push - so between those two moments the name legitimately
+    has no measurement yet. That is as true of an item nobody has claimed
+    (``[ ]``) as of one someone is mid-way through (``[~]``): both are
+    promises about the future.
+
+    The drift this guards against is a *finished* item - ``[x]`` - whose
+    "→ 動かす数字" names a number nobody measures, which means either the
+    metric was never built or the tag has a typo in it. That is exactly
+    how it caught C-1510's tag naming `qa_offtopic_honest` when the metric
+    it built was `qa_offtopic_honest_real_corpus`.
     """
 
     named: set[str] = set()
-    in_progress = False
+    landed = False
     for line in BACKLOG.read_text(encoding="utf-8").splitlines():
         if line.startswith("- ["):
-            in_progress = line.startswith("- [~]")
-        if not in_progress:
+            landed = line.startswith("- [x]")
+        if landed:
             named.update(re.findall(r"→ 動かす数字: `([a-z0-9_]+)`", line))
     measured = _measured_keys(metrics)
     assert named, "the backlog no longer tags items with the number they move"

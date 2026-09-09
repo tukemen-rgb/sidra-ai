@@ -25,7 +25,40 @@ import subprocess
 import pytest
 
 from sidra_ai.creation import generate_game
+from sidra_ai.creation.animation import tick_probe
 from sidra_ai.creation.racing import rate_probe
+
+#: Every template, since the gate is shared (C-1608).
+_TEMPLATES = {
+    "shooter": "シューティングゲームを作って",
+    "kaiju": "巨大怪獣と戦うゲームを作って",
+    "platformer": "ジャンプで進むゲームを作って",
+    "adventure": "迷宮を冒険するゲームを作って",
+    "duel": "光線で撃ち合う対戦ゲームを作って",
+    "puzzle": "パズルゲームを作って",
+    "marble": "玉転がしゲームを作って",
+    "fishing": "魚釣りゲームを作って",
+    "catch": "フルーツキャッチを作って",
+    "racing": "レースゲームを作って",
+}
+_STEPS: dict[tuple[str, float], dict] = {}
+
+
+def _steps(template: str, hz: float) -> dict:
+    key = (template, hz)
+    if key not in _STEPS:
+        html = generate_game(_TEMPLATES[template]).html
+        script = re.search(r"<script>(.*?)</script>", html, re.S).group(1)
+        run = subprocess.run(
+            ["node", "-"],
+            input=tick_probe(script, hz=hz),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        assert run.returncode == 0, run.stderr[:400]
+        _STEPS[key] = json.loads(run.stdout.strip().splitlines()[-1])
+    return _STEPS[key]
 
 #: One page, driven at several refresh rates. Module-scoped because each
 #: rate costs a node run.
@@ -113,3 +146,65 @@ def test_a_stalled_tab_does_not_bank_time_and_spend_it() -> None:
     assert stalled <= 200, (
         f"after a five-second stall the world took {stalled} steps in three seconds"
     )
+
+
+@pytest.mark.parametrize("template", sorted(_TEMPLATES))
+def test_no_template_runs_the_world_fast_on_a_fast_screen(template: str) -> None:
+    """Three real seconds may never buy more than three seconds of world."""
+
+    fast = _steps(template, 120)
+    assert fast["realMs"] == 3000
+    assert fast["steps"] <= 190, (
+        f"{template} stepped {fast['steps']} times in three seconds at 120Hz"
+    )
+
+
+@pytest.mark.parametrize("template", sorted(_TEMPLATES))
+def test_no_template_stalls_behind_the_gate(template: str) -> None:
+    for hz in (60, 120):
+        assert _steps(template, hz)["steps"] >= 150, f"{template} stalled at {hz}Hz"
+
+
+@pytest.mark.parametrize("template", sorted(_TEMPLATES))
+def test_both_screens_play_the_same_game(template: str) -> None:
+    """±12 steps of slack: hitstop is still counted in callbacks (C-1609)."""
+
+    slow, fast = _steps(template, 60)["steps"], _steps(template, 120)["steps"]
+    assert abs(fast - slow) <= 12, f"{template}: {slow} vs {fast} steps"
+
+
+@pytest.mark.parametrize("template", sorted(_TEMPLATES))
+def test_only_the_world_is_gated_never_the_picture(template: str) -> None:
+    slow, fast = _steps(template, 60)["paints"], _steps(template, 120)["paints"]
+    assert slow > 0
+    assert fast / slow >= 1.8, f"{template} painted {fast} vs {slow} - drawing was gated"
+
+
+@pytest.mark.parametrize("template", sorted(_TEMPLATES))
+def test_every_callback_asks_the_gate(template: str) -> None:
+    """A template that dropped the gate reads as a stall, not as a sprint."""
+
+    for hz in (60, 120):
+        got = _steps(template, hz)
+        # hitstop swallows a callback before the gate is reached, and is
+        # still counted in callbacks rather than time (C-1609) - measured
+        # at 8 in three seconds at worst. A template that dropped the gate
+        # misses all 180 or 360.
+        missed = got["frames"] - got["calls"]
+        assert missed <= 20, (
+            f"{template} at {hz}Hz asked {got['calls']} times in {got['frames']} frames"
+        )
+
+
+@pytest.mark.parametrize(
+    "template", ["shooter", "kaiju", "marble", "catch", "racing"]
+)
+def test_the_worlds_own_clock_agrees(template: str) -> None:
+    """The five templates that keep a clock of their own (C-1610: the
+    other five keep none, so a page that asks the gate and ignores the
+    answer is not caught here)."""
+
+    slow, fast = _steps(template, 60), _steps(template, 120)
+    assert fast["world"] is not None
+    assert fast["world"] <= 190, f"{template}: world advanced {fast['world']}"
+    assert abs(fast["world"] - slow["world"]) <= 12

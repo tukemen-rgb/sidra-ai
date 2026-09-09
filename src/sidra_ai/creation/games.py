@@ -282,7 +282,13 @@ function depthFacts(){const keep=SCENE,out=[];
       alpha:FAR_A})}
   SCENE=keep;return out}
 let CAST_ARMED=true;
-function step(){setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
+function step(rt){
+  /* The world advances on real time, not on this display's refresh
+     rate (§26, C-1608 — the gate C-1607 built and racing proved).
+     Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
+     second, the world just stops happening twice as fast. */
+  if(!TICK(rt)){draw();return requestAnimationFrame(step)}
+  setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
   pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}
   /* The sweep moved, so the next press is a real decision again (C-1500).
      Hitstop skips this whole function, which is exactly what keeps a
@@ -436,7 +442,16 @@ addEventListener('keyup',e=>{if(e.code==='ArrowLeft'){KHELD.l=false}
   if(e.code==='ArrowRight'){KHELD.r=false}});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();
   px=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))});
-function step(){t++;
+/* The world advances on real time, not on this display's refresh
+   rate (§26, C-1608). This template draws inside step(), so the
+   gate wraps the simulation prefix only - the brace closes just
+   above setScene() and everything below keeps painting at the
+   screen's own rate. */
+function step(rt){
+  /* Hoisted out of the gate: the drawing below the gate needs it too. */
+  const w=cv.width,h=cv.height;
+  if(TICK(rt)){
+  t++;
   if(KHELD.l){px=Math.max(0,px-0.012)}
   if(KHELD.r){px=Math.min(1,px+0.012)}
   if(t%FALL===0){
@@ -447,7 +462,6 @@ function step(){t++;
      (C-1119). Math.random gave every device a different run and left this
      page unable to join 今日の挑戦 honestly. */
   items.push({x:firstDrop?shown:rand(),y:0});firstDrop=false}
-  const w=cv.width,h=cv.height;
   items.forEach(i=>{i.y+=0.012});
   items=items.filter(i=>{if(i.y<0.92)return true;
     if(Math.abs(i.x-shown)<WIDE/2){
@@ -460,6 +474,7 @@ function step(){t++;
       if(!REDUCED)BSQ=0.6;
       shake(2);burst(i.x*cv.width,cv.height-30,10,'ACCENT_JUICE')}
     else{comboMiss();missed++;sfx('clash',1,i.x);shake(5);hitstop(2)}return false});
+  }
   setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,w,h);
   /* Clouds first, so the fruit falls in front of them (§7, C-1365). */

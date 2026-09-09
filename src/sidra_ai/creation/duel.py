@@ -220,7 +220,12 @@ function hit(who){who.hp--;if(flashGate())flash=1;
   if(who.hp<=0){state='end';
     if(who===e){winner='勝利。ひかりが押し切った。';winBeat(EX,LANES[e.lane])}
     else{winner='敗北。もう一度。';failBeat(PX,LANES[p.lane])}}}
-function step(){const now=performance.now();
+function step(rt){const now=performance.now();
+  /* The world advances on real time, not on this display's refresh
+     rate (§26, C-1608 — the gate C-1607 built and racing proved).
+     Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
+     second, the world just stops happening twice as fast. */
+  if(!TICK(rt)){draw(now);return requestAnimationFrame(step)}
   combat(state==='play'&&gateState()==='playing');
   setScene(duelAct());
   if(state==='play'){

@@ -139,7 +139,13 @@ function hitHead(){cycles++;boss.hurt=12;shake(7);burst(legX(),boss.head,16,'ACC
   else{boss.phase='leg';boss.legHp=LEGHP;boss.head=-160;boss.timer=BEAT}}
 function openCrack(){const x=60+rand()*(W-120);
   cracks.push({x:x,w:0,warn:34,open:0});sfx('charge')}
-function step(){t++;
+function step(rt){
+  /* The world advances on real time, not on this display's refresh
+     rate (§26, C-1608 — the gate C-1607 built and racing proved).
+     Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
+     second, the world just stops happening twice as fast. */
+  if(!TICK(rt)){draw();return requestAnimationFrame(step)}
+  t++;
   combat(state==='fight'&&gateState()==='playing');
   /* The crush settles by quarter-steps and snaps (C-1332), outside the
      fight guard so a downed walker still stands back up. */
