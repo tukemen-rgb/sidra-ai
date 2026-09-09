@@ -214,6 +214,19 @@ class QuarantineReview:
     def released_ids(self) -> set[str]:
         return {r.entry_id for r in self.releases()}
 
+    def release_for(self, entry_id: str) -> Release | None:
+        """The recorded approval for an entry id, or ``None`` if not released.
+
+        Keyed on the exact entry id the reviewer already holds, so the review
+        tool can show who approved a release and why - the whole point of
+        recording an operator and a reason is being able to read them back.
+        Double-release is refused, so there is at most one; the latest wins if
+        a log somehow carries more.
+        """
+
+        found = [r for r in self.releases() if r.entry_id == entry_id]
+        return found[-1] if found else None
+
     def released_document_ids(self) -> set[str]:
         """Document ids a human approved, for the gate to admit on re-ingest.
 

@@ -99,7 +99,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"source / type : {entry.source or '(withheld)'} / {entry.source_type}")
         print(f"original size : {entry.original_length} chars")
         print(f"retention     : {entry.content_retention}")
-        print(f"released      : {'yes' if entry.id in review.released_ids() else 'no'}")
+        released = entry.id in review.released_ids()
+        print(f"released      : {'yes' if released else 'no'}")
+        # An approval trail is only auditable if it can be read back: `release`
+        # records who approved, why, and when, so a second reviewer must be able
+        # to see them here rather than opening the .releases.jsonl by hand
+        # (C-1611).
+        approval = review.release_for(entry.id) if released else None
+        if approval is not None:
+            print(f"承認者        : {approval.operator}")
+            print(f"承認理由      : {approval.reason}")
+            print(f"承認時刻      : {approval.released_at}")
         print("\nreasons:")
         for reason in entry.reasons or ("(none recorded)",):
             print(f"  - {reason}")

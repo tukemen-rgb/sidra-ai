@@ -826,20 +826,6 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # C-1519 (辛口コメンテーター起票・未着手): revise ignores conversation history
-    # and picks its target from server-wide latest state. The item names this
-    # number; until someone claims C-1519 and builds the fix, the number cannot
-    # be produced, so it is registered unmeasurable rather than omitted - an
-    # item may not name a number that does not exist (test_product_metrics'
-    # backlog-names-exist gate), and `compare` counts it the day it gains a
-    # value. Whoever implements C-1519 replaces this with a real c.add.
-    c.unmeasurable(
-        "creation_revision_follows_history",
-        "履歴つきの修正が履歴の成果物を直し他人の最新を直さない",
-        "C-1519 未着手: revise が history を読むよう直してから測る",
-        kind=OUTCOME,
-    )
-
     # C-1258: the GIF summary named no motif and any request that matched no
     # motif word silently became the default pulse - even more silent than art
     # (C-1256), which at least printed 「パターン: flow」. Measured through the
@@ -1258,6 +1244,26 @@ def measure_answer_quality(c: Collector) -> None:
         detail=f"{gate_op_reason.checks_passed}/{gate_op_reason.checks_total} checks; "
                "src/sidra_ai/evals/gate_operator_refusal_omits_indexing_claim.py"
                + ("" if gate_op_reason.passed else "; " + "; ".join(gate_op_reason.failures[:4])),
+        kind=OUTCOME,
+    )
+
+    # C-1611: `sidra-quarantine release` recorded the operator, reason and time
+    # of an approval, but no subcommand read them back - `show` said only
+    # 「released : yes」. An auditor asking who released a quarantined secret,
+    # and why, had to open the .releases.jsonl by hand. `show` now reveals the
+    # approval's operator, reason and timestamp for a released entry.
+    from sidra_ai.evals.quarantine_show_reveals_release import (
+        evaluate_quarantine_show_reveals_release,
+    )
+
+    q_show = evaluate_quarantine_show_reveals_release()
+    c.add(
+        "quarantine_show_reveals_release",
+        "隔離レビューの show が承認の誰・なぜ・いつを読み戻せる",
+        10.0 * q_show.checks_passed / q_show.checks_total,
+        detail=f"{q_show.checks_passed}/{q_show.checks_total} checks; "
+               "src/sidra_ai/evals/quarantine_show_reveals_release.py"
+               + ("" if q_show.passed else "; " + "; ".join(q_show.failures[:4])),
         kind=OUTCOME,
     )
 
