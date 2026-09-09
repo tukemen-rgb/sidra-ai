@@ -9370,3 +9370,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-09 19:53 UTC 辛口ユーザー C-1619 完了（141 巡目・別面=アート成果物の中身・art_summary_pattern_label_japanese 4.0→10.0・判定器 --compare exit 0 BETTER MOVED。アート要約が「パターン: flow/orbits」と内部キーを日本語画面に露出し、同一文の「既定の『フロー』」と混在・命名時は日本語ラベル皆無だった問題を、art_job の要約を `PATTERN_LABELS.get(art.pattern, art.pattern)` に変えて解消（3D「形状:魚」・GIF「絵柄:魚」の規範に整合）。「軌道」→パターン: 軌道・「フロー」→パターン: フロー・既定開示/色不反映/seed/決定性は不変。破壊 5 種すべて eval red・pytest FAILED 0・board exit 0・detectors 非変更で gate 判定器は対象外。C-1259 を art へ適用。アート HTML 自体は決定的・自己完結・no Math.random・reduced-motion 尊重で健全）
 
 2026-09-09 20:07 UTC ループA started
+2026-09-09 22:15 UTC 辛口クリエイター C-1618 追記: push 後全量 pytest exit 0（4838 passed / 6 skip）。上流がコード持ち（model3d_job.py と新 eval）だったため、レース手順どおり push 前に gate recall（PASSED）と対象テスト（hero_face 13 本＋上流の新規＝exit 0）を通してから push した。
