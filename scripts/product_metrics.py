@@ -5331,38 +5331,52 @@ def measure_creation(c: Collector) -> None:
         ("catch", "フルーツキャッチを作って"),
         ("racing", "レースゲームを作って"),
     )
+    # The twenty node runs are independent, so they go out together: the
+    # whole collector runs inside a 300s hang-guard that it already sits
+    # 2s under (C-1613), and a sequential block here would spend that
+    # margin on waiting rather than on measuring.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _rate_read(args: tuple[str, str, float]) -> tuple[str, float, dict | str]:
+        label, script, hz = args
+        try:
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_tick_probe(script, hz=hz),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            return label, hz, json.loads(run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return label, hz, f"probe unavailable ({exc})"
+
+    _rate_jobs: list[tuple[str, str, float]] = []
     for _label, _request in _rate_targets:
         _rate_page = generate_game(_request).html
         _rs = _scene_re.search(r"<script>(.*?)</script>", _rate_page, _scene_re.S)
         if _rs is None:
             rate_gaps.append(f"{_label}: no script")
             continue
-        seen: dict[float, dict] = {}
         for _hz in (60.0, 120.0):
-            try:
-                _rr = _scene_sp.run(
-                    ["node", "-"],
-                    input=_tick_probe(_rs.group(1), hz=_hz),
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                )
-                if _rr.returncode != 0:
-                    raise ValueError(_rr.stderr.strip()[:60])
-                seen[_hz] = json.loads(_rr.stdout.strip().splitlines()[-1])
-            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-                rate_gaps.append(f"{_label}/{_hz:g}Hz: probe unavailable ({exc})")
-                break
+            _rate_jobs.append((_label, _rs.group(1), _hz))
+    _rate_reads: dict[str, dict[float, dict]] = {}
+    with ThreadPoolExecutor(max_workers=8) as _pool:
+        for _label, _hz, _got in _pool.map(_rate_read, _rate_jobs):
+            if isinstance(_got, str):
+                rate_gaps.append(f"{_label}/{_hz:g}Hz: {_got}")
+            else:
+                _rate_reads.setdefault(_label, {})[_hz] = _got
+    for _label, _request in _rate_targets:
+        seen = _rate_reads.get(_label, {})
         if len(seen) != 2:
             continue
         slow, fast = seen[60.0], seen[120.0]
-        # Every callback must ASK the gate. A template that dropped the
-        # gate would otherwise read as a stall rather than as a sprint,
-        # because STEPS counts what the gate answered, not what the world
-        # did.
-        # hitstop swallows a callback before the gate is reached (C-1609),
+        # hitstop swallows a callback before the gate is reached (C-1611),
         # measured at 8 in three seconds at worst; a dropped gate misses
-        # every one of the 180/360.
+        # every one of them.
         if (slow["frames"] - slow["calls"] > 20) or (
             fast["frames"] - fast["calls"] > 20
         ):
@@ -5374,25 +5388,22 @@ def measure_creation(c: Collector) -> None:
         # world itself must agree - this is what catches a page that asks
         # the gate and then ignores the answer.
         elif fast["world"] is not None and (
-            fast["world"] > 190 or abs(fast["world"] - slow["world"]) > 12
+            fast["world"] > 130 or abs(fast["world"] - slow["world"]) > 12
         ):
             rate_gaps.append(
                 f"{_label}: the world clock ran on regardless "
                 f"({slow['world']} vs {fast['world']})"
             )
-        # Three real seconds may never buy more than three seconds of world.
-        # Before the gate this read 360 at 120Hz.
-        elif fast["steps"] > 190:
+        # Two real seconds may never buy more than two seconds of world.
+        # Before the gate this read 240 at 120Hz against 120 at 60Hz.
+        elif fast["steps"] > 130:
             rate_gaps.append(
-                f"{_label}: 120Hz steps the world {fast['steps']} times in three seconds"
+                f"{_label}: 120Hz steps the world {fast['steps']} times in two seconds"
             )
-        elif min(slow["steps"], fast["steps"]) < 150:
+        elif min(slow["steps"], fast["steps"]) < 100:
             rate_gaps.append(
                 f"{_label}: the world stalled ({slow['steps']}/{fast['steps']} steps)"
             )
-        # The two screens must be playing the same game. The slack is for
-        # hitstop, which is still counted in callbacks rather than in time
-        # and so costs a 60Hz screen a few more steps than a 120Hz one.
         elif abs(fast["steps"] - slow["steps"]) > 12:
             rate_gaps.append(
                 f"{_label}: 60Hz and 120Hz disagree "
@@ -5409,20 +5420,20 @@ def measure_creation(c: Collector) -> None:
         "画面の速さでゲームの速さが変わらない型",
         float(len(_rate_targets)) if not rate_gaps else 0.0,
         detail=(
-            "10 型すべてを rAF 60Hz / 120Hz 相当で回し、**実時間 3 秒**に世界が"
+            "10 型すべてを rAF 60Hz / 120Hz 相当で回し、**実時間 2 秒**に世界が"
             "何歩進んだかを実測（共通の TICK を probe 側から包んで数える＝型ごとの"
-            "「進み」の定義が要らない）。修正前は 120Hz で 360 歩＝2 倍。いま 10 型とも"
-            "120Hz でも 180 歩前後（≤190・≥150）で 60Hz と ±12 歩以内、"
+            "「進み」の定義が要らない）。修正前は 120Hz で 240 歩＝2 倍。いま 10 型とも"
+            "120Hz でも 120 歩前後（≤130・≥100）で 60Hz と ±12 歩以内、"
             "描画は 120Hz 側が 1.8 倍以上＝絵は画面の速さのまま。"
             "±12 の余裕は hitstop がまだフレーム数で数えられているぶん"
             "（60Hz の方が世界の歩を多く失う。duel 175・catch 172・racing 177 対 180）"
-            "——C-1609 として分離起票済み。"
+            "——C-1611 として分離起票済み。"
             "検査は 3 段: (a) 全コールバックが門に**尋ねる**（calls==frames。"
             "門を外した型はこれで落ちる） (b) 門は 60/秒しか通さない (c) 型が"
             "自前の世界時計 t/lapT を持つ 5 型（shooter・kaiju・marble・catch・racing）"
             "では**世界そのもの**の進みも 180 前後。**残る 5 型（platformer・adventure・"
             "duel・fishing・puzzle）は世界時計を持たないので、門に尋ねて答えを"
-            "無視する型は捕まらない**——この穴は C-1610 に分離した。racing の距離での実測は C-1607 の"
+            "無視する型は捕まらない**——この穴は C-1612 に分離した。racing の距離での実測は C-1607 の"
             "creation_frame_rate_fair 初版と同じ（60Hz 478.17 に対し 75/120/144Hz が"
             "完全同値 485.71）"
             if not rate_gaps

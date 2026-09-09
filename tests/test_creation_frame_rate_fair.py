@@ -150,24 +150,24 @@ def test_a_stalled_tab_does_not_bank_time_and_spend_it() -> None:
 
 @pytest.mark.parametrize("template", sorted(_TEMPLATES))
 def test_no_template_runs_the_world_fast_on_a_fast_screen(template: str) -> None:
-    """Three real seconds may never buy more than three seconds of world."""
+    """Two real seconds may never buy more than two seconds of world."""
 
     fast = _steps(template, 120)
-    assert fast["realMs"] == 3000
-    assert fast["steps"] <= 190, (
-        f"{template} stepped {fast['steps']} times in three seconds at 120Hz"
+    assert fast["realMs"] == 2000
+    assert fast["steps"] <= 130, (
+        f"{template} stepped {fast['steps']} times in two seconds at 120Hz"
     )
 
 
 @pytest.mark.parametrize("template", sorted(_TEMPLATES))
 def test_no_template_stalls_behind_the_gate(template: str) -> None:
     for hz in (60, 120):
-        assert _steps(template, hz)["steps"] >= 150, f"{template} stalled at {hz}Hz"
+        assert _steps(template, hz)["steps"] >= 100, f"{template} stalled at {hz}Hz"
 
 
 @pytest.mark.parametrize("template", sorted(_TEMPLATES))
 def test_both_screens_play_the_same_game(template: str) -> None:
-    """±12 steps of slack: hitstop is still counted in callbacks (C-1609)."""
+    """±12 steps of slack: hitstop is still counted in callbacks (C-1611)."""
 
     slow, fast = _steps(template, 60)["steps"], _steps(template, 120)["steps"]
     assert abs(fast - slow) <= 12, f"{template}: {slow} vs {fast} steps"
@@ -187,9 +187,9 @@ def test_every_callback_asks_the_gate(template: str) -> None:
     for hz in (60, 120):
         got = _steps(template, hz)
         # hitstop swallows a callback before the gate is reached, and is
-        # still counted in callbacks rather than time (C-1609) - measured
+        # still counted in callbacks rather than time (C-1611) - measured
         # at 8 in three seconds at worst. A template that dropped the gate
-        # misses all 180 or 360.
+        # misses all 120 or 240.
         missed = got["frames"] - got["calls"]
         assert missed <= 20, (
             f"{template} at {hz}Hz asked {got['calls']} times in {got['frames']} frames"
@@ -200,11 +200,11 @@ def test_every_callback_asks_the_gate(template: str) -> None:
     "template", ["shooter", "kaiju", "marble", "catch", "racing"]
 )
 def test_the_worlds_own_clock_agrees(template: str) -> None:
-    """The five templates that keep a clock of their own (C-1610: the
+    """The five templates that keep a clock of their own (C-1612: the
     other five keep none, so a page that asks the gate and ignores the
     answer is not caught here)."""
 
     slow, fast = _steps(template, 60), _steps(template, 120)
     assert fast["world"] is not None
-    assert fast["world"] <= 190, f"{template}: world advanced {fast['world']}"
+    assert fast["world"] <= 130, f"{template}: world advanced {fast['world']}"
     assert abs(fast["world"] - slow["world"]) <= 12

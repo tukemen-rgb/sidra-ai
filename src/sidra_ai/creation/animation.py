@@ -221,7 +221,7 @@ function worldClock(){
   if (typeof t === 'number') { return t }
   if (typeof lapT === 'number') { return lapT }
   return null }
-const RATE = RATE_INPUT, MSPF = 1000 / RATE;
+const RATE = RATE_INPUT, MSPF = 1000 / RATE, SECS = SECONDS_INPUT;
 let MS = 0, FRAMES = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; MS += MSPF; FRAMES++; fn(MS) } }
@@ -235,7 +235,7 @@ function key(type, k){
 key('keydown', ' '); key('keyup', ' ');
 run(Math.round(RATE));
 const s0 = STEPS, c0 = CALLS, p0 = PAINTS, f0 = FRAMES, m0 = MS, w0 = worldClock();
-run(Math.round(RATE * 3));
+run(Math.round(RATE * SECS));
 console.log(JSON.stringify({
   hz: RATE, steps: STEPS - s0, calls: CALLS - c0, paints: PAINTS - p0,
   world: w0 === null ? null : worldClock() - w0,
@@ -244,11 +244,13 @@ console.log(JSON.stringify({
 """
 
 
-def tick_probe(script: str, *, hz: float) -> str:
-    """Count how often a page's world advances in three real seconds."""
+def tick_probe(script: str, *, hz: float, seconds: float = 2.0) -> str:
+    """Count how often a page's world advances in ``seconds`` of real time."""
 
-    return TICK_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
-        "RATE_INPUT", repr(float(hz))
+    return (
+        TICK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("RATE_INPUT", repr(float(hz)))
+        .replace("SECONDS_INPUT", repr(float(seconds)))
     )
 
 

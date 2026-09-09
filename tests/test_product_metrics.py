@@ -57,28 +57,21 @@ def _measured_keys(metrics) -> set[str]:
 def test_every_metric_the_backlog_names_exists(metrics) -> None:
     """A backlog item cannot promise to move a number nobody measures.
 
-    Work that has not landed yet is the exception (C-1332 found this red
-    on a sibling's open claim; C-1608 found it again on an unstarted
-    one). The loop workflow names the brand-new number it intends to
-    create when it writes the item down, and lands the metric in the
-    completion push - so between those two moments the name legitimately
-    has no measurement yet. That is as true of an item nobody has claimed
-    (``[ ]``) as of one someone is mid-way through (``[~]``): both are
-    promises about the future.
-
-    The drift this guards against is a *finished* item - ``[x]`` - whose
-    "→ 動かす数字" names a number nobody measures, which means either the
-    metric was never built or the tag has a typo in it. That is exactly
-    how it caught C-1510's tag naming `qa_offtopic_honest` when the metric
-    it built was `qa_offtopic_honest_real_corpus`.
+    An in-progress claim is the one exception (C-1332 found this red on a
+    sibling's open claim): the loop workflow pushes the claim first -
+    naming the brand-new number it intends to create - and lands the
+    metric in the same cycle's completion push, so between those two
+    pushes the name legitimately has no measurement yet. Only an item
+    that is not still marked ``[~]`` while naming a number nobody
+    measures is the drift this guards against.
     """
 
     named: set[str] = set()
-    landed = False
+    in_progress = False
     for line in BACKLOG.read_text(encoding="utf-8").splitlines():
         if line.startswith("- ["):
-            landed = line.startswith("- [x]")
-        if landed:
+            in_progress = line.startswith("- [~]")
+        if not in_progress:
             named.update(re.findall(r"→ 動かす数字: `([a-z0-9_]+)`", line))
     measured = _measured_keys(metrics)
     assert named, "the backlog no longer tags items with the number they move"
@@ -116,9 +109,15 @@ def test_the_numbers_that_matter_are_measured(metrics) -> None:
 def test_script_runs_and_prints_a_table() -> None:
     """Exercised as an operator would, not imported."""
 
+    # 300s was a hang-guard, not a performance contract, and the collector
+    # grew into it: measured on this machine, main without the C-1608 block
+    # already took 297.9s standalone and tips over 300 under suite load, so
+    # the test had become a coin flip for whoever added the next probe.
+    # Raised to leave real headroom; the growth itself is tracked as C-1613
+    # (two tests each run the whole collector, ~10 minutes of the suite).
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
-        capture_output=True, text=True, cwd=ROOT, timeout=300,
+        capture_output=True, text=True, cwd=ROOT, timeout=900,
     )
 
     assert result.returncode == 0, result.stderr
@@ -128,9 +127,10 @@ def test_script_runs_and_prints_a_table() -> None:
 def test_json_output_is_machine_readable() -> None:
     import json
 
+    # Raised with the sibling above (C-1613): a hang-guard, not a budget.
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--json"],
-        capture_output=True, text=True, cwd=ROOT, timeout=300,
+        capture_output=True, text=True, cwd=ROOT, timeout=900,
     )
 
     assert result.returncode == 0, result.stderr
