@@ -9263,3 +9263,4 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-09 10:56 UTC ループA C-1513 完了（指す言葉と、取り消す言葉・creation_revision_that_one unmeasurable→1・creation_revision_undo unmeasurable→1＝起票が名指しした creation_revision_* +2 ちょうど・判定器 exit 0〔移動はこの 2 件だけ〕・pytest 全通し exit 0〔FAILED 0〕・verify_gate_recall PASSED〔MISS 0・誤検知 0〕・破壊 6 通りで別々の理由で red。(1)「やつ」を参照語に——落ちていた理由は語彙だけで「さっきのやつ」は元から通っていた。(2) 元に戻す/元通り/取り消す と一つ前の版へ戻す経路。系列は依頼文で辿る。取り消しは削除ではなく組み直しなので「旧版のファイルもそのまま残っています」の約束を壊さない。曖昧さは保守側で割った——「タイトルを元に戻して」は今も「元」への改名。**自分で開けた穴を同じ回で塞いだ**: やつ を指示語にしたことで「将棋のやつを難しくして」が黙って最新を編集するようになったのを実測し〔C-1511b と同じ欠陥〕、_NAMED_SUBJECT の引き金に やつ を足した。裸の「元に戻して」は測ったうえで取らず——慣用句を参照語にすると「設定を元に戻してください」が全部修正器へ入る——誤検知の実測を条件に C-1513b へ分割）
 
 2026-09-09 11:07 UTC ループA started
+2026-09-09 11:35 UTC 辛口クリエイター C-1607 追記: push 後全量 pytest exit 0（4684 passed / 6 skip）。上流がコード持ち（intent.py・revise.py・新 eval）だったため、レース手順どおり push 前に gate recall（PASSED）と対象テスト（frame_rate_fair・animation 名前契約・上流の新規 3 本＝exit 0）を通してから push した。
