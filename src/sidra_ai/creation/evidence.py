@@ -29,6 +29,15 @@ from sidra_ai.retrieval.search import subject_terms, tokenize
 NUMBER = re.compile(r"\d[\d,.\s]*\s*(?:%|％|円|万|億|人|件|倍|pt|x)?", re.IGNORECASE)
 
 
+#: A digit that only names a thing, not a quantity: it follows an ASCII letter,
+#: across at most one hyphen. BM25, FTS5, GPT-6, backlog ids like C-1234, S3 and
+#: v0.1 are names; 14/38, 512 MiB, 60Hz, 3件 and the 20万円 in 「GPT4は月20万円」
+#: stay figures - only GPT4 is masked, and the continuation class is ASCII-only
+#: on purpose, because a \w continuation matches CJK and would let the mask
+#: swallow the Japanese figure that follows an identifier (C-1609).
+_IDENTIFIER = re.compile(r"[A-Za-z]+-?\d[\dA-Za-z.]*")
+
+
 #: Markdown decoration inside an excerpt window. The corpus is Markdown, so
 #: a 200-character window lands mid-document and drags ``##``, ``**`` and
 #: ``>`` into slide bullets as literal characters (C-1212). Only decoration
@@ -228,7 +237,9 @@ class Fact:
     source: str
 
     def mentions_number(self) -> bool:
-        return bool(NUMBER.search(self.text))
+        # Mask an identifier's digits first, so a name that carries a digit
+        # (BM25, C-1234) is not read as a supporting figure (C-1609).
+        return bool(NUMBER.search(_IDENTIFIER.sub(" ", self.text)))
 
 
 @lru_cache(maxsize=1)

@@ -826,6 +826,20 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1519 (辛口コメンテーター起票・未着手): revise ignores conversation history
+    # and picks its target from server-wide latest state. The item names this
+    # number; until someone claims C-1519 and builds the fix, the number cannot
+    # be produced, so it is registered unmeasurable rather than omitted - an
+    # item may not name a number that does not exist (test_product_metrics'
+    # backlog-names-exist gate), and `compare` counts it the day it gains a
+    # value. Whoever implements C-1519 replaces this with a real c.add.
+    c.unmeasurable(
+        "creation_revision_follows_history",
+        "履歴つきの修正が履歴の成果物を直し他人の最新を直さない",
+        "C-1519 未着手: revise が history を読むよう直してから測る",
+        kind=OUTCOME,
+    )
+
     # C-1258: the GIF summary named no motif and any request that matched no
     # motif word silently became the default pulse - even more silent than art
     # (C-1256), which at least printed 「パターン: flow」. Measured through the
@@ -1665,6 +1679,25 @@ def measure_answer_quality(c: Collector) -> None:
         detail=f"{deck_omitted.checks_passed}/{deck_omitted.checks_total} checks; "
                "src/sidra_ai/evals/deck_discloses_omitted_facts.py"
                + ("" if deck_omitted.passed else "; " + "; ".join(deck_omitted.failures[:4])),
+        kind=OUTCOME,
+    )
+
+    # C-1609: the number slide was chosen by "any digit anywhere", so a fact
+    # whose only digits named a thing (BM25, FTS5, C-1234, GPT-6, S3) was filed
+    # as a supporting figure - the one slide of a proposal whose point is a
+    # number. mentions_number now masks an identifier's digits first.
+    from sidra_ai.evals.deck_number_slide_rejects_identifier_digits import (
+        evaluate_deck_number_slide_rejects_identifier_digits,
+    )
+
+    deck_number = evaluate_deck_number_slide_rejects_identifier_digits()
+    c.add(
+        "deck_number_slide_rejects_identifier_digits",
+        "デッキの数字スライドが識別子内の数字（BM25/C-1234 等）を根拠数字に載せない",
+        10.0 * deck_number.checks_passed / deck_number.checks_total,
+        detail=f"{deck_number.checks_passed}/{deck_number.checks_total} checks; "
+               "src/sidra_ai/evals/deck_number_slide_rejects_identifier_digits.py"
+               + ("" if deck_number.passed else "; " + "; ".join(deck_number.failures[:4])),
         kind=OUTCOME,
     )
 
