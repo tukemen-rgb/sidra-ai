@@ -958,6 +958,38 @@ def undepicted_subject(request: str, template: str, asked_title: str) -> str:
     # from it. Silence beats a caveat about a phrase the page did deliver.
     if any(word and word.lower() in left.lower() for word in genre_words):
         return ""
+
+    # C-1524: a clause is cut down to the thing it is about, not silenced.
+    # Silencing was tried first and the suite refused it: 「宝石を拾うゲームを
+    # 作って」, 「犬が走る…」, 「宇宙を旅する…」 and 「ドラゴンを育てる…」 are
+    # requests whose subject the page really does not draw, and
+    # ``test_the_note_still_speaks_where_it_was_built_to`` exists to say that
+    # silence "would pass every assertion above and fix nothing".
+    #
+    # So the head is taken: everything before the first case particle, which
+    # is the noun the verb is acting on. 「宝石を拾う」 becomes 「宝石」,
+    # 「宝の地図を探す」 becomes 「宝の地図」 (「の」 is not a case particle and
+    # does not cut). An empty head - 「を倒す」, once the genre word 怪獣 has
+    # been trimmed off the front - falls through to the opening-particle rule
+    # below and is still refused, which is what C-1503 decided.
+    if _is_whole_clause(left):
+        head = min(
+            (left.index(p) for p in _CASE_PARTICLES if p in left),
+            default=len(left),
+        )
+        left = left[:head].strip("「」\"' 　・")
+
+    # The cut can expose a new trailing particle (「宝の」), so C-1514's rule
+    # runs again over what is left.
+    trimming = True
+    while trimming and left:
+        trimming = False
+        for glue in _SUBJECT_GLUE:
+            if len(left) > len(glue) and left.endswith(glue):
+                left = left[: len(left) - len(glue)].strip("「」\"' 　・")
+                trimming = True
+                break
+
     return left if _is_quotable_subject(left, request) else ""
 
 
@@ -1003,6 +1035,50 @@ _SUBJECT_FILLERS: tuple[str, ...] = (
 _SUBJECT_GLUE: tuple[str, ...] = (
     "を", "が", "に", "へ", "と", "で", "の", "は", "も", "や", "から", "まで",
 )
+
+
+#: The particles that mark an argument of a verb, as opposed to 「の」 which
+#: links two nouns. Used with ``_VERB_TAIL`` below and never alone - 「犬と猫」
+#: is a list of two subjects and carries 「と」 (C-1524).
+#:
+#: 「の」 being absent is intent, not a measured boundary: a break test that
+#: added it changed no result, because the pairing with ``_VERB_TAIL`` already
+#: spares 「忍者のアクション」 (の, but ends in ン). Recorded as untested rather
+#: than left looking covered.
+_CASE_PARTICLES: tuple[str, ...] = ("を", "と", "が", "に", "へ", "で")
+
+#: The う-row kana a Japanese verb ends its dictionary form with. Not a
+#: morphological analyser - adding one is an open question in section E and
+#: not a thing to decide inside a caveat - just the last character, which is
+#: only consulted when a case particle is also present.
+_VERB_TAIL: tuple[str, ...] = ("う", "く", "ぐ", "す", "つ", "ぬ", "ぶ", "む", "る")
+
+
+def _is_whole_clause(subject: str) -> bool:
+    """Whether this is a clause rather than the thing the request was about.
+
+    C-1524. C-1503 stopped the caveat opening with a particle and C-1514
+    stopped it closing with one, and 「巨大な敵と戦うゲームを作って」 still
+    left 「敵と戦う」 - quoted back on the kaiju page, which is the
+    fight-the-monster template, so the product said it could not draw the
+    one thing it had drawn.
+
+    **Both halves are needed, and each was measured.** A case particle alone
+    is not enough: 「犬と猫」, 「海と山」, 「パンとご飯」 and 「宝石と鍵」 are
+    lists of subjects and every one carries 「と」. A verb ending alone is not
+    enough either - the item warned about this and it was right - because
+    「走る」, 「光る」 and 「回る」 are subjects a request may name and they end
+    like verbs. What no subject in the measured set does is *both*.
+
+    The residual risk, stated rather than hidden: a list whose last noun ends
+    in a う-row kana (「犬とさる」) reads as a clause and is silenced. Silence
+    is the safe direction here - the caveat is an admission, and not making
+    it costs less than making a false one.
+    """
+
+    if not subject:
+        return False
+    return any(p in subject for p in _CASE_PARTICLES) and subject.endswith(_VERB_TAIL)
 
 
 def _is_quotable_subject(subject: str, request: str) -> bool:

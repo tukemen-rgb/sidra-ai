@@ -16007,10 +16007,27 @@ def measure_creation(c: Collector) -> None:
         "巨大な敵と戦うゲームを作って",
         "山を登るゲームを作って",
         "空を飛ぶゲームを作って",
+        # C-1524: the whole clause, and the two shapes that must survive it -
+        # a list of subjects joined by 「と」, and a subject that ends like a
+        # verb. Both were measured before the rule was written, because
+        # either half of it alone silences one of them.
+        "宝の地図を探すゲームを作って",
+        "空に浮かぶゲームを作って",
+        "犬と猫のゲームを作って",
+        "海と山のゲームを作って",
+        "走るゲームを作って",
+        "光るゲームを作って",
     )
     # The two the caveat exists for: a subject the page does not draw. If
     # these stop being said, silence is being scored as faithfulness.
-    _QUOTE_MUST_SPEAK = ("猫のゲームを作って", "魚の 3D ゲームを作って")
+    _QUOTE_MUST_SPEAK = (
+        "猫のゲームを作って",
+        "魚の 3D ゲームを作って",
+        # C-1524: the shapes the clause rule comes closest to eating. If
+        # these fall silent, the rule has been widened past what it measured.
+        "犬と猫のゲームを作って",
+        "走るゲームを作って",
+    )
     _QUOTE_GLUE = ("を", "が", "に", "へ", "と", "で", "の", "は", "も", "や")
 
     quote_said: dict[str, str] = {}
@@ -16039,6 +16056,13 @@ def measure_creation(c: Collector) -> None:
             # C-1514. Same rule, other end: 「コースを」 quotes the operator
             # saying a fragment of their sentence, not what they asked for.
             quote_bad.append(f"「{_quote_sub}」は助詞で終わる（{_quote_ask[:14]}）")
+        elif any(g in _quote_sub for g in ("を", "と", "が", "に", "へ", "で")) and (
+            _quote_sub.endswith(("う", "く", "ぐ", "す", "つ", "ぬ", "ぶ", "む", "る"))
+        ):
+            # C-1524. Both halves, because either alone is wrong: 「犬と猫」
+            # carries 「と」 and 「走る」 ends like a verb, and both are things
+            # a request may be about.
+            quote_bad.append(f"「{_quote_sub}」は節（{_quote_ask[:14]}）")
 
     silent = [ask for ask in _QUOTE_MUST_SPEAK if ask not in quote_said]
     if silent:

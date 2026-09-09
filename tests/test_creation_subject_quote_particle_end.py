@@ -39,29 +39,27 @@ def test_the_trailing_particle_is_not_part_of_the_subject(request_text, want) ->
 
 
 @pytest.mark.parametrize(
-    "request_text,still",
+    "request_text",
     [
-        ("山を登るゲームを作って", "山を登る"),
-        ("空を飛ぶゲームを作って", "空を飛ぶ"),
-        ("巨大な敵と戦うゲームを作って", "敵と戦う"),
-        ("宝の地図を探すゲームを作って", "宝の地図を探す"),
+        "山を登るゲームを作って",
+        "空を飛ぶゲームを作って",
+        "巨大な敵と戦うゲームを作って",
+        "宝の地図を探すゲームを作って",
     ],
 )
-def test_a_whole_clause_is_a_different_defect_and_is_not_fixed_here(
-    request_text: str, still: str
-) -> None:
-    """Measured while fixing the particle, and left alone deliberately.
+def test_the_clause_this_test_used_to_pin_as_unfixed_is_closed(request_text: str) -> None:
+    """This pinned the defect until C-1524 closed it.
 
-    These do not end in a particle - they end in a verb - so the rule this
-    item asked for cannot reach them. What they quote is a *clause*: the
-    page says 「『敵と戦う』は絵として出てきません」 on the kaiju template,
-    which is the fight-the-monster page. That is a second kind of
-    unfaithful quote and it needs its own measurement, so it is recorded
-    rather than guessed at. This test pins today's behaviour so the next
-    loop can see it move.
+    C-1514 measured these while fixing the trailing particle and could not
+    reach them - they end in a verb, not a particle - so it recorded
+    today's behaviour here for the next loop to move. It moved: C-1524
+    silences a residue that carries a case particle *and* ends like a verb.
+    The assertion is inverted rather than deleted, so a regression to
+    quoting the clause has to fail somewhere.
     """
 
-    assert _subject(request_text) == still
+    assert _subject(request_text) not in (request_text, "")
+    assert len(_subject(request_text)) < 5
 
 
 @pytest.mark.parametrize(
