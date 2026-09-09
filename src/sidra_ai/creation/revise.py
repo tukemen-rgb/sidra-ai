@@ -79,6 +79,14 @@ _BACK_REFERENCES: tuple[str, ...] = (
     "その",
     "これ",
     "この",
+    # C-1513: 「忍者のやつを紙のテーマにして」 pointed at an existing page as
+    # plainly as 「それ」 does and was declined, because やつ was in no table -
+    # so 「さっきのやつ」 worked (さっき carried it) and 「忍者のやつ」 did not.
+    # Safe for the same reason the demonstratives are: the make-verb,
+    # question-marker and adjustment vetoes still gate every message, so
+    # 「面白いやつを作って」 stays with the creation detector and 「あのやつは
+    # 何ですか」 keeps its question marker.
+    "やつ",
 )
 
 #: Adjustment vocabulary. Speed words map onto the difficulty ladder because
@@ -126,6 +134,20 @@ _ACCENT_WORDS: dict[str, str] = {
 _DAILY_WORDS: tuple[str, ...] = ("日替わり", "ひがわり", "今日の挑戦")
 _BRIEF_WORDS: tuple[str, ...] = ("ブリーフィング", "説明画面", "作戦説明")
 _OFF_WORDS: tuple[str, ...] = ("やめて", "止めて", "解除", "オフ", "off", "無し", "なしで", "飛ばして", "スキップ")
+
+#: Undo, in words (C-1513). The product ends every revision with 「旧版の
+#: ファイルもそのまま残っています」 - a promise about files the operator had
+#: no sentence for. These are the sentences.
+#:
+#: Bare 「戻して」 is deliberately absent: it is already a ``_CHANGE_VERBS``
+#: entry, and 「タイトルを『夜』に戻して」 is a rename, not an undo. Only the
+#: explicit idioms are here, and even they yield to any other recognised
+#: adjustment (see ``detect_revision_intent``), so 「タイトルを元に戻して」
+#: keeps the meaning it has today.
+_REVERT_WORDS: tuple[str, ...] = (
+    "元に戻", "もとに戻", "元にもど", "もとにもど",
+    "元通り", "もとどおり", "取り消し", "取消し", "取り消して", "取消して",
+)
 
 #: 「タイトルを「◯◯」にして」/「名前を◯◯に変えて」. The quoted form wins
 #: when both appear; the unquoted form stops at the particle.
@@ -269,6 +291,15 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         adjustments["title"] = match.group(1)
         evidence.append("title")
 
+    # C-1513, and last on purpose: 「元に戻して」 means *undo the last change*,
+    # so it only speaks when the message named no change of its own. That
+    # keeps 「タイトルを元に戻して」 a rename to 「元」 - the behaviour it has
+    # today - instead of quietly turning it into a whole-page undo, and it
+    # is the conservative half of an ambiguity rather than a guess at it.
+    if not adjustments and any(fold_kana(word) in text for word in _REVERT_WORDS):
+        adjustments["revert"] = "1"
+        evidence.append("revert")
+
     if not adjustments:
         # A back-reference and a change verb with nothing recognisable to
         # change. Reported as a non-revision so the question path can at
@@ -396,7 +427,13 @@ def _targeting_text(message: str) -> str:
 #: together by the kana, and every bigram of it carries hiragana, which is
 #: why ``subject_terms`` cannot see 猫 either (measured, C-1512).
 #:
-#: The trigger is deliberately 「ゲーム」 and not 「ほう」/「やつ」. Those were
+#: 「やつ」 joined the trigger in C-1513, in the same change that made it a
+#: referent: 「忍者のやつを紙のテーマにして」 became a revision, and with it
+#: 「将棋のやつを難しくして」 became a *silent* one - measured, and exactly the
+#: failure C-1511b had just closed for 「〜のゲーム」. A word that can point at
+#: a page can also name one that is not there.
+#:
+#: The trigger is deliberately not 「ほう」. That was
 #: the phrasings the split warned would over-refuse (「色のほうを変えて」,
 #: 「難易度のほうを上げて」) - and measuring them first, as the item asked,
 #: showed the warning pointed at the wrong risk twice over: neither is a
@@ -404,7 +441,7 @@ def _targeting_text(message: str) -> str:
 #: because 「色」 and 「難易度」 without a referent are not evidence a game is
 #: meant), and requiring the word ゲーム excludes them anyway. What is left
 #: is the sentence that says, in so many words, "the X game".
-_NAMED_SUBJECT = re.compile(r"([゠-ヿ一-鿿A-Za-z0-9]{1,12})の(?:ゲーム|げーむ)")
+_NAMED_SUBJECT = re.compile(r"([゠-ヿ一-鿿A-Za-z0-9]{1,12})の(?:ゲーム|げーむ|やつ)")
 
 #: Words that answer *which one*, not *what about*. 「前のゲームを簡単にして」
 #: and 「今のゲームを紙の配色にしてもらえますか」 are shipped phrasings (both
@@ -468,6 +505,43 @@ def existing_titles(data_dir: str | Path) -> list[str]:
             if title and title not in titles:
                 titles.append(title)
     return titles
+
+
+def _previous_version(
+    data_dir: str | Path, target: Path, meta: dict
+) -> tuple[Path, dict] | None:
+    """The version saved just before ``target`` in its own chain.
+
+    A revision rebuilds from the *same* request text and writes a new file
+    next to the old one, so the request is what ties a chain together - not
+    the filename, which only carries a timestamp, and not the title, which
+    a rename changes halfway along. Ordered by mtime like everything else
+    here, so a same-second revision does not sort backwards.
+
+    Two games made from the identical request text share a chain. That is
+    the honest reading: they are the same page made twice, and undoing one
+    to the other is what 「元に戻して」 asks for.
+    """
+
+    directory = Path(data_dir) / "artifacts"
+    if not directory.is_dir():
+        return None
+    chain: list[tuple[Path, dict]] = []
+    for path in sorted(
+        directory.glob("game-*.meta.json"), key=lambda p: (p.stat().st_mtime, p.name)
+    ):
+        other = _load_meta(path)
+        if other is None or other["template"] not in TEMPLATES:
+            continue
+        if other.get("request") != meta.get("request"):
+            continue
+        if other.get("template") != meta.get("template"):
+            continue
+        chain.append((path, other))
+    for index, (path, _) in enumerate(chain):
+        if path == target:
+            return chain[index - 1] if index else None
+    return None
 
 
 def find_target_meta(data_dir: str | Path, message: str) -> tuple[Path, dict] | None:
@@ -636,7 +710,28 @@ def build_game_reviser(data_dir: str | Path):
                 summary=summary,
                 details={"revision": intent.adjustments, "target": ""},
             )
-        _, meta = found
+        target_path, meta = found
+
+        # C-1513: 「元に戻して」. Every revision signs off with 「旧版のファイル
+        # もそのまま残っています」 - and until now there was no sentence that
+        # reached them, so the product promised a history nobody could walk.
+        # Undo is not a delete: the older parameters are rebuilt into a new
+        # file, so the version being left behind survives too and a second
+        # 「元に戻して」 walks forward again rather than falling off the end.
+        undone_from: dict | None = None
+        if "revert" in intent.adjustments:
+            previous = _previous_version(data_dir, target_path, meta)
+            if previous is None:
+                return CreationOutcome(
+                    kind=CreationKind.GAME,
+                    handled=True,
+                    summary=(
+                        f"「{meta.get('title') or 'ゲーム'}」はまだ一度も修正して"
+                        "いないので、戻せる前の版がありません。"
+                    ),
+                    details={"revision": intent.adjustments, "target": str(target_path)},
+                )
+            undone_from, meta = meta, previous[1]
 
         difficulty = meta["difficulty"]
         if "difficulty" in intent.adjustments:
@@ -696,6 +791,23 @@ def build_game_reviser(data_dir: str | Path):
             f"「{game.title}」を修正しました: " + "、".join(changed) + "。"
             "旧版のファイルもそのまま残っています。"
         )
+        if undone_from is not None:
+            # Said against the state the operator is *leaving*, because that
+            # is the change they watched happen. Comparing against the
+            # restored version would print 「変更なし」 - true of the rebuild
+            # and useless to the person who asked.
+            undone: list[str] = []
+            if game.difficulty != undone_from.get("difficulty"):
+                undone.append(f"難易度 {undone_from.get('difficulty')}→{game.difficulty}")
+            if theme != undone_from.get("theme", ""):
+                undone.append(f"配色 {theme or '既定'}")
+            if game.title != undone_from.get("title", ""):
+                undone.append(f"タイトル「{game.title}」")
+            summary = (
+                f"「{game.title}」を一つ前の版に戻しました"
+                + (": " + "、".join(undone) + "。" if undone else "。")
+                + "戻す前のファイルもそのまま残っています。"
+            )
         if not verdict["playable"]:
             summary = (
                 f"「{game.title}」を修正しましたが、遊べる状態ではありません: "

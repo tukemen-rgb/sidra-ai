@@ -15824,6 +15824,140 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 「〜のやつ」と「元に戻して」 (C-1513) ----------------------------
+    #
+    # Two sentences the product invited and did not accept. 「忍者のやつを
+    # 紙のテーマにして」 points at a page as plainly as 「それ」 does and was
+    # declined because やつ was in no table. And every revision signs off
+    # with 「旧版のファイルもそのまま残っています」 - a promise about files no
+    # sentence could reach.
+    #
+    # Driven through the real router and the real reviser on a real data
+    # directory. Both directions each time: the vetoes that keep a revision
+    # from stealing a question or a creation request are re-measured here,
+    # because a referent that swallows them would score full marks on the
+    # first half alone.
+    import pathlib as _pathlib
+
+    _undo_dir = _tempfile.mkdtemp(prefix="metrics-undo-")
+    _undo_router = _absent_router_factory(data_dir=_undo_dir)
+    for _request in ("忍者のゲームを作って", "宇宙のシューティングを作って"):
+        _undo_router.route(_request, _absent_intent(_request), [])
+        time.sleep(1.1)
+    _undo_revise = _build_reviser(_undo_dir)
+
+    _that_ok, _that_bad = [], []
+    for _message, _want in (
+        ("忍者のやつを紙のテーマにして", "theme"),
+        ("そのやつを難しくして", "difficulty"),
+        ("さっきのやつを赤にして", "accent"),
+    ):
+        if _want in _detect_revision(_message).adjustments:
+            _that_ok.append(_message)
+        else:
+            _that_bad.append(f"{_message}: 修正依頼として通らない")
+    # The vetoes, and the targeting hole this change opened and closed.
+    for _message, _why in (
+        ("面白いやつを作って", "制作依頼を横取りしない"),
+        ("そのやつは何ですか", "質問を横取りしない"),
+        ("そのやつをどうにかして", "何を変えるか分からないものは断る"),
+    ):
+        if _detect_revision(_message).is_revision:
+            _that_bad.append(f"{_why}: {_message} が修正依頼になった")
+    for _message in ("将棋のやつを難しくして", "猫のやつを赤にして"):
+        if _find_target(_undo_dir, _message) is not None:
+            _that_bad.append(f"{_message}: 無い名指しが黙って最新に落ちた")
+    for _message, _want in (
+        ("忍者のやつを難しくして", "忍者"),
+        ("シューティングのやつを難しくして", "宇宙のシューティング"),
+        ("さっきのやつを難しくして", "宇宙のシューティング"),
+        ("前のやつを難しくして", "宇宙のシューティング"),
+    ):
+        _found = _find_target(_undo_dir, _message)
+        if _found is None or _found[1].get("title") != _want:
+            _that_bad.append(f"{_message}: 届かなくなった")
+
+    c.add(
+        "creation_revision_that_one",
+        "「〜のやつ」が修正依頼として通じる",
+        0.0 if _that_bad else 1.0,
+        detail=(
+            "; ".join(_that_bad)
+            if _that_bad
+            else "**実際の検出器と修正器を実データ上で走らせて測った**。"
+            f"「〜のやつ」で指す修正 **{len(_that_ok)} 通り**は通る"
+            "（配色・難易度・差し色）。"
+            "**両方向**: 制作依頼「面白いやつを作って」・質問「そのやつは"
+            "何ですか」・変更先の無い「そのやつをどうにかして」は**今も断る**"
+            "——片方だけなら「全部通す」実装が満点を取る。"
+            "**この変更が開けた穴も閉じてある**: やつ が指示語になったことで"
+            "「将棋のやつを難しくして」が**黙って最新を編集する**ようになったのを"
+            "実測し（C-1511b が「〜のゲーム」で閉じたのと同じ欠陥）、"
+            "同じ規則の引き金に やつ を足した"
+        ),
+        kind=OUTCOME,
+    )
+
+    # Undo, end to end: make, change, undo - and check the file the operator
+    # was told is still there really is.
+    _undo_bad, _undo_note = [], []
+    _undo_hard = "忍者のやつを難しくして"
+    _undo_revise(_undo_hard, _detect_revision(_undo_hard))
+    time.sleep(1.1)
+    _undo_before = _find_target(_undo_dir, "忍者のやつを難しくして")
+    if _undo_before is None or _undo_before[1]["difficulty"] != "hard":
+        _undo_bad.append("下準備の修正が効いていない")
+    else:
+        _undo_msg = "忍者のやつの変更を元に戻して"
+        _undo_out = _undo_revise(_undo_msg, _detect_revision(_undo_msg))
+        time.sleep(1.1)
+        _undo_after = _find_target(_undo_dir, "忍者のやつを難しくして")
+        if "一つ前の版に戻しました" not in _undo_out.summary:
+            _undo_bad.append(f"戻した と言わない: {_undo_out.summary[:40]}")
+        if _undo_after is None or _undo_after[1]["difficulty"] != "normal":
+            _undo_bad.append("戻したのに難易度が戻っていない")
+        _undo_kept = len(list(
+            (_pathlib.Path(_undo_dir) / "artifacts").glob("game-fishing-*.meta.json")
+        ))
+        if _undo_kept < 3:
+            _undo_bad.append(f"置いていく版が消えた（{_undo_kept} 件）")
+        else:
+            _undo_note.append(f"版は {_undo_kept} 件とも残っている")
+    # Both directions: a named change still wins the ambiguity, an undo with
+    # nothing to undo says so, and a bare undo is still not a revision.
+    if _detect_revision("さっきのゲームのタイトルを元に戻して").adjustments != {"title": "元"}:
+        _undo_bad.append("「タイトルを元に戻して」の意味が変わった")
+    if _detect_revision("元に戻して").is_revision:
+        _undo_bad.append("指示語の無い「元に戻して」が修正依頼になった")
+    _undo_fresh = _tempfile.mkdtemp(prefix="metrics-undo-fresh-")
+    _fresh_router = _absent_router_factory(data_dir=_undo_fresh)
+    _fresh_router.route("猫のゲームを作って", _absent_intent("猫のゲームを作って"), [])
+    _fresh_msg = "さっきのゲームを元に戻して"
+    _fresh_out = _build_reviser(_undo_fresh)(_fresh_msg, _detect_revision(_fresh_msg))
+    if "戻せる前の版がありません" not in _fresh_out.summary:
+        _undo_bad.append(f"戻す先が無いのに戻したと言う: {_fresh_out.summary[:40]}")
+
+    c.add(
+        "creation_revision_undo",
+        "「元に戻して」で一つ前の版に戻せる",
+        0.0 if _undo_bad else 1.0,
+        detail=(
+            "; ".join(_undo_bad)
+            if _undo_bad
+            else "**実際の修正器を実データ上で走らせて測った**。作る→難しくする→"
+            "「元に戻して」で**難易度が hard→normal に戻り**、"
+            f"{('・'.join(_undo_note))}——"
+            "**取り消しは削除ではない**（製品が毎回「旧版のファイルもそのまま"
+            "残っています」と言う約束の側を壊さない）。"
+            "**両方向**: 「タイトルを元に戻して」は**今も「元」への改名**"
+            "（取り消しは他の変更が名指しされていないときだけ話す）、"
+            "指示語の無い「元に戻して」は**今も修正依頼にしない**、"
+            "戻す先が無いときは**「戻せる前の版がありません」と言う**"
+            "——片方だけなら「何でも戻す」実装が満点を取る"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the number said where it was earned (§1, C-1418) ----------------
     #
     # The score has only ever moved as a total in the corner, so which act
