@@ -97,6 +97,33 @@ let TRAIL=[];
    drawn here goes through this one function, so "3D" is this line. */
 function proj(x,y,z){const d=Math.max(NEAR,z);
   return {x:W/2+x*FOV/d,y:H*0.62-(y-EYE)*FOV/d,s:FOV/d}}
+/* The far layer (§7 観察 7, C-1620): this is the one template where the
+   distance is a real axis - proj() is a perspective divide, and the floor
+   runs to a horizon at proj(0,0,FAR). The three planes have been drawn
+   since the template landed: the band above the horizon in BG, the floor
+   rungs fading with distance, the marble in front. What was missing was
+   the CONTRACT, so nothing stopped the fade from being flattened by a
+   later edit. FAR_FADE is the floor the rungs stop at; the judge blends
+   it over the sky and holds it visible (>=1.02:1) yet fainter than a rung
+   at full strength.
+   Writing the contract found a real hole. The floor had been 0.08, and
+   driven across four themes and three scenes that lands at 1.013-1.041:1
+   against the sky - BELOW the 1.02 the contract asks for in four of the
+   twelve cells (all three default acts and the paper theme's second), so
+   the far end of the corridor was not faint, it was gone. 0.14 is the
+   first step that clears every cell (1.027-1.083:1) and is still a long
+   way under the near rung's own 1.223-1.573.
+   (C-1400's claim called this template 真上視点 and left it out of the
+   contract on that basis, and this file's first draft of the numbers
+   above repeated C-1400's other mistake - reading scenePaint from a page
+   that had not run its start sequence. Both are corrected in the record;
+   the figures here are from the driven page.) */
+const FAR_FADE=0.14;
+function depthFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
+      alpha:FAR_FADE})}
+  SCENE=keep;return out}
 function reset(){ball={x:0,y:8,z:0,vx:0};gates=0;score=0;hotTaken=0;hotTotal=0;
   t=0;state='roll';over='';TRAIL=[];
   rs=(SEED>>>0)||1;things=[];
@@ -222,7 +249,7 @@ function step(rt){
   const first=Math.ceil(ball.z/60)*60;
   for(let z=first;z<ball.z+FAR;z+=60){const d=z-ball.z;
     const a=proj(-LANE,0,d),b=proj(LANE,0,d);
-    cx.globalAlpha=Math.max(0.08,1-d/FAR);cx.beginPath();
+    cx.globalAlpha=Math.max(FAR_FADE,1-d/FAR);cx.beginPath();
     cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);cx.stroke()}
   cx.globalAlpha=1;
   const ahead=things.filter(o=>!o.done&&o.z-ball.z<FAR&&o.z-ball.z>NEAR)
@@ -440,6 +467,7 @@ const hud = hudFacts();
 console.log(JSON.stringify({
   scenes: palette.scenes,
   hud: hud,
+  depth: depthFacts(),
   sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
   state: end.state, z: end.z, course: end.course, gates: end.gates,
   score: end.score, hotTotal: end.hotTotal, hotTaken: end.hotTaken,
@@ -805,7 +833,120 @@ def face_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The corridor's fade, as painted (§7 観察 7, C-1620). One real frame
+#: is recorded and the rungs' alphas read back: they must fall with the
+#: distance and stop at FAR_FADE, while the marble in front stays solid.
+FADE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+/* The clock ticks with the frames (C-1348's lesson): a zero-pinned
+   performance.now freezes the wall-clock FRAME and the blink never
+   comes. */
+let CLOCK = 0;
+globalThis.performance = { now: () => CLOCK };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => rec }) };
+/* The eyes have to reach the PAINT, not just the contract (C-1615's
+   lesson). Every fillRect of a frame is kept; the eyes are the only ones
+   narrower than a few pixels. */
+let STROKES = [], BALL_ALPHAS = [], ARCS = 0;
+const CTX = { globalAlpha: 1, fillStyle: '', strokeStyle: '', lineWidth: 1,
+  font: '', textAlign: '' };
+const rec = new Proxy(CTX, {
+  get(t, k){
+    if (k in t && typeof t[k] !== 'function') return t[k];
+    if (k === 'stroke') return () => { STROKES.push(CTX.globalAlpha) };
+    if (k === 'arc') return () => { ARCS++ };
+    /* The marble is drawn as filled arcs, last and nearest. */
+    if (k === 'fill') return () => { if (ARCS) BALL_ALPHAS.push(CTX.globalAlpha) };
+    if (k === 'beginPath') return () => { ARCS = 0 };
+    if (k === 'createLinearGradient' || k === 'createRadialGradient')
+      return () => ({ addColorStop(){} });
+    if (k === 'measureText') return () => ({ width: 10 });
+    if (k in t) return t[k];
+    return () => undefined },
+  set(t, k, v){ t[k] = v; return true } });
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+STROKES = [];
+run(1);
+/* The floor rungs are the strokes; they are laid down near-to-far, so
+   their alphas should fall as the distance grows and stop at FAR_FADE. */
+/* The frame strokes the two rails at full strength, then the rungs (the
+   only run that fades with distance), then the ghosts at their own fixed
+   alphas. The rungs are the leading non-increasing run of faded strokes. */
+const all = STROKES.map(a => Math.round(a * 1e6) / 1e6);
+const start = all.findIndex(a => a < 1);
+const rungs = [];
+for (let i = start; i >= 0 && i < all.length; i++) {
+  if (all[i] >= 1) break;
+  if (rungs.length && all[i] > rungs[rungs.length - 1] + 1e-9) break;
+  rungs.push(all[i]);
+}
+let monotone = true;
+for (let i = 1; i < rungs.length; i++) { if (rungs[i] > rungs[i - 1] + 1e-9) monotone = false }
+console.log(JSON.stringify({
+  rails: start, rungs: rungs.length,
+  first: rungs[0], last: rungs[rungs.length - 1],
+  monotone: monotone, floor: FAR_FADE,
+  atFloor: rungs.filter(a => Math.abs(a - FAR_FADE) < 1e-9).length,
+  /* The marble is the last two filled arcs - its body and the lit
+     highlight on it. Reading only the last one would miss a body
+     hazed under an opaque highlight. */
+  nearestSolid: BALL_ALPHAS.length >= 2
+    && BALL_ALPHAS.slice(-2).every(a => a === 1) ? 1 : 0
+}));
+"""
+
+
+def fade_probe(script: str) -> str:
+    """The page's own script, wrapped so the corridor's fade can be read."""
+
+    return FADE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "FADE_PROBE",
+    "fade_probe",
     "FACE_PROBE",
     "face_probe",
     "PAN_PROBE",

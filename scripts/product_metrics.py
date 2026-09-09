@@ -5529,6 +5529,10 @@ def measure_creation(c: Collector) -> None:
         "catch",
         "fishing",
         "racing",
+        # C-1620: the one template whose distance is a real perspective
+        # axis, left out of the contract by C-1400 on a mistaken reading
+        # of it as top-down. Its three planes were already drawn.
+        "marble",
     )
     depth_seen = {label for label in scene_depth}
     for label in sorted(depth_seen):
@@ -5554,6 +5558,44 @@ def measure_creation(c: Collector) -> None:
         f"{key}/{s or 'default'}" for key in _depth_all for s in _scene_themes
     } - depth_seen:
         depth_gaps.append(f"{missing}: no depth contract reported")
+    # ...and for marble the contract is checked against the PAINT too
+    # (C-1620): a declared alpha that never reaches a stroke is not a fade.
+    # One extra node run; the contract above rides the scene probes.
+    from sidra_ai.creation.marble import fade_probe as _mfade_probe
+
+    _mfd_page = generate_game("玉転がしゲームを作って").html
+    _mfd_script = _scene_re.search(r"<script>(.*?)</script>", _mfd_page, _scene_re.S)
+    if _mfd_script is None:
+        depth_gaps.append("marble: no script for the fade read")
+    else:
+        try:
+            _mfd_run = _scene_sp.run(
+                ["node", "-"],
+                input=_mfade_probe(_mfd_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _mfd_run.returncode != 0:
+                raise ValueError(_mfd_run.stderr.strip()[:60])
+            _mfd = json.loads(_mfd_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            depth_gaps.append(f"marble: fade probe unavailable ({exc})")
+        else:
+            if (_mfd.get("rungs") or 0) < 5:
+                depth_gaps.append(
+                    f"marble: only {_mfd.get('rungs')} rungs fade with distance"
+                )
+            elif not _mfd.get("monotone"):
+                depth_gaps.append("marble: the floor does not fade with distance")
+            elif abs((_mfd.get("last") or 0) - (_mfd.get("floor") or -1)) > 1e-9:
+                depth_gaps.append(
+                    f"marble: the far end stops at {_mfd.get('last')}, not the floor"
+                )
+            elif (_mfd.get("first") or 0) <= (_mfd.get("floor") or 0):
+                depth_gaps.append("marble: the near end is as faint as the far end")
+            elif _mfd.get("nearestSolid") != 1:
+                depth_gaps.append("marble: the nearest body is not solid")
     # C-1345 redefined the value from 0/1 to the NUMBER of templates whose
     # far-layer contract holds - any gap anywhere still collapses it to 0
     # (両定義: 旧 0/1 は kaiju 時点で 1、新定義の変更前は duel が未報告の
@@ -5563,7 +5605,7 @@ def measure_creation(c: Collector) -> None:
         "遠景は淡く近景は濃い型",
         float(len(_depth_all)) if not depth_gaps else 0.0,
         detail=(
-            "kaiju・duel・platformer・shooter・catch・fishing・racing × 4 テーマ × 全 3 場面で、遠景（中景と"
+            "kaiju・duel・platformer・shooter・catch・fishing・racing・marble × 4 テーマ × 全 3 場面で、遠景（中景と"
             "同じ塗りを α 合成で霞ませたもの）が空より見えて（≥1.02:1）中景"
             "のシルエットより淡いことを実測（§7 観察 7 の 3 層。platformer の"
             "尾根は C-1354 で契約化——旧 0.22 は既定テーマで 1.010〜1.017:1 と"
@@ -5578,7 +5620,18 @@ def measure_creation(c: Collector) -> None:
             "境界を二色の路肩マークに担わせたのはこのため）。値を持つのは"
             "border 対 surface の対（実測 1.212〜1.650:1）で、そちらに静止の"
             "尾根を 0.45 で置いて全 12 セル 1.095〜1.292:1。路肩ペア・"
-            "スタート/フィニッシュ帯・障害物・ゴースト・残像・車は不透明のまま）"
+            "スタート/フィニッシュ帯・障害物・ゴースト・残像・車は不透明のまま。"
+            "marble は C-1620 で 8 型目。10 型で唯一 proj() の透視除算と "
+            "proj(0,0,FAR) の地平線を持つ型で、地平線上の帯・距離で淡くなる床の桟・"
+            "最前の玉という 3 層は最初から描かれていたのに契約が無かった。"
+            "**契約を書いたら本物の穴が出た**——床の下限は 0.08 で、実駆動では"
+            "空に対し 1.013〜1.041:1＝**12 セル中 4 セル（既定テーマの全 3 幕と"
+            "紙テーマの第 2 幕）で下限 1.02 を下回り**、回廊の遠端は淡いのではなく"
+            "見えていなかった。全セルを通す最初の刻みが 0.14（1.027〜1.083:1）で、"
+            "近端の桟 1.223〜1.573 よりは依然ずっと淡い。"
+            "塗りまで届いていることも実測: 実フレームで手すり 2 本は不透明、"
+            "桟 15 本が 0.954 から単調に下がって下限で止まり、最前の玉は α=1。"
+            "C-1400 の確保文が「marble=真上視点」と書いたのは事実誤認で、記録側で訂正した）"
             if not depth_gaps
             else "; ".join(depth_gaps)
         ),
