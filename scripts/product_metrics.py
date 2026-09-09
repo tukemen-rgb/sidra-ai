@@ -10080,6 +10080,86 @@ def measure_creation(c: Collector) -> None:
             )
         if _bt.get("smokeLeft"):
             beat_gaps.append(f"{_bt_label}: the smoke never clears")
+    # --- the monster's own two blows -----------------------------------
+    #
+    # §6 観察 2 reads a hit as three beats - flash, smoke that stays, the
+    # silhouette back out of it - and C-1343 gave them to adventure's
+    # guard. The creature the section is ABOUT had them on the leg and
+    # only the flash on the head (C-1615), which is the biggest blow in
+    # the fight: it turns a cycle and, on the third, wins. Every other
+    # channel was already heavier for it (shake 3->7, hitstop 4->6).
+    from sidra_ai.creation.kaiju import beats_probe as _kb_beats_probe
+
+    kbeat_gaps: list[str] = []
+    _kb_page = generate_game("巨大怪獣と戦うゲームを作って").html
+    _kb_script = _scene_re.search(r"<script>(.*?)</script>", _kb_page, _scene_re.S)
+    _kb: dict = {}
+    if _kb_script is None:
+        kbeat_gaps.append("kaiju: no script")
+    else:
+        try:
+            _kb_run = _scene_sp.run(
+                ["node", "-"],
+                input=_kb_beats_probe(_kb_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _kb_run.returncode != 0:
+                raise ValueError(_kb_run.stderr.strip()[:60])
+            _kb = json.loads(_kb_run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            kbeat_gaps.append(f"kaiju: probe unavailable ({exc})")
+    if _kb:
+        for _which in ("leg", "head"):
+            _blow = _kb.get(_which) or {}
+            if not _blow.get("landed"):
+                kbeat_gaps.append(f"kaiju/{_which}: the blow never landed")
+            elif not _blow.get("hurtAtHit"):
+                kbeat_gaps.append(f"kaiju/{_which}: the blow never flashes")
+            elif not _blow.get("smokeAtHit"):
+                kbeat_gaps.append(f"kaiju/{_which}: the blow leaves no smoke")
+            elif _blow.get("smokeAfterFlash", 0) < 15:
+                kbeat_gaps.append(
+                    f"kaiju/{_which}: the smoke dies with the flash "
+                    f"({_blow.get('smokeAfterFlash')} frames past it)"
+                )
+            elif _blow.get("smokeLeft"):
+                kbeat_gaps.append(f"kaiju/{_which}: the smoke never clears")
+        _leg, _head = _kb.get("leg") or {}, _kb.get("head") or {}
+        if _leg.get("landed") and _head.get("landed") and not kbeat_gaps:
+            # The weighting the shake and the hitstop already carry.
+            if _head.get("smokeAtHit", 0) <= _leg.get("smokeAtHit", 0):
+                kbeat_gaps.append(
+                    "kaiju: the head's smoke is no heavier than the leg's "
+                    f"({_head.get('smokeAtHit')} vs {_leg.get('smokeAtHit')})"
+                )
+            # Smoke hangs where the blow landed, not where the leg is: the
+            # head retreats off-screen on the next line, so the height has
+            # to be caught at the moment of the hit.
+            elif _head.get("smokeY") == _leg.get("smokeY"):
+                kbeat_gaps.append(
+                    f"kaiju: both smokes hang at the same height ({_leg.get('smokeY')})"
+                )
+    c.add(
+        "creation_kaiju_hit_beats",
+        "怪獣の被弾が脚も頭も 3 段で読める",
+        0.0 if kbeat_gaps else 2.0,
+        detail=(
+            "; ".join(kbeat_gaps)
+            if kbeat_gaps
+            else "実ページで本当に戦い、脚と頭の**両方**を撃って 1 フレームずつ読んだ: "
+            "脚は閃光 8・煙 34・煙は閃光より 26 フレーム長く残って晴れる、"
+            "頭は閃光 12・煙 **51**・39 フレーム長く残って晴れる。"
+            "頭の煙は脚より重く（揺れ 3→7・hitstop 4→6 が既に持っていた重みを"
+            "煙も持つ）、煙の高さは**当たった場所**に付く（脚 y=204／頭 y=124）"
+            "——頭は当たった次の行で画面外 -160 へ退くので、高さは立てた瞬間に"
+            "捕まえている。C-1615 以前は頭が `boss.hurt=12` だけで煙を立てず、"
+            "3 段のうち 1 段しか鳴らない最大の見せ場だった（§6 観察 2）"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_guard_hit_beats",
         "番人の被弾が 3 段で読める",

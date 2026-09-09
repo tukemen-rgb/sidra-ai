@@ -89,7 +89,7 @@ function reset(){
      they make after that, not a toll before it. */
   me={x:W*0.68,hp:3,step:0,cool:0,kvx:0,sq:1,mz:0};
   shots=[];cracks=[];dust=[];t=0;cycles=0;state='wake';
-  boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0};}
+  boss={phase:'leg',legHp:LEGHP,head:-160,timer:BEAT,shown:false,hurt:0,smoke:0,smokeY:GROUND-70};}
 setPal(KAIJU_PAL_TOKEN);
 /* HUD contract (§4 WCAG 1.4.3, C-1334): draw() paints the HUD through
    these constants and hudFacts() reports them, so the metric can blend
@@ -111,6 +111,11 @@ function depthFacts(){const keep=SCENE,out=[];
     out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
       alpha:FAR_A})}
   SCENE=keep;return out}
+/* The two smokes (§6 観察 2). The leg's 34 was C-1032's; the head's is
+   that raised by the flash's own ratio (12/8), so the weighting the
+   shake and the hitstop already carry is the weighting the smoke
+   carries too. */
+const LEG_SMOKE=34,HEAD_SMOKE=51;
 function legX(){return W*0.72+Math.sin(t/90)*26}
 function fire(){if(state!=='fight')return;
   /* A press during the cooldown is kept, not dropped (§12, C-1311): one
@@ -127,13 +132,23 @@ function fire(){if(state!=='fight')return;
        the same two the shooter's in-step shoot() gets. */
     me.mz=3}
   shots.push({x:me.x,y:GROUND-26,vy:-7});sfx('fire')}
-function hitLeg(){boss.legHp--;boss.hurt=8;boss.smoke=34;shake(3);burst(legX(),GROUND-70,7,'ALERT_JUICE');
+function hitLeg(){boss.legHp--;boss.hurt=8;boss.smoke=LEG_SMOKE;
+  boss.smokeY=GROUND-70;shake(3);burst(legX(),GROUND-70,7,'ALERT_JUICE');
   sfx('cut',1,legX()/W);
   /* The leg buckling is the only way the head comes down. Three beats:
      flash, smoke that stays, silhouette back out of it (観察 2). */
   if(boss.legHp<=0){boss.phase='open';boss.head=GROUND-150;boss.timer=BEAT*2;
     hitstop(4);sfx('key')}}
-function hitHead(){cycles++;boss.hurt=12;shake(7);burst(legX(),boss.head,16,'ACCENT_JUICE');
+/* The head takes the same three beats as the leg (§6 観察 2, C-1615).
+   It had the flash and nothing else, while every other channel was
+   already heavier for it - shake 3->7, hitstop 4->6 - so the biggest
+   blow in the fight was the one that left no smoke. HEAD_SMOKE is the
+   leg's 34 raised by the same ratio the flash is (12/8), and the
+   height is caught HERE because the head retreats to -160 on the very
+   next line: smoke hangs where the blow landed, not where the head
+   went. */
+function hitHead(){cycles++;boss.hurt=12;boss.smoke=HEAD_SMOKE;
+  boss.smokeY=boss.head;shake(7);burst(legX(),boss.head,16,'ACCENT_JUICE');
   hitstop(6);sfx('sword');
   if(cycles>=3){state='won';boss.shown=true;boss.phase='down';winBeat(legX(),boss.head)}
   else{boss.phase='leg';boss.legHp=LEGHP;boss.head=-160;boss.timer=BEAT}}
@@ -255,6 +270,7 @@ function faceFacts(){const lx=legX();
   return {look:lx>me.x+8?1:lx<me.x-8?-1:0,
     blink:FRAME(40,6,performance.now())===1}}
 function bossFacts(){return{phase:boss.phase,cycles:cycles,shown:boss.shown,
+  hurt:boss.hurt,smoke:boss.smoke,smokeY:boss.smokeY,
   tense:cycleTense(),growth:CRACK*cycleTense(),
   legHp:boss.legHp,beat:BEAT,state:state,hp:me.hp}}
 function draw(){const now=performance.now();
@@ -288,7 +304,7 @@ function draw(){const now=performance.now();
     cx.beginPath();cx.moveTo(W,GROUND-90);cx.lineTo(W,GROUND-30);
     cx.lineTo(lx+40,GROUND-6);cx.closePath();cx.fill();
     if(boss.smoke>0){cx.fillStyle='#dfe7f5';cx.globalAlpha=boss.smoke/70;
-      cx.beginPath();cx.arc(lx,GROUND-70,40,0,6.283);cx.fill();cx.globalAlpha=1}
+      cx.beginPath();cx.arc(lx,boss.smokeY,40,0,6.283);cx.fill();cx.globalAlpha=1}
     if(boss.phase==='open'){
       cx.fillStyle=boss.hurt>0?'#dfe7f5':'MAGENTA_TOKEN';
       cx.beginPath();cx.arc(lx,boss.head,34,0,6.283);cx.fill();
@@ -476,6 +492,96 @@ console.log(JSON.stringify({
   winBeats: winBeats(), failBeats: failBeats(),
 }));
 """
+
+
+#: The two blows, beat by beat (§6 観察 2, C-1615). A real fight is driven
+#: past the awakening, the leg is struck and watched frame by frame, then
+#: the leg is broken open and the HEAD is struck and watched the same way.
+#: The film's grammar is three beats - flash, smoke that stays, silhouette
+#: back out of it - and the head had only the first.
+BEATS_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) {
+  const fn = queued; queued = null; fn((F++) * 16) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+key('keydown', ' '); key('keyup', ' ');
+/* Past the awakening: the prologue hands over to 'fight' at about 90. */
+for (let i = 0; i < 400 && bossFacts().state !== 'fight'; i++) run(1);
+/* Watch one blow. Fire at the page's OWN aim (legX and GROUND are in
+   scope - recomputing them from the probe's frame counter misses, because
+   the page's t only advances during the fight) and keep firing until the
+   blow actually registers: the leg by losing hp, the head by turning the
+   cycle. Only then read the beats, so a stale flash from an earlier hit
+   cannot be mistaken for this one. */
+function strike(aim, kind){
+  shots.length = 0;
+  const before = bossFacts();
+  let atHit = null;
+  for (let i = 0; i < 400 && !atHit; i++) {
+    shots.push({x: legX(), y: GROUND + aim + 8, vy: 0});
+    run(1);
+    const b = bossFacts();
+    if (kind === 'head' ? b.cycles !== before.cycles : b.legHp !== before.legHp) {
+      atHit = b;
+    }
+  }
+  if (!atHit) { return { landed: false } }
+  shots.length = 0;
+  let flashFrames = 0, smokeFrames = 0, smokeAfterFlash = 0;
+  for (let i = 0; i < 200; i++) {
+    const b = bossFacts();
+    if (b.hurt > 0) flashFrames++;
+    if (b.smoke > 0) smokeFrames++;
+    if (b.smoke > 0 && b.hurt === 0) smokeAfterFlash++;
+    if (b.hurt === 0 && b.smoke === 0) break;
+    run(1);
+  }
+  return { landed: true, hurtAtHit: atHit.hurt, smokeAtHit: atHit.smoke,
+    smokeY: atHit.smokeY, flashFrames: flashFrames, smokeFrames: smokeFrames,
+    smokeAfterFlash: smokeAfterFlash, smokeLeft: bossFacts().smoke,
+    phaseBefore: before.phase };
+}
+const leg = strike(-70, 'leg');
+/* Break the leg open so the head comes down, then strike THAT. */
+for (let i = 0; i < 2000 && bossFacts().phase !== 'open'; i++) {
+  shots.push({x: legX(), y: GROUND - 70 + 8, vy: 0});
+  run(1);
+}
+const openedAt = bossFacts().phase;
+const cyclesBefore = bossFacts().cycles;
+const head = strike(-160, 'head');
+console.log(JSON.stringify({
+  leg: leg, head: head, opened: openedAt,
+  cyclesBefore: cyclesBefore, cyclesAfter: bossFacts().cycles,
+  ground: 320 - 46
+}));
+"""
+
+
+def beats_probe(script: str) -> str:
+    """The page's own script, wrapped so both blows can be watched."""
+
+    return BEATS_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
 def probe_source(script: str) -> str:
@@ -1101,6 +1207,8 @@ __all__ = [
     "stomp_probe",
     "FACE_PROBE",
     "face_probe",
+    "BEATS_PROBE",
+    "beats_probe",
     "QUEUE_PROBE",
     "queue_probe",
     "KAIJU_DIFFICULTY",
