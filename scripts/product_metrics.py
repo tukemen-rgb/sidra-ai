@@ -1327,6 +1327,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1606: 「描いて」 (draw) was missing from the make-verbs, so 「絵を描いて」 fell
+    # to the no-evidence answer that tells a maker to ingest a repo (C-1261),
+    # and 「アートを描いて」 was missed. The verb now routes a draw request to the
+    # honest decline or to ART.
+    from sidra_ai.evals.draw_verb_is_a_make_request import (
+        evaluate_draw_verb_is_a_make_request,
+    )
+
+    draw_verb = evaluate_draw_verb_is_a_make_request()
+    c.add(
+        "draw_verb_is_a_make_request",
+        "「描いて」の制作依頼が制作と認識され、正直な辞退か ART に届く（取り込み誘導でない）",
+        10.0 * draw_verb.checks_passed / draw_verb.checks_total,
+        detail=f"{draw_verb.checks_passed}/{draw_verb.checks_total} checks; "
+               "src/sidra_ai/evals/draw_verb_is_a_make_request.py"
+               + ("" if draw_verb.passed else "; " + "; ".join(draw_verb.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the

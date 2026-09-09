@@ -73,6 +73,13 @@ _MAKE_VERBS: tuple[str, ...] = (
     "生成して",
     "つくって",
     "書いて",
+    # 「描いて」 is 「書いて」's visual twin - the te-form imperative for drawing.
+    # Without it 「絵を描いて」「イラストを描いて」 were not read as make requests and
+    # fell to the no-evidence answer that sends a maker to repo ingestion, the
+    # C-1261 mistake, while 「アートを描いて」 (a buildable ART ask) was missed too.
+    # The bare imperative was the gap; the polite 「描いてください」 already routed
+    # via the courtesy pattern. C-1606.
+    "描いて",
     "組んで",
     "用意して",
     "出力して",
