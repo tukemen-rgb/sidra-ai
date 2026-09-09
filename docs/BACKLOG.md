@@ -2736,7 +2736,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       2/8 → 8/8。かつ `check_answerable_regression` の 4 数字
       （answered 14/38・direct 12/18・paraphrase 2/20・discrimination +28.9pt）
       を**1 つも下げない**ことが採用条件（下がるなら [記録] で閉じて数字を残す）。
-- [ ] **C-1511: 存在しないゲームを名指しした修正依頼が、黙って別のゲームを
+- [~] 作業中 2026-09-09 04:08 UTC ループA **C-1511: 存在しないゲームを名指しした修正依頼が、黙って別のゲームを
       改変する。**〔重大〕
       再現: 「忍者のゲームを作って」→「宇宙のシューティングを作って」→
       「さっきのを難しくして」（shooter が hard に）→
