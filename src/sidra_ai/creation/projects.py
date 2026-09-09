@@ -36,7 +36,13 @@ from pathlib import Path
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation import sprites as sprite_lib
 from sidra_ai.creation import story
-from sidra_ai.creation.games import TEMPLATES, generate_game, save_game, trademark_in
+from sidra_ai.creation.games import (
+    TEMPLATES,
+    generate_game,
+    genre_fallback_note,
+    save_game,
+    trademark_in,
+)
 from sidra_ai.creation.records import append_record
 
 
@@ -281,9 +287,25 @@ def _features_skeleton(title: str, evidence: tuple[str, ...]) -> str:
 """
 
 
-def _log_skeleton(title: str, stages: tuple[Stage, ...], evidence: tuple[str, ...]) -> str:
+def _log_skeleton(
+    title: str,
+    stages: tuple[Stage, ...],
+    evidence: tuple[str, ...],
+    fallback: str = "",
+) -> str:
     made = "\n".join(f"- {STAGE_FILES[stage]}" for stage in stages)
-    return _front_matter(title, "制作記録", evidence) + f"""
+    # C-1605: the chat summary admits when game.html fell back to the default
+    # template (C-1285), but the project is a directory that is saved and
+    # forwarded, so the record itself has to say it too - the same reason the
+    # report discloses its set-aside evidence (C-1281) and the 3D preview its
+    # default shape (C-1283). Only when there was a fallback; a genuine game
+    # request leaves this out rather than drawing a false caveat.
+    fallback_section = (
+        f"\n## 既定テンプレートへのフォールバック\n\n{escape(fallback, quote=False)}\n"
+        if fallback
+        else ""
+    )
+    return _front_matter(title, "制作記録", evidence) + fallback_section + f"""
 ## この回で作ったもの
 
 {made}
@@ -382,8 +404,11 @@ def scaffold_project(
             )
             (root / "game.html").write_text(game.html, encoding="utf-8")
         elif stage is Stage.LOG:
+            fallback = genre_fallback_note(
+                request, plan.template if Stage.GAME in stages else "", title
+            )
             (root / STAGE_FILES[stage]).write_text(
-                _log_skeleton(title, stages, evidence), encoding="utf-8"
+                _log_skeleton(title, stages, evidence, fallback), encoding="utf-8"
             )
 
     if Stage.LOG in stages:

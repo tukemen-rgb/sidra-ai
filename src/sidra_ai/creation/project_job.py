@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sidra_ai.creation.evidence import Fact
-from sidra_ai.creation.games import TEMPLATES, detect_genre, undepicted_subject
+from sidra_ai.creation.games import genre_fallback_note
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.projects import scaffold_project, validate_project
 from sidra_ai.creation.router import CreationOutcome
@@ -36,24 +36,10 @@ def _genre_fallback_note(message: str, project) -> str:
     subject the default template does not draw.
     """
 
-    template = getattr(project, "game_template", "")
-    if not template:
-        return ""
-    default_title = TEMPLATES[template].default_title
-    requested = detect_genre(message)
-    if requested is not None and not requested.supported:
-        return (
-            f"なお「{requested.genre}」型はまだ作れないため、game.html は"
-            f"代わりに既定の「{default_title}」型で作りました。"
-        )
-    if requested is None:
-        undepicted = undepicted_subject(message, template, project.title)
-        if undepicted:
-            return (
-                f"なお「{undepicted}」の題材を描く型はまだ無いため、game.html は"
-                f"代わりに既定の「{default_title}」型で作りました。"
-            )
-    return ""
+    note = genre_fallback_note(
+        message, getattr(project, "game_template", ""), project.title
+    )
+    return f"なお{note}" if note else ""
 
 
 def build_project_generator(data_dir: str | Path):

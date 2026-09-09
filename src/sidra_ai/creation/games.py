@@ -901,6 +901,36 @@ def undepicted_subject(request: str, template: str, asked_title: str) -> str:
     return left if _is_quotable_subject(left, request) else ""
 
 
+def genre_fallback_note(message: str, template: str, title: str) -> str:
+    """The admission that ``game.html`` fell back to the default template, or ""
+    when it did not. One source of truth for the project summary (C-1285) and
+    the production log (C-1605), so both say the same thing. No leading 「なお」:
+    the summary prepends it; the log uses the sentence as a section body.
+
+    Only the two cases the game path treats as a substitution fire, so a genre
+    SIDRA does build never draws a caveat: a recognised but unsupported genre,
+    and a request that named no genre whose subject the default cannot draw.
+    """
+
+    if not template:
+        return ""
+    default_title = TEMPLATES[template].default_title
+    requested = detect_genre(message)
+    if requested is not None and not requested.supported:
+        return (
+            f"「{requested.genre}」型はまだ作れないため、game.html は"
+            f"代わりに既定の「{default_title}」型で作りました。"
+        )
+    if requested is None:
+        undepicted = undepicted_subject(message, template, title)
+        if undepicted:
+            return (
+                f"「{undepicted}」の題材を描く型はまだ無いため、game.html は"
+                f"代わりに既定の「{default_title}」型で作りました。"
+            )
+    return ""
+
+
 #: Removed only where they touch an end of the title - see
 #: ``undepicted_subject``. 「の」 is here and is exactly why the removal has
 #: to be anchored: taken from the middle it eats the one inside 「もの」.

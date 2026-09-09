@@ -1308,6 +1308,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1605: the project summary admits a default-template fallback (C-1285),
+    # but a project is a saved/forwarded directory, so the production log has to
+    # say it too (C-1281/1283). production-log.md now carries the fallback note
+    # for a substitution and stays quiet for a genuine game.
+    from sidra_ai.evals.project_log_discloses_genre_fallback import (
+        evaluate_project_log_discloses_genre_fallback,
+    )
+
+    proj_fallback = evaluate_project_log_discloses_genre_fallback()
+    c.add(
+        "project_log_discloses_genre_fallback",
+        "制作記録が既定テンプレートへのフォールバックを開示する（真ゲームは誤開示しない）",
+        10.0 * proj_fallback.checks_passed / proj_fallback.checks_total,
+        detail=f"{proj_fallback.checks_passed}/{proj_fallback.checks_total} checks; "
+               "src/sidra_ai/evals/project_log_discloses_genre_fallback.py"
+               + ("" if proj_fallback.passed else "; " + "; ".join(proj_fallback.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the
