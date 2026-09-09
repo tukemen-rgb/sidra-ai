@@ -125,6 +125,35 @@ function edgeFacts(){const keep=SCENE,out=[];
   for(let i=0;i<SPAL.length;i++){SCENE=i;
     out.push({surf:scenePaint('SURFACE_TOKEN'),road:scenePaint('RAISED_TOKEN')})}
   SCENE=keep;return {a:EDGE_A,b:EDGE_B,scenes:out}}
+/* The far layer (§7 観察 7, C-1400): distance is drawn by CONTRAST, and
+   racing was the one template with the distance literally on the screen
+   - y=0 is dist+CARY, the course a car-length-and-then-some ahead - and
+   nothing at all behind it. C-1036 gave racing 観察 5-6 (a palette per
+   lap, the last lap the brightest) and stopped there. Same contract
+   shape as the other six: draw() paints through FAR_A, depthFacts()
+   reports the per-scene paints, and the judge holds the ridge visible
+   against the roadside (>=1.02:1) yet fainter than the border paint it
+   is made of.
+   The first prescription was to haze the TARMAC toward the horizon, and
+   measuring it killed it: the road and the roadside are the same value.
+   Driven, all four themes report road-against-roadside at 1.012:1
+   (default), 1.067-1.087 (paper/terminal/dusk) - so a road faded into
+   the roadside blends to 1.000:1 and there is simply nothing there to
+   fade. That is why the boundary has been carried by the two-tone edge
+   marks since C-1287 rather than by the tarmac's own colour. Border
+   against surface is the pair that does carry value here (1.212-1.650:1
+   driven), and at 0.45 - platformer's proven value, C-1354 - the ridge
+   measures 1.095-1.292:1 in all twelve theme x lap cells.
+   Nothing the player acts on is faded: the edge pair, the start/finish
+   band, the obstacles, both ghosts, the trail and the car are all opaque.
+   §4's rule is that the boundary is information, so the far layer is new
+   scenery behind the course and never a veil over it. */
+const FAR_A=0.45,HZ=Math.round(H*0.34),RIDGE_H=34;
+function depthFacts(){const keep=SCENE,out=[];
+  for(let i=0;i<SPAL.length;i++){SCENE=i;
+    out.push({sky:scenePaint('SURFACE_TOKEN'),solid:scenePaint('BORDER_TOKEN'),
+      alpha:FAR_A})}
+  SCENE=keep;return out}
 function onRoad(){return Math.abs(car.x-roadAt(dist))<ROADW/2-8}
 function raceFacts(){return{state:state,lap:lap,laps:LAPS,dist:dist,spd:spd,sq:car.sq,passed:passed,
   trail:TRAIL.map(s=>s.d),
@@ -210,6 +239,17 @@ function draw(){
      act, so a two-lap easy run still ends on the climax (§7 観察 6). */
   setScene(LAPS>1?Math.round((Math.min(lap,LAPS)-1)*2/(LAPS-1)):2);
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,W,H);
+  /* distance is contrast, not colour (§7 観察 7): a faint ridge along the
+     horizon in the theme's own border paint, drawn before the road so the
+     course runs in front of its own skyline. FAR_A is the contract
+     (C-1400), not decoration. Fixed positions and no scroll of its own:
+     what is that far away does not slide, so reduced motion has nothing
+     to freeze - catch's cloud reasoning (C-1365), verbatim. */
+  cx.globalAlpha=FAR_A;cx.fillStyle=scenePaint('BORDER_TOKEN');
+  for(let i=0;i<6;i++){const rx=i*150-45;
+    cx.beginPath();cx.moveTo(rx,HZ);cx.lineTo(rx+75,HZ-RIDGE_H);
+    cx.lineTo(rx+150,HZ);cx.closePath();cx.fill()}
+  cx.globalAlpha=1;
   cx.fillStyle=scenePaint('RAISED_TOKEN');
   for(let y=0;y<H;y+=8){const d=dist+(CARY-y);
     cx.fillRect(roadAt(d)-ROADW/2,y,ROADW,8)}
@@ -350,6 +390,7 @@ console.log(JSON.stringify({
   scenes: palette.scenes,
   hud: hudFacts(),
   edge: edgeFacts(),
+  depth: depthFacts(),
   stateStart: start.state, base: start.base,
   spdStart: start.spd, spdAfterHit: afterHit.spd, graceAfterHit: afterHit.grace,
   leftMoved: afterLeft.carX - centred.carX,
@@ -626,6 +667,114 @@ def trail_probe(script: str, *, reduced: bool = False) -> str:
     )
 
 
+#: The far layer, as painted (§7 観察 7, C-1400). A recording context that
+#: tracks ``globalAlpha`` across ``save``/``restore`` and keeps every
+#: ``fillRect`` and path ``fill`` of one real frame, in order, so the
+#: ridge is read off the paints rather than off the constant - and so the
+#: things a driver acts on can be shown to be opaque.
+HAZE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+let PAINTS = [], PTS = [];
+const CTX = { globalAlpha: 1, fillStyle: '', strokeStyle: '', lineWidth: 1,
+  font: '', textAlign: '', globalCompositeOperation: '', lineJoin: '',
+  lineCap: '', shadowBlur: 0, shadowColor: '' };
+const STACK = [];
+const rec = new Proxy(CTX, {
+  get(t, k){
+    if (k in t && typeof t[k] !== 'function') return t[k];
+    if (k === 'save') return () => { STACK.push(Object.assign({}, CTX)) };
+    if (k === 'restore') return () => { Object.assign(CTX, STACK.pop() || {}) };
+    if (k === 'fillRect') return (x, y, w, h) => {
+      PAINTS.push({ kind: 'rect', style: String(CTX.fillStyle),
+        alpha: CTX.globalAlpha, x: x, y: y, w: w, h: h }) };
+    if (k === 'beginPath') return () => { PTS = [] };
+    if (k === 'moveTo' || k === 'lineTo') return (x, y) => { PTS.push([x, y]) };
+    if (k === 'fill') return () => {
+      if (!PTS.length) return;
+      PAINTS.push({ kind: 'fill', style: String(CTX.fillStyle),
+        alpha: CTX.globalAlpha,
+        y0: Math.min.apply(null, PTS.map(p => p[1])),
+        y1: Math.max.apply(null, PTS.map(p => p[1])) }) };
+    if (k === 'createLinearGradient' || k === 'createRadialGradient')
+      return () => ({ addColorStop(){} });
+    if (k === 'measureText') return () => ({ width: 10 });
+    return () => undefined },
+  set(t, k, v){ t[k] = v; return true } });
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => rec }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' ');
+run(40);
+/* Put an obstacle in the haze band and one under the wheels, so the
+   frame we read carries both - a hazard must never be hazed. */
+const now = raceFacts();
+obs.push({ d: now.dist + (H - 8), x: now.road });
+obs.push({ d: now.dist + 20, x: now.road });
+PAINTS = [];
+run(1);
+/* The tarmac rows are the only ROADW x 8 fills in the frame - the edge
+   pair is 5x4/3x2, the finish band ROADW/8 wide, an obstacle 22x22, an
+   afterimage 22x32 - so they are picked out by shape, not by re-deriving
+   a palette through a token name this wrapper cannot substitute. The
+   ridge is named by the contract itself: depthFacts() reports the border
+   paint of the lap being drawn. */
+const rowIdx = PAINTS.map((p, i) => [p, i])
+  .filter(([p]) => p.kind === 'rect' && p.w === ROADW && p.h === 8);
+const rows = rowIdx.map(([p]) => p).sort((a, b) => a.y - b.y);
+const solid = depthFacts()[SCENE].solid;
+const ridgeIdx = PAINTS.map((p, i) => [p, i])
+  .filter(([p]) => p.kind === 'fill' && p.style === solid);
+const ridge = ridgeIdx.map(([p]) => p);
+const others = PAINTS.filter(p => p.kind === 'rect' && !(p.w === ROADW && p.h === 8));
+const edges = others.filter(p => p.style === EDGE_A || p.style === EDGE_B);
+console.log(JSON.stringify({
+  H: H, hz: HZ, far: FAR_A, ridgeH: RIDGE_H, scene: SCENE,
+  rowStyles: Array.from(new Set(rows.map(p => p.style))),
+  rowAlphas: Array.from(new Set(rows.map(p => p.alpha))).sort(),
+  rowCount: rows.length,
+  contract: depthFacts().length,
+  ridgeCount: ridge.length,
+  ridgeAlphas: Array.from(new Set(ridge.map(p => p.alpha))).sort(),
+  ridgeLow: ridge.length ? Math.max.apply(null, ridge.map(p => p.y1)) : null,
+  ridgeTop: ridge.length ? Math.min.apply(null, ridge.map(p => p.y0)) : null,
+  /* The course runs in front of its own skyline: every ridge fill is laid
+     down before the first tarmac row. */
+  ridgeLast: ridgeIdx.length ? Math.max.apply(null, ridgeIdx.map(e => e[1])) : null,
+  roadFirst: rowIdx.length ? Math.min.apply(null, rowIdx.map(e => e[1])) : null,
+  edgeCount: edges.length,
+  edgeAlphas: Array.from(new Set(edges.map(p => p.alpha))).sort(),
+  obsAlphas: Array.from(new Set(others
+    .filter(p => p.w === 22 && p.h === 22).map(p => p.alpha))).sort(),
+  obsYs: others.filter(p => p.w === 22 && p.h === 22).map(p => p.y).sort((a,b)=>a-b)
+}));
+"""
+
+
+def haze_probe(script: str) -> str:
+    """Drive a real race one frame and report what the road was painted at."""
+
+    return HAZE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the race can be driven in node."""
 
@@ -639,6 +788,8 @@ __all__ = [
     "engine_probe",
     "TRAIL_PROBE",
     "trail_probe",
+    "HAZE_PROBE",
+    "haze_probe",
     "RACING_DIFFICULTY",
     "RACING_HOW",
     "RACING_SCRIPT",
