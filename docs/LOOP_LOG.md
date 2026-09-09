@@ -9249,3 +9249,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-09 09:53 UTC 辛口ユーザー C-1606 完了（131 巡目・別面=制作依頼の辞退／intent ルーティング・draw_verb_is_a_make_request 3.0→10.0・判定器 --compare exit 0 BETTER MOVED。`_MAKE_VERBS` に「描いて」（「書いて」の視覚双子・te-form 命令形）を追加＝「絵/イラスト/風景画を描いて」→ is_creation=True の正直な辞退「この形式は作れません。いま作れるのは…」（C-1261 が直した取り込み誘導への逆戻りを塞ぐ）・「アート/壁紙を描いて」→ ART にルート。「作って」系・「絵はどう描かれますか」（question veto）・polite「描いてください」いずれも非退行。破壊 5 種すべて eval red・pytest FAILED 0・board exit 0。detectors 非変更のため gate 判定器は対象外）
 
 2026-09-09 10:08 UTC ループA C-1511b 完了（「Xのゲーム」の X がジャンル語でなくても、名前でも種類でも当たらなければ拒否する・creation_named_subject_refused unmeasurable→1・判定器 exit 0〔移動は 1 件でそれがこの項目〕・creation_absent_name_refused は「直っていない半分」を合否条件に取り込んだ上で 1 のまま・pytest 全通し exit 0・verify_gate_recall PASSED〔MISS 0・誤検知 0〕・破壊 4 通りで別々の理由で red。起票の警告「色のほう／難易度のほうで誤拒否する」は実測で 2 重に外れ〔どちらも detect_revision_intent が False・引き金を「ゲーム」の語に置いたので規則に届かない〕、本当の誤拒否は既存テストが pin する「前のゲーム」「今のゲーム」だった。残す弱み: 指示語は表であって規則ではない——載っていない指示語は誤拒否になるが、それは名前を挙げて聞き返す復旧可能な誤りで、置き換えた欠陥は別ファイルを黙って書き換えその名前で成功を報告する）
+
+2026-09-09 10:08 UTC ループA started
