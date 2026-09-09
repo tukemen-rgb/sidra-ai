@@ -120,8 +120,15 @@ def names_color(request: str) -> bool:
 #: one: 「螺旋のアート」→「螺旋」 (C-1265, the art twin of documents' C-1246 and
 #: decks' C-1249). Longer spellings first, optional leading 「の」, applied once
 #: and only when a subject remains - 「アートを作って」 keeps its default title.
+# The intent detector routes every ART cue here (C-1480 added 壁紙/wallpaper/
+# artwork/abstract art/digital art/生成アート), but the title only stripped
+# アート/art, so 「猫の壁紙」 kept 壁紙 and 「海の生成アート」 lost only アート to a
+# broken 「海の生成」 (C-1604). Strip the whole cue set. Longest first within each
+# language so 生成アート beats アート and 「X art」 beats bare art.
 _TITLE_KIND_SUFFIX = re.compile(
-    r"の?(?:ジェネラティブアート|アート|generative art|art)$", re.IGNORECASE
+    r"の?(?:ジェネラティブアート|生成アート|アート|壁紙"
+    r"|generative art|abstract art|digital art|artwork|wallpaper|art)$",
+    re.IGNORECASE,
 )
 
 

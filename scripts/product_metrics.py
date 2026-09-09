@@ -1289,6 +1289,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1604: the art title stripped only アート/art, but the intent detector
+    # routes every ART cue (壁紙/wallpaper/生成アート/abstract art/digital art/…)
+    # to the generator, so 「猫の壁紙」 kept the kind and 「海の生成アート」 lost only
+    # アート to a broken 「海の生成」. The title suffix now matches the cue set.
+    from sidra_ai.evals.art_title_drops_all_kind_words import (
+        evaluate_art_title_drops_all_kind_words,
+    )
+
+    art_kind = evaluate_art_title_drops_all_kind_words()
+    c.add(
+        "art_title_drops_all_kind_words",
+        "アートのタイトルが全 ART 種別語（壁紙/生成アート/wallpaper 等）を主題まで剥がす",
+        10.0 * art_kind.checks_passed / art_kind.checks_total,
+        detail=f"{art_kind.checks_passed}/{art_kind.checks_total} checks; "
+               "src/sidra_ai/evals/art_title_drops_all_kind_words.py"
+               + ("" if art_kind.passed else "; " + "; ".join(art_kind.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the
