@@ -1208,6 +1208,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1507: the shared gate screens the operator's own live query too, but its
+    # quarantine reasons ("held for human review before indexing" / "held out of
+    # the index until reviewed") describe ingestion. A search/chat query is never
+    # indexed - the /v1/retrieve user reads that raw reason and is told their
+    # transient query is queued for indexing. The operator path now states only
+    # what is true of a live turn; ingestion keeps its accurate index wording.
+    from sidra_ai.evals.gate_operator_refusal_omits_indexing_claim import (
+        evaluate_gate_operator_refusal_omits_indexing_claim,
+    )
+
+    gate_op_reason = evaluate_gate_operator_refusal_omits_indexing_claim()
+    c.add(
+        "gate_operator_refusal_omits_indexing_claim",
+        "ゲート拒否理由が生の対話クエリに索引の約束をせず ingestion 材料には正しく索引文言を残す",
+        10.0 * gate_op_reason.checks_passed / gate_op_reason.checks_total,
+        detail=f"{gate_op_reason.checks_passed}/{gate_op_reason.checks_total} checks; "
+               "src/sidra_ai/evals/gate_operator_refusal_omits_indexing_claim.py"
+               + ("" if gate_op_reason.passed else "; " + "; ".join(gate_op_reason.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1458: common Japanese document deliverables (議事録/マニュアル/提案書/
     # 仕様書/…) were unrecognised, so 「議事録を作って」 fell to UNKNOWN and was
     # answered as a Q&A search instead of building the grounded report the

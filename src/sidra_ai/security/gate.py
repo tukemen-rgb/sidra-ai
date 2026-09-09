@@ -566,6 +566,15 @@ class SecurityGate:
             if redacted:
                 reasons.append("credential/PII spans replaced with placeholders")
 
+        # This gate screens ingested documents and the operator's own live query
+        # (retrieve/chat) alike. Only ingestion is index-bound; a live query is
+        # never indexed - it has no document_id, so no release-into-the-index
+        # path exists for it, and /v1/retrieve returns the raw reason with no CLI
+        # to soften it. source is allowlisted to {github, operator}, so
+        # "operator" reliably marks a live turn whose refusal must not promise
+        # indexing (C-1507). The quarantine record itself is unchanged.
+        is_operator = source.strip().lower() == "operator"
+
         if any(
             _at_least(f.severity, self.policy.quarantine_secret_severity)
             for f in secret_out.findings
@@ -573,7 +582,7 @@ class SecurityGate:
             decision = strictest(decision, Decision.QUARANTINE)
             reasons.append(
                 "high-confidence credential detected; redacted copy held for "
-                "human review before indexing"
+                "human review" + ("" if is_operator else " before indexing")
             )
 
         if any(
@@ -587,7 +596,8 @@ class SecurityGate:
             decision = strictest(decision, Decision.QUARANTINE)
             reasons.append(
                 "prompt-injection patterns detected; content remains DATA and is "
-                "held out of the index until reviewed"
+                + ("held for human review" if is_operator
+                   else "held out of the index until reviewed")
             )
         elif injection_out.findings:
             reasons.append(
