@@ -9419,9 +9419,24 @@ C-12xx/13xx/14xx はループ用のまま）。
       それまでは JSONL + インメモリで足りる。
 - [ ] 多ノード対応（rate limiter の共有カウンタ、ギャップ 1）。
       localhost 運用の間は不要。公開する判断が出てから。
-- [ ] **生成物のファイル名衝突ガードを game 以外の save_* にも広げる（低優先・防御的）。**（2026-09-08 06:xx UTC 辛口ユーザー 104 巡目 起票）
+- [記録] 実施済み 2026-09-09 03:54 進捗監視（この積み残しは**別番号 C-1509 で完了した**——着手前の価値再確認を待たずに、辛口ユーザー 124 巡目が同じ穴を一般ユーザー観点で踏み直して直した） **生成物のファイル名衝突ガードを game 以外の save_* にも広げる（低優先・防御的）。**（2026-09-08 06:xx UTC 辛口ユーザー 104 巡目 起票）
       **事実（実測、コード確認）**: `save_game` は秒解像度スタンプの衝突を serial 連番で回避する（games.py:1348「Second-resolution stamps collide when a revision follows its original …silently overwriting the original would make 『the old version is still there』 a lie」）。だが `save_document`／`save_deck`／`save_gif`／`save_art`／`save_model3d` にはガードが無く、同一 UTC 秒に同種（同 outline/motif/pattern/shape）を 2 つ保存すると同名で**黙って上書き**＝先の成果物が消える。
       **価値再確認（着手前に読む）**: game にガードがあるのは**プログラム的な二重生成の引き金**（revise が原版直後に新版を同秒生成）が実在するため。他の 5 種にはその引き金が無い——1 リクエスト 1 成果物で、非 game に revise 経路も無く、ループバック単一利用者（社長）の対話では同秒二重生成は実質起きない（同秒衝突には並行 HTTP が要る）。よって「一般ユーザーの目で最悪の 1 点」ではなく、防御的・整合性の穴（game だけガードがある非対称）。**サイレントなデータ損失という種類は放置しない方が良い**ので記録するが、6 ファイル（共有 helper 化＋testability のため save_document/gif/art に now= 追加）に及ぶため、プールが尽きた回に価値再確認の上で着手する候補とする。直し方針: `unique_stem(directory, base, suffixes)` 共有ヘルパ（game と同じ while path.exists() → -serial）を 5 つの save_* に適用（model3d は 3 ファイル共有 stem）。game は現行のインラインガード＋テストがあるので触らない。
+      **記録 2026-09-09 03:54 進捗監視**（この行を閉じるのは、提案した直し方が
+      そのまま実装されたことを実読で確かめたから）: C-1509（2026-09-09 02:45 辛口
+      ユーザー 124 巡目）が `creation/artifact_paths.unique_path` を新設し、
+      `save_document`／`save_deck`／`save_gif`／`save_art`／`save_model3d` の 5 つに
+      適用した。この行が書いた直し方針——「`unique_stem` 共有ヘルパ（game と同じ
+      while path.exists() → -serial）を 5 つの save_* に適用（model3d は 3 ファイル
+      共有 stem）。game は現行のインラインガード＋テストがあるので触らない」——と
+      実装が一致することを確認: ヘルパは `while path.exists()` で `-2`/`-3` を付し、
+      models3d は `.obj` で stem を予約して mtl/preview がその stem に従い、
+      `games.py` は無変更。**価値再確認の予定は要らなくなった**——この行が
+      「プールが尽きた回に」と後回しにした間に、同じ穴を一般ユーザー観点から
+      踏み直した回（同一秒の 2 回保存で「猫のGIF」が消える実測）が先に着手し、
+      防御的ではなく実データ喪失として直した。この行を開いたまま残すと、
+      ループA の待ち行列に**着手できる仕事が 1 件あるように見えて実際は無い**
+      ため、記録に落として閉じる。
 
 ### G. 製品を実際に使えるものにする（2026-08-19 追加）
 
