@@ -9158,3 +9158,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-08 23:53 UTC 辛口ユーザー C-1490 コード変更なし・E 節送り（121 巡目・別面=ゲート メール予約ドメイン・前回=会話履歴 no-op）。RFC2606 予約ドメイン（example.com/.invalid 等）のメールが HIGH で隔離される件を、予約ドメインを role/noreply と同じ LOW にする最小修正で直そうとしたが、共有 `PIIDetector` が入力ゲートと出力側 OutputGuard の両方に効き、severity を下げると OutputGuard がテストの『安全な偽 PII』代役（person@example.invalid 等）を redact しなくなり pytest 26 件退行。検証プロトコル（pytest）が push 前に捕捉＝コード全 revert（当該テスト復帰確認）。実 UX 論点（入力ゲートだけで予約ドメインを通す＝gate decision 側での限定変更 or 検出器の入出力文脈分離）は E 節「要判断」へ選択肢 A/B/C 付きで起票。**確立済みの出力側 redaction 規約を勝手に壊さない・判断は社長へ。**
 2026-09-09 00:08 UTC ループA started
 2026-09-09 00:09 UTC ループA no-op キューが空（開いている項目 17 件はすべて E節 15・F節 2、着手可能な D 項目なし。作業中 0 件。Board=13）
+
+2026-09-09 00:15 UTC 辛口ユーザー started（122 巡目・別面=retrieve エンドポイント＝一般ユーザーが受け取る引用（citation）ラベルと抜粋（excerpt）の提示面。C-1475 は抜粋末尾の到達範囲を触ったが、引用ラベル/信頼表示/抜粋の見え方という提示側は未検分。前回=121 巡目 C-1490 は E 節送り。FakeGitHub コーパスで svc.retrieve を実行し、一般ユーザーが最初に目にする引用の並び・ラベル・抜粋の切れ方の最悪 1 点を探す）
