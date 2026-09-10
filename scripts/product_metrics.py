@@ -1247,6 +1247,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1649: /health reported the version from __version__ while create_app
+    # built FastAPI with a hardcoded literal, so /openapi.json and /health would
+    # disagree the moment the package version was bumped. Both now read the one
+    # source.
+    from sidra_ai.evals.health_openapi_version_agree import (
+        evaluate_health_openapi_version_agree,
+    )
+
+    version_agree = evaluate_health_openapi_version_agree()
+    c.add(
+        "health_openapi_version_agree",
+        "/health と /openapi.json が単一ソースの版を一致して報告する",
+        10.0 * version_agree.checks_passed / version_agree.checks_total,
+        detail=f"{version_agree.checks_passed}/{version_agree.checks_total} checks; "
+               "src/sidra_ai/evals/health_openapi_version_agree.py"
+               + ("" if version_agree.passed else "; " + "; ".join(version_agree.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1647: sidra-quarantine show --content printed the flagged content raw,
     # so a quarantined document carrying terminal escapes could manipulate the
     # reviewer's terminal at the moment they judge it. It now scrubs the same

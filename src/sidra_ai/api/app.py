@@ -191,10 +191,16 @@ def create_app(
         finally:
             refresher_holder["refresher"].stop()
 
+    # One source for the version: the same ``__version__`` ``/health`` reports
+    # (via ``service._version()``). Read here at create-time rather than as a
+    # literal so ``/openapi.json`` and ``/health`` cannot drift on a bump
+    # (C-1649).
+    from sidra_ai import __version__
+
     app = FastAPI(
         lifespan=lifespan,
         title="SIDRA AI",
-        version="0.1.0",
+        version=__version__,
         description=(
             "Private, local-first AI API. GitHub access is read-only; "
             "retrieved content is DATA, never instructions."
