@@ -1355,7 +1355,22 @@ globalThis.Image = function(){ return nothing };
 globalThis.document = { getElementById: () => ({
   width: 720, height: 320, style: {}, addEventListener: () => {},
   getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-  getContext: () => nothing }) };
+  getContext: () => rec }) };
+/* A recording context, because faceFacts() is a number and a number is
+   not paint (C-1618 found this here and fixed one body of six; C-1632 did
+   the same for the streak). globalAlpha is tracked across save/restore. */
+let ALPHA = 1, RECTS = [];
+const STACK = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'globalAlpha') return ALPHA;
+    if (k === 'save') return () => { STACK.push(ALPHA) };
+    if (k === 'restore') return () => { ALPHA = STACK.length ? STACK.pop() : 1 };
+    if (k === 'fillRect') return (x, y, w, h) => { RECTS.push({ x: x, y: y, w: w, h: h }) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: (t, k, v) => { if (k === 'globalAlpha') { ALPHA = v } return true },
+  apply: () => nothing });
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
@@ -1380,7 +1395,41 @@ let blinkFrames = 0, longest = 0, streak = 0;
 for (let i = 0; i < 500; i++) { run(1);
   if (faceFacts().blink) { blinkFrames++; streak++;
     if (streak > longest) longest = streak } else { streak = 0 } }
+
+/* Which painted marks ARE the eyes, without knowing their size in advance
+   (C-1634). Two frames that differ only in the blink: the marks the blink
+   takes away are the face. Among the small ones, exactly one size occurs
+   exactly twice - a left eye and a right eye - and that is the pair. Other
+   things can blink on the same beat (the duel's dashed lane line puts 38
+   identical squares in this difference), so "exactly twice" is what picks
+   the eyes out rather than "small and gone". */
+/* Facing sideways: this template hides the face when the hero looks
+   away from the camera (faceFacts().shown is dir!==0). */
+hero.dir = 1;
+function frameAt(wantBlink){
+  for (let i = 0; i < 400; i++) {
+    if (!!faceFacts().blink === wantBlink) { RECTS = []; run(1); return RECTS.slice() }
+    run(1) }
+  return null }
+const openFrame = frameAt(false), shutFrame = frameAt(true);
+let eyes = 0, eyeSize = null, eyeGap = null;
+if (openFrame && shutFrame) {
+  const key = r => r.w + 'x' + r.h;
+  const left = {};
+  for (const r of shutFrame) { left[key(r)] = (left[key(r)] || 0) + 1 }
+  const gone = [];
+  for (const r of openFrame) {
+    const k = key(r);
+    if (left[k] > 0) { left[k]-- } else if (r.w > 0 && r.w <= 6 && r.h > 0 && r.h <= 6) { gone.push(r) }
+  }
+  const bySize = {};
+  for (const r of gone) { (bySize[key(r)] = bySize[key(r)] || []).push(r) }
+  for (const k of Object.keys(bySize)) {
+    if (bySize[k].length === 2) { eyes = 2; eyeSize = k;
+      eyeGap = Math.abs(bySize[k][0].x - bySize[k][1].x) } }
+}
 console.log(JSON.stringify({
+  eyes: eyes, eyeSize: eyeSize, eyeGap: eyeGap,
   right: right, left: left, down: down, up: up,
   blinkFrames: blinkFrames, longestBlink: longest,
 }));

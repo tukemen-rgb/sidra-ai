@@ -250,3 +250,43 @@ def test_reduced_motion_keeps_the_marble_eyes_open() -> None:
 
     assert seen["lookRight"] == 1, "the look is not decoration - it stays"
     assert seen["blinkFrames"] == 0, "reduced motion still blinks"
+
+
+# ------------------------------------------------ the canvas, not the books
+
+
+#: Every face, and the helper that drives it. C-1618 added the recording
+#: context to one of these six because "draw no pupils at all" had walked
+#: past a probe that read ``faceFacts()`` and nothing else; C-1634 found
+#: the other five still reading only the numbers.
+_FACES = {
+    "platformer": _watched,
+    "adventure": _walked,
+    "catch": _caught,
+    "duel": _duelled,
+    "kaiju": _piloted,
+}
+
+
+@pytest.mark.parametrize("body", sorted(_FACES))
+def test_the_eyes_are_two_painted_marks(body: str) -> None:
+    """Worked out rather than hardcoded: two frames that differ only in the
+    blink, and among the small marks the blink takes away, exactly one size
+    occurs exactly twice. The duel's dashed lane line blinks on the same
+    beat and puts 38 identical squares into that difference, which is why
+    "exactly twice" is the rule and "small and gone" is not.
+    """
+
+    seen = _FACES[body]()
+
+    assert seen["eyes"] == 2, f"{body}: {seen['eyes']} pupils were painted"
+    assert seen["eyeSize"], body
+    assert seen["eyeGap"] > 0, "both pupils sit at the same x"
+
+
+def test_the_marble_already_reads_its_own_canvas() -> None:
+    """The one body C-1618 fixed. Kept here so the set is six, not five."""
+
+    seen = _rolled()
+
+    assert seen["eyesDrawn"] == 2

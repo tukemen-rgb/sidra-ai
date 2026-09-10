@@ -6444,6 +6444,9 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.platformer import face_probe as _face_probe
 
     face_gaps: list[str] = []
+    #: What each face's recorded frame showed (C-1634): "the eyes are two
+    #: painted marks" is a different claim from "faceFacts() says so".
+    _face_paint: dict[str, dict] = {}
     for _fc_req, _fc_reduced in (
         ("ジャンプで進むゲームを作って", False),
         ("難しいジャンプで進むゲームを作って", False),
@@ -6468,6 +6471,8 @@ def measure_creation(c: Collector) -> None:
             if _fc_run.returncode != 0:
                 raise ValueError(_fc_run.stderr.strip()[:60])
             _fc = json.loads(_fc_run.stdout.strip().splitlines()[-1])
+            if not _fc_reduced:
+                _face_paint[_fc_label] = dict(_fc)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             face_gaps.append(f"{_fc_label}: probe unavailable ({exc})")
             continue
@@ -6508,6 +6513,8 @@ def measure_creation(c: Collector) -> None:
             if _fc_run.returncode != 0:
                 raise ValueError(_fc_run.stderr.strip()[:60])
             _fc = json.loads(_fc_run.stdout.strip().splitlines()[-1])
+            if not _fc_reduced:
+                _face_paint[_fc_label] = dict(_fc)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             face_gaps.append(f"{_fc_label}: probe unavailable ({exc})")
             continue
@@ -6556,6 +6563,8 @@ def measure_creation(c: Collector) -> None:
             if _fc_run.returncode != 0:
                 raise ValueError(_fc_run.stderr.strip()[:60])
             _fc = json.loads(_fc_run.stdout.strip().splitlines()[-1])
+            if not _fc_reduced:
+                _face_paint[_fc_label] = dict(_fc)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             face_gaps.append(f"{_fc_label}: probe unavailable ({exc})")
             continue
@@ -6596,6 +6605,8 @@ def measure_creation(c: Collector) -> None:
             if _fc_run.returncode != 0:
                 raise ValueError(_fc_run.stderr.strip()[:60])
             _fc = json.loads(_fc_run.stdout.strip().splitlines()[-1])
+            if not _fc_reduced:
+                _face_paint[_fc_label] = dict(_fc)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             face_gaps.append(f"{_fc_label}: probe unavailable ({exc})")
             continue
@@ -6635,6 +6646,8 @@ def measure_creation(c: Collector) -> None:
             if _kf_run.returncode != 0:
                 raise ValueError(_kf_run.stderr.strip()[:60])
             _kf = json.loads(_kf_run.stdout.strip().splitlines()[-1])
+            if not _kf_reduced:
+                _face_paint['kaiju'] = dict(_kf)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             face_gaps.append(f"{_kf_label}: probe unavailable ({exc})")
             continue
@@ -6675,6 +6688,8 @@ def measure_creation(c: Collector) -> None:
             if _mf_run.returncode != 0:
                 raise ValueError(_mf_run.stderr.strip()[:60])
             _mf = json.loads(_mf_run.stdout.strip().splitlines()[-1])
+            if not _mf_reduced:
+                _face_paint['marble'] = dict(_mf)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             face_gaps.append(f"{_mf_label}: probe unavailable ({exc})")
             continue
@@ -6704,6 +6719,63 @@ def measure_creation(c: Collector) -> None:
     # (両定義: 旧 0/1 は platformer 時点で 1、新定義の変更前も adventure
     # 未実装のため 1、変更後 2). C-1353 adds the basket, C-1355 the
     # duellist, C-1363 the kaiju pilot, C-1618 the marble: 6.
+    # --- the eyes are two painted marks (C-1634) ------------------------
+    #
+    # C-1618 put a recording context into the marble's probe because the
+    # destruction "draw no pupils at all" walked past a probe that read
+    # faceFacts() and nothing else. It fixed one body of six; the other
+    # five kept reading the numbers. Same split as the streak (C-1632):
+    # creation_hero_face reads the bookkeeping, this reads the canvas, and
+    # neither fix can hide inside the other.
+    #
+    # Which marks ARE the eyes is worked out rather than hardcoded: two
+    # frames that differ only in the blink, and among the small marks the
+    # blink takes away, exactly one size occurs exactly twice. The duel's
+    # dashed lane line blinks on the same beat and puts 38 identical
+    # squares into that difference, so "exactly twice" is what picks the
+    # pair out.
+    eye_gaps: list[str] = []
+    _eye_bodies = {
+        "default": "platformer", "adventure": "adventure", "catch": "catch",
+        "duel": "duel", "kaiju": "kaiju", "marble": "marble",
+    }
+    for _eye_key, _eye_name in sorted(_eye_bodies.items()):
+        _eye = _face_paint.get(_eye_key)
+        if _eye is None:
+            eye_gaps.append(f"{_eye_name}: 記録フレームが取れていない")
+            continue
+        _eye_n = _eye.get("eyes", _eye.get("eyesDrawn"))
+        if _eye_n != 2:
+            eye_gaps.append(f"{_eye_name}: 瞳が {_eye_n} つしか塗られていない")
+        elif _eye_key != "marble" and not _eye.get("eyeGap"):
+            eye_gaps.append(f"{_eye_name}: 2 つの瞳が同じ場所にある")
+    c.add(
+        "creation_face_painted",
+        "瞳が帳簿ではなく画布に届いている主人公の数",
+        0.0 if eye_gaps else float(len(_eye_bodies)),
+        unit="体",
+        detail=(
+            "; ".join(eye_gaps)
+            if eye_gaps
+            else "6 体それぞれの**実フレームを記録 ctx で読んで**測った。"
+            "**瞳の寸法は型ごとに違う**（"
+            + "・".join(
+                f"{_eye_bodies[k]} {_face_paint[k].get('eyeSize', '射影で可変')}"
+                for k in sorted(_eye_bodies)
+                if k in _face_paint
+            )
+            + "）ので、サイズは決め打ちにせず**まばたきで消える小さな塗りのうち"
+            "ちょうど 2 つある寸法**として毎回求める"
+            "——duel の破線レーンは同じ拍で明滅して同寸の四角を 38 個この差に入れるので、"
+            "「小さくて消える」ではなく「ちょうど 2 つ」が瞳を選び出す。"
+            "2 つが別の x にあることも読む（重なった 1 点は目ではない）。"
+            "`creation_hero_face` が読むのは `faceFacts()` の**帳簿**——"
+            "C-1618 の破壊「瞳を一切描かない」は marble 以外の 5 体で"
+            "**いまも素通りしていた**ので、別の数字として分けてある。"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_hero_face",
         "目が動きを追う主人公の数",
