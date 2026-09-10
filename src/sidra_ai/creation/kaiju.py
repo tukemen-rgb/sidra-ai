@@ -547,13 +547,20 @@ for (let i = 0; i < 400 && bossFacts().state !== 'fight'; i++) run(1);
 function strike(aim, kind){
   shots.length = 0;
   const before = bossFacts();
-  let atHit = null;
+  let atHit = null, kick = 0;
   for (let i = 0; i < 400 && !atHit; i++) {
     shots.push({x: legX(), y: GROUND + aim + 8, vy: 0});
+    /* Clear the camera's accumulator so this frame's reading is THIS
+       frame's kick (C-1648). shake() keeps the max and decays it, so a
+       crack opening (5) or a hit taken (6) a few frames earlier would
+       otherwise sit on top of the leg's own 3 and invert the ladder.
+       Only the probe's own view is cleared; the page is untouched. */
+    SHAKE = 0;
     run(1);
     const b = bossFacts();
     if (kind === 'head' ? b.cycles !== before.cycles : b.legHp !== before.legHp) {
       atHit = b;
+      kick = shakeAmount();
     }
   }
   if (!atHit) { return { landed: false } }
@@ -567,7 +574,7 @@ function strike(aim, kind){
     if (b.hurt === 0 && b.smoke === 0) break;
     run(1);
   }
-  return { landed: true, hurtAtHit: atHit.hurt, smokeAtHit: atHit.smoke,
+  return { landed: true, kick: kick, hurtAtHit: atHit.hurt, smokeAtHit: atHit.smoke,
     smokeY: atHit.smokeY, flashFrames: flashFrames, smokeFrames: smokeFrames,
     smokeAfterFlash: smokeAfterFlash, smokeLeft: bossFacts().smoke,
     phaseBefore: before.phase };

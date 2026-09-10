@@ -981,7 +981,12 @@ function stand(spot){
    and measures nothing at all. */
 function settle(){ for (let i = 0; i < 24; i++) { frame() } }
 function reading(before, from){
-  return { hp: hero.hp, hit: hero.hp < before.hp,
+  /* What the page's own camera actually got kicked by (C-1648). §1 quotes
+     Vlambeer: the shake is meant to be PROPORTIONAL to the weight of the
+     event, and nothing checked that the heavier of two hits shakes more.
+     Read through shakeAmount(), the page's own accessor, not off a
+     literal - the same reason C-1640 stopped reading the palette table. */
+  return { hp: hero.hp, hit: hero.hp < before.hp, shake: shakeAmount(),
     moved: Math.round(Math.hypot(hero.x - before.x, hero.y - before.y) * 100) / 100,
     inWall: inWall(hero.x, hero.y),
     /* Positive when the blow left the hero further from whoever threw it. */

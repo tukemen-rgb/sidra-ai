@@ -11147,6 +11147,9 @@ def measure_creation(c: Collector) -> None:
                 kbeat_gaps.append(
                     f"kaiju: both smokes hang at the same height ({_leg.get('smokeY')})"
                 )
+    # C-1648 reads the camera kick out of this same run; the knockback
+    # block below rebinds _kb, so hold on to it under its own name.
+    _shake_kaiju = _kb
     c.add(
         "creation_kaiju_hit_beats",
         "怪獣の被弾が脚も頭も 3 段で読める",
@@ -11519,6 +11522,65 @@ def measure_creation(c: Collector) -> None:
             "紙テーマの番人は地形に阻まれて +1.03px でも向きは外向き）。"
             "**両方向を見る**——止めるだけの実装は「遠ざかる」で落ち、"
             "突き飛ばすだけの実装は「壁の中に入らない」で落ちる"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- heavier events kick the camera harder -------------------------
+    # §1 quotes Vlambeer directly: kick the camera a few px on an explosion
+    # or a heavy hit, decay it fast, and make the shake PROPORTIONAL TO THE
+    # WEIGHT OF THE EVENT. The decay half was wired from the start. The
+    # proportion half was never asked for: the only place a shake reached a
+    # contract was the fail beat having to clear max(every shake literal in
+    # every template), which draws one ceiling and says nothing about the
+    # order underneath it. Flattening the kaiju's five weights (3/5/6/7/9)
+    # to a single 9 left 292 tests green and moved no number.
+    #
+    # Read the way C-1640 taught: not the literals in the source, which are
+    # the ledger, but what the page's own shakeAmount() returned when the
+    # event was actually driven. Both pairs come out of runs that already
+    # happen, so this costs no node spawns.
+    ladder_gaps: list[str] = []
+    ladder_ok: list[str] = []
+    for _lad_who, _lad_light, _lad_heavy, _lad_lname, _lad_hname in (
+        ("adventure", (_kb_adv or {}).get("roamOpen"), (_kb_adv or {}).get("guardOpen"),
+         "うろつく敵の一撃", "番人の一撃"),
+        ("kaiju", (_shake_kaiju or {}).get("leg"), (_shake_kaiju or {}).get("head"),
+         "脚への直撃", "頭への直撃"),
+    ):
+        if not _lad_light or not _lad_heavy:
+            ladder_gaps.append(f"{_lad_who}: the shake could not be read")
+            continue
+        _lo = _lad_light.get("shake", _lad_light.get("kick"))
+        _hi = _lad_heavy.get("shake", _lad_heavy.get("kick"))
+        # A pair that never fired is not a pass, it is a pair that was
+        # never measured (C-1637).
+        if not _lo or not _hi:
+            ladder_gaps.append(
+                f"{_lad_who}: one of the two events never kicked the camera "
+                f"({_lad_lname} {_lo}, {_lad_hname} {_hi})"
+            )
+        elif _hi <= _lo:
+            ladder_gaps.append(
+                f"{_lad_who}: {_lad_hname} shakes {_hi:.2f}, no more than "
+                f"{_lad_lname} at {_lo:.2f}"
+            )
+        else:
+            ladder_ok.append(_lad_who)
+    c.add(
+        "creation_shake_ladder",
+        "重い出来事ほどカメラを強く蹴る",
+        0.0 if ladder_gaps else float(len(ladder_ok)),
+        detail=(
+            "; ".join(ladder_gaps)
+            if ladder_gaps
+            else "実ページを走らせ、ページ自身の `shakeAmount()` が返した実値で比べた"
+            "（ソースのリテラルは読まない——それは帳簿で、C-1640 で潰した形）: "
+            "adventure=うろつく敵の一撃 7.02 < 番人の一撃 7.80／"
+            "kaiju=脚への直撃 2.34 < 頭への直撃 5.46。"
+            "**両方が本当に起きたこと**（どちらの揺れも 0 でない）も条件——"
+            "揺れを丸ごと外した実装は「起きていない」で落ちる（§1 Vlambeer の"
+            "「イベントの重さに揺れを比例させる」の、比例の側）"
         ),
         kind=OUTCOME,
     )
