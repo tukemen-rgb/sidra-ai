@@ -5456,7 +5456,37 @@ def measure_creation(c: Collector) -> None:
     # whole collector runs inside a 300s hang-guard that it already sits
     # 2s under (C-1613), and a sequential block here would spend that
     # margin on waiting rather than on measuring.
+    #
+    # C-1628 rides in the same batch: four more racing runs, read for
+    # DISTANCE at four refresh rates rather than for steps at two. The
+    # pool takes eight at a time, so twenty jobs and twenty-four are both
+    # three waves - the reading is very nearly free, which is the only
+    # form C-1613's remaining headroom would have paid for.
     from concurrent.futures import ThreadPoolExecutor
+
+    from sidra_ai.creation.racing import rate_probe as _course_probe
+
+    #: The rates MDN names as widely used, plus the one everything else is
+    #: written against. 60 is the point: until C-1614 nothing outcome-level
+    #: compared it with the faster three, and it disagreed with them for
+    #: seven cycles without anybody reading it.
+    _course_rates = (60.0, 75.0, 120.0, 144.0)
+
+    def _course_read(args: tuple[str, float]) -> tuple[float, dict | str]:
+        script, hz = args
+        try:
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_course_probe(script, hz=hz),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            return hz, json.loads(run.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return hz, f"probe unavailable ({exc})"
 
     def _rate_read(args: tuple[str, str, float]) -> tuple[str, float, dict | str]:
         label, script, hz = args
@@ -5475,21 +5505,37 @@ def measure_creation(c: Collector) -> None:
             return label, hz, f"probe unavailable ({exc})"
 
     _rate_jobs: list[tuple[str, str, float]] = []
+    _course_jobs: list[tuple[str, float]] = []
+    course_gaps: list[str] = []
     for _label, _request in _rate_targets:
         _rate_page = generate_game(_request).html
         _rs = _scene_re.search(r"<script>(.*?)</script>", _rate_page, _scene_re.S)
         if _rs is None:
             rate_gaps.append(f"{_label}: no script")
+            if _label == "racing":
+                course_gaps.append("racing: no script")
             continue
         for _hz in (60.0, 120.0):
             _rate_jobs.append((_label, _rs.group(1), _hz))
+        if _label == "racing":
+            _course_jobs = [(_rs.group(1), _hz) for _hz in _course_rates]
     _rate_reads: dict[str, dict[float, dict]] = {}
+    _course_reads: dict[float, dict] = {}
     with ThreadPoolExecutor(max_workers=8) as _pool:
+        # Submitted first so the four longest runs (144Hz drives 576
+        # callbacks) start in the first wave rather than trailing it.
+        _course_pending = [_pool.submit(_course_read, _j) for _j in _course_jobs]
         for _label, _hz, _got in _pool.map(_rate_read, _rate_jobs):
             if isinstance(_got, str):
                 rate_gaps.append(f"{_label}/{_hz:g}Hz: {_got}")
             else:
                 _rate_reads.setdefault(_label, {})[_hz] = _got
+        for _pending in _course_pending:
+            _hz, _got = _pending.result()
+            if isinstance(_got, str):
+                course_gaps.append(f"racing/{_hz:g}Hz: {_got}")
+            else:
+                _course_reads[_hz] = _got
     for _label, _request in _rate_targets:
         seen = _rate_reads.get(_label, {})
         if len(seen) != 2:
@@ -5568,11 +5614,101 @@ def measure_creation(c: Collector) -> None:
             "duel・fishing・puzzle）は自前の時計を持たないが、C-1612 以降は"
             "共通の WORLD_STEPS を型が「進む」と決めた行で上げるので、"
             "門に尋ねて答えを無視する型は 10 型すべてでここに出る**。"
-            "racing の距離での実測は C-1607 の"
-            "creation_frame_rate_fair 初版と同じ（60Hz 478.17 に対し 75/120/144Hz が"
-            "完全同値 485.71）"
+            "racing の距離そのものは C-1628 が 4 つの速さで読む"
+            "（この計器が読むのは歩数であって距離ではない）。"
             if not rate_gaps
             else "; ".join(rate_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- and the course itself is the same on every screen --------------
+    #
+    # §26 (C-1628). Everything above counts STEPS - what the shared gate
+    # answered - at two rates. That is the right thing to count for ten
+    # templates at once, and it is not what a player has. A player has a
+    # course: how far the racer actually got in three real seconds.
+    #
+    # Nothing outcome-level read that across rates, and it cost seven
+    # cycles of blindness. From C-1607 until C-1614 the racer covered
+    # 478.17 at 60Hz and 485.71 at 75, 120 and 144Hz, because hitstop's
+    # held time was banked by the gate and repaid to whichever screen had
+    # spare callbacks. The only check that existed compared the three
+    # fast rates WITH EACH OTHER, so the one screen that disagreed was
+    # the one screen nothing was compared against.
+    #
+    # So this reads distance, at four rates, and 60Hz is one of them.
+    if not course_gaps:
+        _seen_rates = sorted(_course_reads)
+        if len(_seen_rates) != len(_course_rates):
+            course_gaps.append(
+                f"only {len(_seen_rates)} of {len(_course_rates)} rates were read"
+            )
+        elif any(_course_reads[_hz].get("realMs") != 3000 for _hz in _seen_rates):
+            # The reading has to mean what it says before it is worth
+            # comparing: every rate drove three real seconds.
+            course_gaps.append(
+                "the runs were not the same length of real time ("
+                + ", ".join(
+                    f"{_hz:g}Hz {_course_reads[_hz].get('realMs')}ms"
+                    for _hz in _seen_rates
+                )
+                + ")"
+            )
+        else:
+            _courses = {_course_reads[_hz]["dist"] for _hz in _seen_rates}
+            _advanced = {_course_reads[_hz]["advanced"] for _hz in _seen_rates}
+            if min(_courses) <= 0:
+                course_gaps.append("the racer did not move")
+            elif len(_courses) != 1:
+                course_gaps.append(
+                    "the refresh rate picks the course ("
+                    + ", ".join(
+                        f"{_hz:g}Hz {_course_reads[_hz]['dist']}" for _hz in _seen_rates
+                    )
+                    + ")"
+                )
+            elif len(_advanced) != 1:
+                course_gaps.append(
+                    "the same course took a different number of steps ("
+                    + ", ".join(
+                        f"{_hz:g}Hz {_course_reads[_hz]['advanced']}"
+                        for _hz in _seen_rates
+                    )
+                    + ")"
+                )
+            else:
+                # ...and only the WORLD is the same. A page that made every
+                # screen equal by drawing 60 times a second would pass
+                # everything above and be the other half of the defect.
+                _slow_paint = _course_reads[60.0]["paints"]
+                _fast_paint = _course_reads[144.0]["paints"]
+                if not _slow_paint or _fast_paint / _slow_paint < (144 / 60) * 0.9:
+                    course_gaps.append(
+                        f"drawing was gated too ({_slow_paint} at 60Hz vs "
+                        f"{_fast_paint} at 144Hz)"
+                    )
+    c.add(
+        "creation_every_screen_the_same_course",
+        "どの速さの画面でも同じコースを走る",
+        0.0 if course_gaps else 1.0,
+        detail=(
+            "; ".join(course_gaps)
+            if course_gaps
+            else "racing の実ページを rAF **60/75/120/144Hz** 相当で実時間 3 秒ずつ走らせ、"
+            "**進んだ距離そのもの**を突き合わせた——4 つとも完全同値 478.17"
+            "（世界の歩数も 4 つとも 177）。**60Hz を含めるのが要点**: "
+            "C-1607 から C-1614 まで 7 サイクル、racing は 60Hz で 478.17・"
+            "75/120/144Hz で 485.71 と割れたままだったが、当時あった検査は"
+            "**速い 3 つどうしの一致しか見ていなかった**ので、唯一ずれている画面が"
+            "唯一比較されない画面だった（原因は hitstop の保持時間を門が貯めて"
+            "コールバックに余裕のある画面へ返していたこと＝C-1614）。"
+            "歩数（`creation_frame_rate_fair`）ではなく距離を読むのは、"
+            "門に尋ねた回数と型が実際に進んだ量は別物だから。"
+            "描画は 144Hz 側が 2.16 倍以上＝**絵は画面の速さのまま**"
+            "（世界を揃えるために絵まで 60 に落とす直し方はここで落ちる）。"
+            "node 実行は 4 本増えたが、`creation_frame_rate_fair` の 20 本と"
+            "**同じ並列の束**に入れたので実時間はほぼ増えていない（C-1613 の条件）"
         ),
         kind=OUTCOME,
     )
