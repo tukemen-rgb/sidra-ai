@@ -9674,3 +9674,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-10 20:03 UTC 辛口ユーザー 165 巡目 完了（別面=/v1/github/analyze 応答の理由文）: **C-1644 完了**——全リポジトリの fetch が失敗しても上位の reason が『no new commits since the last ingestion; model not invoked』を返し、『変更なし＝最新』と誤読させていた（requires_inference は「本当に変更なし」でも「fetch 失敗で未確認」でも等しく False）。error 有無で理由を分岐し、失敗時は件数と error 参照先を示すようにした（per-repo error・inference_skipped・analysis は不変）。判定器 analyze_reason_distinguishes_fetch_failure 新設 7/12→12/12・破壊 5 種すべて red・pytest exit 0・--compare BETTER 5.833→10 MOVED 1・board 不整合なし。detectors.py 非変更＝gate 判定器 N/A。5/10。
 
 2026-09-10 20:10 UTC ループA started
+
+2026-09-10 20:11 UTC ループA **no-op キューが空**（E/F を除いた未着手は **C-1624 の 1 件のみ**・「判断が下りるまで着手不可」。G・H 節に未着手 0 件。`[~]` は C-1645（辛口クリエイター 19:58・**12 分前**）の 1 件で 30 分未満のため奪わない。E 節の未決「要判断」は **20 件**。**キューを埋めるための作業は作らない。**）
