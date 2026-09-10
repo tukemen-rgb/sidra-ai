@@ -17,7 +17,11 @@ import pytest
 from sidra_ai.creation.audio import PREAMBLE_NAMES, SFX_PREAMBLE
 from sidra_ai.creation.games import TEMPLATES, generate_game, validate_game_html
 
-_CALL = re.compile(r"sfx\('(\w+)'\)")
+#: A call, with or without the position §2's panner takes (C-1630). The
+#: pattern used to end at the closing bracket, so a sound whose only call
+#: site had been given an x - 迷宮's `cut` - read as "defined but never
+#: played", and every panned call anywhere had been going uncounted.
+_CALL = re.compile(r"sfx\('(\w+)'\s*[,)]")
 
 
 @pytest.mark.parametrize("key", sorted(TEMPLATES))

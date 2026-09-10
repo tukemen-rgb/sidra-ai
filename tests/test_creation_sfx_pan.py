@@ -17,6 +17,7 @@ import pytest
 
 from sidra_ai.creation import generate_game
 from sidra_ai.creation.catchgame import pan_probe as catch_pan
+from sidra_ai.creation.adventure import pan_probe as adventure_pan
 from sidra_ai.creation.duel import pan_probe as duel_pan
 from sidra_ai.creation.fishing import pan_probe as fishing_pan
 from sidra_ai.creation.kaiju import pan_probe as kaiju_pan
@@ -26,12 +27,14 @@ from sidra_ai.creation.shooter import pan_probe as shooter_pan
 
 _PROBES = {"shooter": shooter_pan, "kaiju": kaiju_pan,
            "fishing": fishing_pan, "catch": catch_pan, "duel": duel_pan,
-           "marble": marble_pan, "racing": racing_pan}
+           "marble": marble_pan, "racing": racing_pan,
+           "adventure": adventure_pan}
 _REQUESTS = {"shooter": "ゲームを作って", "kaiju": "巨大怪獣と戦うゲームを作って",
              "fishing": "魚釣りゲームを作って", "catch": "フルーツキャッチを作って",
              "duel": "光線で撃ち合う対戦ゲームを作って",
              "marble": "玉転がしゲームを作って",
-             "racing": "レースゲームを作って"}
+             "racing": "レースゲームを作って",
+             "adventure": "迷宮を冒険するゲームを作って"}
 
 
 def _drive(template: str) -> dict:
@@ -50,7 +53,9 @@ def _drive(template: str) -> dict:
 
 
 @pytest.mark.parametrize(
-    "template", ["shooter", "kaiju", "fishing", "catch", "duel", "marble", "racing"]
+    "template",
+    ["shooter", "kaiju", "fishing", "catch", "duel", "marble", "racing",
+     "adventure"],
 )
 def test_positionless_sounds_build_no_panner(template: str) -> None:
     got = _drive(template)
@@ -122,3 +127,39 @@ def test_racing_places_the_crash_and_the_slipstream() -> None:
     for pan, want in zip(got["pans"], got["expected"]):
         assert abs(pan - want) < 1e-9, "the ear points wrong"
     assert got["pans"][0] != got["pans"][1], "both crashes sound identical"
+
+
+def test_the_maze_tells_which_side_the_blow_landed() -> None:
+    """The eighth body (§2 増築, C-1630), and the third time the shape has
+    repeated: the roamer's x was already going to ``burst`` on the line
+    that killed it, and the ear got nothing."""
+
+    got = _drive("adventure")
+
+    assert [c["name"] for c in got["left"]] == ["sword", "hurt"]
+    assert [c["name"] for c in got["right"]] == ["sword", "hurt"]
+    assert got["left"][1]["pan"] < 0 < got["right"][1]["pan"]
+    assert got["pans"] == pytest.approx(got["expected"], abs=1e-9)
+
+
+def test_the_sword_is_heard_where_the_blade_lands() -> None:
+    """Not where the hero stands. The probe puts the hero 20px short of the
+    target, so the two coordinates give different numbers and only one of
+    them is right."""
+
+    got = _drive("adventure")
+    blade = got["left"][0]["pan"]
+    hero_would_be = ((104 - 20) / 720 * 2 - 1) * 0.8
+
+    assert blade == pytest.approx(got["expected"][0], abs=1e-9)
+    assert blade != pytest.approx(hero_would_be, abs=1e-6)
+
+
+def test_the_maze_keeps_its_words_in_the_middle() -> None:
+    """Read out by the page's own line - swinging at a tablet - because a
+    probe that calls ``sfx('step')`` itself only proves the probe can."""
+
+    got = _drive("adventure")
+
+    assert [c["name"] for c in got["quiet"]] == ["step"]
+    assert [c["pan"] for c in got["quiet"]] == [None]

@@ -9353,8 +9353,10 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.duel import pan_probe as _du_pan
     from sidra_ai.creation.marble import pan_probe as _mb_pan
     from sidra_ai.creation.racing import pan_probe as _rc_pan
+    from sidra_ai.creation.adventure import pan_probe as _ad_pan
 
     pan_gaps: list[str] = []
+    _ad_pan_seen: dict = {}
     for _pn_key, _pn_builder, _pn_req in (
         ("shooter", _sh_pan, "ゲームを作って"),
         ("kaiju", _kj_pan, "巨大怪獣と戦うゲームを作って"),
@@ -9374,6 +9376,11 @@ def measure_creation(c: Collector) -> None:
         # the panner at every gate that is not dead ahead.
         ("marble", _mb_pan, "玉転がしゲームを作って"),
         ("racing", _rc_pan, "レースゲームを作って"),
+        # C-1630: the eighth body - the same shape a third time. The maze
+        # computes the roamer's x for the burst on the line that kills it,
+        # the hero's x for the shake on the line that hurts them, and the
+        # blade's x one line below the sword's own sound.
+        ("adventure", _ad_pan, "迷宮を冒険するゲームを作って"),
     ):
         _pn_page = generate_game(
             _pn_req,
@@ -9417,10 +9424,19 @@ def measure_creation(c: Collector) -> None:
         if _pn_key == "shooter" and len(_pn["pans"]) == 2:
             if not (_pn["pans"][0] > 0 and _pn["pans"][1] < 0):
                 pan_gaps.append("shooter: left and right do not separate")
+        if _pn_key == "adventure":
+            _ad_pan_seen.update(_pn)
+            _ad_names = [c["name"] for c in _pn["left"] + _pn["right"]]
+            if _ad_names != ["sword", "hurt", "sword", "hurt"]:
+                pan_gaps.append(f"adventure: the blow sounded {_ad_names}")
+            elif not (_pn["left"][1]["pan"] < 0 < _pn["right"][1]["pan"]):
+                pan_gaps.append("adventure: left and right do not separate")
+            elif any(c["pan"] is not None for c in _pn["quiet"]):
+                pan_gaps.append("adventure: a positionless sound built a panner")
     c.add(
         "creation_sfx_pan",
         "音が起きた場所から聞こえる型（実撃）",
-        0.0 if pan_gaps else 7.0,
+        0.0 if pan_gaps else 8.0,
         detail=(
             "; ".join(pan_gaps)
             if pan_gaps
@@ -9436,7 +9452,16 @@ def measure_creation(c: Collector) -> None:
             "幅のあるゲートが 720 の画布で -540 まで拡大されて panner が"
             "飽和する——実測して screen x を棄却した）、racing は"
             "走行線の左右で障害物を実際にかすめ／ぶつけて 3 つの pan が"
-            "(x/W*2-1)*0.8 と桁一致）"
+            "(x/W*2-1)*0.8 と桁一致。"
+            "C-1630 で **8 体目 adventure**——同じ形が 3 度目で、"
+            "**倒した敵の x は同じ行で burst に、殴られた自機の x は shake に渡っていた**。"
+            "部屋の左右に置いた徘徊者をページ自身の `swing()` で実際に斬り、"
+            f"左 **{_ad_pan_seen.get('pans', [0])[0]:.4f}**／"
+            f"右 **{_ad_pan_seen.get('pans', [0, 0, 0])[2]:.4f}** が "
+            "`(x/W*2-1)*0.8` と桁一致。剣の音は**自機ではなく刃の x** で鳴るので、"
+            "自機を的の 20px 手前に立たせた走行はどちらの座標で鳴っているかを区別できる"
+            "（自機の x なら -0.6133 になるところが -0.5511）。"
+            "言葉の音（`step`）は panner を 1 つも建てない）"
         ),
         kind=OUTCOME,
     )

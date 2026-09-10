@@ -176,12 +176,16 @@ function swing(){if(state!=='play')return;
      queued blow, fired the frame the arm is free. Mashing becomes a
      steady fastest-possible rhythm instead of a lottery. */
   if(hero.swing>0){hero.queued=true;return}
-  hero.swing=10;sfx('sword');
+  hero.swing=10;
   const fx=hero.x+[0,16,0,-16][hero.dir]*1.25,fy=hero.y+[-16,0,16,0][hero.dir]*1.25;
+  /* §2 増築 (C-1394, C-1630): the blade's own x, not the hero's - a swing
+     to the left is heard on the left. The value was already being computed
+     one line down for the hit test; it just never reached the ear. */
+  sfx('sword',1,fx/cv.width);
   const tx=Math.floor((fx-OX)/TILE),ty=Math.floor((fy-OY)/TILE);
   if(ty>=0&&ty<GH&&tx>=0&&tx<GW){
     const t=rooms[room][ty][tx];
-    if(t===2){rooms[room][ty][tx]=0;sfx('cut');
+    if(t===2){rooms[room][ty][tx]=0;sfx('cut',1,(OX+tx*TILE+TILE/2)/cv.width);
       burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,10,'ACCENT_JUICE');
       /* The first cut always pays. After that the odds are the odds,
          with a floor (§5, C-1376): the world holds 14 tufts and nothing
@@ -191,7 +195,8 @@ function swing(){if(state!=='play')return;
          worst case at 1+4=5 gems: the shrine's 3 with the door's 2 to
          spare, while the expected run feels the same odds as before. */
       if(FIRSTCUT||PITY>=2||rand()<0.34){FIRSTCUT=false;PITY=0;
-        hero.gems++;say('草のかげに宝石があった。');sfx('gem');
+        hero.gems++;say('草のかげに宝石があった。');
+      sfx('gem',1,(OX+tx*TILE+TILE/2)/cv.width);
         burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,14,'ALERT_JUICE')}
       else{PITY++}}
     /* The boss stands behind the boss key (§3): the key alone is only half
@@ -219,7 +224,7 @@ function swing(){if(state!=='play')return;
       ' の順に、洞窟の印を叩け」');sfx('step')}
     if(t===13||t===14||t===15){knock(t-13,tx,ty)}}
   enemies[room].forEach(en=>{if(!en.alive)return;
-    if(Math.hypot(en.x-fx,en.y-fy)<22){en.alive=false;sfx('hurt');
+    if(Math.hypot(en.x-fx,en.y-fy)<22){en.alive=false;sfx('hurt',1,en.x/cv.width);
       shake(6);hitstop(3);burst(en.x,en.y,16,'ALERT_JUICE');
       if(room===1&&enemies[1].every(e=>!e.alive)){keyDrop={x:en.x,y:en.y}}}});
   /* The guardian takes a blade with weight: thirty frames of armour after
@@ -229,10 +234,10 @@ function swing(){if(state!=='play')return;
     /* A blow on a boss reads in three beats (§6 観察 2, C-1343): flash,
        smoke that stays, silhouette back out of it - kaiju's own numbers. */
     guard.hp--;guard.inv=30;guard.hurt=8;guard.smoke=34;
-    sfx('hurt');shake(8);hitstop(4);
+    sfx('hurt',1,guard.x/cv.width);shake(8);hitstop(4);
     burst(guard.x,guard.y,16,'ALERT_JUICE');
     guard.x+=[0,12,0,-12][hero.dir];guard.y+=[-12,0,12,0][hero.dir];
-    if(guard.hp<=0){guard.alive=false;sfx('win');shake(12);hitstop(6);
+    if(guard.hp<=0){guard.alive=false;sfx('win',1,guard.x/cv.width);shake(12);hitstop(6);
       burst(guard.x,guard.y,32,'ALERT_JUICE');
       say('番人は崩れ落ちた。祭壇が静まりかえる。')}
     else if(guard.hp===3){say('番人の足が速くなった。');sfx('charge')}}}
@@ -296,7 +301,8 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
     en.dx=Math.cos(a)*ESPEED*0.6;en.dy=Math.sin(a)*ESPEED*0.6;en.t=50+rand()*60}
   const nx=en.x+en.dx,ny=en.y+en.dy;
   if(!solid(nx,en.y)){en.x=nx}if(!solid(en.x,ny)){en.y=ny}
-  if(hero.inv<=0&&d<16){hero.hp--;hurtRoam++;hero.inv=60;sfx('hurt');
+  if(hero.inv<=0&&d<16){hero.hp--;hurtRoam++;hero.inv=60;
+    sfx('hurt',1,hero.x/cv.width);
     shake(9);hitstop(4);burst(hero.x,hero.y,12,'ALERT_JUICE');
     if(!REDUCED){hero.sq=0.7}
     hero.x-=en.dx*14;hero.y-=en.dy*14;
@@ -333,7 +339,8 @@ function moveGuard(){if(room!==2||!guard||!guard.alive)return;
     if(hitWall||--guard.chg<=0){guard.mode='stride';guard.t=70;
       shake(7);burst(guard.x,guard.y+14,12,'ACCENT_JUICE')}}
   if(hero.inv<=0&&Math.hypot(hero.x-guard.x,hero.y-guard.y)<24){
-    hero.hp--;hurtGuard++;hero.inv=60;sfx('hurt');shake(10);hitstop(5);
+    hero.hp--;hurtGuard++;hero.inv=60;sfx('hurt',1,hero.x/cv.width);
+    shake(10);hitstop(5);
     burst(hero.x,hero.y,14,'ALERT_JUICE');
     if(!REDUCED){hero.sq=0.7}
     hero.x+=(hero.x-guard.x)/d*20;hero.y+=(hero.y-guard.y)/d*20;
@@ -1388,7 +1395,120 @@ def adv_face_probe(script: str, *, reduced: bool = False) -> str:
     ).replace("SCRIPT_PLACEHOLDER", script)
 
 
+
+#: The maze's ear (§2 増築, C-1630). Two roamers are placed on opposite
+#: sides of the same room and cut down with the page's own ``swing()``,
+#: and the panner values are read off the audio graph the page really
+#: built. The blade's own x is what the sword is heard at, so the hero
+#: standing 20px to the left of the target is a reading the hero's own
+#: position could not produce.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+/* Everything so far - the start, the room's name - is positionless. */
+const before = pans.length;
+/* Each call tagged with the panner it built, so "the sword" and "the
+   roamer" are told apart rather than counted together. */
+const calls = [];
+const realSfx = sfx;
+sfx = function(name, pitch, at){ const was = pans.length;
+  const out = realSfx.call(this, name, pitch, at);
+  calls.push({ name: String(name), pan: pans.length > was ? pans[pans.length - 1] : null });
+  return out };
+const PW = 720;
+/* Facing right with the hero 20px short of the target: the blade lands on
+   the roamer, and the hero's own x is a different number from the blade's.
+   The blade's tile is cleared first so the swing does not also cut grass
+   and add a sound nobody asked about. */
+function strike(ex){
+  const ty = 4, tx = Math.round((ex - OX - 8) / TILE);
+  rooms[room][ty][tx] = 0;
+  hero.x = ex - 20; hero.y = OY + ty * TILE + 8; hero.dir = 1;
+  hero.swing = 0; hero.queued = false;
+  enemies[room] = [{ x: ex, y: hero.y, dx: 0, dy: 0, t: 0, alive: true }];
+  const at = calls.length;
+  swing();
+  return calls.slice(at);
+}
+const leftHit = strike(OX + 2 * TILE + 8);
+const rightHit = strike(OX + 16 * TILE + 8);
+/* A sound with no place - played by THE PAGE, not by this probe. Calling
+   sfx('step') from here would only prove the probe can call it; swinging
+   at a tablet makes the page read it out through its own line. */
+function readTablet(){
+  const ty = 4, tx = 8;
+  rooms[room][ty][tx] = 12;
+  hero.x = OX + tx * TILE + 8 - 20; hero.y = OY + ty * TILE + 8; hero.dir = 1;
+  hero.swing = 0; hero.queued = false;
+  enemies[room] = [];
+  const at = calls.length;
+  swing();
+  return calls.slice(at).filter(c => c.name !== 'sword');
+}
+const quiet = readTablet();
+/* Four from the two blows (the blade and the roamer each side), and the
+   fifth from the blade that taps the tablet - the sword still has a
+   place even when what it strikes has nothing to say from anywhere. */
+const expected = [OX + 2 * TILE + 8, OX + 2 * TILE + 8,
+  OX + 16 * TILE + 8, OX + 16 * TILE + 8, OX + 8 * TILE + 8]
+  .map(x => (x / PW * 2 - 1) * 0.8);
+console.log(JSON.stringify({ before: before, pans: pans, expected: expected,
+  left: leftHit, right: rightHit, quiet: quiet }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so a blow's stereo place can be read."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
 __all__ = [
+    "PAN_PROBE",
+    "pan_probe",
     "SAY_PROBE",
     "say_probe",
     "ADVENTURE_DIFFICULTY",
