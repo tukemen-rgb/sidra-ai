@@ -51,3 +51,13 @@ def test_reduced_motion_never_deforms_a_frame() -> None:
     assert seen["idleOff"] == 0
     assert seen["hitSq"] == 1, "reduced motion still crushes"
     assert seen["hp"] == 2, "the heart must still be paid"
+
+
+def test_the_deformation_reaches_the_silhouette() -> None:
+    """C-1636: this probe read the number and not the shape."""
+
+    seen = _blasted()
+
+    assert seen["restFills"] > 0
+    assert seen["hitDrawn"] > 0, "the crush never reached the silhouette"
+    assert seen["idleDrawn"] == 0, "the resting body is drawn deformed"

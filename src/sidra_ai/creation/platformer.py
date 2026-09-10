@@ -628,12 +628,32 @@ globalThis.Image = function(){ return nothing };
 globalThis.document = { getElementById: () => ({
   width: 720, height: 320, style: {}, addEventListener: () => {},
   getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-  getContext: () => nothing }) };
+  getContext: () => rec }) };
+/* A recording context, because `sq` is a number and squash & stretch is
+   a shape (C-1636). adventure and shooter already read their own paint;
+   this is the same reading for the rest. */
+let RECTS = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'fillRect') return (x, y, w, h) => { RECTS.push({ w: w, h: h }) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: () => true, apply: () => nothing });
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 let F = 0;
-function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function run(n){ for (let i = 0; i < n && queued; i++) { RECTS = []; const fn = queued; queued = null; fn((F++) * 16) } }
+/* Did the paint follow the number? The rest frame's fills are kept and
+   a squashed frame has to contain one of them under the template's own
+   one-body transform - width the other way, height with it. Nothing is
+   hardcoded: the dimensions come from the page's own rest frame. */
+let restFills = [];
+function followed(sq){
+  if (Math.abs(sq - 1) < 1e-9) return false;
+  return restFills.some(r => RECTS.some(n =>
+    Math.abs(n.w - r.w * (2 - sq)) < 1e-6 && Math.abs(n.h - r.h * sq) < 1e-6)) }
+
 function kd(k){ (handlers.keydown || []).forEach(fn => fn({ key: k,
   code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
 function ku(k){ (handlers.keyup || []).forEach(fn => fn({ key: k,
@@ -641,14 +661,19 @@ function ku(k){ (handlers.keyup || []).forEach(fn => fn({ key: k,
 kd(' '); ku(' ');
 run(10);
 const restSq = platFacts().squash;
+restFills = RECTS.slice();
+let riseDrawn = 0, landDrawn = 0, idleDrawn = 0;
 /* One full jump, held to the top, sampled every frame of the arc. */
 kd(' ');
 let riseMax = 0, guard = 0, landSq = null, wasAir = false;
 while (guard++ < 400) {
   run(1);
   const f = platFacts();
-  if (!f.ground) { wasAir = true; riseMax = Math.max(riseMax, f.squash) }
-  if (wasAir && f.ground) { landSq = f.squash; break }
+  if (!f.ground) { wasAir = true; riseMax = Math.max(riseMax, f.squash);
+    if (f.squash > 1.05 && followed(f.squash)) riseDrawn++ }
+  if (wasAir && f.ground) { landSq = f.squash;
+    if (f.squash < 0.95 && followed(f.squash)) landDrawn++;
+    break }
 }
 ku(' ');
 /* Half a second later the body is a body again. */
@@ -658,8 +683,11 @@ const settled = platFacts().squash;
    silhouette must not breathe on its own. */
 let idleMax = 0;
 for (let i = 0; i < 40; i++) { run(1);
-  idleMax = Math.max(idleMax, Math.abs(platFacts().squash - 1)) }
+  idleMax = Math.max(idleMax, Math.abs(platFacts().squash - 1));
+  if (followed(0.7)) idleDrawn++ }
 console.log(JSON.stringify({
+  riseDrawn: riseDrawn, landDrawn: landDrawn, idleDrawn: idleDrawn,
+  restFills: restFills.length,
   restSq: restSq, riseMax: riseMax, landSq: landSq,
   settled: settled, idleMax: idleMax,
 }));

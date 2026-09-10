@@ -6088,6 +6088,9 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.platformer import squash_probe as _sq_probe
 
     squash_gaps: list[str] = []
+    #: Each body's drawn reading (C-1636): "sq went to 0.7" is a number,
+    #: "the silhouette went with it" is the technique.
+    _squash_paint: dict[str, dict] = {}
     for _sq_request, _sq_reduced in (
         ("ジャンプアクションを作って", False),
         ("難しいジャンプアクションを作って", False),
@@ -6111,6 +6114,8 @@ def measure_creation(c: Collector) -> None:
                 squash_gaps.append(f"{_sq_label}: {_sq_run.stderr.strip()[:80]}")
                 continue
             _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+            if not _sq_reduced:
+                _squash_paint[_sq_label] = dict(_sq)
         except (OSError, _sq_sp.SubprocessError, ValueError) as exc:
             squash_gaps.append(f"{_sq_label}: probe unavailable ({type(exc).__name__})")
             continue
@@ -6159,6 +6164,8 @@ def measure_creation(c: Collector) -> None:
                 squash_gaps.append(f"{_sq_label}: {_sq_run.stderr.strip()[:80]}")
                 continue
             _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+            if not _sq_reduced:
+                _squash_paint[_sq_label] = dict(_sq)
         except (OSError, _sq_sp.SubprocessError, ValueError) as exc:
             squash_gaps.append(f"{_sq_label}: probe unavailable ({type(exc).__name__})")
             continue
@@ -6206,6 +6213,8 @@ def measure_creation(c: Collector) -> None:
                 squash_gaps.append(f"{_sq_label}: {_sq_run.stderr.strip()[:80]}")
                 continue
             _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+            if not _sq_reduced:
+                _squash_paint[_sq_label] = dict(_sq)
         except (OSError, _sq_sp.SubprocessError, ValueError) as exc:
             squash_gaps.append(f"{_sq_label}: probe unavailable ({type(exc).__name__})")
             continue
@@ -6260,6 +6269,8 @@ def measure_creation(c: Collector) -> None:
             if _sq_run.returncode != 0:
                 raise ValueError(_sq_run.stderr.strip()[:60])
             _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+            if not _sq_reduced:
+                _squash_paint[_sq_label] = dict(_sq)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             squash_gaps.append(f"{_sq_label}: probe unavailable ({exc})")
             continue
@@ -6297,6 +6308,8 @@ def measure_creation(c: Collector) -> None:
             if _sq_run.returncode != 0:
                 raise ValueError(_sq_run.stderr.strip()[:60])
             _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+            if not _sq_reduced:
+                _squash_paint[_sq_label] = dict(_sq)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             squash_gaps.append(f"{_sq_label}: probe unavailable ({exc})")
             continue
@@ -6336,6 +6349,8 @@ def measure_creation(c: Collector) -> None:
             if _sq_run.returncode != 0:
                 raise ValueError(_sq_run.stderr.strip()[:60])
             _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+            if not _sq_reduced:
+                _squash_paint[_sq_label] = dict(_sq)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             squash_gaps.append(f"{_sq_label}: probe unavailable ({exc})")
             continue
@@ -6378,6 +6393,8 @@ def measure_creation(c: Collector) -> None:
             if _sq_run.returncode != 0:
                 raise ValueError(_sq_run.stderr.strip()[:60])
             _sq = json.loads(_sq_run.stdout.strip().splitlines()[-1])
+            if not _sq_reduced:
+                _squash_paint[_sq_label] = dict(_sq)
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             squash_gaps.append(f"{_sq_label}: probe unavailable ({exc})")
             continue
@@ -6404,6 +6421,90 @@ def measure_creation(c: Collector) -> None:
             squash_gaps.append(
                 f"{_sq_label}: the crush never settles ({_sq['settledIn']})"
             )
+    # --- the silhouette went with the number (C-1636) --------------------
+    #
+    # Sixth time this split has mattered: the kaiju's smoke (C-1615), the
+    # marble's pupils (C-1618), the streak (C-1628 / C-1632), the faces
+    # (C-1634) - and here, where five of the seven bodies were reading
+    # `sq` and nothing else. Squash & stretch IS a shape; a probe that
+    # only reads the number passes a page that draws none of it.
+    #
+    # adventure and shooter already read their own paint (C-1601 measured
+    # the hull's width at 35.2 -> 43.12px), so they are read from the
+    # numbers those probes already report. The other five now record the
+    # rest frame's fills and look for one of them under the template's own
+    # one-body transform - nothing is hardcoded, the dimensions come from
+    # the page's own standing frame.
+    paint_gaps: list[str] = []
+    _squash_drawn = {
+        "ジャンプアクションを作って": ("platformer", ("riseDrawn", "landDrawn")),
+        "catch": ("catch", ("catchDrawn",)),
+        "duel": ("duel", ("chargeDrawn",)),
+        "kaiju": ("kaiju", ("hitDrawn",)),
+        "racing": ("racing", ("hitDrawn",)),
+        "adventure": ("adventure", ("crushedDrawn",)),
+    }
+    for _sp_key, (_sp_name, _sp_fields) in sorted(_squash_drawn.items()):
+        _sp = _squash_paint.get(_sp_key)
+        if _sp is None:
+            paint_gaps.append(f"{_sp_name}: 記録フレームが取れていない")
+            continue
+        if not _sp.get("restFills", 1):
+            paint_gaps.append(f"{_sp_name}: 静止フレームに塗りが 1 つも無い")
+            continue
+        _sp_total = sum(_sp.get(f) or 0 for f in _sp_fields)
+        if _sp_total < 1:
+            paint_gaps.append(
+                f"{_sp_name}: 変形が塗りまで届いたフレームが 0"
+                f"（{', '.join(f'{f}={_sp.get(f)}' for f in _sp_fields)}）"
+            )
+        elif _sp.get("idleDrawn"):
+            paint_gaps.append(
+                f"{_sp_name}: 立ち姿のフレームでも変形した輪郭が描かれている"
+            )
+    # shooter's own reading, in its own words (C-1601): the hull's measured
+    # width at rest against its width while crushed.
+    _sh_paint = _squash_paint.get("shooter")
+    if _sh_paint is None:
+        paint_gaps.append("shooter: 記録フレームが取れていない")
+    elif not (_sh_paint.get("restW") and _sh_paint.get("hitW")):
+        paint_gaps.append("shooter: 船体の実寸が報告されていない")
+    elif not _sh_paint["hitW"] > _sh_paint["restW"] + 1e-6:
+        paint_gaps.append(
+            f"shooter: 体当たりで船体が広がっていない"
+            f"（{_sh_paint['restW']} → {_sh_paint['hitW']}）"
+        )
+    c.add(
+        "creation_squash_painted",
+        "潰れと伸びが帳簿ではなく輪郭に届いている体の数",
+        0.0 if paint_gaps else 7.0,
+        unit="体",
+        detail=(
+            "; ".join(paint_gaps)
+            if paint_gaps
+            else "7 体それぞれの**実フレームを記録して**測った。"
+            "**寸法は決め打ちにしない**——静止フレームの塗りを録っておき、"
+            "潰れたフレームに `(w*(2-sq), h*sq)` で対応する塗りが現れることを確かめる"
+            "（adventure が帽子バーで先にやっていた読み方を、"
+            "静止フレームから寸法を自動で拾う形に一般化した）。実測: "
+            + "・".join(
+                f"{_squash_drawn[k][0]} "
+                + "+".join(str(_squash_paint[k].get(f)) for f in _squash_drawn[k][1])
+                + " フレーム"
+                for k in sorted(_squash_drawn)
+                if k in _squash_paint
+            )
+            + f"・shooter 船体幅 {_squash_paint.get('shooter', {}).get('restW')} → {_squash_paint.get('shooter', {}).get('hitW')}px"
+            "（C-1601 が船体三角形の頂点で先に実測していたぶん）。"
+            "**立ち姿のフレームでは 1 度も現れない**ことも同じ走行から読むので、"
+            "「常に潰れている」で通ることはない。REDUCED では 7 体とも 0 フレーム。"
+            "`creation_squash_stretch` が読むのは `sq` の**帳簿**——"
+            "5 体は変形の描画を丸ごと消しても満点のままだったので、"
+            "C-1632／C-1634 と同じ理由で**別の数字として分けてある**。"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_squash_stretch",
         "イベントで体が伸びて潰れる型",

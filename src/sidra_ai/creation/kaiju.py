@@ -1094,12 +1094,32 @@ globalThis.Image = function(){ return nothing };
 globalThis.document = { getElementById: () => ({
   width: 720, height: 320, style: {}, addEventListener: () => {},
   getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-  getContext: () => nothing }) };
+  getContext: () => rec }) };
+/* A recording context, because `sq` is a number and squash & stretch is
+   a shape (C-1636). adventure and shooter already read their own paint;
+   this is the same reading for the rest. */
+let RECTS = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'fillRect') return (x, y, w, h) => { RECTS.push({ w: w, h: h }) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: () => true, apply: () => nothing });
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 let F = 0;
-function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function run(n){ for (let i = 0; i < n && queued; i++) { RECTS = []; const fn = queued; queued = null; fn((F++) * 16) } }
+/* Did the paint follow the number? The rest frame's fills are kept and
+   a squashed frame has to contain one of them under the template's own
+   one-body transform - width the other way, height with it. Nothing is
+   hardcoded: the dimensions come from the page's own rest frame. */
+let restFills = [];
+function followed(sq){
+  if (Math.abs(sq - 1) < 1e-9) return false;
+  return restFills.some(r => RECTS.some(n =>
+    Math.abs(n.w - r.w * (2 - sq)) < 1e-6 && Math.abs(n.h - r.h * sq) < 1e-6)) }
+
 function key(k){
   const e = { key: k, code: k === ' ' ? 'Space' : k,
     preventDefault(){}, stopImmediatePropagation(){} };
@@ -1109,15 +1129,21 @@ function key(k){
 key(' ');
 run(110);
 boss.timer = 900; cracks.length = 0;
-let idleOff = 0;
-for (let i = 0; i < 30; i++) { run(1); if (kbFacts().sq !== 1) idleOff++ }
+run(1);
+restFills = RECTS.slice();
+let idleOff = 0, idleDrawn = 0, hitDrawn = 0;
+for (let i = 0; i < 30; i++) { run(1); if (kbFacts().sq !== 1) idleOff++;
+  if (followed(0.7)) idleDrawn++ }
 cracks.push({ x: me.x + 4, w: 0, warn: 0, open: 30 });
 run(1);
 const hitSq = kbFacts().sq;
+if (hitSq < 0.95 && followed(hitSq)) hitDrawn++;
 let settled = null;
 for (let i = 0; i < 40 && settled === null; i++) { run(1);
+  if (kbFacts().sq < 0.95 && followed(kbFacts().sq)) hitDrawn++;
   if (kbFacts().sq === 1) settled = i }
-console.log(JSON.stringify({ idleOff: idleOff, hitSq: hitSq,
+console.log(JSON.stringify({ hitDrawn: hitDrawn, idleDrawn: idleDrawn,
+  restFills: restFills.length, idleOff: idleOff, hitSq: hitSq,
   settled: settled, hp: kbFacts().hp }));
 """
 

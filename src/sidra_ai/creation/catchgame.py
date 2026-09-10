@@ -162,12 +162,32 @@ globalThis.Image = function(){ return nothing };
 globalThis.document = { getElementById: () => ({
   width: 720, height: 320, style: {}, addEventListener: () => {},
   getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-  getContext: () => nothing }) };
+  getContext: () => rec }) };
+/* A recording context, because `sq` is a number and squash & stretch is
+   a shape (C-1636). adventure and shooter already read their own paint;
+   this is the same reading for the rest. */
+let RECTS = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'fillRect') return (x, y, w, h) => { RECTS.push({ w: w, h: h }) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: () => true, apply: () => nothing });
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 let F = 0;
-function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function run(n){ for (let i = 0; i < n && queued; i++) { RECTS = []; const fn = queued; queued = null; fn((F++) * 16) } }
+/* Did the paint follow the number? The rest frame's fills are kept and
+   a squashed frame has to contain one of them under the template's own
+   one-body transform - width the other way, height with it. Nothing is
+   hardcoded: the dimensions come from the page's own rest frame. */
+let restFills = [];
+function followed(sq){
+  if (Math.abs(sq - 1) < 1e-9) return false;
+  return restFills.some(r => RECTS.some(n =>
+    Math.abs(n.w - r.w * (2 - sq)) < 1e-6 && Math.abs(n.h - r.h * sq) < 1e-6)) }
+
 function key(k){
   const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
   (handlers.keydown || []).forEach(fn => fn(e));
@@ -176,9 +196,12 @@ key(' ');
 run(30);
 /* Idle first: nothing has landed, so the basket must hold its shape -
    steered away from every item so no accidental catch muddies the read. */
-let idleOff = 0;
+run(1);
+restFills = RECTS.slice();
+let idleOff = 0, idleDrawn = 0, catchDrawn = 0;
 for (let i = 0; i < 40; i++) { px = 0.05; run(1);
-  if (catchFacts().squash !== 1) idleOff++ }
+  if (catchFacts().squash !== 1) idleOff++;
+  if (followed(0.7)) idleDrawn++ }
 /* Then one real catch, with the squash sampled every frame around it. */
 const before = caught;
 let catchSq = null, timeline = [];
@@ -187,8 +210,10 @@ for (let i = 0; i < 900 && catchSq === null; i++) {
   if (low) { px = low.x }
   run(1);
   if (caught > before) { catchSq = catchFacts().squash } }
-for (let i = 0; i < 40; i++) { px = 0.05; run(1); timeline.push(catchFacts().squash) }
+for (let i = 0; i < 40; i++) { px = 0.05; run(1); timeline.push(catchFacts().squash);
+  if (catchFacts().squash < 0.95 && followed(catchFacts().squash)) catchDrawn++ }
 console.log(JSON.stringify({
+  catchDrawn: catchDrawn, idleDrawn: idleDrawn, restFills: restFills.length,
   idleOff: idleOff, catchSq: catchSq,
   minAfter: Math.min.apply(null, timeline),
   settled: timeline[timeline.length - 1],

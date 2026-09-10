@@ -65,3 +65,36 @@ def test_reduced_motion_keeps_the_silhouette() -> None:
     assert jumped["riseMax"] in (0, 1)
     assert (jumped["landSq"] or 1) == 1
     assert jumped["idleMax"] == 0
+
+
+# ------------------------------------------------ the canvas, not the books
+
+
+def test_the_stretch_and_the_squash_reach_the_silhouette() -> None:
+    """C-1636: this probe read ``squash`` and nothing else, so a page that
+    kept the number and drew none of the shape passed.
+
+    Nothing is hardcoded: the rest frame's fills are recorded and a
+    deformed frame has to contain one of them under the page's own
+    one-body transform - width the other way, height with it.
+    """
+
+    seen = _jumped()
+
+    assert seen["restFills"] > 0, "the standing frame drew nothing to compare against"
+    assert seen["riseDrawn"] > 0, "the rise never reached the silhouette"
+    assert seen["landDrawn"] > 0, "the landing never reached the silhouette"
+
+
+def test_the_standing_body_is_never_drawn_deformed() -> None:
+    """Otherwise "always squashed" would pass the test above."""
+
+    assert _jumped()["idleDrawn"] == 0
+
+
+def test_reduced_motion_draws_no_deformed_frame() -> None:
+    seen = _jumped(reduced=True)
+
+    assert seen["restFills"] > 0
+    assert seen["riseDrawn"] == 0
+    assert seen["landDrawn"] == 0

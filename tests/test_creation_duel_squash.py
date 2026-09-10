@@ -63,3 +63,13 @@ def test_reduced_motion_keeps_the_silhouette() -> None:
     assert fought["chargeDip"] == 1
     assert fought["released"] == 1
     assert fought["hitSq"] == 1
+
+
+def test_the_deformation_reaches_the_silhouette() -> None:
+    """C-1636: this probe read the number and not the shape."""
+
+    seen = _fought()
+
+    assert seen["restFills"] > 0
+    assert seen["chargeDrawn"] > 0, "the crush never reached the silhouette"
+    assert seen["idleDrawn"] == 0, "the resting body is drawn deformed"

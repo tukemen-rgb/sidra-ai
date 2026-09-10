@@ -42,3 +42,13 @@ def test_reduced_motion_takes_the_hit_with_a_still_body() -> None:
     got = _drive(reduced=True)
     assert got["spdCut"], "reduced motion must not dodge the crash itself"
     assert got["hit"] == 1 and got["settled"] == 1, "reduced motion still crushes"
+
+
+def test_the_deformation_reaches_the_silhouette() -> None:
+    """C-1636: this probe read the number and not the shape."""
+
+    seen = _drive(reduced=False)
+
+    assert seen["restFills"] > 0
+    assert seen["hitDrawn"] > 0, "the crush never reached the silhouette"
+    assert seen["idleDrawn"] == 0, "the resting body is drawn deformed"

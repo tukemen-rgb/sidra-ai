@@ -717,12 +717,32 @@ globalThis.Image = function(){ return nothing };
 globalThis.document = { getElementById: () => ({
   width: 720, height: 320, style: {}, addEventListener: () => {},
   getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-  getContext: () => nothing }) };
+  getContext: () => rec }) };
+/* A recording context, because `sq` is a number and squash & stretch is
+   a shape (C-1636). adventure and shooter already read their own paint;
+   this is the same reading for the rest. */
+let RECTS = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'fillRect') return (x, y, w, h) => { RECTS.push({ w: w, h: h }) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: () => true, apply: () => nothing });
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 let F = 0;
-function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+function run(n){ for (let i = 0; i < n && queued; i++) { RECTS = []; const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
+/* Did the paint follow the number? The rest frame's fills are kept and
+   a squashed frame has to contain one of them under the template's own
+   one-body transform - width the other way, height with it. Nothing is
+   hardcoded: the dimensions come from the page's own rest frame. */
+let restFills = [];
+function followed(sq){
+  if (Math.abs(sq - 1) < 1e-9) return false;
+  return restFills.some(r => RECTS.some(n =>
+    Math.abs(n.w - r.w * (2 - sq)) < 1e-6 && Math.abs(n.h - r.h * sq) < 1e-6)) }
+
 function ev(type, k){
   const e2 = { key: k, code: k === ' ' ? 'Space' : k,
     preventDefault(){}, stopImmediatePropagation(){} };
@@ -735,13 +755,17 @@ ev('keydown', ' '); ev('keyup', ' '); run(2);
 function dodge(){ if (e.aim >= 0 && p.lane === e.aim) { p.lane = (e.aim + 1) % 3 } }
 /* Phase 0: nobody is doing anything - the player's body must not breathe.
    Short window, before the first volley can land. */
-let idleOff = 0;
-for (let i = 0; i < 30; i++) { dodge(); run(1); if (squashFacts().p !== 1) idleOff++ }
+run(1);
+restFills = RECTS.slice();
+let idleOff = 0, idleDrawn = 0, chargeDrawn = 0, fireDrawn = 0, hurtDrawn = 0;
+for (let i = 0; i < 30; i++) { dodge(); run(1); if (squashFacts().p !== 1) idleOff++;
+  if (followed(0.7)) idleDrawn++ }
 /* Phase 1: hold the charge and watch the anticipation sink in. */
 ev('keydown', ' ');
 let chargeDip = 1;
 for (let i = 0; i < 45; i++) { dodge(); p.hp = 3; run(1);
-  chargeDip = Math.min(chargeDip, squashFacts().p) }
+  chargeDip = Math.min(chargeDip, squashFacts().p);
+  if (squashFacts().p < 0.999 && followed(squashFacts().p)) chargeDrawn++ }
 const heldCharge = p.charge;
 /* Phase 2: let go - fire() runs in the keyup handler, synchronously. */
 ev('keyup', ' ');
@@ -761,6 +785,8 @@ let settleHit = null;
 for (let i = 0; i < 30; i++) { p.hp = 3; run(1) }
 settleHit = squashFacts().p;
 console.log(JSON.stringify({
+  idleDrawn: idleDrawn, chargeDrawn: chargeDrawn,
+  restFills: restFills.length,
   idleOff: idleOff, chargeDip: chargeDip, heldCharge: heldCharge,
   released: released, settleFire: settleFire,
   gotHit: hitSq !== null, hitSq: hitSq, settleHit: settleHit,
