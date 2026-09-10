@@ -1247,6 +1247,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1644: /v1/github/analyze skipped inference with one reason - "no new
+    # commits" - both when nothing changed and when every fetch failed, so an
+    # operator whose fetches all failed read all-clear. The reason now names a
+    # fetch failure (count + where the errors are) and keeps the exact
+    # no-new-commits wording only when nothing errored.
+    from sidra_ai.evals.analyze_reason_distinguishes_fetch_failure import (
+        evaluate_analyze_reason_distinguishes_fetch_failure,
+    )
+
+    analyze_reason = evaluate_analyze_reason_distinguishes_fetch_failure()
+    c.add(
+        "analyze_reason_distinguishes_fetch_failure",
+        "解析応答の理由が『変更なし』と『取得失敗』を区別する",
+        10.0 * analyze_reason.checks_passed / analyze_reason.checks_total,
+        detail=f"{analyze_reason.checks_passed}/{analyze_reason.checks_total} checks; "
+               "src/sidra_ai/evals/analyze_reason_distinguishes_fetch_failure.py"
+               + ("" if analyze_reason.passed else "; " + "; ".join(analyze_reason.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1642: /openapi.json is served behind the private-API boundary but its
     # schema declared no auth at all - `authenticate` is a plain function
     # dependency, not a FastAPI security scheme - so a client generated from the

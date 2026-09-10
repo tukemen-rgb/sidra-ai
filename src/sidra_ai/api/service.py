@@ -806,9 +806,24 @@ class SidraService:
         }
 
         if not report.requires_inference:
-            payload["reason"] = (
-                "no new commits since the last ingestion; model not invoked"
-            )
+            # "no new commits" and "every fetch failed" both leave
+            # requires_inference False, but they are opposite facts: one says
+            # the repositories are current, the other that none could be
+            # checked. Reporting the first for the second told an operator
+            # all-clear when nothing was seen (C-1644). Name the failure - with
+            # a count and where to read the errors - and keep the exact
+            # no-new-commits wording only when nothing errored.
+            errored = [r for r in report.repositories if r.error]
+            if errored:
+                payload["reason"] = (
+                    f"ingestion did not complete for {len(errored)} of "
+                    f"{len(report.repositories)} repositories; model not invoked "
+                    "(see ingestion.repositories[].error)"
+                )
+            else:
+                payload["reason"] = (
+                    "no new commits since the last ingestion; model not invoked"
+                )
             return payload
 
         changed = [r.repository for r in report.repositories if r.changed]
