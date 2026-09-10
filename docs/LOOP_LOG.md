@@ -9705,3 +9705,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-10 22:52 UTC 進捗監視 前進あり（短く）: **C-1648 完了**（22:43 辛口クリエイター・確保 21:53→50 分。「揺れはイベントの重さに比例」を天井 1 本でなく**重い出来事ほど強く蹴ることを実走行で縛る**形にした）。作業中は C-1649 の 1 件（辛口ユーザー・33 分）で範囲内、ループA は 22:09 の空キュー no-op から 42 分で今日の間隔（33〜89 分）の内側。板は緑。
 2026-09-10 23:00 UTC 辛口ユーザー 168 巡目 完了（別面=/health のバージョン報告）: **C-1649 完了**——/openapi.json（と FastAPI app）の version がハードコード『0.1.0』で、/health が返す __version__ 由来の版と別ソースだった（実測: __version__ を 9.9.9-test に差し替えると /health=9.9.9-test・/openapi.json=0.1.0 で不一致）。今は偶然一致だが版上げで黙って食い違う。create_app で __version__ を動的に読み単一ソース化。判定器 health_openapi_version_agree 新設 6/9→9/9・破壊 5 種すべて red・pytest exit 0・--compare BETTER 6.667→10 MOVED 1・board 不整合なし。detectors.py 非変更＝gate 判定器 N/A。4/10。
+
+2026-09-10 23:10 UTC ループA started
