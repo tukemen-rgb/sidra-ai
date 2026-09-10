@@ -3021,7 +3021,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       主要オブジェクト名）。含まれていればノートを出さない。
       → 動かす数字: `creation_subject_quote_faithful` に「その型が描く語を
       描けないと言わない」検査を足し、10 型で 0→10。
-- [ ] **C-1526: 英語依頼で "game" が題材扱いされる。**〔中〕
+- [~] 作業中 2026-09-10 13:09 UTC ループA **C-1526: 英語依頼で "game" が題材扱いされる。**〔中〕
       再現: `chat("create a fishing game please")` →
       **「『タイミング釣り』型で作りました。ただし『game』は絵として
       出てきません」**。"make me a racing game" / "build a puzzle game" は
