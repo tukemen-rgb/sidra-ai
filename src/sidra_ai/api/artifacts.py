@@ -56,7 +56,7 @@ def list_artifacts(data_dir: str | Path) -> list[Artifact]:
     directory = artifacts_dir(data_dir)
     if not directory.is_dir():
         return []
-    found = []
+    found: list[tuple[float, Artifact]] = []
     for path in directory.iterdir():
         # Symlinks are skipped rather than followed: a link planted in the
         # artifacts directory is the one way this listing could name a file
@@ -73,17 +73,24 @@ def list_artifacts(data_dir: str | Path) -> list[Artifact]:
         if path.name.endswith(".meta.json"):
             continue
         stat = path.stat()
-        found.append(
+        found.append((
+            stat.st_mtime,
             Artifact(
                 path.name,
                 stat.st_size,
                 datetime.fromtimestamp(stat.st_mtime, timezone.utc)
                 .isoformat(timespec="seconds")
                 .replace("+00:00", "Z"),
-            )
-        )
-    found.sort(key=lambda a: (a.modified, a.name), reverse=True)
-    return found[:MAX_LISTED]
+            ),
+        ))
+    # Sort on the raw sub-second mtime, not the second-truncated display stamp
+    # (C-1641). Two files written in the same wall-clock second - the common
+    # case, since the echo model is instant and an operator makes several in a
+    # session - must still order by true recency, not fall back to the name
+    # tiebreak (which reverse-sorts names, inverting recency). Name descending
+    # stays the tiebreak for a genuine identical-mtime tie.
+    found.sort(key=lambda item: (item[0], item[1].name), reverse=True)
+    return [artifact for _, artifact in found[:MAX_LISTED]]
 
 
 #: Media types a download may declare. Only formats that cannot execute in
@@ -189,15 +196,22 @@ def list_projects(data_dir: str | Path) -> list[ProjectListing]:
     directory = projects_dir(data_dir)
     if not directory.is_dir():
         return []
-    found: list[ProjectListing] = []
+    found: list[tuple[float, ProjectListing]] = []
     for path in directory.iterdir():
         if not path.is_dir() or path.is_symlink():
             continue
         if not SAFE_NAME.match(path.name):
             continue
-        found.append(ProjectListing(path.name, _stamp(path), tuple(_project_files(path))))
-    found.sort(key=lambda p: (p.modified, p.slug), reverse=True)
-    return found[:MAX_LISTED]
+        found.append((
+            path.stat().st_mtime,
+            ProjectListing(path.name, _stamp(path), tuple(_project_files(path))),
+        ))
+    # Raw sub-second mtime, not the second-truncated display stamp (C-1641):
+    # productions made in the same second stay in true-recency order instead of
+    # falling back to the slug tiebreak. Slug descending is the tie for a
+    # genuine identical-mtime tie.
+    found.sort(key=lambda item: (item[0], item[1].slug), reverse=True)
+    return [listing for _, listing in found[:MAX_LISTED]]
 
 
 def read_project_file(data_dir: str | Path, slug: str, name: str) -> tuple[bytes, str]:

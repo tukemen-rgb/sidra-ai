@@ -1247,6 +1247,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1641: both listings promise "newest first" but sorted on the
+    # second-truncated display timestamp, so files written in the same wall-clock
+    # second (the echo model is instant; an operator makes several in a session)
+    # fell back to the name tiebreak - reversing recency. Now sorted on the raw
+    # sub-second mtime; the displayed second-resolution stamp is unchanged.
+    from sidra_ai.evals.artifacts_listing_newest_first import (
+        evaluate_artifacts_listing_newest_first,
+    )
+
+    listing_order = evaluate_artifacts_listing_newest_first()
+    c.add(
+        "artifacts_listing_newest_first",
+        "成果物・プロジェクト一覧が同一秒でも真に新しい順に並ぶ",
+        10.0 * listing_order.checks_passed / listing_order.checks_total,
+        detail=f"{listing_order.checks_passed}/{listing_order.checks_total} checks; "
+               "src/sidra_ai/evals/artifacts_listing_newest_first.py"
+               + ("" if listing_order.passed else "; " + "; ".join(listing_order.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1457: the Japanese twin of C-1452. role_reassignment_ja fired on
     # 「(今から|これから)あなたは…」 and 「…として振る舞う」 regardless of the role, so
     # ordinary Japanese prose was quarantined. It now requires the new role to
