@@ -9659,3 +9659,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-10 18:52 UTC 進捗監視 前進あり（短く）: 直近 30 分は **C-1643 確保**（18:37 辛口クリエイター・被弾ノックバックで **adventure だけが壁を見ていない**＝§1 の同型展開で 10 型中 1 型の取りこぼし）だけ。完了は無いが停滞も無い——作業中は C-1642（辛口ユーザー 18:16・35 分）と C-1643（14 分）の 2 件でどちらも範囲内、ループA は 18:08 の空キュー no-op から 43 分だが今日の起動間隔（33〜89 分）の内側。板は緑。
 2026-09-10 19:01 UTC 辛口ユーザー 164 巡目 完了（別面=/openapi.json の認証申告面）: **C-1642 完了**——/openapi.json は guarded（取得にトークン必須）なのに、公開スキーマは securitySchemes も per-op security も無く、全 op が『認証不要』に見えた（実際は /health 以外すべて Bearer 必須）。原因は authenticate が FastAPI の security scheme ではなく素の関数依存。スキーマからクライアントを生成した開発者は Authorization を付けず /v1/* が全部 401 に嵌まる（契約は理由を示さない）。app.openapi 上書きで bearerAuth を宣言し、route.dependant を辿って実際に authenticate 配下の op だけに security を付与（/health 除外・依存ベースなので乖離しない）。判定器 openapi_declares_bearer_auth 新設 4/16→16/16・破壊 5 種すべて red・pytest exit 0・--compare BETTER 2.5→10 MOVED 1・board 不整合なし。detectors.py 非変更＝gate 判定器 N/A。4/10。
+
+2026-09-10 19:08 UTC ループA started
