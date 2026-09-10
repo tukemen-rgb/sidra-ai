@@ -954,8 +954,11 @@ hStep(2, null);
    every time, working only because the guard outlasted the round. Asking
    both questions - the pair ``share.py`` and ``adapt.py`` already ask - is
    what makes the guard a guard again instead of the exit. */
-let guard = 0;
-while (guard++ < 4000) {
+/* Named off `guard` for the same reason the hold probe is (C-1637):
+   adventure's page owns that word. This probe only drives catch today,
+   so the clash is latent - and a latent trap is still a trap. */
+let hsGuard = 0;
+while (hsGuard++ < 4000) {
   hStep(1, hHold);
   let done = false;
   try { done = roundEnded() || ROUND_DONE } catch (e) { done = false }
@@ -1031,8 +1034,12 @@ roundKey(' ');
 roundRun(30);
 roundKey(' ');
 /* To the break. */
-let guard = 0;
-while (!(roundFacts().done || roundFacts().ended) && guard++ < 12000) roundRun(1);
+/* Not `guard`: adventure's page owns that name for its guardian, and a
+   top-level `let` of it makes the whole probe a SyntaxError - one of ten
+   templates was unmeasurable because the instrument took a word the page
+   was using (C-1637). */
+let hdGuard = 0;
+while (!(roundFacts().done || roundFacts().ended) && hdGuard++ < 12000) roundRun(1);
 const atEnd = roundFacts();
 /* The shared strip's own marker: only it says 自己ベスト. A template's
    verdict screen may carry its own retry line - that is the verdict, and

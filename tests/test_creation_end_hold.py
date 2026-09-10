@@ -76,3 +76,73 @@ def test_the_quiet_never_loses_the_record(who: str, request) -> None:
     got = request.getfixturevalue(who)
     assert got["early"]["banked"], "the bank waited with the chrome"
     assert got["early"]["bestKept"], "the best was not written inside the quiet"
+
+
+# --------------------------------------------- every ending, not just three
+
+
+#: The same probe drives whatever page it is handed until the round breaks,
+#: so measuring three of the ten was a choice nobody had revisited (C-1637).
+_ENDINGS = {
+    "catch": ("フルーツキャッチを作って", None),
+    "racing": ("レースゲームを作って", None),
+    "platformer": ("ジャンプで進むゲームを作って", None),
+    "puzzle": ("パズルゲームを作って", None),
+    "adventure": ("迷宮を冒険するゲームを作って", None),
+    "duel": ("光線で撃ち合う対戦ゲームを作って", None),
+    "kaiju": ("巨大怪獣と戦うゲームを作って", "kaiju"),
+}
+
+
+@pytest.mark.parametrize("template", sorted(_ENDINGS))
+def test_every_other_ending_holds_its_quiet_too(template: str) -> None:
+    request, kind = _ENDINGS[template]
+    seen = _drive(request, kind)
+
+    assert seen["broke"], f"{template} never reached an ending"
+    assert not seen["early"]["strip"], "the shared strip arrives in the quiet"
+    assert not seen["early"]["ask"], "an invitation arrives in the quiet"
+    assert seen["late"]["strip"] and seen["late"]["ask"], "the chrome never arrives"
+
+
+def test_the_probe_runs_on_the_maze_at_all() -> None:
+    """It could not, until C-1637. ``HOLD_PROBE`` declared ``let guard``
+    and adventure's page calls its guardian ``guard``, so the whole probe
+    was a ``SyntaxError`` - one template of ten was unmeasurable, and the
+    reading that hid behind it was not a failing check but no check.
+    """
+
+    seen = _drive("迷宮を冒険するゲームを作って")
+
+    assert seen["broke"]
+
+
+def test_the_duel_verdict_does_not_invite_while_it_is_still_quiet() -> None:
+    """It used to read 「敗北。もう一度。」 - the invitation the gated line
+    below it waits 45 frames to give, said on the ending's first frame."""
+
+    seen = _drive("光線で撃ち合う対戦ゲームを作って")
+
+    assert not seen["early"]["ask"]
+    assert seen["late"]["ask"]
+
+
+def test_no_shared_round_probe_takes_a_word_a_page_uses() -> None:
+    """The shape of C-1637's second half, caught at the source: a probe's
+    own top-level ``let`` has to stay out of the names the templates own.
+    ``guard`` is adventure's guardian; the two probes that declared it are
+    renamed, and this keeps them that way.
+    """
+
+    import pathlib
+
+    import sidra_ai.creation.round as module
+
+    text = pathlib.Path(module.__file__).read_text(encoding="utf-8")
+    taken = [
+        f"{n}: {line.strip()}"
+        for n, line in enumerate(text.splitlines(), 1)
+        if re.search(r"^\s*(let|const|var)\s+(guard|hero|boss|me|state)\b", line)
+    ]
+
+    assert taken == [], "\n".join(taken)

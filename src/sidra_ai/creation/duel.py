@@ -219,7 +219,11 @@ function hit(who){who.hp--;if(flashGate())flash=1;
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
     if(who===e){winner='勝利。ひかりが押し切った。';winBeat(EX,LANES[e.lane])}
-    else{winner='敗北。もう一度。';failBeat(PX,LANES[p.lane])}}}
+    /* The verdict only (§6 観察 8, C-1637): the invitation is the
+       gated line below, which waits out the quiet. This one used to say
+       「もう一度」 itself, so the ask arrived on the ending's first frame
+       while every other template held it. */
+    else{winner='敗北。ひかりが押し切られた。';failBeat(PX,LANES[p.lane])}}}
 function step(rt){const now=performance.now();
   /* The world advances on real time, not on this display's refresh
      rate (§26, C-1608 — the gate C-1607 built and racing proved).

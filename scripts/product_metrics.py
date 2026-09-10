@@ -9183,10 +9183,23 @@ def measure_creation(c: Collector) -> None:
     # measured ending, and a third body (the shooter's own death screen)
     # joins the watch. 両定義: 旧=共有帯のみ静・値 2／新定義で C-1384 以前は
     # marble/shooter の誘いが結末のフレームから鳴るため 0.
+    # C-1637 put the other seven on the same watch. The probe never needed
+    # a template's help - it drives whatever page it is given until the
+    # round breaks - so three was a choice nobody had revisited, and the
+    # measurement found the duel breaking the quiet and adventure unable
+    # to be measured at all (the probe declared `guard`, which is what
+    # adventure calls its guardian: a SyntaxError, not a failing check).
     for _hd_key, _hd_req, _hd_tmpl, _hd_pure in (
         ("fishing", "釣りゲームを作って", None, True),
         ("marble", "ゲームを作って", "marble", True),
         ("shooter", "シューティングゲームを作って", None, True),
+        ("catch", "フルーツキャッチを作って", None, True),
+        ("racing", "レースゲームを作って", None, True),
+        ("platformer", "ジャンプで進むゲームを作って", None, True),
+        ("puzzle", "パズルゲームを作って", None, True),
+        ("adventure", "迷宮を冒険するゲームを作って", None, True),
+        ("duel", "光線で撃ち合う対戦ゲームを作って", None, True),
+        ("kaiju", "巨大怪獣と戦うゲームを作って", "kaiju", True),
     ):
         if _hd_tmpl:
             _hd_page = generate_game(_hd_req, template=_hd_tmpl).html
@@ -9226,14 +9239,21 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_end_hold",
         "終幕に静の一拍がある（実走行）",
-        0.0 if hold_gaps else 3.0,
+        0.0 if hold_gaps else 10.0,
         detail=(
             "; ".join(hold_gaps)
             if hold_gaps
-            else "時計終い（fishing）とテンプレ終い（marble の走破・shooter の"
-            "被撃墜）の 3 体で実測: 結末+10f は帯も『もう一度』の誘いも一切"
-            "なし・+60f で到着・bank は結末の 1 コマ目＝静の間の R でも記録は"
-            "残る（§6 観察 8。C-1384 でテンプレ自身の誘い 9 サイトも静に従う）"
+            else "**10 型すべて**を実走行して測った（C-1637。時計終いも"
+            "テンプレ終いも同じ probe が終局まで走らせるので、型を選ぶ理由は"
+            "元から無かった）: 結末+10f は帯も『もう一度』の誘いも一切なし・"
+            "+60f で到着・bank は結末の 1 コマ目＝静の間の R でも記録は残る"
+            "（§6 観察 8。C-1384 でテンプレ自身の誘い 9 サイトも静に従う）。"
+            "**3 型から広げて 2 つ見つかった**: duel は負けの判定文が "
+            "`'敗北。もう一度。'` で、45 フレーム待つはずの誘いが**判定に"
+            "埋まって結末の 1 コマ目から出ていた**（勝ちの判定文は判定だけ）。"
+            "adventure は**測定不能**だった——probe が `let guard` を宣言し、"
+            "ページは番人を `guard` と呼ぶので `SyntaxError` で probe ごと"
+            "落ちていた（計器がページの使っている語を取っていた）"
         ),
         kind=OUTCOME,
     )

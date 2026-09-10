@@ -44,7 +44,9 @@ def drive(template: str) -> dict:
     body = _re.search(r"<script>(.*?)</script>", page, _re.S).group(1)
     source = history_probe_source(body).replace(
         "console.log(JSON.stringify({\n  score: facts.score",
-        "console.log(JSON.stringify({\n  guard: guard, done: !!facts.done,"
+        # C-1637 renamed the probe's own counter off `guard`, which is
+        # what adventure's page calls its guardian.
+        "console.log(JSON.stringify({\n  guard: hsGuard, done: !!facts.done,"
         "\n  score: facts.score",
     )
     done = subprocess.run(
