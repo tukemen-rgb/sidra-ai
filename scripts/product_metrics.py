@@ -17606,6 +17606,104 @@ def measure_creation(c: Collector) -> None:
         if _clock_slowest[0] not in _clock_text:
             _clock_bad.append("報告が最も高い節を挙げない")
 
+    # --- and the judge notices a number that stopped answering ---------
+    #
+    # C-1491. `compare()` walked the NEW snapshot only, so a key that
+    # vanished was never visited. Deleting a check, or letting it fall to
+    # unmeasurable, produced ([], []) - exit 1 alone, and **exit 0 and a
+    # clean merge** if the same commit moved any other outcome. The board's
+    # own guard (`test_every_metric_the_backlog_names_exists`) covers the
+    # 33 keys the board names by hand; the script carries 357.
+    #
+    # Measured by running the real `compare()` on snapshots built here.
+    # That is the whole function - a pure read over two dicts, no node and
+    # no subprocess - so this costs nothing and tests the shipped code
+    # rather than a copy of its logic.
+    _lost_kept = Metric("kept", "kept", 1.0, kind=OUTCOME)
+    _lost_watched = Metric("watched", "watched", 10.0, kind=OUTCOME)
+    _lost_guarded = Metric("guarded", "guarded", 0.0, direction="down", kind=GUARD)
+    _lost_noise = Metric("noise", "noise", 5.0, kind=CONTEXT)
+    _lost_metrics = {
+        m.key: m
+        for m in (_lost_kept, _lost_watched, _lost_guarded, _lost_noise)
+    }
+
+    def _snap(**values: float | None) -> dict:
+        return {
+            key: {"value": value, "kind": _lost_metrics[key].kind}
+            for key, value in values.items()
+        }
+
+    _lost_before = _snap(kept=1.0, watched=10.0, guarded=0.0, noise=5.0)
+    lost_gaps: list[str] = []
+
+    def _broken_keys(after: dict, *, metrics: dict | None = None) -> set[str]:
+        _, broke = compare(_lost_before, after, _lost_metrics if metrics is None else metrics)
+        return {m.key for m in broke}
+
+    # (1) The number is gone from the script entirely - so it is gone from
+    # the metric table too, which is why the old code could not even name
+    # it.
+    _gone = _snap(kept=1.0, guarded=0.0, noise=5.0)
+    _gone_metrics = {k: v for k, v in _lost_metrics.items() if k != "watched"}
+    if "watched" not in _broken_keys(_gone, metrics=_gone_metrics):
+        lost_gaps.append("消えた数字が regression にならない")
+    # (2) The number is still declared but can no longer answer.
+    if "watched" not in _broken_keys(_snap(kept=1.0, watched=None, guarded=0.0, noise=5.0)):
+        lost_gaps.append("測れなくなった数字が regression にならない")
+    # (3) A guard that stops answering is the same failure. A vanished
+    # 「zero missed credentials」 is not a passing guard.
+    if "guarded" not in _broken_keys(_snap(kept=1.0, watched=10.0, noise=5.0)):
+        lost_gaps.append("消えた guard が regression にならない")
+    # --- and the controls, so this cannot be satisfied by calling
+    # everything a regression ---
+    if _broken_keys(_lost_before):
+        lost_gaps.append("何も変わっていない走行で regression が出る")
+    if _broken_keys(_snap(kept=1.0, watched=11.0, guarded=0.0, noise=5.0)):
+        lost_gaps.append("良くなった数字が regression になる")
+    # A context number is not evidence for anything (see `Metric`), so its
+    # disappearance is not a merge stopper.
+    if _broken_keys(_snap(kept=1.0, watched=10.0, guarded=0.0)):
+        lost_gaps.append("context の消失まで merge を止める")
+    # A number that was already unmeasurable has lost nothing.
+    _was_blank = dict(_lost_before, watched={"value": None, "kind": OUTCOME})
+    _, _blank_broke = compare(_was_blank, _snap(kept=1.0, guarded=0.0, noise=5.0), _gone_metrics)
+    if _blank_broke:
+        lost_gaps.append("元から測れていない数字の消失を regression と呼ぶ")
+    # ...and a retirement written down with its reason is allowed through.
+    _RETIRED["watched"] = "測っていた対象そのものが無くなった（この検査の対照）"
+    try:
+        if _broken_keys(_gone, metrics=_gone_metrics):
+            lost_gaps.append("引退表に載せた数字の消失も止めてしまう")
+    finally:
+        del _RETIRED["watched"]
+    c.add(
+        "judge_notices_a_lost_number",
+        "判定器が「数字が消えた／測れなくなった」を止める",
+        0.0 if lost_gaps else 2.0,
+        detail=(
+            "; ".join(lost_gaps)
+            if lost_gaps
+            else "**本物の `compare()` を合成スナップショットで走らせて**測った"
+            "（純関数なので node も subprocess も要らない＝費用 0）。2 方向とも"
+            "止まる: (1) 鍵ごと**消えた**（metric 表からも消えるので、旧実装は"
+            "名前を出すことすらできなかった）、(2) 宣言は在るが **unmeasurable** に"
+            "落ちた。guard の消失も同じ失敗として数える——消えた「見逃し 0 件」は"
+            "「守れている」ではない。**対照 4 つ**で「全部 regression と呼ぶ」実装を"
+            "落とす: 無変化・改善・context の消失（`Metric` の定義どおり証拠に"
+            "ならない）・元から測れていない鍵の消失。**引退表 `_RETIRED`** に理由"
+            "つきで載せた鍵だけは黙って消えてよい——この逃げ道が無いと、正当な"
+            "引退のたびに検査そのものを弱める圧力がかかる。"
+            "**なぜ要るか（起票時の実測）**: 旧 `compare()` は新スナップショットしか"
+            "走査しないので、消えた鍵は一度も訪れられず `([], [])`＝単独なら exit 1 "
+            "で `[記録]` として正直に merge され、**同じ commit が他の outcome を 1 つ"
+            "でも動かしていれば exit 0 で merge される**。板の "
+            "`test_every_metric_the_backlog_names_exists` が守るのは板が名指しする "
+            "33 鍵で、script は 357 鍵を持つ"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "metrics_runtime_attributed",
         "判定器が、自分の走った時間の内訳を申告する",
@@ -21302,6 +21400,11 @@ class Movement:
     before: float | None
     after: float | None
     better: bool
+    #: C-1491: the number is not in the new snapshot at all, as opposed to
+    #: being there and unreadable. Both stop a merge; they need different
+    #: words, because one is "somebody deleted the check" and the other is
+    #: "the check ran and could not answer".
+    gone: bool = False
 
     @property
     def is_new(self) -> bool:
@@ -21316,6 +21419,17 @@ def _values(snapshot: dict) -> dict[str, float | None]:
     }
 
 
+#: Numbers allowed to disappear, and why. C-1491: without this table the
+#: check below would block a legitimate retirement, and the only way past
+#: it would be to weaken the check - so the escape hatch is a written
+#: reason rather than an argument in a commit message.
+#:
+#: Empty on purpose. An entry belongs here when the thing a number measured
+#: stopped existing, not when the number became inconvenient, and the entry
+#: is the record that somebody decided that.
+_RETIRED: dict[str, str] = {}
+
+
 def compare(before: dict, after: dict, metrics: dict[str, Metric]) -> tuple[list[Movement], list[Movement]]:
     """Return (movements that count, regressions).
 
@@ -21328,6 +21442,15 @@ def compare(before: dict, after: dict, metrics: dict[str, Metric]) -> tuple[list
     A previously unmeasurable outcome that now has a value counts. Without
     that, work no existing number can see would be permanently unfinishable,
     and the rational move would be to stop attempting it.
+
+    **A number that stopped existing is a regression** (C-1491). The loop
+    above walks the *new* snapshot, so for six hundred cycles a key that
+    vanished was simply never visited: deleting a check, or letting it fall
+    to ``unmeasurable``, produced ``([], [])`` - exit 1 on its own, and exit
+    0 and a clean merge if the same commit moved any other outcome. The
+    board's own guard covers the 33 keys it names by hand; the script
+    carries 357. So the second loop reads the *old* snapshot and asks what
+    is no longer answerable.
     """
     old_values, new_values = _values(before), _values(after)
     moved: list[Movement] = []
@@ -21350,6 +21473,23 @@ def compare(before: dict, after: dict, metrics: dict[str, Metric]) -> tuple[list
         elif metric.kind == OUTCOME:
             moved.append(movement)
 
+    for key, entry in before.items():
+        if key in _RETIRED:
+            continue
+        old_value = old_values.get(key)
+        if old_value is None:
+            # It could not answer last time either; nothing was lost here.
+            continue
+        # Read the kind off the OLD snapshot: a deleted metric has no Metric
+        # object to ask, which is the whole shape of this failure.
+        was = entry.get("kind") if isinstance(entry, dict) else None
+        if was == CONTEXT:
+            continue
+        if key not in new_values:
+            broken.append(Movement(key, old_value, None, better=False, gone=True))
+        elif new_values[key] is None:
+            broken.append(Movement(key, old_value, None, better=False))
+
     return moved, broken
 
 
@@ -21365,19 +21505,34 @@ def _report(before: dict, collector: Collector) -> int:
     moved, broken = compare(before, _snapshot(collector), metrics)
 
     def _line(tag: str, movement: Movement) -> str:
-        metric = metrics[movement.key]
-        after = _fmt(metric, movement.after)
+        # C-1491: a deleted metric has no Metric object left to render with,
+        # which is exactly the case this line has to be able to print.
+        metric = metrics.get(movement.key)
+        if metric is None:
+            before = "?" if movement.before is None else f"{movement.before:g}"
+            return f"  {tag:6s} {movement.key:34s} {before} -> 消えた"
+        after = "消えた" if movement.gone else _fmt(metric, movement.after)
         if movement.is_new:
             return f"  {tag:6s} {movement.key:34s} {after}"
         return f"  {tag:6s} {movement.key:34s} {_fmt(metric, movement.before)} -> {after}"
 
     for movement in broken:
-        print(_line("WORSE", movement))
+        print(_line("LOST" if movement.gone or movement.after is None else "WORSE", movement))
     for movement in moved:
         print(_line("NEW" if movement.is_new else "BETTER", movement))
 
     print()
     if broken:
+        lost = [m for m in broken if m.gone or m.after is None]
+        if lost:
+            print(
+                f"{len(lost)} number(s) stopped answering. A number that was the"
+                " evidence for a finished item cannot quietly disappear;"
+            )
+            print(
+                "  if one of them is genuinely retired, add it to _RETIRED"
+                " with the reason."
+            )
         print(f"REGRESSED: {len(broken)} number(s) moved the wrong way. Do not merge.")
         return 2
     if not moved:

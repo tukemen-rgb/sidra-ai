@@ -158,12 +158,20 @@ def test_a_number_that_becomes_measurable_counts():
 
 
 def test_a_number_that_stops_being_measurable_does_not_count():
-    """A probe that broke is not an achievement."""
+    """A probe that broke is not an achievement.
+
+    C-1491 changed the second half. "Not an achievement" was pinned here as
+    *silence* - neither movement nor regression - and silence was the
+    defect: on its own that is exit 1 and an honest ``[記録]`` merge, but
+    the same commit moving any other outcome made it exit 0. A number that
+    stopped answering now stops the merge. The first assertion, which is
+    what this test was written for, is unchanged.
+    """
     after = _snapshot()
     after["ask_without_json"] = {"value": None}
     moved, broken = _compare(_snapshot(), after)
     assert moved == []
-    assert broken == []
+    assert [(m.key, m.gone) for m in broken] == [("ask_without_json", False)]
 
 
 def test_unclassified_numbers_default_to_context():
