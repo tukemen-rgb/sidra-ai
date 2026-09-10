@@ -12176,8 +12176,28 @@ def measure_creation(c: Collector) -> None:
 
     fail_gaps: list[str] = []
     fail_ok: list[str] = []
-    for key in sorted(_tune_templates):
-        lost, problem = _fail_run(key)
+    # C-1613: the whole site's node work in one batch, which is the shape
+    # C-1523 measured as the one that pays. Its counter-example is on record:
+    # batching *half* of the attract site saved nothing (255.0s against
+    # 256.2s on the same tree), because the other half stayed in a queue.
+    #
+    # So all three calls go out together - the losing run for every template,
+    # the reduced-motion run for every template, and racing's winning run -
+    # 21 processes over four cores instead of 21 in a line. The reduced run
+    # is issued for templates whose checks below may `continue` before ever
+    # reading it: a probe is a read, it costs nothing extra in wall time when
+    # it overlaps, and the alternative is to keep half the site sequential.
+    _fail_keys = sorted(_tune_templates)
+    _fail_batch = in_parallel(
+        [(lambda k=k: _fail_run(k)) for k in _fail_keys]
+        + [(lambda k=k: _fail_run(k, reduced=True)) for k in _fail_keys]
+        + [lambda: _fail_run("racing", slow=False)]
+    )
+    _fail_lost = dict(zip(_fail_keys, _fail_batch[: len(_fail_keys)]))
+    _fail_quiet = dict(zip(_fail_keys, _fail_batch[len(_fail_keys) : 2 * len(_fail_keys)]))
+    _fail_won = _fail_batch[-1]
+    for key in _fail_keys:
+        lost, problem = _fail_lost[key]
         if problem:
             fail_gaps.append(problem)
             continue
@@ -12194,7 +12214,7 @@ def measure_creation(c: Collector) -> None:
         if not said:
             fail_gaps.append(f"{key}: nothing offered a retry after the failure")
             continue
-        quiet, problem = _fail_run(key, reduced=True)
+        quiet, problem = _fail_quiet[key]
         if problem:
             fail_gaps.append(problem)
             continue
@@ -12212,7 +12232,7 @@ def measure_creation(c: Collector) -> None:
         fail_gaps.append(
             f"the beat shakes {_fail_shake}, no more than the heaviest hit ({_heaviest_hit:g})"
         )
-    won, problem = _fail_run("racing", slow=False)
+    won, problem = _fail_won
     if problem:
         fail_gaps.append(problem)
     elif won["reason"] != "template" or won["endState"] != "goal":
