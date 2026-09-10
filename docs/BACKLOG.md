@@ -3469,6 +3469,11 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       全部外すと題名が消える。外した結果が空なら**外す前に戻す**。
       **破壊 3 通り**で別々の理由で red: (1) 文頭の除去を外す、
       (2) 末尾を無条件に外す、(3) 空の歯止めを外す。
+      **全体 pytest が 1 つ捕まえた**——`test_the_preamble_introduces_only_the_names_it_documents`。
+      共有プリアンブルは**導入する名前を全部申告する**契約になっていて、
+      `WORLD_STEPS` と `worldStep` を `PREAMBLE_NAMES` に足していなかった。
+      これはテンプレート側の名前との衝突を防ぐための契約で、**契約が
+      働いた**ということ。申告して解消。
       **検証**: pytest・`verify_gate_recall.py` PASSED（MISS 0・誤検知 0）。
       retrieval / chunker / tokenizer / security は触っていないので、
       gate 回帰判定器と回答可能率判定器はどちらも対象外。

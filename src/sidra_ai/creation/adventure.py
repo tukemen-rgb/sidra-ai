@@ -521,6 +521,7 @@ function step(rt){const now=performance.now();
      Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
      second, the world just stops happening twice as fast. */
   if(!TICK(rt)){draw(now);return requestAnimationFrame(step)}
+  worldStep();
   /* Only fighting when something is actually near: the quiet stretches of a
      dungeon are what make the loud ones read as loud (§6 観察 4). */
   combat(state==='play'&&gateState()==='playing'&&

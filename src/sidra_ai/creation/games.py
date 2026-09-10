@@ -288,6 +288,7 @@ function step(rt){
      Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
      second, the world just stops happening twice as fast. */
   if(!TICK(rt)){draw();return requestAnimationFrame(step)}
+  worldStep();
   setScene(Math.min(2,ROUND_MS/(ROUND_LIMIT_MS/3)|0));
   pos+=dir*SPEED;if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}
   /* The sweep moved, so the next press is a real decision again (C-1500).

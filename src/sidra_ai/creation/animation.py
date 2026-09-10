@@ -74,6 +74,17 @@ function FRAME(n, fps, now){
    to a constant) always advances - the gate may never be the reason a
    page stops moving. */
 const TICK_MS = 1000 / 60, TICK_MIN = TICK_MS - 1, TICK_CAP = TICK_MS * 4;
+/* C-1612: the world's own account of how far it has come, for the templates
+   that keep no clock of their own. TICK's own STEPS says only that the gate
+   was ASKED and what it answered; a page that asks and then advances anyway
+   would still look right - break D5 (puzzle calling TICK and discarding the
+   answer) went undetected for exactly this reason.
+   Declared here so every template shares one name, but raised *by the
+   template*, on the line where it commits to advancing. That is what makes
+   it evidence: a page that ignored the gate would raise it every callback,
+   and 120Hz would read twice 60Hz. */
+let WORLD_STEPS = 0;
+function worldStep(){ WORLD_STEPS++ }
 let TICK_ACC = 0, TICK_LAST = null;
 function TICK(now){
   if (typeof now !== 'number' || !isFinite(now)) { return true }
@@ -112,6 +123,12 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "TICK_ACC",
     "TICK_LAST",
     "TICK",
+    # C-1612: the world's own account of its progress, for the templates
+    # that keep no clock of their own. Listed here because this contract is
+    # what stops a preamble name colliding with a template's - the full
+    # suite caught these two missing, which is the contract working.
+    "WORLD_STEPS",
+    "worldStep",
 )
 
 #: A short harness that runs the preamble's helpers and prints what they do.
@@ -220,6 +237,9 @@ TICK = function(now){ CALLS++; const go = _TICK(now); if (go) { STEPS++ } return
 function worldClock(){
   if (typeof t === 'number') { return t }
   if (typeof lapT === 'number') { return lapT }
+  /* C-1612: the five templates that keep no clock of their own raise this
+     instead, so "asked the gate and obeyed it" is checkable on all ten. */
+  if (typeof WORLD_STEPS === 'number' && WORLD_STEPS > 0) { return WORLD_STEPS }
   return null }
 const RATE = RATE_INPUT, MSPF = 1000 / RATE, SECS = SECONDS_INPUT;
 let MS = 0, FRAMES = 0;

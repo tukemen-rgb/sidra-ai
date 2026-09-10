@@ -239,6 +239,7 @@ function step(rt){const now=performance.now();
      Drawing is NOT gated: a 120Hz screen still gets 120 pictures a
      second, the world just stops happening twice as fast. */
   if(!TICK(rt)){draw(now);return requestAnimationFrame(step)}
+  worldStep();
   if(state==='play'){
     if(K('ArrowLeft')){me.x=Math.max(10,me.x-RUN);me.look=-1}
     if(K('ArrowRight')){me.x=Math.min(LW-10,me.x+RUN);me.look=1}

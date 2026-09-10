@@ -252,7 +252,7 @@ function draw(now){
     cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}}
 /* Only the settling is the world here (§26, C-1608); the picture is
    drawn every callback either way. */
-function step(rt){if(TICK(rt))settle();
+function step(rt){if(TICK(rt)){worldStep();settle()}
   draw(performance.now());requestAnimationFrame(step)}
 /* Read back off the running page: how far the board is from rest, and a
    group whose pop is guaranteed to drop something (a member with a foreign
