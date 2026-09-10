@@ -162,7 +162,11 @@ function pop(){if(state!=='play')return;
       const [[bx,by]]=cells;
       burst(OX+bx*CELL+CELL/2,OY+by*CELL+CELL/2,8,
         PALETTE[grid[by][bx]]||'CYAN_TOKEN');
-      grid[by][bx]=-1;sfx('sword');shake(3);hitstop(2);
+      grid[by][bx]=-1;
+      /* §2 増築 (C-1394, C-1635): the same centre the burst above was
+         given. The board is fixed to the picture, so the canvas x is the
+         one the ear means. */
+      sfx('sword',1,(OX+bx*CELL+CELL/2)/cv.width);shake(3);hitstop(2);
       collapse();
       if(!movesLeft()){state='over';jam();
         cleared=grid.every(r=>r.every(v=>v<0));
@@ -175,11 +179,9 @@ function pop(){if(state!=='play')return;
        be breakable by. The hammer above is a tool, not a clear, so it
        neither pays the run nor ends it. */
     comboMiss();
-    sfx('clash');shake(1.5);return}
+    sfx('clash',1,(OX+cur.x*CELL+CELL/2)/cv.width);shake(1.5);return}
   /* The tap: a big clear pays in the currency that matters, capped so
      hoarding cannot trivialise the endgame (§5 tap/sink balance). */
-  if(cells.length>=HAMMER_EARN){hammers=Math.min(HAMMER_CAP,hammers+1);
-    sfx('key')}
   /* Squared scoring: the reason to look for the big group instead of the
      nearest one. */
   /* Over the middle of the group that was cleared, so a big clear's
@@ -190,11 +192,17 @@ function pop(){if(state!=='play')return;
      clear's base (one per tile) and the size bonus rides OUTSIDE it, so
      a x1 clear pays exactly cells.length*cells.length - the payment this
      game always made - and the ladder never compounds the square. */
+  /* The earn sits below popX so it can be heard where the clear was
+     (C-1635); hammers is not part of the score, so the order is the same
+     game it was. */
+  if(cells.length>=HAMMER_EARN){hammers=Math.min(HAMMER_CAP,hammers+1);
+    sfx('key',1,popX/cv.width)}
   const base=cells.length,bonus=cells.length*cells.length-cells.length;
   score+=scorePop(popX,popY,comboHit()*base+bonus);
   cells.forEach(([x,y])=>{burst(OX+x*CELL+CELL/2,OY+y*CELL+CELL/2,4,
     PALETTE[grid[y][x]]||'CYAN_TOKEN');grid[y][x]=-1});
-  sfx('gem');shake(Math.min(9,cells.length));hitstop(cells.length>4?3:1);
+  sfx('gem',1,popX/cv.width);shake(Math.min(9,cells.length));
+  hitstop(cells.length>4?3:1);
   collapse();
   if(!movesLeft()){state='over';jam();
     cleared=grid.every(r=>r.every(v=>v<0));
@@ -680,7 +688,123 @@ def combo_probe(script: str) -> str:
     return COMBO_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+
+#: The board's ear (§2 増築, C-1635). Two groups of the same colour are
+#: laid at opposite ends of the board and cleared with the page's own
+#: ``pop()``, and the panner values are read off the audio graph the page
+#: really built. The board is fixed to the picture, so the canvas x is the
+#: one that means anything here - no camera, no projection.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+/* Everything so far - the start - is positionless. */
+const before = pans.length;
+const calls = [];
+const realSfx = sfx;
+sfx = function(name, pitch, at){ const was = pans.length;
+  const out = realSfx.call(this, name, pitch, at);
+  calls.push({ name: String(name), pan: pans.length > was ? pans[pans.length - 1] : null });
+  return out };
+const PW = 720;
+/* A board with exactly what the reading needs on it: the pair being
+   cleared, and a spare pair elsewhere so movesLeft() stays true and the
+   round does not end mid-measurement. */
+function board(){
+  for (let y = 0; y < ROWS; y++) { for (let x = 0; x < COLS; x++) { grid[y][x] = -1 } }
+  grid[ROWS - 1][Math.floor(COLS / 2)] = 1;
+  grid[ROWS - 1][Math.floor(COLS / 2) + 1] = 1;
+}
+function clear(cx0){
+  board();
+  grid[0][cx0] = 0; grid[0][cx0 + 1] = 0;
+  cur = { x: cx0, y: 0 };
+  const at = calls.length;
+  pop();
+  return calls.slice(at);
+}
+const left = clear(0);
+const right = clear(COLS - 2);
+/* A clear big enough to earn a hammer: the earn has its own sound, and
+   it has to be heard where the clear was too (C-1635). */
+board();
+const bigAt0 = 2;
+for (let i = 0; i < HAMMER_EARN; i++) { grid[0][bigAt0 + i] = 0 }
+cur = { x: bigAt0, y: 0 };
+const bigAt = calls.length;
+pop();
+const big = calls.slice(bigAt);
+/* The hammer: one lone tile, one hammer in the purse. */
+board();
+grid[0][1] = 2;
+hammers = 1;
+cur = { x: 1, y: 0 };
+const hammerAt = calls.length;
+pop();
+const hammer = calls.slice(hammerAt);
+function want(x){ return Math.max(-0.8, Math.min(0.8, (x / PW * 2 - 1) * 0.8)) }
+const mid = c => OX + CELL / 2 + CELL * c;
+const bigMid = mid(bigAt0 + (HAMMER_EARN - 1) / 2);
+const expected = [want(mid(0.5)), want(mid(COLS - 1.5)),
+  want(bigMid), want(bigMid), want(mid(1))];
+console.log(JSON.stringify({ before: before, pans: pans,
+  expected: expected, left: left, right: right, big: big, hammer: hammer,
+  earn: HAMMER_EARN,
+  ox: OX, cell: CELL, cols: COLS }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so a clear's stereo place can be read."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
 __all__ = [
+    "PAN_PROBE",
+    "pan_probe",
     "PUZZLE_DIFFICULTY",
     "PUZZLE_HOW",
     "PUZZLE_SCRIPT",

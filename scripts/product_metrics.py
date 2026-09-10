@@ -9446,8 +9446,10 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.racing import pan_probe as _rc_pan
     from sidra_ai.creation.adventure import pan_probe as _ad_pan
     from sidra_ai.creation.platformer import pan_probe as _pl_pan
+    from sidra_ai.creation.puzzle import pan_probe as _pz_pan
 
     pan_gaps: list[str] = []
+    _pz_pan_seen: dict = {}
     _ad_pan_seen: dict = {}
     _pl_pan_seen: dict = {}
     for _pn_key, _pn_builder, _pn_req in (
@@ -9479,6 +9481,11 @@ def measure_creation(c: Collector) -> None:
         # adds is that the ear's x is the SCREEN's, so the camera has to be
         # in the sum or every far pickup pins to an edge.
         ("platformer", _pl_pan, "ジャンプで進むゲームを作って"),
+        # C-1633's sibling and the tenth body (C-1635): the board is fixed
+        # to the picture, so the canvas x is the one that means anything -
+        # no camera, no projection. The centre of the group that was
+        # cleared was already being computed for the score's number.
+        ("puzzle", _pz_pan, "パズルゲームを作って"),
     ):
         _pn_page = generate_game(
             _pn_req,
@@ -9522,6 +9529,19 @@ def measure_creation(c: Collector) -> None:
         if _pn_key == "shooter" and len(_pn["pans"]) == 2:
             if not (_pn["pans"][0] > 0 and _pn["pans"][1] < 0):
                 pan_gaps.append("shooter: left and right do not separate")
+        if _pn_key == "puzzle":
+            _pz_pan_seen.update(_pn)
+            _pz_names = [c["name"] for c in _pn["left"] + _pn["right"]
+                         + _pn["big"] + _pn["hammer"]]
+            if _pz_names != ["gem", "gem", "key", "powerup", "gem", "sword"]:
+                pan_gaps.append(f"puzzle: the board sounded {_pz_names}")
+            elif not (_pn["left"][0]["pan"] < 0 < _pn["right"][0]["pan"]):
+                pan_gaps.append("puzzle: left and right do not separate")
+            elif _pn["big"][1]["pan"] is not None:
+                pan_gaps.append(
+                    "puzzle: the combo rung - a fact about the run, not a "
+                    "place on the board - built a panner"
+                )
         if _pn_key == "platformer":
             _pl_pan_seen.update(_pn)
             if not (_pn["pans"][0] < 0 < _pn["pans"][1]):
@@ -9543,7 +9563,7 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_sfx_pan",
         "音が起きた場所から聞こえる型（実撃）",
-        0.0 if pan_gaps else 9.0,
+        0.0 if pan_gaps else 10.0,
         detail=(
             "; ".join(pan_gaps)
             if pan_gaps
@@ -9579,7 +9599,21 @@ def measure_creation(c: Collector) -> None:
             f"world x={_pl_pan_seen.get('right', {}).get('worldX', 0)}・"
             f"cam {_pl_pan_seen.get('right', {}).get('cam', 0)}）。"
             "**world x で正規化していたら右端は ±0.8 に飽和して「端」以上のことを言わなくなる**ので、"
-            "その値と一致しないことも読む）"
+            "その値と一致しないことも読む。"
+            "C-1635 で **10 体目 puzzle——これで §2 増築は 10 型そろった**。"
+            "同じ形の 5 度目で、**消したかたまりの中心 `popX` は得点の数字のために計算済み**だった"
+            "（C-1418「大きな消しの数字は大きな消しがあった場所に出す」）。"
+            "盤の左右で同色のかたまりをページ自身の `pop()` で消して実測——"
+            f"左 **{_pz_pan_seen.get('pans', [0])[0]:.4f}**／"
+            f"右 **{_pz_pan_seen.get('pans', [0, 0])[1]:.4f}**／"
+            f"ハンマーで割った 1 枚 **{_pz_pan_seen.get('pans', [0, 0, 0])[2]:.4f}**。"
+            f"振り幅が ±0.33 に収まるのは盤が画布の真ん中 "
+            f"{_pz_pan_seen.get('cols', 0)}×{_pz_pan_seen.get('cell', 0)}px "
+            "しか占めないからで、**盤の外まで音を振らないのが正直な値**。"
+            f"{_pz_pan_seen.get('earn', 0)} 枚以上の消しが鳴らすハンマー獲得音も"
+            "同じかたまりの中心で鳴り、**同じ消しで鳴る連鎖段の音（`powerup`）は"
+            "盤の場所ではなく走りについての事実なので panner を建てない**"
+            "——位置を持つ音と持たない音がページ自身の 1 回の消しで両方読める）"
         ),
         kind=OUTCOME,
     )

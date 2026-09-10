@@ -23,20 +23,23 @@ from sidra_ai.creation.fishing import pan_probe as fishing_pan
 from sidra_ai.creation.kaiju import pan_probe as kaiju_pan
 from sidra_ai.creation.marble import pan_probe as marble_pan
 from sidra_ai.creation.platformer import pan_probe as platformer_pan
+from sidra_ai.creation.puzzle import pan_probe as puzzle_pan
 from sidra_ai.creation.racing import pan_probe as racing_pan
 from sidra_ai.creation.shooter import pan_probe as shooter_pan
 
 _PROBES = {"shooter": shooter_pan, "kaiju": kaiju_pan,
            "fishing": fishing_pan, "catch": catch_pan, "duel": duel_pan,
            "marble": marble_pan, "racing": racing_pan,
-           "adventure": adventure_pan, "platformer": platformer_pan}
+           "adventure": adventure_pan, "platformer": platformer_pan,
+           "puzzle": puzzle_pan}
 _REQUESTS = {"shooter": "ゲームを作って", "kaiju": "巨大怪獣と戦うゲームを作って",
              "fishing": "魚釣りゲームを作って", "catch": "フルーツキャッチを作って",
              "duel": "光線で撃ち合う対戦ゲームを作って",
              "marble": "玉転がしゲームを作って",
              "racing": "レースゲームを作って",
              "adventure": "迷宮を冒険するゲームを作って",
-             "platformer": "ジャンプで進むゲームを作って"}
+             "platformer": "ジャンプで進むゲームを作って",
+             "puzzle": "パズルゲームを作って"}
 
 
 def _drive(template: str) -> dict:
@@ -57,7 +60,7 @@ def _drive(template: str) -> dict:
 @pytest.mark.parametrize(
     "template",
     ["shooter", "kaiju", "fishing", "catch", "duel", "marble", "racing",
-     "adventure", "platformer"],
+     "adventure", "platformer", "puzzle"],
 )
 def test_positionless_sounds_build_no_panner(template: str) -> None:
     got = _drive(template)
@@ -193,3 +196,56 @@ def test_the_camera_is_in_the_sum() -> None:
         "the world-x reading is expected to saturate; if it does not, this "
         "test is no longer discriminating"
     )
+
+
+def test_the_board_tells_which_side_the_group_was_on() -> None:
+    """The tenth and last body (§2 増築, C-1635), and the fifth time the
+    shape has repeated: the centre of the cleared group was already being
+    computed so the score's number could appear where the clear was."""
+
+    got = _drive("puzzle")
+
+    assert [c["name"] for c in got["left"]] == ["gem"]
+    assert [c["name"] for c in got["right"]] == ["gem"]
+    assert got["left"][0]["pan"] < 0 < got["right"][0]["pan"]
+    assert got["pans"] == pytest.approx(got["expected"], abs=1e-9)
+
+
+def test_the_hammer_is_heard_where_it_broke_the_tile() -> None:
+    got = _drive("puzzle")
+
+    assert [c["name"] for c in got["hammer"]] == ["sword"]
+    assert got["hammer"][0]["pan"] == pytest.approx(got["expected"][4], abs=1e-9)
+
+
+def test_the_earned_hammer_is_heard_where_the_clear_was() -> None:
+    """A clear of HAMMER_EARN or more rings its own sound, and it belongs
+    to the same group the clear did."""
+
+    got = _drive("puzzle")
+
+    assert [c["name"] for c in got["big"]] == ["key", "powerup", "gem"]
+    assert got["big"][0]["pan"] == pytest.approx(got["big"][2]["pan"], abs=1e-9)
+
+
+def test_the_combo_rung_keeps_no_place_on_the_board() -> None:
+    """Read off the page's own line rather than called from the probe: the
+    same clear that pans two sounds leaves this one in the middle, because
+    a rung of the run is not an event at a square."""
+
+    got = _drive("puzzle")
+
+    assert got["big"][1]["name"] == "powerup"
+    assert got["big"][1]["pan"] is None
+
+
+def test_the_board_does_not_pan_past_its_own_edges() -> None:
+    """The swing is only ±0.33 because the board occupies the middle of the
+    canvas. Panning wider would put a sound where no tile can be."""
+
+    got = _drive("puzzle")
+    board_left = (got["ox"] / 720 * 2 - 1) * 0.8
+    board_right = ((got["ox"] + got["cols"] * got["cell"]) / 720 * 2 - 1) * 0.8
+
+    for value in got["pans"]:
+        assert board_left <= value <= board_right, (value, board_left, board_right)
