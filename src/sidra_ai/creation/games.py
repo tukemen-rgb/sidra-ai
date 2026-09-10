@@ -53,6 +53,7 @@ from sidra_ai.creation.graze import preamble_for as graze_preamble_for
 from sidra_ai.creation.recap import preamble_for as recap_preamble_for
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.vocabulary import (
+    ARTIFACT_NOUNS,
     CATCH_WORDS,
     FISHING_WORDS,
     GENRES,
@@ -840,7 +841,29 @@ _STRIP_EN_HEAD = re.compile(
     r"(?:me\s+)?(?:a|an|the)\s+",
     re.IGNORECASE,
 )
-_STRIP_EN_TAIL = re.compile(r"\s*(?:game|please)\s*[.!?]*\s*$", re.IGNORECASE)
+#: C-1526: the noun for the thing being made, off the end. Built from
+#: ARTIFACT_NOUNS so 「app」 cannot be an artifact noun for the router and a
+#: subject for the title in the same repository, and applied until nothing
+#: more comes off - 「create a fishing game please」 has two of these
+#: stacked, and one pass left 「fishing game」 for the honesty note to
+#: quote as a thing the page does not draw.
+_STRIP_EN_TAIL = re.compile(
+    r"\s*(?:"
+    + "|".join(re.escape(w) for w in ARTIFACT_NOUNS if w.isascii())
+    + r"|please|thanks|thank you"
+    + r")\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+#: 「a game about a dog」. The artifact noun is the head and the subject
+#: comes after it, so trimming the ends cannot reach it - this is the one
+#: shape where the request says outright which half is which.
+_STRIP_EN_ABOUT = re.compile(
+    r"^(?:"
+    + "|".join(re.escape(w) for w in ARTIFACT_NOUNS if w.isascii())
+    + r")\s+(?:about|of|with|featuring|starring)\s+(?:a|an|the)?\s*",
+    re.IGNORECASE,
+)
 
 
 def _title_from(request: str, fallback: str) -> str:
@@ -858,7 +881,19 @@ def _title_from(request: str, fallback: str) -> str:
     # default title - an English request answered with 「タイミング釣り」.
     without_head = _STRIP_EN_HEAD.sub("", stripped, count=1)
     if without_head != stripped:
-        stripped = _STRIP_EN_TAIL.sub("", without_head, count=1).strip("\"' ") or stripped
+        without_head = _STRIP_EN_ABOUT.sub("", without_head, count=1)
+        trimmed = without_head
+        while True:
+            shorter = _STRIP_EN_TAIL.sub("", trimmed, count=1).strip("\"' ")
+            if shorter == trimmed:
+                break
+            trimmed = shorter
+        # C-1526: an empty result means they named the artifact and nothing
+        # else - 「make a game」, the English 「ゲームを作って」. That request
+        # gets the default page with no caveat, and keeping the raw request
+        # as the title is what made it get one saying 「make a game」 is not
+        # drawn.
+        stripped = trimmed or fallback
     # A request that named only a difficulty has no subject: titling the page
     # 「むずかしい」 and then claiming its subject cannot be drawn is one word
     # playing both roles (C-1235). Fall back to the template's own title, the
@@ -919,10 +954,16 @@ def undepicted_subject(request: str, template: str, asked_title: str) -> str:
             continue
         genre_words.extend(words)
 
+    # C-1526: and the noun for the thing being made comes off with them.
+    # A genre word is trimmed because the page delivered that genre; an
+    # artifact noun is trimmed because it never named a subject. Japanese
+    # had no such removal either - 「アプリを作って」 came back as 「「アプリ」
+    # は絵として出てきません」, and 「レースのアプリを作って」 the same, so
+    # the filing's 「日本語側にはもうある」 was not so.
     trimming = True
     while trimming and left:
         trimming = False
-        for word in genre_words + list(_SUBJECT_FILLERS):
+        for word in genre_words + list(ARTIFACT_NOUNS) + list(_SUBJECT_FILLERS):
             if not word:
                 continue
             lowered, target = left.lower(), word.lower()

@@ -8599,16 +8599,60 @@ def measure_creation(c: Collector) -> None:
         subject_gaps.append("a bare genre word reads as an undepicted subject")
     if not _subject_left("猫のゲームを作って", "fishing", "猫"):
         subject_gaps.append("a named subject reads as nothing")
+    # C-1526: the third case, and the one the two above never asked - the
+    # word for the thing being MADE is not a subject. 「create a fishing
+    # game please」 answered 「ただし「game」は絵として出てきません」 and
+    # 「make a game」 quoted the whole request back as the thing that could
+    # not be drawn.
+    #
+    # Every ask here is one the router really sends to the game path,
+    # checked rather than assumed: a bare 「アプリを作って」/「create an app」
+    # is UNKNOWN and never reaches a generator at all, so listing it would
+    # have been coverage that passes without measuring anything. The
+    # artifact noun only reaches this path with a genre beside it.
+    for _artifact_ask in (
+        "create a fishing game please",
+        "make me a racing game",
+        "make a game",
+        "make a racing app",
+        "レースのアプリを作って",
+        "ゲームを作って",
+    ):
+        said = _subject_say(_artifact_ask)
+        if not said:
+            subject_gaps.append(f"{_artifact_ask}: 制作経路に届いていない")
+        elif "絵として出てきません" in said or "まだ無いため" in said:
+            subject_gaps.append(
+                f"{_artifact_ask}: 作るものの名詞が題材として注釈された"
+            )
+    # Both directions: deleting the note satisfies the half above alone.
+    for _subject_ask, _named in (
+        ("make a cat game", "cat"),
+        ("create a game about a dog", "dog"),
+    ):
+        said = _subject_say(_subject_ask)
+        if _named not in said or "まだ無いため" not in said:
+            subject_gaps.append(
+                f"{_subject_ask}: 描けない題材「{_named}」に注釈が出ない"
+            )
     c.add(
         "creation_subject_honest",
         "描けない題材は、題名を奪われても名指しする",
-        0.0 if subject_gaps else 2.0,
+        0.0 if subject_gaps else 3.0,
         detail=(
             "; ".join(subject_gaps)
             if subject_gaps
-            else "実 chat で確認: 商標で改名されても題材を名指しし（改名も言う・"
-            "「題はそのまま」と嘘をつかない）、ジャンルが通った 3D でも"
-            "「魚は絵として出てこない」と言う。満たした依頼には注釈を付けない"
+            else "実 chat で確認した 3 つ: (1) 商標で改名されても題材を名指しし"
+            "（改名も言う・「題はそのまま」と嘘をつかない）、(2) ジャンルが通った"
+            "3D でも「魚は絵として出てこない」と言う。満たした依頼には注釈を"
+            "付けない。(3) **作るものの名詞は題材ではない**（C-1526）——"
+            "「create a fishing game please」「make a game」「make a racing app」"
+            "「レースのアプリを作って」「ゲームを作って」のどれにも注釈が出ず、"
+            "**同じ英語で本当に描けない主題を名指した依頼には今も出る**"
+            "（cat・dog）。後半が無いと注釈を消すだけで満点になる。"
+            "並べた依頼は**router が実際に制作経路へ送るものだけ**——"
+            "裸の「アプリを作って」「create an app」は UNKNOWN で生成器に"
+            "届かないので、載せれば「何も測らずに通る検査」になっていた"
         ),
         kind=OUTCOME,
     )

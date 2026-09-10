@@ -3021,7 +3021,11 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       主要オブジェクト名）。含まれていればノートを出さない。
       → 動かす数字: `creation_subject_quote_faithful` に「その型が描く語を
       描けないと言わない」検査を足し、10 型で 0→10。
-- [~] 作業中 2026-09-10 13:09 UTC ループA **C-1526: 英語依頼で "game" が題材扱いされる。**〔中〕
+- [x] 完了 2026-09-10 13:35 UTC ループA **C-1526**（`creation_subject_honest` **2→3**、判定器 exit 0（BETTER・MOVED 1）。研究増築なし——§3 の正直さの面・C-1525 の残り半分。`create a fishing game please` が「ただし「game」は絵として出てきません」と答え、`make a game` は**依頼文まるごと**を「描けない題材」として引用していた（題名の空化を防ぐ C-1516 の `or stripped` が生の依頼を題名に残すため）。
+      `vocabulary.py` に **`ARTIFACT_NOUNS`**（作るものを指す名詞）を新設。`GENERIC_GAME_WORDS` から**分割**して作った——同じ 1 本の表が 2 つの別の問いに使われていたため: 「これはゲーム依頼か」（ゼルダ・ドラゴンボールも yes）と「この語は作るものであって題材ではないか」（この 2 つは **no**＝題材そのもの）。重なる部分は共有なので写しではなく、ずれない。`_title_from` の英語末尾削りをこの表から生成し、**もう削れなくなるまで**繰り返す（`fishing game please` は 2 つ重なっており 1 回では `fishing game` が残っていた）。`a game about a dog` 形の頭も落とし、**全部削れたら生の依頼ではなく型の既定題へ**（日本語の「ゲームを作って」がずっとそうしている場所）。`undepicted_subject` の端削りにも同じ表を足した。
+      **起票の処方（`_artifact_terms()` を使えばよい）は採らなかった**: あの表は`_ARTIFACTS` 全体＝ジャンル語も含むので、`a game about a dragon` の「dragon」（DUEL_WORDS の "dragon ball" 由来）まで削って、**本当に描けない主題を黙らせる**。ジャンル語は「その型を実際に出した」から削るもので、作るものの名詞は「そもそも題材を名乗っていない」から削るもの——別の理由なので別の表にした。
+      **自分の主張が 2 つ実測で否定され、両方直した**。(1) 「日本語側にも同じ欠陥がある（「アプリを作って」）」と書いたが、**router は裸の「アプリを作って」「create an app」をUNKNOWN として生成器に渡していない**——私は `generate_game()` を直接叩いて測っており、それは操作者が通れる経路ではなかった。実在するのは**ジャンル語が隣にある形**（「レースのアプリを作って」「make a racing app」）だけ。**判定器の 1 回目は exit 2（`creation_subject_honest` 2→0）で、落としたのはまさにこの届かない依頼**——判定器が私のテストより先に気づいた。(2) それに合わせて判定器から届かない依頼を外した（載せたままなら「何も測らずに通る検査」になっていた）。
+      **旧挙動を固定していた C-1516 のテスト 1 か所を、消さずに移した**（`make a game` の題名は生の依頼→**型の既定題**。docstring の狙い「全部削って空にしない」はそのままで、落とし先だけ変えた理由を本文に書いた）。pytest exit 0（**5852 passed / 6 skip**）・gate MISS 0（誤検知 0）・収集器 281.4s→284.1s（node 実行増なし・誤差）。**全量 pytest はコンテナ再起動で 1 度落ちたので取り直した**（86% で中断・未検証のまま push しない）。tests/test_the_word_for_the_thing_being_made.py を新設（21 本）。）
       再現: `chat("create a fishing game please")` →
       **「『タイミング釣り』型で作りました。ただし『game』は絵として
       出てきません」**。"make me a racing game" / "build a puzzle game" は

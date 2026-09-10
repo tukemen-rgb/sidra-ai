@@ -74,6 +74,16 @@ def test_a_request_without_a_making_verb_keeps_its_words(request_text: str) -> N
 
 
 def test_a_request_that_is_only_the_verb_falls_back() -> None:
-    """Stripping everything must not leave an empty title."""
+    """Stripping everything must not leave an empty title.
 
-    assert _title_from("make a game", FALLBACK) == "make a game"
+    C-1526 changed what it falls back *to*. Keeping the raw 「make a game」
+    was the guard C-1516 reached for, and it made the page title itself
+    the subject: the honesty note then said 「「make a game」は絵として出て
+    きません」 about a request that named no subject at all. The template's
+    own default is where the Japanese 「ゲームを作って」 has always landed,
+    and the note is silent there for the right reason - nothing was
+    promised beyond the artifact.
+    """
+
+    assert _title_from("make a game", FALLBACK) == FALLBACK
+    assert _title_from("create an app", FALLBACK) == FALLBACK

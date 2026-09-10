@@ -120,19 +120,40 @@ GENRES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("プラットフォーマー", "platformer", PLATFORMER_WORDS),
 )
 
+#: The bare noun for "a game", in either language. Split out of
+#: ``GENERIC_GAME_WORDS`` by C-1526 because two different questions were
+#: reading one list: "is this a game request?" (yes for 「ゼルダ」 too) and
+#: "is this word the thing being made rather than what it is about?" (no).
+_GAME_NOUNS: tuple[str, ...] = ("ゲーム", "げーむ", "ミニゲーム", "game", "minigame")
+
+#: Named works land on the game side even when no artifact class is
+#: written down: 「ゼルダの伝説 不思議なぼうし作って」 names none. What
+#: happens to the trademark is the generator's title guard, not the
+#: detector's business. They are *subjects*, not artifact nouns.
+_NAMED_WORKS: tuple[str, ...] = ("ゼルダ", "ドラゴンボール")
+
 #: Words that say "this is a game request" without naming a genre.
-GENERIC_GAME_WORDS: tuple[str, ...] = (
-    "ゲーム",
-    "げーむ",
-    "ミニゲーム",
-    "game",
-    "minigame",
-    # Named works land on the game side even when no artifact class is
-    # written down: 「ゼルダの伝説 不思議なぼうし作って」 names none. What
-    # happens to the trademark is the generator's title guard, not the
-    # detector's business.
-    "ゼルダ",
-    "ドラゴンボール",
+GENERIC_GAME_WORDS: tuple[str, ...] = _GAME_NOUNS + _NAMED_WORKS
+
+#: The noun that names the thing being made, rather than what it is about.
+#:
+#: C-1526: 「create a fishing game please」 was answered with 「ただし「game」
+#: は絵として出てきません」 - the honesty note quoting the word for "game"
+#: as the subject the page failed to draw. Japanese had no such list
+#: either, and the same sentence came back for 「アプリを作って」.
+#:
+#: Kept apart from the genre words on purpose. A genre word is trimmed
+#: because the page *delivered* that genre; an artifact noun is trimmed
+#: because it never named a subject at all. Merging the two would strip
+#: 「dragon」 out of 「a game about a dragon」 - a subject the page really
+#: cannot draw - because DUEL_WORDS carries 「dragon ball」.
+ARTIFACT_NOUNS: tuple[str, ...] = _GAME_NOUNS + (
+    "アプリ",
+    "アプリケーション",
+    "app",
+    "application",
+    "ページ",
+    "page",
 )
 
 
