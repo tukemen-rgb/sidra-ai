@@ -1247,6 +1247,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1646: /v1/retrieve is source discovery and omits chunk content, but the
+    # shared retriever backfills extra chunks from the same document to fill
+    # top_k. With excerpts omitted those depth chunks collapsed to identical
+    # citations, so the same source appeared several times and the score column
+    # was not monotonic. retrieve now returns one result per source.
+    from sidra_ai.evals.retrieve_dedupes_sources import (
+        evaluate_retrieve_dedupes_sources,
+    )
+
+    retrieve_dedupe = evaluate_retrieve_dedupes_sources()
+    c.add(
+        "retrieve_dedupes_sources",
+        "retrieve が出典を重複せず降順スコアで返す",
+        10.0 * retrieve_dedupe.checks_passed / retrieve_dedupe.checks_total,
+        detail=f"{retrieve_dedupe.checks_passed}/{retrieve_dedupe.checks_total} checks; "
+               "src/sidra_ai/evals/retrieve_dedupes_sources.py"
+               + ("" if retrieve_dedupe.passed else "; " + "; ".join(retrieve_dedupe.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1644: /v1/github/analyze skipped inference with one reason - "no new
     # commits" - both when nothing changed and when every fetch failed, so an
     # operator whose fetches all failed read all-clear. The reason now names a

@@ -450,12 +450,28 @@ class SidraService:
             # min_score are untouched; one subject-term hit keeps today's result.
             results = []
         _, citations = build_data_context([result.chunk for result in results])
+        # Source discovery, not content export: this endpoint omits excerpts, so
+        # the depth-backfill chunks the retriever adds beyond its distinct-source
+        # pass (to fill top_k) collapse here to citations identical in everything
+        # a caller can see - same repo@sha:path, empty excerpt, differing only by
+        # score - padding the list with repeats and breaking its descending-score
+        # order. Keep one result per source (the first, which the breadth pass
+        # ranks highest). Chat keeps that depth because each chunk carries its
+        # own excerpt; here one row per source is the whole point (C-1646).
+        seen_documents: set[str] = set()
+        unique: list[tuple[SearchResult, dict]] = []
+        for result, citation in zip(results, citations, strict=True):
+            document_id = result.chunk.document_id
+            if document_id in seen_documents:
+                continue
+            seen_documents.add(document_id)
+            unique.append((result, citation))
         return {
             "refused": False,
-            "reason": "" if results else "no indexed evidence matched the query",
+            "reason": "" if unique else "no indexed evidence matched the query",
             "results": [
                 {"score": round(result.score, 4), "citation": citation}
-                for result, citation in zip(results, citations, strict=True)
+                for result, citation in unique
             ],
             "security": gate_result.to_dict(),
             "model_invoked": False,
