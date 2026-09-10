@@ -24,6 +24,7 @@ from sidra_ai.security.quarantine_review import (
     NotReleasableError,
     QuarantineReview,
 )
+from sidra_ai.security.terminal_safety import scrub_for_terminal
 
 
 def default_quarantine_path() -> Path:
@@ -123,7 +124,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.content:
             if entry.has_content:
                 print("\nredacted content:")
-                print(entry.raw.get("content", ""))
+                # Quarantined content is the content the gate flagged - the one
+                # place a reviewer's terminal must not be driven by what it is
+                # reading. The gate redacts secrets but leaves control bytes, so
+                # scrub terminal-hostile characters before printing and say how
+                # many were removed (C-1647). This is display-only; the stored
+                # copy is untouched.
+                clean, removed = scrub_for_terminal(entry.raw.get("content", ""))
+                print(clean)
+                if removed:
+                    print(
+                        f"注意: 隔離コンテンツから端末制御文字 {removed} 個を除去して表示した"
+                        "（隔離された本文は信用できない DATA なので、生の制御列で端末を操作させない）。",
+                        file=sys.stderr,
+                    )
             else:
                 print(f"\nno content retained (retention: {entry.content_retention})")
         return 0

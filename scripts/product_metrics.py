@@ -1247,6 +1247,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1647: sidra-quarantine show --content printed the flagged content raw,
+    # so a quarantined document carrying terminal escapes could manipulate the
+    # reviewer's terminal at the moment they judge it. It now scrubs the same
+    # control set the ask CLI does (C-1627) and reports what it removed.
+    from sidra_ai.evals.quarantine_show_scrubs_terminal_controls import (
+        evaluate_quarantine_show_scrubs_terminal_controls,
+    )
+
+    quarantine_scrub = evaluate_quarantine_show_scrubs_terminal_controls()
+    c.add(
+        "quarantine_show_scrubs_terminal_controls",
+        "隔離レビュー CLI が本文表示時に端末制御文字を除去する",
+        10.0 * quarantine_scrub.checks_passed / quarantine_scrub.checks_total,
+        detail=f"{quarantine_scrub.checks_passed}/{quarantine_scrub.checks_total} checks; "
+               "src/sidra_ai/evals/quarantine_show_scrubs_terminal_controls.py"
+               + ("" if quarantine_scrub.passed else "; " + "; ".join(quarantine_scrub.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1646: /v1/retrieve is source discovery and omits chunk content, but the
     # shared retriever backfills extra chunks from the same document to fill
     # top_k. With excerpts omitted those depth chunks collapsed to identical
