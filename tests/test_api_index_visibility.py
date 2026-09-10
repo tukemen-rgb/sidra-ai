@@ -158,7 +158,11 @@ def test_an_unreadable_quarantine_log_reports_unavailable_not_zero(
     body = api.get("/v1/index").json()
 
     assert body["quarantine"]["available"] is False
-    assert body["quarantine"]["total"] == 0
+    # Null, not 0: a 0 here reads as "nothing held back" - the exact misreading
+    # this test's name forbids (C-1631). `available: false` says the counts are
+    # unknown, not zero.
+    assert body["quarantine"]["total"] is None
+    assert body["quarantine"]["pending"] is None
     assert body["documents"] == 0, "the rest of the report still works"
 
 

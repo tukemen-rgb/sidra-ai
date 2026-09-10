@@ -169,6 +169,25 @@ def measure_usability(c: Collector) -> None:
           detail=", ".join(index_routes) or f"GET routes: {', '.join(read_routes)}",
           kind=OUTCOME)
 
+    # C-1631: an unreadable quarantine log must report its counts as null
+    # (unknown), not 0 - a 0 reads as "nothing held back", the opposite of what
+    # an unreadable audit log means. The service returns {available:false} only;
+    # the response schema must not re-inject zero defaults.
+    from sidra_ai.evals.index_quarantine_unavailable_is_null_not_zero import (
+        evaluate_index_quarantine_unavailable_is_null_not_zero,
+    )
+
+    idx_q = evaluate_index_quarantine_unavailable_is_null_not_zero()
+    c.add(
+        "index_quarantine_unavailable_is_null_not_zero",
+        "/v1/index が読めない quarantine ログの件数を 0 ではなく null で返す",
+        10.0 * idx_q.checks_passed / idx_q.checks_total,
+        detail=f"{idx_q.checks_passed}/{idx_q.checks_total} checks; "
+               "src/sidra_ai/evals/index_quarantine_unavailable_is_null_not_zero.py"
+               + ("" if idx_q.passed else "; " + "; ".join(idx_q.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # 2b. Is the index still there after a restart?
     #
     # Exercised by building a service, writing one document, and building a

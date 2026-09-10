@@ -212,12 +212,17 @@ class QuarantineSummary(BaseModel):
     """Counts from the quarantine audit log, or an honest failure to read it."""
 
     available: bool = True
-    total: int = 0
-    releasable: int = 0
-    released: int = 0
-    pending: int = 0
-    by_decision: dict[str, int] = Field(default_factory=dict)
-    by_finding_category: dict[str, int] = Field(default_factory=dict)
+    # Null, not 0, when the log could not be read (C-1631). A 0 reads as
+    # "nothing held back", the opposite of what an unreadable audit log means,
+    # and ``_quarantine_summary`` deliberately returns only ``available: false``
+    # there - so the schema must not re-inject zero defaults. A readable-but-
+    # empty log reports a genuine int 0; ``available`` says which reading holds.
+    total: int | None = None
+    releasable: int | None = None
+    released: int | None = None
+    pending: int | None = None
+    by_decision: dict[str, int] | None = None
+    by_finding_category: dict[str, int] | None = None
 
 
 class AuditDurabilitySummary(BaseModel):
