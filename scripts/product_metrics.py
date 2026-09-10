@@ -1229,6 +1229,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1639: a 429 rate-limit response must carry Retry-After (RFC 6585 SHOULD),
+    # computable exactly from the fixed window - so a client, including SIDRA's
+    # own CLI, knows how long to wait instead of guessing.
+    from sidra_ai.evals.rate_limit_429_sets_retry_after import (
+        evaluate_rate_limit_429_sets_retry_after,
+    )
+
+    rl_retry = evaluate_rate_limit_429_sets_retry_after()
+    c.add(
+        "rate_limit_429_sets_retry_after",
+        "API の 429 応答が Retry-After ヘッダで待機秒を伝える",
+        10.0 * rl_retry.checks_passed / rl_retry.checks_total,
+        detail=f"{rl_retry.checks_passed}/{rl_retry.checks_total} checks; "
+               "src/sidra_ai/evals/rate_limit_429_sets_retry_after.py"
+               + ("" if rl_retry.passed else "; " + "; ".join(rl_retry.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1457: the Japanese twin of C-1452. role_reassignment_ja fired on
     # 「(今から|これから)あなたは…」 and 「…として振る舞う」 regardless of the role, so
     # ordinary Japanese prose was quarantined. It now requires the new role to

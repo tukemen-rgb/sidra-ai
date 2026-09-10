@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import hmac
+import math
 import threading
 import time
 from collections import OrderedDict, deque
@@ -141,6 +142,25 @@ class RateLimiter:
         window.append(now)
         return True
 
+    def retry_after(self, client: str) -> int:
+        """Seconds until ``client`` may retry - for a Retry-After header.
+
+        Advisory, computed from the oldest hit still in the window: a full
+        window yields the time until it slides open. A client with room, or
+        none tracked (the max-clients reject), gets 1 - the caller only asks
+        after a reject, and 1 never sends a client back into the same full
+        window while never over-stating the wait.
+        """
+        with self._lock:
+            now = time.monotonic()
+            window = self._hits.get(client)
+            if not window:
+                return 1
+            self._prune_window(window, now)
+            if len(window) < self.per_minute:
+                return 1
+            return max(1, math.ceil(window[0] + 60.0 - now))
+
 
 def create_app(
     service: SidraService | None = None,
@@ -221,6 +241,7 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="rate limit exceeded",
+                headers={"Retry-After": str(target.retry_after(client))},
             )
 
     def auth_rate_limit(request: Request) -> None:
