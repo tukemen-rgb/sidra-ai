@@ -492,7 +492,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function measure(fn){ played.length = 0; fn(); return played.slice() }
-function press(k){ keyHandlers.forEach(fn => fn({ key: k, code: k,
+function press(k){ keyHandlers.forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
   preventDefault(){}, stopImmediatePropagation(){} })) }
 combat(false);
 const calm = measure(() => sfx('hurt'));

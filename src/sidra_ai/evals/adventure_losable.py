@@ -22,14 +22,25 @@ holding a direction finds it. This drives a real path instead: breadth
 first over the room's own grid, with everything the page's own ``solid()``
 calls a wall treated as a wall.
 
-**The sword turned out to be a red herring, and the measurement says so.**
+**The sword was called a red herring here, and that was wrong** (C-1626).
 The obvious idea is to let the route run through grass because the hero can
-cut it. Driven both ways: routing *around* the grass reaches the enemies in
-486 frames and loses every heart; routing *through* it never leaves the
-first room at all. Cutting is slow - the swing has a cooldown and has to be
-aimed - so a path that counts on it stalls with the hero pushing at a tile
-that is still solid. The driver therefore does not cut, and ``cut_grass``
-stays only as the knob that demonstrates this.
+cut it, and this file used to say the measurement had refuted it: routing
+*around* the grass reached the enemies in 486 frames while routing *through*
+it never left the first room at all. It never left because **the sword was
+never drawn**. ``advKey`` put the key into the event's ``code`` as well, so
+``advSwing()`` sent ``code: ' '`` - a code no browser produces - while the
+page swings on ``if(e.code==='Space')``. Twelve thousand frames of a hero
+pushing at grass it had not been told to cut.
+
+Driven with the event a browser would actually send, the same route through
+the grass reaches the enemies in **445 frames** and loses every heart -
+**41 frames sooner than going around**. So the sword opens its lock, and it
+is the faster way through; ``cut_grass`` is a real second route rather than
+a knob kept to demonstrate a dead end. The default stays the way around,
+because a driver that has to cut is a driver that can be broken by the
+swing's cooldown, and this instrument exists to reach a loss by the dullest
+means available - but the two are now measured against each other rather
+than one being written off.
 
 The whole point is to lose, so the driver walks at the enemies once it can
 reach them. It is deliberately a poor player: it never dodges, never uses
@@ -152,7 +163,7 @@ globalThis.requestAnimationFrame = (fn) => { advQ = fn; return 1 };
 SCRIPT_PLACEHOLDER
 const CUT_GRASS = CUT_INPUT, MODE = MODE_INPUT;
 let advFrame = 0;
-function advKey(type, key){ (advH[type] || []).forEach(fn => fn({ key: key, code: key,
+function advKey(type, key){ (advH[type] || []).forEach(fn => fn({ key: key === 'Space' ? ' ' : key, code: key === ' ' ? 'Space' : key,
   preventDefault(){}, stopImmediatePropagation(){} })) }
 const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
 function advHold(want){ ARROWS.forEach(k => {

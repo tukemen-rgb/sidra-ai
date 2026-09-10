@@ -17429,13 +17429,65 @@ def measure_creation(c: Collector) -> None:
             adv_gaps.append("walking straight at the target loses too, so the path proves nothing")
         elif naive.room > 0:
             adv_gaps.append(f"the naive drive left the first room ({naive.room}), so it is not the control")
-        # 4. ...and the sword is not what did it. Routing *through* grass
-        #    because the hero could in principle cut it is slower than
-        #    going around, and never gets out at all.
-        elif cutting.lost:
-            adv_gaps.append("cutting a way through also loses, so the route around is not the reason")
+        # 4. There used to be a fourth condition here: that cutting a way
+        #    through the grass does NOT lose, "so the route around is the
+        #    reason". It passed because the driver's space bar carried
+        #    `code: ' '` and the page swings on `e.code==='Space'` - the
+        #    sword was never drawn (C-1626). Driven with the event a
+        #    browser sends, cutting reaches the enemies in 445 frames
+        #    against the way around's 486. It is a second route, not a
+        #    control, and it has its own judge below.
     elif not adv_gaps:
         adv_gaps.append(f"only {len(adv_runs)} of the 3 drives produced a result")
+    # --- §3: the lock opens with its own key (C-1626) --------------------
+    #
+    # Grass is a lock and the sword is the key that opens it. This was
+    # recorded as refuted - "the sword turned out to be a red herring" -
+    # from a drive whose space bar never reached the page. It opens, and
+    # going through is the faster way: 445 frames against 486 around.
+    lock_gaps: list[str] = []
+    _lock_cut = adv_runs.get("cutting")
+    _lock_around = adv_runs.get("path")
+    if not (_lock_cut and _lock_around):
+        lock_gaps.append("運転器が動かせない")
+    else:
+        if not _lock_cut.cut:
+            lock_gaps.append("草を斬る側の運転になっていない")
+        elif _lock_cut.room < 1:
+            lock_gaps.append(
+                f"斬って突っ切る経路が第 1 の部屋を出られない（room {_lock_cut.room}・"
+                f"{_lock_cut.frames} フレーム）＝錠が鍵で開いていない"
+            )
+        elif not _lock_cut.lost:
+            lock_gaps.append(
+                f"突っ切っても終局に届かない（hp {_lock_cut.hp}・state {_lock_cut.state!r}）"
+            )
+        elif _lock_cut.frames > _lock_around.frames:
+            lock_gaps.append(
+                f"斬る道 {_lock_cut.frames} フレームが回り道 {_lock_around.frames} より遅い"
+                "＝鍵は開けはするが使う理由が無い"
+            )
+    c.add(
+        "creation_lock_opens_with_its_key",
+        "§3 の錠（草）がその鍵（剣）で実際に開き、通ったほうが速い",
+        0.0 if lock_gaps else 1.0,
+        detail=(
+            "; ".join(lock_gaps)
+            if lock_gaps
+            else f"実ページを 2 通り運転して比べた: 草を**斬って突っ切る**経路は "
+            f"{_lock_cut.frames} フレームで部屋 {_lock_cut.room} の敵に届き心を 3 つとも失う。"
+            f"**回り込む**経路は {_lock_around.frames} フレーム——"
+            f"斬る道のほうが {_lock_around.frames - _lock_cut.frames} フレーム速い。"
+            "§3 の骨格は「錠と、それを開ける鍵」で、草は斬れる壁・剣はその鍵。"
+            "**この数字は 2026-09-10 まで逆だった**（C-1626）——駆動器が空白キーの `code` に "
+            "`' '` を入れていたので `if(e.code==='Space'){swing()}` に一度も届かず、"
+            "剣を抜かないまま「剣は囮」と記録されていた。押す鍵は変えていない。"
+            "**両方向**: 「開く」だけでは足りない（開くが遅ければ鍵を使う理由が無い）ので、"
+            "回り道との比較まで読む。"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_adventure_losable",
         "冒険は負けられる（負ける道を運転できる計器がある）",
@@ -17446,10 +17498,12 @@ def measure_creation(c: Collector) -> None:
             else f"実ページを運転して計測: 経路探索の運転器は "
             f"{adv_runs['path'].frames} フレームで部屋 {adv_runs['path'].room} まで歩き、"
             f"心を 3 つとも失って 'over' に到達する。対照 2 通りはどちらも部屋 0 から"
-            "出られない——(a) 目標へ直線的に歩く運転（C-1423 で 1 サイクル溶かした挙動）"
-            "(b) 草を斬って**突っ切る**経路。(b) が効かないのは意外だが実測どおりで、"
-            "斬撃には溜めと向きがあるため草を当てにした経路は固いタイルを押し続けて"
-            "止まる。**部屋 0 の実測**: 勇者は tile(2,4) で目覚め出口は (19,4) と同じ行、"
+            "出られない——目標へ直線的に歩く運転（C-1423 で 1 サイクル溶かした挙動）。"
+            "**かつてはここに「草を斬って突っ切る経路も出られない」を対照として並べていたが、"
+            "それは剣を一度も抜いていない駆動の結果だった**（C-1626・"
+            "`advKey` が `code` に空白を入れていたので `e.code==='Space'` に届いていなかった）。"
+            "突っ切る経路は `creation_lock_opens_with_its_key` へ移した。"
+            "**部屋 0 の実測**: 勇者は tile(2,4) で目覚め出口は (19,4) と同じ行、"
             "しかし草が行 4 の列 3/5/7 に、池（斬れない）が列 9-11・行 4-5 に跨がる。"
             "だから道は「回り込む」形にしかなく、方向キー長押しでは永久に見つからない。"
             "壁かどうかはページ自身の solid() に訊いているので、判定が製品の当たり判定と"

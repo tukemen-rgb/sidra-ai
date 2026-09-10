@@ -999,7 +999,7 @@ const held = {};
 function hold(k, on){ held[k] = on }
 globalThis.__held = held;
 function key(type, k){
-  const e = { key: k, code: k, preventDefault(){}, stopImmediatePropagation(){} };
+  const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
   (handlers[type] || []).forEach(fn => fn(e));
 }
 key('keydown', ' '); key('keyup', ' ');

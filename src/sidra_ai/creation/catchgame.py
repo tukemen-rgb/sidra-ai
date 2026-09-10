@@ -34,7 +34,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k, preventDefault(){}, stopImmediatePropagation(){} };
+  const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
   (handlers.keydown || []).forEach(fn => fn(e));
 }
 /* Steers the basket under the lowest falling item until one more catch
@@ -169,7 +169,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k, preventDefault(){}, stopImmediatePropagation(){} };
+  const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
   (handlers.keydown || []).forEach(fn => fn(e));
 }
 key(' ');
@@ -231,7 +231,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
 function key(k){
-  const e = { key: k, code: k, preventDefault(){}, stopImmediatePropagation(){} };
+  const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
   (handlers.keydown || []).forEach(fn => fn(e));
 }
 key(' '); run(2);

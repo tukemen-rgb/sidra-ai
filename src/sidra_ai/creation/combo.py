@@ -229,7 +229,7 @@ sfx = (...a) => { sounds.push(String(a[0])); return realSfx(...a) };
 /* Read the briefing, the way a player does: the gate holds the loop
    until a key arrives, so a probe that never presses one measures a
    start screen. */
-function press(code){ const ev = { key: code, code: code, clientX: 360, clientY: 160,
+function press(code){ const ev = { key: code === 'Space' ? ' ' : code, code: code === ' ' ? 'Space' : code, clientX: 360, clientY: 160,
   preventDefault(){}, stopImmediatePropagation(){} };
   keys.forEach(fn => fn(ev)); return ev }
 function pump(n){ for (let i = 0; i < n && queued; i++) {
@@ -447,7 +447,7 @@ globalThis.document = { getElementById: () => ({
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
-function press(k){ keyHandlers.forEach(fn => fn({ key: k, code: k,
+function press(k){ keyHandlers.forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
   preventDefault(){}, stopImmediatePropagation(){} })) }
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; fn(i * 16) } }

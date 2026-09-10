@@ -111,7 +111,7 @@ global.clearInterval = ()=>{}; global.clearTimeout = ()=>{};
 try { __SCRIPT__ } catch (e) { console.log(JSON.stringify({error:String(e)})); process.exit(0); }
 function press(code){
   (listeners['keydown']||[]).forEach(f=>{
-    try{ f({code:code, key:code, preventDefault(){}, repeat:false}); }catch(e){}
+    try{ f({code:code, key:(code==='Space'?' ':code), preventDefault(){}, repeat:false}); }catch(e){}
   });
 }
 press('Space');

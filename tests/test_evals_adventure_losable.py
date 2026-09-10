@@ -54,9 +54,23 @@ def test_walking_straight_at_the_target_is_still_stuck() -> None:
     assert naive.room == 0
 
 
-def test_cutting_a_way_through_is_worse_than_going_around() -> None:
+def test_cutting_a_way_through_is_the_faster_way_out() -> None:
+    """This test used to assert the opposite, and it passed (C-1626).
+
+    ``advKey`` put the key into the event's ``code``, so ``advSwing()``
+    sent ``code: ' '`` and the page - which swings on
+    ``e.code==='Space'`` - never drew the sword. Twelve thousand frames of
+    a hero pushing at grass it had not been told to cut read as "cutting
+    does not work", and that reading was written into this module's
+    docstring, this test, and the judge's detail.
+    """
+
     if shutil.which("node") is None:  # pragma: no cover - environment guard
         pytest.skip("node is required to drive the page")
     cutting = drive(mode="path", cut_grass=True)
-    assert not cutting.lost
-    assert cutting.room == 0
+    around = drive(mode="path")
+
+    assert cutting.cut
+    assert cutting.room >= 1, "the sword did not open the grass"
+    assert cutting.lost
+    assert cutting.frames < around.frames, (cutting.frames, around.frames)

@@ -1259,7 +1259,7 @@ const MODE = MODE_INPUT;
 let kFrame = 0;
 function kRun(n){ for (let i = 0; i < n && kQueued; i++) {
   const fn = kQueued; kQueued = null; kClock += 50 / 3; fn(kFrame++ * 16) } }
-function kKey(type, k){ (kHandlers[type] || []).forEach(fn => fn({ key: k, code: k,
+function kKey(type, k){ (kHandlers[type] || []).forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
   preventDefault(){}, stopImmediatePropagation(){} })) }
 kKey('keydown', ' '); kKey('keyup', ' ');
 kRun(94); /* through the awakening (C-1357) */

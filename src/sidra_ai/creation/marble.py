@@ -1006,7 +1006,7 @@ globalThis.requestAnimationFrame = (fn) => { mbQueued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 const MODE = MODE_INPUT;
 let mbFrame = 0;
-function mbKey(type, k){ (mbHandlers[type] || []).forEach(fn => fn({ key: k, code: k,
+function mbKey(type, k){ (mbHandlers[type] || []).forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
   preventDefault(){}, stopImmediatePropagation(){} })) }
 mbKey('keydown', ' '); mbKey('keyup', ' ');
 function mbStep(){ if (!mbQueued) return false;
