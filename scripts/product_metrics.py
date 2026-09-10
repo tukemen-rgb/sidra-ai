@@ -11067,18 +11067,91 @@ def measure_creation(c: Collector) -> None:
             )
         elif _tr["drained"] is None:
             trail_gaps.append(f"{_tr_label}: the finished run keeps its streak")
+    # The third body (C-1628): the platformer's hero, whose whole verb is
+    # moving. Its run is one speed, so the length has to come from the one
+    # place this template's speed varies - the fall, which accelerates.
+    from sidra_ai.creation.platformer import trail_probe as _ptr_probe
+
+    _plat_trail: dict = {}
+    for _tr_reduced in (False, True):
+        _tr_label = "platformer" + ("（reduced）" if _tr_reduced else "")
+        try:
+            _tr_page = generate_game("ジャンプで進むゲームを作って").html
+            _tr_script = _tr_re.search(r"<script>(.*?)</script>", _tr_page, _tr_re.S)
+            if _tr_script is None:
+                raise ValueError("no script")
+            _tr_run = _tr_sp.run(
+                ["node", "-"],
+                input=_ptr_probe(_tr_script.group(1), reduced=_tr_reduced),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if _tr_run.returncode != 0:
+                raise ValueError(_tr_run.stderr.strip()[:60])
+            _tr = json.loads(_tr_run.stdout.strip().splitlines()[-1])
+        except (OSError, _tr_sp.SubprocessError, ValueError) as exc:
+            trail_gaps.append(f"{_tr_label}: probe unavailable ({exc})")
+            continue
+        if _tr_reduced:
+            if _tr["full"] or _tr["fallFull"] or _tr["painted"]:
+                trail_gaps.append(f"{_tr_label}: reduced motion still streaks")
+            continue
+        _plat_trail.update(_tr)
+        # The instrument first: "the standing hero has no tail" is only
+        # evidence if the hero actually came to a stand (C-1618's lesson).
+        if not _tr["still"]:
+            trail_gaps.append(f"{_tr_label}: the hero never landed, so nothing was measured")
+        elif _tr["full"] != 10:
+            trail_gaps.append(f"{_tr_label}: the streak never fills ({_tr['full']})")
+        elif not _tr["behind"]:
+            trail_gaps.append(f"{_tr_label}: an afterimage sits ahead of the hero")
+        elif _tr["drained"] is None or _tr["stillTrail"] != 0:
+            trail_gaps.append(
+                f"{_tr_label}: the standing hero keeps its streak "
+                f"({_tr['stillTrail']} left)"
+            )
+        elif _tr["fallSpanY"] <= _tr["walkSpanY"] + 1:
+            trail_gaps.append(
+                f"{_tr_label}: the fall does not stretch the streak "
+                f"({_tr['fallSpanY']:.1f} vs {_tr['walkSpanY']:.1f})"
+            )
+        # And the numbers have to reach the canvas: a facts function that
+        # counts ten samples nobody draws is the same pass twice over
+        # (C-1615, C-1618).
+        elif _tr["painted"] < 10 or not (0 < _tr["paintedMax"] < 1):
+            trail_gaps.append(
+                f"{_tr_label}: only {_tr['painted']} afterimages were painted "
+                f"(brightest {_tr['paintedMax']})"
+            )
+        elif _tr["stillPainted"]:
+            trail_gaps.append(
+                f"{_tr_label}: {_tr['stillPainted']} afterimages stay on screen "
+                "after the hero stops"
+            )
     c.add(
         "creation_motion_trail",
-        "転がる玉が軌跡を引く",
-        0.0 if trail_gaps else 2.0,
+        "動く体が軌跡を引く",
+        0.0 if trail_gaps else 3.0,
         detail=(
             "; ".join(trail_gaps)
             if trail_gaps
             else "marble の実転がり——roll 中に残像 10 枚が満ち、全サンプルが玉の"
             "後方、run 後に排水、reduced は 1 枚も積まない。racing の実走行"
             "——ペースで span 27・コース外の徐行で 12（**速度が長さを描く**・"
-            "§1 の重さ比例を速度側から）、goal 後に排水、reduced 0（§1 の"
-            "粒子 3 種〔煙・破壊・軌跡〕の軌跡が 2 体に）"
+            "§1 の重さ比例を速度側から）、goal 後に排水、reduced 0。"
+            "platformer の実走行（C-1628）——右へ走ると残像 10 枚が満ちて"
+            "**全部が自機の後方**、"
+            f"手を離すと {_plat_trail.get('drained', '?')} フレームで 0 まで排水（"
+            "**止まっている自機に尾は出ない**）、"
+            f"記録 ctx で実フレームを読むと残像 {_plat_trail.get('painted', 0)} 枚が"
+            f"最も濃いもので α {_plat_trail.get('paintedMax', 0)}（自機本体は α1）・"
+            "止まった次のフレームには 0 枚——**数字が塗りまで届いている**ことも見る、"
+            f"落下は縦の span を {_plat_trail.get('walkSpanY', 0):.0f}→"
+            f"{_plat_trail.get('fallSpanY', 0):.0f} へ伸ばす"
+            "——この型で速度が変わるのは重力だけなので、**そこで長さが伸びる**ことが"
+            "「速度が長さを描く」の確認になる。reduced は走行でも落下でも 1 枚も積まない"
+            "（§1 の粒子 3 種〔煙・破壊・軌跡〕の軌跡が 3 体に）"
         ),
         kind=OUTCOME,
     )

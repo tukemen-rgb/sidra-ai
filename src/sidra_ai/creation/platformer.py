@@ -174,7 +174,13 @@ function build(){
   /* the lantern's platform keeps no gem: two pickups in one spot would
      read as one */
   orbs=orbs.filter(o=>o.shelf||Math.abs(o.x-lamp.x)>1)}
-function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;
+/* The afterimage the run leaves (§1 の軌跡, C-1628). Same shape as
+   marble's and racing's: at most ten samples, one per frame the hero
+   actually moved, drained one per frame when it does not. So the streak's
+   length IS the speed - a hero standing still has no tail at all, and a
+   sprint has a longer one than a shuffle. */
+let TRAIL=[];
+function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;TRAIL=[];
   me={x:60,y:230,vy:0,ground:false,coyote:0,buffer:0,held:false,gems:0,
     cpX:60,cpY:262,sq:1,look:1};
   /* Start ON the aim, not at zero: a run that opens by sliding the world
@@ -241,6 +247,7 @@ function step(rt){const now=performance.now();
   if(!TICK(rt)){draw(now);return requestAnimationFrame(step)}
   worldStep();
   if(state==='play'){
+    const tx0=me.x,ty0=me.y;
     if(K('ArrowLeft')){me.x=Math.max(10,me.x-RUN);me.look=-1}
     if(K('ArrowRight')){me.x=Math.min(LW-10,me.x+RUN);me.look=1}
     const vBefore=me.vy;
@@ -295,7 +302,13 @@ function step(rt){const now=performance.now();
        after the physics has settled the frame, so a respawn records the
        lantern, not the pit. Walking back overwrites a bucket - the trail
        means "where you were, here, last time". */
-    ghostSample(me.x,me.y)}
+    ghostSample(me.x,me.y);
+    /* Sampled after the physics has settled, like the ghost above, so a
+       respawn does not leave a streak stretched across the pit. */
+    if(!REDUCED&&(Math.abs(me.x-tx0)>0.5||Math.abs(me.y-ty0)>0.5)){
+      TRAIL.push({x:me.x,y:me.y});if(TRAIL.length>10)TRAIL.shift()}
+    else if(TRAIL.length){TRAIL.shift()}}
+  if(state!=='play'&&TRAIL.length){TRAIL.shift()}
   /* The camera closes the gap to its aim every frame, in play and out
      of it, so the goal screen settles instead of freezing mid-slide
      (§27 事実 4). */
@@ -364,6 +377,11 @@ function draw(now){
     cx.fillRect(px-3,gy-24,6,6);
     cx.globalAlpha=0.6;cx.strokeStyle=TUNE_ACCENT;cx.lineWidth=1;
     cx.strokeRect(px-7.5,gy-18.5,15,13);cx.restore()}
+  /* The run's own afterimage (§1 の軌跡, C-1628), under the hero and over
+     the record's ghost - it belongs to this run, not to the last one. */
+  TRAIL.forEach((s,i)=>{const sx=s.x-cam;if(sx<-20||sx>W+20)return;
+    cx.save();cx.globalAlpha=((i+1)/TRAIL.length)*0.34;
+    cx.fillStyle='CYAN_TOKEN';cx.fillRect(sx-7,s.y-18,14,12);cx.restore()});
   /* Feet-anchored squash & stretch: height scales with sq, width the
      other way, so the volume reads constant and the feet never float. */
   const sqh=12*me.sq,sqw=14*(2-me.sq),sqt=me.y-6-sqh;
@@ -400,6 +418,7 @@ function draw(now){
     cx.fillText(b,W/2-b.length*6.5,H/2+18)}}
 function platFacts(){return{x:me.x,y:me.y,vy:me.vy,ground:me.ground,
   squash:me.sq,
+  trail:TRAIL.map(s=>s.x),trailY:TRAIL.map(s=>s.y),
   coyote:me.coyote,window:COYOTE,buffer:me.buffer,bufferWindow:BUFFER,
   gems:me.gems,respawns:respawns,
   lit:lamp.lit,cpX:me.cpX,state:state,lampX:lamp.x,lampY:lamp.y,
@@ -1044,7 +1063,107 @@ def camera_probe(script: str) -> str:
     return CAMERA_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+
+TRAIL_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: REDUCED_INPUT });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+/* A recording context, because a number in platFacts() is not paint
+   (the trap C-1615 and C-1618 each fell into once). globalAlpha is
+   tracked across save/restore, so an afterimage cannot be counted at the
+   hero's own opacity. */
+let ALPHA = 1, RECTS = [];
+const STACK = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'globalAlpha') return ALPHA;
+    if (k === 'save') return () => { STACK.push(ALPHA) };
+    if (k === 'restore') return () => { ALPHA = STACK.length ? STACK.pop() : 1 };
+    if (k === 'fillRect') return (x, y, w, h) => { RECTS.push({ x: x, w: w, h: h, a: ALPHA }) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: (t, k, v) => { if (k === 'globalAlpha') { ALPHA = v } return true },
+  apply: () => nothing });
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => rec }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(k){ return { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
+  preventDefault(){}, stopImmediatePropagation(){} } }
+function down(k){ (handlers.keydown || []).forEach(fn => fn(ev(k))) }
+function up(k){ (handlers.keyup || []).forEach(fn => fn(ev(k))) }
+/* Past the briefing, then hold right: the run is the thing that streaks. */
+down(' '); up(' ');
+run(4);
+down('ArrowRight');
+run(40);
+/* One recorded frame, so what is counted is what was drawn. The hero's
+   own body is 14x12 at full opacity and the record's ghost is one rect;
+   ten faint ones is the streak. */
+RECTS = [];
+run(1);
+const painted = RECTS.filter(r => Math.abs(r.w - 14) < 1e-9
+  && Math.abs(r.h - 12) < 1e-9 && r.a < 0.999);
+const paintedMax = painted.length ? Math.max.apply(null, painted.map(r => r.a)) : 0;
+const running = platFacts();
+const runSpan = running.trail.length
+  ? running.x - Math.min.apply(null, running.trail) : 0;
+const behind = running.trail.every(x => x <= running.x + 0.001);
+/* On the flat the height never changes, so this is the control the fall
+   is measured against. */
+const walkSpanY = running.trailY.length
+  ? Math.max.apply(null, running.trailY) - Math.min.apply(null, running.trailY) : 0;
+/* Let go and stand: the streak has to drain, or the length is decoration
+   rather than speed. */
+up('ArrowRight');
+/* Running right can walk off a ledge, and a falling hero is still moving.
+   Let the fall land first, so what is measured is a hero standing still. */
+run(80);
+const still = platFacts();
+let drained = null;
+for (let i = 0; i < 30 && drained === null; i++) { run(1);
+  if (platFacts().trail.length === 0) drained = i }
+/* And one recorded frame after it has stopped: nothing faint is left. */
+RECTS = [];
+run(1);
+const stillPainted = RECTS.filter(r => Math.abs(r.w - 14) < 1e-9
+  && Math.abs(r.h - 12) < 1e-9 && r.a < 0.999).length;
+/* A fall accelerates - the one place this template's speed varies - so
+   the streak has to stretch with it. */
+me.y = 40; me.vy = 0; me.ground = false; me.coyote = 0;
+run(14);
+const falling = platFacts();
+const fallSpanY = falling.trailY.length
+  ? Math.max.apply(null, falling.trailY) - Math.min.apply(null, falling.trailY) : 0;
+console.log(JSON.stringify({ painted: painted.length, paintedMax: paintedMax,
+  stillPainted: stillPainted,
+  still: still.ground, stillTrail: still.trail.length,
+  full: running.trail.length, behind: behind,
+  runSpan: runSpan, walkSpanY: walkSpanY, fallSpanY: fallSpanY,
+  drained: drained, fallFull: falling.trail.length }));
+"""
+
+
+def trail_probe(script: str, *, reduced: bool = False) -> str:
+    """Run, stop, then fall - the three readings §1's streak has to make."""
+
+    return TRAIL_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "REDUCED_INPUT", "true" if reduced else "false"
+    )
+
 __all__ = [
+    "TRAIL_PROBE",
+    "trail_probe",
     "CAMERA_PROBE",
     "camera_probe",
     "SAY_PROBE",
