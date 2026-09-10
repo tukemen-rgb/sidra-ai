@@ -11296,6 +11296,7 @@ def measure_creation(c: Collector) -> None:
 
     from sidra_ai.creation.kaiju import kb_probe as _kb_kaiju
     from sidra_ai.creation.shooter import kb_probe as _kb_shooter
+    from sidra_ai.creation.adventure import knock_probe as _kb_adventure
 
     kb_gaps: list[str] = []
     kb_ok: list[str] = []
@@ -11341,6 +11342,53 @@ def measure_creation(c: Collector) -> None:
             )
         else:
             kb_ok.append(_kb_key)
+    # C-1643: the dungeon's two shoves. kaiju and shooter live on a number
+    # line, so their wall is a clamp; adventure's wall is a tile map, and
+    # the page's own solid() is what says whether the hero is inside one.
+    # Both halves are read, because a shove fails in two independent ways:
+    # it can end inside a wall - every other mover on this page asks first,
+    # and these two did not - and it can point the wrong way, which is what
+    # `-en.dx` did to a roamer that chases its target.
+    try:
+        _kb_adv_page = generate_game("冒険ゲームを作って").html
+        _kb_adv_script = _kb_re.search(r"<script>(.*?)</script>", _kb_adv_page, _kb_re.S)
+        if _kb_adv_script is None:
+            raise ValueError("no script")
+        _kb_adv_run = _kb_sp.run(
+            ["node", "-"],
+            input=_kb_adventure(_kb_adv_script.group(1)),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if _kb_adv_run.returncode != 0:
+            raise ValueError(_kb_adv_run.stderr.strip()[:60])
+        _kb_adv = json.loads(_kb_adv_run.stdout.strip().splitlines()[-1])
+    except (OSError, _kb_sp.SubprocessError, ValueError) as exc:
+        kb_gaps.append(f"adventure: probe unavailable ({exc})")
+        _kb_adv = None
+    if _kb_adv is not None:
+        for _kb_who, _kb_wall, _kb_open in (
+            ("adventure/roamer", "roamWall", "roamOpen"),
+            ("adventure/guardian", "guardWall", "guardOpen"),
+        ):
+            _kb_w, _kb_o = _kb_adv[_kb_wall], _kb_adv[_kb_open]
+            # A probe that never took a hit is not a pass, it is a probe
+            # that measured nothing (C-1637's lesson).
+            if not (_kb_w["hit"] and _kb_o["hit"]):
+                kb_gaps.append(f"{_kb_who}: the staged contact never landed")
+            elif _kb_w["inWall"] or _kb_o["inWall"]:
+                kb_gaps.append(
+                    f"{_kb_who}: the shove put the hero inside a wall "
+                    f"(wall-side {_kb_w['moved']}px, open-side {_kb_o['moved']}px)"
+                )
+            elif _kb_o["away"] <= 0:
+                kb_gaps.append(
+                    f"{_kb_who}: the shove pulls the hero toward its attacker "
+                    f"({_kb_o['away']}px)"
+                )
+            else:
+                kb_ok.append(_kb_who)
     c.add(
         "creation_hit_knockback",
         "被弾で体が押し返される",
@@ -11349,10 +11397,16 @@ def measure_creation(c: Collector) -> None:
             "; ".join(kb_gaps)
             if kb_gaps
             else f"{', '.join(kb_ok)}: 実ページで衝撃源を体の隣に置いて実測——"
-            "被弾フレームに衝撃源から遠ざかる kvx が点火し、体が ≥12px 飛ばされ、"
-            "0.7 減衰で 30f 以内に kvx=0 へ収束、壁際の被弾では移動と同じ"
-            "クランプが境界を守る（§1 の「ヒットストップとノックバック」の対が"
-            "adventure の hero に続き 3 体に）"
+            "kaiju / shooter は被弾フレームに衝撃源から遠ざかる kvx が点火し、"
+            "体が ≥12px 飛ばされ、0.7 減衰で 30f 以内に kvx=0 へ収束、"
+            "壁際の被弾では移動と同じクランプが境界を守る。"
+            "adventure の 2 か所（うろつく敵・番人）は数直線ではなくタイル地図なので"
+            "**ページ自身の `solid()` で英雄の四隅を判定**する（C-1643）: "
+            "壁を背にした被弾で英雄は壁の中に入らず（押し戻しは軸ごとに止まる）、"
+            "開けた側の被弾では加害者から遠ざかる（実測 うろつく敵 +12px・番人 +20px、"
+            "紙テーマの番人は地形に阻まれて +1.03px でも向きは外向き）。"
+            "**両方向を見る**——止めるだけの実装は「遠ざかる」で落ち、"
+            "突き飛ばすだけの実装は「壁の中に入らない」で落ちる"
         ),
         kind=OUTCOME,
     )

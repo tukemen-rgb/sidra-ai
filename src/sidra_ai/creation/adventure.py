@@ -257,6 +257,20 @@ function knock(mark,tx,ty){if(state!=='play')return;
     else{say('印が低く鳴った（'+kprog+'/3）。')}}
   else{kprog=(KORDER[0]===mark)?1:0;
     say('印は沈黙した。順が違う。');sfx('clash')}}
+/* One shove, and it obeys the walls (§1 の hitstop/knockback の対, C-1643).
+   Every other mover on this page asks solid() before it assigns - the hero
+   (below), the roamers, the guardian. The two knockbacks did not: they
+   wrote straight into hero.x, so a hit taken beside a wall put the hero
+   INSIDE it. The walls here are not decoration - solid() counts the
+   shrine (9) and the optional door (10), which are §3's lock and key -
+   so a blow could carry the hero through the structure the dungeon is
+   built on. Axis by axis, as moveHero does it, so a shove along a wall
+   still slides instead of stopping dead. */
+function shove(dx,dy){const r=10;
+  const nx=hero.x+dx;
+  if(!solid(nx-r,hero.y-r)&&!solid(nx+r,hero.y-r)&&!solid(nx-r,hero.y+r)&&!solid(nx+r,hero.y+r)){hero.x=nx}
+  const ny=hero.y+dy;
+  if(!solid(hero.x-r,ny-r)&&!solid(hero.x+r,ny-r)&&!solid(hero.x-r,ny+r)&&!solid(hero.x+r,ny+r)){hero.y=ny}}
 function moveHero(){
   let vx=0,vy=0;const sp=2.2;
   if(keys['arrowleft']||keys['a']){vx=-sp;hero.dir=3}
@@ -305,7 +319,13 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
     sfx('hurt',1,hero.x/cv.width);
     shake(9);hitstop(4);burst(hero.x,hero.y,12,'ALERT_JUICE');
     if(!REDUCED){hero.sq=0.7}
-    hero.x-=en.dx*14;hero.y-=en.dy*14;
+    /* Away from whoever landed it (C-1643). The roamer CHASES, so its own
+       dx points at the hero; shoving by -en.dx dragged the hero toward its
+       attacker - the opposite of what a knockback is for, and the opposite
+       of the form the guardian below already used. */
+    const kd=Math.hypot(hero.x-en.x,hero.y-en.y);
+    if(kd>0.001){shove((hero.x-en.x)/kd*12,(hero.y-en.y)/kd*12)}
+    else{const ed=Math.hypot(en.dx,en.dy)||1;shove(en.dx/ed*12,en.dy/ed*12)}
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
     else{say('いたい。')}}})}
 /* The guardian's turn (§6): a slow stride whose weight is the step, a held
@@ -343,7 +363,12 @@ function moveGuard(){if(room!==2||!guard||!guard.alive)return;
     shake(10);hitstop(5);
     burst(hero.x,hero.y,14,'ALERT_JUICE');
     if(!REDUCED){hero.sq=0.7}
-    hero.x+=(hero.x-guard.x)/d*20;hero.y+=(hero.y-guard.y)/d*20;
+    /* The same shove, through the same walls test (C-1643). The distance
+       is taken fresh: `d` was measured before the guardian took its step,
+       so the old line pushed along a direction the guardian had already
+       left, and the shove came out diagonal to the blow. */
+    const gd=Math.hypot(hero.x-guard.x,hero.y-guard.y)||1;
+    shove((hero.x-guard.x)/gd*20,(hero.y-guard.y)/gd*20);
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
     else{say('重い一撃。')}}}
 function hurtFacts(){return {roam:hurtRoam,guard:hurtGuard,
@@ -896,6 +921,127 @@ console.log(JSON.stringify({ hpAfter: hpAfter, invAfter: invAfter,
   watched: watched, outlineFrames: outlineFrames, blinkGaps: blinkGaps,
   outlineAfter: outlineAfter }));
 """
+
+
+
+#: The two knockbacks, driven for real and judged by the page's OWN
+#: solid() (§1 の hitstop/knockback の対, C-1643). Two things are read,
+#: because a shove can be wrong in two independent ways: it can end
+#: inside a wall - every other mover on this page asks first, and these
+#: two did not - and it can point the wrong way, which is what the
+#: roamer's `-en.dx` did to a roamer that chases. Positions are staged
+#: against real map tiles rather than numbers, so the answer is the
+#: dungeon's, not the probe's.
+KNOCK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function frame(){ if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }
+function kbKey(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+/* The hero's own footprint, at the radius the page's own mover uses. */
+const KBR = 10;
+function inWall(x, y){
+  return solid(x-KBR,y-KBR)||solid(x+KBR,y-KBR)||solid(x-KBR,y+KBR)||solid(x+KBR,y+KBR) }
+/* A floor tile with a solid neighbour on the named side, so the shove has
+   somewhere to push the hero THROUGH. */
+/* A floor tile with a wall on its LEFT and open floor on its RIGHT. One
+   spot serves both halves: put the attacker on the right and the shove
+   goes into the wall, put it on the left and the shove goes into the
+   open. Chosen off the real map, so the geometry is the dungeon's. */
+function spotBeside(rm){
+  for (let ty = 1; ty < GH - 1; ty++) {
+    for (let tx = 2; tx < GW - 2; tx++) {
+      if (rooms[rm][ty][tx] !== 0) continue;
+      const left = rooms[rm][ty][tx - 1], right = rooms[rm][ty][tx + 1];
+      if ((left === 1 || left === 2) && right === 0) return { tx: tx, ty: ty } } }
+  return null }
+function stand(spot){
+  hero.x = OX + spot.tx * TILE + TILE / 2;
+  hero.y = OY + spot.ty * TILE + TILE / 2;
+  hero.inv = 0; hero.hp = 3; hero.swing = 0 }
+/* A hit spends a hitstop; run it out or the next frame is a frozen one
+   and measures nothing at all. */
+function settle(){ for (let i = 0; i < 24; i++) { frame() } }
+function reading(before, from){
+  return { hp: hero.hp, hit: hero.hp < before.hp,
+    moved: Math.round(Math.hypot(hero.x - before.x, hero.y - before.y) * 100) / 100,
+    inWall: inWall(hero.x, hero.y),
+    /* Positive when the blow left the hero further from whoever threw it. */
+    away: Math.round((Math.hypot(hero.x - from.x, hero.y - from.y)
+        - Math.hypot(before.x - from.x, before.y - from.y)) * 100) / 100 } }
+kbKey(' '); frame(); frame();
+
+/* --- the roamer, shoved INTO the wall --- */
+room = 1;
+enemies[1].forEach(e => { e.alive = false });
+const s1 = spotBeside(1);
+const en = enemies[1][0];
+stand(s1);
+en.alive = true; en.x = hero.x + 4; en.y = hero.y; en.t = 999;
+let before = { x: hero.x, y: hero.y, hp: hero.hp };
+let from = { x: en.x, y: en.y };
+frame();
+const roamWall = reading(before, from);
+settle();
+
+/* --- the roamer, shoved into the OPEN --- */
+enemies[1].forEach(e => { e.alive = false });
+stand(s1);
+en.alive = true; en.x = hero.x - 4; en.y = hero.y; en.t = 999;
+before = { x: hero.x, y: hero.y, hp: hero.hp };
+from = { x: en.x, y: en.y };
+frame();
+const roamOpen = reading(before, from);
+settle();
+
+/* --- the guardian, shoved INTO the wall --- */
+room = 2;
+const s2 = spotBeside(2);
+stand(s2);
+guard.alive = true; guard.mode = 'stride'; guard.t = 999; guard.inv = 0;
+guard.x = hero.x + 6; guard.y = hero.y;
+before = { x: hero.x, y: hero.y, hp: hero.hp };
+frame();
+from = { x: guard.x, y: guard.y };
+const guardWall = reading(before, from);
+settle();
+
+/* --- the guardian, shoved into the OPEN --- */
+stand(s2);
+guard.alive = true; guard.mode = 'stride'; guard.t = 999; guard.inv = 0;
+guard.x = hero.x - 6; guard.y = hero.y;
+before = { x: hero.x, y: hero.y, hp: hero.hp };
+frame();
+from = { x: guard.x, y: guard.y };
+const guardOpen = reading(before, from);
+
+console.log(JSON.stringify({ roamWall: roamWall, roamOpen: roamOpen,
+  guardWall: guardWall, guardOpen: guardOpen }));
+"""
+
+
+def knock_probe(script: str) -> str:
+    """The page's own script, wrapped so a shove can be watched land."""
+
+    return KNOCK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
 def hurt_probe(script: str, *, reduced: bool = False) -> str:
@@ -1584,6 +1730,8 @@ __all__ = [
     "econ_probe",
     "HURT_PROBE",
     "hurt_probe",
+    "KNOCK_PROBE",
+    "knock_probe",
     "SQUASH_PROBE",
     "squash_probe",
     "guard_probe",
