@@ -30,6 +30,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from sidra_ai.creation.adventure import world_probe  # noqa: E402
 from sidra_ai.creation.games import generate_game  # noqa: E402
 from sidra_ai.creation.kaiju import probe_source  # noqa: E402
+from sidra_ai.creation.platformer import probe_source as plat_probe  # noqa: E402
+from sidra_ai.creation.racing import probe_source as racing_probe  # noqa: E402
 from sidra_ai.creation.scene import (  # noqa: E402
     ADVENTURE_PALETTE,
     KAIJU_PALETTE,
@@ -83,6 +85,25 @@ def _scenes(request: str, builder, suffix: str) -> list[dict]:
     assert probe.returncode == 0, probe.stderr[:400]
     seen = json.loads(probe.stdout.strip().splitlines()[-1])
     return seen["scenes"]
+
+
+def _acts(request: str, builder, suffix: str) -> list[int]:
+    """Which acts the page actually went through, in order (C-1640)."""
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to read the page's own colours")
+    page = generate_game(f"{request} {suffix}".strip()).html
+    script = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=builder(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    return json.loads(probe.stdout.strip().splitlines()[-1])["sceneOrder"]
 
 
 @pytest.mark.parametrize(("request_", "builder", "count", "suffix"), CASES)
@@ -146,3 +167,75 @@ def test_every_theme_is_covered_by_these_cases() -> None:
     covered = {select_theme(f"ゲームを作って {suffix}".strip()).key for suffix in SUFFIXES}
 
     assert covered == set(THEMES)
+
+
+# ------------------------------------------- the two that were left off the list
+
+
+#: Both have painted a scene per act since C-1036 / C-1354 - racing per lap,
+#: the platformer per third of the course - and both probes already reported
+#: `scenes` in the shape the contract reads. What was missing was the name on
+#: the list (C-1640), which is the shape C-1620 found for the marble.
+LATE = (
+    ("レースゲームを作って", racing_probe),
+    ("ジャンプで進むゲームを作って", plat_probe),
+)
+
+LATE_CASES = [
+    pytest.param(request, builder, suffix, id=f"{request[:4]}-{suffix or 'default'}")
+    for request, builder in LATE
+    for suffix in SUFFIXES
+]
+
+
+@pytest.mark.parametrize("request_,builder,suffix", LATE_CASES)
+def test_the_late_two_paint_a_scene_per_act(request_, builder, suffix) -> None:
+    scenes = _scenes(request_, builder, suffix)
+
+    assert len(scenes) == 3
+    assert len({scene["floor"] for scene in scenes}) == 3
+
+
+@pytest.mark.parametrize("request_,builder,suffix", LATE_CASES)
+def test_the_late_two_keep_the_brightest_for_last(request_, builder, suffix) -> None:
+    scenes = _scenes(request_, builder, suffix)
+    peak = max(range(len(scenes)), key=lambda i: scenes[i]["lum"])
+
+    assert peak == len(scenes) - 1
+
+
+@pytest.mark.parametrize("request_,builder,suffix", LATE_CASES)
+def test_the_late_two_keep_the_wall_apart_from_the_floor(request_, builder, suffix) -> None:
+    """The palette carries mood; the terrain is still shape and value."""
+
+    scenes = _scenes(request_, builder, suffix)
+    worst = min(_ratio(scene["lum"], scene["wallLum"]) for scene in scenes)
+
+    assert worst >= 1.2, worst
+
+
+def test_the_contract_names_every_template_that_has_scenes() -> None:
+    """C-1640: the list is what the judge walks, so a template that paints
+    scenes and is not on it is a property nothing watches."""
+
+    import pathlib
+
+    import scripts.product_metrics as _pm  # noqa: F401
+
+    text = pathlib.Path(_pm.__file__).read_text(encoding="utf-8")
+    block = text[text.index("_scene_targets = ("):]
+    block = block[: block.index("\n    )")]
+
+    for name in ("racing", "platformer", "marble", "puzzle", "duel"):
+        assert f'"{name}"' in block, name
+
+
+@pytest.mark.parametrize("request_,builder,suffix", LATE_CASES)
+def test_the_late_two_go_through_their_acts_in_order(request_, builder, suffix) -> None:
+    """The palette table is not the performance (C-1640). Pinning
+    ``setScene(0)`` for the whole run leaves three distinct colours in the
+    table, the brightest still last, and every other check here passing -
+    which is exactly what the destruction found.
+    """
+
+    assert _acts(request_, builder, suffix) == [0, 1, 2]

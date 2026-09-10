@@ -581,12 +581,30 @@ me.y = 400;
 let thirdRespawn = null;
 for (let i = 0; i < 60; i++) { run(1);
   if (platFacts().respawns > fallsSoFar) { thirdRespawn = platFacts(); break } }
+/* Which act the page was actually IN at each third of the course
+   (C-1640). sceneFacts().scenes is the palette TABLE - three colours that
+   exist - and the contract read only that, so a page that painted act 0
+   from end to end passed it. This is the other half. */
+const sceneOrder = [];
+for (const third of [0.12, 0.5, 0.88]) {
+  /* Standing ON something in each third: a hero dropped into thin air
+     falls into the pit and respawns at the lantern, and then every sample
+     reads the lantern's act. Three frames, not one, because a respawn's
+     hitstop holds a frame and step() returns before draw(). */
+  const want = LW * third;
+  const stand = plats.reduce((a, b) =>
+    (Math.abs(b.x + b.w / 2 - want) < Math.abs(a.x + a.w / 2 - want) ? b : a));
+  me.x = stand.x + stand.w / 2; me.y = stand.y; me.vy = 0;
+  me.ground = true; me.coyote = 0; run(8);
+  const now = sceneFacts().scene;
+  if (sceneOrder[sceneOrder.length - 1] !== now) { sceneOrder.push(now) }
+}
 /* The flag ends the run in a completed state, not another screen of play. */
 me.x = flag.x; me.y = flag.y - 40; me.vy = 0; run(40);
 const end = platFacts();
 const palette = sceneFacts();
 console.log(JSON.stringify({
-  scenes: palette.scenes,
+  scenes: palette.scenes, sceneOrder: sceneOrder,
   hud: hudFacts(),
   depth: depthFacts(),
   window: settled.window, settledGround: settled.ground, groundY: settled.y,

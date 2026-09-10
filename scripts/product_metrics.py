@@ -5044,6 +5044,8 @@ def measure_creation(c: Collector) -> None:
     import tempfile as _scene_tempfile
 
     from sidra_ai.creation.adventure import world_probe as _adv_probe
+    from sidra_ai.creation.racing import probe_source as _racing_scene_probe
+    from sidra_ai.creation.platformer import probe_source as _plat_scene_probe
     from sidra_ai.creation.duel import pace_probe as _duel_pace_for_scenes
     from sidra_ai.creation.catchgame import probe_source as _catch_scene_probe
     from sidra_ai.creation.fishing import probe_source as _fishing_scene_probe
@@ -5072,6 +5074,14 @@ def measure_creation(c: Collector) -> None:
         ("キャッチゲームを作って", "catch", _catch_scene_probe),
         ("ビームで撃ち合うゲームを作って", "duel", _duel_pace_for_scenes),
         ("パズルゲームを作って", "puzzle", _puzzle_sky_probe),
+        # C-1640: both of these already paint a scene per act - racing per
+        # lap, the platformer per third of the course (C-1036, C-1354) -
+        # and both probes already report `scenes` in exactly this shape.
+        # What was missing was the name on the contract's list, which is
+        # the shape C-1620 found for the marble: a property nothing watches
+        # is one that can be quietly lost.
+        ("レースゲームを作って", "racing", _racing_scene_probe),
+        ("ジャンプで進むゲームを作って", "platformer", _plat_scene_probe),
     )
     #: One request per theme, so the default is measured alongside the three
     #: named ones. The default is the empty suffix.
@@ -5097,6 +5107,12 @@ def measure_creation(c: Collector) -> None:
     #: layer contract (§7 観察 7, C-1342). Harvested here so the depth
     #: check below costs no extra node runs.
     scene_depth: dict[str, list] = {}
+    # C-1640, by C-1523's rule and C-1638's table: forty spawns that need
+    # nothing from each other go together instead of into a queue. The
+    # pages are still built in order - that part is this process's own
+    # work, and threads would only take turns at it.
+    _scene_jobs = []
+    _scene_labels = []
     for request, key, builder in _scene_targets:
         for suffix in _scene_themes:
             label = f"{key}/{suffix or 'default'}"
@@ -5105,51 +5121,73 @@ def measure_creation(c: Collector) -> None:
             if script is None:
                 scene_gaps.append(f"{label}: no script")
                 continue
-            try:
-                probe = _scene_sp.run(
-                    ["node", "-"],
-                    input=builder(script.group(1)),
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                )
-                if probe.returncode != 0:
-                    scene_gaps.append(f"{label}: {probe.stderr.strip()[:60]}")
-                    continue
-                seen = json.loads(probe.stdout.strip().splitlines()[-1])
-            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-                scene_gaps.append(f"{label}: probe unavailable ({type(exc).__name__})")
+            _scene_labels.append((label, request, suffix))
+
+            def _scene_job(b=builder, sc=script.group(1)):
+                try:
+                    return _scene_sp.run(
+                        ["node", "-"],
+                        input=b(sc),
+                        capture_output=True,
+                        text=True,
+                        timeout=180,
+                    )
+                except (OSError, _scene_sp.SubprocessError) as exc:
+                    return exc
+
+            _scene_jobs.append(_scene_job)
+    for (label, request, suffix), probe in zip(_scene_labels, in_parallel(_scene_jobs)):
+        try:
+            if isinstance(probe, Exception):
+                raise probe
+            if probe.returncode != 0:
+                scene_gaps.append(f"{label}: {probe.stderr.strip()[:60]}")
                 continue
-            scenes = seen.get("scenes") or []
-            if isinstance(seen.get("hud"), dict):
-                scene_hud[label] = (seen["hud"], scenes)
-            if isinstance(seen.get("depth"), list):
-                scene_depth[label] = seen["depth"]
-            if len(scenes) < 3:
-                scene_gaps.append(f"{label}: {len(scenes)} scene(s) reported")
-                continue
-            if len({s["floor"] for s in scenes}) != len(scenes):
-                scene_gaps.append(f"{label}: two scenes paint the same floor")
-                continue
-            peak = max(range(len(scenes)), key=lambda i: scenes[i]["lum"])
-            if peak != len(scenes) - 1:
-                scene_gaps.append(f"{label}: the brightest scene is #{peak}, not last")
-                continue
-            # The palette carries mood; the terrain is still shape and value.
-            # A tint that flattened the wall against the floor would be a
-            # safety number traded for a decorative one.
-            tokens = _scene_theme(f"{request} {suffix}".strip()).tokens
-            floors = _wcag(
-                _srgb_lum(tokens["surface"]), _srgb_lum(tokens["border"])
+            seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            scene_gaps.append(f"{label}: probe unavailable ({type(exc).__name__})")
+            continue
+        scenes = seen.get("scenes") or []
+        # The palette table says three colours exist; this says the page
+        # went through them, in order, as the acts happened (C-1640). The
+        # destruction that made this necessary: pinning `setScene(0)` for
+        # the whole run left every check above passing.
+        order = seen.get("sceneOrder")
+        if order is not None and order != list(range(len(scenes))):
+            scene_gaps.append(
+                f"{label}: the page painted acts {order}, not "
+                f"{list(range(len(scenes)))}"
             )
-            worst = min(_wcag(s["lum"], s["wallLum"]) for s in scenes)
-            if worst < floors - 0.02:
-                scene_gaps.append(
-                    f"{label}: wall/floor value gap falls to {worst:.2f} "
-                    f"(untinted {floors:.2f})"
-                )
-                continue
-            scene_ok.append(label)
+            continue
+        if isinstance(seen.get("hud"), dict):
+            scene_hud[label] = (seen["hud"], scenes)
+        if isinstance(seen.get("depth"), list):
+            scene_depth[label] = seen["depth"]
+        if len(scenes) < 3:
+            scene_gaps.append(f"{label}: {len(scenes)} scene(s) reported")
+            continue
+        if len({s["floor"] for s in scenes}) != len(scenes):
+            scene_gaps.append(f"{label}: two scenes paint the same floor")
+            continue
+        peak = max(range(len(scenes)), key=lambda i: scenes[i]["lum"])
+        if peak != len(scenes) - 1:
+            scene_gaps.append(f"{label}: the brightest scene is #{peak}, not last")
+            continue
+        # The palette carries mood; the terrain is still shape and value.
+        # A tint that flattened the wall against the floor would be a
+        # safety number traded for a decorative one.
+        tokens = _scene_theme(f"{request} {suffix}".strip()).tokens
+        floors = _wcag(
+            _srgb_lum(tokens["surface"]), _srgb_lum(tokens["border"])
+        )
+        worst = min(_wcag(s["lum"], s["wallLum"]) for s in scenes)
+        if worst < floors - 0.02:
+            scene_gaps.append(
+                f"{label}: wall/floor value gap falls to {worst:.2f} "
+                f"(untinted {floors:.2f})"
+            )
+            continue
+        scene_ok.append(label)
     c.add(
         "creation_scene_palettes",
         "場面ごとに色が変わる型",
@@ -5159,9 +5197,11 @@ def measure_creation(c: Collector) -> None:
         detail=(
             "adventure の部屋間・kaiju の phase 間・shooter の幕間・marble の"
             "コース 3 分割・fishing / catch / puzzle のラウンド 3 等分・duel "
-            "の試合緊迫度で実際の描画色が変わり、"
-            "最も明るい場面が最終部にある。4 テーマすべてで確認、壁と床の"
-            "明度差はテーマ既定値のまま"
+            "の試合緊迫度・**racing の周回ごと・platformer の序盤/中盤/ゴール前**"
+            "（C-1640 で名簿に入れた 2 型——どちらも C-1036／C-1354 以来"
+            "**場面を持っていたのに契約が見ていなかった**）で実際の描画色が変わり、"
+            "最も明るい場面が最終部にある。**10 型 × 4 テーマ = 40 セル**で確認、"
+            "壁と床の明度差はテーマ既定値のまま"
             if not scene_gaps
             else "; ".join(scene_gaps)
         ),

@@ -408,18 +408,25 @@ const afterRight = raceFacts();
    let the obstacles that land on the racing line cost what they cost. */
 key('keydown', 'r'); key('keyup', 'r');
 let frames = 0, lapsSeen = [];
+/* Which scene the page was actually IN, in the order it went (C-1640).
+   sceneFacts().scenes is the palette table - three colours that exist -
+   and the contract read only that, so a page that painted act 0 for the
+   whole race passed. This is the other half: the acts, as they happened. */
+const sceneOrder = [];
 for (let i = 0; i < 9000 && raceFacts().state === 'race'; i++, frames++) {
   const f = raceFacts();
   key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
   if (f.carX < f.road - 6) key('keydown', 'ArrowRight');
   else if (f.carX > f.road + 6) key('keydown', 'ArrowLeft');
   run(1);
+  const at = sceneFacts().scene;
+  if (sceneOrder[sceneOrder.length - 1] !== at) sceneOrder.push(at);
   if (raceFacts().lap !== f.lap) lapsSeen.push(i);
 }
 const end = raceFacts();
 const palette = sceneFacts();
 console.log(JSON.stringify({
-  scenes: palette.scenes,
+  scenes: palette.scenes, sceneOrder: sceneOrder,
   hud: hudFacts(),
   edge: edgeFacts(),
   depth: depthFacts(),
