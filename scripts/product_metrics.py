@@ -5495,9 +5495,10 @@ def measure_creation(c: Collector) -> None:
         if len(seen) != 2:
             continue
         slow, fast = seen[60.0], seen[120.0]
-        # hitstop swallows a callback before the gate is reached (C-1614),
-        # measured at 8 in three seconds at worst; a dropped gate misses
-        # every one of them.
+        # hitstop swallows a callback before the gate is reached; measured
+        # at 12 in the two-second window at worst (catch at 120Hz, where a
+        # real-time hold spans twice the callbacks - C-1614). A dropped
+        # gate misses every one of them, which is 240.
         if (slow["frames"] - slow["calls"] > 20) or (
             fast["frames"] - fast["calls"] > 20
         ):
@@ -5509,7 +5510,7 @@ def measure_creation(c: Collector) -> None:
         # world itself must agree - this is what catches a page that asks
         # the gate and then ignores the answer.
         elif fast["world"] is not None and (
-            fast["world"] > 130 or abs(fast["world"] - slow["world"]) > 12
+            fast["world"] > 130 or abs(fast["world"] - slow["world"]) > 2
         ):
             rate_gaps.append(
                 f"{_label}: the world clock ran on regardless "
@@ -5525,7 +5526,7 @@ def measure_creation(c: Collector) -> None:
             rate_gaps.append(
                 f"{_label}: the world stalled ({slow['steps']}/{fast['steps']} steps)"
             )
-        elif abs(fast["steps"] - slow["steps"]) > 12:
+        elif abs(fast["steps"] - slow["steps"]) > 2:
             rate_gaps.append(
                 f"{_label}: 60Hz and 120Hz disagree "
                 f"({slow['steps']} vs {fast['steps']} steps)"
@@ -5544,17 +5545,30 @@ def measure_creation(c: Collector) -> None:
             "10 型すべてを rAF 60Hz / 120Hz 相当で回し、**実時間 2 秒**に世界が"
             "何歩進んだかを実測（共通の TICK を probe 側から包んで数える＝型ごとの"
             "「進み」の定義が要らない）。修正前は 120Hz で 240 歩＝2 倍。いま 10 型とも"
-            "120Hz でも 120 歩前後（≤130・≥100）で 60Hz と ±12 歩以内、"
+            "120Hz でも 120 歩前後（≤130・≥100）で 60Hz と **±2 歩以内**、"
             "描画は 120Hz 側が 1.8 倍以上＝絵は画面の速さのまま。"
-            "±12 の余裕は hitstop がまだフレーム数で数えられているぶん"
-            "（60Hz の方が世界の歩を多く失う。duel 175・catch 172・racing 177 対 180）"
-            "——C-1614 として分離起票済み。"
+            "余裕は C-1614 で ±12→±2。hitstop の扱いが二重に不公平だった: "
+            "(1) 止める長さをコールバック数で数えていた＝120Hz では半分の時間、"
+            "(2) 止まっていた時間を門が「詰まったタブ」と見なして TICK_CAP まで"
+            "貯め、あとで 1 コールバック 1 歩ずつ返す——それを拾う余分な"
+            "コールバックは 120Hz にはあり 60Hz にはない（TICK_FREEZE で"
+            "「この時間は誰にも請求しない」と申告する。渡すのは時刻ではなく"
+            "**長さ**: 保持が終わるのはコールバックの途中で、その余りの"
+            "大きさこそ画面の速さで変わるため）。実測（実時間 2 秒・決定的・"
+            "60Hz/120Hz の差）: 修正前 duel +5・catch +6・racing +3、"
+            "(1) だけなら +4/+6/+3、(2) だけなら +3/+5/+2、両方で "
+            "**10 型すべて差 0**（duel 115/115・catch 114/114・racing 117/117）。"
+            "3 秒の racing 距離では 60Hz 478.17 に対し 75/120/144Hz が 485.71 と"
+            "ずれていた（C-1607 から残っていた・誰も突き合わせていなかった）のが"
+            "4 つとも 478.17 で一致。"
             "検査は 3 段: (a) 全コールバックが門に**尋ねる**（calls==frames。"
             "門を外した型はこれで落ちる） (b) 門は 60/秒しか通さない (c) 型が"
             "自前の世界時計 t/lapT を持つ 5 型（shooter・kaiju・marble・catch・racing）"
-            "では**世界そのもの**の進みも 180 前後。**残る 5 型（platformer・adventure・"
-            "duel・fishing・puzzle）は世界時計を持たないので、門に尋ねて答えを"
-            "無視する型は捕まらない**——この穴は C-1612 に分離した。racing の距離での実測は C-1607 の"
+            "では**世界そのもの**の進みも実測する。**残る 5 型（platformer・adventure・"
+            "duel・fishing・puzzle）は自前の時計を持たないが、C-1612 以降は"
+            "共通の WORLD_STEPS を型が「進む」と決めた行で上げるので、"
+            "門に尋ねて答えを無視する型は 10 型すべてでここに出る**。"
+            "racing の距離での実測は C-1607 の"
             "creation_frame_rate_fair 初版と同じ（60Hz 478.17 に対し 75/120/144Hz が"
             "完全同値 485.71）"
             if not rate_gaps

@@ -66,7 +66,8 @@ def test_a_faster_screen_does_not_buy_more_world(template: str) -> None:
     slow = _drive(ASKS[template], 60.0)["world"]
     fast = _drive(ASKS[template], 120.0)["world"]
 
-    assert abs(fast - slow) <= 12, f"{template}: {slow} at 60Hz vs {fast} at 120Hz"
+    # ±2 since C-1614 closed the hitstop asymmetry; these five read 0.
+    assert abs(fast - slow) <= 2, f"{template}: {slow} at 60Hz vs {fast} at 120Hz"
 
 
 def test_the_clock_is_not_the_gates_own_answer() -> None:
@@ -83,4 +84,4 @@ def test_the_clock_is_not_the_gates_own_answer() -> None:
     assert "WORLD_STEPS" in TICK_PROBE or "worldClock" in TICK_PROBE
     slow, fast = _drive(ASKS["puzzle"], 60.0), _drive(ASKS["puzzle"], 120.0)
     assert slow["steps"] == fast["steps"], "the gate itself already disagrees"
-    assert abs(fast["world"] - slow["world"]) <= 12
+    assert abs(fast["world"] - slow["world"]) <= 2

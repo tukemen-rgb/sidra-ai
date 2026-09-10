@@ -106,7 +106,7 @@ WIN_PARTICLES = 26
 JUICE_PREAMBLE = """
 /* --- juice: shake, hitstop, particles (knowledge base §1) ------------- */
 const JCV=document.getElementById('stage');
-let SHAKE=0,HITSTOP=0,PARTS=[];
+let SHAKE=0,HITSTOP=0,PARTS=[],HITSTOP_LAST=null;
 /* Weight in "how big was this": 1 a footstep, 6 a hit, 12 a death. The kick
    is that many pixels and is gone in a few frames. */
 function shake(weight){if(REDUCED)return;SHAKE=Math.max(SHAKE,weight)}
@@ -259,7 +259,50 @@ requestAnimationFrame=function(fn){
   return JUICE_RAF(function tick(t){
     /* Re-scheduled rather than skipped: dropping the callback would end the
        template's loop instead of pausing it. */
-    if(HITSTOP>0){HITSTOP--;JUICE_RAF(tick);return}
+    /* C-1614: the hold is spent in real time, not in callbacks. §1 says
+       the 手応え of a hit is the time the world stands still, and counting
+       callbacks made that half as long on a 120Hz screen - the hit landed
+       softer on the better screen.
+       This half alone barely moves the judge's number (the 60Hz/120Hz gap
+       goes from +5/+6/+3 to +4/+6/+3 on duel/catch/racing): most of that
+       gap was the gate BANKING the held time and repaying it to whichever
+       screen had spare callbacks, which is what TICK_FREEZE below is for.
+       Both halves together take all three to 0.
+       A frame's worth is the same 1/60s the world gate uses. The fallback
+       is deliberate and is what keeps this safe: with no usable timestamp,
+       or a clock that did not move (a probe stubbing performance.now to a
+       constant), the hold drains a whole frame per callback exactly as it
+       always did. A hold that outlived its callbacks would freeze the page. */
+    if(HITSTOP>0){
+      const known=typeof t==='number'&&isFinite(t);
+      const gap=known&&HITSTOP_LAST!==null?t-HITSTOP_LAST:0;
+      if(known){HITSTOP_LAST=t}
+      const STEP=1000/60;
+      /* The same slack the world gate keeps, and for the same callers: a
+         probe hand-turning rAF at a flat 16ms means a frame by it. Without
+         this, 16 divided by 16.667 is 0.96 and every hold those probes run
+         costs one extra callback - which is how this was first noticed,
+         as adventure's charm probe running out of frames before the
+         second fatal blow landed. A real 120Hz screen is nowhere near the
+         slack and still pays 0.5. */
+      const asked=gap>0?(gap>=STEP-1?Math.max(1,gap/STEP):gap/STEP):1;
+      /* Only the part of this callback the hold actually wanted, and never
+         more real time than actually passed. The last callback of a hold
+         overshoots its end, and by how much depends on the refresh rate;
+         charging the overshoot to the hold would put the rate back into
+         the answer. */
+      const held=Math.min(HITSTOP,asked)*STEP;
+      TICK_FREEZE(gap>0?Math.min(held,gap):held);
+      HITSTOP-=asked;
+      /* A frame's worth of time divided by a frame is 1, but only in
+         arithmetic: the timestamps a browser hands out do not land on
+         exact multiples, so the last subtraction leaves a few parts in a
+         quadrillion behind and the hold outlives itself by a whole
+         callback. Measured: a 7-frame hold ran 9 callbacks at 60Hz and 15
+         at 120Hz - the very asymmetry this item is closing. */
+      if(HITSTOP<1e-6){HITSTOP=0}
+      JUICE_RAF(tick);return}
+    HITSTOP_LAST=typeof t==='number'&&isFinite(t)?t:null;
     FLASH_FRAME++;HAPTIC_FRAME++;
     fn(t);stepParticles();stepPops();stepShake()})};
 """ % {

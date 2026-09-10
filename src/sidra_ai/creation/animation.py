@@ -107,6 +107,22 @@ function TICK(now){
   TICK_ACC -= TICK_MS;
   if (TICK_ACC < 0) { TICK_ACC = 0 }
   return true}
+/* C-1614: `ms` of real time were spent holding the world still on
+   purpose - a hitstop - so the gate must not charge them to anybody.
+   Without this it cannot tell a deliberate hold from a stalled tab: it
+   banks the held time (to TICK_CAP) and hands it back one step per
+   callback, which a 120Hz screen has spare callbacks to collect and a
+   60Hz screen does not. That asymmetry, not the length of the hold, was
+   most of what made the same hitstop cost the 60Hz world more steps.
+   A duration rather than an instant, because the hold ends partway
+   through a callback: freezing up to `now` would also swallow the
+   remainder of that callback, and how big that remainder is depends on
+   the refresh rate - which is the thing being fixed. The accumulator's
+   own remainder is deliberately left alone for the same reason. */
+function TICK_FREEZE(ms){
+  if (TICK_LAST === null) { return }
+  if (typeof ms !== 'number' || !isFinite(ms) || !(ms > 0)) { return }
+  TICK_LAST += ms}
 """.strip()
 
 #: Names the preamble is allowed to introduce. Kept as data so a test can
@@ -129,6 +145,10 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     # suite caught these two missing, which is the contract working.
     "WORLD_STEPS",
     "worldStep",
+    # C-1614: the hold that says "charge this time to nobody". Named here
+    # for the same reason: a template with its own TICK_FREEZE would be
+    # silently overwritten by the preamble's.
+    "TICK_FREEZE",
 )
 
 #: A short harness that runs the preamble's helpers and prints what they do.

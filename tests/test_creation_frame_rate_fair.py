@@ -102,10 +102,16 @@ def test_a_faster_screen_is_not_a_faster_game(hz: int) -> None:
     )
 
 
-def test_every_screen_above_sixty_agrees_exactly() -> None:
-    """Not an average: 75, 120 and 144Hz must be the same game."""
+def test_every_screen_agrees_exactly() -> None:
+    """Not an average: 60, 75, 120 and 144Hz must be the same game.
 
-    seen = {_at(hz)["dist"] for hz in (75, 120, 144)}
+    60Hz was outside this until C-1614. It read 478.17 where the faster
+    screens read 485.71, because the racer hitstops and the gate was
+    quietly repaying the held time to whichever screen had callbacks to
+    spare. All four now read 478.17.
+    """
+
+    seen = {_at(hz)["dist"] for hz in (60, 75, 120, 144)}
     assert len(seen) == 1, f"the refresh rate still picks the course: {seen}"
 
 
@@ -117,15 +123,21 @@ def test_a_slow_screen_degrades_into_slow_motion() -> None:
     assert slow <= normal, "a slower screen ran the world faster"
 
 
-@pytest.mark.parametrize("hz", [75, 120, 144])
+@pytest.mark.parametrize("hz", [60, 75, 120, 144])
 def test_a_fast_screen_steps_the_world_exactly_sixty_times_a_second(hz: int) -> None:
     """The property behind the distance: steps, not an average of them.
 
     A looser bar in TICK would still land inside the 3% above, and would
     step the world 183 times in three seconds instead of 180.
+
+    177, not 180: the racer hitstops three steps' worth in these three
+    seconds and the world really does stand still for them. Until C-1614
+    this read 180 on the fast screens only - the gate banked the held time
+    and handed it back to a screen with callbacks to spare, so 60Hz read
+    177 here and nothing compared the two.
     """
 
-    assert _at(hz)["advanced"] == 180
+    assert _at(hz)["advanced"] == 177
 
 
 @pytest.mark.parametrize("hz", [120, 144])
@@ -167,10 +179,12 @@ def test_no_template_stalls_behind_the_gate(template: str) -> None:
 
 @pytest.mark.parametrize("template", sorted(_TEMPLATES))
 def test_both_screens_play_the_same_game(template: str) -> None:
-    """±12 steps of slack: hitstop is still counted in callbacks (C-1614)."""
+    """±2 steps of slack since C-1614. All ten read exactly 0: the ±12 this
+    used to allow was hitstop, held in callbacks and then handed back to
+    the screen with callbacks to spare."""
 
     slow, fast = _steps(template, 60)["steps"], _steps(template, 120)["steps"]
-    assert abs(fast - slow) <= 12, f"{template}: {slow} vs {fast} steps"
+    assert abs(fast - slow) <= 2, f"{template}: {slow} vs {fast} steps"
 
 
 @pytest.mark.parametrize("template", sorted(_TEMPLATES))
@@ -186,10 +200,10 @@ def test_every_callback_asks_the_gate(template: str) -> None:
 
     for hz in (60, 120):
         got = _steps(template, hz)
-        # hitstop swallows a callback before the gate is reached, and is
-        # still counted in callbacks rather than time (C-1614) - measured
-        # at 8 in three seconds at worst. A template that dropped the gate
-        # misses all 120 or 240.
+        # hitstop swallows a callback before the gate is reached - measured
+        # at 12 at worst (catch at 120Hz, where a hold spends twice the
+        # callbacks for the same real time since C-1614). A template that
+        # dropped the gate misses all 120 or 240.
         missed = got["frames"] - got["calls"]
         assert missed <= 20, (
             f"{template} at {hz}Hz asked {got['calls']} times in {got['frames']} frames"
