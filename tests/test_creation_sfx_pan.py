@@ -22,19 +22,21 @@ from sidra_ai.creation.duel import pan_probe as duel_pan
 from sidra_ai.creation.fishing import pan_probe as fishing_pan
 from sidra_ai.creation.kaiju import pan_probe as kaiju_pan
 from sidra_ai.creation.marble import pan_probe as marble_pan
+from sidra_ai.creation.platformer import pan_probe as platformer_pan
 from sidra_ai.creation.racing import pan_probe as racing_pan
 from sidra_ai.creation.shooter import pan_probe as shooter_pan
 
 _PROBES = {"shooter": shooter_pan, "kaiju": kaiju_pan,
            "fishing": fishing_pan, "catch": catch_pan, "duel": duel_pan,
            "marble": marble_pan, "racing": racing_pan,
-           "adventure": adventure_pan}
+           "adventure": adventure_pan, "platformer": platformer_pan}
 _REQUESTS = {"shooter": "ゲームを作って", "kaiju": "巨大怪獣と戦うゲームを作って",
              "fishing": "魚釣りゲームを作って", "catch": "フルーツキャッチを作って",
              "duel": "光線で撃ち合う対戦ゲームを作って",
              "marble": "玉転がしゲームを作って",
              "racing": "レースゲームを作って",
-             "adventure": "迷宮を冒険するゲームを作って"}
+             "adventure": "迷宮を冒険するゲームを作って",
+             "platformer": "ジャンプで進むゲームを作って"}
 
 
 def _drive(template: str) -> dict:
@@ -55,7 +57,7 @@ def _drive(template: str) -> dict:
 @pytest.mark.parametrize(
     "template",
     ["shooter", "kaiju", "fishing", "catch", "duel", "marble", "racing",
-     "adventure"],
+     "adventure", "platformer"],
 )
 def test_positionless_sounds_build_no_panner(template: str) -> None:
     got = _drive(template)
@@ -163,3 +165,31 @@ def test_the_maze_keeps_its_words_in_the_middle() -> None:
 
     assert [c["name"] for c in got["quiet"]] == ["step"]
     assert [c["pan"] for c in got["quiet"]] == [None]
+
+
+def test_the_runner_tells_which_side_of_the_screen_the_gem_was_on() -> None:
+    """The ninth body (§2 増築, C-1633). A gem is taken by standing on it,
+    so what puts two pickups on opposite sides of the picture is the
+    camera's own clamp at each end of the level."""
+
+    got = _drive("platformer")
+
+    assert got["left"]["cam"] == 0, "the left pickup was not at the level's start"
+    assert got["right"]["cam"] > 0, "the camera never scrolled"
+    assert got["pans"][0] < 0 < got["pans"][1]
+    assert got["pans"] == pytest.approx(got["expected"], abs=1e-9)
+
+
+def test_the_camera_is_in_the_sum() -> None:
+    """This template scrolls, so the ear's x is the screen's. Normalising
+    by the world would pin the far pickup to the edge and stop it meaning
+    anything - and the far pickup is 1918 world units into a 720 canvas."""
+
+    got = _drive("platformer")
+
+    assert got["right"]["worldX"] > got["right"]["screenX"] + 100
+    assert got["pans"][1] != pytest.approx(got["ifWorld"][1], abs=1e-9)
+    assert abs(got["ifWorld"][1]) == pytest.approx(0.8, abs=1e-9), (
+        "the world-x reading is expected to saturate; if it does not, this "
+        "test is no longer discriminating"
+    )

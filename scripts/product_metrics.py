@@ -9373,9 +9373,11 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.marble import pan_probe as _mb_pan
     from sidra_ai.creation.racing import pan_probe as _rc_pan
     from sidra_ai.creation.adventure import pan_probe as _ad_pan
+    from sidra_ai.creation.platformer import pan_probe as _pl_pan
 
     pan_gaps: list[str] = []
     _ad_pan_seen: dict = {}
+    _pl_pan_seen: dict = {}
     for _pn_key, _pn_builder, _pn_req in (
         ("shooter", _sh_pan, "ゲームを作って"),
         ("kaiju", _kj_pan, "巨大怪獣と戦うゲームを作って"),
@@ -9400,6 +9402,11 @@ def measure_creation(c: Collector) -> None:
         # the hero's x for the shake on the line that hurts them, and the
         # blade's x one line below the sword's own sound.
         ("adventure", _ad_pan, "迷宮を冒険するゲームを作って"),
+        # C-1633: the ninth body, and the one that scrolls. The gem's x was
+        # already going to burst on the line that took it; what this one
+        # adds is that the ear's x is the SCREEN's, so the camera has to be
+        # in the sum or every far pickup pins to an edge.
+        ("platformer", _pl_pan, "ジャンプで進むゲームを作って"),
     ):
         _pn_page = generate_game(
             _pn_req,
@@ -9443,6 +9450,15 @@ def measure_creation(c: Collector) -> None:
         if _pn_key == "shooter" and len(_pn["pans"]) == 2:
             if not (_pn["pans"][0] > 0 and _pn["pans"][1] < 0):
                 pan_gaps.append("shooter: left and right do not separate")
+        if _pn_key == "platformer":
+            _pl_pan_seen.update(_pn)
+            if not (_pn["pans"][0] < 0 < _pn["pans"][1]):
+                pan_gaps.append("platformer: left and right do not separate")
+            elif _pn["pans"][1] == _pn["ifWorld"][1]:
+                pan_gaps.append(
+                    "platformer: the camera is not in the sum - the far pickup "
+                    "reads the same as it would from a world x"
+                )
         if _pn_key == "adventure":
             _ad_pan_seen.update(_pn)
             _ad_names = [c["name"] for c in _pn["left"] + _pn["right"]]
@@ -9455,7 +9471,7 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_sfx_pan",
         "音が起きた場所から聞こえる型（実撃）",
-        0.0 if pan_gaps else 8.0,
+        0.0 if pan_gaps else 9.0,
         detail=(
             "; ".join(pan_gaps)
             if pan_gaps
@@ -9480,7 +9496,18 @@ def measure_creation(c: Collector) -> None:
             "`(x/W*2-1)*0.8` と桁一致。剣の音は**自機ではなく刃の x** で鳴るので、"
             "自機を的の 20px 手前に立たせた走行はどちらの座標で鳴っているかを区別できる"
             "（自機の x なら -0.6133 になるところが -0.5511）。"
-            "言葉の音（`step`）は panner を 1 つも建てない）"
+            "言葉の音（`step`）は panner を 1 つも建てない。"
+            "C-1633 で **9 体目 platformer**——同じ形が 4 度目で、"
+            "**宝石の x は同じ行で burst に渡っていた**。"
+            "この型だけ固有の判断が要る: **横スクロールするので耳の x は画面の x**。"
+            "レベル両端でカメラが止まるところを使って実測——"
+            f"左端の宝石 **{_pl_pan_seen.get('pans', [0])[0]:.4f}**（画面 x=60・cam 0）／"
+            f"右端の宝石 **{_pl_pan_seen.get('pans', [0, 0])[1]:.4f}**"
+            f"（画面 x={_pl_pan_seen.get('right', {}).get('screenX', 0)}・"
+            f"world x={_pl_pan_seen.get('right', {}).get('worldX', 0)}・"
+            f"cam {_pl_pan_seen.get('right', {}).get('cam', 0)}）。"
+            "**world x で正規化していたら右端は ±0.8 に飽和して「端」以上のことを言わなくなる**ので、"
+            "その値と一致しないことも読む）"
         ),
         kind=OUTCOME,
     )

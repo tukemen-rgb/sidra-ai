@@ -224,7 +224,11 @@ function tryJump(){if(state!=='play')return;
      so a late edge press lands and a mid-fall press does not - not right
      away. A press held while airborne is kept for BUFFER frames instead of
      dropped, and fires on the landing frame (§12). */
-  if(me.coyote>0){me.vy=JUMP;me.coyote=0;me.ground=false;sfx('catch');
+  /* §2 増築 (C-1394, C-1633): normalised against the SCREEN, because this
+     template scrolls - a world x would hand sfx a number outside 0..1 for
+     anything off-camera and pin it to the edge. */
+  if(me.coyote>0){me.vy=JUMP;me.coyote=0;me.ground=false;
+    sfx('catch',1,(me.x-cam)/W);
     /* Squash & stretch (§1, C-1332): the take-off stretches the body
        tall; under reduced motion the silhouette never changes. */
     if(!REDUCED)me.sq=1.25}
@@ -259,7 +263,7 @@ function step(rt){const now=performance.now();
       if(me.x>p.x-6&&me.x<p.x+p.w+6&&me.y>=p.y&&me.y-me.vy<=p.y+0.001){
         me.y=p.y;me.vy=0;on=true;break}}}
     if(on){
-      if(!me.ground){sfx('step');
+      if(!me.ground){sfx('step',1,(me.x-cam)/W);
         /* ...and the landing squashes it flat, in proportion to the
            impact - a hop dents, a drop flattens (§1, C-1332). */
         if(!REDUCED)me.sq=Math.max(0.55,1-vBefore*0.07);
@@ -277,7 +281,8 @@ function step(rt){const now=performance.now();
        snapped when the eye can no longer tell. */
     me.sq+=(1-me.sq)*0.25;if(Math.abs(me.sq-1)<0.01)me.sq=1;
     orbs.forEach(o=>{if(!o.got&&Math.abs(o.x-me.x)<14&&Math.abs(o.y-(me.y-10))<18){
-      o.got=true;me.gems++;sfx('gem');burst(o.x,o.y,10,'ACCENT_JUICE');
+      o.got=true;me.gems++;sfx('gem',1,(o.x-cam)/W);
+      burst(o.x,o.y,10,'ACCENT_JUICE');
       say(me.gems>=LAMP_COST&&!lamp.lit
         ?'宝石 '+me.gems+' 個。灯籠を点けられる。':'宝石 '+me.gems+' 個。')}});
     /* The sink (§5): gems light the lantern that moves the respawn point.
@@ -286,7 +291,7 @@ function step(rt){const now=performance.now();
       if(me.gems>=LAMP_COST){me.gems-=LAMP_COST;lamp.lit=true;
         /* Lighting the lantern moves where you come back from - a power,
            not a pickup, so it rings the powerUp voice (§2, C-1346). */
-        me.cpX=lamp.x;me.cpY=lamp.y;sfx('powerup');
+        me.cpX=lamp.x;me.cpY=lamp.y;sfx('powerup',1,(lamp.x-cam)/W);
         burst(lamp.x,lamp.y-18,16,'ALERT_JUICE');
         say('灯籠がともった。落ちてもここから。')}
       else if(msgT<=0){say('灯籠は宝石 '+LAMP_COST+' 個で点く（いま '+me.gems+' 個）。')}}
@@ -295,7 +300,7 @@ function step(rt){const now=performance.now();
     /* Falling costs a walk back, never the run: respawn at the last lit
        lantern (or the start), no game over. */
     if(me.y>H+40){respawns++;me.x=me.cpX;me.y=me.cpY-6;me.vy=0;me.coyote=0;
-      sfx('hurt');shake(4);hitstop(4);
+      sfx('hurt',1,(me.x-cam)/W);shake(4);hitstop(4);
       say(lamp.lit?'灯籠まで戻された。':'足場のはじめに戻された。')}
     /* The trail of the run that set the record (§11, C-1330): the course
        x is the progress, the height is what is remembered there. Sampled
@@ -1161,7 +1166,108 @@ def trail_probe(script: str, *, reduced: bool = False) -> str:
         "REDUCED_INPUT", "true" if reduced else "false"
     )
 
+
+#: The runner's ear (§2 増築, C-1633). Two gems are placed on opposite
+#: sides of the SCREEN and picked up by walking the hero onto them, and
+#: the panner values are read off the audio graph the page really built.
+#: One more is placed off-camera on purpose: this template scrolls, so a
+#: world x would hand ``sfx`` a number outside 0..1 and pin the sound to
+#: an edge - the reading proves the camera is in the sum.
+PAN_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  let stopped = false;
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
+}
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+/* Everything so far - the start - is positionless. */
+const before = pans.length;
+const calls = [];
+const realSfx = sfx;
+sfx = function(name, pitch, at){ const was = pans.length;
+  const out = realSfx.call(this, name, pitch, at);
+  calls.push({ name: String(name), pan: pans.length > was ? pans[pans.length - 1] : null });
+  return out };
+/* A gem is picked up by standing on it - the page's test is a box 14px
+   around the hero - so the hero can never be far from it. What puts the
+   two pickups on opposite sides of the SCREEN is the camera's own clamp:
+   at the start of the level it cannot scroll left of 0, and at the end it
+   cannot scroll past LW-W, so the hero rides to the edge of the picture. */
+function take(worldX){
+  orbs.length = 0;
+  me.x = worldX;
+  cam = camAim();
+  orbs.push({ x: worldX, y: me.y - 10, got: false });
+  const at = calls.length;
+  run(1);
+  return { calls: calls.slice(at).filter(c => c.name === 'gem'),
+    screenX: worldX - cam, worldX: worldX, cam: cam };
+}
+const left = take(60);
+const right = take(LW - 10);
+const W_ = 720;
+function want(x){ return Math.max(-0.8, Math.min(0.8, (x / W_ * 2 - 1) * 0.8)) }
+const expected = [want(left.screenX), want(right.screenX)];
+/* What the same two pickups would sound like if the camera were left out
+   of the sum: the far one pins to the edge and stops meaning anything. */
+const ifWorld = [want(left.worldX), want(right.worldX)];
+/* Every panner the staged frames built, not the first two: a stray sound
+   that quietly acquired a place has to break the count. */
+console.log(JSON.stringify({ before: before, pans: pans,
+  names: calls.map(c => c.name + (c.pan === null ? '' : '@')),
+  expected: expected, ifWorld: ifWorld,
+  left: left, right: right }));
+"""
+
+
+def pan_probe(script: str) -> str:
+    """The page's own script, wrapped so a pickup's stereo place can be read."""
+
+    return PAN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
 __all__ = [
+    "PAN_PROBE",
+    "pan_probe",
     "TRAIL_PROBE",
     "trail_probe",
     "CAMERA_PROBE",
