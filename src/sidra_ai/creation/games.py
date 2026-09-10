@@ -991,7 +991,64 @@ def undepicted_subject(request: str, template: str, asked_title: str) -> str:
                 trimming = True
                 break
 
+    # C-1525: and last, the thing the note never asked - does this page
+    # actually draw it? Everything above is about quoting the operator
+    # faithfully; none of it looks at what was built. So 「巨大な敵と戦う
+    # ゲームを作って」 came back as 「『巨獣迎撃戦』型で作りました。ただし
+    # 「敵」は絵として出てきません」, which contradicts itself inside one
+    # sentence - the 巨獣 IS the enemy, and kaiju.py draws it. The honesty
+    # note was lying, in the direction it exists to prevent.
+    if left and template_depicts(template, left):
+        return ""
+
     return left if _is_quotable_subject(left, request) else ""
+
+
+#: Words for things a page draws that its own screens name differently.
+#: C-1525: the copy below is the source of truth and answers most of it -
+#: marble's briefing says 「コース」, shooter's 操作説明 says 「敵の波」,
+#: adventure's says 「宝箱」 - but two pages answer in a synonym, and a
+#: caveat is no less false for being about a word the copy happens not to
+#: use. Each entry names the drawn object it stands for. Kept short on
+#: purpose: a long list here would be a second vocabulary drifting away
+#: from the first, which is the failure C-1120 fixed one level up.
+_ALSO_DEPICTED: dict[str, tuple[str, ...]] = {
+    # The briefing calls it 巨獣 and the page draws exactly one thing to
+    # fight, with legs and a head. That is the enemy, the boss and the
+    # monster the operator meant.
+    "kaiju": ("敵", "ボス", "怪物", "モンスター"),
+    # The board is drawn as coloured cells; the briefing calls a run of
+    # them 「かたまり」. A request about the blocks is about those.
+    "puzzle": ("ブロック", "コマ", "ピース"),
+}
+
+
+def template_depicts(template: str, word: str) -> bool:
+    """Does this template's page really put ``word`` on the screen?
+
+    Read from what the page already tells the player it contains - the
+    start screen's three briefing lines and the 操作説明 - rather than from
+    a list written for this question. A page that stopped drawing its
+    course would stop saying 「コースの終わりまで転がる」 in the same edit,
+    so the two cannot drift the way C-1120's three hand-written word lists
+    did.
+
+    Containment rather than a word match, deliberately: 「宝」 has to find
+    adventure's 「宝箱」, and Japanese gives no space to split on here. The
+    error it can make is silence about a page that does draw something
+    near enough to share a character - which is the safe direction for a
+    note whose whole purpose is not to accuse the page falsely.
+    """
+
+    if not template or not word:
+        return False
+    entry = TEMPLATES.get(template)
+    said = " ".join(BRIEFINGS.get(template, ()))
+    if entry is not None:
+        said = f"{said} {entry.how_to_play} {entry.default_title}"
+    if word in said:
+        return True
+    return any(word == also for also in _ALSO_DEPICTED.get(template, ()))
 
 
 def genre_fallback_note(message: str, template: str, title: str) -> str:

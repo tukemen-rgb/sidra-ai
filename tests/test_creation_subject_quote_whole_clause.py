@@ -30,7 +30,11 @@ def _subject(request: str) -> str:
 @pytest.mark.parametrize(
     "request_text,want",
     [
-        ("巨大な敵と戦うゲームを作って", "敵"),
+        # 「巨大な敵と戦う」 until C-1525: the head-cut was right, the claim
+        # was not, because the 巨獣 kaiju draws IS the enemy. The bare
+        # 「敵と戦う」 below keeps the original wording - it routes to the
+        # default page, which really has nothing to fight.
+        ("巨大な猫と戦うゲームを作って", "猫"),
         ("敵と戦うゲームを作って", "敵"),
         ("山を登るゲームを作って", "山"),
         ("空を飛ぶゲームを作って", "空"),
@@ -95,7 +99,8 @@ def test_an_empty_head_is_still_refused() -> None:
         # Neither half applies.
         ("猫のゲームを作って", "猫"),
         ("忍者のアクションゲームを作って", "忍者のアクション"),
-        ("3D のコースを転がるゲームを作って", "コース"),
+        # 「3D のコースを転がる」 until C-1525 - marble draws the course.
+        ("3D の猫を転がすゲームを作って", "猫"),
     ],
 )
 def test_the_shapes_that_must_survive(request_text: str, want: str) -> None:
@@ -118,3 +123,26 @@ def test_a_verb_ending_alone_does_not_silence() -> None:
 
     assert _is_whole_clause("走る") is False
     assert _is_whole_clause("山を登る") is True
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    [
+        "3D のコースを転がるゲームを作って",
+        "巨大な敵と戦うゲームを作って",
+    ],
+)
+def test_the_two_examples_this_file_was_written_around_are_now_silent(
+    request_text: str,
+) -> None:
+    """C-1525 moved them, and the move is recorded rather than hidden.
+
+    Both were correct as *quotes* - 「コース」 and 「敵」 are contiguous runs of
+    what the operator typed, which is all C-1514 and C-1524 were asked to
+    fix. Neither was correct as a *claim*: marble draws the course and
+    kaiju draws the enemy, so the page was denying its own contents. The
+    quoting machinery these tests exist for is still pinned above, on the
+    same shapes with a subject the page really cannot draw.
+    """
+
+    assert _subject(request_text) == ""

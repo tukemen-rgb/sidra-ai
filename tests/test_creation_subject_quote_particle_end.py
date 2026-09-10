@@ -31,7 +31,10 @@ def _subject(request: str) -> str:
 @pytest.mark.parametrize(
     "request_text,want",
     [
-        ("3D のコースを転がるゲームを作って", "コース"),
+        # C-1525 moved this off 「3D のコースを転がる」: the trim was right and
+        # the resulting claim was not, because marble draws the course. Same
+        # shape, same trailing 「を」, a subject the page really cannot draw.
+        ("3D の猫を転がすゲームを作って", "猫"),
     ],
 )
 def test_the_trailing_particle_is_not_part_of_the_subject(request_text, want) -> None:
@@ -43,7 +46,8 @@ def test_the_trailing_particle_is_not_part_of_the_subject(request_text, want) ->
     [
         "山を登るゲームを作って",
         "空を飛ぶゲームを作って",
-        "巨大な敵と戦うゲームを作って",
+        # 「巨大な敵と戦う」 until C-1525 - kaiju draws the enemy.
+        "巨大な猫と戦うゲームを作って",
         "宝の地図を探すゲームを作って",
     ],
 )
@@ -134,3 +138,26 @@ def test_a_request_that_named_nothing_says_nothing() -> None:
     """
 
     assert _subject("ゲームを作って") == ""
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    [
+        "3D のコースを転がるゲームを作って",
+        "巨大な敵と戦うゲームを作って",
+    ],
+)
+def test_the_two_examples_this_file_was_written_around_are_now_silent(
+    request_text: str,
+) -> None:
+    """C-1525 moved them, and the move is recorded rather than hidden.
+
+    Both were correct as *quotes* - 「コース」 and 「敵」 are contiguous runs of
+    what the operator typed, which is all C-1514 and C-1524 were asked to
+    fix. Neither was correct as a *claim*: marble draws the course and
+    kaiju draws the enemy, so the page was denying its own contents. The
+    quoting machinery these tests exist for is still pinned above, on the
+    same shapes with a subject the page really cannot draw.
+    """
+
+    assert _subject(request_text) == ""

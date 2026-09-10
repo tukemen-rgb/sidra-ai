@@ -16746,6 +16746,91 @@ def measure_creation(c: Collector) -> None:
             "が黙った。1 文字の残骸は助詞であり、助詞の規則が既に拾う。"
         ),
     )
+    # --- and the note never denies what the page draws -----------------
+    #
+    # C-1525. Everything above is about quoting the operator faithfully.
+    # None of it asks the other question: is the thing being quoted
+    # actually missing? 「巨大な敵と戦うゲームを作って」 came back as
+    # 「『巨獣迎撃戦』型で作りました。ただし「敵」は絵として出てきません」 -
+    # a sentence that contradicts itself, about a page whose whole content
+    # is the enemy. Measured before the fix: **two of ten** templates got
+    # this right; eight denied something they draw (kaiju 敵, marble コース,
+    # shooter 敵, adventure 宝, racing コース, duel 相手, puzzle ブロック,
+    # catch 皿).
+    #
+    # Each template is read from both sides, because silence would pass
+    # the first side alone and silence is the other way of being wrong -
+    # C-1205 built this note for requests the page really cannot draw.
+    from sidra_ai.creation.games import undepicted_subject as _undepicted
+
+    #: (a request naming something this page really draws, a request naming
+    #: something it really does not). Both route to the same template, so
+    #: the pair differs in one thing only: whether the page draws it.
+    _draws_pairs: dict[str, tuple[str, str]] = {
+        "kaiju": ("巨大な敵と戦うゲームを作って", "巨大な猫と戦うゲームを作って"),
+        "marble": ("3D のコースを転がるゲームを作って", "3D の猫を転がすゲームを作って"),
+        "shooter": ("弾幕の敵を撃つゲームを作って", "弾幕の猫を撃つゲームを作って"),
+        "adventure": (
+            "ダンジョンの宝を探すゲームを作って",
+            "ダンジョンの猫を探すゲームを作って",
+        ),
+        "racing": ("レースのコースを走るゲームを作って", "レースの猫を走らせるゲームを作って"),
+        "duel": ("ビームの相手と戦うゲームを作って", "ビームの猫と戦うゲームを作って"),
+        "puzzle": ("パズルのブロックを消すゲームを作って", "パズルの猫を消すゲームを作って"),
+        "platformer": ("ジャンプの足場を渡るゲームを作って", "ジャンプの猫を渡すゲームを作って"),
+        "fishing": ("釣りの魚を釣るゲームを作って", "釣りの猫を釣るゲームを作って"),
+        "catch": ("キャッチの受け皿で拾うゲームを作って", "キャッチの猫を拾うゲームを作って"),
+    }
+    draws_gaps: list[str] = []
+    draws_ok: list[str] = []
+    for _tpl, (_drawn_ask, _absent_ask) in _draws_pairs.items():
+        _drawn_page = generate_game(_drawn_ask)
+        _absent_page = generate_game(_absent_ask)
+        if _drawn_page.template != _tpl or _absent_page.template != _tpl:
+            draws_gaps.append(
+                f"{_tpl}: the pair no longer routes together "
+                f"({_drawn_page.template}/{_absent_page.template})"
+            )
+            continue
+        _denied = _undepicted(_drawn_ask, _drawn_page.template, _drawn_page.asked_title)
+        _spoken = _undepicted(
+            _absent_ask, _absent_page.template, _absent_page.asked_title
+        )
+        if _denied:
+            draws_gaps.append(f"{_tpl}: 「{_denied}」は描いているのに出てこないと言う")
+        elif _spoken != "猫":
+            # Silence here would make the metric passable by deleting the
+            # note, which is the failure this side exists to refuse.
+            draws_gaps.append(
+                f"{_tpl}: 描いていない主題（猫）に注釈が出ない（{_spoken!r}）"
+            )
+        else:
+            draws_ok.append(_tpl)
+    c.add(
+        "creation_never_denies_what_it_draws",
+        "描いているものを「出てきません」と言わない型",
+        float(len(draws_ok)) if not draws_gaps else 0.0,
+        detail=(
+            "; ".join(draws_gaps)
+            if draws_gaps
+            else "10 型それぞれを**実際に生成して**正直ノートを読み、"
+            "**両側**を確かめた: (a) その型が本当に描いているものを名指した依頼"
+            "（kaiju「巨大な敵」・marble「3D のコース」・puzzle「パズルのブロック」等）"
+            "では注釈が**出ない**、(b) 同じ型へ落ちる「猫」の依頼では注釈が"
+            "**今も出て「猫」を引用する**。(b) が無いと注釈を消すだけの実装が"
+            "満点になるので、沈黙を合格に数えない。"
+            "**修正前の実測は 2/10**——8 型が自分の描いているものを否定していた"
+            "（kaiju 敵・marble コース・shooter 敵・adventure 宝・racing コース・"
+            "duel 相手・puzzle ブロック・catch 皿）。判定の根拠はページ自身が"
+            "プレイヤーに言っている文（開始画面の 3 行と操作説明）で、"
+            "**この問いのために書いた語彙ではない**——コースを描かなくなった型は"
+            "同じ編集で「コースの終わりまで転がる」と言わなくなるので、"
+            "C-1120 が直した「手書きの語彙が 3 つ並んでずれていく」形にならない。"
+            "写しが別名で答える 2 型だけ別名を明記した（kaiju の巨獣＝敵/ボス、"
+            "puzzle のかたまり＝ブロック）"
+        ),
+        kind=OUTCOME,
+    )
     c.add(
         "creation_urgent_tick",
         "終盤の残り数秒が耳にも届く（画面・手に続く第 3 の通路）",
