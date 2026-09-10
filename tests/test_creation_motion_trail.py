@@ -156,3 +156,41 @@ def test_platformer_reduced_motion_never_accumulates_one() -> None:
     assert seen["full"] == 0, "reduced motion still streaks"
     assert seen["fallFull"] == 0, "a reduced-motion fall still streaks"
     assert seen["painted"] == 0, "reduced motion still paints afterimages"
+
+
+# ---------------------------------------------- the canvas, not the books
+
+
+def test_the_marble_paints_the_afterimages_it_counts() -> None:
+    """C-1632: this body's probe read ``marbleFacts().trail`` and nothing
+    else, so removing the draw entirely would have left it at full marks.
+
+    Eight of the ten, and that is the page being right: the two oldest sit
+    more than 34 units back, past the corridor's near plane, and the page's
+    own ``d<NEAR`` guard drops them. They are the faintest two.
+    """
+
+    seen = _rolled()
+
+    assert seen["bodyDrawn"], "the marble itself was not drawn in this frame"
+    assert seen["painted"] == 8, seen["painted"]
+    assert 0 < seen["paintedMax"] <= 0.2201
+
+
+def test_the_car_paints_the_afterimages_it_counts() -> None:
+    seen = _raced()
+
+    assert seen["bodyDrawn"], "the car itself was not drawn in this frame"
+    assert seen["painted"] == 10, seen["painted"]
+    assert 0 < seen["paintedMax"] <= 0.2801
+
+
+@pytest.mark.parametrize("drive", ["marble", "racing"])
+def test_reduced_motion_paints_no_afterimage_either(drive: str) -> None:
+    """Counting none and drawing none are two claims; the second one is
+    what a player would see."""
+
+    seen = _rolled(reduced=True) if drive == "marble" else _raced(reduced=True)
+
+    assert seen["painted"] == 0
+    assert seen["bodyDrawn"], "nothing was drawn at all, so this proves nothing"

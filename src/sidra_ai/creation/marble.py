@@ -379,7 +379,25 @@ globalThis.Image = function(){ return nothing };
 globalThis.document = { getElementById: () => ({
   width: 720, height: 320, style: {}, addEventListener: () => {},
   getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-  getContext: () => nothing }) };
+  getContext: () => rec }) };
+/* A recording context, because the numbers above are bookkeeping and
+   bookkeeping is not paint (C-1615, C-1618, C-1628 - three times, and the
+   first two bodies of this very metric were still reading only the facts).
+   globalAlpha is tracked across save/restore so an afterimage cannot be
+   counted at the body's own opacity. */
+let ALPHA = 1, OPS = [];
+const STACK = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'globalAlpha') return ALPHA;
+    if (k === 'save') return () => { STACK.push(ALPHA) };
+    if (k === 'restore') return () => { ALPHA = STACK.length ? STACK.pop() : 1 };
+    if (k === 'fillRect') return (x, y, w, h) => { OPS.push({ op: 'rect', w: w, h: h, a: ALPHA }) };
+    if (k === 'arc') return (x, y, r) => { OPS.push({ op: 'arc', r: r, a: ALPHA }) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: (t, k, v) => { if (k === 'globalAlpha') { ALPHA = v } return true },
+  apply: () => nothing });
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
@@ -393,6 +411,14 @@ function key(type, k){
 key('keydown', ' '); key('keyup', ' ');
 run(40);
 const rolling = marbleFacts();
+/* One frame, recorded. The afterimages are arcs drawn at aa*0.22, so
+   nothing the marble itself draws can be mistaken for one. */
+OPS = [];
+run(1);
+const faint = OPS.filter(o => o.op === 'arc' && o.a > 0 && o.a <= 0.2201);
+const painted = faint.length;
+const paintedMax = painted ? Math.max.apply(null, faint.map(o => o.a)) : 0;
+const bodyDrawn = OPS.some(o => o.op === 'arc' && o.a > 0.999);
 const behind = rolling.trail.every(z => z <= rolling.z);
 /* End the run the page's own way and watch the streak drain. */
 state = 'over';
@@ -400,7 +426,8 @@ let drained = null;
 for (let i = 0; i < 20 && drained === null; i++) { run(1);
   if (marbleFacts().trail.length === 0) drained = i }
 console.log(JSON.stringify({ full: rolling.trail.length, behind: behind,
-  z: rolling.z, drained: drained }));
+  z: rolling.z, drained: drained,
+  painted: painted, paintedMax: paintedMax, bodyDrawn: bodyDrawn }));
 """
 
 

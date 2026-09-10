@@ -11191,6 +11191,9 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.marble import trail_probe as _tr_probe
 
     trail_gaps: list[str] = []
+    #: Each body's one recorded frame (C-1632), so "the streak is painted"
+    #: can be read separately from "the streak is counted".
+    _trail_paint: dict[str, dict] = {}
     for _tr_reduced in (False, True):
         _tr_label = "marble" + ("（reduced）" if _tr_reduced else "")
         try:
@@ -11212,9 +11215,10 @@ def measure_creation(c: Collector) -> None:
             trail_gaps.append(f"{_tr_label}: probe unavailable ({exc})")
             continue
         if _tr_reduced:
-            if _tr["full"]:
+            if _tr["full"] or _tr["painted"]:
                 trail_gaps.append(f"{_tr_label}: reduced motion still streaks")
             continue
+        _trail_paint["marble"] = dict(_tr)
         if _tr["full"] != 10:
             trail_gaps.append(f"{_tr_label}: the streak never fills ({_tr['full']})")
         elif not _tr["behind"]:
@@ -11247,9 +11251,10 @@ def measure_creation(c: Collector) -> None:
             trail_gaps.append(f"{_tr_label}: probe unavailable ({exc})")
             continue
         if _tr_reduced:
-            if _tr["full"]:
+            if _tr["full"] or _tr["painted"]:
                 trail_gaps.append(f"{_tr_label}: reduced motion still streaks")
             continue
+        _trail_paint["racing"] = dict(_tr)
         if _tr["full"] != 10:
             trail_gaps.append(f"{_tr_label}: the streak never fills ({_tr['full']})")
         elif not _tr["behind"]:
@@ -11292,6 +11297,7 @@ def measure_creation(c: Collector) -> None:
                 trail_gaps.append(f"{_tr_label}: reduced motion still streaks")
             continue
         _plat_trail.update(_tr)
+        _trail_paint["platformer"] = dict(_tr)
         # The instrument first: "the standing hero has no tail" is only
         # evidence if the hero actually came to a stand (C-1618's lesson).
         if not _tr["still"]:
@@ -11346,6 +11352,70 @@ def measure_creation(c: Collector) -> None:
             "——この型で速度が変わるのは重力だけなので、**そこで長さが伸びる**ことが"
             "「速度が長さを描く」の確認になる。reduced は走行でも落下でも 1 枚も積まない"
             "（§1 の粒子 3 種〔煙・破壊・軌跡〕の軌跡が 3 体に）"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the streak is on the canvas, not only in the books (C-1632) ----
+    #
+    # Three times now a probe has proved a number and not the paint behind
+    # it: the kaiju's smoke (C-1615), the marble's pupils (C-1618), and
+    # this metric's own third body (C-1628, where "count the samples but
+    # draw none of them" walked past every check until a recording context
+    # was added). The first two bodies were still reading only the facts.
+    # Kept as a separate number from creation_motion_trail on purpose: one
+    # reads the bookkeeping, this one reads the canvas, and a fix to either
+    # must not be able to hide in the other.
+    #
+    # marble paints 8 of its 10 samples, and that is the page being right
+    # rather than short: the two oldest sit more than 34 units back, past
+    # the corridor's near plane, and the page's own `d<NEAR` guard drops
+    # them. They are the faintest two, so nothing visible is lost.
+    paint_gaps: list[str] = []
+    _paint_floor = {"marble": 8, "racing": 10, "platformer": 10}
+    _paint_ceiling = {"marble": 0.2201, "racing": 0.2801, "platformer": 0.35}
+    for _pt_key in sorted(_paint_floor):
+        _pt = _trail_paint.get(_pt_key)
+        if _pt is None:
+            paint_gaps.append(f"{_pt_key}: 記録フレームが取れていない")
+            continue
+        if not _pt.get("bodyDrawn", True):
+            paint_gaps.append(f"{_pt_key}: 本体が描かれていないフレームを読んでいる")
+        elif _pt["painted"] < _paint_floor[_pt_key]:
+            paint_gaps.append(
+                f"{_pt_key}: 残像が {_pt['painted']} 枚しか塗られていない"
+                f"（帳簿は {_pt.get('full')} 枚）"
+            )
+        elif not (0 < _pt["paintedMax"] <= _paint_ceiling[_pt_key]):
+            paint_gaps.append(
+                f"{_pt_key}: 最も濃い残像が α{_pt['paintedMax']}"
+                f"（上限 {_paint_ceiling[_pt_key]}）"
+            )
+    c.add(
+        "creation_trail_painted",
+        "軌跡が帳簿ではなく画布に届いている型の数",
+        0.0 if paint_gaps else float(len(_paint_floor)),
+        unit="型",
+        detail=(
+            "; ".join(paint_gaps)
+            if paint_gaps
+            else "3 体それぞれの**実フレームを記録 ctx で読んで**測った"
+            "（globalAlpha を save/restore 越しに追う Proxy）: "
+            f"marble は α≤0.22 の弧を **{_trail_paint['marble']['painted']}** 枚"
+            f"（最濃 {_trail_paint['marble']['paintedMax']}）、"
+            f"racing は 22×32 の矩形を **{_trail_paint['racing']['painted']}** 枚"
+            f"（最濃 {_trail_paint['racing']['paintedMax']}）、"
+            f"platformer は 14×12 の矩形を **{_trail_paint['platformer']['painted']}** 枚"
+            f"（最濃 {_trail_paint['platformer']['paintedMax']}）。"
+            "本体が同じフレームに描かれていることも読むので、"
+            "**何も描かなかったフレームを「残像 0 枚で正常」と読み違えない**。"
+            "REDUCED では 3 体とも 1 枚も塗られない。"
+            "`creation_motion_trail` が読むのは TRAIL の**帳簿**——"
+            "数えるのをやめずに `TRAIL.forEach` の描画だけ消す改変は"
+            "そちらを素通りする（C-1628 の破壊 D3 が実際にそうだった）ので、"
+            "**別の数字として分けてある**。marble の 8 枚は不足ではなく"
+            "ページ自身の `d<NEAR` が最も古い 2 枚（最も薄い 2 枚）を"
+            "回廊の手前で落としているぶん。"
         ),
         kind=OUTCOME,
     )

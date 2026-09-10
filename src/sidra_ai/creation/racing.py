@@ -517,7 +517,25 @@ globalThis.Image = function(){ return nothing };
 globalThis.document = { getElementById: () => ({
   width: 720, height: 320, style: {}, addEventListener: () => {},
   getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
-  getContext: () => nothing }) };
+  getContext: () => rec }) };
+/* A recording context, because the numbers above are bookkeeping and
+   bookkeeping is not paint (C-1615, C-1618, C-1628 - three times, and the
+   first two bodies of this very metric were still reading only the facts).
+   globalAlpha is tracked across save/restore so an afterimage cannot be
+   counted at the body's own opacity. */
+let ALPHA = 1, OPS = [];
+const STACK = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'globalAlpha') return ALPHA;
+    if (k === 'save') return () => { STACK.push(ALPHA) };
+    if (k === 'restore') return () => { ALPHA = STACK.length ? STACK.pop() : 1 };
+    if (k === 'fillRect') return (x, y, w, h) => { OPS.push({ op: 'rect', w: w, h: h, a: ALPHA }) };
+    if (k === 'arc') return (x, y, r) => { OPS.push({ op: 'arc', r: r, a: ALPHA }) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: (t, k, v) => { if (k === 'globalAlpha') { ALPHA = v } return true },
+  apply: () => nothing });
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
@@ -532,6 +550,17 @@ function key(k){
 key(' ');
 run(80);
 const fast = raceFacts();
+/* One frame, recorded. The afterimages are the car's own 22x32 body
+   drawn at a*0.28, so the shape and the ceiling together name them. */
+OPS = [];
+run(1);
+const faint = OPS.filter(o => o.op === 'rect'
+  && Math.abs(o.w - 22) < 1e-9 && Math.abs(o.h - 32) < 1e-9
+  && o.a > 0 && o.a <= 0.2801);
+const painted = faint.length;
+const paintedMax = painted ? Math.max.apply(null, faint.map(o => o.a)) : 0;
+const bodyDrawn = OPS.some(o => o.op === 'rect'
+  && Math.abs(o.w - 22) < 1e-9 && Math.abs(o.h - 32) < 1e-9 && o.a > 0.999);
 const fastBehind = fast.trail.every(d => d <= fast.dist);
 const fastSpan = fast.trail.length ? fast.dist - Math.min.apply(null, fast.trail) : 0;
 /* Park the car off the road: the crawl must shrink the streak. */
@@ -544,7 +573,9 @@ state = 'goal';
 let drained = null;
 for (let i = 0; i < 20 && drained === null; i++) { run(1);
   if (raceFacts().trail.length === 0) drained = i }
-console.log(JSON.stringify({ full: fast.trail.length, behind: fastBehind,
+console.log(JSON.stringify({ painted: painted, paintedMax: paintedMax,
+  bodyDrawn: bodyDrawn,
+  full: fast.trail.length, behind: fastBehind,
   fastSpan: fastSpan, slowSpan: slowSpan, spdFast: fast.spd, spdSlow: slow.spd,
   drained: drained }));
 """
