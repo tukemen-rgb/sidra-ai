@@ -15398,16 +15398,34 @@ def measure_creation(c: Collector) -> None:
     attract_ok: list[str] = []
     attract_gaps: list[str] = []
     attract_still: list[str] = []
+    # C-1638, by C-1523's rule: this site's twenty spawns are independent of
+    # each other, so they go together instead of in a queue. The control run
+    # is thrown for every template, including the ones whose checks below
+    # `continue` before reading it - holding it back would leave half the
+    # site serial, and C-1523 measured that half a site is worth nothing.
+    _at_keys: list[str] = []
+    _at_bodies: dict[str, str] = {}
+    _at_jobs = []
     for key in sorted(_tune_templates):
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
             attract_gaps.append(f"{key}: no script")
             continue
-        body = script.group(1)
-        watched, problem = _attract_drive(
-            key, body, idle=_ATTRACT_IDLE, play=_ATTRACT_PLAY
-        )
+        _at_keys.append(key)
+        _at_bodies[key] = script.group(1)
+        _at_jobs.extend([
+            lambda k=key, b=script.group(1): _attract_drive(
+                k, b, idle=_ATTRACT_IDLE, play=_ATTRACT_PLAY
+            ),
+            lambda k=key, b=script.group(1): _attract_drive(
+                k, b, idle=0, play=_ATTRACT_PLAY
+            ),
+        ])
+    _at_results = in_parallel(_at_jobs)
+    for _at_index, key in enumerate(_at_keys):
+        body = _at_bodies[key]
+        watched, problem = _at_results[_at_index * 2]
         if problem:
             attract_gaps.append(problem)
             continue
@@ -15425,7 +15443,7 @@ def measure_creation(c: Collector) -> None:
             else:
                 attract_still.append(key)
             continue
-        control, problem = _attract_drive(key, body, idle=0, play=_ATTRACT_PLAY)
+        control, problem = _at_results[_at_index * 2 + 1]
         if problem:
             attract_gaps.append(problem)
             continue
@@ -21160,7 +21178,70 @@ def _runtime_report(collector: "Collector", elapsed: float) -> str:
     for name, seconds in ranked[:5]:
         share = (seconds / elapsed * 100) if elapsed else 0.0
         lines.append(f"    {name:<14s} {seconds:6.1f}s  {share:4.1f}%")
+    # ...and which lines actually spent it (C-1638). A section is not
+    # something anyone can make cheaper; a site is. The rule that works is
+    # C-1523's: bundle a site whose node work forms one whole bundle, all
+    # of it - half a site measured the same as doing nothing.
+    sites = sorted(_SPAWNS.items(), key=lambda pair: pair[1][1], reverse=True)
+    if sites:
+        spawns = sum(row[0] for _, row in sites)
+        spent = sum(row[1] for _, row in sites)
+        lines.append(
+            f"  {spawns} node spawns cost {spent:.1f}s of process time. "
+            "Heaviest sites - `wall` is what the run actually waited, so "
+            "wall << sum means the site is already bundled:"
+        )
+        for where, (count, seconds, first, last) in sites[:12]:
+            wall = last - first
+            lines.append(
+                f"    {where:<28s} sum {seconds:6.1f}s  wall {wall:6.1f}s  x{count}"
+            )
     return "\n".join(lines)
+
+
+#: Where the node spawns went, by the line that asked for them (C-1638).
+#: The section times (C-1521) say *which section* is heavy; every loop that
+#: then wanted to make one cheaper has had to measure the sites by hand
+#: (C-1523 did). The line number is enough to name a site, and reading it
+#: off ``sys._getframe`` costs nothing measurable - ``inspect.stack()``
+#: would cost more than the thing being measured.
+_SPAWNS: dict[str, list] = {}
+
+
+def _spawn_timing(depth: int = 2):
+    """Wrap ``subprocess.run`` so each caller's cost is remembered.
+
+    Returns the original, for a caller that wants to put it back. The
+    wrapper is deliberately dumb: no stack walk, no formatting, one clock
+    read either side. Anything cleverer would show up in the number it is
+    there to report.
+    """
+
+    import subprocess as _sp
+
+    original = _sp.run
+
+    def timed(*args, **kwargs):
+        frame = sys._getframe(1)
+        where = f"{frame.f_code.co_filename.rsplit('/', 1)[-1]}:{frame.f_lineno}"
+        started = time.monotonic()
+        try:
+            return original(*args, **kwargs)
+        finally:
+            ended = time.monotonic()
+            # count, summed seconds, first start, last end. The last two
+            # give the wall-clock span, and the span is what says whether a
+            # site is already bundled: a queue spends its sum, four threads
+            # spend a quarter of it (C-1638 - without this the report would
+            # send the next loop to optimise C-1522's work again).
+            row = _SPAWNS.setdefault(where, [0, 0.0, started, ended])
+            row[0] += 1
+            row[1] += ended - started
+            row[2] = min(row[2], started)
+            row[3] = max(row[3], ended)
+
+    _sp.run = timed
+    return original
 
 
 #: When this process started measuring. The runtime judge compares the
@@ -21314,6 +21395,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # On for every mode: the report is the only place a loop learns what its
+    # own change cost, and a measurement that has to be asked for is one
+    # nobody takes (C-1521's reason, C-1638's site version).
+    _spawn_timing()
     started = time.monotonic()
     collector = collect()
     elapsed = time.monotonic() - started
