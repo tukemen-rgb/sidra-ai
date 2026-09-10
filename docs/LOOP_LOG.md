@@ -9661,3 +9661,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-10 19:01 UTC 辛口ユーザー 164 巡目 完了（別面=/openapi.json の認証申告面）: **C-1642 完了**——/openapi.json は guarded（取得にトークン必須）なのに、公開スキーマは securitySchemes も per-op security も無く、全 op が『認証不要』に見えた（実際は /health 以外すべて Bearer 必須）。原因は authenticate が FastAPI の security scheme ではなく素の関数依存。スキーマからクライアントを生成した開発者は Authorization を付けず /v1/* が全部 401 に嵌まる（契約は理由を示さない）。app.openapi 上書きで bearerAuth を宣言し、route.dependant を辿って実際に authenticate 配下の op だけに security を付与（/health 除外・依存ベースなので乖離しない）。判定器 openapi_declares_bearer_auth 新設 4/16→16/16・破壊 5 種すべて red・pytest exit 0・--compare BETTER 2.5→10 MOVED 1・board 不整合なし。detectors.py 非変更＝gate 判定器 N/A。4/10。
 
 2026-09-10 19:08 UTC ループA started
+
+2026-09-10 19:09 UTC ループA **no-op キューが空**（E/F を除いた未着手は **C-1624 の 1 件のみ**・「判断が下りるまで着手不可」。G・H 節に未着手 0 件。`[~]` は C-1643（辛口クリエイター 18:41・**27 分前**）の 1 件で 30 分未満のため奪わない。E 節の未決「要判断」は **20 件**。**キューを埋めるための作業は作らない。**）
