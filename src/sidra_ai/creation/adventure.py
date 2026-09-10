@@ -1044,6 +1044,71 @@ def knock_probe(script: str) -> str:
     return KNOCK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+
+#: Which act the dungeon was actually IN, in the order it went (C-1645).
+#: The world probe reads the map without ever running a frame, so it can
+#: say the three colours exist but not that the page went through them -
+#: exactly the half C-1640's destruction showed a palette table cannot
+#: cover. Here the hero really walks, through the page's own transition
+#: tile, and SCENE is sampled after every frame.
+SCENE_ORDER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+const sceneOrder = [];
+function sceneTick(){
+  if (typeof SCENE === 'number' && sceneOrder[sceneOrder.length - 1] !== SCENE) {
+    sceneOrder.push(SCENE) } }
+function frame(){ if (queued) { const fn = queued; queued = null; fn((F++) * 16); sceneTick() } }
+function press(k, down){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[down ? 'keydown' : 'keyup'] || []).forEach(fn => fn(e)) }
+press(' ', true); press(' ', false); frame(); frame();
+/* The door onward is tile 5. Stand just left of it and walk right, so the
+   page's own moveHero() carries the room across - not an assignment from
+   out here. Twice, because the dungeon is three rooms. */
+function doorX(rm){
+  for (let ty = 0; ty < GH; ty++) {
+    for (let tx = 0; tx < GW; tx++) {
+      if (rooms[rm][ty][tx] === 5) return { tx: tx, ty: ty } } }
+  return null }
+for (let leg = 0; leg < 2; leg++) {
+  const door = doorX(room);
+  if (door === null) break;
+  hero.x = OX + (door.tx - 1) * TILE + TILE / 2;
+  hero.y = OY + door.ty * TILE + TILE / 2;
+  hero.inv = 90;
+  const was = room;
+  press('ArrowRight', true);
+  for (let i = 0; i < 400 && room === was; i++) { frame() }
+  press('ArrowRight', false);
+  for (let i = 0; i < 4; i++) { frame() }
+}
+console.log(JSON.stringify({ sceneOrder: sceneOrder, room: room,
+  scenes: sceneFacts().scenes.length }));
+"""
+
+
+def scene_order_probe(script: str) -> str:
+    """The page's own script, wrapped so the walk between rooms is seen."""
+
+    return SCENE_ORDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 def hurt_probe(script: str, *, reduced: bool = False) -> str:
     """The page's own script, wrapped so the mercy window can be seen."""
 
@@ -1732,6 +1797,8 @@ __all__ = [
     "hurt_probe",
     "KNOCK_PROBE",
     "knock_probe",
+    "SCENE_ORDER_PROBE",
+    "scene_order_probe",
     "SQUASH_PROBE",
     "squash_probe",
     "guard_probe",

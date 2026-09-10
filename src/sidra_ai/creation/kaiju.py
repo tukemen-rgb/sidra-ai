@@ -413,7 +413,17 @@ globalThis.document = { getElementById: () => ({
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
-function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
+/* Which act the page was actually IN, in the order it went (C-1645).
+   sceneFacts().scenes is the palette TABLE - three colours that exist -
+   and the contract read only that, so a page pinned to act 0 passed it
+   (C-1640 proved that with a destruction). SCENE is the preamble's own
+   variable, set by draw(), so sampling it after each frame costs nothing
+   and reports the acts as they happened. */
+const sceneOrder = [];
+function sceneTick(){
+  if (typeof SCENE === 'number' && sceneOrder[sceneOrder.length - 1] !== SCENE) {
+    sceneOrder.push(SCENE) } }
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16); sceneTick() } }
 /* Past the start screen: the gate holds every frame until pressed. */
 const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
 keyHandlers.forEach(fn => fn(press));
@@ -479,6 +489,7 @@ const end = bossFacts();
 const palette = sceneFacts();
 const hud = hudFacts();
 console.log(JSON.stringify({
+  sceneOrder: sceneOrder,
   scenes: palette.scenes,
   hud: hud,
   depth: depthFacts(),

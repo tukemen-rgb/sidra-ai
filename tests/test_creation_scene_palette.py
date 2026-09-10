@@ -30,7 +30,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from sidra_ai.creation.adventure import world_probe  # noqa: E402
 from sidra_ai.creation.games import generate_game  # noqa: E402
 from sidra_ai.creation.kaiju import probe_source  # noqa: E402
+from sidra_ai.creation.adventure import scene_order_probe  # noqa: E402
+from sidra_ai.creation.catchgame import probe_source as catch_probe  # noqa: E402
+from sidra_ai.creation.duel import pace_probe as duel_probe  # noqa: E402
+from sidra_ai.creation.fishing import probe_source as fishing_probe  # noqa: E402
+from sidra_ai.creation.marble import probe_source as marble_probe  # noqa: E402
 from sidra_ai.creation.platformer import probe_source as plat_probe  # noqa: E402
+from sidra_ai.creation.puzzle import sky_probe as puzzle_probe  # noqa: E402
+from sidra_ai.creation.shooter import probe_source as shooter_probe  # noqa: E402
 from sidra_ai.creation.racing import probe_source as racing_probe  # noqa: E402
 from sidra_ai.creation.scene import (  # noqa: E402
     ADVENTURE_PALETTE,
@@ -239,3 +246,51 @@ def test_the_late_two_go_through_their_acts_in_order(request_, builder, suffix) 
     """
 
     assert _acts(request_, builder, suffix) == [0, 1, 2]
+
+
+# ------------------------------------------- every template, as the acts happened
+
+
+#: All ten, each driven by the probe the contract itself uses (C-1645).
+#: The palette table is not the performance: C-1640 showed a page pinned to
+#: act 0 passing a contract that read only the table, and closed that for
+#: two of the ten. These are the other eight.
+ACT_CASES = (
+    ("迷宮を冒険するゲームを作って", scene_order_probe),
+    ("巨大怪獣と戦うゲームを作って", probe_source),
+    ("シューティングゲームを作って", shooter_probe),
+    ("玉転がしゲームを作って", marble_probe),
+    ("釣りゲームを作って", fishing_probe),
+    ("キャッチゲームを作って", catch_probe),
+    ("ビームで撃ち合うゲームを作って", duel_probe),
+    ("パズルゲームを作って", puzzle_probe),
+    ("レースゲームを作って", racing_probe),
+    ("ジャンプで進むゲームを作って", plat_probe),
+)
+
+
+@pytest.mark.parametrize(
+    ("request_", "builder"), ACT_CASES, ids=[c[0][:6] for c in ACT_CASES]
+)
+def test_every_template_paints_every_one_of_its_acts(request_, builder) -> None:
+    """§7 観察 5: the hue is the label for the place, which means every
+    place has to actually get painted."""
+
+    order = _acts(request_, builder, "")
+
+    assert set(order) == {0, 1, 2}, order
+
+
+@pytest.mark.parametrize(
+    ("request_", "builder"), ACT_CASES, ids=[c[0][:6] for c in ACT_CASES]
+)
+def test_every_template_saves_the_brightest_act_for_last(request_, builder) -> None:
+    """§7 観察 6: brightness is a resource kept back for the climax. Not
+    "the order is exactly [0,1,2]" - the kaiju paints [0,1,0,1,0,1,2]
+    because the boss cycles leg/open until it goes down (§6 観察 3), and
+    that is the escalation working. What must hold is that the brightest
+    act is entered once, at the end."""
+
+    order = _acts(request_, builder, "")
+
+    assert order.index(2) == len(order) - 1, order

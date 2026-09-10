@@ -5104,6 +5104,7 @@ def measure_creation(c: Collector) -> None:
     import tempfile as _scene_tempfile
 
     from sidra_ai.creation.adventure import world_probe as _adv_probe
+    from sidra_ai.creation.adventure import scene_order_probe as _adv_order
     from sidra_ai.creation.racing import probe_source as _racing_scene_probe
     from sidra_ai.creation.platformer import probe_source as _plat_scene_probe
     from sidra_ai.creation.duel import pace_probe as _duel_pace_for_scenes
@@ -5173,6 +5174,8 @@ def measure_creation(c: Collector) -> None:
     # work, and threads would only take turns at it.
     _scene_jobs = []
     _scene_labels = []
+    _scene_order_jobs: list = []
+    _scene_order_labels: list = []
     for request, key, builder in _scene_targets:
         for suffix in _scene_themes:
             label = f"{key}/{suffix or 'default'}"
@@ -5182,6 +5185,26 @@ def measure_creation(c: Collector) -> None:
                 scene_gaps.append(f"{label}: no script")
                 continue
             _scene_labels.append((label, request, suffix))
+            # C-1645: the world probe reads the map without running a
+            # frame, so it can say the three colours exist but not that
+            # the dungeon went through them. One extra run per theme,
+            # inside this same batch, walks the hero between rooms.
+            if key == "adventure":
+                _scene_order_labels.append(label)
+
+                def _adv_order_job(sc=script.group(1)):
+                    try:
+                        return _scene_sp.run(
+                            ["node", "-"],
+                            input=_adv_order(sc),
+                            capture_output=True,
+                            text=True,
+                            timeout=180,
+                        )
+                    except (OSError, _scene_sp.SubprocessError) as exc:
+                        return exc
+
+                _scene_order_jobs.append(_adv_order_job)
 
             def _scene_job(b=builder, sc=script.group(1)):
                 try:
@@ -5196,7 +5219,19 @@ def measure_creation(c: Collector) -> None:
                     return exc
 
             _scene_jobs.append(_scene_job)
-    for (label, request, suffix), probe in zip(_scene_labels, in_parallel(_scene_jobs)):
+    _scene_all = in_parallel(_scene_jobs + _scene_order_jobs)
+    _scene_probes = _scene_all[: len(_scene_jobs)]
+    _scene_orders: dict[str, list] = {}
+    for _so_label, _so_probe in zip(_scene_order_labels, _scene_all[len(_scene_jobs) :]):
+        try:
+            if isinstance(_so_probe, Exception) or _so_probe.returncode != 0:
+                raise ValueError("probe failed")
+            _scene_orders[_so_label] = json.loads(
+                _so_probe.stdout.strip().splitlines()[-1]
+            )["sceneOrder"]
+        except (ValueError, KeyError, IndexError):
+            scene_gaps.append(f"{_so_label}: the walk between rooms could not be read")
+    for (label, request, suffix), probe in zip(_scene_labels, _scene_probes):
         try:
             if isinstance(probe, Exception):
                 raise probe
@@ -5209,16 +5244,34 @@ def measure_creation(c: Collector) -> None:
             continue
         scenes = seen.get("scenes") or []
         # The palette table says three colours exist; this says the page
-        # went through them, in order, as the acts happened (C-1640). The
-        # destruction that made this necessary: pinning `setScene(0)` for
-        # the whole run left every check above passing.
+        # went through them, as the acts happened (C-1640). The destruction
+        # that made this necessary: pinning `setScene(0)` for the whole run
+        # left every check above passing.
+        #
+        # C-1645 corrects the shape of the rule. C-1640 asked for exactly
+        # [0..n-1], which was too strict the moment it met a template whose
+        # design revisits an act: the kaiju paints [0,1,0,1,0,1,2] because
+        # the boss cycles leg/open until it goes down (§6 観察 3), and that
+        # is the escalation working, not a fault. What §7 観察 5-6 actually
+        # claims is that every act gets painted and that the brightest is
+        # SAVED for the end - so that is what is asked.
         order = seen.get("sceneOrder")
-        if order is not None and order != list(range(len(scenes))):
-            scene_gaps.append(
-                f"{label}: the page painted acts {order}, not "
-                f"{list(range(len(scenes)))}"
-            )
-            continue
+        if order is None:
+            order = _scene_orders.get(label)
+        if order is not None:
+            acts = len(scenes)
+            if set(order) != set(range(acts)):
+                scene_gaps.append(
+                    f"{label}: the page painted acts {sorted(set(order))}, "
+                    f"not all {acts} of them"
+                )
+                continue
+            if order.index(acts - 1) != len(order) - 1:
+                scene_gaps.append(
+                    f"{label}: the brightest act is not saved for last "
+                    f"(painted {order})"
+                )
+                continue
         if isinstance(seen.get("hud"), dict):
             scene_hud[label] = (seen["hud"], scenes)
         if isinstance(seen.get("depth"), list):
