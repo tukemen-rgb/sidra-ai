@@ -433,9 +433,21 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
         return 1
 
     if args.as_json:
-        # json.dumps escapes control characters, so the raw view is safe to
-        # print without stripping anything from it.
-        print(json.dumps(payload_out, ensure_ascii=False, indent=2))
+        # json.dumps escapes only the JSON-mandated controls (U+0000-U+001F);
+        # the C1 controls, bidi overrides and zero-width characters render()
+        # strips survive into the raw view unescaped. --json stays byte-faithful
+        # for a machine consumer, so they are not removed here - but a human
+        # eyeballing the raw output is warned on stderr, the same "reported
+        # rather than done silently" promise render() keeps (C-1627).
+        raw = json.dumps(payload_out, ensure_ascii=False, indent=2)
+        print(raw)
+        hostile = sum(1 for character in raw if ord(character) in _STRIPPED_CODEPOINTS)
+        if hostile:
+            print(
+                f"\n注意: 生の応答に端末制御文字 {hostile} 個が含まれる"
+                "（--json は機械向けにそのまま出力するので取り除いていない）。",
+                file=sys.stderr,
+            )
         return _refusal_exit_code(payload_out) if payload_out.get("refused") else 0
 
     return render(payload_out)

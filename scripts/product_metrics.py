@@ -1190,6 +1190,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1627: --json outputs raw JSON, and json.dumps only escapes U+0000-U+001F.
+    # The C1 controls, bidi overrides and zero-width characters the rendered path
+    # strips survive raw into the terminal; --json stays byte-faithful but now
+    # reports their presence on stderr, keeping render()'s "reported rather than
+    # done silently" contract.
+    from sidra_ai.evals.cli_json_warns_on_terminal_controls import (
+        evaluate_cli_json_warns_on_terminal_controls,
+    )
+
+    cli_json = evaluate_cli_json_warns_on_terminal_controls()
+    c.add(
+        "cli_json_warns_on_terminal_controls",
+        "sidra-ask --json が json.dumps の素通しする端末制御文字を stderr で報せる",
+        10.0 * cli_json.checks_passed / cli_json.checks_total,
+        detail=f"{cli_json.checks_passed}/{cli_json.checks_total} checks; "
+               "src/sidra_ai/evals/cli_json_warns_on_terminal_controls.py"
+               + ("" if cli_json.passed else "; " + "; ".join(cli_json.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1457: the Japanese twin of C-1452. role_reassignment_ja fired on
     # 「(今から|これから)あなたは…」 and 「…として振る舞う」 regardless of the role, so
     # ordinary Japanese prose was quarantined. It now requires the new role to
