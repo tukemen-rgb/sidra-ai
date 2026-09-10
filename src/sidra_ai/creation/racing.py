@@ -62,20 +62,30 @@ RACING_DIFFICULTY: dict[str, tuple[float, float]] = {
     "hard": (3.7, 130),
 }
 
-#: Laps per rung (C-1404 決定 (b)). Two easy laps take about 43 seconds
-#: against the sixty-second clock: finishable, with room left for the
-#: mistakes easy exists to forgive - and losable, because a run that keeps
-#: hitting obstacles still hears the buzzer.
+#: Laps per rung (C-1404 決定 (b), corrected by C-1625). Two easy laps take
+#: about 45 seconds against the sixty-second clock: finishable, with room
+#: left for the mistakes easy exists to forgive - and losable, because a run
+#: that keeps hitting obstacles still hears the buzzer.
+#:
+#: The top rung had the same three laps as normal while running 23% faster,
+#: so raising the difficulty made the course SHORTER: hands off the wheel,
+#: easy reached the goal at 45.2s, normal at 51.1s and hard at 41.0s - the
+#: harshest setting left the most room against the only way this template
+#: can be lost (the buzzer before the last line). Four laps puts hard back
+#: at the top of its own ladder at 57.3s. Five is over: the same hands-off
+#: run hears the buzzer, and C-1404's floor is that the weakest driver still
+#: finishes every rung.
 RACING_LAPS: dict[str, int] = {
     "easy": 2,
     "normal": 3,
-    "hard": 3,
+    "hard": 4,
 }
 
 RACING_TITLE = "ひかりのサーキット"
 RACING_HOW = (
     "← → でハンドルを切る。コース外と障害物は減速（走りは止まらない）。"
-    "やさしいは 2 周・ほかは 3 周でゴール、周回ごとのタイムが残る。R でやり直し、M で消音。"
+    "やさしいは 2 周・ふつうは 3 周・むずかしいは 4 周でゴール、"
+    "周回ごとのタイムが残る。R でやり直し、M で消音。"
 )
 
 RACING_SCRIPT = """

@@ -92,7 +92,12 @@ BRIEFINGS: dict[str, tuple[str, str, str]] = {
         "巨獣の一撃と、走る地割れ（線が予兆）",
     ),
     "racing": (
-        "コースに沿って 3 周を走り切り、タイムを残す",
+        # The one briefing whose number is not the same on every rung
+        # (C-1625). It said 「3 周」 on easy, where the race is two laps -
+        # the wrong objective, on the screen a player cannot get past
+        # without reading it. Filled in from the same RACING_LAPS the page
+        # bakes into LAPS, so the two cannot drift apart again.
+        "コースに沿って LAPS_TOKEN 周を走り切り、タイムを残す",
         "← → でハンドルを切る",
         "路上の障害物とコース外。どちらも減速（リタイアは無い）",
     ),

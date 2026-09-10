@@ -4363,6 +4363,40 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1625: the same three runs, asked the second question. "Every rung
+    # finishes" was true while the ladder ran backwards - the top rung had
+    # normal's three laps at 23% more pace, so raising the difficulty made
+    # the course shorter and left the harshest setting the most room against
+    # the buzzer. No extra node run: the times come off the drives above.
+    _rung_secs = "／".join(
+        f"{rung} {ms / 1000:.1f}s" for rung, ms in rungs.times
+    ) or "完走した段が無い"
+    c.add(
+        "creation_race_rungs_ladder",
+        "レースの難度が上がるほど 60 秒クロックに近づく",
+        1.0 if rungs.ladder else 0.0,
+        detail=(
+            "**手放し走行**（操舵ゼロ＝遊びの床）で 3 段を実駆動し、"
+            "ゴールに着いた時のクロックを段の順に読む: "
+            f"**{_rung_secs}**。"
+            + (
+                "段を上げるほどクロックに近づく＝難度が"
+                "**このテンプレの唯一の敗北条件（最終ラップ前のブザー）に近づける**。"
+                if rungs.ladder
+                else "**単調ではない**——上の段のほうが余裕がある＝"
+                "難度が敗北条件を緩めている。"
+            )
+            + "速度だけを上げると走る距離は同じままコースが短くなるので、"
+            "周回数（scope）が速度と一緒に上がっているかがここで読める。"
+            "**完走できない段が 1 つでもあれば 0**——"
+            "着かなかった段の時刻は「遅い」ではなく「無い」で、"
+            "並べれば嘘になる（C-1404 の床は最弱の走者が全段を完走できること）。"
+            "走行は `creation_race_rungs_finishable` と同じ 3 本を使い回すので"
+            "node 実行は増えていない（C-1613）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a race against the clock, judged by driving it ------------------
     #
     # レース sat on the apology side of the genre table. What separates a

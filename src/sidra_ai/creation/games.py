@@ -1458,7 +1458,12 @@ def generate_game(
         # framing rather than the start screen.
         .replace(
             "BRIEF_TOKEN",
-            json.dumps(list(BRIEFINGS.get(key, ())), ensure_ascii=False),
+            # LAPS_TOKEN inside a briefing is filled from the same table the
+            # racing script's own LAPS comes from (C-1625), after the script
+            # chain's own LAPS_TOKEN pass has already run.
+            json.dumps(list(BRIEFINGS.get(key, ())), ensure_ascii=False).replace(
+                "LAPS_TOKEN", str(RACING_LAPS.get(difficulty, 3))
+            ),
         )
     )
     # The pad draws only the buttons this page reads (C-1244). Computed on the

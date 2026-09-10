@@ -20,6 +20,14 @@ Two things make this instrument honest where a source check is not:
 The C-1105 failure-beat judge keeps its loss untouched: it slows the page
 through the panel's stored speed (2.4 over three default laps = 64s), not
 through the easy rung.
+
+C-1625: both numbers above were measured here from the first day and only
+one question was ever asked of them. "Does each rung finish?" passed while
+the ladder ran backwards - normal 51.1s against hard 41.0s, because the top
+rung ran 23% faster over the same three laps, so raising the difficulty made
+the course shorter and left the harshest setting the most room against the
+buzzer. The reading is kept now, not just its pass/fail: a rung may never
+finish sooner than the one below it.
 """
 
 from __future__ import annotations
@@ -64,11 +72,35 @@ console.log(JSON.stringify({
 """
 
 
+#: Gentlest first. The order the ladder is read in, written down rather
+#: than taken from a dict's insertion order (C-1625).
+RUNG_ORDER: tuple[str, ...] = ("easy", "normal", "hard")
+
+
 @dataclass(frozen=True)
 class RaceRungsResult:
     finishable: int
     rungs: int
     failures: tuple[str, ...] = ()
+    #: Milliseconds on the clock when the hands-off run reached the goal,
+    #: gentlest rung first. A rung that never finished is absent.
+    times: tuple[tuple[str, int], ...] = ()
+
+    @property
+    def ladder(self) -> bool:
+        """Does a harder rung ask for more of the same sixty seconds?
+
+        False unless every rung finished - a ladder read off two rungs and
+        a hole is not a ladder.
+        """
+
+        if len(self.times) != len(RUNG_ORDER) or self.failures:
+            return False
+        order = [rung for rung, _ in self.times]
+        if order != list(RUNG_ORDER):
+            return False
+        spent = [ms for _, ms in self.times]
+        return all(a <= b for a, b in zip(spent, spent[1:]))
 
 
 def evaluate_race_rungs() -> RaceRungsResult:
@@ -77,7 +109,9 @@ def evaluate_race_rungs() -> RaceRungsResult:
 
     finishable = 0
     failures: list[str] = []
-    for rung, laps in RACING_LAPS.items():
+    times: list[tuple[str, int]] = []
+    for rung in RUNG_ORDER:
+        laps = RACING_LAPS[rung]
         page = generate_game("レースゲームを作って", difficulty=rung).html
         script = re.search(r"<script>(.*?)</script>", page, re.S)
         if script is None:
@@ -110,4 +144,7 @@ def evaluate_race_rungs() -> RaceRungsResult:
             )
         else:
             finishable += 1
-    return RaceRungsResult(finishable, len(RACING_LAPS), tuple(failures))
+            times.append((rung, int(seen["ms"])))
+    return RaceRungsResult(
+        finishable, len(RACING_LAPS), tuple(failures), tuple(times)
+    )

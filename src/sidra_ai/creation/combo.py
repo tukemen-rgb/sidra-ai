@@ -91,7 +91,7 @@ COMBO_UNWIRED: dict[str, str] = {
     "platformer": "same as adventure - the gems are level furniture",
     "kaiju": "the cycle is the unit and there is only one target",
     "duel": "score is damage dealt, which is already a rate rather than a count",
-    "racing": "laps are the score and there are two or three of them",
+    "racing": "laps are the score and there are two to four of them",
 }
 
 #: Consecutive successes per rung. Three, measured against catch's own
