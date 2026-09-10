@@ -39,7 +39,9 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.routing import APIRoute
 
 from sidra_ai.api.artifacts import (
     ArtifactNotFound,
@@ -321,6 +323,56 @@ def create_app(
         """Expose schema only through the same private-API request boundary."""
 
         return app.openapi()
+
+    def _route_requires_auth(route: APIRoute) -> bool:
+        """Does this route actually run ``authenticate`` anywhere in its tree?"""
+
+        stack = [route.dependant]
+        while stack:
+            dependant = stack.pop()
+            if getattr(dependant, "call", None) is authenticate:
+                return True
+            stack.extend(dependant.dependencies)
+        return False
+
+    def _custom_openapi() -> dict[str, Any]:
+        """Publish the bearer-token requirement the routes actually enforce.
+
+        FastAPI advertises a security scheme only for a route that declares one
+        as a security dependency. SIDRA authenticates with a plain function
+        dependency, so the generated schema showed every operation as open - a
+        developer who pulled ``/openapi.json`` (having supplied the token to get
+        it) and generated a client got one with no ``Authorization`` header and
+        a 401 on every ``/v1`` call, with nothing in the contract to say why
+        (C-1642). The requirement is derived from the same ``authenticate``
+        dependency the routes run, not a hand-kept path list, so the published
+        contract cannot drift from what is enforced - a future route is marked
+        iff it is actually guarded.
+        """
+
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        schema.setdefault("components", {})["securitySchemes"] = {"bearerAuth": {"type": "http", "scheme": "bearer"}}
+        guarded_paths = {
+            (route.path_format, method.lower())
+            for route in app.routes
+            if isinstance(route, APIRoute) and _route_requires_auth(route)
+            for method in route.methods
+        }
+        for path, operations in schema.get("paths", {}).items():
+            for method, operation in operations.items():
+                if (path, method) in guarded_paths:
+                    operation["security"] = [{"bearerAuth": []}]
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = _custom_openapi
 
     # ------------------------------------------------------------------
     @app.get(

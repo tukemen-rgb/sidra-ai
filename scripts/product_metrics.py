@@ -1247,6 +1247,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1642: /openapi.json is served behind the private-API boundary but its
+    # schema declared no auth at all - `authenticate` is a plain function
+    # dependency, not a FastAPI security scheme - so a client generated from the
+    # contract omitted the bearer token and 401'd on every /v1 call. The schema
+    # now declares bearerAuth and marks exactly the authenticate-guarded ops.
+    from sidra_ai.evals.openapi_declares_bearer_auth import (
+        evaluate_openapi_declares_bearer_auth,
+    )
+
+    openapi_auth = evaluate_openapi_declares_bearer_auth()
+    c.add(
+        "openapi_declares_bearer_auth",
+        "公開スキーマが実施どおり Bearer 認証要件を申告する",
+        10.0 * openapi_auth.checks_passed / openapi_auth.checks_total,
+        detail=f"{openapi_auth.checks_passed}/{openapi_auth.checks_total} checks; "
+               "src/sidra_ai/evals/openapi_declares_bearer_auth.py"
+               + ("" if openapi_auth.passed else "; " + "; ".join(openapi_auth.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1641: both listings promise "newest first" but sorted on the
     # second-truncated display timestamp, so files written in the same wall-clock
     # second (the echo model is instant; an operator makes several in a session)
