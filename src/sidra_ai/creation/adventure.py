@@ -869,7 +869,7 @@ function clearRoom1(){
     const en = enemies[1].find(e => e.alive);
     hero.hp = 99; hero.swing = 0;
     hero.x = en.x - 20; hero.y = en.y; hero.dir = 1;
-    /* Read where the page asks for it (§1, C-1686): HITSTOP is a small
+    /* Read where the page asks for it (§1, C-1687): HITSTOP is a small
        integer that decays a frame at a time, so a reading taken after
        the frame has run has lost the resolution the ladder is made of.
        The number passed is decided at run time, so this is the canvas. */

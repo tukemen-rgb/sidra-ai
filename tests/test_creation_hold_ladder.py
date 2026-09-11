@@ -1,4 +1,4 @@
-"""The hold has a ladder too (§1, C-1686).
+"""The hold has a ladder too (§1, C-1687).
 
 §1's technique list names hitstop and knockback as one pair, and
 Vlambeer's rule is that the beat is proportional to the event's weight.

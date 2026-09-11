@@ -569,7 +569,7 @@ function strike(aim, kind){
        otherwise sit on top of the leg's own 3 and invert the ladder.
        Only the probe's own view is cleared; the page is untouched. */
     SHAKE = 0;
-    /* The hold is read at the moment the page asks for it (§1, C-1686).
+    /* The hold is read at the moment the page asks for it (§1, C-1687).
        HITSTOP decays a frame at a time and is a small integer, so a
        reading taken after the frame has run has already lost most of its
        resolution - a three-frame hold and a one-frame hold both arrive
@@ -607,7 +607,7 @@ const realHitstop = hitstop;
 hitstop = function(f){ holds.push(Number(f) || 0); return realHitstop.apply(null, arguments) };
 const leg = strike(-70, 'leg');
 /* Break the leg open so the head comes down, then strike THAT. The
-   buckle is the leg's rung on the hold ladder (§1, C-1686): hitLeg()
+   buckle is the leg's rung on the hold ladder (§1, C-1687): hitLeg()
    shakes on every hit but only asks for a hold when the leg gives, so
    the first hit's hold is nothing and the buckle's is the number. */
 holds.length = 0;
