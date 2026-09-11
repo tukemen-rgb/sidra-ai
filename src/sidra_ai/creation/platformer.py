@@ -645,8 +645,10 @@ globalThis.document = { getElementById: () => ({
   getContext: () => nothing }) };
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
 PROBE_KEYS_PLACEHOLDER
+PROBE_EYES_PLACEHOLDER
 PROBE_SHAKE_PLACEHOLDER
 /* Which sounds this frame made, so the kick can be attributed to an
    event rather than to whatever else was on screen. */
@@ -660,6 +662,7 @@ sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, argume
    frame fixes the history; this fixes the company. */
 function alone(rang, name){ return rang.length === 1 && rang[0] === name }
 function frame(){ rang = [];
+  eeTick();
   return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
 probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
 frame(); frame();
@@ -683,19 +686,47 @@ for (let i = 0; i < 30 && fell === null; i++) {
   const kick = frame();
   if (alone(rang, 'hurt')) { fell = { kick: kick, rang: rang.slice() } }
 }
-console.log(JSON.stringify({ light: land, heavy: fell }));
+/* A gem picked up: the sound is panned at the orb and the light is
+   drawn at the orb, so ear and eye can be put side by side (§28,
+   C-1653). The pit-fall sound is NOT used here - it draws no burst at
+   all, because what the eye gets there is the hero itself reappearing
+   at the lantern, and a missing burst is not a missing picture. */
+const orb = orbs.filter(o => !o.got)[0];
+if (orb) {
+  /* Stand under the orb first and let the camera catch up: `cam` eases
+     toward its target (C-1622), so a hero teleported and collected on
+     the same frame is panned against a camera still hundreds of pixels
+     behind - the probe would be measuring its own staging. */
+  orb.got = true;
+  for (let i = 0; i < 60; i++) {
+    me.x = orb.x; me.y = orb.y + 10; me.vy = 0; me.ground = true; frame() }
+  orb.got = false;
+  for (let i = 0; i < 4 && !orb.got; i++) {
+    me.x = orb.x; me.y = orb.y + 10; me.vy = 0; me.ground = true; frame() }
+}
+/* This page pans camera-relative (`(x-cam)/W`), so the light's world x
+   is mapped the same way before the two are compared. */
+const pair = earEye('gem', cv.width, function(x){ return (x - cam) / cv.width });
+console.log(JSON.stringify({ pair: pair, light: land, heavy: fell }));
 """
 
 
 def ladder_probe(script: str) -> str:
     """The page's own script, wrapped so both weights can be read."""
 
-    from sidra_ai.creation.probekit import PROBE_KEYS, PROBE_SHAKE
+    from sidra_ai.creation.probekit import (
+        PROBE_EARS,
+        PROBE_EYES,
+        PROBE_KEYS,
+        PROBE_SHAKE,
+    )
 
     return (
         LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
         .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+        .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
+        .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)
     )
 
 

@@ -36,4 +36,84 @@ function probeKick(step){
   return shakeAmount() }
 """
 
-__all__ = ["PROBE_KEYS", "PROBE_SHAKE"]
+
+#: A stand-in AudioContext that keeps the pan of every sound it is asked
+#: to place (§28, C-1653). The pages put an event's normalised x on a
+#: StereoPannerNode; this is the only way to read back where the ear was
+#: told the thing happened, and it is the same shape the pan contract has
+#: used since C-1394.
+PROBE_EARS = """
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+"""
+
+#: Watch both channels of one event: where the ear was told it happened
+#: (the pan the page put on the sound) and where the light was actually
+#: drawn (the x the page handed burst). Both are the page's own runtime
+#: calls. Install after the page's script has been defined.
+PROBE_EYES = """
+let heard = [], seen = [], EE_FRAME = 0;
+function eeTick(){ EE_FRAME++ }
+(function(){
+  const realSfx = sfx, realBurst = burst;
+  sfx = function(name, pitch, at){
+    const was = pans.length;
+    const out = realSfx.apply(this, arguments);
+    heard.push({ name: String(name), frame: EE_FRAME,
+      at: (typeof at === 'number' ? at : null),
+      pan: pans.length > was ? pans[pans.length - 1] : null });
+    return out };
+  burst = function(x){ seen.push({ x: x, frame: EE_FRAME });
+    return realBurst.apply(this, arguments) };
+})();
+/* The two channels do not always speak the same coordinates, and that is
+   not a fault. The platformer pans camera-relative while its light is
+   drawn in world x; the marble pans by LANE because the projection at
+   gate range magnifies screen x so far that a wide gate would saturate
+   the panner (the page says so in a comment). So a probe hands in the
+   map from a burst x to the pan's own space, and where no such map
+   exists the two are only asked to agree on the SIDE - which is the part
+   §28 actually cares about: which way the event was. */
+function earEye(name, width, toNorm){
+  const ear = heard.filter(h => h.name === name && h.at !== null).pop();
+  if (!ear) return null;
+  /* Only light drawn on the same frame as the sound can be the sound's
+     own (C-1653). Without this the nearest burst anywhere in the whole
+     run gets matched, which made a respawn 1900px from its own picture
+     look like a near miss. */
+  const near = seen.filter(s => Math.abs(s.frame - ear.frame) <= 1);
+  if (!near.length) return { name: name, earNorm: ear.at, pan: ear.pan,
+    eyeNorm: null, apartPx: null, sameSide: false, mapped: !!toNorm,
+    litNothing: true };
+  const norm = toNorm || function(x){ return x / width };
+  let eyeNorm = norm(near[0].x);
+  for (const s of near) {
+    const n = norm(s.x);
+    if (Math.abs(n - ear.at) < Math.abs(eyeNorm - ear.at)) eyeNorm = n }
+  const side = function(v){ return v < 0.45 ? -1 : (v > 0.55 ? 1 : 0) };
+  return { name: name, earNorm: ear.at, pan: ear.pan, eyeNorm: eyeNorm,
+    apartPx: Math.abs(eyeNorm - ear.at) * width,
+    sameSide: side(ear.at) === side(eyeNorm),
+    mapped: !!toNorm, litNothing: false } }
+"""
+
+__all__ = ["PROBE_KEYS", "PROBE_SHAKE", "PROBE_EARS", "PROBE_EYES"]

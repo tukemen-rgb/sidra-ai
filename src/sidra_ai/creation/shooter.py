@@ -413,8 +413,10 @@ globalThis.document = { getElementById: () => ({
   getContext: () => nothing }) };
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
 PROBE_KEYS_PLACEHOLDER
+PROBE_EYES_PLACEHOLDER
 PROBE_SHAKE_PLACEHOLDER
 let rang = [];
 const realSfx = sfx;
@@ -426,6 +428,7 @@ sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, argume
    frame fixes the history; this fixes the company. */
 function alone(rang, name){ return rang.length === 1 && rang[0] === name }
 function frame(){ rang = [];
+  eeTick();
   return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
 probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
 frame(); frame();
@@ -452,19 +455,27 @@ for (let attempt = 0; attempt < 120 && rammed === null; attempt++) {
   const kick = frame();
   if (alone(rang, 'clash')) { rammed = { kick: kick, rang: rang.slice() } }
 }
-console.log(JSON.stringify({ light: downed, heavy: rammed }));
+const pair = earEye('hurt', cv.width);
+console.log(JSON.stringify({ pair: pair, light: downed, heavy: rammed }));
 """
 
 
 def ladder_probe(script: str) -> str:
     """The page's own script, wrapped so both weights can be read."""
 
-    from sidra_ai.creation.probekit import PROBE_KEYS, PROBE_SHAKE
+    from sidra_ai.creation.probekit import (
+        PROBE_EARS,
+        PROBE_EYES,
+        PROBE_KEYS,
+        PROBE_SHAKE,
+    )
 
     return (
         LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
         .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+        .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
+        .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)
     )
 
 

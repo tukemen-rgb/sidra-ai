@@ -945,8 +945,11 @@ globalThis.document = { getElementById: () => ({
   getContext: () => nothing }) };
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
-function frame(){ if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }
+PROBE_EYES_PLACEHOLDER
+function frame(){ eeTick();
+  if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }
 function kbKey(k){
   const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
@@ -1034,7 +1037,24 @@ frame();
 from = { x: guard.x, y: guard.y };
 const guardOpen = reading(before, from);
 
-console.log(JSON.stringify({ roamWall: roamWall, roamOpen: roamOpen,
+/* The ear and the eye on the same blow (§28, C-1653). Staged with the
+   guardian as far from the hero as contact still allows (the page's own
+   reach is 24px): at the 6px used above, naming the attacker instead of
+   the victim moves the pan by 0.008, which no ear could hear and no
+   contract should pretend to catch. Twenty pixels apart, the question
+   is real. */
+settle();
+room = 2;
+stand(s2);
+guard.alive = true; guard.mode = 'stride'; guard.t = 999; guard.inv = 0;
+guard.x = hero.x - 20; guard.y = hero.y;
+for (let i = 0; i < 6 && hero.hp === 3; i++) {
+  hero.inv = 0; hero.hp = 3;
+  guard.x = hero.x - 20; guard.y = hero.y;
+  frame();
+}
+const pair = earEye('hurt', cv.width);
+console.log(JSON.stringify({ pair: pair, roamWall: roamWall, roamOpen: roamOpen,
   guardWall: guardWall, guardOpen: guardOpen }));
 """
 
@@ -1042,7 +1062,13 @@ console.log(JSON.stringify({ roamWall: roamWall, roamOpen: roamOpen,
 def knock_probe(script: str) -> str:
     """The page's own script, wrapped so a shove can be watched land."""
 
-    return KNOCK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+    from sidra_ai.creation.probekit import PROBE_EARS, PROBE_EYES
+
+    return (
+        KNOCK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
+        .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)
+    )
 
 
 

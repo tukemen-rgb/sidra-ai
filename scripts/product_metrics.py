@@ -11545,87 +11545,6 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- the ear and the eye point at the same place --------------------
-    # §28 (GAG hearing/audio, intermediate): supplementary information
-    # carried by audio - the guideline's own example is the direction you
-    # are being shot from - has to be replicated in text or visuals.
-    # C-1394 gave SIDRA a pan channel across ten sites, which is exactly
-    # that kind of information, and nothing checked that the light lands
-    # where the pan says the event happened.
-    #
-    # racing's slipstream was the case that failed: the sound was panned at
-    # the obstacle and the burst was drawn over the car, and the reward only
-    # fires when they are 26..46px apart, so they could never agree by
-    # accident. Both channels are read as the page's own runtime calls,
-    # driven for real.
-    import re as _ee_re
-    import subprocess as _ee_sp
-
-    from sidra_ai.creation.racing import ear_eye_probe as _ee_racing
-
-    ear_gaps: list[str] = []
-    ear_ok: list[str] = []
-    try:
-        _ee_page = generate_game("レースゲームを作って").html
-        _ee_script = _ee_re.search(r"<script>(.*?)</script>", _ee_page, _ee_re.S)
-        if _ee_script is None:
-            raise ValueError("no script")
-        _ee_run = _ee_sp.run(
-            ["node", "-"],
-            input=_ee_racing(_ee_script.group(1)),
-            capture_output=True,
-            text=True,
-            timeout=180,
-        )
-        if _ee_run.returncode != 0:
-            raise ValueError(_ee_run.stderr.strip()[:60])
-        _ee = json.loads(_ee_run.stdout.strip().splitlines()[-1])
-    except (OSError, _ee_sp.SubprocessError, ValueError) as exc:
-        ear_gaps.append(f"racing: probe unavailable ({exc})")
-        _ee = None
-    if _ee is not None:
-        _slip = _ee.get("slip")
-        if not _slip:
-            # A reward that never fired is not a pass (C-1637).
-            ear_gaps.append("racing: the slipstream never paid out")
-        elif not _slip.get("heard"):
-            ear_gaps.append("racing: the slipstream made no sound")
-        elif not _slip.get("seen"):
-            ear_gaps.append("racing: the slipstream showed no light")
-        else:
-            _ear = _slip["heard"][0]
-            _width = _ee.get("width") or 720
-            _ear_x = (_ear.get("at") or 0) * _width
-            # The nearest light drawn in the same window.
-            _eye_x = min(
-                (s["x"] for s in _slip["seen"]), key=lambda x: abs(x - _ear_x)
-            )
-            if abs(_eye_x - _ear_x) > 8:
-                ear_gaps.append(
-                    f"racing: the ear says {_ear_x:.0f}px and the eye paints "
-                    f"{_eye_x:.0f}px ({abs(_eye_x - _ear_x):.0f}px apart)"
-                )
-            else:
-                ear_ok.append("racing/slipstream")
-    c.add(
-        "creation_pan_matches_paint",
-        "耳が指した場所を目も指す",
-        0.0 if ear_gaps else float(len(ear_ok)),
-        detail=(
-            "; ".join(ear_gaps)
-            if ear_gaps
-            else "実走行で駆動し、ページ自身の 2 チャンネルを同じフレームで突き合わせた: "
-            "racing のスリップストリームは音の pan（正規化 x）と光の x が一致する"
-            "（実測 耳 482px・目 482px・同一フレーム）。"
-            "**直す前は 34px ずれていた**——音は障害物の x、光は自機の x で、"
-            "発火条件が 26〜46px 横なので**偶然一致することがない**。"
-            "報酬が実際に出たこと（`slips` が増えたこと）も条件——"
-            "鳴らない実装は「払い出さなかった」で落ちる"
-            "（§28 の Intermediate「音で伝える方向は絵にも複製する」）"
-        ),
-        kind=OUTCOME,
-    )
-
     # --- heavier events kick the camera harder -------------------------
     # §1 quotes Vlambeer directly: kick the camera a few px on an explosion
     # or a heavy hit, decay it fast, and make the shake PROPORTIONAL TO THE
@@ -11738,6 +11657,123 @@ def measure_creation(c: Collector) -> None:
             "**両方が本当に起きたこと**（どちらの揺れも 0 でない）も条件——"
             "揺れを丸ごと外した実装は「起きていない」で落ちる（§1 Vlambeer の"
             "「イベントの重さに揺れを比例させる」の、比例の側）"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the ear and the eye point at the same place --------------------
+    # §28 (GAG hearing/audio, intermediate): supplementary information
+    # carried by audio - the guideline's own example is the direction you
+    # are being shot from - has to be replicated in text or visuals.
+    # C-1394 gave SIDRA a pan channel across ten sites, which is exactly
+    # that kind of information, and nothing checked that the light lands
+    # where the pan says the event happened.
+    #
+    # racing's slipstream was the case that failed: the sound was panned at
+    # the obstacle and the burst was drawn over the car, and the reward only
+    # fires when they are 26..46px apart, so they could never agree by
+    # accident. Both channels are read as the page's own runtime calls,
+    # driven for real.
+    import re as _ee_re
+    import subprocess as _ee_sp
+
+    from sidra_ai.creation.racing import ear_eye_probe as _ee_racing
+
+    ear_gaps: list[str] = []
+    ear_ok: list[str] = []
+    try:
+        _ee_page = generate_game("レースゲームを作って").html
+        _ee_script = _ee_re.search(r"<script>(.*?)</script>", _ee_page, _ee_re.S)
+        if _ee_script is None:
+            raise ValueError("no script")
+        _ee_run = _ee_sp.run(
+            ["node", "-"],
+            input=_ee_racing(_ee_script.group(1)),
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if _ee_run.returncode != 0:
+            raise ValueError(_ee_run.stderr.strip()[:60])
+        _ee = json.loads(_ee_run.stdout.strip().splitlines()[-1])
+    except (OSError, _ee_sp.SubprocessError, ValueError) as exc:
+        ear_gaps.append(f"racing: probe unavailable ({exc})")
+        _ee = None
+    if _ee is not None:
+        _slip = _ee.get("slip")
+        if not _slip:
+            # A reward that never fired is not a pass (C-1637).
+            ear_gaps.append("racing: the slipstream never paid out")
+        elif not _slip.get("heard"):
+            ear_gaps.append("racing: the slipstream made no sound")
+        elif not _slip.get("seen"):
+            ear_gaps.append("racing: the slipstream showed no light")
+        else:
+            _ear = _slip["heard"][0]
+            _width = _ee.get("width") or 720
+            _ear_x = (_ear.get("at") or 0) * _width
+            # The nearest light drawn in the same window.
+            _eye_x = min(
+                (s["x"] for s in _slip["seen"]), key=lambda x: abs(x - _ear_x)
+            )
+            if abs(_eye_x - _ear_x) > 8:
+                ear_gaps.append(
+                    f"racing: the ear says {_ear_x:.0f}px and the eye paints "
+                    f"{_eye_x:.0f}px ({abs(_eye_x - _ear_x):.0f}px apart)"
+                )
+            else:
+                ear_ok.append("racing/slipstream")
+    # C-1653: the other sites, read off runs that already happen - the four
+    # ladder probes (C-1652) and the dungeon's knockback probe (C-1643) -
+    # so this costs no node spawns. Two channels do not share a coordinate
+    # space and that is by design, not a fault: the platformer pans
+    # camera-relative while its light is a world x (the probe maps it), and
+    # the marble pans by LANE because the projection at gate range would
+    # saturate the panner. marble is therefore NOT compared by position at
+    # all; see the note on the metric.
+    for _ee_who, _ee_src in (
+        ("adventure/被弾", (_kb_adv or {}).get("pair")),
+        ("platformer/宝石", (_lad_read.get("platformer") or {}).get("pair")),
+        ("shooter/撃墜", (_lad_read.get("shooter") or {}).get("pair")),
+        ("duel/被弾", (_lad_read.get("duel") or {}).get("pair")),
+    ):
+        if not _ee_src:
+            ear_gaps.append(f"{_ee_who}: the event was not driven")
+        elif _ee_src.get("litNothing"):
+            ear_gaps.append(f"{_ee_who}: the sound lit nothing on its own frame")
+        elif not _ee_src.get("sameSide"):
+            ear_gaps.append(
+                f"{_ee_who}: the ear says {_ee_src['earNorm']:.2f} and the eye "
+                f"{_ee_src['eyeNorm']:.2f} - opposite sides"
+            )
+        elif (_ee_src.get("apartPx") or 0) > 8:
+            ear_gaps.append(
+                f"{_ee_who}: {_ee_src['apartPx']:.0f}px between the sound and the light"
+            )
+        else:
+            ear_ok.append(_ee_who)
+    c.add(
+        "creation_pan_matches_paint",
+        "耳が指した場所を目も指す",
+        0.0 if ear_gaps else float(len(ear_ok)),
+        detail=(
+            "; ".join(ear_gaps)
+            if ear_gaps
+            else "実走行で駆動し、ページ自身の 2 チャンネル（`sfx` の pan と `burst` の x）を"
+            "**同じフレームで**突き合わせた（フレーム窓が要る——窓が無いと走行中のどこかの光と"
+            "照合してしまい、1900px 離れた再出現が「一致」に見えた）: "
+            "racing のスリップストリーム 耳 482px・目 482px／adventure の被弾 0.00px／"
+            "platformer の宝石 0.10px（このページは camera 相対で鳴るので光の world x を同じ空間へ写してから比べる）／"
+            "shooter の撃墜 0.00px／duel の被弾 0.00px。"
+            "**marble は位置で比べない**——`gpan` はレーン、`burst` は射影後の `gx` で"
+            "**空間が違うのが設計**（射影は端のゲートを画布の外へ飛ばすので、"
+            "画面 x では panner が振り切れる、とページ自身が書いている）。"
+            "正しい実装を誤検出しないために外してある（C-1652 の kaiju 往復と同じ判断）。"
+            "**直す前は 34px ずれていた**——音は障害物の x、光は自機の x で、"
+            "発火条件が 26〜46px 横なので**偶然一致することがない**。"
+            "報酬が実際に出たこと（`slips` が増えたこと）も条件——"
+            "鳴らない実装は「払い出さなかった」で落ちる"
+            "（§28 の Intermediate「音で伝える方向は絵にも複製する」）"
         ),
         kind=OUTCOME,
     )

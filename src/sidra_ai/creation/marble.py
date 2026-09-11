@@ -536,8 +536,10 @@ globalThis.document = { getElementById: () => ({
   getContext: () => nothing }) };
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
 PROBE_KEYS_PLACEHOLDER
+PROBE_EYES_PLACEHOLDER
 PROBE_SHAKE_PLACEHOLDER
 let rang = [];
 const realSfx = sfx;
@@ -549,6 +551,7 @@ sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, argume
    frame fixes the history; this fixes the company. */
 function alone(rang, name){ return rang.length === 1 && rang[0] === name }
 function frame(){ rang = [];
+  eeTick();
   return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
 probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
 frame(); frame();
@@ -565,19 +568,30 @@ for (let i = 0; i < 6000 && (hot === null || plain === null); i++) {
   if (hot === null && alone(rang, 'key')) { hot = { kick: kick, rang: rang.slice() } }
   if (plain === null && alone(rang, 'catch')) { plain = { kick: kick, rang: rang.slice() } }
 }
-console.log(JSON.stringify({ light: plain, heavy: hot }));
+/* No map: `gpan` is the LANE and the burst is the projected gx.
+   The page explains why - screen x at gate range would saturate
+   the panner - so the two are asked only to agree on the side. */
+const pair = earEye('key', cv.width, null);
+console.log(JSON.stringify({ pair: pair, light: plain, heavy: hot }));
 """
 
 
 def ladder_probe(script: str) -> str:
     """The page's own script, wrapped so both gate weights can be read."""
 
-    from sidra_ai.creation.probekit import PROBE_KEYS, PROBE_SHAKE
+    from sidra_ai.creation.probekit import (
+        PROBE_EARS,
+        PROBE_EYES,
+        PROBE_KEYS,
+        PROBE_SHAKE,
+    )
 
     return (
         LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
         .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+        .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
+        .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)
     )
 
 

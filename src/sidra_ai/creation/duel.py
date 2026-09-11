@@ -435,8 +435,10 @@ globalThis.document = { getElementById: () => ({
   getContext: () => nothing }) };
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
 PROBE_KEYS_PLACEHOLDER
+PROBE_EYES_PLACEHOLDER
 PROBE_SHAKE_PLACEHOLDER
 /* Only a frame that rang this event and nothing else can attribute the
    kick to it (C-1652): the combo step-up in combo.py kicks by 3, and
@@ -446,6 +448,7 @@ const realSfx = sfx;
 sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, arguments) };
 function alone(name){ return rang.length === 1 && rang[0] === name }
 function frame(){ rang = [];
+  eeTick();
   return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
 probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
 frame(); frame();
@@ -473,19 +476,27 @@ for (let i = 0; i < 4000 && struck === null; i++) {
   if (p.hp < hpBefore && alone('hurt')) { struck = { kick: kick, hp: p.hp } }
   if (state !== 'play') break;
 }
-console.log(JSON.stringify({ light: over, heavy: struck }));
+const pair = earEye('hurt', cv.width);
+console.log(JSON.stringify({ pair: pair, light: over, heavy: struck }));
 """
 
 
 def ladder_probe(script: str) -> str:
     """The page's own script, wrapped so both weights can be read."""
 
-    from sidra_ai.creation.probekit import PROBE_KEYS, PROBE_SHAKE
+    from sidra_ai.creation.probekit import (
+        PROBE_EARS,
+        PROBE_EYES,
+        PROBE_KEYS,
+        PROBE_SHAKE,
+    )
 
     return (
         LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
         .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+        .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
+        .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)
     )
 
 
