@@ -11754,6 +11754,83 @@ def measure_creation(c: Collector) -> None:
         else:
             slope_ok.append(_sl_key)
         _sl_read[_sl_key.split("/")[0]] = _sl
+    # --- the other two juice channels are weighed too -------------------
+    # §1 lists the kit as siblings: shake, particles, hitstop.
+    # creation_shake_scales_with_input weighs the first. The other two are
+    # weighed by the pages as well - the platformer's landing dust is
+    # `min(12, 2+round(vBefore))` and the puzzle's freeze steps at
+    # `cells.length > 4` - and neither was asked for. Flattening both to
+    # constants left 204 tests green.
+    #
+    # Read as the page's own state (juice's PARTS list and HITSTOP
+    # counter), never as the number handed to the call.
+    juice_gaps: list[str] = []
+    juice_ok: list[str] = []
+    _ju_plat = _lad_read.get("platformer") or {}
+    _ju_soft, _ju_hard = _ju_plat.get("softDust"), _ju_plat.get("hardDust")
+    if not _ju_soft or not _ju_hard:
+        juice_gaps.append("platformer/着地の土煙: the two landings were not driven")
+    elif not _ju_soft.get("parts") or not _ju_hard.get("parts"):
+        juice_gaps.append("platformer/着地の土煙: a landing threw up nothing")
+    elif _ju_hard["vy"] <= _ju_soft["vy"]:
+        juice_gaps.append("platformer/着地の土煙: the two landings were equally fast")
+    elif _ju_hard["parts"] <= _ju_soft["parts"]:
+        juice_gaps.append(
+            f"platformer/着地の土煙: {_ju_soft['vy']}→{_ju_hard['vy']} but the dust "
+            f"stayed {_ju_soft['parts']}→{_ju_hard['parts']}"
+        )
+    else:
+        juice_ok.append("platformer/着地の土煙")
+    _ju_puz = _sl_read.get("puzzle") or {}
+    _ju_l, _ju_h, _ju_x = (
+        _ju_puz.get("light"), _ju_puz.get("heavy"), _ju_puz.get("crossed")
+    )
+    if not _ju_l or not _ju_h:
+        juice_gaps.append("puzzle/消しの粒: the two clears were not driven")
+    elif _ju_h["parts"] <= _ju_l["parts"]:
+        juice_gaps.append(
+            f"puzzle/消しの粒: {_ju_l['size']}→{_ju_h['size']} tiles but the dust "
+            f"stayed {_ju_l['parts']}→{_ju_h['parts']}"
+        )
+    else:
+        juice_ok.append("puzzle/消しの粒")
+    # The freeze steps at `cells.length > 4`, so two and four sit on the
+    # same side of it - the third clear is the one that crosses. That clear
+    # also earns a hammer and rings a combo step-up, and the step-up adds
+    # twelve particles of its own; it touches HITSTOP not at all, which is
+    # why the freeze may be read here and the dust may not.
+    if not _ju_l or not _ju_x:
+        juice_gaps.append("puzzle/消しの止め: the crossing clear was not driven")
+    elif not _ju_l.get("held") or not _ju_x.get("held"):
+        juice_gaps.append("puzzle/消しの止め: a clear froze nothing")
+    elif _ju_x["held"] <= _ju_l["held"]:
+        juice_gaps.append(
+            f"puzzle/消しの止め: {_ju_l['size']}→{_ju_x['size']} tiles but the freeze "
+            f"stayed {_ju_l['held']}→{_ju_x['held']}"
+        )
+    else:
+        juice_ok.append("puzzle/消しの止め")
+    c.add(
+        "creation_juice_scales_with_input",
+        "粒と間も入れたぶんだけ増える",
+        0.0 if juice_gaps else float(len(juice_ok)),
+        detail=(
+            "; ".join(juice_gaps)
+            if juice_gaps
+            else "§1 の juice は**揺れ・粒・止め**の兄弟で、"
+            "`creation_shake_scales_with_input` が見ているのは揺れだけ。"
+            "残る 2 つも**ページ自身の状態**（juice の `PARTS` と `HITSTOP`）で読んだ"
+            "——呼び出しに渡した数は読まない: "
+            "platformer=着地 vy 4.2 で粒 6・vy 8 で **10**（`min(12,2+round(vBefore))`）／"
+            "puzzle=2 個消しで粒 8・4 個消しで **16**／"
+            "puzzle=2 個消しで止め 1・**6 個消しで 3**（段は `cells.length>4` なので"
+            "2 と 4 は同じ側に落ちる——**跨ぐ 1 回を別に取る**）。"
+            "**粒と止めで読む回が違う理由**: 6 個消しは combo の昇段を同じフレームに乗せ、"
+            "**昇段は粒を 12 足すが止めには触れない**ので、止めはそこで読めて粒はそこで読めない"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_shake_scales_with_input",
         "同じ動作でも入れたぶんだけ揺れる",

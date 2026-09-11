@@ -707,7 +707,31 @@ if (orb) {
 /* This page pans camera-relative (`(x-cam)/W`), so the light's world x
    is mapped the same way before the two are compared. */
 const pair = earEye('gem', cv.width, function(x){ return (x - cam) / cv.width });
-console.log(JSON.stringify({ pair: pair, light: land, heavy: fell }));
+/* The dust is weighed too (§1, C-1660): `min(12, 2+round(vBefore))`, so a
+   hop puffs and a drop throws up a cloud. Read as the page's own particle
+   list growing, not as the number handed to burst - and read on a frame
+   that rang this landing alone, because a combo step-up adds twelve of
+   its own. */
+function landFrom(height){
+  settle();
+  const pad2 = plats.reduce((a, b) => (b.w > a.w ? b : a));
+  me.x = pad2.x + pad2.w / 2; me.y = pad2.y - height; me.vy = 0; me.ground = false;
+  for (let i = 0; i < 200; i++) {
+    const airborne = !me.ground;
+    const before = PARTS.length;
+    const fast = me.vy;
+    rang = [];
+    frame();
+    if (airborne && me.ground) {
+      return { height: height, vy: Math.round(fast * 100) / 100,
+        parts: PARTS.length - before, rang: rang.slice() };
+    }
+  }
+  return null;
+}
+const softDust = landFrom(24);
+const hardDust = landFrom(200);
+console.log(JSON.stringify({ pair: pair, softDust: softDust, hardDust: hardDust, light: land, heavy: fell }));
 """
 
 

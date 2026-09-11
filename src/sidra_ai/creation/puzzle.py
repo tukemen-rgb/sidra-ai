@@ -661,21 +661,37 @@ function clearOf(n){
   const size = group(cur.x, cur.y).length;
   rang = [];
   SHAKE = 0;
+  HITSTOP = 0;
+  const partsBefore = PARTS.length;
   pop();
   const kick = shakeAmount();
   /* The ear names the centre of the group; the eye lights its members
      (C-1418). So: is the ear inside what the eye painted? */
+  /* The page's own counters, not the numbers handed to the calls
+     (C-1660): PARTS is juice's particle list and HITSTOP its freeze
+     counter, so this reads what the page is actually holding. */
+  const parts = PARTS.length - partsBefore;
+  const held = HITSTOP;
   const span = earInSpan('gem', cv.width);
-  return { asked: n, size: size, kick: kick, rang: rang.slice(), span: span };
+  return { asked: n, size: size, kick: kick, parts: parts, held: held,
+    rang: rang.slice(), span: span };
 }
 /* Two against four, not two against eight: a clear of five or more earns
    a hammer, which rings its own sound on the same frame. That sound does
    not kick the camera, but a reading taken while two events are in the
    air is a reading that has to be argued for rather than read, and the
    slope is just as visible below the earn line. */
+/* A third reading, for the freeze alone. The step is `cells.length > 4`,
+   so two and four sit on the SAME side of it - the slope in the shake is
+   visible there, the step in the hitstop is not. Six crosses it. Six also
+   earns a hammer, which rings its own sound on that frame, and that is
+   why this reading is kept separate: the hammer touches neither PARTS nor
+   HITSTOP, so the freeze is still this clear's own, but the sound is no
+   longer alone and the shake reading above must not be taken from here. */
 const light = clearOf(2);
 const heavy = clearOf(4);
-console.log(JSON.stringify({ light: light, heavy: heavy }));
+const crossed = clearOf(6);
+console.log(JSON.stringify({ light: light, heavy: heavy, crossed: crossed }));
 """
 
 
