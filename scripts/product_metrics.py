@@ -5542,6 +5542,7 @@ def measure_creation(c: Collector) -> None:
         return (hi + 0.05) / (lo + 0.05)
 
     scene_gaps: list[str] = []
+    scene_floors: dict[str, list[str]] = {}
     scene_ok: list[str] = []
     #: label -> (hudFacts, scenes) for the templates whose probe reports a
     #: HUD contract (the three whose HUD sits on the full-frame sky).
@@ -5655,6 +5656,10 @@ def measure_creation(c: Collector) -> None:
                     f"(painted {order})"
                 )
                 continue
+        # The floors, kept for the hue judge below (§7 観察 5, C-1690):
+        # the scene probes already paint them, so naming the place by hue
+        # costs no extra node run.
+        scene_floors[label] = [s["floor"] for s in scenes]
         if isinstance(seen.get("hud"), dict):
             scene_hud[label] = (seen["hud"], scenes)
         if isinstance(seen.get("depth"), list):
@@ -5700,6 +5705,109 @@ def measure_creation(c: Collector) -> None:
             "壁と床の明度差はテーマ既定値のまま"
             if not scene_gaps
             else "; ".join(scene_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- hue is what names the place (§7 観察 5, C-1690) -----------------
+    #
+    # The observation's own words: 土台は全編ほぼ同じ暗い無彩色で、場所
+    # ごとにアクセント 1 系統だけを載せ替えている……色相を見れば場所が
+    # 分かる. creation_scene_palettes proves the floors are three
+    # different strings and that the brightest is last - and three
+    # lightness steps of ONE hue satisfy both while destroying the thing
+    # the observation is about. Nothing read the hue.
+    #
+    # The floors come from the scene probes that already ran, so this
+    # costs no node run at all.
+    _HUE_APART = 20.0  # degrees; the measured minimum is 26.2
+    _HUE_GROUND = 0.70  # saturation ceiling; the measured maximum is 0.58
+    _hue_gaps: list[str] = []
+    _hue_worst: tuple[float, str] | None = None
+    _hue_loudest: tuple[float, str] | None = None
+
+    def _hsl_of(hexcolour: str) -> tuple[float, float, float]:
+        raw = hexcolour.lstrip("#")
+        if len(raw) == 3:
+            raw = "".join(ch * 2 for ch in raw)
+        red, green, blue = (int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4))
+        high, low = max(red, green, blue), min(red, green, blue)
+        light = (high + low) / 2
+        span = high - low
+        if span == 0:
+            return 0.0, 0.0, light
+        sat = span / (2 - high - low) if light > 0.5 else span / (high + low)
+        if high == red:
+            hue = ((green - blue) / span) % 6
+        elif high == green:
+            hue = (blue - red) / span + 2
+        else:
+            hue = (red - green) / span + 4
+        return hue * 60, sat, light
+
+    def _apart(one: float, two: float) -> float:
+        gap = abs(one - two) % 360
+        return min(gap, 360 - gap)
+
+    if not scene_floors:
+        _hue_gaps.append("no scene floors were painted")
+    for _hue_label, _floors in sorted(scene_floors.items()):
+        if len(_floors) < 3:
+            _hue_gaps.append(f"{_hue_label}: {len(_floors)} floor(s) to compare")
+            continue
+        _hsl = [_hsl_of(f) for f in _floors]
+        # (a) the scenes are apart in HUE, not merely in the hex string
+        _pairs = [
+            (_apart(_hsl[i][0], _hsl[j][0]), i, j)
+            for i in range(len(_hsl))
+            for j in range(i + 1, len(_hsl))
+        ]
+        _near = min(_pairs)
+        if _near[0] < _HUE_APART:
+            _hue_gaps.append(
+                f"{_hue_label}: scenes {_near[1]} and {_near[2]} are "
+                f"{_near[0]:.1f}° apart in hue - the place has no colour name"
+            )
+            continue
+        if _hue_worst is None or _near[0] < _hue_worst[0]:
+            _hue_worst = (_near[0], _hue_label)
+        # (b) and the ground stays a ground: an accent swapped in, not a
+        # world repainted.
+        _loud = max(s for _, s, _ in _hsl)
+        if _loud > _HUE_GROUND:
+            _hue_gaps.append(
+                f"{_hue_label}: the floor reaches saturation {_loud:.2f} - "
+                "that is a colour field, not a dark ground with one accent"
+            )
+            continue
+        if _hue_loudest is None or _loud > _hue_loudest[0]:
+            _hue_loudest = (_loud, _hue_label)
+
+    c.add(
+        "creation_scene_hue_names_the_place",
+        "場面は色相で名前を持つ（土台は無彩色のまま）",
+        0.0
+        if _hue_gaps
+        else float(len({label.split("/")[0] for label in scene_floors})),
+        detail=(
+            "; ".join(_hue_gaps)
+            if _hue_gaps
+            else f"10 型 × 4 テーマ = {len(scene_floors)} セルで、実塗りの床を HSL へ戻して測った: "
+            f"どの 2 場面も色相で {_HUE_APART:.0f}° 以上離れており"
+            + (
+                f"（最小は {_hue_worst[1]} の {_hue_worst[0]:.1f}°）"
+                if _hue_worst
+                else ""
+            )
+            + f"、床の彩度は {_HUE_GROUND:.2f} を超えない"
+            + (
+                f"（最大は {_hue_loudest[1]} の {_hue_loudest[0]:.2f}）"
+                if _hue_loudest
+                else ""
+            )
+            + "。**hex が違う**ことは**色相が違う**ことを意味しない——"
+            "同じ色相の明度違い 3 枚は既存の契約を全部通り抜けるが、"
+            "§7 観察 5 の「色相を見れば場所が分かる」は失われる"
         ),
         kind=OUTCOME,
     )
