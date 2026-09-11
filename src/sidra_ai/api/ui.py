@@ -251,6 +251,17 @@ ASK_PAGE = """<!doctype html>
         trust.textContent = " \uff08" + (TRUST_LABELS[c.trust_level] || c.trust_level) + "\uff09";
         item.appendChild(trust);
       }
+      // The excerpt the service selected so the reader can check the answer
+      // against its source instead of taking repo/path/rank on faith (C-1689).
+      // textContent only - retrieved content is DATA and is never markup here -
+      // and shown only when present, so a withheld excerpt still reads as
+      // \u300c\u629c\u7c8b\u3092\u79d8\u533f\u300d above rather than as an empty block.
+      if (c.excerpt) {
+        var evidence = document.createElement("p");
+        evidence.className = "excerpt";
+        evidence.textContent = c.excerpt;
+        item.appendChild(evidence);
+      }
       list.appendChild(item);
     });
     sources.appendChild(list);

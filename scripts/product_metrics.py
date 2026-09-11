@@ -1554,6 +1554,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1689: /v1/chat attaches an excerpt to each citation so a reader can check
+    # the answer against its evidence, but the web UI drew only path and flags -
+    # it surfaced 「抜粋を秘匿」 (excerpt withheld) yet never the excerpt itself.
+    # render() now draws the excerpt body as text when one is present.
+    from sidra_ai.evals.ui_shows_citation_excerpt import (
+        evaluate_ui_shows_citation_excerpt,
+    )
+
+    ui_excerpt = evaluate_ui_shows_citation_excerpt()
+    c.add(
+        "ui_shows_citation_excerpt",
+        "web UI が引用の抜粋（根拠）を表示する",
+        10.0 * ui_excerpt.checks_passed / ui_excerpt.checks_total,
+        detail=f"{ui_excerpt.checks_passed}/{ui_excerpt.checks_total} checks; "
+               "src/sidra_ai/evals/ui_shows_citation_excerpt.py"
+               + ("" if ui_excerpt.passed else "; " + "; ".join(ui_excerpt.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
