@@ -32,7 +32,7 @@ in course units, ``SEED_TOKEN`` the course seed. ``sfx``/``shake``/
 
 from __future__ import annotations
 
-from sidra_ai.creation.probekeys import with_probe_keys
+from sidra_ai.creation.probekeys import KEY_EVENT_JS, with_probe_keys
 
 #: Words that pick this template. The genre table (`games._GENRES`) already
 #: promised these; landing the template is what flips its answer to
@@ -373,7 +373,7 @@ reset();step();
 #: instead of grepped for. Unlike the kaiju probe this one records keyup
 #: handlers too - a race is held keys, and a probe that could only press
 #: would drive with the wheel stuck.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -391,8 +391,7 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 /* Past the start screen: the gate holds every frame until pressed. */
@@ -520,7 +519,7 @@ def slip_probe(script: str) -> str:
 #: the ten afterimages fill and stretch, off the road the crawl shrinks
 #: their span, the finish drains them a frame at a time, and reduced
 #: motion never accumulates one.
-TRAIL_PROBE = """
+TRAIL_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -557,8 +556,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -600,7 +598,7 @@ console.log(JSON.stringify({ painted: painted, paintedMax: paintedMax,
 #: must crush the body to 0.7 and walk it back to exactly 1 within thirty
 #: frames; under reduced motion the same strike cuts the pace but never
 #: bends the silhouette.
-SQUASH_PROBE = """
+SQUASH_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -639,8 +637,7 @@ function followed(sq){
     Math.abs(n.w - r.w * (2 - sq)) < 1e-6 && Math.abs(n.h - r.h * sq) < 1e-6)) }
 
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -681,7 +678,7 @@ def squash_probe(script: str, *, reduced: bool = False) -> str:
 #: off-road crawl, and the pitch and gain must follow the pace - higher
 #: and fuller at speed, lower and softer in the crawl. The goal screen
 #: stops the engine, and M mutes it within a frame.
-ENGINE_PROBE = """
+ENGINE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -722,8 +719,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -776,7 +772,7 @@ def trail_probe(script: str, *, reduced: bool = False) -> str:
 #: ``fillRect`` and path ``fill`` of one real frame, in order, so the
 #: ridge is read off the paints rather than off the constant - and so the
 #: things a driver acts on can be shown to be opaque.
-HAZE_PROBE = """
+HAZE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -821,8 +817,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -895,7 +890,7 @@ console.log(JSON.stringify({
 #: game on a 120Hz phone" is a measurement rather than an argument. A
 #: second of warm-up first: the round gate and the accumulator both have
 #: first frames, and they are not what this is asking about.
-RATE_PROBE = """
+RATE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -933,8 +928,7 @@ function run(n){ for (let i = 0; i < n && queued; i++) {
   const before = raceFacts().dist; fn(MS);
   if (raceFacts().dist !== before) { ADVANCED++ } } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 key('keydown', ' '); key('keyup', ' ');

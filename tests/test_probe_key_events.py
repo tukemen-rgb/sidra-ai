@@ -98,6 +98,8 @@ _OWNS_IT = ("probekeys.py", pathlib.Path(__file__).name)
 #: probe that hand-writes the branch has to fail here rather than wait to
 #: be found by the scan above after it has already gone wrong once.
 #:
+#: C-1654 第 1 陣 (2026-09-11): adventure と racing の 18 か所を移して 128 -> 110.
+#:
 #: 128, not the 127 first recorded: that number was measured at 01:13 and
 #: two more probes landed from other loops while this was being verified,
 #: so it was already stale when it merged and turned this test red on
@@ -106,7 +108,7 @@ _OWNS_IT = ("probekeys.py", pathlib.Path(__file__).name)
 #: a constant measured on a tree that no longer exists is not a ratchet,
 #: it is a guess. Raising it needs that kind of reason in writing;
 #: "a new probe needed one" is not one.
-_HAND_ROLLED_SITES = 128
+_HAND_ROLLED_SITES = 110
 _HAND_ROLLED_FILES = 33
 
 

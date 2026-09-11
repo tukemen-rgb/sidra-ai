@@ -25,7 +25,7 @@ generator keeps.
 
 from __future__ import annotations
 
-from sidra_ai.creation.probekeys import with_probe_keys
+from sidra_ai.creation.probekeys import KEY_EVENT_JS, with_probe_keys
 
 import json
 
@@ -616,7 +616,7 @@ console.log(JSON.stringify({
 
 #: The queued blow, played (C-1311): a press during the swing fires the
 #: frame the arm is free; a single press swings exactly once.
-COMBO_PROBE = """
+COMBO_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -635,8 +635,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -675,7 +674,7 @@ def combo_probe(script: str) -> str:
 #: blow, the phase-2 re-acceleration, the win that only follows the fall.
 #: The talisman, hit for real (§3, C-1323): a fatal blow lands on a
 #: charm-bearing hero at 1 hp - once it is a save, twice it is a death.
-CHARM_PROBE = """
+CHARM_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -694,8 +693,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -724,7 +722,7 @@ def charm_probe(script: str) -> str:
     return CHARM_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-GUARD_PROBE = """
+GUARD_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -743,8 +741,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -802,7 +799,7 @@ def guard_probe(script: str) -> str:
 #: leave one too. Driven with the sword, not by flipping flags - except
 #: the guardian, whose 3000-turn fight GUARD_PROBE already runs; here its
 #: hp is set to 1 so one real blow fells it through the same code path.
-WRECK_PROBE = """
+WRECK_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -821,8 +818,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -868,7 +864,7 @@ def wreck_probe(script: str) -> str:
 #: takes a real hit and the steady outline must stand while inv runs and
 #: vanish the frame it expires; a normal run keeps its blink (frames
 #: where the hero is not drawn) and never shows the outline.
-HURT_PROBE = """
+HURT_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -895,8 +891,7 @@ function frame(){ frameStrokes = []; frameFills = [];
   return { outline: frameStrokes.some(s => s[0] === 26 && s[1] === 28),
     hero: frameFills.some(f => f[0] === 22 && f[1] === 7) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -934,7 +929,7 @@ console.log(JSON.stringify({ hpAfter: hpAfter, invAfter: invAfter,
 #: roamer's `-en.dx` did to a roamer that chases. Positions are staged
 #: against real map tiles rather than numbers, so the answer is the
 #: dungeon's, not the probe's.
-KNOCK_PROBE = """
+KNOCK_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -953,8 +948,7 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function frame(){ if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }
 function kbKey(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -1129,7 +1123,7 @@ def hurt_probe(script: str, *, reduced: bool = False) -> str:
 #: must show for exactly the old flat count (bit-compat), and the longest
 #: one, whose frame count must reach 15 frames a character = the 4
 #: characters-per-second Japanese subtitle standard.
-SAY_PROBE = """
+SAY_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1152,8 +1146,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -1189,7 +1182,7 @@ def say_probe(script: str, *, short: str, long: str) -> str:
 #: transform), the crush must settle back to exactly 1 within half a
 #: second, and under reduced motion the same hit lands with the outline
 #: unchanged on every frame.
-SQUASH_PROBE = """
+SQUASH_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1215,8 +1208,7 @@ function frame(){ frameFills = [];
 function hatMatches(sq){ return frameFills.some(f =>
   Math.abs(f[0] - 22 * (2 - sq)) < 1e-6 && Math.abs(f[1] - 7 * sq) < 1e-6) }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -1258,7 +1250,7 @@ def squash_probe(script: str, *, reduced: bool = False) -> str:
 #: hand over 5 gems - the shrine's 3 with the door's 2 to spare - and the
 #: shrine must actually accept them. A second pass with the dice loaded
 #: to always hit checks the ceiling: 14 tufts, 14 gems, no pity fired.
-ECON_PROBE = """
+ECON_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1277,8 +1269,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -1342,7 +1333,7 @@ def econ_probe(script: str, *, dice: float) -> str:
 #: One blow on the guardian, and the sixty frames after it (§6 観察 2,
 #: C-1343): the flash must stand, the smoke must outlive it, and the
 #: smoke must clear - three beats, read off guardFacts frame by frame.
-BEAT_PROBE = """
+BEAT_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1361,8 +1352,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -1401,7 +1391,7 @@ def beat_probe(script: str) -> str:
 #: voice; the key on the ground is a LOCK's item and must stay plain. The
 #: AudioContext is the Recorder from the audio probe - connections, not
 #: constructions - and each site is driven for real.
-MILESTONE_PROBE = """
+MILESTONE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1444,8 +1434,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -1560,7 +1549,7 @@ def world_probe(script: str, *, reduced: bool = False) -> str:
 #: they are gone; stand still and count the blink. The clock ticks with
 #: the frames (C-1348's lesson: a zero-pinned performance.now freezes the
 #: wall-clock FRAME and the blink never comes).
-ADV_FACE_PROBE = """
+ADV_FACE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1595,8 +1584,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
