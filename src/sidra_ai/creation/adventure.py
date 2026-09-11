@@ -25,6 +25,8 @@ generator keeps.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import with_probe_keys
+
 import json
 
 #: Words that pick this template. 「ゼルダ」 lands here so the request in the
@@ -1078,9 +1080,9 @@ function sceneTick(){
   if (typeof SCENE === 'number' && sceneOrder[sceneOrder.length - 1] !== SCENE) {
     sceneOrder.push(SCENE) } }
 function frame(){ if (queued) { const fn = queued; queued = null; fn((F++) * 16); sceneTick() } }
+PROBE_KEYS_PLACEHOLDER
 function press(k, down){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[down ? 'keydown' : 'keyup'] || []).forEach(fn => fn(e)) }
 press(' ', true); press(' ', false); frame(); frame();
 /* The door onward is tile 5. Stand just left of it and walk right, so the
@@ -1111,7 +1113,7 @@ console.log(JSON.stringify({ sceneOrder: sceneOrder, room: room,
 def scene_order_probe(script: str) -> str:
     """The page's own script, wrapped so the walk between rooms is seen."""
 
-    return SCENE_ORDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+    return with_probe_keys(SCENE_ORDER_PROBE.replace("SCRIPT_PLACEHOLDER", script))
 
 
 def hurt_probe(script: str, *, reduced: bool = False) -> str:

@@ -32,6 +32,8 @@ in course units, ``SEED_TOKEN`` the course seed. ``sfx``/``shake``/
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import with_probe_keys
+
 #: Words that pick this template. The genre table (`games._GENRES`) already
 #: promised these; landing the template is what flips its answer to
 #: "supported" without anyone editing the table.
@@ -1020,10 +1022,10 @@ globalThis.document = { getElementById: () => ({
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
+PROBE_KEYS_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 /* Watch the page's own two channels. Wrapping them reads what the page
@@ -1075,7 +1077,7 @@ console.log(JSON.stringify({ slip: slip, width: eeW }));
 def ear_eye_probe(script: str) -> str:
     """The page's own script, wrapped so ear and eye can be compared."""
 
-    return EAR_EYE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+    return with_probe_keys(EAR_EYE_PROBE.replace("SCRIPT_PLACEHOLDER", script))
 
 
 def probe_source(script: str) -> str:
