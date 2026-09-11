@@ -108,7 +108,7 @@ _OWNS_IT = ("probekeys.py", pathlib.Path(__file__).name)
 #: a constant measured on a tree that no longer exists is not a ratchet,
 #: it is a guess. Raising it needs that kind of reason in writing;
 #: "a new probe needed one" is not one.
-_HAND_ROLLED_SITES = 110
+_HAND_ROLLED_SITES = 109
 _HAND_ROLLED_FILES = 33
 
 

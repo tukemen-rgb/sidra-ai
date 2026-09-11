@@ -61,6 +61,7 @@ from sidra_ai.creation.vocabulary import (
 )
 from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN, SFX_PREAMBLE
 from sidra_ai.creation.ghost import preamble_for as ghost_preamble_for
+from sidra_ai.creation import probekeys
 from sidra_ai.creation.juice import JUICE_PREAMBLE
 from sidra_ai.creation.music import MUSIC_PREAMBLE
 from sidra_ai.creation.focus import FOCUS_PREAMBLE
@@ -565,17 +566,20 @@ globalThis.document = { getElementById: () => ({
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
-/* Every keydown listener the page registered, in order, with a real
-   target - the guard reads e.target.tagName to spare form controls. */
-function ask(key, tagName){
+PROBE_KEYS_PLACEHOLDER
+/* One press, put to a chosen set of the page's listeners, with a real
+   target - the guard reads e.target.tagName to spare form controls - and
+   a preventDefault that answers back instead of doing nothing. */
+function fire(key, tagName, listeners){
   let prevented = false;
-  const e = { key: key, code: key === ' ' ? 'Space' : key,
-    target: { tagName: tagName },
-    preventDefault(){ prevented = true },
-    stopImmediatePropagation(){} };
-  (handlers.keydown || []).forEach(fn => { try { fn(e) } catch (err) {} });
+  const e = probeKey(key);
+  e.target = { tagName: tagName };
+  e.preventDefault = function(){ prevented = true };
+  listeners.forEach(fn => { try { fn(e) } catch (err) {} });
   return prevented;
 }
+/* Every keydown listener the page registered, in order. */
+function ask(key, tagName){ return fire(key, tagName, handlers.keydown || []) }
 const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 /* The guard rides the NATIVE addEventListener, before C-1305's remap
    wrapper replaces it - so it must be the first keydown listener the page
@@ -583,14 +587,7 @@ const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
    for this compared string offsets in the HTML, which a tidier spelling
    breaks while the ordering is still right). */
 function askFirst(key, tagName){
-  let prevented = false;
-  const e = { key: key, code: key === ' ' ? 'Space' : key,
-    target: { tagName: tagName },
-    preventDefault(){ prevented = true }, stopImmediatePropagation(){} };
-  const first = (handlers.keydown || [])[0];
-  if (first) { try { first(e) } catch (err) {} }
-  return prevented;
-}
+  return fire(key, tagName, (handlers.keydown || []).slice(0, 1)) }
 const firstIsGuard = ARROWS.every(k => askFirst(k, 'CANVAS')) &&
   askFirst(' ', 'CANVAS') && !askFirst('a', 'CANVAS') &&
   !ARROWS.some(k => askFirst(k, 'INPUT'));
@@ -612,7 +609,9 @@ console.log(JSON.stringify({ board: board, innocent: innocent, inForm: inForm,
 def scrollguard_probe(script: str) -> str:
     """The page's own script, wrapped so the guard's decision can be read."""
 
-    return SCROLLGUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+    return probekeys.with_probe_keys(
+        SCROLLGUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+    )
 
 
 _SPRITE_LOADER = """
