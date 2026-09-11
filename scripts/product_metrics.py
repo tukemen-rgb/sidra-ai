@@ -11774,6 +11774,89 @@ def measure_creation(c: Collector) -> None:
         else:
             slope_ok.append(_sl_key)
         _sl_read[_sl_key.split("/")[0]] = _sl
+    # --- a button held down is never the only way -----------------------
+    # §29 (GAG motor, intermediate): avoid, or provide alternatives to,
+    # requiring buttons to be held down. §4 has carried the visual rule
+    # since the beginning and §28 the auditory one; this is the third of
+    # the same shape. The duel's charge was the wall - keydown to hold,
+    # keyup to fire, and `charge > 18` before anything leaves the barrel,
+    # so a short tap fired nothing at all and there was no second path.
+    #
+    # Both directions, in one contract. Off, the authored feel has to be
+    # intact: taps alone leave the barrel cold. On, the same taps have to
+    # put a real beam out. Checking only one would pass a page that
+    # latched always, or one that latched never.
+    import subprocess as _lt_sp
+
+    from sidra_ai.creation.duel import latch_probe as _lt_duel
+
+    latch_gaps: list[str] = []
+    latch_ok: list[str] = []
+    _lt_page = generate_game("ビームで撃ち合うゲームを作って").html
+    _lt_script = _scene_re.search(r"<script>(.*?)</script>", _lt_page, _scene_re.S)
+    _lt_read: dict[bool, dict] = {}
+    _lt_jobs = []
+    for _lt_on in (False, True):
+
+        def _lt_job(on=_lt_on, sc=(_lt_script.group(1) if _lt_script else None)):
+            if sc is None:
+                return ValueError("no script")
+            try:
+                return _lt_sp.run(
+                    ["node", "-"],
+                    input=_lt_duel(sc, latch=on),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+            except (OSError, _lt_sp.SubprocessError) as exc:
+                return exc
+
+        _lt_jobs.append(_lt_job)
+    for _lt_on, _lt_out in zip((False, True), in_parallel(_lt_jobs)):
+        try:
+            if isinstance(_lt_out, Exception) or _lt_out.returncode != 0:
+                raise ValueError("probe failed")
+            _lt_read[_lt_on] = json.loads(_lt_out.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            latch_gaps.append(f"duel/latch={_lt_on}: the page could not be tapped")
+    _lt_off, _lt_onr = _lt_read.get(False), _lt_read.get(True)
+    if _lt_off and _lt_onr:
+        if not _lt_onr.get("latch") or _lt_off.get("latch"):
+            latch_gaps.append("duel: the panel's switch does not reach the page")
+        elif _lt_off.get("fired"):
+            latch_gaps.append(
+                "duel: taps alone fire with the switch OFF - the authored hold is gone"
+            )
+        elif not _lt_onr.get("fired"):
+            latch_gaps.append(
+                "duel: taps alone still fire nothing with the switch ON "
+                f"(charge {_lt_onr.get('charge')})"
+            )
+        elif (_lt_onr.get("charge") or 0) <= 18:
+            latch_gaps.append(
+                f"duel: the tapped charge never clears the barrel "
+                f"({_lt_onr.get('charge')} <= 18)"
+            )
+        else:
+            latch_ok.append("duel/溜め")
+    c.add(
+        "creation_hold_has_an_alternative",
+        "押しっぱなしを必須にしない",
+        0.0 if latch_gaps else float(len(latch_ok)),
+        detail=(
+            "; ".join(latch_gaps)
+            if latch_gaps
+            else "実ページを**叩くだけで**駆動した（`keydown`/`keyup` を同じフレームで対にし、"
+            "**一度もフレームを跨いで押し続けない**）: "
+            "調整パネルの「押しっぱなしにしない」が**切**なら溜めは 0・ビーム 0＝"
+            "**作った手触りはそのまま**、**入**なら同じ叩き方で溜め **56**・ビームが出る。"
+            "**両方向を見る**——切だけなら「常時掛け金」が、入だけなら「掛け金が効かない」が満点を取る"
+            "（§29 の Intermediate「Avoid / provide alternatives to requiring buttons to be held down」）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the other two juice channels are weighed too -------------------
     # §1 lists the kit as siblings: shake, particles, hitstop.
     # creation_shake_scales_with_input weighs the first. The other two are

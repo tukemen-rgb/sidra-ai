@@ -143,7 +143,7 @@ function squashFacts(){return {p:p?p.sq:1,e:e?e.sq:1}}
    frame is the blink. Under reduced motion FRAME pins the eyes open. */
 function faceFacts(){return {look:e.lane>p.lane?1:e.lane<p.lane?-1:0,
   blink:FRAME(40,6,performance.now())===1}}
-function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,
+function duelFacts(){return {style:CPU_STYLE,fire:CPU_FIRE,overLimit:OVER_LIMIT,latch:LATCH,
   act:duelAct(),tense:TENSE.slice(),
   playerStun:p?p.stun:0,playerOver:p?p.over:0,enemyStun:e?e.stun:0,
   aim:e?e.aim:-1,aimLock:AIM_LOCK,enemyHold:e?e.hold:false,
@@ -158,19 +158,28 @@ function overload(f){f.stun=STUN_FRAMES;f.hold=false;f.charge=0;f.over=0;
 function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spark=0;mash=0;
   lostBeam=0;lostClash=0;
   rs=(SEED>>>0)||1}
+/* Holding is the authored feel, and for some hands it is the whole wall
+   (§29, C-1662): GAG's motor guidelines ask that a button held down never
+   be the only way. LATCH turns the same one button into press-to-charge
+   and press-again-to-fire, so the charge can be taken at any length
+   without a finger staying down. Off by default; the panel owns it. */
+let LATCH=false;try{LATCH=tuneFlag('latch',false)}catch(err){}
+function pressCharge(){
+  if(state!=='play'){reset();return}
+  if(p.stun>0)return;
+  if(p.beam>0&&e.beam>0){mash+=3;sfx('clash');return}
+  /* Latched and already charging: this press is the release. */
+  if(LATCH&&p.hold){fire(p);return}
+  if(!p.hold){sfx('charge')}
+  p.hold=true}
 addEventListener('keydown',ev=>{
-  if(ev.code==='Space'){ev.preventDefault();
-    if(state!=='play'){reset();return}
-    if(p.stun>0)return;
-    if(p.beam>0&&e.beam>0){mash+=3;sfx('clash')}else{if(!p.hold){sfx('charge')}p.hold=true}}
+  if(ev.code==='Space'){ev.preventDefault();pressCharge()}
   if(p.stun<=0&&ev.key==='ArrowUp'&&p.lane>0){p.lane--}
   if(p.stun<=0&&ev.key==='ArrowDown'&&p.lane<2){p.lane++}
   if(ev.key==='r'||ev.key==='R'){reset()}});
-addEventListener('keyup',ev=>{if(ev.code==='Space'){fire(p)}});
-cv.addEventListener('pointerdown',()=>{if(state!=='play'){reset();return}
-  if(p.stun>0)return;
-  if(p.beam>0&&e.beam>0){mash+=3;sfx('clash')}else{if(!p.hold){sfx('charge')}p.hold=true}});
-cv.addEventListener('pointerup',()=>{fire(p)});
+addEventListener('keyup',ev=>{if(ev.code==='Space'&&!LATCH){fire(p)}});
+cv.addEventListener('pointerdown',()=>{pressCharge()});
+cv.addEventListener('pointerup',()=>{if(!LATCH){fire(p)}});
 function fire(f){if(state!=='play'||!f.hold||f.stun>0)return;f.hold=false;f.over=0;
   if(f.charge>18){f.beam=f.charge;f.beamLane=f.lane;if(flashGate())flash=1;sfx('fire');
     /* the release: the sunken pose snaps tall for one beat (§1, C-1358) */
@@ -569,6 +578,71 @@ def slope_probe(script: str) -> str:
         SLOPE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
         .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+    )
+
+
+
+#: Can this page be played without ever holding a button down? (§29,
+#: C-1662.) Driven both ways in one probe: with the panel's latch off the
+#: authored feel must be intact - taps alone leave the barrel cold - and
+#: with it on the same taps must put a real beam out. One direction alone
+#: would pass an implementation that latched always, or one that latched
+#: never.
+LATCH_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => LATCH_INPUT, setItem(){}, removeItem(){} };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+PROBE_SEND_PLACEHOLDER
+function frame(){ if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }
+/* A TAP: down and up on the same frame, never held across one. */
+function tap(){
+  probeSend('keydown', ' ', handlers);
+  probeSend('keyup', ' ', handlers);
+}
+frame(); frame();
+/* Start the round with a tap, then let the page settle. */
+tap(); frame(); frame();
+p.stun = 0; p.beam = 0; p.charge = 0; p.hold = false;
+/* One tap to begin the charge, frames to let it grow, one tap to let go.
+   Nothing is held across a frame boundary at any point. */
+tap();
+const heldAfterFirstTap = p.hold;
+for (let i = 0; i < 40; i++) { frame() }
+const chargeBeforeSecond = p.charge;
+tap();
+const beam = p.beam, chargeAtFire = chargeBeforeSecond;
+console.log(JSON.stringify({ latch: duelFacts().latch,
+  heldAfterFirstTap: heldAfterFirstTap, charge: chargeAtFire, beam: beam,
+  fired: beam > 0 }));
+"""
+
+
+def latch_probe(script: str, *, latch: bool) -> str:
+    """The page's own script, driven with taps alone."""
+
+    import json as _json
+
+    from sidra_ai.creation.probekit import PROBE_SEND
+
+    stored = _json.dumps(_json.dumps({"latch": True})) if latch else "null"
+    return (
+        LATCH_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
+        .replace("LATCH_INPUT", stored)
     )
 
 

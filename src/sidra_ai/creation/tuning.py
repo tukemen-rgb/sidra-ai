@@ -180,6 +180,14 @@ def panel_schema(
             # an OS-level promise cannot be undone from here (§4, GAG
             # "Provide an option to turn off / hide background movement").
             {"key": "motion", "label": "動きを減らす", "type": "flag", "default": False},
+            # C-1662. The fourth channel, and the first that is not about a
+            # sense: holding. GAG's motor guidelines ask that a button held
+            # down is never the only way - and the duel's charge is exactly
+            # that, keydown to hold and keyup to fire, with nothing below
+            # 18 charge leaving the barrel. Off by default, because the
+            # hold IS the authored feel; on, a tap starts the charge and a
+            # second tap lets it go (§29).
+            {"key": "latch", "label": "押しっぱなしにしない", "type": "flag", "default": False},
         ],
     }
 
