@@ -413,6 +413,82 @@ console.log(JSON.stringify({
 """
 
 
+
+#: The two weights this page uses (§1, C-1652): over-charging your own
+#: beam until it backfires kicks the camera by 9, taking a hit kicks it by
+#: 10 - a mistake you made costs less than a blow you were dealt. Both
+#: ring the same sound, so they are told apart by what the page's own
+#: state did: an overload stuns, a hit costs a heart.
+LADDER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+PROBE_KEYS_PLACEHOLDER
+PROBE_SHAKE_PLACEHOLDER
+/* Only a frame that rang this event and nothing else can attribute the
+   kick to it (C-1652): the combo step-up in combo.py kicks by 3, and
+   shake() keeps the max within a frame as well as across them. */
+let rang = [];
+const realSfx = sfx;
+sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, arguments) };
+function alone(name){ return rang.length === 1 && rang[0] === name }
+function frame(){ rang = [];
+  return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
+probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
+frame(); frame();
+function settle(n){ for (let i = 0; i < (n || 120); i++) { frame() } }
+
+/* --- the light one: hold the charge until it backfires --- */
+let over = null;
+p.stun = 0; p.hold = true; p.charge = 100; p.over = OVER_LIMIT - 1;
+for (let i = 0; i < 60 && over === null; i++) {
+  const stunBefore = p.stun;
+  const kick = frame();
+  if (p.stun > stunBefore && alone('hurt')) { over = { kick: kick, stun: p.stun } }
+  if (p.hold === false && p.stun === 0) { p.hold = true; p.charge = 100; p.over = OVER_LIMIT - 1 }
+}
+settle();
+
+/* --- the heavy one: stand in the line of fire and take the beam. The
+   CPU charges and fires on its own schedule; standing in its aim is all
+   a loss needs, which is how the loss probe drives this same page. --- */
+let struck = null;
+for (let i = 0; i < 4000 && struck === null; i++) {
+  const hpBefore = p.hp;
+  if (e.aim >= 0) { p.lane = e.aim }
+  const kick = frame();
+  if (p.hp < hpBefore && alone('hurt')) { struck = { kick: kick, hp: p.hp } }
+  if (state !== 'play') break;
+}
+console.log(JSON.stringify({ light: over, heavy: struck }));
+"""
+
+
+def ladder_probe(script: str) -> str:
+    """The page's own script, wrapped so both weights can be read."""
+
+    from sidra_ai.creation.probekit import PROBE_KEYS, PROBE_SHAKE
+
+    return (
+        LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
+        .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+    )
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the duel can be played in node."""
 

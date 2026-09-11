@@ -623,6 +623,82 @@ console.log(JSON.stringify({
 """
 
 
+
+#: The two weights this page actually uses, driven for real (§1, C-1652).
+#: A hop that lands hard kicks the camera by 2; falling into the pit kicks
+#: it by 4. Vlambeer's rule is that the heavier event kicks harder, and
+#: until now nothing here checked it - flattening both to one number left
+#: every test green.
+LADDER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+PROBE_KEYS_PLACEHOLDER
+PROBE_SHAKE_PLACEHOLDER
+/* Which sounds this frame made, so the kick can be attributed to an
+   event rather than to whatever else was on screen. */
+let rang = [];
+const realSfx = sfx;
+sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, arguments) };
+/* Only a frame that rang this event and nothing else can attribute the
+   kick to it (C-1652). shake() keeps the max WITHIN a frame too, and the
+   combo step-up in combo.py kicks by 3, so a gate taken on the same frame
+   as a step-up reads the combo's kick, not the gate's. Clearing SHAKE per
+   frame fixes the history; this fixes the company. */
+function alone(rang, name){ return rang.length === 1 && rang[0] === name }
+function frame(){ rang = [];
+  return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
+probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
+frame(); frame();
+function settle(n){ for (let i = 0; i < (n || 30); i++) { frame() } }
+
+/* --- the light one: a drop that lands hard --- */
+const pad = plats.reduce((a, b) => (b.w > a.w ? b : a));
+let land = null;
+me.x = pad.x + pad.w / 2; me.y = pad.y - 120; me.vy = 0; me.ground = false;
+for (let i = 0; i < 90 && land === null; i++) {
+  const airborne = !me.ground;
+  const kick = frame();
+  if (airborne && me.ground && alone(rang, 'step')) { land = { kick: kick, rang: rang.slice() } }
+}
+settle();
+
+/* --- the heavy one: into the pit --- */
+me.x = pad.x + pad.w / 2; me.y = H + 50; me.vy = 4; me.ground = false;
+let fell = null;
+for (let i = 0; i < 30 && fell === null; i++) {
+  const kick = frame();
+  if (alone(rang, 'hurt')) { fell = { kick: kick, rang: rang.slice() } }
+}
+console.log(JSON.stringify({ light: land, heavy: fell }));
+"""
+
+
+def ladder_probe(script: str) -> str:
+    """The page's own script, wrapped so both weights can be read."""
+
+    from sidra_ai.creation.probekit import PROBE_KEYS, PROBE_SHAKE
+
+    return (
+        LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
+        .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+    )
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the course can be played in node."""
 

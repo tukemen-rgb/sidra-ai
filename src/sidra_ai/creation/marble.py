@@ -515,6 +515,72 @@ console.log(JSON.stringify({
 """
 
 
+
+#: The two weights this page uses (§1, C-1652): a gate taken while a block
+#: was near is the hot one and kicks by 4, an ordinary gate kicks by 2.
+#: Both happen on one run down the course, so no staging is needed - only
+#: steering, which the page's own keys do.
+LADDER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+PROBE_KEYS_PLACEHOLDER
+PROBE_SHAKE_PLACEHOLDER
+let rang = [];
+const realSfx = sfx;
+sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, arguments) };
+/* Only a frame that rang this event and nothing else can attribute the
+   kick to it (C-1652). shake() keeps the max WITHIN a frame too, and the
+   combo step-up in combo.py kicks by 3, so a gate taken on the same frame
+   as a step-up reads the combo's kick, not the gate's. Clearing SHAKE per
+   frame fixes the history; this fixes the company. */
+function alone(rang, name){ return rang.length === 1 && rang[0] === name }
+function frame(){ rang = [];
+  return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
+probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
+frame(); frame();
+/* Steer at the next gate and ride the course. The page decides which
+   gates are hot; this only keeps the ball on them. */
+let hot = null, plain = null;
+for (let i = 0; i < 6000 && (hot === null || plain === null); i++) {
+  const aim = gates && typeof nextGateX === 'function' ? nextGateX() : null;
+  const target = (aim === null || aim === undefined) ? 0 : aim;
+  probeKey('keyup', 'ArrowLeft', handlers); probeKey('keyup', 'ArrowRight', handlers);
+  if (ball.x < target - 2) probeKey('keydown', 'ArrowRight', handlers);
+  else if (ball.x > target + 2) probeKey('keydown', 'ArrowLeft', handlers);
+  const kick = frame();
+  if (hot === null && alone(rang, 'key')) { hot = { kick: kick, rang: rang.slice() } }
+  if (plain === null && alone(rang, 'catch')) { plain = { kick: kick, rang: rang.slice() } }
+}
+console.log(JSON.stringify({ light: plain, heavy: hot }));
+"""
+
+
+def ladder_probe(script: str) -> str:
+    """The page's own script, wrapped so both gate weights can be read."""
+
+    from sidra_ai.creation.probekit import PROBE_KEYS, PROBE_SHAKE
+
+    return (
+        LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
+        .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+    )
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the course can be rolled in node."""
 

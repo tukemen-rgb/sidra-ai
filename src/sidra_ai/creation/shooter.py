@@ -392,6 +392,82 @@ console.log(JSON.stringify({
 """
 
 
+
+#: The two weights this page uses (§1, C-1652): downing a foe kicks the
+#: camera by 4, being rammed by one kicks it by 11 - the heaviest hit in
+#: any of the ten templates. Both are staged against the page's own
+#: collision code; nothing here scores anything itself.
+LADDER_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+PROBE_KEYS_PLACEHOLDER
+PROBE_SHAKE_PLACEHOLDER
+let rang = [];
+const realSfx = sfx;
+sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, arguments) };
+/* Only a frame that rang this event and nothing else can attribute the
+   kick to it (C-1652). shake() keeps the max WITHIN a frame too, and the
+   combo step-up in combo.py kicks by 3, so a gate taken on the same frame
+   as a step-up reads the combo's kick, not the gate's. Clearing SHAKE per
+   frame fixes the history; this fixes the company. */
+function alone(rang, name){ return rang.length === 1 && rang[0] === name }
+function frame(){ rang = [];
+  return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
+probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
+frame(); frame();
+function settle(n){ for (let i = 0; i < (n || 40); i++) { frame() } }
+
+/* --- the light one: put a shot on a foe and let the page kill it --- */
+let downed = null;
+for (let attempt = 0; attempt < 120 && downed === null; attempt++) {
+  const live = foes.filter(f => f.hp > 0);
+  if (live.length) {
+    const f = live[0];
+    shots.push({ x: f.x, y: f.y, vy: -7 });
+  }
+  const kick = frame();
+  if (alone(rang, 'hurt')) { downed = { kick: kick, rang: rang.slice() } }
+}
+settle();
+
+/* --- the heavy one: stand a foe on the hull --- */
+let rammed = null;
+for (let attempt = 0; attempt < 120 && rammed === null; attempt++) {
+  const live = foes.filter(f => f.hp > 0);
+  if (live.length) { live[0].x = ship.x; live[0].y = ship.y }
+  const kick = frame();
+  if (alone(rang, 'clash')) { rammed = { kick: kick, rang: rang.slice() } }
+}
+console.log(JSON.stringify({ light: downed, heavy: rammed }));
+"""
+
+
+def ladder_probe(script: str) -> str:
+    """The page's own script, wrapped so both weights can be read."""
+
+    from sidra_ai.creation.probekit import PROBE_KEYS, PROBE_SHAKE
+
+    return (
+        LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
+        .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+    )
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the fight can be flown in node."""
 

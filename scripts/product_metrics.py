@@ -11642,11 +11642,65 @@ def measure_creation(c: Collector) -> None:
     # happen, so this costs no node spawns.
     ladder_gaps: list[str] = []
     ladder_ok: list[str] = []
+    # C-1652: the four templates whose two weights needed a run of their
+    # own. Unlike the short rosters of C-1637/1640/1645 - where the probe
+    # already existed and only the name was missing - each of these had to
+    # be driven: a hard landing against a fall, an ordinary gate against a
+    # hot one, a foe downed against the hull rammed, a beam over-charged
+    # against a beam taken. Four spawns, together rather than in a queue
+    # (C-1523).
+    import subprocess as _lad_sp
+
+    from sidra_ai.creation.duel import ladder_probe as _lad_duel
+    from sidra_ai.creation.marble import ladder_probe as _lad_marble
+    from sidra_ai.creation.platformer import ladder_probe as _lad_plat
+    from sidra_ai.creation.shooter import ladder_probe as _lad_shooter
+
+    _lad_targets = (
+        ("platformer", "ジャンプで進むゲームを作って", _lad_plat, "強い着地", "落下"),
+        ("marble", "玉転がしゲームを作って", _lad_marble, "通常ゲート", "熱いゲート"),
+        ("shooter", "シューティングゲームを作って", _lad_shooter, "敵撃破", "自機被弾"),
+        ("duel", "ビームで撃ち合うゲームを作って", _lad_duel, "自滅オーバーロード", "被弾"),
+    )
+    _lad_jobs = []
+    for _lt_key, _lt_req, _lt_builder, _lt_l, _lt_h in _lad_targets:
+        _lt_page = generate_game(_lt_req).html
+        _lt_script = _scene_re.search(r"<script>(.*?)</script>", _lt_page, _scene_re.S)
+
+        def _lad_job(b=_lt_builder, sc=(_lt_script.group(1) if _lt_script else None)):
+            if sc is None:
+                return ValueError("no script")
+            try:
+                return _lad_sp.run(
+                    ["node", "-"],
+                    input=b(sc),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+            except (OSError, _lad_sp.SubprocessError) as exc:
+                return exc
+
+        _lad_jobs.append(_lad_job)
+    _lad_read: dict[str, dict] = {}
+    for (_lt_key, _lt_req, _lt_b, _lt_l, _lt_h), _lt_out in zip(
+        _lad_targets, in_parallel(_lad_jobs)
+    ):
+        try:
+            if isinstance(_lt_out, Exception) or _lt_out.returncode != 0:
+                raise ValueError("probe failed")
+            _lad_read[_lt_key] = json.loads(_lt_out.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            ladder_gaps.append(f"{_lt_key}: the two events could not be driven")
     for _lad_who, _lad_light, _lad_heavy, _lad_lname, _lad_hname in (
         ("adventure", (_kb_adv or {}).get("roamOpen"), (_kb_adv or {}).get("guardOpen"),
          "うろつく敵の一撃", "番人の一撃"),
         ("kaiju", (_shake_kaiju or {}).get("leg"), (_shake_kaiju or {}).get("head"),
          "脚への直撃", "頭への直撃"),
+    ) + tuple(
+        (k, (_lad_read.get(k) or {}).get("light"), (_lad_read.get(k) or {}).get("heavy"), ln, hn)
+        for k, _req, _b, ln, hn in _lad_targets
+        if k in _lad_read
     ):
         if not _lad_light or not _lad_heavy:
             ladder_gaps.append(f"{_lad_who}: the shake could not be read")
@@ -11674,10 +11728,13 @@ def measure_creation(c: Collector) -> None:
         detail=(
             "; ".join(ladder_gaps)
             if ladder_gaps
-            else "実ページを走らせ、ページ自身の `shakeAmount()` が返した実値で比べた"
+            else "6 型それぞれで軽い出来事と重い出来事を実際に起こし、"
+            "ページ自身の `shakeAmount()` が返した実値で比べた"
             "（ソースのリテラルは読まない——それは帳簿で、C-1640 で潰した形）: "
-            "adventure=うろつく敵の一撃 7.02 < 番人の一撃 7.80／"
-            "kaiju=脚への直撃 2.34 < 頭への直撃 5.46。"
+            "adventure=うろつく敵 7.02 < 番人 7.80／kaiju=脚 2.34 < 頭 5.46／"
+            "platformer=強い着地 1.56 < 落下 3.12／marble=通常ゲート 1.56 < 熱いゲート 3.12／"
+            "shooter=敵撃破 3.12 < 自機被弾 8.58（10 型で最も重い一撃）／"
+            "duel=自滅オーバーロード 7.02 < 被弾 7.80（**自分の失敗より受けた一撃のほうが重い**）。"
             "**両方が本当に起きたこと**（どちらの揺れも 0 でない）も条件——"
             "揺れを丸ごと外した実装は「起きていない」で落ちる（§1 Vlambeer の"
             "「イベントの重さに揺れを比例させる」の、比例の側）"
