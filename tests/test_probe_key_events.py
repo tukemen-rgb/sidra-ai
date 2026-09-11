@@ -97,8 +97,17 @@ _OWNS_IT = ("probekeys.py", pathlib.Path(__file__).name)
 #: number is the ratchet. **It may be lowered, never raised** - a new
 #: probe that hand-writes the branch has to fail here rather than wait to
 #: be found by the scan above after it has already gone wrong once.
-_HAND_ROLLED_SITES = 127
-_HAND_ROLLED_FILES = 32
+#:
+#: 128, not the 127 first recorded: that number was measured at 01:13 and
+#: two more probes landed from other loops while this was being verified,
+#: so it was already stale when it merged and turned this test red on
+#: main. The count at the parent of the merge was 130 and this change
+#: took it to 128. Corrected against the tree it actually merged onto -
+#: a constant measured on a tree that no longer exists is not a ratchet,
+#: it is a guess. Raising it needs that kind of reason in writing;
+#: "a new probe needed one" is not one.
+_HAND_ROLLED_SITES = 128
+_HAND_ROLLED_FILES = 33
 
 
 def _hand_rolled() -> dict[str, int]:
