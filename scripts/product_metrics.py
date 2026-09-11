@@ -1247,6 +1247,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1661: sidra-ask's --top-k is bounded 1..20 server-side, but an
+    # out-of-range value was sent and the 422 rendered as "your input is too
+    # long; shorten it" - misdirecting a terminal user to edit the question,
+    # which cannot fix a bad --top-k. The CLI now rejects it before sending and
+    # names the range.
+    from sidra_ai.evals.cli_top_k_out_of_range_is_named import (
+        evaluate_cli_top_k_out_of_range_is_named,
+    )
+
+    cli_top_k = evaluate_cli_top_k_out_of_range_is_named()
+    c.add(
+        "cli_top_k_out_of_range_is_named",
+        "sidra-ask が --top-k 範囲外を名指しして即座に弾く",
+        10.0 * cli_top_k.checks_passed / cli_top_k.checks_total,
+        detail=f"{cli_top_k.checks_passed}/{cli_top_k.checks_total} checks; "
+               "src/sidra_ai/evals/cli_top_k_out_of_range_is_named.py"
+               + ("" if cli_top_k.passed else "; " + "; ".join(cli_top_k.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

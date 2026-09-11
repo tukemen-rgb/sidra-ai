@@ -44,6 +44,13 @@ def _validate_repository_scope(
 MAX_HISTORY_TURNS = 8
 MAX_HISTORY_TURN_CHARS = 8_000
 
+#: How many chunks a retrieval may return. One source of truth for the bound:
+#: ``sidra-ask`` reads these to reject an out-of-range ``--top-k`` with a
+#: message that names the range, instead of sending it and rendering the 422 as
+#: "shorten your question" (C-1661).
+TOP_K_MIN = 1
+TOP_K_MAX = 20
+
 
 class ChatTurn(BaseModel):
     """One completed exchange, as the client remembers it.
@@ -58,7 +65,7 @@ class ChatTurn(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=32_000)
-    top_k: int = Field(default=5, ge=1, le=20)
+    top_k: int = Field(default=5, ge=TOP_K_MIN, le=TOP_K_MAX)
     history: list[ChatTurn] | None = Field(
         default=None,
         max_length=MAX_HISTORY_TURNS,
@@ -111,7 +118,7 @@ class Citation(BaseModel):
 
 class RetrieveRequest(BaseModel):
     query: str = Field(min_length=1, max_length=32_000)
-    top_k: int = Field(default=5, ge=1, le=20)
+    top_k: int = Field(default=5, ge=TOP_K_MIN, le=TOP_K_MAX)
     repositories: list[RepositoryRef] | None = Field(
         default=None,
         max_length=MAX_REPOSITORY_SCOPE_ITEMS,

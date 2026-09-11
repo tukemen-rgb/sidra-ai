@@ -49,6 +49,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from sidra_ai.api.schemas import TOP_K_MAX, TOP_K_MIN
 from sidra_ai.config.settings import (
     LOCALHOST_ADDRESSES,
     Settings,
@@ -101,7 +102,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("question", help="the question, in quotes")
     parser.add_argument(
-        "--top-k", type=int, default=5, help="how many chunks to retrieve (default 5)"
+        "--top-k",
+        type=int,
+        default=5,
+        help=f"how many chunks to retrieve, {TOP_K_MIN}-{TOP_K_MAX} (default 5)",
     )
     parser.add_argument(
         "--repository",
@@ -321,6 +325,19 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
 
     if not args.question.strip():
         print("質問が空である", file=sys.stderr)
+        return 2
+
+    # --top-k's range is a fixed client-visible contract (schemas.TOP_K_MIN/MAX).
+    # Catch it here, before a request is built, so an out-of-range value names
+    # the knob the reader actually used instead of being sent and rendered as a
+    # 422 "your input is too long; shorten it" - which sends them to edit the
+    # question, the one thing that cannot fix a bad --top-k (C-1661). Bad usage
+    # is exit 2, the same as an empty question, not the transport's exit 1.
+    if not TOP_K_MIN <= args.top_k <= TOP_K_MAX:
+        print(
+            f"--top-k は {TOP_K_MIN}〜{TOP_K_MAX} の範囲で指定する（指定値: {args.top_k}）。",
+            file=sys.stderr,
+        )
         return 2
 
     try:
