@@ -1,4 +1,4 @@
-"""One local file, and it works where it is carried (§9, C-1677).
+"""One local file, and it works where it is carried (§9, C-1678).
 
 §9's competitor survey puts export and lock-in among the market's three
 standing complaints, and records SIDRA's answer: the artifact is one

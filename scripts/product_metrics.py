@@ -16063,7 +16063,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- one local file, and it works where it is carried (§9, C-1677) --
+    # --- one local file, and it works where it is carried (§9, C-1678) --
     #
     # §9's differentiator is that the artifact is one local HTML the
     # player owns: nothing fetched, nothing sent, portable. Five scans in

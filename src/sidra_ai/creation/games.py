@@ -607,7 +607,7 @@ console.log(JSON.stringify({ board: board, innocent: innocent, inForm: inForm,
 """
 
 
-#: The page, run with the outside world taken away (§9, C-1677).
+#: The page, run with the outside world taken away (§9, C-1678).
 #:
 #: §9's differentiator is that the artifact is one local file the player
 #: owns: nothing fetched, nothing sent, and it keeps working wherever it
@@ -1461,7 +1461,7 @@ def _touch_hint(script: str) -> str:
 
 
 def _inline_favicon(tokens: dict[str, str]) -> str:
-    """The tab icon, declared inline (§9, C-1677).
+    """The tab icon, declared inline (§9, C-1678).
 
     C-1260 fixed this for SIDRA's own ask page: a page with no declared
     icon makes the browser ask for ``/favicon.ico`` on every open, which
