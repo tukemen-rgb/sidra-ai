@@ -917,7 +917,7 @@ def lamp_sfx_probe(script: str) -> str:
     return LAMP_SFX_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-#: What the lantern gives back, and what it refuses (§5, C-1673).
+#: What the lantern gives back, and what it refuses (§5, C-1674).
 #:
 #: The adventure's shrine took payment at the ceiling and celebrated;
 #: this lantern already guards itself with ``!lamp.lit``. That is the

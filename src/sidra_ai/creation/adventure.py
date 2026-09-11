@@ -145,7 +145,7 @@ function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
      next to the door bites the hero before the room is even visible */
   ||Math.abs(x-1)+Math.abs(y-4)<5);
   return {x:OX+x*TILE+8,y:OY+y*TILE+8,dx:0,dy:0,t:0,alive:true}}
-/* How many hearts the shrine can build up to (§5, C-1673). Named, so the
+/* How many hearts the shrine can build up to (§5, C-1674). Named, so the
    ceiling can be read where payment is taken and not only where the sum
    is capped. */
 const HP_CAP=5;
@@ -215,7 +215,7 @@ function swing(){if(state!=='play')return;
        in a number. Three of them buy a heart, which is what makes the
        grass worth cutting. */
     if(t===9){
-      /* The ceiling refuses payment (§5, C-1673). Math.min() used to
+      /* The ceiling refuses payment (§5, C-1674). Math.min() used to
          saturate in silence: at five hearts the shrine still took three
          gems, still said they had bought a heart, still rang powerUp.
          Nine of the village's fifteen gems could vanish that way - and
@@ -1369,7 +1369,7 @@ def econ_probe(script: str, *, dice: float) -> str:
     )
 
 
-#: What the shrine gives back, purchase by purchase (§5, C-1673).
+#: What the shrine gives back, purchase by purchase (§5, C-1674).
 #:
 #: ``creation_gem_sink`` proved gems *leave*; nothing proved anything
 #: *arrives*. Here the village is cut bare with the dice loaded to always

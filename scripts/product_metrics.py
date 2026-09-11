@@ -16005,7 +16005,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- a sink must return value, not just take it (§5, C-1673) --------
+    # --- a sink must return value, not just take it (§5, C-1674) --------
     #
     # creation_gem_sink proves gems leave; creation_sink_affordable proves
     # a player can afford to make them leave. Neither asks what arrives.

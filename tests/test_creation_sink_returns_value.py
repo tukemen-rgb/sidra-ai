@@ -1,4 +1,4 @@
-"""A sink returns value, or it does not take the payment (§5, C-1673).
+"""A sink returns value, or it does not take the payment (§5, C-1674).
 
 §5's fact is an economy one: collectibles need an outlet, and taps and
 sinks have to balance. C-1021 built the outlets - the shrine trades three
