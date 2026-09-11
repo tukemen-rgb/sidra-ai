@@ -3061,7 +3061,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       検証: 破壊 5 通り（聞き返しを定型文に／生成器へ直結／空入力の聞き返しを
       壊す等）・pytest 全量・gate MISS 0・`--compare`）
       → 動かす数字: `creation_intent_paraphrase`（26→27）
-- [ ] **C-1528: 制作動詞まわりの残骸が題材として引用される。**〔中〕
+- [~] 作業中 2026-09-11 12:10 UTC ループA **C-1528: 制作動詞まわりの残骸が題材として引用される。**〔中〕
       再現: `"Make a racing game for my kid"` →
       **「ただし『for my kid』は絵として出てきません」**、
       `"let's make a puzzle game"` → **「ただし『let's make a』は絵として
