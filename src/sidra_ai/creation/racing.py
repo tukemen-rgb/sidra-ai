@@ -230,7 +230,13 @@ function step(now){
         const near=Math.abs(o.x-car.x);
         if(near>=26&&near<46){slips++;
           spd=Math.min(PACE*1.4,spd+PACE*0.3);
-          sfx('catch',1,o.x/W);burst(car.x,CARY-8,8,'ACCENT_JUICE')}
+          /* The ear and the eye point at the same place (§28, C-1650).
+             The pan says which side the near miss happened on - the whole
+             point of a slipstream is that it was THAT close on THAT side -
+             and the light used to flare over the car, which carries no
+             side at all. The firing condition is 26..46px away, so the
+             two could never agree by accident. */
+          sfx('catch',1,o.x/W);burst(o.x,CARY-8,8,'ACCENT_JUICE')}
         return false}
       return o.d>dist-60});
     if(dist>=lap*LAP)crossLine()}
@@ -967,6 +973,109 @@ def haze_probe(script: str) -> str:
     """Drive a real race one frame and report what the road was painted at."""
 
     return HAZE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+
+#: The ear and the eye, watched in the same frame (§28, C-1650). GAG's
+#: intermediate hearing guideline asks that supplementary information
+#: carried by audio - it names the direction you are being shot from -
+#: be replicated in visuals. C-1394 gave SIDRA a pan channel; this reads
+#: whether the light lands where the pan says it happened. Both are the
+#: page's own runtime calls, driven for real, not literals off the source.
+EAR_EYE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+const pans = [];
+function Recorder(){ this.currentTime = 0; this.state = 'running';
+  this.destination = { kind: 'dest' }; this.sampleRate = 44100;
+  this.resume = function(){} }
+Recorder.prototype.createGain = function(){ return {
+  gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createOscillator = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  setPeriodicWave(){}, connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createPeriodicWave = function(){ return {} };
+Recorder.prototype.createBuffer = function(ch, len){ return {
+  getChannelData: () => new Float32Array(len) } };
+Recorder.prototype.createBufferSource = function(){ return { buffer: null,
+  connect(){}, start(){}, stop(){} } };
+Recorder.prototype.createBiquadFilter = function(){ return { type: '',
+  frequency: { setValueAtTime(){}, exponentialRampToValueAtTime(){} },
+  connect(){} } };
+Recorder.prototype.createStereoPanner = function(){ return {
+  pan: { setValueAtTime(v){ pans.push(v) } }, connect(){} } };
+globalThis.window = { AudioContext: Recorder };
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(type, k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k,
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+/* Watch the page's own two channels. Wrapping them reads what the page
+   did at run time - the same evidentiary level the pan contract already
+   uses - not a literal read out of the source. */
+const heard = [];
+const seen = [];
+const realSfx = sfx, realBurst = burst;
+sfx = function(name, pitch, at){
+  const was = pans.length;
+  const out = realSfx.apply(this, arguments);
+  heard.push({ name: String(name), at: (typeof at === 'number' ? at : null),
+    pan: pans.length > was ? pans[pans.length - 1] : null, frame: F });
+  return out };
+burst = function(x, y, n, colour){
+  seen.push({ x: x, colour: String(colour), frame: F });
+  return realBurst.apply(this, arguments) };
+
+key('keydown', 'r'); key('keyup', 'r'); run(2);
+/* Drive a slipstream: put one obstacle exactly in the reward band - past
+   the 26px hitbox, inside 46 - and let the page carry it by. The page's
+   own filter decides whether it counts; nothing here scores it. */
+const eeW = cv.width;
+let slip = null;
+for (let attempt = 0; attempt < 60 && slip === null; attempt++) {
+  const f = raceFacts();
+  obs.length = 0;
+  const side = attempt % 2 === 0 ? 1 : -1;
+  obs.push({ d: f.dist + 16, x: f.carX + side * 34 });
+  const slipsBefore = f.slips;
+  const hEnd = heard.length, sEnd = seen.length;
+  for (let i = 0; i < 40 && slip === null; i++) {
+    run(1);
+    if (raceFacts().slips > slipsBefore) {
+      slip = { side: side,
+        heard: heard.slice(hEnd).filter(h => h.name === 'catch'),
+        /* Every burst in the window. The colour name is a build-time
+           token replaced with a real hex before the page ever runs, so
+           filtering on it matches nothing. */
+        seen: seen.slice(sEnd),
+        carX: f.carX, obsX: f.carX + side * 34 };
+    }
+  }
+}
+console.log(JSON.stringify({ slip: slip, width: eeW }));
+"""
+
+
+def ear_eye_probe(script: str) -> str:
+    """The page's own script, wrapped so ear and eye can be compared."""
+
+    return EAR_EYE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
 def probe_source(script: str) -> str:
