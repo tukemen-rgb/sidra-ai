@@ -764,7 +764,7 @@ def probe_source(script: str) -> str:
 #: landing frame, settle back to rest within half a second - and under
 #: reduced motion every sampled frame must read exactly 1, because the
 #: silhouette is the one thing that run promises never changes.
-SQUASH_PROBE = """
+SQUASH_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -802,10 +802,8 @@ function followed(sq){
   return restFills.some(r => RECTS.some(n =>
     Math.abs(n.w - r.w * (2 - sq)) < 1e-6 && Math.abs(n.h - r.h * sq) < 1e-6)) }
 
-function kd(k){ (handlers.keydown || []).forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
-function ku(k){ (handlers.keyup || []).forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function kd(k){ (handlers.keydown || []).forEach(fn => fn(probeKey(k))) }
+function ku(k){ (handlers.keyup || []).forEach(fn => fn(probeKey(k))) }
 kd(' '); ku(' ');
 run(10);
 const restSq = platFacts().squash;
@@ -923,7 +921,7 @@ def lamp_sfx_probe(script: str) -> str:
 #: it there. The lantern is lit for real, then stood on again with a full
 #: purse, and both visits are recorded whole - gems, light, sentence,
 #: sound, particles.
-LAMP_SINK_PROBE = """
+LAMP_SINK_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1455,7 +1453,7 @@ def trail_probe(script: str, *, reduced: bool = False) -> str:
 #: One more is placed off-camera on purpose: this template scrolls, so a
 #: world x would hand ``sfx`` a number outside 0..1 and pin the sound to
 #: an edge - the reading proves the camera is in the sum.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1496,8 +1494,9 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  const e = probeKey(k);
+  /* Not a no-op here: the loop below breaks on it (C-1654 第 3 陣). */
+  e.stopImmediatePropagation = function(){ stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');

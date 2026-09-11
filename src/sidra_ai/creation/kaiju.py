@@ -1471,7 +1471,7 @@ __all__ = [
 #: ``mode``: ``hug`` stands at the outer edge of the ribbon around the
 #: nearest live crack, ``clear`` keeps to the far side of the arena, and
 #: ``crash`` walks into the crack on purpose.
-GRAZE_PROBE = """
+GRAZE_PROBE = KEY_EVENT_JS + """
 const kNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : kNothing),
   apply: () => kNothing, set: () => true });
@@ -1500,8 +1500,7 @@ const MODE = MODE_INPUT;
 let kFrame = 0;
 function kRun(n){ for (let i = 0; i < n && kQueued; i++) {
   const fn = kQueued; kQueued = null; kClock += 50 / 3; fn(kFrame++ * 16) } }
-function kKey(type, k){ (kHandlers[type] || []).forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
+function kKey(type, k){ (kHandlers[type] || []).forEach(fn => fn(probeKey(k))) }
 kKey('keydown', ' '); kKey('keyup', ' ');
 kRun(94); /* through the awakening (C-1357) */
 kRun(2);

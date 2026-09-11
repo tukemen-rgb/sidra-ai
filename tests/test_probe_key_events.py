@@ -123,8 +123,24 @@ _OWNS_IT = ("probekeys.py", pathlib.Path(__file__).name)
 #: 陣ごとに測り直す。
 #:
 #: ファイル数は 32 が実測値（33 は 1 つ古かった）。
-_HAND_ROLLED_SITES = 82
-_HAND_ROLLED_FILES = 32
+#: C-1654 第 3 陣 (2026-09-11): 規則に当てはまらなかった 6 か所を手で読んで移し、
+#: 82 -> 76（ファイル 32 -> 29）。5 か所は形が違うだけ（kaiju の `kKey`、
+#: platformer の `kd`/`ku`、duel の `down`/`up`）で、`kd`/`ku` が `{key: k}` 形でも
+#: 安全なのは**呼び出し側が ' ' しか渡さないことを読んで確かめた**から。
+#:
+#: 6 つ目（platformer `PAN_PROBE` の `ev`）だけは**別の構造**だった——
+#: `stopImmediatePropagation` に**中身**があり `if (stopped) break` がそれを見る。
+#: 共有ヘルパのそれは空なので、鍵と code の対応だけ `probeKey` から取り、
+#: **止める振る舞いは明示的に横へ書いた**。
+#:
+#: **ただし「機械的に置換していたら壊れていた」とは書けない**——その明示行を
+#: 外して 51 本を測り直すと**出力は 1 本も変わらなかった**。ページ自身は
+#: `stopImmediatePropagation` を 10 か所で呼ぶが、この probe が送る鍵の経路では
+#: 早期 break が観測に出ない。**つまりこのラチェットと probe 比較は、この種の
+#: 取り違えを捕まえられない**。残したのは「コードが言っていることを変えない」
+#: ためであって、実測された破損を防いだからではない。
+_HAND_ROLLED_SITES = 76
+_HAND_ROLLED_FILES = 29
 
 
 def _hand_rolled() -> dict[str, int]:

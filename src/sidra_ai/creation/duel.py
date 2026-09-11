@@ -785,7 +785,7 @@ console.log(JSON.stringify({
 #: Machine-gun fire at match-point tempo, watching the full-screen flash
 #: overlay: the worst one-second window must hold at most three onsets
 #: (§15, WCAG 2.3.1), while the flash itself stays alive.
-FLASH_PROBE = """
+FLASH_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -803,8 +803,8 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
-function down(){ (handlers.keydown||[]).forEach(fn => fn({ key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} })) }
-function up(){ (handlers.keyup||[]).forEach(fn => fn({ key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} })) }
+function down(){ (handlers.keydown||[]).forEach(fn => fn(probeKey(' '))) }
+function up(){ (handlers.keyup||[]).forEach(fn => fn(probeKey(' '))) }
 down(); up();
 run(5);
 /* Match point, the fastest act; the player machine-guns minimum charges
