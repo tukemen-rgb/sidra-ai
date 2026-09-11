@@ -527,7 +527,7 @@ step();
 #: the tuning panel's sliders and inputs keep their arrow keys.
 _SCROLL_GUARD = """
 /* One name for "the key belongs to a form control, not to the game"
-   (C-1669). The shared guard spared the tuning panel from the start, but
+   (C-1671). The shared guard spared the tuning panel from the start, but
    each template's own handler called preventDefault() with no such test,
    so Space on a focused checkbox was swallowed by the game - including
    the panel's own switches. One predicate, used by all of them. */
@@ -541,7 +541,7 @@ addEventListener('keydown',function(e){
 
 
 #: Does the scroll guard DECIDE, or is it only spelled correctly?
-#: (§12, C-1669.) `evals/keys_dont_scroll.py` checks that three literal
+#: (§12, C-1671.) `evals/keys_dont_scroll.py` checks that three literal
 #: substrings appear in the HTML and never starts node; its own docstring
 #: says the end-to-end proof "ran in a real browser at fix time". A guard
 #: registered on the wrong target, or one that returns early, spells the
@@ -583,7 +583,7 @@ function ask(key, tagName){ return fire(key, tagName, handlers.keydown || []) }
 const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 /* The guard rides the NATIVE addEventListener, before C-1305's remap
    wrapper replaces it - so it must be the first keydown listener the page
-   registered. Asked by calling only the first one (C-1669: the old test
+   registered. Asked by calling only the first one (C-1671: the old test
    for this compared string offsets in the HTML, which a tidier spelling
    breaks while the ordering is still right). */
 function askFirst(key, tagName){

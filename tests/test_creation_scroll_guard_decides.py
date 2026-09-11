@@ -1,4 +1,4 @@
-"""The scroll guard decides; it is not merely spelled (§12, C-1669).
+"""The scroll guard decides; it is not merely spelled (§12, C-1671).
 
 C-1215 fixed a real fault - arrows scrolled the board 208px off screen in
 six presses - and ``evals/keys_dont_scroll.py`` then pinned it by looking

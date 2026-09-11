@@ -31,7 +31,7 @@ def test_guard_registers_before_the_remap_wrapper():
     """The guard rides the native addEventListener (C-1305 wraps it later).
 
     Asked by driving the page rather than by comparing string offsets in
-    the HTML (C-1669). The offsets were a proxy: naming the form-control
+    the HTML (C-1671). The offsets were a proxy: naming the form-control
     test as a function and defining it above the registration moved the
     marker earlier and broke this, while the ordering it stands for was
     still exactly right. The property is "the guard is the first keydown
