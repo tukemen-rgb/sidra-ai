@@ -1362,6 +1362,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1672: sidra-evals was the only console script without argparse - main()
+    # accepted argv but never parsed it, so --help ran the whole suite and an
+    # unknown flag was swallowed. main() now parses arguments first, so --help
+    # and usage errors behave like the other CLIs.
+    from sidra_ai.evals.evals_cli_parses_arguments import (
+        evaluate_evals_cli_parses_arguments,
+    )
+
+    evals_cli = evaluate_evals_cli_parses_arguments()
+    c.add(
+        "evals_cli_parses_arguments",
+        "sidra-evals が --help と未知引数を他 CLI と同じに扱う",
+        10.0 * evals_cli.checks_passed / evals_cli.checks_total,
+        detail=f"{evals_cli.checks_passed}/{evals_cli.checks_total} checks; "
+               "src/sidra_ai/evals/evals_cli_parses_arguments.py"
+               + ("" if evals_cli.passed else "; " + "; ".join(evals_cli.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

@@ -7,6 +7,7 @@ Usable from pytest and from the command line::
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from dataclasses import dataclass, field
@@ -147,7 +148,28 @@ def run_all(cases: Sequence[GateCase] = GATE_CASES) -> EvalReport:
     return report
 
 
+def build_parser() -> argparse.ArgumentParser:
+    """The parser for ``sidra-evals``.
+
+    It takes no options today, but the other three console scripts
+    (``sidra-api``, ``sidra-ask``, ``sidra-quarantine``) each build a parser, so
+    ``--help`` prints usage and an unknown argument is rejected. Running argv
+    through this keeps ``sidra-evals`` consistent with them instead of silently
+    swallowing whatever it is given (C-1672).
+    """
+
+    return argparse.ArgumentParser(
+        prog="sidra-evals",
+        description=(
+            "Run SIDRA's offline eval suite (input/output security, grounding, "
+            "retrieval, API resilience, startup regressions) and print a JSON "
+            "report. Exit 0 if every outcome passed, 1 otherwise."
+        ),
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    build_parser().parse_args(argv)
     report = run_all()
     print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
     return 0 if report.ok else 1
