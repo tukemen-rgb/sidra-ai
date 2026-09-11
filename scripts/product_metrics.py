@@ -16120,7 +16120,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- the giant moves like a giant (§6 観察 2, C-1684) ---------------
+    # --- the giant moves like a giant (§6 観察 2, C-1685) ---------------
     #
     # The observation is one sentence with two halves: "多脚戦車は脚の周期
     # が遅く、接地のたびに土煙". C-1362 measured the dust. The stride had

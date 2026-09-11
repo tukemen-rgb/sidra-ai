@@ -1,4 +1,4 @@
-"""The giant moves like a giant (§6 観察 2, C-1684).
+"""The giant moves like a giant (§6 観察 2, C-1685).
 
 The observation is one sentence with two halves: 「多脚戦車は脚の周期が
 遅く、接地のたびに土煙」. C-1362 built and measured the dust. The stride

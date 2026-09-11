@@ -117,7 +117,7 @@ function depthFacts(){const keep=SCENE,out=[];
    shake and the hitstop already carry is the weighting the smoke
    carries too. */
 const LEG_SMOKE=34,HEAD_SMOKE=51;
-/* Weight is stride (§6 観察 2, C-1684). The film's walker reads heavy
+/* Weight is stride (§6 観察 2, C-1685). The film's walker reads heavy
    because its leg keeps a slow cycle next to the small things in frame,
    so both halves of that sentence are named here: LEG_PERIOD is how many
    radians a frame advances (t/90 puts a full stride at ~565 frames, 9.4
@@ -1176,7 +1176,7 @@ console.log(JSON.stringify({ slam: slam, dustAt: dustAt, near: near,
 """
 
 
-#: The giant's stride, sampled (§6 観察 2, C-1684).
+#: The giant's stride, sampled (§6 観察 2, C-1685).
 #:
 #: ``creation_kaiju_stomp_dust`` measures the dust half of "weight is
 #: stride and dust"; the stride half had no instrument at all, so
