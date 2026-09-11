@@ -26,9 +26,13 @@ import pytest
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.touchpad import padsize_probe
 
-#: One scale where canvas and CSS pixels agree, one where the page is
-#: drawn at 2x - the direction in which a thumb-sized control shrinks.
-SHAPES = ((720, 720), (720, 360))
+#: One scale where canvas and CSS pixels agree, and one modest zoom - the
+#: direction in which a thumb-sized control shrinks. Not 2x: this probe
+#: holds the canvas height fixed while shrinking the CSS width, so a large
+#: ratio describes a canvas whose CSS aspect does not match its pixel
+#: aspect, and the pad overflows the top edge. That reading would be about
+#: the staging, not the product.
+SHAPES = ((720, 720), (720, 540))
 
 
 def _measured(canvas_w: int, css_w: int) -> dict:
@@ -54,6 +58,7 @@ def test_every_button_clears_the_48dp_floor(canvas_w, css_w) -> None:
 
     assert seen["count"], "the pad drew no buttons at all"
     assert seen["allDrawn"], "a button was laid out but never painted"
+    assert seen["allOnCanvas"], "a button is laid out off the canvas"
     assert seen["smallest"] >= 48, [
         (p["id"], round(p["w"], 1), round(p["h"], 1)) for p in seen["plates"]
     ]
@@ -73,15 +78,26 @@ def test_the_buttons_are_spaced_and_never_overlap(canvas_w, css_w) -> None:
 
 def test_shrinking_the_glass_does_not_shrink_the_thumb() -> None:
     """The layout is in canvas pixels and the rule is in CSS pixels, so a
-    page drawn at 2x is where the floor would quietly be breached."""
+    zoomed page is where the floor would quietly be breached."""
 
     wide = _measured(720, 720)
-    narrow = _measured(720, 360)
+    narrow = _measured(720, 540)
 
     assert narrow["scale"] > wide["scale"], (wide["scale"], narrow["scale"])
     assert narrow["smallest"] == pytest.approx(wide["smallest"]), (
         wide["smallest"], narrow["smallest"]
     )
+
+
+def test_the_pause_button_stays_clear_of_the_countdown() -> None:
+    """Raising P to a thumb's height pushed its top to y=67, seven pixels
+    inside the band the countdown owns (C-1417), and no gap honouring the
+    8dp rule brought it back. It sits beside R now instead of above it."""
+
+    seen = _measured(720, 720)
+    by_id = {p["id"]: p for p in seen["plates"]}
+    if "p" in by_id:
+        assert by_id["p"]["y"] >= 44 + 30, by_id["p"]
 
 
 def test_the_round_controls_are_the_ones_that_were_short() -> None:

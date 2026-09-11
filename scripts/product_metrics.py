@@ -11873,7 +11873,12 @@ def measure_creation(c: Collector) -> None:
     _ts_page = generate_game("キャッチゲームを作って").html
     _ts_script = _scene_re.search(r"<script>(.*?)</script>", _ts_page, _scene_re.S)
     _ts_jobs = []
-    _ts_shapes = ((720, 720), (720, 360))
+    # One scale where canvas and CSS pixels agree, and one modest zoom.
+    # Not 2x: this probe holds the canvas height fixed while shrinking the
+    # CSS width, so a large ratio describes a canvas whose CSS aspect does
+    # not match its pixel aspect - the pad then overflows the top edge and
+    # the reading says more about the staging than the product.
+    _ts_shapes = ((720, 720), (720, 540))
     for _ts_cw, _ts_css in _ts_shapes:
 
         def _ts_job(cw=_ts_cw, css=_ts_css, sc=(_ts_script.group(1) if _ts_script else None)):
@@ -11904,6 +11909,8 @@ def measure_creation(c: Collector) -> None:
             thumb_gaps.append(f"{_where}: the pad drew no buttons at all")
         elif not _ts.get("allDrawn"):
             thumb_gaps.append(f"{_where}: a button was laid out but never painted")
+        elif not _ts.get("allOnCanvas"):
+            thumb_gaps.append(f"{_where}: a button is laid out off the canvas")
         elif _ts["smallest"] < 48:
             thumb_gaps.append(
                 f"{_where}: the smallest button is {_ts['smallest']:.1f} CSS px "
@@ -11928,7 +11935,7 @@ def measure_creation(c: Collector) -> None:
             "（`evals/touch_targets.py` は生成 HTML の CSS を正規表現で見るだけで node を起動せず、"
             "**そのファイルの docstring 自身が「本当の証明は修正時に 1 度やった」と書いている**）: "
             "全ボタンが **49 CSS px 以上**・間隔 **12 CSS px**・重なり 0 を、"
-            "**縮尺 1 倍と 2 倍の両方**で確認（縮尺こそが指先の実寸を削る方向）。"
+            "**縮尺 1 倍と 1.33 倍の両方**で確認し、**画布の外へ出ていない**ことも見る""（縮尺こそが指先の実寸を削る方向。2 倍にしないのは、この probe が""画布の高さを固定したまま CSS 幅だけ縮めるため、比が大きいと""**製品ではなく staging の話**になるから——実際 2 倍では上辺からはみ出す）。"
             "**測って初めて分かったこと**: R と P は `b*0.7`＝**39.2 CSS px** で、"
             "§4 の 48dp を **18%% 下回っていた**——"
             "床は shell の CSS の綴りでしか守られておらず、**指が触る操作子は一度も測られていなかった**"

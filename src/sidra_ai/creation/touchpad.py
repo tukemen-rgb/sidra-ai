@@ -119,7 +119,12 @@ function padPauseButton(){
   if(where==='title')return null;
   const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,W=PADCV.width,H=PADCV.height,
     ly=H-g-b*1.5;
-  return {id:'p',x:W-g-b*1.4,y:ly-b/2-(b+g)-(b*PAD_FLAT+g),w:b*1.4,h:b*PAD_FLAT,g:'P'}}
+  /* Beside R rather than above it (C-1666). Stacked, a button tall enough
+     for a thumb (PAD_FLAT) put its top at y=67, seven pixels inside the
+     band C-1417's countdown owns - and no gap that still honours the 8dp
+     spacing rule would have brought it back down. The row below is empty
+     to the left, so the pair sits side by side and both rules hold. */
+  return {id:'p',x:W-g-b*1.4-(b*1.4+g),y:ly-b/2-(b+g),w:b*1.4,h:b*PAD_FLAT,g:'P'}}
 function padAt(ev){const r=PADCV.getBoundingClientRect(),
   x=(ev.clientX-r.left)*(PADCV.width/r.width),
   y=(ev.clientY-r.top)*(PADCV.height/r.height);
@@ -539,6 +544,10 @@ const plates = buttons.map(b => {
     Math.abs(f[2] - b.w) < 0.5 && Math.abs(f[3] - b.h) < 0.5);
   return { id: b.id, drawn: hit.length > 0,
     css: Math.min(b.w, b.h) / scale,
+    /* On the glass at all: a button laid out above the top edge is not a
+       small target, it is an absent one. */
+    onCanvas: b.x >= 0 && b.y >= 0 &&
+      b.x + b.w <= PADCV.width && b.y + b.h <= PADCV.height,
     x: b.x / scale, y: b.y / scale, w: b.w / scale, h: b.h / scale } });
 /* The smallest gap between any two buttons, and whether any two overlap.
    A spacing rule that does not also forbid overlap is not a spacing rule. */
@@ -555,6 +564,7 @@ for (let i = 0; i < plates.length; i++) {
 console.log(JSON.stringify({ padOn: PAD_ON, scale: scale,
   canvasW: CANVAS_W, cssW: CSS_W, count: plates.length,
   allDrawn: plates.every(p => p.drawn),
+  allOnCanvas: plates.every(p => p.onCanvas),
   smallest: plates.length ? Math.min.apply(null, plates.map(p => p.css)) : 0,
   minGap: minGap === Infinity ? null : minGap, overlaps: overlaps,
   plates: plates }));
