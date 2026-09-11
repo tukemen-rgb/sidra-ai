@@ -99,6 +99,9 @@ function musicNote(freq,off,dur,vol,wave){
   /* Same rule as the effects: silence is silence (C-1408). Counted as not
      scheduled, because it was not. */
   if(masterGain()<=0)return;
+  /* The same gesture gate the effects keep (§2, C-1682): a note scheduled
+     before the first touch is a note the browser refuses. */
+  try{if(typeof heardYet==='function'&&!heardYet())return}catch(e){}
   MUSIC_N++;
   try{
     if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)()}

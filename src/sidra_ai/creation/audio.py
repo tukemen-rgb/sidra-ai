@@ -161,6 +161,7 @@ const ENGINE_F0=55,ENGINE_SPAN=55,ENGINE_GAIN=0.05;
 function engineTick(rate){
   rate=Math.min(1,Math.max(0,rate||0));ENGINE_RATE=rate;
   if(MUTED||masterGain()<=0){engineStop();return}
+  if(!heardYet()){engineStop();return}
   try{
     if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)()}
     if(AC.state==='suspended'){AC.resume()}
@@ -179,11 +180,24 @@ function engineStop(){if(ENGINE){try{ENGINE.osc.stop()}catch(e){}
 function engineFacts(){return {on:!!ENGINE,rate:ENGINE_RATE,
   freq:ENGINE?ENGINE.osc.frequency.value:0,
   gain:ENGINE?ENGINE.g.gain.value:0,f0:ENGINE_F0,span:ENGINE_SPAN}}
+/* Nothing sounds before the first touch (§2, C-1682). The browser
+   refuses audio started outside a user gesture, and the page already
+   knows when that gesture happened: gateGesture() sets GATE_GESTURE on
+   the first keydown or pointerdown and rings there, which is what makes
+   the resume a gesture's resume. The attract demo, though, is a recorded
+   hand on the real controls - shooter's holds the trigger - so it shot,
+   and shoot() rang, on frame one of a page nobody had touched. That call
+   could only fail, and it put an autoplay warning in every visitor's
+   console. Guarded by typeof: a page assembled without the start-screen
+   preamble has no gesture to wait for and still sounds. */
+function heardYet(){try{
+  return typeof GATE_GESTURE==='undefined'||GATE_GESTURE}catch(e){return true}}
 function sfx(name,pitch,at){
   /* Zero is silence, not a very quiet sound. Scheduling one would hand
      exponentialRampToValueAtTime a start value of 0, which has no defined
      ramp, and would build a node graph for something nobody can hear. */
   if(MUTED||masterGain()<=0)return;
+  if(!heardYet())return;
   const spec=SFX_TABLE[name];if(!spec)return;
   try{
     if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)()}
@@ -284,6 +298,100 @@ function sfx(name,pitch,at){
   }catch(err){/* no audio device is a machine, not a bug */}
 }
 """
+
+#: Nothing sounds before the first touch (§2, C-1682).
+#:
+#: The nine audio judges ask whether a sound happens and what it sounds
+#: like. None asks *when it is allowed to*. §2's own fact is that a
+#: browser refuses audio started outside a user gesture, which is why
+#: ``gateGesture()`` exists - and the attract demo, being a recorded hand
+#: on the real controls, shot on frame one of a page nobody had touched
+#: and rang from there.
+#:
+#: Driven with a context that starts ``suspended`` and records every
+#: construction, ``resume()`` and ``start()``: silent before the press,
+#: sounding after it, and resumed before anything is scheduled.
+GESTURE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+let built = 0;
+const rang = [], resumed = [];
+function Ctx(){
+  const self = this;
+  built++;
+  this.state = 'suspended'; this.currentTime = 0; this.sampleRate = 44100;
+  this.destination = { kind: 'dest' };
+  this.resume = function(){ resumed.push(built); self.state = 'running';
+    return { then(){ return this }, catch(){ return this } } };
+  const param = () => ({ value: 0, setValueAtTime(){}, linearRampToValueAtTime(){},
+    exponentialRampToValueAtTime(){}, cancelScheduledValues(){} });
+  const started = () => rang.push(self.state);
+  this.createOscillator = () => ({ type: '', frequency: param(), detune: param(),
+    setPeriodicWave(){}, connect(){}, disconnect(){}, start: started, stop(){} });
+  this.createGain = () => ({ gain: param(), connect(){}, disconnect(){} });
+  this.createBiquadFilter = () => ({ type: '', frequency: param(), Q: param(),
+    connect(){}, disconnect(){} });
+  this.createStereoPanner = () => ({ pan: param(), connect(){}, disconnect(){} });
+  this.createDynamicsCompressor = () => ({ threshold: param(), knee: param(),
+    ratio: param(), attack: param(), release: param(), connect(){}, disconnect(){} });
+  this.createBuffer = (ch, len) => ({ getChannelData: () => new Float32Array(len) });
+  this.createBufferSource = () => ({ buffer: null, connect(){}, disconnect(){},
+    start: started, stop(){} });
+  this.createPeriodicWave = () => ({});
+}
+globalThis.window = { AudioContext: Ctx };
+globalThis.AudioContext = Ctx;
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }), addEventListener: () => {} };
+const kept = {};
+globalThis.localStorage = { getItem: (k) => (k in kept ? kept[k] : null),
+  setItem(k, v){ kept[k] = String(v) }, removeItem(k){ delete kept[k] } };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+/* The title screen, with its demo running and nobody watching it yet. */
+run(QUIET_PLACEHOLDER);
+const untouched = { built: built, rang: rang.slice(), resumed: resumed.slice() };
+function press(k){
+  const e = probeKey(k);
+  e.target = { tagName: 'CANVAS' };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+press(' ');
+const atTouch = { built: built, rang: rang.slice(), resumed: resumed.slice() };
+run(LOUD_PLACEHOLDER);
+console.log(JSON.stringify({ untouched: untouched, atTouch: atTouch,
+  after: { built: built, rang: rang.slice(0, 40), resumed: resumed.slice(0, 8) } }));
+"""
+
+
+def gesture_probe(script: str, *, quiet: int = 240, loud: int = 240) -> str:
+    """The page's own script, wrapped so the first sound can be timed.
+
+    ``quiet`` frames run before any input - long enough for the attract
+    demo to get going - and ``loud`` frames after the first press.
+    """
+
+    from sidra_ai.creation import probekeys
+
+    return probekeys.with_probe_keys(
+        GESTURE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("QUIET_PLACEHOLDER", str(int(quiet)))
+        .replace("LOUD_PLACEHOLDER", str(int(loud)))
+    )
+
 
 #: Drives a generated page in node with a recording AudioContext, so the
 #: gain a fight actually plays at can be read back instead of grepped for.

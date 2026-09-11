@@ -16101,6 +16101,98 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- nothing sounds before the first touch (§2, C-1682) -------------
+    #
+    # Nine audio judges ask whether a sound happens and what it sounds
+    # like; none asks when it is allowed to. §2's own fact is that the
+    # browser refuses audio started outside a user gesture - which is why
+    # gateGesture() exists and rings there. Measured before fixed: the
+    # attract demo is a recorded hand on the real controls, so shooter's
+    # held the trigger and shoot() rang sfx('fire') on frame one of a page
+    # nobody had touched. That call could only fail, and it put an
+    # autoplay warning in every visitor's console.
+    from sidra_ai.creation.audio import gesture_probe as _gesture_probe
+
+    _quiet_gaps: list[str] = []
+    _quiet_ok: list[str] = []
+    _QUIET_REQS = {
+        "adventure": "迷宮を冒険するゲームを作って",
+        "duel": "ビームで撃ち合うゲームを作って",
+        "kaiju": "巨大怪獣と戦うゲームを作って",
+        "shooter": "シューティングゲームを作って",
+        "puzzle": "パズルゲームを作って",
+        "platformer": "ジャンプで進むゲームを作って",
+        "marble": "玉転がしゲームを作って",
+        "racing": "レースゲームを作って",
+        "fishing": "釣りゲームを作って",
+        "catch": "落ちものをキャッチするゲームを作って",
+    }
+    for _q_key in sorted(_QUIET_REQS):
+        _q_html = generate_game(_QUIET_REQS[_q_key]).html
+        _q_script = _re.search(r"<script>(.*?)</script>", _q_html, _re.S)
+        if _q_script is None:
+            _quiet_gaps.append(f"{_q_key}: no script on the page")
+            continue
+        try:
+            _q_run = _sp.run(
+                ["node", "-"],
+                input=_gesture_probe(_q_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _q_run.returncode != 0:
+                raise ValueError(_q_run.stderr.strip()[:80])
+            _q = json.loads(_q_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            _quiet_gaps.append(f"{_q_key}: probe unavailable ({exc})")
+            continue
+        _before, _after = _q["untouched"], _q["after"]
+        # (a) silent until touched - the demo included.
+        if _before["built"]:
+            _quiet_gaps.append(
+                f"{_q_key}: built {_before['built']} AudioContext(s) before any input"
+            )
+        elif _before["rang"]:
+            _quiet_gaps.append(
+                f"{_q_key}: started {len(_before['rang'])} node(s) before any input"
+            )
+        # (b) and it does sound once touched - silence is not a pass. The
+        # press that opens the gate must sound too: a gate that rings
+        # before it opens swallows its own first sound forever.
+        elif not _after["rang"]:
+            _quiet_gaps.append(f"{_q_key}: the page never sounded at all")
+        elif not _q["atTouch"]["rang"]:
+            _quiet_gaps.append(
+                f"{_q_key}: the press that opened the gate made no sound"
+            )
+        # (c) §2's rule itself: resumed before anything is scheduled.
+        elif "suspended" in _after["rang"]:
+            _quiet_gaps.append(
+                f"{_q_key}: a node started while the context was suspended"
+            )
+        elif not _after["resumed"]:
+            _quiet_gaps.append(f"{_q_key}: the context was never resumed")
+        else:
+            _quiet_ok.append(_q_key)
+
+    c.add(
+        "creation_silent_until_touched",
+        "触られるまで鳴らない（触られたら鳴る）型",
+        0.0 if _quiet_gaps else float(len(_quiet_ok)),
+        detail=(
+            "; ".join(_quiet_gaps)
+            if _quiet_gaps
+            else "state='suspended' から始まる記録用 AudioContext で実運転。"
+            "最初の入力より前の 240 フレーム（アトラクトデモが動く時間）では"
+            "AudioContext を 1 つも作らずノードを 1 つも start せず、"
+            "最初の押下の後は実際に鳴り、鳴らすときは必ず resume 済み"
+            "（§2 の「自動再生制限があるので最初のユーザー操作で resume する」を"
+            "**いつ鳴ってよいか**の側から測る）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what a finger lands on is the row (§4, C-1681) -----------------
     #
     # evals/touch_form_controls.py reads the coarse-pointer CSS and checks
