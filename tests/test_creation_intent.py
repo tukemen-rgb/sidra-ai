@@ -117,3 +117,65 @@ def test_evidence_is_drawn_from_the_table_not_the_message() -> None:
     assert intent.routes
     assert all("ghp_" not in item for item in intent.evidence)
     assert set(intent.evidence) <= {"作って", "ゲーム", "釣りゲーム"}
+
+
+@pytest.mark.parametrize(
+    "message, kind",
+    [
+        ("I want a shooting game", CreationKind.GAME),
+        ("I'd like a racing game", CreationKind.GAME),
+        ("I would like a fishing game", CreationKind.GAME),
+        ("we need a pitch deck", CreationKind.DECK),
+        ("a racing game, please", CreationKind.GAME),
+        ("レースゲームが欲しい", CreationKind.GAME),
+        ("パズルゲームがほしい", CreationKind.GAME),
+        ("レースゲームをください", CreationKind.GAME),
+    ],
+)
+def test_asking_for_the_thing_is_asking_for_it_to_be_made(
+    message: str, kind: CreationKind
+) -> None:
+    """Wanting names no verb, and twelve of seventeen phrasings got through.
+
+    The sixth review wrote one request seventeen ways and measured which
+    reached a generator (C-1527). Every miss was this shape: the artifact is
+    named, the ask is a desire or a courtesy, and no making-verb appears. Both
+    languages miss it, which is why the Japanese rows are here beside the
+    English ones - an English-only fix would have left 「レースゲームが欲しい」
+    answered with retrieval boilerplate.
+    """
+
+    intent = detect_creation_intent(message)
+
+    assert intent.is_creation
+    assert intent.kind is kind
+    assert intent.routes
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        # An opinion about a game that already exists, not a request for one.
+        "I like this game",
+        # The desire has to attach to the artifact. Here it attaches to knowing.
+        "I want to know about the racing game repo",
+        "I do not want a racing game",
+        # 作り方 still vetoes however the sentence ends.
+        "ゲームの作り方が欲しい",
+        "how do I get a racing game",
+        # Naming the artifact is not wanting it.
+        "ゲーム業界の市場規模は",
+        "racing game",
+    ],
+)
+def test_naming_a_thing_is_not_asking_for_one(message: str) -> None:
+    """The direction that costs more if it breaks.
+
+    Reading these as creation requests takes the question path away from
+    someone who wanted it, which is the failure this detector exists to avoid.
+    「racing game」 is in this list on purpose: a bare genre word is what
+    someone types to be given one *and* what they type to look one up, so it
+    stays off the generator until something asks which.
+    """
+
+    assert not detect_creation_intent(message).routes

@@ -15894,6 +15894,26 @@ def measure_creation(c: Collector) -> None:
         # the other.
         ("ゲームの企画一式を作って", "project", None),
         ("ゲームの企画書一式を作って", "project", None),
+        # C-1527: the five the sixth review found at the front door, measured
+        # 2026-09-11 - one request written 17 ways reached a generator 12
+        # times. All five miss the same way: they ask for the artifact without
+        # ever naming a making-verb, and the gap is in both languages, so an
+        # English-only patch would have left 「レースゲームが欲しい」 answered
+        # with Q&A boilerplate.
+        ("I want a shooting game", "game", "shooter"),
+        ("I'd like a racing game", "game", "racing"),
+        ("a racing game, please", "game", "racing"),
+        ("レースゲームが欲しい", "game", "racing"),
+        # Deliberately still failing. A bare genre word has no ask in it at
+        # all - "racing game" is what someone types to be given one and what
+        # they type to look one up - so routing it to a generator would build
+        # something nobody asked for, and reading it as a question keeps the
+        # gap the review measured. The honest answer is to ask which, in the
+        # shape C-1515 uses for an empty message; that is its own item and its
+        # own mechanism, so this row stands as the 27th and the number says 26
+        # until it is done. Removing the row would raise the number without
+        # changing what an operator gets.
+        ("racing game", "game", "racing"),
     )
     kana_ok = 0
     kana_misses = []

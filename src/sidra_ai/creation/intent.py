@@ -373,6 +373,66 @@ _EXPLANATION_QUESTION = re.compile(fold_kana(
 ))
 
 
+#: Wanting the artifact is asking for it. Neither 「レースゲームが欲しい」 nor
+#: "I want a shooting game" contains a making-verb, so both fell through to the
+#: Q&A boilerplate: measured 2026-09-11, one request written 17 ways reached a
+#: generator 12 times, and the five misses were all desire forms (C-1527). The
+#: gap is in both languages, which is why this is not an English-only patch.
+#:
+#: Anchored to the artifact instead of matched anywhere in the message, because
+#: wanting is not making unless the thing wanted *is* the artifact. 「ゲームの
+#: 作り方が欲しい」 still loses (作り方 vetoes), and "I want to know about the
+#: racing game repo" never matches: the desire has to sit directly in front of
+#: the artifact word, through a determiner and at most two adjectives. That is
+#: the same head-noun rule `_find_artifact` already uses, read from the other
+#: side.
+#:
+#: 「用意して」 is already a making-verb, so 「資料を用意して」 builds a deck today;
+#: 「資料が欲しい」 reaching the same place is the existing contract, not a new
+#: one.
+_DESIRE_AFTER_JA = re.compile(fold_kana(r"^[はがをも]{0,2}[\s、]*(?:欲しい|ほしい)"))
+
+#: The courteous form of the same ask - the artifact and a please, with no verb
+#: at all. 「ゲームをください」 is its Japanese twin, and `_POLITE_REQUEST` misses
+#: it because that pattern requires a making stem in front of 「ください」.
+_GIVE_AFTER_JA = re.compile(fold_kana(r"^[はがをも]{0,2}[\s、]*(?:ください|下さい)"))
+_GIVE_AFTER_EN = re.compile(r"^\s*[,.!]?\s*please\b")
+
+#: "I want", "we need", "I'd like", "I would like" - and deliberately not a
+#: bare "I like", which is an opinion about a thing that already exists ("I
+#: like this game"). Only the wanting verbs ask for one to appear.
+_DESIRE_BEFORE_EN = re.compile(
+    r"\b(?:i|we)\s*(?:'d\s*|\s+would\s+)like\s+|\b(?:i|we)\s+(?:want|need)\s+"
+    r"(?!to\b)"
+    r"(?:a|an|the|some|another)?\s*(?:[a-z0-9'-]+\s+){0,2}$"
+)
+
+
+def _asks_for_artifact(text: str, word: str) -> str | None:
+    """Name the request form that asks for `word` itself, if any.
+
+    Returns an evidence token - a literal from the tables above, never text the
+    requester supplied - or ``None`` when the artifact is merely mentioned.
+    Every occurrence is tried, not only the latest, because the artifact that
+    decides the kind and the one the desire attaches to are the same word but
+    need not be the same occurrence in a sentence that names it twice.
+    """
+
+    needle = fold_kana(word.casefold())
+    start = text.find(needle)
+    while start >= 0:
+        before = text[:start]
+        after = text[start + len(needle):]
+        if _DESIRE_AFTER_JA.match(after):
+            return "desire_request"
+        if _GIVE_AFTER_JA.match(after) or _GIVE_AFTER_EN.match(after):
+            return "give_request"
+        if _DESIRE_BEFORE_EN.search(before):
+            return "desire_request"
+        start = text.find(needle, start + 1)
+    return None
+
+
 def detect_creation_intent(message: str) -> CreationIntent:
     """Classify one operator message.
 
@@ -400,6 +460,15 @@ def detect_creation_intent(message: str) -> CreationIntent:
     if polite_request:
         verb_hits.append("polite_request")
 
+    # Asking for the artifact itself is a making-verb too, and the one the
+    # surface-form tables cannot hold: it has no verb. Resolved here rather
+    # than below because the artifact is what carries the request, so it has
+    # to be in hand before deciding there is no request at all.
+    artifact = _find_artifact(text)
+    asked_for = _asks_for_artifact(text, artifact[1]) if artifact is not None else None
+    if asked_for is not None:
+        verb_hits.append(asked_for)
+
     if not verb_hits:
         return CreationIntent(is_creation=False)
 
@@ -414,7 +483,6 @@ def detect_creation_intent(message: str) -> CreationIntent:
             evidence=tuple(sorted(set(verb_hits + question_hits))),
         )
 
-    artifact = _find_artifact(text)
     if artifact is None:
         # "作って" with nothing to make. Recognised, deliberately unrouted:
         # answering it as a question at least tells the operator something,
