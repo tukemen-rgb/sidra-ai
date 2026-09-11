@@ -62,6 +62,13 @@ PAD_PREAMBLE = """
 /* --- on-screen pad (touch only; the keyboard is untouched) ------------ */
 const PADCV=document.getElementById('stage');
 const PAD_BTN=%(button)d,PAD_GAP=%(gap)d;
+/* R and P are flatter than the square buttons on purpose - they are the
+   round's controls, not the game's - but flatter had been 0.7, which put
+   them at 39.2 CSS px against §4's 48dp floor (C-1666). Nothing noticed,
+   because the floor was only ever checked by a regex over the shell's CSS
+   and never against a button. 0.875 keeps the flat shape and clears the
+   floor with a pixel to spare (49). */
+const PAD_FLAT=0.875;
 let PAD_ON=matchMedia('(pointer:coarse)').matches;
 const PAD_HELD=new Map();
 /* The restart guard (§12 事実 4, C-1397): the pad's R sits right above
@@ -91,7 +98,7 @@ function padButtons(){const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,
     {id:'ArrowUp',x:lx+g,y:ly-b/2-(b+g),w:b,h:b,g:'up'},
     {id:'ArrowDown',x:lx+g,y:ly-b/2+(b+g),w:b,h:b,g:'down'},
     {id:' ',x:W-g-b*1.4,y:ly-b/2,w:b*1.4,h:b,g:'A'},
-    {id:'r',x:W-g-b*1.4,y:ly-b/2-(b+g),w:b*1.4,h:b*0.7,g:'R'}
+    {id:'r',x:W-g-b*1.4,y:ly-b/2-(b+g),w:b*1.4,h:b*PAD_FLAT,g:'R'}
   ].filter(b=>PAD_ACTIVE.has(b.id)).concat(padPauseButton()||[])}
 /* The gate's own control, not the game's (C-1451). Pause was reachable from
    a keyboard only: the canvas pointerdown handler leads to gateStart or
@@ -112,7 +119,7 @@ function padPauseButton(){
   if(where==='title')return null;
   const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,W=PADCV.width,H=PADCV.height,
     ly=H-g-b*1.5;
-  return {id:'p',x:W-g-b*1.4,y:ly-b/2-(b+g)-(b*0.7+g),w:b*1.4,h:b*0.7,g:'P'}}
+  return {id:'p',x:W-g-b*1.4,y:ly-b/2-(b+g)-(b*PAD_FLAT+g),w:b*1.4,h:b*PAD_FLAT,g:'P'}}
 function padAt(ev){const r=PADCV.getBoundingClientRect(),
   x=(ev.clientX-r.left)*(PADCV.width/r.width),
   y=(ev.clientY-r.top)*(PADCV.height/r.height);
@@ -479,6 +486,92 @@ const arrowGlyphs = pathFills.filter(p => p[0] === facts.glyph && p[1] === 1).le
 console.log(JSON.stringify({ padOn: PAD_ON, buttons: report,
   arrows: arrows, arrowGlyphs: arrowGlyphs }));
 """
+
+
+
+#: How big the pad's buttons actually come out, in the units a thumb cares
+#: about (§4, C-1666). The 48dp rule was pinned on the shell's CSS by a
+#: regex over the generated HTML - `evals/touch_targets.py` never starts
+#: node, and its own docstring says the end-to-end proof "ran at fix" -
+#: while the canvas pad, the only way to play this on a phone, had its
+#: paint and its contrast checked but never its size.
+#:
+#: Measured off the drawn rectangles and divided by the page's own
+#: padScale(), because the layout is canvas pixels and the rule is CSS
+#: pixels: on a narrow screen the same button is fewer canvas pixels, and
+#: that is precisely the direction where a thumb-sized control stops
+#: being one.
+PADSIZE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = (q) => ({ matches: String(q).indexOf('coarse') >= 0 });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let fills = [];
+const rec = { fillRect: (x, y, w, h) => { fills.push([x, y, w, h]) } };
+/* The canvas is CANVAS_W wide in its own pixels but CSS_W wide on the
+   glass: that ratio IS padScale(), and it is what turns a layout into a
+   thumb. */
+globalThis.document = { getElementById: () => ({
+  width: CANVAS_W, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width: CSS_W, height: 320}),
+  getContext: () => new Proxy(rec, {
+    get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+    set: () => true }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+PROBE_SEND_PLACEHOLDER
+probeSend('keydown', ' ', handlers); probeSend('keyup', ' ', handlers);
+run(3);
+const scale = padScale();
+const buttons = padButtons();
+fills = [];
+run(1);
+/* Only the rectangles the page drew for the buttons themselves. */
+const plates = buttons.map(b => {
+  const hit = fills.filter(f => Math.abs(f[0] - b.x) < 0.5 && Math.abs(f[1] - b.y) < 0.5 &&
+    Math.abs(f[2] - b.w) < 0.5 && Math.abs(f[3] - b.h) < 0.5);
+  return { id: b.id, drawn: hit.length > 0,
+    css: Math.min(b.w, b.h) / scale,
+    x: b.x / scale, y: b.y / scale, w: b.w / scale, h: b.h / scale } });
+/* The smallest gap between any two buttons, and whether any two overlap.
+   A spacing rule that does not also forbid overlap is not a spacing rule. */
+let minGap = Infinity, overlaps = 0;
+for (let i = 0; i < plates.length; i++) {
+  for (let j = i + 1; j < plates.length; j++) {
+    const a = plates[i], b = plates[j];
+    const dx = Math.max(a.x - (b.x + b.w), b.x - (a.x + a.w));
+    const dy = Math.max(a.y - (b.y + b.h), b.y - (a.y + a.h));
+    if (dx < 0 && dy < 0) { overlaps++; continue }
+    minGap = Math.min(minGap, Math.max(dx, dy));
+  }
+}
+console.log(JSON.stringify({ padOn: PAD_ON, scale: scale,
+  canvasW: CANVAS_W, cssW: CSS_W, count: plates.length,
+  allDrawn: plates.every(p => p.drawn),
+  smallest: plates.length ? Math.min.apply(null, plates.map(p => p.css)) : 0,
+  minGap: minGap === Infinity ? null : minGap, overlaps: overlaps,
+  plates: plates }));
+"""
+
+
+def padsize_probe(script: str, *, canvas_w: int = 720, css_w: int = 720) -> str:
+    """The page's own script, wrapped so a thumb's worth can be measured."""
+
+    from sidra_ai.creation.probekit import PROBE_SEND
+
+    return (
+        PADSIZE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
+        .replace("CANVAS_W", str(int(canvas_w)))
+        .replace("CSS_W", str(int(css_w)))
+    )
 
 
 def padpaint_probe(script: str) -> str:
