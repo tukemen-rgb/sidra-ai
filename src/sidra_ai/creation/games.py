@@ -632,6 +632,7 @@ globalThis.document = { getElementById: () => ({
   getContext: () => nothing }), addEventListener: () => {} };
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
 /* The network, poisoned. A page that touches any of these says so by
    failing, which is the only way a scan for the words could be wrong and
    this could still be right. */
@@ -657,8 +658,8 @@ SCRIPT_PLACEHOLDER
 } catch (err) { boom = 'load: ' + (err && err.name) + ': ' + String(err && err.message).slice(0, 80) }
 let F = 0, frames = 0;
 function press(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k, target: { tagName: 'CANVAS' },
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
+  e.target = { tagName: 'CANVAS' };
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -698,7 +699,7 @@ def carried_probe(script: str, *, storage: str = "keeps", frames: int = 600) -> 
 
     if storage not in ("keeps", "refuses"):  # pragma: no cover - caller error
         raise ValueError(storage)
-    return (
+    return probekeys.with_probe_keys(
         CARRIED_PROBE.replace(
             "STORAGE_PLACEHOLDER", _KEEPS if storage == "keeps" else _REFUSES
         )
