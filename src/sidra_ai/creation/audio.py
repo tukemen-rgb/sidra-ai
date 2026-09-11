@@ -602,6 +602,11 @@ SCRIPT_PLACEHOLDER
 function measure(fn){ played.length = 0; fn(); return played.slice() }
 function press(k){ keyHandlers.forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
   preventDefault(){}, stopImmediatePropagation(){} })) }
+/* Touch the page first (§2, C-1682). Nothing sounds before the first
+   gesture, because a browser would refuse it - so a probe that measured
+   gains without pressing was measuring sounds no visitor could ever
+   hear. The press is what a player does before hearing anything. */
+press(' ');
 combat(false);
 const calm = measure(() => sfx('hurt'));
 combat(true);
