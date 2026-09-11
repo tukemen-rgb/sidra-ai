@@ -16304,15 +16304,15 @@ def measure_creation(c: Collector) -> None:
         ("I'd like a racing game", "game", "racing"),
         ("a racing game, please", "game", "racing"),
         ("レースゲームが欲しい", "game", "racing"),
-        # Deliberately still failing. A bare genre word has no ask in it at
-        # all - "racing game" is what someone types to be given one and what
-        # they type to look one up - so routing it to a generator would build
-        # something nobody asked for, and reading it as a question keeps the
-        # gap the review measured. The honest answer is to ask which, in the
-        # shape C-1515 uses for an empty message; that is its own item and its
-        # own mechanism, so this row stands as the 27th and the number says 26
-        # until it is done. Removing the row would raise the number without
-        # changing what an operator gets.
+        # C-1670 closed this one, and it is the only row here whose "arrives
+        # correctly" does not mean "reaches a generator". A bare genre word is
+        # what someone types to be given one and what they type to look one
+        # up, so the detector knows the kind and the template but deliberately
+        # does not route: `service.chat` asks which. The kind and template
+        # below are what that question is built from, and
+        # tests/test_chat_bare_genre_asks_which.py holds the other half - that
+        # an operator is actually asked. Without that file this row would pass
+        # on a detector that knew the answer and said nothing.
         ("racing game", "game", "racing"),
     )
     kana_ok = 0

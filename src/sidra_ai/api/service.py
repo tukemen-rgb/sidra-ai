@@ -605,6 +605,43 @@ class SidraService:
         # what would actually have been used, not on the raw input.
         intent = detect_creation_intent(query)
         creation_metadata: dict[str, Any] = {"intent": intent.to_dict()}
+        if intent.confidence == "ambiguous":
+            # The message is nothing but the name of a thing - 「racing game」,
+            # 「パズル」. That is what someone types to be handed one and what
+            # they type to go looking for one, and the two words do not tell
+            # them apart, so both available answers are guesses: building it
+            # delivers a page nobody asked for, and answering it as a question
+            # keeps the gap C-1527 measured. Ask which, in the shape C-1515
+            # uses for a message with no question in it at all.
+            #
+            # Before the retrieval, because there is nothing to search for
+            # yet: the query is a noun, and the answer depends on what the
+            # operator meant by it.
+            offered = [
+                _KIND_LABELS.get(kind, kind)
+                for kind in self.creation_router.registered_kinds()
+            ]
+            asked_back = (
+                f"「{query.strip()}」は、お作りしますか、それとも"
+                "リポジトリから探しますか。"
+                + (f"作る場合、いま作れるのは {'・'.join(offered)} です。" if offered else "")
+            ).strip()
+            guarded_ask = self.output_guard.scan(asked_back)
+            creation_metadata["outcome"] = {
+                "kind": intent.kind.value,
+                "handled": False,
+                "asked_back": True,
+            }
+            return {
+                "answer": guarded_ask.content,
+                "refused": True,
+                "refusal": "ambiguous",
+                "reason": "the message named an artifact without asking for anything",
+                "citations": [],
+                "security": gate_result.to_dict(),
+                "creation": creation_metadata,
+            }
+
         if intent.routes:
             # Ground the artifact in the index, exactly as an answer is
             # grounded. A generator that retrieved for itself could widen

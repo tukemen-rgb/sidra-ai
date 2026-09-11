@@ -14,12 +14,18 @@ on the question side: it names an artifact but asks to be *told*, not to be
 imperative outright, because in Japanese the verb that carries the request
 comes last, and the last verb here is the asking one.
 
-Confidence is not a probability. It is a coarse three-step used by one
+Confidence is not a probability. It is a coarse four-step used by one
 caller decision: only ``strong`` routes to a generator. ``weak`` means the
 message looked like a creation request but the evidence was thin, and thin
 evidence answers as a question - the conservative direction, since a missed
 creation request costs an ordinary answer while a misread question costs a
 confusing one.
+
+``ambiguous`` is the fourth, and it is not a weaker ``weak``: it means the
+message is *nothing but* the name of an artifact - 「racing game」, 「パズル」 -
+so there is no evidence either way. Answering it as a question and building
+it are both guesses, and the honest answer is to ask which (C-1670). It does
+not route.
 
 No model is required. A local model, when present, may enrich the parameters
 of a job (title, difficulty), but it never decides the route: the route has
@@ -433,6 +439,48 @@ def _asks_for_artifact(text: str, word: str) -> str | None:
     return None
 
 
+#: Punctuation, spacing and the particles a bare noun phrase may still carry.
+#: Stripped only while deciding whether anything *else* was said, never from
+#: text that is kept.
+_BARE_LEFTOVERS = re.compile(
+    fold_kana(r"[\s、。，．,.!?！？・「」\"'()（）]|の|が|を|は|も")
+    # The English article is the same kind of leftover as the Japanese
+    # particle - 「a racing game」 names a thing and asks nothing, exactly as
+    # 「レースゲーム」 does. Whole words only: as substrings these would eat
+    # the middle of 「a**the**letics」 and leave a bare noun looking like
+    # something more was said.
+    + r"|\b(?:a|an|the|some)\b"
+)
+
+
+def _only_names_the_artifact(text: str) -> bool:
+    """Whether the message says nothing beyond which artifact it is about.
+
+    「racing game」 is what an operator types to be handed one and what they
+    type to go looking for one, and nothing in those two words tells the two
+    apart (C-1527 measured it as the one phrasing of seventeen that no rule
+    could honestly route). So the test is subtraction: take out every word
+    from the artifact tables and see whether anything is left. 「ゲーム業界の
+    市場規模は」 leaves 「業界市場規模」 and stays a question - which is the
+    case this has to keep getting right, because turning a question into a
+    clarifying prompt is the failure this module exists to avoid.
+
+    Longest first, so removing 「ゲーム」 out of 「ミニゲーム」 cannot leave a
+     「ミニ」 behind and make a bare request look like it said something more.
+    """
+
+    remaining = text
+    words = sorted(
+        (fold_kana(w.casefold()) for group in _ARTIFACTS.values() for w in group),
+        key=len,
+        reverse=True,
+    )
+    for word in words:
+        if word and word in remaining:
+            remaining = remaining.replace(word, " ")
+    return not _BARE_LEFTOVERS.sub("", remaining).strip()
+
+
 def detect_creation_intent(message: str) -> CreationIntent:
     """Classify one operator message.
 
@@ -470,6 +518,21 @@ def detect_creation_intent(message: str) -> CreationIntent:
         verb_hits.append(asked_for)
 
     if not verb_hits:
+        if (
+            artifact is not None
+            and not question_hits
+            and _only_names_the_artifact(text)
+        ):
+            # Named a thing and asked nothing. Reported as a non-creation
+            # intent - it must not route - but carrying the kind, so the
+            # caller can ask which rather than picking one of the two
+            # answers and being wrong half the time (C-1670).
+            return CreationIntent(
+                is_creation=False,
+                kind=artifact[0],
+                confidence="ambiguous",
+                evidence=(artifact[1].casefold(),),
+            )
         return CreationIntent(is_creation=False)
 
     if question_hits and not polite_request:
