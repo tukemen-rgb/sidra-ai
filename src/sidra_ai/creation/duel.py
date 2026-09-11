@@ -500,6 +500,78 @@ def ladder_probe(script: str) -> str:
     )
 
 
+
+#: The same action at two weights (§1, C-1657). This page's kick is not a
+#: rung, it is a slope: `shake(2 + charge*0.08)`, so a tap fires a thread
+#: and a long hold shoves the camera. The ladder contract compares
+#: different events; nothing asked whether one event scales with what was
+#: put into it, and flattening the formula to a constant left 166 tests
+#: green.
+SLOPE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+PROBE_SEND_PLACEHOLDER
+PROBE_SHAKE_PLACEHOLDER
+let rang = [];
+const realSfx = sfx;
+sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, arguments) };
+/* Only a frame that rang this one event can attribute the kick to it
+   (C-1652): the combo step-up kicks by 3 and shake() keeps the max
+   within a frame as well as across them. */
+function alone(name){ return rang.length === 1 && rang[0] === name }
+function frame(){ rang = [];
+  return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
+probeSend('keydown', ' ', handlers); probeSend('keyup', ' ', handlers);
+frame(); frame();
+function settle(n){ for (let i = 0; i < (n || 40); i++) { frame() } }
+
+/* One shot at a named charge, pulled through the page's own fire() - the
+   same way the dungeon's probe swings the page's own blade. Reading it
+   inside a frame does not work: the trigger is serviced outside the step
+   this probe controls, so the accumulator is cleared after the kick
+   rather than before it. Cleared here, fired here, read here. */
+function shotAt(charge){
+  settle();
+  rang = [];
+  p.stun = 0; p.beam = 0; p.hold = true; p.over = 0; p.charge = charge;
+  SHAKE = 0;
+  fire(p);
+  const kick = shakeAmount();
+  if (!alone('fire')) { return null }
+  return { charge: charge, kick: kick, beam: p.beam, rang: rang.slice() };
+}
+const light = shotAt(20);
+const heavy = shotAt(100);
+console.log(JSON.stringify({ light: light, heavy: heavy }));
+"""
+
+
+def slope_probe(script: str) -> str:
+    """The page's own script, wrapped so one action can be weighed twice."""
+
+    from sidra_ai.creation.probekit import PROBE_SEND, PROBE_SHAKE
+
+    return (
+        SLOPE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
+        .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+    )
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the duel can be played in node."""
 

@@ -11680,6 +11680,98 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the same action, weighed twice --------------------------------
+    # §1 quotes Vlambeer: make the shake proportional to the weight of the
+    # event. creation_shake_ladder reads that as rungs - different events
+    # ordered against each other. Two pages implement it as a SLOPE
+    # instead, one event scaled by what was put into it: the duel's kick
+    # is `2 + charge*0.08`, so a tap fires a thread and a long hold shoves
+    # the camera, and the puzzle's is `min(9, cells.length)`. Neither was
+    # asked for. Flattening the duel's formula to a constant left 166
+    # tests green.
+    #
+    # Both are read the way C-1652 settled: the page's own shakeAmount(),
+    # with the accumulator cleared immediately before the action and the
+    # frame required to have rung that one event - shake() keeps its max
+    # within a frame as well as across them.
+    import subprocess as _sl_sp
+
+    from sidra_ai.creation.duel import slope_probe as _sl_duel
+    from sidra_ai.creation.puzzle import slope_probe as _sl_puzzle
+
+    slope_gaps: list[str] = []
+    slope_ok: list[str] = []
+    _sl_jobs = []
+    _sl_targets = (
+        ("duel/溜め", "ビームで撃ち合うゲームを作って", _sl_duel, "charge"),
+        ("puzzle/消した数", "パズルゲームを作って", _sl_puzzle, "size"),
+    )
+    for _sl_key, _sl_req, _sl_builder, _sl_field in _sl_targets:
+        _sl_page = generate_game(_sl_req).html
+        _sl_script = _scene_re.search(r"<script>(.*?)</script>", _sl_page, _scene_re.S)
+
+        def _sl_job(b=_sl_builder, sc=(_sl_script.group(1) if _sl_script else None)):
+            if sc is None:
+                return ValueError("no script")
+            try:
+                return _sl_sp.run(
+                    ["node", "-"],
+                    input=b(sc),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+            except (OSError, _sl_sp.SubprocessError) as exc:
+                return exc
+
+        _sl_jobs.append(_sl_job)
+    for (_sl_key, _sl_req, _sl_b, _sl_field), _sl_out in zip(
+        _sl_targets, in_parallel(_sl_jobs)
+    ):
+        try:
+            if isinstance(_sl_out, Exception) or _sl_out.returncode != 0:
+                raise ValueError("probe failed")
+            _sl = json.loads(_sl_out.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            slope_gaps.append(f"{_sl_key}: the action could not be driven twice")
+            continue
+        _lo, _hi = _sl.get("light"), _sl.get("heavy")
+        if not _lo or not _hi:
+            slope_gaps.append(f"{_sl_key}: one of the two weights never fired")
+        elif not _lo.get("kick") or not _hi.get("kick"):
+            slope_gaps.append(
+                f"{_sl_key}: a weight kicked nothing "
+                f"({_lo.get('kick')} / {_hi.get('kick')})"
+            )
+        elif _hi[_sl_field] <= _lo[_sl_field]:
+            slope_gaps.append(f"{_sl_key}: the two weights were not different")
+        elif _hi["kick"] <= _lo["kick"]:
+            slope_gaps.append(
+                f"{_sl_key}: {_lo[_sl_field]}→{_hi[_sl_field]} but the kick "
+                f"stayed {_lo['kick']}→{_hi['kick']}"
+            )
+        else:
+            slope_ok.append(_sl_key)
+    c.add(
+        "creation_shake_scales_with_input",
+        "同じ動作でも入れたぶんだけ揺れる",
+        0.0 if slope_gaps else float(len(slope_ok)),
+        detail=(
+            "; ".join(slope_gaps)
+            if slope_gaps
+            else "同じ動作を 2 つの重さで実駆動し、ページ自身の `shakeAmount()` で比べた"
+            "（`creation_shake_ladder` が見ているのは**違う出来事どうしの段**で、"
+            "こちらは**同じ出来事の傾き**——§1 の Vlambeer 原則のもう半分）: "
+            "duel=溜め 20 で 3.6・溜め 100 で **10**（`2+charge*0.08`——軽く叩けば糸、"
+            "長く溜めればカメラを押しのける）／puzzle=2 個消しで 2・4 個消しで **4**"
+            "（`min(9,cells.length)`。5 個以上は槌を得る音が同じフレームに乗るので、"
+            "**1 つの出来事だけが鳴っている**範囲で測る）。"
+            "**両方が本当に起きたこと**と**2 つの重さが実際に違ったこと**も条件"
+            "——定数化した実装は傾きで、駆動できない staging は「起きていない」で落ちる"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the ear and the eye point at the same place --------------------
     # §28 (GAG hearing/audio, intermediate): supplementary information
     # carried by audio - the guideline's own example is the direction you

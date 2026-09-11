@@ -607,6 +607,85 @@ console.log(JSON.stringify({
 """
 
 
+
+#: The same action at two weights (§1, C-1657). This page's kick is a
+#: slope, not a rung: `shake(Math.min(9, cells.length))`, so clearing two
+#: tiles and clearing eight are not the same event at different names -
+#: they are one event, weighed. The ladder contract compares different
+#: events and never asked this.
+SLOPE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+PROBE_SEND_PLACEHOLDER
+PROBE_SHAKE_PLACEHOLDER
+let rang = [];
+const realSfx = sfx;
+sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, arguments) };
+/* Only a frame that rang this one event can attribute the kick (C-1652):
+   the combo step-up kicks by 3, and the hammer earned at five tiles rings
+   its own sound on exactly the frames a big clear happens. */
+function alone(name){ return rang.length === 1 && rang[0] === name }
+function frame(){ rang = [];
+  return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
+probeSend('keydown', ' ', handlers); probeSend('keyup', ' ', handlers);
+frame(); frame();
+
+/* Lay a run of one colour along the bottom row and pop it. The page's own
+   group() decides what is connected and its own pop() does the clearing;
+   this only arranges the board. */
+function clearOf(n){
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) { grid[y][x] = (x + y * 3) % PALETTE.length } }
+  /* a solid run of colour 0, with the neighbours above set to something
+     else so the group is exactly n wide */
+  for (let x = 0; x < n; x++) { grid[ROWS - 1][x] = 0;
+    if (ROWS > 1) { grid[ROWS - 2][x] = 1 } }
+  for (let x = n; x < COLS; x++) { grid[ROWS - 1][x] = 2 }
+  cur = { x: 0, y: ROWS - 1 };
+  const size = group(cur.x, cur.y).length;
+  rang = [];
+  SHAKE = 0;
+  pop();
+  const kick = shakeAmount();
+  return { asked: n, size: size, kick: kick, rang: rang.slice() };
+}
+/* Two against four, not two against eight: a clear of five or more earns
+   a hammer, which rings its own sound on the same frame. That sound does
+   not kick the camera, but a reading taken while two events are in the
+   air is a reading that has to be argued for rather than read, and the
+   slope is just as visible below the earn line. */
+const light = clearOf(2);
+const heavy = clearOf(4);
+console.log(JSON.stringify({ light: light, heavy: heavy }));
+"""
+
+
+def slope_probe(script: str) -> str:
+    """The page's own script, wrapped so one action can be weighed twice."""
+
+    from sidra_ai.creation.probekit import PROBE_SEND, PROBE_SHAKE
+
+    return (
+        SLOPE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
+        .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+    )
+
+
 def sky_probe(script: str) -> str:
     """The page's own script, wrapped so the round's sky can be watched."""
 
