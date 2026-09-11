@@ -131,11 +131,29 @@ def test_the_pages_own_words_are_the_source(template: str, word: str) -> None:
     assert template_depicts(template, word)
 
 
-@pytest.mark.parametrize("template,word", [("kaiju", "敵"), ("puzzle", "ブロック")])
-def test_only_two_pages_answer_in_a_synonym(template: str, word: str) -> None:
-    """...and those two are declared, with the object they stand for named
-    in the comment. Declared *because* the copy does not say it - if the
-    copy did, the list would be the drift C-1120 fixed."""
+def _declared_synonyms() -> list[tuple[str, str]]:
+    from sidra_ai.creation.games import _ALSO_DEPICTED
+
+    return [(tpl, word) for tpl, words in _ALSO_DEPICTED.items() for word in words]
+
+
+@pytest.mark.parametrize("template,word", _declared_synonyms())
+def test_a_declared_synonym_is_declared_because_the_copy_is_silent(
+    template: str, word: str
+) -> None:
+    """...and each declared word names something the page really draws.
+
+    Was ``test_only_two_pages_answer_in_a_synonym``, hard-coded to kaiju 敵
+    and puzzle ブロック. C-1528 added a third (shooter 弾: the page pushes a
+    shot on every fire and paints each one, while the how-to-play says
+    「連射」 and never 「弾」), and a test that names the count in its own title
+    has to be edited to admit one - which is the edit that gets made without
+    checking. Read from the table instead, so a fourth cannot be added
+    without this rule being applied to it.
+
+    Declared *because* the copy does not say it - if the copy did, the list
+    would be the drift C-1120 fixed.
+    """
 
     from sidra_ai.creation.startscreen import BRIEFINGS
 
@@ -152,3 +170,62 @@ def test_a_page_does_not_claim_another_templates_contents() -> None:
     assert not template_depicts("fishing", "コース")
     assert not template_depicts("kaiju", "受け皿")
     assert not template_depicts("puzzle", "巨獣")
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    [
+        # Who the game is for is not what is in it.
+        "Make a racing game for my kid",
+        # The request's own grammar. The title rule only knew the heads that
+        # carry a making-verb, so this one never reached it and the whole
+        # sentence became the page title.
+        "let's make a puzzle game",
+        # C-1527 made this reach a generator the same week; nothing had
+        # taught the title rule about a request whose only head is an
+        # article.
+        "a racing game, please",
+        # The shooter pushes a shot on every fire and paints each one.
+        "弾を撃つシューティングを作って",
+    ],
+)
+def test_the_note_does_not_quote_what_surrounds_the_request(request_text: str) -> None:
+    """C-1528: the caveat was naming the sentence instead of the subject.
+
+    Measured 2026-09-11 through real pages: 「for my kid」, 「let's make a」 and
+    「弾」 were each printed as something the operator asked for and the page
+    fails to draw. The first two are the operator's own grammar read back to
+    them; the third is on the screen.
+    """
+
+    game = generate_game(request_text)
+
+    assert undepicted_subject(request_text, game.template, game.asked_title) == ""
+
+
+@pytest.mark.parametrize(
+    "request_text, subject",
+    [
+        # The genre sits in front of the artifact noun, so the head noun is
+        # not the first word left. This one broke while the debris above was
+        # being removed, and is here because it broke.
+        ("a puzzle game about a dog", "dog"),
+        ("make a racing game about a cat", "cat"),
+        ("create a cat game", "cat"),
+        # The Japanese case the caveat was built for (C-1205). A rule written
+        # for English must not take it away.
+        ("猫のゲームを作って", "猫"),
+    ],
+)
+def test_the_note_still_names_a_subject_the_page_cannot_draw(
+    request_text: str, subject: str
+) -> None:
+    """The direction that dies first when debris is removed by silencing.
+
+    Every fix above makes the caveat quieter, and a caveat that never speaks
+    passes all of them.
+    """
+
+    game = generate_game(request_text)
+
+    assert undepicted_subject(request_text, game.template, game.asked_title) == subject

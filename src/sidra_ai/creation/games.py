@@ -834,11 +834,27 @@ def _is_only_difficulty(text: str) -> bool:
 #: The tail is only removed when the head matched, which keeps this the same
 #: rule as the Japanese one rather than a wider one: 「レースゲーム」 with no
 #: verb keeps both its words, so `racing game` keeps both of its.
+#: C-1528: and the heads that carry no making-verb at all. Measured
+#: 2026-09-11: `"let's make a puzzle game"` never entered this branch, so the
+#: whole request became the page title and the honesty note quoted
+#: 「let's make a」 as a thing the page does not draw - the request's own
+#: grammar, read back to the operator as their subject. C-1527 widened the
+#: door the same week (「I want a…」「we need a…」 now reach a generator), so
+#: the list of heads that get here is no longer the list of making-verbs.
+#:
+#: The bare article is a head too: "a racing game, please" is a whole request
+#: whose only non-subject words are at the ends. A request with no article and
+#: no verb - `racing game` - still matches nothing here and keeps both its
+#: words, which is the rule the Japanese side has and the reason the tail is
+#: only trimmed when a head was found.
 _STRIP_EN_HEAD = re.compile(
     r"^\s*(?:hey\s+|hi\s+)?(?:please\s+)?"
     r"(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
-    r"(?:make|create|build|generate|design|produce|draw|write)\s+"
-    r"(?:me\s+)?(?:a|an|the)\s+",
+    r"(?:"
+    r"(?:let\s*'?s\s+)?(?:make|create|build|generate|design|produce|draw|write)\s+(?:me\s+)?"
+    r"|(?:i|we)\s*(?:'?d\s*|\s+would\s+)?(?:want|need|like)\s+"
+    r")?"
+    r"(?:a|an|the)\s+",
     re.IGNORECASE,
 )
 #: C-1526: the noun for the thing being made, off the end. Built from
@@ -851,15 +867,27 @@ _STRIP_EN_TAIL = re.compile(
     r"\s*(?:"
     + "|".join(re.escape(w) for w in ARTIFACT_NOUNS if w.isascii())
     + r"|please|thanks|thank you"
-    + r")\s*[.!?]*\s*$",
+    # C-1528: 「for my kid」 is who the game is for, not what is in it, and
+    # 「Make a racing game for my kid」 quoted it as the subject the page fails
+    # to draw. Only 「for」 - 「about a dog」 names the subject outright and is
+    # lifted by `_STRIP_EN_ABOUT`, so the two prepositions are opposites here
+    # and must not share a rule.
+    + r"|for\s+(?:[\w'-]+\s*){1,3}"
+    + r")\s*[,.!?]*\s*$",
     re.IGNORECASE,
 )
 
 #: 「a game about a dog」. The artifact noun is the head and the subject
 #: comes after it, so trimming the ends cannot reach it - this is the one
 #: shape where the request says outright which half is which.
+#: The genre may sit in front of the artifact noun - 「a puzzle game about a
+#: dog」 - and then the head noun is not the first word left. Measured while
+#: fixing C-1528: widening `_STRIP_EN_HEAD` brought that shape into this
+#: branch for the first time and, without the leading run, the note quoted
+#: 「about a dog」. Two words at most, and lazily, so the preposition matched
+#: is the earliest one rather than a later one inside the subject itself.
 _STRIP_EN_ABOUT = re.compile(
-    r"^(?:"
+    r"^(?:[\w'-]+\s+){0,2}?(?:"
     + "|".join(re.escape(w) for w in ARTIFACT_NOUNS if w.isascii())
     + r")\s+(?:about|of|with|featuring|starring)\s+(?:a|an|the)?\s*",
     re.IGNORECASE,
@@ -1061,6 +1089,13 @@ _ALSO_DEPICTED: dict[str, tuple[str, ...]] = {
     # The board is drawn as coloured cells; the briefing calls a run of
     # them 「かたまり」. A request about the blocks is about those.
     "puzzle": ("ブロック", "コマ", "ピース"),
+    # The page pushes a shot on every fire and paints each one
+    # (`shots.forEach(s=>{cx.fillRect(s.x-1.5,s.y-8,3,10)})`), so a request
+    # about the bullets is about something on the screen. 「敵」 already
+    # passed through the briefing text; 「弾」 appears nowhere in it because
+    # the how-to-play says 「連射」, which is why this needed saying here
+    # rather than in the briefing (C-1528).
+    "shooter": ("弾", "弾幕"),
 }
 
 

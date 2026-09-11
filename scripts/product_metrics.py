@@ -17918,6 +17918,16 @@ def measure_creation(c: Collector) -> None:
         "海と山のゲームを作って",
         "走るゲームを作って",
         "光るゲームを作って",
+        # C-1528: the English side, which had never been in this list. The
+        # rules below are about Japanese particles, so these are here for the
+        # substring rule - the caveat must still be a run of the operator's
+        # own characters when the operator wrote English.
+        "create a cat game",
+        "a puzzle game about a dog",
+        "make a racing game about a cat",
+        "Make a racing game for my kid",
+        "let's make a puzzle game",
+        "a racing game, please",
     )
     # The two the caveat exists for: a subject the page does not draw. If
     # these stop being said, silence is being scored as faithfulness.
@@ -17928,6 +17938,11 @@ def measure_creation(c: Collector) -> None:
         # these fall silent, the rule has been widened past what it measured.
         "犬と猫のゲームを作って",
         "走るゲームを作って",
+        # C-1528: the English subjects the page really does not draw. Without
+        # these, the English rows above could all be satisfied by a caveat
+        # that never speaks English at all.
+        "create a cat game",
+        "a puzzle game about a dog",
     )
     _QUOTE_GLUE = ("を", "が", "に", "へ", "と", "で", "の", "は", "も", "や")
 
@@ -18062,6 +18077,82 @@ def measure_creation(c: Collector) -> None:
             )
         else:
             draws_ok.append(_tpl)
+    # --- 注釈は依頼の「まわり」ではなく主題を引く (C-1528) -----------------
+    #
+    # The caveat is built to name what the operator asked for and the page
+    # does not draw. Measured 2026-09-11, it was naming three other things
+    # instead: who the game was for (「Make a racing game for my kid」 →
+    # 「for my kid」), the request's own grammar (「let's make a puzzle game」
+    # → 「let's make a」), and something the page really does draw
+    # (「弾を撃つシューティングを作って」 → 「弾」, on a page that paints every
+    # shot).
+    #
+    # One list, two directions, because each debris case is fixed by making
+    # the caveat quieter and the whole feature can be "fixed" by silencing
+    # it. The speaking rows are the ones that would die first.
+    _NOTE_SILENT = (
+        # Who it is for is not what is in it.
+        "Make a racing game for my kid",
+        # The head that carries no making-verb. C-1527 widened the door to
+        # these the same week, so the shapes that reach a generator are no
+        # longer the shapes the title rule knew about.
+        "let's make a puzzle game",
+        "a racing game, please",
+        # The page pushes a shot on every fire and paints each one.
+        "弾を撃つシューティングを作って",
+    )
+    _NOTE_SPEAKS = {
+        # A subject named in English, with the genre in front of the artifact
+        # noun - the shape that broke while the debris above was being fixed.
+        "a puzzle game about a dog": "dog",
+        "create a cat game": "cat",
+        # And the Japanese case the caveat was built for, so a rule written
+        # for English cannot quietly take it away.
+        "猫のゲームを作って": "猫",
+    }
+    note_gaps: list[str] = []
+    note_ok: list[str] = []
+    for _note_ask in _NOTE_SILENT:
+        with _quiet():
+            _note_game = _tune_generate(_note_ask)
+        _note_said = _quote_subject(
+            _note_ask, _note_game.template, _note_game.asked_title
+        )
+        if _note_said:
+            note_gaps.append(f"{_note_ask[:28]}: 「{_note_said}」を主題として引く")
+        else:
+            note_ok.append(_note_ask)
+    for _note_ask, _want in _NOTE_SPEAKS.items():
+        with _quiet():
+            _note_game = _tune_generate(_note_ask)
+        _note_said = _quote_subject(
+            _note_ask, _note_game.template, _note_game.asked_title
+        )
+        if _note_said != _want:
+            note_gaps.append(
+                f"{_note_ask[:28]}: 「{_want}」と言うべきところで {_note_said!r}"
+            )
+        else:
+            note_ok.append(_note_ask)
+    c.add(
+        "creation_note_quotes_the_subject",
+        "正直ノートが依頼の「まわり」ではなく主題を引く形",
+        float(len(note_ok)) if not note_gaps else 0.0,
+        detail=(
+            "; ".join(note_gaps)
+            if note_gaps
+            else "**両側**を実際に生成して読んだ: (a) 主題でないもの 4 通り"
+            "（宛先「for my kid」・依頼自身の文法「let's make a」・"
+            "「a racing game, please」・シューティングが実際に描く「弾」）では"
+            "注釈が**出ない**、(b) 本当に描かれない主題 3 通り"
+            "（英語の dog・cat と日本語の猫）では**今も出て主題を引く**。"
+            "(b) が無いと注釈を消すだけの実装が満点になる。"
+            "**修正前の実測**: (a) の 4 通りのうち 3 通りが残骸を引用していた"
+            "（4 つ目の「a racing game, please」は C-1527 が届くようにした形）。"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_never_denies_what_it_draws",
         "描いているものを「出てきません」と言わない型",
