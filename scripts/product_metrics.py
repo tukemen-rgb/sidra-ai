@@ -1515,6 +1515,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1686: UsageLedger.record() appended to disk without a guard, so a full
+    # disk / unwritable path raised through MeteredAdapter.generate() and turned
+    # a good local answer into a 500 - while the API audit log already swallows
+    # the same failure. The ledger write is now best-effort like the audit log.
+    from sidra_ai.evals.usage_ledger_disk_write_is_best_effort import (
+        evaluate_usage_ledger_disk_write_is_best_effort,
+    )
+
+    usage_besteffort = evaluate_usage_ledger_disk_write_is_best_effort()
+    c.add(
+        "usage_ledger_disk_write_is_best_effort",
+        "使用量台帳のディスク書き込み失敗が良い回答を巻き添えにしない",
+        10.0 * usage_besteffort.checks_passed / usage_besteffort.checks_total,
+        detail=f"{usage_besteffort.checks_passed}/{usage_besteffort.checks_total} checks; "
+               "src/sidra_ai/evals/usage_ledger_disk_write_is_best_effort.py"
+               + ("" if usage_besteffort.passed else "; " + "; ".join(usage_besteffort.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

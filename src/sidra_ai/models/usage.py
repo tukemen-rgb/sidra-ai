@@ -111,7 +111,15 @@ class UsageLedger:
         with self._lock:
             self._records.append(entry)
             if self._path is not None:
-                self._append(entry)
+                try:
+                    self._append(entry)
+                except OSError:
+                    # Usage accounting is best-effort: a full disk, an unwritable
+                    # path, or a permission error must not turn a good local
+                    # answer into an HTTP error (the API audit log takes the same
+                    # posture). The in-memory record is kept and totals() still
+                    # counts it; persistence resumes on the next writable append.
+                    pass
         return entry
 
     def _append(self, entry: UsageRecord) -> None:
