@@ -1477,6 +1477,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1682: C-1677 guarded only the quarantine log in main(); QuarantineReview
+    # still opened its own paths after exists(), so a directory at the release
+    # sibling crashed list/show with IsADirectoryError. The reads now use
+    # is_file() and treat a non-file path as "no log".
+    from sidra_ai.evals.quarantine_review_survives_nonfile_paths import (
+        evaluate_quarantine_review_survives_nonfile_paths,
+    )
+
+    quar_nonfile = evaluate_quarantine_review_survives_nonfile_paths()
+    c.add(
+        "quarantine_review_survives_nonfile_paths",
+        "QuarantineReview が非ファイル path で生の例外を出さない",
+        10.0 * quar_nonfile.checks_passed / quar_nonfile.checks_total,
+        detail=f"{quar_nonfile.checks_passed}/{quar_nonfile.checks_total} checks; "
+               "src/sidra_ai/evals/quarantine_review_survives_nonfile_paths.py"
+               + ("" if quar_nonfile.passed else "; " + "; ".join(quar_nonfile.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

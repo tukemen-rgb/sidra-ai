@@ -189,7 +189,14 @@ class QuarantineReview:
 
     # ------------------------------------------------------------------
     def releases(self) -> list[Release]:
-        if not self.release_path.exists():
+        # is_file(), not exists(): the release sibling (<log>.releases.jsonl) is
+        # never checked by the CLI's main() the way the log itself is (C-1677),
+        # so a directory there passed exists() and crashed list/show with
+        # IsADirectoryError. No releases yet and an unreadable release log both
+        # mean "no approvals to apply" here, so both read empty (C-1682).
+        # (_records keeps exists()/raise on purpose: /v1/index relies on an
+        # unreadable *quarantine* log raising to report it unavailable, C-1636.)
+        if not self.release_path.is_file():
             return []
         out: list[Release] = []
         with self.release_path.open("r", encoding="utf-8") as handle:
