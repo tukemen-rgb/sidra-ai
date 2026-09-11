@@ -16082,6 +16082,141 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- what a finger lands on is the row (§4, C-1680) -----------------
+    #
+    # evals/touch_form_controls.py reads the coarse-pointer CSS and checks
+    # the declarations are present. It cannot see what they apply to: the
+    # panel is built at run time, so a static read of the page finds one
+    # <button> and no controls at all. And the tap target is not the
+    # control - tuneControl wraps each one in a <label class="tune-row">,
+    # so the whole line toggles, and the row's height is whatever its
+    # tallest child gives it.
+    #
+    # Measured before fixed, in Chromium at 390px with the coarse rules
+    # applied: slider, select and colour rows came out 44-48px and the six
+    # checkbox rows 30-36px - under the floor their neighbours got, and
+    # well under §4's 48dp. The checkbox's own floor is 24px and nothing
+    # named the row.
+    from sidra_ai.creation.tuning import panel_probe as _panel_probe
+
+    _row_gaps: list[str] = []
+    _row_ok: list[str] = []
+    _ROW_FLOOR = 44.0
+
+    def _coarse_rules(page: str) -> list[tuple[list[str], dict[str, float]]]:
+        """Selectors and their pixel heights inside @media (pointer:coarse)."""
+
+        found = _re.search(
+            r"@media\s*\(\s*pointer\s*:\s*coarse\s*\)\s*\{(?P<body>.*?)\}\s*"
+            r"(?:/\*|@media|</style)",
+            page,
+            _re.S,
+        )
+        if found is None:
+            return []
+        out: list[tuple[list[str], dict[str, float]]] = []
+        for sel, body in _re.findall(r"([^{}]+)\{([^{}]*)\}", found.group("body")):
+            sizes: dict[str, float] = {}
+            for prop, value in _re.findall(r"([a-z-]+)\s*:\s*([0-9.]+)px", body):
+                if prop in ("min-height", "height"):
+                    sizes[prop] = float(value)
+            if sizes:
+                out.append(([s.strip() for s in sel.split(",")], sizes))
+        return out
+
+    def _matches(selector: str, kind: str, row: bool) -> bool:
+        """Does this selector name this control (or the row itself)?"""
+
+        if selector == ".tune-row" or selector == "label.tune-row":
+            return row
+        if row:
+            return False
+        tag = kind.split("[")[0]
+        want = kind[kind.index("[") + 1 : -1] if "[" in kind else None
+        if selector == tag:
+            return want is None or tag != "input"
+        got = _re.fullmatch(r"input\[type=([a-z]+)\]", selector)
+        if got is not None:
+            return tag == "input" and got.group(1) == want
+        return False
+
+    def _floor_for(rules, kind: str, row: bool) -> float:
+        best = 0.0
+        for selectors, sizes in rules:
+            if any(_matches(s, kind, row) for s in selectors):
+                best = max(best, max(sizes.values()))
+        return best
+
+    _row_page = generate_game("迷宮を冒険するゲームを作って").html
+    _row_rules = _coarse_rules(_row_page)
+    _row_script = _re.search(r"<script>(.*?)</script>", _row_page, _re.S)
+    if not _row_rules:
+        _row_gaps.append("no coarse-pointer block on the page")
+    elif _row_script is None:
+        _row_gaps.append("no script on the page")
+    else:
+        try:
+            _row_run = _sp.run(
+                ["node", "-"],
+                input=_panel_probe(_row_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _row_run.returncode != 0:
+                raise ValueError(_row_run.stderr.strip()[:80])
+            _rows = json.loads(_row_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            _row_gaps.append(f"probe unavailable ({exc})")
+            _rows = None
+        if _rows is not None:
+            _built = _rows["rows"]
+            _row_floor = _floor_for(_row_rules, "", row=True)
+            if len(_built) < 6:
+                _row_gaps.append(f"the panel built {len(_built)} rows")
+            else:
+                # (a) every row a finger can land on clears the floor,
+                # whether from its control or from a rule on the row.
+                for _r in _built:
+                    _kinds = _r["controls"] or ["none"]
+                    _tall = max(
+                        [_row_floor]
+                        + [_floor_for(_row_rules, k, row=False) for k in _kinds]
+                    )
+                    if _tall < _ROW_FLOOR:
+                        _row_gaps.append(
+                            f"the {'/'.join(_r['tune']) or '?'} row stands "
+                            f"{_tall:.0f}px ({'/'.join(_kinds)}), under {_ROW_FLOOR:.0f}"
+                        )
+                        break
+                else:
+                    _row_ok.append(
+                        f"{len(_built)} 行すべてが {_ROW_FLOOR:.0f}px 以上の床を持つ"
+                    )
+            # (b) the row stays the target: no control escapes its label.
+            if _rows["loose"]:
+                _row_gaps.append(
+                    "a control sits outside its label - the row is no longer "
+                    f"the target ({_rows['loose'][0]})"
+                )
+            else:
+                _row_ok.append("どの操作子もラベルの中にあり、行が的であり続ける")
+
+    c.add(
+        "creation_panel_rows_are_thumb_sized",
+        "指が触るのは行——その行に床がある",
+        0.0 if _row_gaps else float(len(_row_ok)),
+        detail=(
+            "; ".join(_row_gaps)
+            if _row_gaps
+            else "パネルを実際に組み立てさせて（createElement を記録する DOM で実運転）"
+            "行と中の操作子を数え上げ、coarse ブロックの宣言と突き合わせた。"
+            "**宣言があるか**ではなく**作られた行が床を持つか**を見る"
+            "（§4 の 48dp は指が触る面積の話で、入力欄の面積の話ではない）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- one local file, and it works where it is carried (§9, C-1678) --
     #
     # §9's differentiator is that the artifact is one local HTML the

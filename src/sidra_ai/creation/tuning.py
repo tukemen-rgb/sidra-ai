@@ -482,7 +482,97 @@ def motion_probe(script: str, *, template: str, seeded: bool) -> str:
     )
 
 
+#: The panel as it is actually built (§4, C-1680).
+#:
+#: ``evals/touch_form_controls.py`` reads the shell's coarse-pointer CSS
+#: and checks the declarations are there. It cannot see what they apply
+#: to, because the panel does not exist in the generated HTML at all -
+#: every control is made by ``tuneControl`` at run time, so a static read
+#: of the page finds one ``<button>`` and nothing else.
+#:
+#: What a finger lands on is the row: ``tuneControl`` wraps each control
+#: in a ``<label class="tune-row">``, so the whole line toggles. The row's
+#: height is therefore the tap target, and it comes from the tallest
+#: thing in it - which for a flag row is a 24px checkbox.
+#:
+#: So the tree is recorded as it is built: every row, the control inside
+#: it, and whether the control is really inside the label.
+PANEL_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const made = [];
+function elem(tag){
+  const node = { tagName: String(tag).toUpperCase(), style: { cssText: '' },
+    dataset: {}, kids: [], parent: null, className: '',
+    classList: { add(){}, remove(){}, toggle(){}, contains: () => false },
+    appendChild(c){ if (c) { c.parent = node; node.kids.push(c) } return c },
+    append(){}, setAttribute(k, v){ node[k] = v },
+    getAttribute(k){ return node[k] === undefined ? null : node[k] },
+    addEventListener(){}, removeEventListener(){}, remove(){},
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => nothing, focus(){}, click(){},
+    querySelector: () => null, querySelectorAll: () => [] };
+  made.push(node);
+  return node;
+}
+const canvas = elem('canvas');
+canvas.width = 720; canvas.height = 320;
+made.length = 0;
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = {
+  getElementById: () => canvas,
+  createElement: elem,
+  createTextNode: (text) => ({ tagName: '#text', text: text, kids: [] }),
+  body: { appendChild(){}, append(){}, insertBefore(){} },
+  addEventListener: () => {},
+  querySelector: () => null, querySelectorAll: () => [] };
+const kept = {};
+globalThis.localStorage = { getItem: (k) => (k in kept ? kept[k] : null),
+  setItem(k, v){ kept[k] = String(v) }, removeItem(k){ delete kept[k] } };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+function kindOf(node){
+  return node.tagName.toLowerCase() + (node.type ? '[' + node.type + ']' : '') }
+const rows = made
+  .filter(n => n.tagName === 'LABEL' && String(n.className).indexOf('tune-row') >= 0)
+  .map(function(row){
+    const inner = [];
+    (function walk(n){ n.kids.forEach(function(k){
+      if (k.tagName === 'INPUT' || k.tagName === 'SELECT' || k.tagName === 'TEXTAREA') {
+        inner.push(kindOf(k)) }
+      if (k.kids) walk(k) }) })(row);
+    return { className: String(row.className), controls: inner,
+      tune: row.kids.filter(k => k['data-tune']).map(k => k['data-tune']) };
+  });
+const loose = made
+  .filter(n => (n.tagName === 'INPUT' || n.tagName === 'SELECT') && n['data-tune'])
+  .filter(function(n){
+    let up = n.parent;
+    while (up) { if (up.tagName === 'LABEL') return false; up = up.parent }
+    return true })
+  .map(kindOf);
+const counts = {};
+made.forEach(function(n){ const k = kindOf(n); counts[k] = (counts[k] || 0) + 1 });
+console.log(JSON.stringify({ rows: rows, loose: loose, counts: counts }));
+"""
+
+
+def panel_probe(script: str) -> str:
+    """The page's own script, wrapped so the panel builds where it can be
+    counted."""
+
+    return PANEL_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 __all__ = [
+    "PANEL_PROBE",
+    "panel_probe",
     "AXIS_LABELS",
     "LADDER",
     "MOTION_PROBE",
