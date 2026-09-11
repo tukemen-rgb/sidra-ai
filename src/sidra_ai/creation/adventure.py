@@ -847,6 +847,10 @@ function key(k){
   (handlers.keyup || []).forEach(fn => fn(e));
 }
 key(' '); run(2);
+/* The page's own hold, overheard where it is asked for. */
+const holds = [];
+const realHitstop = hitstop;
+hitstop = function(f){ holds.push(Number(f) || 0); return realHitstop.apply(null, arguments) };
 function findTile(r, want){
   for (let ty = 0; ty < GH; ty++) for (let tx = 0; tx < GW; tx++)
     if (rooms[r][ty][tx] === want) return [tx, ty];
@@ -859,16 +863,22 @@ function faceTile(tx, ty){
    the frozen one, and the pickup would never be seen. */
 const SETTLE = 8;
 function clearRoom1(){
-  let swings = 0;
+  let swings = 0, hold = 0;
   const countdown = [];
   for (let i = 0; i < 60 && enemies[1].some(e => e.alive); i++) {
     const en = enemies[1].find(e => e.alive);
     hero.hp = 99; hero.swing = 0;
     hero.x = en.x - 20; hero.y = en.y; hero.dir = 1;
+    /* Read where the page asks for it (§1, C-1686): HITSTOP is a small
+       integer that decays a frame at a time, so a reading taken after
+       the frame has run has lost the resolution the ladder is made of.
+       The number passed is decided at run time, so this is the canvas. */
+    holds.length = 0;
     key(' '); run(1); swings++;
+    hold = Math.max(hold, holds.length ? Math.max.apply(null, holds) : 0);
     countdown.push({ left: enemies[1].filter(e => e.alive).length, drop: !!keyDrop });
   }
-  return { swings: swings, countdown: countdown,
+  return { swings: swings, countdown: countdown, hold: hold,
     cleared: enemies[1].every(e => !e.alive) };
 }
 function attempt(takeKey){
@@ -883,18 +893,28 @@ function attempt(takeKey){
   /* The chest while the guardian stands, before anything else. */
   faceTile(chest[0], chest[1]); hero.swing = 0; key(' '); run(SETTLE);
   const guarded = state;
-  let turns = 0;
+  let turns = 0, guardHold = 0, fallHold = 0;
   while (guardFacts() && guardFacts().alive && turns++ < 3000) {
     hero.hp = 99;
     const g = guardFacts();
+    const hpBefore = g.hp;
+    holds.length = 0;
     if (g.inv <= 0 && hero.swing <= 0) {
       hero.x = g.x - 26; hero.y = g.y; hero.dir = 1; key(' ') }
     run(2);
+    const after = guardFacts();
+    const asked = holds.length ? Math.max.apply(null, holds) : 0;
+    if (after.hp < hpBefore) {
+      /* The last blow is the fall; every earlier one is a blow taken. */
+      if (after.alive) { guardHold = Math.max(guardHold, asked) }
+      else { fallHold = asked }
+    }
   }
   const fell = !guardFacts().alive;
   faceTile(chest[0], chest[1]); hero.swing = 0; key(' '); run(SETTLE);
   return { swings: room1.swings, cleared: room1.cleared,
     countdown: room1.countdown, dropped: dropped, held: held,
+    holdRoamer: room1.hold, holdGuard: guardHold, holdFall: fallHold,
     guarded: guarded, fell: fell, turns: turns, state: state,
     gems: hero.gems, charm: hero.charm, hearts: hero.maxhp,
     doorStands: findTile(1, 10) !== null,

@@ -39,6 +39,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "hitstop",
     "burst",
     "shakeAmount",
+    "hitstopFrames",
     "particleCount",
     "failBeat",
     "failBeats",
@@ -116,6 +117,11 @@ function burst(x,y,n,colour){if(REDUCED)return;
     PARTS.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-0.6,
       life:1,c:colour||'CYAN_TOKEN'})}}
 function shakeAmount(){return SHAKE}
+/* The other half of the same beat (§1, C-1686). shake() and hitstop()
+   are one pair in the technique list and both keep the frame's maximum,
+   so both need a reader: a ladder measured off source literals is a
+   ledger, and C-1640 already found what ledgers hide. */
+function hitstopFrames(){return HITSTOP}
 function particleCount(){return PARTS.length}
 /* The moment a round is lost, as one call (§8 事実 2). Built out of the
    three effects above rather than beside them, so reduced motion needs no

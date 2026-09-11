@@ -560,7 +560,7 @@ for (let i = 0; i < 400 && bossFacts().state !== 'fight'; i++) run(1);
 function strike(aim, kind){
   shots.length = 0;
   const before = bossFacts();
-  let atHit = null, kick = 0;
+  let atHit = null, kick = 0, hold = 0;
   for (let i = 0; i < 400 && !atHit; i++) {
     shots.push({x: legX(), y: GROUND + aim + 8, vy: 0});
     /* Clear the camera's accumulator so this frame's reading is THIS
@@ -569,11 +569,20 @@ function strike(aim, kind){
        otherwise sit on top of the leg's own 3 and invert the ladder.
        Only the probe's own view is cleared; the page is untouched. */
     SHAKE = 0;
+    /* The hold is read at the moment the page asks for it (§1, C-1686).
+       HITSTOP decays a frame at a time and is a small integer, so a
+       reading taken after the frame has run has already lost most of its
+       resolution - a three-frame hold and a one-frame hold both arrive
+       as noise. What the page decided is the number it passed, which is
+       computed at run time (puzzle's is cells.length>4?3:1), so this is
+       still the canvas and not the ledger. */
+    holds.length = 0;
     run(1);
     const b = bossFacts();
     if (kind === 'head' ? b.cycles !== before.cycles : b.legHp !== before.legHp) {
       atHit = b;
       kick = shakeAmount();
+      hold = holds.length ? Math.max.apply(null, holds) : 0;
     }
   }
   if (!atHit) { return { landed: false } }
@@ -587,24 +596,33 @@ function strike(aim, kind){
     if (b.hurt === 0 && b.smoke === 0) break;
     run(1);
   }
-  return { landed: true, kick: kick, hurtAtHit: atHit.hurt, smokeAtHit: atHit.smoke,
+  return { landed: true, kick: kick, hold: hold, hurtAtHit: atHit.hurt, smokeAtHit: atHit.smoke,
     smokeY: atHit.smokeY, flashFrames: flashFrames, smokeFrames: smokeFrames,
     smokeAfterFlash: smokeAfterFlash, smokeLeft: bossFacts().smoke,
     phaseBefore: before.phase };
 }
+/* The page's own hold, overheard where it is asked for. */
+const holds = [];
+const realHitstop = hitstop;
+hitstop = function(f){ holds.push(Number(f) || 0); return realHitstop.apply(null, arguments) };
 const leg = strike(-70, 'leg');
-/* Break the leg open so the head comes down, then strike THAT. */
+/* Break the leg open so the head comes down, then strike THAT. The
+   buckle is the leg's rung on the hold ladder (§1, C-1686): hitLeg()
+   shakes on every hit but only asks for a hold when the leg gives, so
+   the first hit's hold is nothing and the buckle's is the number. */
+holds.length = 0;
 for (let i = 0; i < 2000 && bossFacts().phase !== 'open'; i++) {
   shots.push({x: legX(), y: GROUND - 70 + 8, vy: 0});
   run(1);
 }
+const buckleHold = holds.length ? Math.max.apply(null, holds) : 0;
 const openedAt = bossFacts().phase;
 const cyclesBefore = bossFacts().cycles;
 const head = strike(-160, 'head');
 /* The blow rings at the leg and lights at the leg (§28, C-1658). */
 const pair = earEye('cut', W);
 console.log(JSON.stringify({
-  pair: pair, leg: leg, head: head, opened: openedAt,
+  pair: pair, leg: leg, head: head, opened: openedAt, buckleHold: buckleHold,
   cyclesBefore: cyclesBefore, cyclesAfter: bossFacts().cycles,
   ground: 320 - 46
 }));

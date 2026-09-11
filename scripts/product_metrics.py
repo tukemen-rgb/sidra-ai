@@ -16139,6 +16139,109 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the hold has a ladder too (§1, C-1686) -------------------------
+    #
+    # §1 lists hitstop and knockback as one pair, and Vlambeer's rule is
+    # that the beat is proportional to the event's weight.
+    # creation_shake_ladder pins that for the camera across six
+    # templates, off the page's own shakeAmount() and explicitly not off
+    # source literals - "それは帳簿" (C-1640). The other half of the pair
+    # had no ladder at all: every hitstop() call could be levelled to the
+    # same number and the board would stay green.
+    #
+    # Read where the page asks for the hold, because HITSTOP is a small
+    # integer that decays a frame at a time - by the time a frame has
+    # run, a three-frame hold and a one-frame hold are the same noise.
+    # The number asked for is computed at run time (puzzle's is
+    # cells.length>4?3:1), so this is still the canvas.
+    from sidra_ai.creation.adventure import run_probe as _hold_run_probe
+    from sidra_ai.creation.kaiju import beats_probe as _hold_beats_probe
+
+    _hold_gaps: list[str] = []
+    _hold_ok: list[str] = []
+
+    def _hold_read(request: str, probe, label: str):
+        page = generate_game(request).html
+        found = _re.search(r"<script>(.*?)</script>", page, _re.S)
+        if found is None:
+            _hold_gaps.append(f"{label}: no script on the page")
+            return None
+        try:
+            run = _sp.run(
+                ["node", "-"],
+                input=probe(found.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:80])
+            return json.loads(run.stdout.strip().splitlines()[-1])
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            _hold_gaps.append(f"{label}: probe unavailable ({exc})")
+            return None
+
+    _hold_adv = _hold_read(
+        "迷宮を冒険するゲームを作って", _hold_run_probe, "adventure"
+    )
+    if _hold_adv is not None:
+        _w = _hold_adv["walked"]
+        _rungs = [
+            ("うろつく敵", _w.get("holdRoamer") or 0),
+            ("番人への一撃", _w.get("holdGuard") or 0),
+            ("番人の崩落", _w.get("holdFall") or 0),
+        ]
+        if _w.get("state") != "win":
+            _hold_gaps.append("adventure: the run did not reach the fall")
+        # (b) the light rung is a hold, not nothing - "heavier is longer"
+        # is satisfied by every rung being zero.
+        elif _rungs[0][1] < 1:
+            _hold_gaps.append("adventure: the lightest blow stops nothing")
+        elif not (_rungs[0][1] < _rungs[1][1] < _rungs[2][1]):
+            _hold_gaps.append(
+                "adventure: the ladder is not a ladder ("
+                + " / ".join(f"{n} {v}" for n, v in _rungs)
+                + ")"
+            )
+        else:
+            _hold_ok.append(
+                "adventure=" + " < ".join(f"{n} {v}f" for n, v in _rungs)
+            )
+
+    _hold_kai = _hold_read(
+        "巨大怪獣と戦うゲームを作って", _hold_beats_probe, "kaiju"
+    )
+    if _hold_kai is not None:
+        _buckle = _hold_kai.get("buckleHold") or 0
+        _head = (_hold_kai.get("head") or {}).get("hold") or 0
+        if not (_hold_kai.get("head") or {}).get("landed"):
+            _hold_gaps.append("kaiju: the head was never struck")
+        elif _buckle < 1:
+            _hold_gaps.append("kaiju: the leg buckling stops nothing")
+        elif not (_buckle < _head):
+            _hold_gaps.append(
+                f"kaiju: the ladder is not a ladder (脚 {_buckle} / 頭 {_head})"
+            )
+        else:
+            _hold_ok.append(f"kaiju=脚の座屈 {_buckle}f < 頭 {_head}f")
+
+    c.add(
+        "creation_hold_ladder",
+        "重い出来事ほど長く止まる",
+        0.0 if _hold_gaps else float(len(_hold_ok)),
+        detail=(
+            "; ".join(_hold_gaps)
+            if _hold_gaps
+            else "／".join(_hold_ok)
+            + "（§1 の「ヒットストップとノックバック」の**止まり**側。"
+            "揺れの梯子と同じく**ソースのリテラルは読まず**、"
+            "実走行でページ自身が要求した frames を拾う。"
+            "**軽い側が 0 でないこと**まで見る——"
+            "「重い方が長い」は全部 0 でも真になるため）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the giant moves like a giant (§6 観察 2, C-1685) ---------------
     #
     # The observation is one sentence with two halves: "多脚戦車は脚の周期
