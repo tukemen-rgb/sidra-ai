@@ -1400,6 +1400,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1675: the web UI switched refusal guidance to per-reason messages
+    # (C-1157), but sidra-ask's render() still keyed only on security.decision,
+    # so a stopped model, a withheld answer and a blocked history all printed
+    # "wait and try again" - advice that fixes none. render() now keys on the
+    # refusal code like the web UI.
+    from sidra_ai.evals.ask_refusal_message_matches_reason import (
+        evaluate_ask_refusal_message_matches_reason,
+    )
+
+    ask_refusal = evaluate_ask_refusal_message_matches_reason()
+    c.add(
+        "ask_refusal_message_matches_reason",
+        "sidra-ask の拒否文言が理由コード別に次の一手を出す",
+        10.0 * ask_refusal.checks_passed / ask_refusal.checks_total,
+        detail=f"{ask_refusal.checks_passed}/{ask_refusal.checks_total} checks; "
+               "src/sidra_ai/evals/ask_refusal_message_matches_reason.py"
+               + ("" if ask_refusal.passed else "; " + "; ".join(ask_refusal.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

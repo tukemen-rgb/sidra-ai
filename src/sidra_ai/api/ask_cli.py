@@ -248,18 +248,39 @@ def render(payload: dict[str, Any]) -> int:
         print("回答を拒否した。")
         # The API reason is the gate's English audit text ("prompt-injection
         # patterns detected; …"); a terminal user reads Japanese and needs a
-        # next step, not the audit trail (C-1238). The message is chosen by the
-        # machine-readable security.decision - a gate refusal (quarantine/block)
-        # asks for a rephrase, any other refusal asks to retry. The full English
-        # reason is still in --json for anyone who needs it.
-        decision = (payload.get("security") or {}).get("decision")
-        if decision in ("quarantine", "block"):
-            print(
+        # next step, not the audit trail (C-1238). The full English reason is
+        # still in --json for anyone who needs it.
+        #
+        # Keyed on the payload's refusal code, the fixed identifier the service
+        # sets on every refusal - the same codes the web UI uses (C-1157/C-1675).
+        # security.decision alone could only tell a gate refusal from everything
+        # else, so a stopped model, a blocked history and a withheld answer all
+        # got "wait and try again" - advice that fixes none of them, since the
+        # next step differs.
+        messages = {
+            "gate": "入力が安全性チェックにかかった。指示の上書きや秘密情報を含む"
+                    "表現を避け、言い換えてもう一度試す。",
+            "history": "回答を出せなかった。これまでの会話の中に安全性チェックに"
+                       "かかる内容があった。会話をやり直すか、その部分を外して試す。",
+            "model_unavailable": "回答を出せなかった。ローカルモデルに接続できていない。"
+                                 "待っても直らない——モデル（Ollama / llama.cpp）が起動"
+                                 "しているか、サーバ起動時の model backend が echo のまま"
+                                 "でないか確認する。",
+            "output_guard": "回答を出せなかった。答えの中に秘密や個人情報らしき箇所が"
+                            "見つかったので全体を差し止めた。同じ質問なら同じ結果になる。",
+            "empty": "質問が空である。調べたいことを入力する。",
+        }
+        message = messages.get(payload.get("refusal"))
+        if message is None:
+            # An unknown or absent code: fall back to what decision can tell.
+            decision = (payload.get("security") or {}).get("decision")
+            message = (
                 "入力が安全性チェックにかかった。指示の上書きや秘密情報を含む"
                 "表現を避け、言い換えてもう一度試す。"
+                if decision in ("quarantine", "block")
+                else "回答を出せなかった。少し時間をおいて、もう一度試す。"
             )
-        else:
-            print("回答を出せなかった。少し時間をおいて、もう一度試す。")
+        print(message)
         # A refusal has no citations, and the "no evidence in the index" note
         # would misread as an ingestion problem (C-1254). Show citations only if
         # the gate somehow surfaced any; never the empty-index note.
