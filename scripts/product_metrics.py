@@ -1343,6 +1343,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1669: scoping sidra-ask to a non-allowlisted --repository made the server
+    # return 403, which the CLI rendered as "check your token" - sending the
+    # reader to fix auth when the real problem was the repository name. The CLI
+    # now validates --repository against the allowlist before sending.
+    from sidra_ai.evals.ask_rejects_unknown_repository import (
+        evaluate_ask_rejects_unknown_repository,
+    )
+
+    ask_repo = evaluate_ask_rejects_unknown_repository()
+    c.add(
+        "ask_rejects_unknown_repository",
+        "sidra-ask が許可外 --repository を送信前に名指しで弾く",
+        10.0 * ask_repo.checks_passed / ask_repo.checks_total,
+        detail=f"{ask_repo.checks_passed}/{ask_repo.checks_total} checks; "
+               "src/sidra_ai/evals/ask_rejects_unknown_repository.py"
+               + ("" if ask_repo.passed else "; " + "; ".join(ask_repo.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

@@ -363,6 +363,28 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
         )
         return 2
 
+    # --repository is a client-visible contract (the allowlist), so a name that
+    # is misspelt or not allowlisted is caught here, before a request is built.
+    # Sent, it comes back as a 403 the CLI renders as "check your token" - which
+    # sends the reader to fix authentication when the repository name is the one
+    # thing that fixes it. Name the knob and the repositories that are allowed;
+    # bad usage is exit 2, like an empty question or an out-of-range --top-k
+    # (C-1669). This mirrors the server's own allowlist check.
+    if args.repositories:
+        unknown = [
+            repository
+            for repository in args.repositories
+            if not settings.is_repository_allowed(repository)
+        ]
+        if unknown:
+            print(
+                f"--repository に許可されていないリポジトリを指定した: "
+                f"{'、'.join(unknown)}。"
+                f"（許可済み: {'、'.join(settings.allowed_repositories)}）",
+                file=sys.stderr,
+            )
+            return 2
+
     payload: dict[str, Any] = {"message": args.question, "top_k": args.top_k}
     if args.repositories:
         payload["repositories"] = args.repositories
