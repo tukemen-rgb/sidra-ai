@@ -1534,6 +1534,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1688: _split_on_headings found headings across the whole document, blind
+    # to code fences, so a fenced bash/yaml/Dockerfile block whose lines start
+    # with `#` (comments) was cut at every comment - fragmenting a README's
+    # setup steps. The chunker now tracks ```/~~~ fences and treats a `#` line
+    # inside one as content, not a heading.
+    from sidra_ai.evals.chunker_ignores_headings_in_code_fences import (
+        evaluate_chunker_ignores_headings_in_code_fences,
+    )
+
+    chunker_fence = evaluate_chunker_ignores_headings_in_code_fences()
+    c.add(
+        "chunker_ignores_headings_in_code_fences",
+        "チャンカーがコードフェンス内の # 行を見出しと誤認しない",
+        10.0 * chunker_fence.checks_passed / chunker_fence.checks_total,
+        detail=f"{chunker_fence.checks_passed}/{chunker_fence.checks_total} checks; "
+               "src/sidra_ai/evals/chunker_ignores_headings_in_code_fences.py"
+               + ("" if chunker_fence.passed else "; " + "; ".join(chunker_fence.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
