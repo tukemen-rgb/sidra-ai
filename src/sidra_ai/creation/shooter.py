@@ -125,7 +125,7 @@ function spawn(){wave++;const a=actOf(),n=3+Math.floor(rand()*4),gap=W/(n+1),
     vy:vy,vx:sway*(0.2+rand()*0.5),r:13,hp:1})}}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
-  if(e.code==='Space'){e.preventDefault();
+  if(e.code==='Space'){if(!keyInForm(e))e.preventDefault();
     if(state==='play'){fire=true}else{reset()}}
   if(e.key==='r'||e.key==='R'){reset()}});
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;

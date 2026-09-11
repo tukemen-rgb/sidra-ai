@@ -211,7 +211,7 @@ function pop(){if(state!=='play')return;
     if(cleared){winBeat(cv.width/2,cv.height/2)}else{failBeat(cv.width/2,cv.height/2)}}}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
-  if(e.code==='Space'){e.preventDefault();
+  if(e.code==='Space'){if(!keyInForm(e))e.preventDefault();
     if(state==='play'){pop()}else{reset()}return}
   if(e.key==='r'||e.key==='R'){reset();return}
   if(state!=='play')return;

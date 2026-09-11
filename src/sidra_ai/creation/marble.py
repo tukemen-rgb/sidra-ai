@@ -150,7 +150,7 @@ function reset(){ball={x:0,y:8,z:0,vx:0};gates=0;score=0;hotTaken=0;hotTotal=0;
     if(o.hot)hotTotal++})}
 reset();
 addEventListener('keydown',e=>{
-  if(e.key==='ArrowLeft'||e.key==='ArrowRight')e.preventDefault();
+  if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&!keyInForm(e))e.preventDefault();
   if(e.key==='r'||e.key==='R')reset()});
 cv.addEventListener('pointerdown',()=>{if(state!=='roll'){reset()}});
 function shade(hex,k){const n=parseInt(hex.slice(1),16);

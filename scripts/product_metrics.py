@@ -11888,6 +11888,102 @@ def measure_creation(c: Collector) -> None:
         else:
             slope_ok.append(_sl_key)
         _sl_read[_sl_key.split("/")[0]] = _sl
+    # --- the scroll guard decides, it is not merely spelled --------------
+    # C-1215 fixed a real fault: arrows scrolled the board 208px off screen
+    # in six presses. `evals/keys_dont_scroll.py` then pinned it by looking
+    # for three literal substrings in the HTML and never starting node -
+    # its docstring says the end-to-end proof "ran in a real browser at fix
+    # time", the same sentence C-1666 found in touch_targets.py, where the
+    # number turned out to be 18% wrong.
+    #
+    # Scrolling needs a browser; the DECISION does not. The page's own
+    # keydown listeners are called with a synthetic event and what is read
+    # back is whether preventDefault() was reached - in three directions,
+    # because a guard that prevents everything is as broken as one that
+    # prevents nothing, and a guard that ignores form controls takes the
+    # tuning panel's own switches with it.
+    import subprocess as _sg_sp
+
+    from sidra_ai.creation.games import scrollguard_probe as _sg_probe
+
+    guard_gaps: list[str] = []
+    guard_ok: list[str] = []
+    _sg_targets = (
+        ("adventure", "冒険ゲームを作って"),
+        ("duel", "ビームで撃ち合うゲームを作って"),
+        ("marble", "玉転がしゲームを作って"),
+    )
+    _sg_jobs = []
+    for _sg_key, _sg_req in _sg_targets:
+        _sg_page = generate_game(_sg_req).html
+        _sg_script = _scene_re.search(r"<script>(.*?)</script>", _sg_page, _scene_re.S)
+
+        def _sg_job(sc=(_sg_script.group(1) if _sg_script else None)):
+            if sc is None:
+                return ValueError("no script")
+            try:
+                return _sg_sp.run(
+                    ["node", "-"],
+                    input=_sg_probe(sc),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+            except (OSError, _sg_sp.SubprocessError) as exc:
+                return exc
+
+        _sg_jobs.append(_sg_job)
+    for (_sg_key, _sg_req), _sg_out in zip(_sg_targets, in_parallel(_sg_jobs)):
+        try:
+            if isinstance(_sg_out, Exception) or _sg_out.returncode != 0:
+                raise ValueError("probe failed")
+            _sg = json.loads(_sg_out.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            guard_gaps.append(f"{_sg_key}: the guard could not be driven")
+            continue
+        _sg_board = _sg.get("board") or {}
+        _sg_missed = [k for k, v in _sg_board.items() if not v]
+        _sg_leaks = [
+            tag for tag, v in (_sg.get("inForm") or {}).items()
+            if v.get("arrows") or v.get("space")
+        ]
+        if _sg_missed:
+            guard_gaps.append(
+                f"{_sg_key}: {', '.join(_sg_missed)} still scroll the page"
+            )
+        elif _sg.get("innocent"):
+            guard_gaps.append(
+                f"{_sg_key}: the guard swallows keys the game does not steer with"
+            )
+        elif _sg_leaks:
+            guard_gaps.append(
+                f"{_sg_key}: focus on {', '.join(_sg_leaks)} still loses its keys "
+                "- the tuning panel's own switches stop answering"
+            )
+        else:
+            guard_ok.append(_sg_key)
+    c.add(
+        "creation_scroll_guard_decides",
+        "スクロール抑止は綴りでなく判断で守る",
+        0.0 if guard_gaps else float(len(guard_ok)),
+        detail=(
+            "; ".join(guard_gaps)
+            if guard_gaps
+            else "ページ自身の `keydown` を**実際に呼んで** `preventDefault` が"
+            "**呼ばれたか**を読んだ（`evals/keys_dont_scroll.py` は実装そのままの文字列 3 本を"
+            "HTML から探すだけで node を起動せず、**docstring 自身が「本当の証明はブラウザで 1 度やった」と書いている**）。"
+            "**3 方向**: 盤面では矢印 4 種と Space を止める／**`a` は止めない**"
+            "（全部止める実装を満点にしない）／**INPUT・TEXTAREA・SELECT・BUTTON に焦点があるときは止めない**。"
+            "**3 つ目を測って製品の不具合が出た**: 共有の門は最初からフォーム要素を避けていたのに、"
+            "**各型が自前で呼ぶ `preventDefault` には同じ判断が無く**、"
+            "adventure / kaiju / shooter / puzzle / platformer / marble / racing / fishing / duel の 9 型で"
+            "**調整パネルに焦点があっても鍵が奪われていた**——"
+            "チェックボックスは Space で切り替えるので、**パネルのスイッチ自体が押せない**"
+            "（C-1662 で足した「押しっぱなしにしない」も含む）。`keyInForm()` を 1 つ置いて全部そこを通した"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the pad is thumb-sized where a thumb lands ----------------------
     # §4 records a 48dp minimum with 8dp spacing, and C-1019 built the
     # canvas pad that is the only way to play this on a phone. Neither

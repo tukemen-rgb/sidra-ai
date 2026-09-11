@@ -173,7 +173,7 @@ function pressCharge(){
   if(!p.hold){sfx('charge')}
   p.hold=true}
 addEventListener('keydown',ev=>{
-  if(ev.code==='Space'){ev.preventDefault();pressCharge()}
+  if(ev.code==='Space'){if(!keyInForm(ev))ev.preventDefault();pressCharge()}
   if(p.stun<=0&&ev.key==='ArrowUp'&&p.lane>0){p.lane--}
   if(p.stun<=0&&ev.key==='ArrowDown'&&p.lane<2){p.lane++}
   if(ev.key==='r'||ev.key==='R'){reset()}});

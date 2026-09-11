@@ -189,7 +189,7 @@ function crossLine(){times.push(lapT);lapT=0;
   else{lap++;sfx('key')}}
 const keys={};function K(k){return keys[k]}
 addEventListener('keydown',e=>{keys[e.key]=true;
-  if(e.key==='ArrowLeft'||e.key==='ArrowRight')e.preventDefault();
+  if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&!keyInForm(e))e.preventDefault();
   if(e.key==='r'||e.key==='R')reset()});
 addEventListener('keyup',e=>{keys[e.key]=false});
 function step(now){

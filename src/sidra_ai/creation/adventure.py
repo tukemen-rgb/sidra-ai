@@ -169,7 +169,7 @@ function solid(px,py){const t=tileAt(px,py);
     t===12||t===13||t===14||t===15}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
-  if(e.code==='Space'){e.preventDefault();swing()}
+  if(!keyInForm(e)&&e.code==='Space'){e.preventDefault();swing()}
   if(e.key==='r'||e.key==='R'){if(state!=='play')reset()}});
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
 cv.addEventListener('pointerdown',()=>{if(state==='play'){swing()}else{reset()}});

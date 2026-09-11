@@ -377,7 +377,8 @@ function cast(){
   /* Only a cast can break the run (C-1426). The sweep between casts is
      what the game asks a player to wait through, so it costs nothing. */
   else{comboMiss();msg='逃げられた。';sfx('clash',1,mx);shake(1.5)}}
-addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();cast()}});
+addEventListener('keydown',e=>{if(keyInForm(e))return;
+  if(e.code==='Space'){e.preventDefault();cast()}});
 cv.addEventListener('pointerdown',cast);
 step();
 """
@@ -524,12 +525,77 @@ step();
 #: remap wrapper exists, and only when focus is not on a form control:
 #: the tuning panel's sliders and inputs keep their arrow keys.
 _SCROLL_GUARD = """
+/* One name for "the key belongs to a form control, not to the game"
+   (C-1669). The shared guard spared the tuning panel from the start, but
+   each template's own handler called preventDefault() with no such test,
+   so Space on a focused checkbox was swallowed by the game - including
+   the panel's own switches. One predicate, used by all of them. */
+function keyInForm(e){const t=(e&&e.target&&e.target.tagName)||'';
+  return /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t)}
 addEventListener('keydown',function(e){
-  const t=(e.target&&e.target.tagName)||'';
-  if(/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t))return;
+  if(keyInForm(e))return;
   if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0)e.preventDefault();
 });
 """
+
+
+#: Does the scroll guard DECIDE, or is it only spelled correctly?
+#: (§12, C-1669.) `evals/keys_dont_scroll.py` checks that three literal
+#: substrings appear in the HTML and never starts node; its own docstring
+#: says the end-to-end proof "ran in a real browser at fix time". A guard
+#: registered on the wrong target, or one that returns early, spells the
+#: same and does nothing.
+#:
+#: Scrolling needs a browser. The decision does not: the page's own
+#: keydown listeners are called here with a synthetic event, and what is
+#: read back is whether preventDefault() was reached.
+SCROLLGUARD_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }), addEventListener: () => {} };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+/* Every keydown listener the page registered, in order, with a real
+   target - the guard reads e.target.tagName to spare form controls. */
+function ask(key, tagName){
+  let prevented = false;
+  const e = { key: key, code: key === ' ' ? 'Space' : key,
+    target: { tagName: tagName },
+    preventDefault(){ prevented = true },
+    stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => { try { fn(e) } catch (err) {} });
+  return prevented;
+}
+const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+const board = {};
+ARROWS.concat([' ']).forEach(k => { board[k] = ask(k, 'CANVAS') });
+/* A key the game does not steer with: a guard that prevents everything
+   would take the browser's own shortcuts with it. */
+const innocent = ask('a', 'CANVAS');
+/* Focus in the tuning panel: the sliders need their arrows back. */
+const inForm = {};
+['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].forEach(tag => {
+  inForm[tag] = { arrows: ARROWS.filter(k => ask(k, tag)), space: ask(' ', tag) } });
+console.log(JSON.stringify({ board: board, innocent: innocent, inForm: inForm,
+  listeners: (handlers.keydown || []).length }));
+"""
+
+
+def scrollguard_probe(script: str) -> str:
+    """The page's own script, wrapped so the guard's decision can be read."""
+
+    return SCROLLGUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
 
 _SPRITE_LOADER = """
 const SPRITES=SPRITE_MAP_TOKEN,IMAGES={};

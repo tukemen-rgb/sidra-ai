@@ -235,7 +235,7 @@ function tryJump(){if(state!=='play')return;
   else{me.buffer=BUFFER}}
 function cutJump(){me.held=false;me.buffer=0;if(me.vy<CUT)me.vy=CUT}
 addEventListener('keydown',e=>{keys[e.key]=true;
-  if(e.key==='ArrowUp'||e.code==='Space'){e.preventDefault();
+  if(e.key==='ArrowUp'||e.code==='Space'){if(!keyInForm(e))e.preventDefault();
     if(!me.held){me.held=true;tryJump()}}
   if(e.key==='r'||e.key==='R')reset()});
 addEventListener('keyup',e=>{keys[e.key]=false;

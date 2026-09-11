@@ -246,7 +246,7 @@ function step(rt){
 function K(k){return keys[k]}
 const keys={};
 addEventListener('keydown',e=>{keys[e.key]=true;
-  if(e.key===' '){fire();e.preventDefault()}
+  if(e.key===' '){fire();if(!keyInForm(e))e.preventDefault()}
   if(e.key==='r'||e.key==='R')reset()});
 addEventListener('keyup',e=>{keys[e.key]=false});
 /* The awakening, as a fact (C-1357): where the prologue is, what it has
