@@ -1286,6 +1286,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1664: `sidra-api --check` validated startup assembly but returned before
+    # the banner, so it never emitted the staged-model/echo caution - the one
+    # config warning the codebase added for a known silent failure. --check now
+    # surfaces it too.
+    from sidra_ai.evals.startup_check_warns_staged_model_echo import (
+        evaluate_startup_check_warns_staged_model_echo,
+    )
+
+    startup_check = evaluate_startup_check_warns_staged_model_echo()
+    c.add(
+        "startup_check_warns_staged_model_echo",
+        "sidra-api --check が staged-model/echo の静かな失敗を警告する",
+        10.0 * startup_check.checks_passed / startup_check.checks_total,
+        detail=f"{startup_check.checks_passed}/{startup_check.checks_total} checks; "
+               "src/sidra_ai/evals/startup_check_warns_staged_model_echo.py"
+               + ("" if startup_check.passed else "; " + "; ".join(startup_check.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

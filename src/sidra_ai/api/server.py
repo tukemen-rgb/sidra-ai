@@ -73,6 +73,14 @@ def main(argv: list[str] | None = None) -> int:
         # used by normal startup. This proves local model admission and storage
         # initialization without importing the ASGI server or opening a socket.
         print("SIDRA AI startup check passed; no socket opened")
+        # --check is the pre-flight an operator runs to confirm their posture, so
+        # it must surface the same staged-model/echo caution the banner does -
+        # otherwise the one known silent failure (a reviewed model staged but the
+        # process running echo) passes the check without a word (C-1664). A
+        # warning is not a refusal, so the check still succeeds (exit 0).
+        warning = staged_model_but_running_echo(settings)
+        if warning:
+            print(warning)
         return 0
 
     try:
