@@ -3061,7 +3061,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       検証: 破壊 5 通り（聞き返しを定型文に／生成器へ直結／空入力の聞き返しを
       壊す等）・pytest 全量・gate MISS 0・`--compare`）
       → 動かす数字: `creation_intent_paraphrase`（26→27）
-- [~] 作業中 2026-09-11 12:10 UTC ループA **C-1528: 制作動詞まわりの残骸が題材として引用される。**〔中〕
+- [x] 完了 2026-09-11 13:18 UTC ループA（**`creation_note_quotes_the_subject` 新設 unmeasurable→7**・判定器 exit **0**（MOVED 1・回帰なし）・pytest 全量 exit 0・gate MISS 0）**C-1528: 制作動詞まわりの残骸が題材として引用される。**〔中〕
       再現: `"Make a racing game for my kid"` →
       **「ただし『for my kid』は絵として出てきません」**、
       `"let's make a puzzle game"` → **「ただし『let's make a』は絵として
@@ -3073,6 +3073,26 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       助詞の規則で守られているのに、英語側は語の切り出しが無い。
       → 動かす数字: `creation_subject_quote_faithful` の英語ケースを追加して
       10 型で維持、かつ shooter の「弾」を含む同型の取りこぼし 0→1。
+      **実施記録（2026-09-11 13:18 UTC ループA）**: 判定器 exit **0**、`creation_note_quotes_the_subject` **新設 unmeasurable→7**。
+      **起票の 3 例は実際にページを生成して再現してから着手した**——そして**3 つとも別の仕組み**だった。
+      (1)「for my kid」= `_STRIP_EN_TAIL` が成果物名詞と please しか知らない。
+      (2)「let's make a」= `_STRIP_EN_HEAD` が制作動詞に `^` で固定されており、この依頼は**英語の枝に一度も入らない**ので依頼全文が題名になる。
+      (3)「弾」= `_ALSO_DEPICTED` に shooter が無い。**ページを読んで確かめた**——`shots.forEach(s=>{cx.fillRect(s.x-1.5,s.y-8,3,10)})` で毎発描いている。
+      「敵」が通っていたのは操作説明が偶然その語を使っているからで、「連射」としか書かれていない「弾」は拾えていなかった。
+      **一度 exit 2 を出して差し戻した——原因は起票に無い自分の追加**。裸の冠詞も頭として扱えば「a racing game, please」も畳めると考えたが、
+      `creation_title_drops_make_verb` が **2→0**、pytest が `test_a_request_without_a_making_verb_keeps_its_words[a racing game]` で落ちた。
+      **「a racing game」は操作者の語を全部残すことが固定されている**（「レースゲーム」が両方の語を残す日本語の規則を英語で読んだもの）。
+      **パターンのすぐ上のコメントがそう書いてあり、読んで引用したうえで広げてしまった**。頭は動詞に戻し、消したコメントは
+      「判定器が何を測って拒んだか」に書き換えた。`let's make a…` と欲求形（C-1527 の `I want a…`）は動詞なので残る。
+      **英語の頭を広げた副作用で別の形を壊し、それを両側で測って捕まえた**: `make a racing game about a cat` が「about a cat」を引くようになった
+      （`_STRIP_EN_ABOUT` が成果物名詞を**先頭**に固定していて、ジャンル語が前に来る形を拾わない）。先頭に 2 語までの走りを許して直し、
+      **壊れた形だから**「話す側」のテストの中心に置いた。
+      **通る理由がこの修正と無関係な行は 2 つ落とした**: 「a racing game, please」は 24 字上限で題名が既定に落ちるから黙るだけ、
+      「a puzzle game about a dog」は動詞が無いので題名が付かない。**載せれば「何も測らずに通る検査」**になる（C-1526 と同じ判断）。
+      **破壊 5 通り全検出**: shooter の宣言を外す／`for …` の刈り取りを外す／裸冠詞の頭を復活させる／about 節の先頭走りを外す／注釈を完全に黙らせる。
+      **計器の読みで 3 度ひっかかり、3 度とも捕まえた**（同じ形——「ファイルがある」ことは「自分の実行が書いた」ことの証拠ではない）:
+      古い `/tmp/before.json`（02:10 のもの）、要約行の落ちた pytest ログ、そして **11:19 の `compare3.log` を今回の判定と読みかけた**。
+      以後この鎖は終了コードを専用ファイルへ書き、そのファイルが埋まるまで待つ。
 - [ ] **C-1529: 日本語でも依頼文まるごとが題名になる形が残っている。**〔小〕
       再現: 「レースゲーム**を作ってほしい**」→ 題名が
       **「レースゲームを作ってほしい」**（ページ表題もこれ）。
