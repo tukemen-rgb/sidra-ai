@@ -1267,6 +1267,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1663: releasing a quarantine entry with no document_id records the
+    # approval, but released_document_ids() drops it (nothing to admit on
+    # re-ingest), so the CLI's identical success message was a false promise.
+    # The release now flags a document-id-less approval as unactionable.
+    from sidra_ai.evals.quarantine_release_flags_unactionable_approval import (
+        evaluate_quarantine_release_flags_unactionable_approval,
+    )
+
+    quar_release = evaluate_quarantine_release_flags_unactionable_approval()
+    c.add(
+        "quarantine_release_flags_unactionable_approval",
+        "sidra-quarantine release が document id 無しの承認を無効と明示する",
+        10.0 * quar_release.checks_passed / quar_release.checks_total,
+        detail=f"{quar_release.checks_passed}/{quar_release.checks_total} checks; "
+               "src/sidra_ai/evals/quarantine_release_flags_unactionable_approval.py"
+               + ("" if quar_release.passed else "; " + "; ".join(quar_release.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

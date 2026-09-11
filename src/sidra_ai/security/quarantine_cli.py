@@ -153,8 +153,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"released {release.entry_id} by {release.operator} at {release.released_at}")
         print(f"  reason: {release.reason}")
         print(f"  recorded in {review.release_path}")
-        print("\nThis records the approval only. Re-indexing is a separate,")
-        print("deliberate step on the ingestion side.")
+        # `released_document_ids()` admits only approvals whose entry carries a
+        # document_id; an entry recorded before document ids were kept has none,
+        # so its approval - though recorded here for audit - can never be tied to
+        # a document at re-ingest and will not be admitted. Printing the same
+        # "re-indexing will act on it" note for both makes a silent, inert
+        # approval look like a live one, which defeats the review (C-1663). So
+        # say which case this is.
+        released_entry = review.get(release.entry_id)
+        if released_entry.document_id:
+            print("\nThis records the approval only. Re-indexing is a separate,")
+            print("deliberate step on the ingestion side.")
+        else:
+            print(
+                "\n注意: このエントリには document id が記録されていない（隔離が "
+                "それを保存する前の記録）。承認は監査のため記録したが、"
+                "再取り込みはこの承認を実際の文書に結び付けられないため、この本文を"
+                "自動では通さない。",
+                file=sys.stderr,
+            )
         return 0
 
     if args.command == "stats":
