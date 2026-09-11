@@ -807,7 +807,7 @@ def guard_probe(script: str) -> str:
     return GUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-#: The dungeon, walked (§3, C-1675).
+#: The dungeon, walked (§3, C-1676).
 #:
 #: ``GUARD_PROBE`` reaches ``state='win'`` by writing ``hero.key = true``
 #: and stepping into room 2, which proves the chest opens for its key and

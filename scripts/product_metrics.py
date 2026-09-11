@@ -16025,7 +16025,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- the dungeon, walked to its own win (§3, C-1675) ----------------
+    # --- the dungeon, walked to its own win (§3, C-1676) ----------------
     #
     # creation_adventure_playable counts rooms and tiles in the generated
     # page and runs no frames. The only driver that reaches state='win'

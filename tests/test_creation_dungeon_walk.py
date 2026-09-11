@@ -1,4 +1,4 @@
-"""The dungeon is walked to its own win, with no flag set by hand (§3, C-1675).
+"""The dungeon is walked to its own win, with no flag set by hand (§3, C-1676).
 
 §3's skeleton is a mission graph: a lock stops progress, a key opens it,
 and the dependencies say which must come first. The adventure implements
