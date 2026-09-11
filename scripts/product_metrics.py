@@ -19305,6 +19305,36 @@ def measure_creation(c: Collector) -> None:
     else:
         _verb_langs.append("英語（文頭の make/create/build…）")
 
+    # C-1529. A third unit, and the reason it is a unit rather than three more
+    # Japanese cases: the first two groups are about *where the verb sits* -
+    # last (Japanese) or first (English) - and both rules anchor on the verb
+    # being at that edge. This group is the one where the verb is not at the
+    # edge at all. 「作ってほしい」 puts a benefactive after it and 「が欲しい」
+    # has no making verb whatsoever, so the end-anchored rule matched nothing
+    # and the whole request became the title. Counting these inside 日本語
+    # would leave the number at 2 while a structurally different rule was
+    # missing, which is what the 2 was built to say.
+    #
+    # The desire forms are here because C-1527 taught the *router* to accept
+    # them and nothing taught the title rule - the second time widening the
+    # door left this behind (「let's make a」 was the first, C-1528).
+    _tail = [
+        (q, want) for q, want in (
+            ("レースゲームを作ってほしい", "レース"),
+            ("猫のゲームを作ってほしい", "猫"),
+            ("レースゲームを作ってもらいたい", "レース"),
+            ("レースゲームが欲しい", "レース"),
+            ("パズルゲームがほしい", "パズル"),
+        )
+        if _verb_title(q, _verb_fallback) != want
+    ]
+    if _tail:
+        _verb_bad.extend(
+            f"願望形が落ちない: {q}→{_verb_title(q, _verb_fallback)!r}" for q, _ in _tail
+        )
+    else:
+        _verb_langs.append("日本語（願望形・〜てほしい／〜が欲しい）")
+
     # Both directions: a request that names a thing without asking for it
     # keeps every word it used, in either language. Removing the tail
     # unconditionally would turn `racing game` into `racing`, which is a

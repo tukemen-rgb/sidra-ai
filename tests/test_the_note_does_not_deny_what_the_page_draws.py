@@ -230,3 +230,25 @@ def test_the_note_still_names_a_subject_the_page_cannot_draw(
     game = generate_game(request_text)
 
     assert undepicted_subject(request_text, game.template, game.asked_title) == subject
+
+
+@pytest.mark.parametrize(
+    "request_text, subject",
+    [
+        # C-1529: the benefactive tail. The end-anchored strip rule matched
+        # nothing here, so the title was the whole request and the note
+        # quoted it back as a subject the page does not draw - the C-1528
+        # dishonesty in a form C-1528 did not reach.
+        ("猫のゲームを作ってほしい", "猫"),
+        ("犬のゲームを作ってもらいたい", "犬"),
+        # No making verb at all. C-1527 taught the router to accept these and
+        # nothing taught the title rule.
+        ("猫のゲームが欲しい", "猫"),
+    ],
+)
+def test_a_polite_tail_does_not_become_the_subject(
+    request_text: str, subject: str
+) -> None:
+    game = generate_game(request_text)
+
+    assert undepicted_subject(request_text, game.template, game.asked_title) == subject

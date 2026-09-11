@@ -862,8 +862,26 @@ _TRADEMARKS = (
     "任天堂",
 )
 
+#: C-1529: the verb is not always the last thing in the sentence. This was
+#: anchored directly after the making verb, so 「レースゲームを作ってほしい」
+#: matched nothing and the page was titled with the whole request - and the
+#: honesty note then quoted 「猫のゲームを作ってほしい」 as a subject the page
+#: does not draw, which is the C-1528 dishonesty in a form C-1528 did not
+#: reach.
+#:
+#: Two tails are added, and they are different shapes. 「作ってほしい」 is a
+#: making verb with a benefactive after it; 「が欲しい」 has no making verb at
+#: all - it is the desire form C-1527 taught the *router* to accept, and the
+#: title rule was never told. That is the second time widening the door left
+#: this rule behind (「let's make a」 was the first, C-1528), so both are
+#: written here rather than one now and one later.
 _STRIP = re.compile(
-    r"(を|の)?\s*(ゲーム|game)?\s*(を)?\s*(作って|作成して|生成して|つくって|作れ|ください|下さい)\s*[。.!！]?\s*$"
+    r"(を|の|が)?\s*(ゲーム|game)?\s*(を|が)?\s*"
+    r"(?:(?:作って|作成して|生成して|つくって|作れ)"
+    r"(?:ほしい|欲しい|もらいたい|いただきたい)?"
+    r"|ください|下さい"
+    r"|ほしい|欲しい)"
+    r"(?:です|です)?\s*[。.!！]?\s*$"
 )
 
 
