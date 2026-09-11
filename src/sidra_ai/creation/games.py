@@ -842,18 +842,21 @@ def _is_only_difficulty(text: str) -> bool:
 #: door the same week (「I want a…」「we need a…」 now reach a generator), so
 #: the list of heads that get here is no longer the list of making-verbs.
 #:
-#: The bare article is a head too: "a racing game, please" is a whole request
-#: whose only non-subject words are at the ends. A request with no article and
-#: no verb - `racing game` - still matches nothing here and keeps both its
-#: words, which is the rule the Japanese side has and the reason the tail is
-#: only trimmed when a head was found.
+#: A head still has to be a verb. Making the bare article one was tried and
+#: the judge refused it: `creation_title_drops_make_verb` went 2 -> 0 and
+#: `test_a_request_without_a_making_verb_keeps_its_words` failed on 「a racing
+#: game」, which is pinned to keep every word the operator used. That pin is
+#: the Japanese rule read in English - 「レースゲーム」 keeps both its words
+#: too - and widening it here would have been a wider rule in one language
+#: than the other, which is the drift this pattern exists inside.
 _STRIP_EN_HEAD = re.compile(
     r"^\s*(?:hey\s+|hi\s+)?(?:please\s+)?"
     r"(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
     r"(?:"
     r"(?:let\s*'?s\s+)?(?:make|create|build|generate|design|produce|draw|write)\s+(?:me\s+)?"
-    r"|(?:i|we)\s*(?:'?d\s*|\s+would\s+)?(?:want|need|like)\s+"
-    r")?"
+    r"|(?:i|we)\s*(?:'?d\s*|\s+would\s+)like\s+"
+    r"|(?:i|we)\s+(?:want|need)\s+"
+    r")"
     r"(?:a|an|the)\s+",
     re.IGNORECASE,
 )

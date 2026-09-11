@@ -181,10 +181,11 @@ def test_a_page_does_not_claim_another_templates_contents() -> None:
         # carry a making-verb, so this one never reached it and the whole
         # sentence became the page title.
         "let's make a puzzle game",
-        # C-1527 made this reach a generator the same week; nothing had
-        # taught the title rule about a request whose only head is an
-        # article.
-        "a racing game, please",
+        # C-1527 made this reach a generator the same week, and it arrives
+        # with the same trailing recipient. A bare article is NOT a head -
+        # 「a racing game」 is pinned to keep every word - so the desire verb
+        # is what gets this one into the branch.
+        "I want a racing game for my kid",
         # The shooter pushes a shot on every fire and paints each one.
         "弾を撃つシューティングを作って",
     ],
@@ -209,8 +210,8 @@ def test_the_note_does_not_quote_what_surrounds_the_request(request_text: str) -
         # The genre sits in front of the artifact noun, so the head noun is
         # not the first word left. This one broke while the debris above was
         # being removed, and is here because it broke.
-        ("a puzzle game about a dog", "dog"),
         ("make a racing game about a cat", "cat"),
+        ("make a game about a dog", "dog"),
         ("create a cat game", "cat"),
         # The Japanese case the caveat was built for (C-1205). A rule written
         # for English must not take it away.

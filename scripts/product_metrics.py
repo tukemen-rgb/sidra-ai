@@ -17923,11 +17923,11 @@ def measure_creation(c: Collector) -> None:
         # substring rule - the caveat must still be a run of the operator's
         # own characters when the operator wrote English.
         "create a cat game",
-        "a puzzle game about a dog",
+        "make a game about a dog",
         "make a racing game about a cat",
         "Make a racing game for my kid",
         "let's make a puzzle game",
-        "a racing game, please",
+        "I want a racing game for my kid",
     )
     # The two the caveat exists for: a subject the page does not draw. If
     # these stop being said, silence is being scored as faithfulness.
@@ -17942,7 +17942,7 @@ def measure_creation(c: Collector) -> None:
         # these, the English rows above could all be satisfied by a caveat
         # that never speaks English at all.
         "create a cat game",
-        "a puzzle game about a dog",
+        "make a racing game about a cat",
     )
     _QUOTE_GLUE = ("を", "が", "に", "へ", "と", "で", "の", "は", "も", "や")
 
@@ -18093,18 +18093,18 @@ def measure_creation(c: Collector) -> None:
     _NOTE_SILENT = (
         # Who it is for is not what is in it.
         "Make a racing game for my kid",
-        # The head that carries no making-verb. C-1527 widened the door to
-        # these the same week, so the shapes that reach a generator are no
-        # longer the shapes the title rule knew about.
+        # The head that carries no making-verb of its own. C-1527 widened the
+        # door to these the same week, so the shapes that reach a generator
+        # are no longer the shapes the title rule knew about.
         "let's make a puzzle game",
-        "a racing game, please",
+        "I want a racing game for my kid",
         # The page pushes a shot on every fire and paints each one.
         "弾を撃つシューティングを作って",
     )
     _NOTE_SPEAKS = {
         # A subject named in English, with the genre in front of the artifact
         # noun - the shape that broke while the debris above was being fixed.
-        "a puzzle game about a dog": "dog",
+        "make a racing game about a cat": "cat",
         "create a cat game": "cat",
         # And the Japanese case the caveat was built for, so a rule written
         # for English cannot quietly take it away.
@@ -18147,8 +18147,9 @@ def measure_creation(c: Collector) -> None:
             "注釈が**出ない**、(b) 本当に描かれない主題 3 通り"
             "（英語の dog・cat と日本語の猫）では**今も出て主題を引く**。"
             "(b) が無いと注釈を消すだけの実装が満点になる。"
-            "**修正前の実測**: (a) の 4 通りのうち 3 通りが残骸を引用していた"
-            "（4 つ目の「a racing game, please」は C-1527 が届くようにした形）。"
+            "**修正前の実測**: (a) の 4 通りすべてが残骸を引用していた"
+            "（「for my kid」「let's make a」「弾」、および C-1527 が届くように"
+            "した「I want a…」形も同じ「for my kid」）。"
         ),
         kind=OUTCOME,
     )
