@@ -300,7 +300,14 @@ def render(payload: dict[str, Any]) -> int:
     model = payload.get("model") or {}
     if model.get("backend"):
         cost = model.get("external_api_cost_usd")
-        cost_note = f", 外部 API 費用 ${cost}" if cost is not None else ""
+        # Only when a paid call actually cost something. v0.1 forbids external
+        # APIs (usage.py raises on a paid call and totals() sums to 0.0, never
+        # None), so `is not None` never suppressed the clause and every local
+        # answer ended with "外部 API 費用 $0.0" - an external-API-cost line on a
+        # product that never calls one, contradicting its local-first promise
+        # on every answer. Show the clause only for a real cost; the backend
+        # note (which reveals an echo silent-start, C-1664/C-1666) always stays.
+        cost_note = f", 外部 API 費用 ${cost}" if cost else ""
         print(f"\n({clean(model['backend'])}{cost_note})")
 
     _report_stripped(clean)

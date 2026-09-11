@@ -1324,6 +1324,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1668: the sidra-ask answer footer printed "外部 API 費用 $0.0" on every
+    # local answer - the cost guard was `is not None`, but v0.1 forbids external
+    # APIs so the cost is always 0.0, an external-API-cost line on a product that
+    # never calls one. render() now shows the clause only for a real cost.
+    from sidra_ai.evals.ask_answer_hides_zero_external_cost import (
+        evaluate_ask_answer_hides_zero_external_cost,
+    )
+
+    ask_cost = evaluate_ask_answer_hides_zero_external_cost()
+    c.add(
+        "ask_answer_hides_zero_external_cost",
+        "sidra-ask がゼロの外部 API 費用行を毎回出さない",
+        10.0 * ask_cost.checks_passed / ask_cost.checks_total,
+        detail=f"{ask_cost.checks_passed}/{ask_cost.checks_total} checks; "
+               "src/sidra_ai/evals/ask_answer_hides_zero_external_cost.py"
+               + ("" if ask_cost.passed else "; " + "; ".join(ask_cost.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
