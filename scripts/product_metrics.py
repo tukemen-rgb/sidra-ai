@@ -1458,6 +1458,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1680: the artifact/project listings capped at MAX_LISTED and carried no
+    # true total, so the entry page showed "全 200 件" (and hid everything past
+    # 200) once a machine had more than 200 generated files. The endpoints now
+    # report the true total and the page uses it.
+    from sidra_ai.evals.artifact_listing_reports_true_total import (
+        evaluate_artifact_listing_reports_true_total,
+    )
+
+    artifact_total = evaluate_artifact_listing_reports_true_total()
+    c.add(
+        "artifact_listing_reports_true_total",
+        "生成物一覧が 200 超でも真の総数を報告する",
+        10.0 * artifact_total.checks_passed / artifact_total.checks_total,
+        detail=f"{artifact_total.checks_passed}/{artifact_total.checks_total} checks; "
+               "src/sidra_ai/evals/artifact_listing_reports_true_total.py"
+               + ("" if artifact_total.passed else "; " + "; ".join(artifact_total.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

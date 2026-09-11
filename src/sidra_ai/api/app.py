@@ -44,6 +44,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.routing import APIRoute
 
 from sidra_ai.api.artifacts import (
+    MAX_LISTED,
     ArtifactNotFound,
     list_artifacts,
     list_projects,
@@ -477,14 +478,17 @@ def create_app(
         """
 
         current = resolve_service()
-        found = [artifact.to_dict() for artifact in list_artifacts(current.settings.data_dir)]
+        all_artifacts = list_artifacts(current.settings.data_dir)
+        # Cap the wire payload but report the true total, so the entry page can
+        # say "全 N 件" honestly and knows there is more than it shows (C-1680).
+        found = [artifact.to_dict() for artifact in all_artifacts[:MAX_LISTED]]
         record_audit(
             operation="artifacts",
             input_chars=0,
             repositories=None,
             response={"count": len(found)},
         )
-        return {"artifacts": found}
+        return {"artifacts": found, "total": len(all_artifacts)}
 
     @app.get("/v1/artifacts/{name}", dependencies=guarded)
     def artifact(name: str) -> Any:
@@ -531,14 +535,15 @@ def create_app(
         """
 
         current = resolve_service()
-        found = [project.to_dict() for project in list_projects(current.settings.data_dir)]
+        all_projects = list_projects(current.settings.data_dir)
+        found = [project.to_dict() for project in all_projects[:MAX_LISTED]]
         record_audit(
             operation="projects",
             input_chars=0,
             repositories=None,
             response={"count": len(found)},
         )
-        return {"projects": found}
+        return {"projects": found, "total": len(all_projects)}
 
     @app.get("/v1/projects/{slug}/{name:path}", dependencies=guarded)
     def project_file(slug: str, name: str) -> Any:

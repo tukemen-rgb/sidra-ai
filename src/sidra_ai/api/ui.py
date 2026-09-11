@@ -302,13 +302,15 @@ ASK_PAGE = """<!doctype html>
         // uncapped list grew to hundreds of rows - on a phone the entry page
         // became a ~50,000px scroll that buried the projects section (C-1252).
         // Show a recent slice; the note reports the total so nothing is hidden
-        // without saying so.
+        // without saying so. The server caps the returned rows too, so the true
+        // count comes from result.total, not items.length (C-1680).
+        var total = (result.total != null) ? result.total : items.length;
         var shown = items.slice(0, ARTIFACT_LIMIT);
-        if (!items.length) {
+        if (!total) {
           artifactStatus.textContent = "まだありません。";
-        } else if (items.length > ARTIFACT_LIMIT) {
+        } else if (total > ARTIFACT_LIMIT) {
           artifactStatus.textContent =
-            "新しい順に " + ARTIFACT_LIMIT + " 件を表示（全 " + items.length + " 件）。";
+            "新しい順に " + ARTIFACT_LIMIT + " 件を表示（全 " + total + " 件）。";
         } else {
           artifactStatus.textContent = "";
         }
@@ -365,13 +367,15 @@ ASK_PAGE = """<!doctype html>
         var items = result.projects || [];
         // Newest-first like the artifacts; one production can carry many files,
         // so an uncapped list is the same long-scroll (C-1268). Show a recent
-        // slice and report the total so nothing is hidden without saying so.
+        // slice and report the total so nothing is hidden without saying so. The
+        // true count comes from result.total, not the capped items (C-1680).
+        var total = (result.total != null) ? result.total : items.length;
         var shown = items.slice(0, PROJECT_LIMIT);
-        if (!items.length) {
+        if (!total) {
           projectStatus.textContent = "まだありません。";
-        } else if (items.length > PROJECT_LIMIT) {
+        } else if (total > PROJECT_LIMIT) {
           projectStatus.textContent =
-            "新しい順に " + PROJECT_LIMIT + " 件を表示（全 " + items.length + " 件）。";
+            "新しい順に " + PROJECT_LIMIT + " 件を表示（全 " + total + " 件）。";
         } else {
           projectStatus.textContent = "";
         }

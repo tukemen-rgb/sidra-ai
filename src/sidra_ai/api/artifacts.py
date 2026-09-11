@@ -90,7 +90,10 @@ def list_artifacts(data_dir: str | Path) -> list[Artifact]:
     # tiebreak (which reverse-sorts names, inverting recency). Name descending
     # stays the tiebreak for a genuine identical-mtime tie.
     found.sort(key=lambda item: (item[0], item[1].name), reverse=True)
-    return [artifact for _, artifact in found[:MAX_LISTED]]
+    # Return the full listing; the endpoint caps the wire payload and reports the
+    # true total, so the entry page can say "全 N 件" honestly instead of the
+    # capped count (C-1680). Names/sizes/times only, so the list stays light.
+    return [artifact for _, artifact in found]
 
 
 #: Media types a download may declare. Only formats that cannot execute in
@@ -211,7 +214,8 @@ def list_projects(data_dir: str | Path) -> list[ProjectListing]:
     # falling back to the slug tiebreak. Slug descending is the tie for a
     # genuine identical-mtime tie.
     found.sort(key=lambda item: (item[0], item[1].slug), reverse=True)
-    return [listing for _, listing in found[:MAX_LISTED]]
+    # Full listing; the endpoint caps and reports the true total (C-1680).
+    return [listing for _, listing in found]
 
 
 def read_project_file(data_dir: str | Path, slug: str, name: str) -> tuple[bytes, str]:
