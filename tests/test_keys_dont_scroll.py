@@ -8,6 +8,10 @@ a form control, so the tuning panel's sliders keep their keys.
 
 from __future__ import annotations
 
+import re
+
+import pytest
+
 from sidra_ai.creation.games import generate_game
 from sidra_ai.evals.keys_dont_scroll import evaluate_keys_dont_scroll
 
@@ -24,9 +28,35 @@ def test_guard_excludes_form_controls():
 
 
 def test_guard_registers_before_the_remap_wrapper():
-    """The guard rides the native addEventListener (C-1305 wraps it later)."""
+    """The guard rides the native addEventListener (C-1305 wraps it later).
+
+    Asked by driving the page rather than by comparing string offsets in
+    the HTML (C-1669). The offsets were a proxy: naming the form-control
+    test as a function and defining it above the registration moved the
+    marker earlier and broke this, while the ordering it stands for was
+    still exactly right. The property is "the guard is the first keydown
+    listener", so that is what is asked - call only the first one.
+    """
+
+    import json
+    import shutil
+    import subprocess
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is required to drive the page")
+    from sidra_ai.creation.games import scrollguard_probe
 
     html = generate_game("冒険ゲームを作って").html
-    guard = html.index("INPUT|TEXTAREA|SELECT|BUTTON")
-    remap = html.index("addEventListener")
-    assert remap <= guard  # the guard's own call is the first registration
+    script = re.search(r"<script>(.*?)</script>", html, re.S)
+    assert script is not None
+    probe = subprocess.run(
+        ["node", "-"],
+        input=scrollguard_probe(script.group(1)),
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert probe.returncode == 0, probe.stderr[:400]
+    seen = json.loads(probe.stdout.strip().splitlines()[-1])
+
+    assert seen["firstIsGuard"], seen

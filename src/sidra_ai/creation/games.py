@@ -577,6 +577,23 @@ function ask(key, tagName){
   return prevented;
 }
 const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+/* The guard rides the NATIVE addEventListener, before C-1305's remap
+   wrapper replaces it - so it must be the first keydown listener the page
+   registered. Asked by calling only the first one (C-1669: the old test
+   for this compared string offsets in the HTML, which a tidier spelling
+   breaks while the ordering is still right). */
+function askFirst(key, tagName){
+  let prevented = false;
+  const e = { key: key, code: key === ' ' ? 'Space' : key,
+    target: { tagName: tagName },
+    preventDefault(){ prevented = true }, stopImmediatePropagation(){} };
+  const first = (handlers.keydown || [])[0];
+  if (first) { try { first(e) } catch (err) {} }
+  return prevented;
+}
+const firstIsGuard = ARROWS.every(k => askFirst(k, 'CANVAS')) &&
+  askFirst(' ', 'CANVAS') && !askFirst('a', 'CANVAS') &&
+  !ARROWS.some(k => askFirst(k, 'INPUT'));
 const board = {};
 ARROWS.concat([' ']).forEach(k => { board[k] = ask(k, 'CANVAS') });
 /* A key the game does not steer with: a guard that prevents everything
@@ -587,6 +604,7 @@ const inForm = {};
 ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].forEach(tag => {
   inForm[tag] = { arrows: ARROWS.filter(k => ask(k, tag)), space: ask(' ', tag) } });
 console.log(JSON.stringify({ board: board, innocent: innocent, inForm: inForm,
+  firstIsGuard: firstIsGuard,
   listeners: (handlers.keydown || []).length }));
 """
 
