@@ -135,7 +135,11 @@ def test_an_ingestion_error_is_a_flag_not_a_message(
     assert rows["tukemen-rgb/site"]["has_error"] is True
     assert rows["tukemen-rgb/marketing"]["has_error"] is False
     assert marker not in response.text
-    assert "last_error" not in response.text
+    # The message-bearing field is ``last_error``; it must not appear as a key.
+    # Match the quoted JSON key so this does not collide with the refresher's
+    # ``last_error_type`` (an exception class name only, topology-free like the
+    # audit sink's ``last_failure_kind`` - C-1655).
+    assert '"last_error"' not in response.text
 
 
 def test_an_unreadable_quarantine_log_reports_unavailable_not_zero(

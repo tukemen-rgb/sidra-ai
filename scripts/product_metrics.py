@@ -1247,6 +1247,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1655: the background refresher records health every tick (runs,
+    # consecutive_failures, last_success_at, repositories_failed) but no endpoint
+    # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
+    # beside the audit sink's health.
+    from sidra_ai.evals.index_surfaces_refresh_status import (
+        evaluate_index_surfaces_refresh_status,
+    )
+
+    index_refresh = evaluate_index_surfaces_refresh_status()
+    c.add(
+        "index_surfaces_refresh_status",
+        "/v1/index が背景リフレッシャの健全性を surface する",
+        10.0 * index_refresh.checks_passed / index_refresh.checks_total,
+        detail=f"{index_refresh.checks_passed}/{index_refresh.checks_total} checks; "
+               "src/sidra_ai/evals/index_surfaces_refresh_status.py"
+               + ("" if index_refresh.passed else "; " + "; ".join(index_refresh.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1649: /health reported the version from __version__ while create_app
     # built FastAPI with a hardcoded literal, so /openapi.json and /health would
     # disagree the moment the package version was bumped. Both now read the one

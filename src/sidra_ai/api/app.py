@@ -417,6 +417,12 @@ def create_app(
         # currently failing" is precisely what someone who wants unlogged
         # activity would like to learn without credentials.
         result["audit"] = audit_log.durability().to_dict()
+        # The background refresher records its own health every tick, but until
+        # now nothing returned it: with auto-refresh enabled an operator could
+        # not see through the API that the index was going stale because every
+        # refresh failed. It rides here beside the audit sink's health, the same
+        # class of operational fact, and stays topology-free (C-1655).
+        result["refresh"] = app.state.refresher.status().to_dict()
         return result
 
     @app.post("/v1/retrieve", response_model=RetrieveResponse, dependencies=guarded)

@@ -242,6 +242,30 @@ class AuditDurabilitySummary(BaseModel):
     last_failure_kind: str = ""
 
 
+class RefreshStatusSummary(BaseModel):
+    """Whether the background index refresher is doing its job.
+
+    Metadata only, and topology-free for the same reason the refresher's own
+    status is: it crosses the same API boundary. Auto-refresh is off unless
+    configured; when it is on, ``consecutive_failures``/``last_error_type`` say
+    the refresher itself is failing, and ``repositories_failed`` says a subset
+    of repositories is failing to fetch while others succeed (C-1482) - neither
+    of which was observable through the API before (C-1655).
+    """
+
+    enabled: bool = False
+    running: bool = False
+    interval_seconds: int = 0
+    runs: int = 0
+    failures: int = 0
+    consecutive_failures: int = 0
+    last_run_at: str = ""
+    last_success_at: str = ""
+    last_error_type: str = ""
+    repositories_changed: int = 0
+    repositories_failed: int = 0
+
+
 class IndexResponse(BaseModel):
     """What is in the index, so an operator can tell a thin answer from a gap.
 
@@ -257,6 +281,7 @@ class IndexResponse(BaseModel):
     repositories: list[RepositoryIndexSummary] = Field(default_factory=list)
     quarantine: QuarantineSummary = Field(default_factory=QuarantineSummary)
     audit: AuditDurabilitySummary = Field(default_factory=AuditDurabilitySummary)
+    refresh: RefreshStatusSummary = Field(default_factory=RefreshStatusSummary)
 
 
 class HealthResponse(BaseModel):
