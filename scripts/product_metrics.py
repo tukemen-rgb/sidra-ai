@@ -11812,6 +11812,89 @@ def measure_creation(c: Collector) -> None:
         else:
             slope_ok.append(_sl_key)
         _sl_read[_sl_key.split("/")[0]] = _sl
+    # --- the whole creature is a moment, not a backdrop ------------------
+    # §6 観察 1: giant is made by NOT showing all of it - legs and tail
+    # crossing the frame, the full body saved for a moment. The kaiju is
+    # built that way and says so in a comment, but the contract only ever
+    # checked that the wide shot HAPPENS. Drawing it on every frame left
+    # 231 tests green, so the way this template makes its size was
+    # deletable without reddening a number.
+    #
+    # Counted off the canvas (C-1640's rule): the wide shot is a body 60
+    # wide, shoulders 88 wide and a head of radius 26, together in one
+    # frame. Both directions, and a floor under the watching - "it never
+    # appeared" across twenty frames would be evidence of nothing.
+    import subprocess as _wb_sp
+
+    from sidra_ai.creation.kaiju import wide_probe as _wb_probe
+
+    body_gaps: list[str] = []
+    body_ok: list[str] = []
+    try:
+        _wb_page = generate_game("巨大怪獣と戦うゲームを作って").html
+        _wb_script = _scene_re.search(r"<script>(.*?)</script>", _wb_page, _scene_re.S)
+        if _wb_script is None:
+            raise ValueError("no script")
+        _wb_run = _wb_sp.run(
+            ["node", "-"],
+            input=_wb_probe(_wb_script.group(1)),
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if _wb_run.returncode != 0:
+            raise ValueError(_wb_run.stderr.strip()[:60])
+        _wb = json.loads(_wb_run.stdout.strip().splitlines()[-1])
+    except (OSError, _wb_sp.SubprocessError, ValueError) as exc:
+        body_gaps.append(f"kaiju: probe unavailable ({exc})")
+        _wb = None
+    if _wb is not None:
+        if not _wb.get("wake"):
+            body_gaps.append(
+                "kaiju: the whole creature never stands up in the awakening"
+            )
+        elif _wb["wake"] * 2 >= _wb.get("wakeFrames", 0):
+            # "A moment", not the whole opening. Filling the awakening end
+            # to end passed an earlier version of this check, which only
+            # refused *literally every* frame - 88 of 89 slipped through by
+            # one. The page's own window is about a third of the opening.
+            body_gaps.append(
+                f"kaiju: the wide shot fills {_wb['wake']} of "
+                f"{_wb.get('wakeFrames')} awakening frames - that is the "
+                "opening, not a moment in it"
+            )
+        elif _wb.get("fightFrames", 0) < 120:
+            body_gaps.append(
+                f"kaiju: only {_wb.get('fightFrames')} frames of fighting were "
+                "watched - too few for an absence to mean anything"
+            )
+        elif _wb.get("fight"):
+            body_gaps.append(
+                f"kaiju: the whole creature is on screen for {_wb['fight']} of "
+                f"{_wb['fightFrames']} fighting frames - it is scenery, not a moment"
+            )
+        else:
+            body_ok.append("kaiju/全身")
+    c.add(
+        "creation_whole_body_is_rare",
+        "全身は要所だけ・戦いの間は出ない",
+        0.0 if body_gaps else float(len(body_ok)),
+        detail=(
+            "; ".join(body_gaps)
+            if body_gaps
+            else "§6 観察 1「巨大さは全身を見せないことで作られる——全身の引きは要所に 1 回だけ」の"
+            "**「だけ」の側**を、記録 ctx で**実際の塗り**から数えた"
+            "（胴 60・肩 88・頭 r26 が同じフレームに揃った回数）: "
+            "**開幕の 89 フレーム中 20 回**——開幕の 4 分の 1 未満——**立つ**が、"
+            "**その後の戦い 291 フレームでは 1 回も出ない**。"
+            "**見張った長さにも下限を置いた**——20 フレームの「出なかった」は何の証拠でもないので、"
+            "120 フレーム以上見ていなければ不合格。"
+            "**撃たずに見張る**のが要点: 撃つと 20 フレームで決着してしまい、"
+            "**短すぎる不在**を「守られている」と読み違える"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a button held down is never the only way -----------------------
     # §29 (GAG motor, intermediate): avoid, or provide alternatives to,
     # requiring buttons to be held down. §4 has carried the visual rule

@@ -612,6 +612,81 @@ def beats_probe(script: str) -> str:
     )
 
 
+
+#: How often the WHOLE creature is on screen (§6 観察 1, C-1665).
+#: "Giant" is made by not showing all of it: legs and tail crossing the
+#: frame, and the full body saved for a moment. The awakening contract
+#: checks that the wide shot happens; nothing checked that it then stops,
+#: and drawing it every frame left 231 tests green.
+#:
+#: Counted off the canvas, not off the source: the wide shot is a body
+#: 60 wide, shoulders 88 wide and a head of radius 26, all in one frame.
+WIDE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+let F = 0;
+globalThis.performance = { now: () => F * 16 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+let RECTS = [], ARCS = [];
+const rec = new Proxy(function(){}, {
+  get: (t, k) => {
+    if (k === 'fillRect') return (x, y, w, h) => { RECTS.push(Math.round(w)) };
+    if (k === 'arc') return (x, y, r) => { ARCS.push(Math.round(r)) };
+    if (k === Symbol.toPrimitive) return () => 0;
+    return nothing },
+  set: () => true, apply: () => nothing });
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => rec }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+PROBE_SEND_PLACEHOLDER
+/* One frame, and whether the whole creature stood in it. */
+function frame(){
+  RECTS = []; ARCS = [];
+  if (queued) { const fn = queued; queued = null; fn((F++) * 16) }
+  return RECTS.indexOf(60) >= 0 && RECTS.indexOf(88) >= 0 && ARCS.indexOf(26) >= 0 }
+let wake = 0, fight = 0, wakeFrames = 0, fightFrames = 0;
+/* 1. the awakening, before a shot is fired */
+for (let i = 0; i < 400 && bossFacts().state !== 'fight'; i++) {
+  if (frame()) wake++;
+  wakeFrames++;
+}
+/* 2. the fight, watched rather than fought. Shooting ends the round in
+   about twenty frames, and twenty frames of "it did not appear" is not
+   evidence of anything; standing off keeps the creature cycling so the
+   absence is measured over a real stretch. The cannon is kept alive
+   because a death RESETS the page, and the fresh awakening draws the
+   wide shot again - which would look exactly like the fault this is
+   here to find. */
+for (let i = 0; i < 900 && bossFacts().state === 'fight'; i++) {
+  me.hp = 99;
+  if (frame()) fight++;
+  fightFrames++;
+}
+console.log(JSON.stringify({ wake: wake, fight: fight,
+  wakeFrames: wakeFrames, fightFrames: fightFrames,
+  ended: bossFacts().state, shown: bossFacts().shown }));
+"""
+
+
+def wide_probe(script: str) -> str:
+    """The page's own script, wrapped so the wide shot can be counted."""
+
+    from sidra_ai.creation.probekit import PROBE_SEND
+
+    return (
+        WIDE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
+    )
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the fight can be played in node."""
 
