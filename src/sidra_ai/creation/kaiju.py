@@ -117,7 +117,18 @@ function depthFacts(){const keep=SCENE,out=[];
    shake and the hitstop already carry is the weighting the smoke
    carries too. */
 const LEG_SMOKE=34,HEAD_SMOKE=51;
-function legX(){return W*0.72+Math.sin(t/90)*26}
+/* Weight is stride (§6 観察 2, C-1684). The film's walker reads heavy
+   because its leg keeps a slow cycle next to the small things in frame,
+   so both halves of that sentence are named here: LEG_PERIOD is how many
+   radians a frame advances (t/90 puts a full stride at ~565 frames, 9.4
+   seconds) and LEG_SWING is how far the leg travels. The player's own
+   pace is ME_WALK, one place rather than an argument, so a probe can
+   read the contrast the observation is actually about instead of a
+   number retyped at a call site. */
+const LEG_PERIOD=90,LEG_SWING=26,ME_WALK=2.1;
+function legX(){return W*0.72+Math.sin(t/LEG_PERIOD)*LEG_SWING}
+function strideFacts(){return {period:LEG_PERIOD,swing:LEG_SWING,
+  walk:ME_WALK,leg:legX()}}
 function fire(){if(state!=='fight')return;
   /* A press during the cooldown is kept, not dropped (§12, C-1311): one
      queued shot, fired the frame the cannon is ready. */
@@ -188,7 +199,7 @@ function step(rt){
     if(me.cool>0){me.cool--;
       if(me.cool===0&&me.queued){me.queued=false;fire()}}
     /* The shared steering part (C-1114), with this game's own margin. */
-    partsSteerX(me,2.1,30,W-30);
+    partsSteerX(me,ME_WALK,30,W-30);
     partsThrowX(me,30,W-30);
     if(Math.abs(me.x-(me.lastX||me.x))>0.4){me.step+=0.05;
       /* Dust on the footfall, not every frame: weight is the stride. */
@@ -1163,6 +1174,70 @@ if (slam !== null) {
 console.log(JSON.stringify({ slam: slam, dustAt: dustAt, near: near,
   shakesAt: shakesAt, cleared: cleared }));
 """
+
+
+#: The giant's stride, sampled (§6 観察 2, C-1684).
+#:
+#: ``creation_kaiju_stomp_dust`` measures the dust half of "weight is
+#: stride and dust"; the stride half had no instrument at all, so
+#: ``t/90`` and ``26`` were two constants nobody was holding. The leg is
+#: read off the running page frame by frame and set against the player's
+#: own pace, because the observation is a comparison: the giant reads
+#: huge next to something small that moves faster.
+STRIDE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }), addEventListener: () => {} };
+const kept = {};
+globalThis.localStorage = { getItem: (k) => (k in kept ? kept[k] : null),
+  setItem(k, v){ kept[k] = String(v) }, removeItem(k){ delete kept[k] } };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function press(k){
+  const e = probeKey(k);
+  e.target = { tagName: 'CANVAS' };
+  (handlers.keydown || []).forEach(fn => fn(e));
+}
+press(' ');
+/* Past the awakening and into the fight, where both walk. */
+run(200);
+/* The hero holds right for the whole sample, so the pace it is compared
+   with is a pace actually walked, not a constant taken on trust. */
+press('ArrowRight');
+const leg = [], mine = [];
+for (let i = 0; i < SAMPLE_PLACEHOLDER; i++) {
+  me.hp = 99;
+  run(1);
+  leg.push(legX()); mine.push(me.x);
+}
+console.log(JSON.stringify({ leg: leg, me: mine,
+  facts: strideFacts(), state: String(state) }));
+"""
+
+
+def stride_probe(script: str, *, sample: int = 700) -> str:
+    """The page's own script, wrapped so the leg and the hero can be timed."""
+
+    from sidra_ai.creation import probekeys
+
+    return probekeys.with_probe_keys(
+        STRIDE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+            "SAMPLE_PLACEHOLDER", str(int(sample))
+        )
+    )
 
 
 def stomp_probe(script: str) -> str:

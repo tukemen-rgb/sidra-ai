@@ -16120,6 +16120,107 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the giant moves like a giant (§6 観察 2, C-1684) ---------------
+    #
+    # The observation is one sentence with two halves: "多脚戦車は脚の周期
+    # が遅く、接地のたびに土煙". C-1362 measured the dust. The stride had
+    # no instrument, so t/90 and 26 in legX() were constants nobody held,
+    # and stomp_dust stays green however fast the leg scurries (the dust
+    # belongs to the hero's footfalls, not the monster's).
+    #
+    # Read off the running fight, and read as a comparison, because that
+    # is what the observation is: the giant is huge next to something
+    # small that moves faster.
+    from sidra_ai.creation.kaiju import stride_probe as _stride_probe
+
+    _LEG_SLOWER_THAN_WALK = 5.0
+    _LEG_FULL_CYCLE = 300  # frames, five seconds at 60fps
+    _LEG_TRAVEL = 40.0  # px across a stride
+    _stride_gaps: list[str] = []
+    _stride_note = ""
+    _stride_page = generate_game("巨大怪獣と戦うゲームを作って").html
+    _stride_script = _re.search(r"<script>(.*?)</script>", _stride_page, _re.S)
+    if _stride_script is None:
+        _stride_gaps.append("no script on the page")
+    else:
+        try:
+            _sd_run = _sp.run(
+                ["node", "-"],
+                input=_stride_probe(_stride_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if _sd_run.returncode != 0:
+                raise ValueError(_sd_run.stderr.strip()[:80])
+            _sd = json.loads(_sd_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            _stride_gaps.append(f"probe unavailable ({exc})")
+            _sd = None
+        if _sd is not None:
+            _leg, _hero = _sd["leg"], _sd["me"]
+            _leg_steps = [abs(b - a) for a, b in zip(_leg, _leg[1:])]
+            _hero_steps = [abs(b - a) for a, b in zip(_hero, _hero[1:])]
+            _leg_fast = max(_leg_steps) if _leg_steps else 0.0
+            _walk = max(_hero_steps) if _hero_steps else 0.0
+            _signs = [
+                1 if b > a else (-1 if b < a else 0) for a, b in zip(_leg, _leg[1:])
+            ]
+            _turns = [
+                i
+                for i, (a, b) in enumerate(zip(_signs, _signs[1:]))
+                if a and b and a != b
+            ]
+            _half = (
+                min(b - a for a, b in zip(_turns, _turns[1:]))
+                if len(_turns) > 1
+                else len(_leg)
+            )
+            _travel = (max(_leg) - min(_leg)) if _leg else 0.0
+            if _sd["state"] != "fight":
+                _stride_gaps.append(f"the fight never started ({_sd['state']})")
+            elif _walk <= 0:
+                _stride_gaps.append("the hero never walked, so there is nothing to compare")
+            # (a) slow - against a pace actually walked, not a constant on trust
+            elif _leg_fast <= 0:
+                _stride_gaps.append("the leg never moved at all")
+            elif _walk / _leg_fast < _LEG_SLOWER_THAN_WALK:
+                _stride_gaps.append(
+                    f"the leg keeps up with the hero ({_walk / _leg_fast:.1f}x slower, "
+                    f"wants {_LEG_SLOWER_THAN_WALK:.0f}x)"
+                )
+            # (b) a long cycle, not a twitch
+            elif _half * 2 < _LEG_FULL_CYCLE:
+                _stride_gaps.append(
+                    f"a full stride takes {_half * 2} frames, under {_LEG_FULL_CYCLE}"
+                )
+            # (c) and it does travel - "slow" must not be satisfied by "still"
+            elif _travel < _LEG_TRAVEL:
+                _stride_gaps.append(
+                    f"the leg travels {_travel:.0f}px a stride, under {_LEG_TRAVEL:.0f}"
+                )
+            else:
+                _stride_note = (
+                    f"脚 {_leg_fast:.2f}px/f に対し自機 {_walk:.2f}px/f＝"
+                    f"**{_walk / _leg_fast:.1f} 倍ゆっくり**、1 往復 {_half * 2} フレーム"
+                    f"（{_half * 2 / 60:.1f} 秒）、1 周期で {_travel:.0f}px 動く"
+                )
+
+    c.add(
+        "creation_giant_moves_like_a_giant",
+        "巨人は巨人の速さで歩く",
+        0.0 if _stride_gaps else 1.0,
+        detail=(
+            "; ".join(_stride_gaps)
+            if _stride_gaps
+            else _stride_note
+            + "（§6 観察 2 の「重さは歩幅と土煙」の**歩幅**側。"
+            "土煙は C-1362 が測っているが、脚の周期は誰も見ていなかった。"
+            "自機の歩速は定数を信じず、実際に右を押し続けて歩かせた値）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- nothing sounds before the first touch (§2, C-1683) -------------
     #
     # Nine audio judges ask whether a sound happens and what it sounds
