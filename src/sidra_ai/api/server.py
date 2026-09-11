@@ -152,7 +152,11 @@ def staged_model_but_running_echo(settings: Settings) -> str:
 
 def _print_banner(settings: Settings) -> None:
     scope = "loopback only" if settings.is_localhost_only else "EXPOSED BEYOND LOOPBACK"
-    print(f"SIDRA AI  http://{settings.host}:{settings.port}  ({scope})")
+    # Bracket an IPv6 host (::1, an accepted loopback host) so the address a user
+    # copies from this line is a valid URL - http://[::1]:8000, not the
+    # unparseable http://::1:8000. Mirrors ask_cli.base_url (C-1679).
+    host = f"[{settings.host}]" if ":" in settings.host else settings.host
+    print(f"SIDRA AI  http://{host}:{settings.port}  ({scope})")
     print(f"  model backend : {settings.model_backend} ({settings.model_name})")
     print(f"  repositories  : {len(settings.allowed_repositories)} allowlisted")
     print("  github access : read-only")

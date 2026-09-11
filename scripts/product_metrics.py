@@ -1439,6 +1439,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1679: the startup banner built its address as f"http://{host}:{port}",
+    # so an IPv6 loopback host (::1, an accepted host) printed http://::1:8000 -
+    # a URL no browser can parse. The CLI's base_url already brackets it; the
+    # banner now does too.
+    from sidra_ai.evals.banner_url_is_valid_for_ipv6_host import (
+        evaluate_banner_url_is_valid_for_ipv6_host,
+    )
+
+    banner_url = evaluate_banner_url_is_valid_for_ipv6_host()
+    c.add(
+        "banner_url_is_valid_for_ipv6_host",
+        "sidra-api 起動バナーの URL が IPv6 ホストでも妥当",
+        10.0 * banner_url.checks_passed / banner_url.checks_total,
+        detail=f"{banner_url.checks_passed}/{banner_url.checks_total} checks; "
+               "src/sidra_ai/evals/banner_url_is_valid_for_ipv6_host.py"
+               + ("" if banner_url.passed else "; " + "; ".join(banner_url.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
