@@ -16025,6 +16025,105 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the dungeon, walked to its own win (§3, C-1675) ----------------
+    #
+    # creation_adventure_playable counts rooms and tiles in the generated
+    # page and runs no frames. The only driver that reaches state='win'
+    # is GUARD_PROBE, which writes hero.key = true and steps into room 2 -
+    # so the chest opening for its key was measured, and the key being
+    # got was not. The skeleton §3 names - clear the roamers, the key
+    # falls, pick it up, cross, fell the guardian, open the chest - had
+    # never been walked. Walked here with no flag set by hand, in three
+    # directions: the win without the optional branch (a promise the
+    # source has carried in a comment since C-1021), the same walk with
+    # the key left on the floor, and the count of roamers the key waits
+    # for.
+    from sidra_ai.creation.adventure import run_probe as _run_probe
+
+    _walk_gaps: list[str] = []
+    _walk_ok: list[str] = []
+    _walk_page = generate_game("迷宮を冒険するゲームを作って").html
+    _walk_m = _re.search(r"<script>(.*?)</script>", _walk_page, _re.S)
+    if _walk_m is None:
+        _walk_gaps.append("no script on the page")
+    else:
+        try:
+            _wr = _sp.run(
+                ["node", "-"],
+                input=_run_probe(_walk_m.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if _wr.returncode != 0:
+                raise ValueError(_wr.stderr.strip()[:80])
+            _walk = json.loads(_wr.stdout.strip().splitlines()[-1])
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            _walk_gaps.append(f"probe unavailable ({exc})")
+            _walk = None
+        if _walk is not None:
+            _won, _left = _walk["walked"], _walk["leftBehind"]
+            # (a) the optional branch is optional
+            if not _won["cleared"]:
+                _walk_gaps.append("the roamers did not fall to the sword")
+            elif not _won["held"]:
+                _walk_gaps.append("the fallen key could not be picked up")
+            elif not _won["fell"]:
+                _walk_gaps.append(
+                    f"the guardian still stood after {_won['turns']} turns"
+                )
+            elif _won["state"] != "win":
+                _walk_gaps.append(
+                    f"the walked run ended in '{_won['state']}', not a win"
+                )
+            elif not (_won["doorStands"] and _won["rewardStands"]):
+                _walk_gaps.append(
+                    "the win went through the optional door - it is not optional"
+                )
+            elif _won["charm"] or _won["gems"]:
+                _walk_gaps.append(
+                    f"the win needed {_won['gems']} gems"
+                    + (" and the charm" if _won["charm"] else "")
+                )
+            else:
+                _walk_ok.append("任意報酬に触れずに勝てる")
+            # (b) the lock is a lock
+            if _left["held"]:
+                _walk_gaps.append("the key was taken in the run that must not take it")
+            elif _left["state"] == "win":
+                _walk_gaps.append("the chest opened with no key")
+            elif _left["guarded"] == "win":
+                _walk_gaps.append("the chest opened while the guardian stood")
+            else:
+                _walk_ok.append("鍵を拾わなければ勝てない")
+            # (c) the key waits for the last roamer
+            _count = _won["countdown"]
+            _early = [c for c in _count if c["left"] and c["drop"]]
+            if len(_count) < 2:
+                _walk_gaps.append("only one roamer stood between the key and the hero")
+            elif _early:
+                _walk_gaps.append(
+                    f"the key fell with {_early[0]['left']} roamers still standing"
+                )
+            elif not _count[-1]["drop"]:
+                _walk_gaps.append("the last roamer fell and no key came")
+            else:
+                _walk_ok.append("鍵は最後の 1 体まで落ちない")
+
+    c.add(
+        "creation_dungeon_walks_to_its_win",
+        "旗を立てずに歩いて勝てる（そして錠は錠のまま）",
+        0.0 if _walk_gaps else float(len(_walk_ok)),
+        detail=(
+            "; ".join(_walk_gaps)
+            if _walk_gaps
+            else "／".join(_walk_ok)
+            + "（§3 の mission graph を reset() から実運転。"
+            "hero.key も room も手で書かない）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a sink must return value, not just take it (§5, C-1674) --------
     #
     # creation_gem_sink proves gems leave; creation_sink_affordable proves

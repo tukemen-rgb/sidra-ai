@@ -807,6 +807,111 @@ def guard_probe(script: str) -> str:
     return GUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The dungeon, walked (§3, C-1675).
+#:
+#: ``GUARD_PROBE`` reaches ``state='win'`` by writing ``hero.key = true``
+#: and stepping into room 2, which proves the chest opens for its key and
+#: nothing about how the key is got. ``creation_adventure_playable``
+#: counts rooms and tiles in the generated page and runs no frames at
+#: all. So the mission graph §3 calls the skeleton - clear the roamers,
+#: the key falls, pick it up, cross to the altar, fell the guardian, open
+#: the chest - had never been walked end to end.
+#:
+#: Walked here three ways, with no flag set by hand: once to the win
+#: without touching the optional door, the charm or a single gem (the
+#: promise the source has carried in a comment since C-1021); once with
+#: the fallen key left on the floor, which must not win; and once
+#: counting the roamers down, because a key that fell early would make
+#: the lock a decoration.
+RUN_PROBE = KEY_EVENT_JS + """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = probeKey(k);
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+function findTile(r, want){
+  for (let ty = 0; ty < GH; ty++) for (let tx = 0; tx < GW; tx++)
+    if (rooms[r][ty][tx] === want) return [tx, ty];
+  return null }
+function faceTile(tx, ty){
+  hero.x = OX + tx * TILE + TILE / 2 - 20; hero.y = OY + ty * TILE + TILE / 2;
+  hero.dir = 1 }
+/* A blow leaves three frames of hitstop, and the tile a player is
+   standing on is read by the walk - so a single frame after a kill is
+   the frozen one, and the pickup would never be seen. */
+const SETTLE = 8;
+function clearRoom1(){
+  let swings = 0;
+  const countdown = [];
+  for (let i = 0; i < 60 && enemies[1].some(e => e.alive); i++) {
+    const en = enemies[1].find(e => e.alive);
+    hero.hp = 99; hero.swing = 0;
+    hero.x = en.x - 20; hero.y = en.y; hero.dir = 1;
+    key(' '); run(1); swings++;
+    countdown.push({ left: enemies[1].filter(e => e.alive).length, drop: !!keyDrop });
+  }
+  return { swings: swings, countdown: countdown,
+    cleared: enemies[1].every(e => !e.alive) };
+}
+function attempt(takeKey){
+  reset();
+  room = 1; hero.hp = 99;
+  const room1 = clearRoom1();
+  const dropped = !!keyDrop;
+  if (takeKey && keyDrop) { hero.x = keyDrop.x; hero.y = keyDrop.y; run(SETTLE) }
+  const held = hero.key;
+  room = 2; hero.hp = 99;
+  const chest = findTile(2, 7);
+  /* The chest while the guardian stands, before anything else. */
+  faceTile(chest[0], chest[1]); hero.swing = 0; key(' '); run(SETTLE);
+  const guarded = state;
+  let turns = 0;
+  while (guardFacts() && guardFacts().alive && turns++ < 3000) {
+    hero.hp = 99;
+    const g = guardFacts();
+    if (g.inv <= 0 && hero.swing <= 0) {
+      hero.x = g.x - 26; hero.y = g.y; hero.dir = 1; key(' ') }
+    run(2);
+  }
+  const fell = !guardFacts().alive;
+  faceTile(chest[0], chest[1]); hero.swing = 0; key(' '); run(SETTLE);
+  return { swings: room1.swings, cleared: room1.cleared,
+    countdown: room1.countdown, dropped: dropped, held: held,
+    guarded: guarded, fell: fell, turns: turns, state: state,
+    gems: hero.gems, charm: hero.charm, hearts: hero.maxhp,
+    doorStands: findTile(1, 10) !== null,
+    rewardStands: findTile(1, 11) !== null };
+}
+const walked = attempt(true);
+const leftBehind = attempt(false);
+console.log(JSON.stringify({ walked: walked, leftBehind: leftBehind }));
+"""
+
+
+def run_probe(script: str) -> str:
+    """The page's own script, wrapped so the dungeon can be walked."""
+
+    return RUN_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
 #: A kill, an exit, a return (§23, C-1374): the husk must lie where the
 #: enemy fell, survive leaving the room, and the fallen guardian must
 #: leave one too. Driven with the sword, not by flipping flags - except
@@ -1909,6 +2014,8 @@ __all__ = [
     "charm_probe",
     "BEAT_PROBE",
     "GUARD_PROBE",
+    "RUN_PROBE",
+    "run_probe",
     "KNOW_PROBE",
     "MILESTONE_PROBE",
     "beat_probe",
@@ -1928,6 +2035,8 @@ __all__ = [
     "SQUASH_PROBE",
     "squash_probe",
     "guard_probe",
+    "SINK_PROBE",
+    "sink_probe",
     "know_probe",
     "world_probe",
 ]
