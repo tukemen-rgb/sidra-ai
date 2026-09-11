@@ -1381,6 +1381,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1673: sidra-ask passed --timeout to httpx unvalidated, so a negative
+    # value crashed with a raw ValueError traceback (the try/except never caught
+    # it) and 0 misreported "cannot connect". main() now rejects --timeout <= 0
+    # client-side with exit 2, like the --top-k and --repository checks.
+    from sidra_ai.evals.ask_rejects_nonpositive_timeout import (
+        evaluate_ask_rejects_nonpositive_timeout,
+    )
+
+    ask_timeout = evaluate_ask_rejects_nonpositive_timeout()
+    c.add(
+        "ask_rejects_nonpositive_timeout",
+        "sidra-ask が非正の --timeout を送信前に弾く（生の例外を出さない）",
+        10.0 * ask_timeout.checks_passed / ask_timeout.checks_total,
+        detail=f"{ask_timeout.checks_passed}/{ask_timeout.checks_total} checks; "
+               "src/sidra_ai/evals/ask_rejects_nonpositive_timeout.py"
+               + ("" if ask_timeout.passed else "; " + "; ".join(ask_timeout.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

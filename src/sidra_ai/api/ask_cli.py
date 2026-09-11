@@ -347,6 +347,19 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
         )
         return 2
 
+    # A non-positive timeout is bad usage, caught here before a client is built.
+    # httpx accepts a negative value at construction but raises
+    # `ValueError: Timeout value out of range` on the request - which the
+    # try/except below does not catch, so it crashed with a raw traceback; a
+    # zero timeout made every request time out immediately and misreported
+    # "cannot connect". Name the knob and exit 2, like --top-k (C-1673).
+    if args.timeout <= 0:
+        print(
+            f"--timeout は正の秒数で指定する（指定値: {args.timeout:g}）。",
+            file=sys.stderr,
+        )
+        return 2
+
     try:
         settings = get_settings()
         url = base_url(settings, args.url)
