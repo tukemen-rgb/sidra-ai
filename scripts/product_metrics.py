@@ -16082,7 +16082,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- what a finger lands on is the row (§4, C-1680) -----------------
+    # --- what a finger lands on is the row (§4, C-1681) -----------------
     #
     # evals/touch_form_controls.py reads the coarse-pointer CSS and checks
     # the declarations are present. It cannot see what they apply to: the

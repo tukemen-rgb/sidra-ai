@@ -482,7 +482,7 @@ def motion_probe(script: str, *, template: str, seeded: bool) -> str:
     )
 
 
-#: The panel as it is actually built (§4, C-1680).
+#: The panel as it is actually built (§4, C-1681).
 #:
 #: ``evals/touch_form_controls.py`` reads the shell's coarse-pointer CSS
 #: and checks the declarations are there. It cannot see what they apply

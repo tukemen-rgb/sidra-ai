@@ -1555,7 +1555,7 @@ a{{color:{t["accent"]}}}
  * clears a fingertip; the checkbox is enlarged directly (C-1234). Kept on one
  * line with the button rule first so the C-1219 checks still read it, and all
  * inside the coarse-pointer query so the desktop panel is left unchanged. */
-/* What a finger lands on is the row, not the control (§4, C-1680).
+/* What a finger lands on is the row, not the control (§4, C-1681).
  * C-1234 floored the controls; a checkbox's floor is 24px, so its row
  * - the <label> that makes the whole line tappable - came out 30-36px
  * in Chromium at 390px while the slider rows next to it were 44-48.

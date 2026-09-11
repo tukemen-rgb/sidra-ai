@@ -1,4 +1,4 @@
-"""What a finger lands on is the row, not the control (§4, C-1680).
+"""What a finger lands on is the row, not the control (§4, C-1681).
 
 C-1234 floored the tuning panel's controls for a coarse pointer: 16px
 type, 44px min-height on the select, the sliders and the colour picker,
