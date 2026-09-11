@@ -145,6 +145,10 @@ function spawn(r){let x,y;do{x=2+Math.floor(rand()*(GW-4));
      next to the door bites the hero before the room is even visible */
   ||Math.abs(x-1)+Math.abs(y-4)<5);
   return {x:OX+x*TILE+8,y:OY+y*TILE+8,dx:0,dy:0,t:0,alive:true}}
+/* How many hearts the shrine can build up to (§5, C-1673). Named, so the
+   ceiling can be read where payment is taken and not only where the sum
+   is capped. */
+const HP_CAP=5;
 function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRSTCUT=true;PITY=0;
   kprog=0;ksolved=false;hurtRoam=0;hurtGuard=0;
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
@@ -210,7 +214,16 @@ function swing(){if(state!=='play')return;
     /* The sink (§5): gems were a tap with no outlet, so cutting grass paid
        in a number. Three of them buy a heart, which is what makes the
        grass worth cutting. */
-    if(t===9){if(hero.gems>=3){hero.gems-=3;hero.maxhp=Math.min(5,hero.maxhp+1);
+    if(t===9){
+      /* The ceiling refuses payment (§5, C-1673). Math.min() used to
+         saturate in silence: at five hearts the shrine still took three
+         gems, still said they had bought a heart, still rang powerUp.
+         Nine of the village's fifteen gems could vanish that way - and
+         the optional door costs two, so a player could be talked out of
+         the branch by a success sound. A sink that returns nothing is
+         not a sink. */
+      if(hero.maxhp>=HP_CAP){say('祠は満ち足りている。ハートはもう増えない。');sfx('clash')}
+      else if(hero.gems>=3){hero.gems-=3;hero.maxhp=hero.maxhp+1;
         /* A bigger heart is a power, not a pickup (§2, C-1346). */
         hero.hp=hero.maxhp;say('祠が宝石を受け取った。ハートが増えた。');sfx('powerup');
         burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,18,'ALERT_JUICE')}
@@ -1353,6 +1366,98 @@ def econ_probe(script: str, *, dice: float) -> str:
 
     return ECON_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
         "DICE_PLACEHOLDER", repr(dice)
+    )
+
+
+#: What the shrine gives back, purchase by purchase (§5, C-1673).
+#:
+#: ``creation_gem_sink`` proved gems *leave*; nothing proved anything
+#: *arrives*. Here the village is cut bare with the dice loaded to always
+#: hit, and the hero touches the shrine until the gems run out. Each
+#: touch is recorded whole - the gems before and after, the hearts before
+#: and after, the sentence said, the sound rung, the particles thrown -
+#: so a payment that buys nothing cannot hide behind a celebration that
+#: looks exactly like one that did.
+SINK_PROBE = KEY_EVENT_JS + """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = probeKey(k);
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+key(' '); run(2);
+/* The shrine's own voice, overheard. Both are function declarations on
+   the page, so wrapping them is how a probe hears what a player hears. */
+let heard = [], thrown = 0;
+const realSfx = sfx, realBurst = burst;
+sfx = function(name){ heard.push(name); return realSfx.apply(null, arguments) };
+burst = function(x, y, n){ thrown += (n || 0); return realBurst.apply(null, arguments) };
+/* Loaded to always hit: the ceiling run, where the whole village pays. */
+rand = () => 0.0;
+room = 0;
+let cuts = 0;
+for (let ty = 0; ty < GH; ty++) for (let tx = 0; tx < GW; tx++) {
+  if (rooms[0][ty][tx] !== 2) continue;
+  hero.hp = 99; hero.swing = 0;
+  hero.x = OX + tx * TILE + TILE / 2 - 20;
+  hero.y = OY + ty * TILE + TILE / 2;
+  hero.dir = 1;
+  key(' '); run(1); cuts++;
+}
+const purse = hero.gems;
+let shrine = null;
+for (let r = 0; r < 3; r++) for (let ty = 0; ty < GH; ty++)
+  for (let tx = 0; tx < GW; tx++)
+    if (rooms[r][ty][tx] === 9) shrine = { r: r, tx: tx, ty: ty };
+const buys = [];
+if (shrine) {
+  room = shrine.r;
+  for (let i = 0; i < TOUCHES_PLACEHOLDER; i++) {
+    const gems0 = hero.gems, hearts0 = hero.maxhp;
+    /* A sentence from an earlier touch is not this touch's answer. */
+    heard = []; thrown = 0; msg = null;
+    hero.hp = 99; hero.swing = 0;
+    hero.x = OX + shrine.tx * TILE + TILE / 2 - 20;
+    hero.y = OY + shrine.ty * TILE + TILE / 2;
+    hero.dir = 1;
+    key(' '); run(1);
+    buys.push({ gemsBefore: gems0, gemsAfter: hero.gems,
+      heartsBefore: hearts0, heartsAfter: hero.maxhp,
+      said: typeof msg === 'string' ? msg : null,
+      heard: heard.slice(), thrown: thrown });
+  }
+}
+console.log(JSON.stringify({ cuts: cuts, purse: purse,
+  shrine: shrine !== null, buys: buys }));
+"""
+
+
+def sink_probe(script: str, *, touches: int = 5) -> str:
+    """The page's own script, wrapped so the shrine can be paid repeatedly.
+
+    ``touches`` is how many times the hero walks into it; the default is
+    more than the purse can afford, so the run reaches both the ceiling
+    and the empty pocket.
+    """
+
+    return SINK_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "TOUCHES_PLACEHOLDER", str(int(touches))
     )
 
 

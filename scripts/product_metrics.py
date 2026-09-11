@@ -16005,6 +16005,134 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a sink must return value, not just take it (§5, C-1673) --------
+    #
+    # creation_gem_sink proves gems leave; creation_sink_affordable proves
+    # a player can afford to make them leave. Neither asks what arrives.
+    # Measured before fixed: at five hearts the shrine still took three
+    # gems, still said "ハートが増えた", still rang powerUp and threw
+    # eighteen particles - nine of the village's fifteen gems could be
+    # destroyed by a celebration indistinguishable from a real purchase,
+    # and the optional door costs two. Driven on both templates that have
+    # a sink: the purchase that works, and the payment that must not be
+    # taken - with the refusal also required not to sound like a sale.
+    from sidra_ai.creation.adventure import sink_probe as _sink_probe
+    from sidra_ai.creation.platformer import lamp_sink_probe as _lamp_sink_probe
+
+    _sink_gaps: list[str] = []
+    _sink_ok: list[str] = []
+
+    def _sink_run(probe: str, label: str) -> dict | None:
+        try:
+            got = _sp.run(
+                ["node", "-"], input=probe, capture_output=True, text=True, timeout=180
+            )
+            if got.returncode != 0:
+                raise ValueError(got.stderr.strip()[:80])
+            return json.loads(got.stdout.strip().splitlines()[-1])
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            _sink_gaps.append(f"{label}: probe unavailable ({exc})")
+            return None
+
+    _shrine_page = generate_game("迷宮を冒険するゲームを作って").html
+    _shrine_m = _re.search(r"<script>(.*?)</script>", _shrine_page, _re.S)
+    if _shrine_m is None:
+        _sink_gaps.append("adventure: no script on the page")
+    else:
+        _sh = _sink_run(_sink_probe(_shrine_m.group(1)), "adventure")
+        if _sh is not None:
+            _buys = _sh.get("buys") or []
+            _paid = [b for b in _buys if b["gemsAfter"] < b["gemsBefore"]]
+            _refused = [b for b in _buys if b["gemsAfter"] == b["gemsBefore"]]
+            if not _sh.get("shrine"):
+                _sink_gaps.append("adventure: no shrine on the map")
+            elif not _paid:
+                _sink_gaps.append("adventure: the shrine never took a gem")
+            else:
+                # What arrives, first: a payment that buys nothing is the
+                # defect this metric exists for, and saying "nothing
+                # refuses" instead would name the symptom, not the cause.
+                for _b in _paid:
+                    if _b["heartsAfter"] != _b["heartsBefore"] + 1:
+                        _sink_gaps.append(
+                            "adventure: paid "
+                            f"{_b['gemsBefore'] - _b['gemsAfter']} gems for "
+                            f"{_b['heartsAfter'] - _b['heartsBefore']} hearts"
+                        )
+                    elif "powerup" not in _b["heard"]:
+                        _sink_gaps.append("adventure: the purchase did not ring")
+                if not _sink_gaps and not _refused:
+                    _sink_gaps.append(
+                        "adventure: the shrine took every touch - nothing "
+                        "refuses payment"
+                    )
+                _sold = {b["said"] for b in _paid}
+                for _b in _refused:
+                    if _b["heartsAfter"] != _b["heartsBefore"]:
+                        _sink_gaps.append("adventure: hearts moved without payment")
+                    elif _b["said"] in _sold:
+                        _sink_gaps.append(
+                            "adventure: the refusal says what a purchase says"
+                        )
+                    elif "powerup" in _b["heard"] or _b["thrown"]:
+                        _sink_gaps.append(
+                            "adventure: the refusal celebrates like a purchase"
+                        )
+                    elif _b["said"] is None:
+                        _sink_gaps.append("adventure: the refusal says nothing at all")
+            if not any(g.startswith("adventure") for g in _sink_gaps):
+                _sink_ok.append(
+                    f"adventure=祠は {len(_paid)} 回だけ受け取り、天井では "
+                    f"{_buys[-1]['gemsAfter']} 個を残して断る"
+                )
+
+    _lamp_page = generate_game("ゲームを作って", template="platformer").html
+    _lamp_m = _re.search(r"<script>(.*?)</script>", _lamp_page, _re.S)
+    if _lamp_m is None:
+        _sink_gaps.append("platformer: no script on the page")
+    else:
+        _lp = _sink_run(_lamp_sink_probe(_lamp_m.group(1)), "platformer")
+        if _lp is not None:
+            _first, _again = _lp.get("first"), _lp.get("again")
+            if not _first or not _again:
+                _sink_gaps.append("platformer: the lantern was never visited")
+            elif not _first["litAfter"]:
+                _sink_gaps.append("platformer: the lantern did not light")
+            elif _first["gemsBefore"] - _first["gemsAfter"] != _lp["cost"]:
+                _sink_gaps.append(
+                    f"platformer: lighting cost {_first['gemsBefore'] - _first['gemsAfter']} "
+                    f"of a {_lp['cost']}-gem lamp"
+                )
+            elif "powerup" not in _first["heard"]:
+                _sink_gaps.append("platformer: the lighting did not ring")
+            elif _again["gemsAfter"] != _again["gemsBefore"]:
+                _sink_gaps.append(
+                    "platformer: the lit lantern took "
+                    f"{_again['gemsBefore'] - _again['gemsAfter']} more gems"
+                )
+            elif "powerup" in _again["heard"] or _again["said"] == _first["said"]:
+                _sink_gaps.append(
+                    "platformer: the lit lantern celebrates a second time"
+                )
+            else:
+                _sink_ok.append(
+                    f"platformer=灯籠は {_lp['cost']} 個で 1 度点き、"
+                    "点いた後は満杯の財布からも取らない"
+                )
+
+    c.add(
+        "creation_sink_returns_value",
+        "シンクは値打ちを返す（返せないときは受け取らない）",
+        0.0 if _sink_gaps else float(len(_sink_ok)),
+        detail=(
+            "; ".join(_sink_gaps)
+            if _sink_gaps
+            else "／".join(_sink_ok)
+            + "（§5: 出口があるかではなく、出口が値打ちを返すかを両方向で）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- spelling robustness: the AI must be the same program per script --
     #
     # Measured before fixed: 「ぜるだみたいなげーむつくって」 fell through to

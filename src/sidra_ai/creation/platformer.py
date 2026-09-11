@@ -917,6 +917,70 @@ def lamp_sfx_probe(script: str) -> str:
     return LAMP_SFX_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: What the lantern gives back, and what it refuses (§5, C-1673).
+#:
+#: The adventure's shrine took payment at the ceiling and celebrated;
+#: this lantern already guards itself with ``!lamp.lit``. That is the
+#: half worth pinning: the template that got it right had nothing holding
+#: it there. The lantern is lit for real, then stood on again with a full
+#: purse, and both visits are recorded whole - gems, light, sentence,
+#: sound, particles.
+LAMP_SINK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){
+  const e = probeKey(k);
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+let heard = [], thrown = 0;
+const realSfx = sfx, realBurst = burst;
+sfx = function(name){ heard.push(name); return realSfx.apply(null, arguments) };
+burst = function(x, y, n){ thrown += (n || 0); return realBurst.apply(null, arguments) };
+/* Off the title screen first: the course does not run until a key. */
+key(' '); run(30);
+function stand(gems){
+  me.gems = gems; me.x = lamp.x; me.y = lamp.y - 40; me.vy = 0;
+  /* A sentence from an earlier visit is not this visit's answer. */
+  heard = []; thrown = 0; msgT = 0; msg = null;
+  const gems0 = me.gems, lit0 = lamp.lit;
+  run(30);
+  return { gemsBefore: gems0, gemsAfter: me.gems, litBefore: lit0,
+    litAfter: lamp.lit, said: typeof msg === 'string' ? msg : null,
+    heard: heard.slice(), thrown: thrown };
+}
+const first = stand(LAMP_COST);
+const again = stand(LAMP_COST * 2);
+console.log(JSON.stringify({ cost: LAMP_COST, first: first, again: again }));
+"""
+
+
+def lamp_sink_probe(script: str) -> str:
+    """The page's own script, wrapped so the lantern can be paid twice."""
+
+    from sidra_ai.creation import probekeys
+
+    return probekeys.with_probe_keys(
+        LAMP_SINK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+    )
+
+
 #: The face, driven (§1, C-1348): run right and the eyes look right, run
 #: left and they follow, jump and they lift, wait and they blink - once,
 #: briefly. The reduced-motion run is the other half: the blink never
