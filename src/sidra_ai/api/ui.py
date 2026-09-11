@@ -429,6 +429,13 @@ ASK_PAGE = """<!doctype html>
   // conversation - which is also the privacy this page promises.
   var turns = [];
   var MAX_TURNS = 8;
+  // Mirror the server's per-turn limits so a replayed history never trips
+  // request validation. MAX_TURNS matches MAX_HISTORY_TURNS; MAX_TURN_CHARS
+  // matches MAX_HISTORY_TURN_CHARS. Without the char mirror, a prior answer
+  // longer than the cap was replayed and 422'd the *next* question, which the
+  // page then reported as "shorten your input" - wrong, since the current
+  // input was fine and the culprit was an earlier long answer (C-1684).
+  var MAX_TURN_CHARS = 8000;
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
@@ -489,8 +496,13 @@ ASK_PAGE = """<!doctype html>
       statusLine.textContent = "";
       render(result);
       // Only a real exchange joins the conversation: a refusal or an empty
-      // answer would replay noise into every later request.
-      if (result && result.answer && !result.refused) {
+      // answer would replay noise into every later request. A turn longer than
+      // the server's per-field cap is also left out: replaying it would 422 the
+      // next question, and the answer was already shown, so dropping it from
+      // history keeps the conversation working rather than breaking it (C-1684).
+      if (result && result.answer && !result.refused
+          && question.length <= MAX_TURN_CHARS
+          && result.answer.length <= MAX_TURN_CHARS) {
         turns.push({ question: question, answer: result.answer });
         if (turns.length > MAX_TURNS) { turns = turns.slice(-MAX_TURNS); }
       }

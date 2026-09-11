@@ -1496,6 +1496,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1684: the entry page mirrored the server's MAX_HISTORY_TURNS (count) but
+    # not MAX_HISTORY_TURN_CHARS, so a prior answer over 8000 chars was replayed
+    # as history and 422'd the next question with a misleading "shorten your
+    # input". The page now records a turn into history only when it fits.
+    from sidra_ai.evals.ui_bounds_history_turn_chars import (
+        evaluate_ui_bounds_history_turn_chars,
+    )
+
+    ui_hist = evaluate_ui_bounds_history_turn_chars()
+    c.add(
+        "ui_bounds_history_turn_chars",
+        "会話 UI が履歴 1 ターンの文字数もサーバ上限に合わせて切る",
+        10.0 * ui_hist.checks_passed / ui_hist.checks_total,
+        detail=f"{ui_hist.checks_passed}/{ui_hist.checks_total} checks; "
+               "src/sidra_ai/evals/ui_bounds_history_turn_chars.py"
+               + ("" if ui_hist.passed else "; " + "; ".join(ui_hist.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
