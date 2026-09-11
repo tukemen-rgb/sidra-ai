@@ -962,3 +962,32 @@ URL はすべて 2026-09-03 に実際に開いて確認。
   鳴り、目は自機の x で弾ける。条件が |o.x-car.x| 26〜46px なので**必ず
   26px 以上ずれる**）／marble は同じ問題を先に正しく解いている（`gpan` は
   射影ではなくレーン位置、burst は同じゲートの `gx`——理由がコードに書いてある）
+
+## 29. 運動（モーター）のアクセシビリティ——押しっぱなしを必須にしない（外部調査 2026-09-11・辛口クリエイターループ）
+
+- 出典: https://gameaccessibilityguidelines.com/full-list/（2026-09-11 に実際に
+  開いて確認。§4 の「背景の動きを切るオプション」・§28 の Hearing と同じ一覧の
+  **Motor** カテゴリ。丸写しはせず、該当ガイドラインの文言と水準のみ引用）
+- 事実（Basic）: 「Ensure controls are as simple as possible, or provide a
+  simpler alternative」「Allow controls to be remapped / reconfigured」
+  「Include an option to adjust the game speed」「Include toggle/slider for
+  any haptics」「Ensure interactive elements / virtual controls are large and
+  well spaced」。
+- 事実（Intermediate）: **「Avoid / provide alternatives to requiring buttons
+  to be held down」**——ボタンの**押しっぱなしを必須にしない**、あるいは代替を
+  用意する。同水準に「Avoid repeated inputs (button-mashing/quick time
+  events)」「multiple simultaneous actions を必須にしない」。
+- 事実（Advanced）: 「Include a cool-down period (post acceptance delay) of
+  0.5 seconds between inputs」「Do not make precise timing essential to
+  gameplay」。
+- 学び: SIDRA は Basic 側をほぼ満たしている——**再割り当て**（C-1233 の
+  `creation_key_remap`）・**触覚のトグル**（§16）・**48dp の仮想パッド**
+  （C-1019・§4）・調整パネルの `speed`/`band`。**欠けているのは Intermediate の
+  「押しっぱなし」**で、**duel はそれが中核**: `keydown` で `hold=true`、
+  `keyup` で `fire()`、しかも `charge>18` を超えないとビームが出ないので、
+  **押し続けられない人はこの型を遊べない**（代替経路は無い。キーボードも
+  ポインタも同じ 1 本の道）。§4 は視覚側の規則を、§28 は聴覚側の規則を最初から
+  持っているのに、**運動側の対が無かった**のは同じ形の 3 度目。
+- SIDRA での反映先: C-1662（duel の「押しっぱなし」に代替を用意する——
+  既定は現状のまま、調整パネルの 1 チャンネルとして足す。§4 の C-1393
+  「動きを減らす」が第 3 チャンネルとして入ったのと同じ作法）
