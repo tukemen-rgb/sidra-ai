@@ -538,7 +538,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
-PROBE_KEYS_PLACEHOLDER
+PROBE_SEND_PLACEHOLDER
 PROBE_EYES_PLACEHOLDER
 PROBE_SHAKE_PLACEHOLDER
 let rang = [];
@@ -553,7 +553,7 @@ function alone(rang, name){ return rang.length === 1 && rang[0] === name }
 function frame(){ rang = [];
   eeTick();
   return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
-probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
+probeSend('keydown', ' ', handlers); probeSend('keyup', ' ', handlers);
 frame(); frame();
 /* Steer at the next gate and ride the course. The page decides which
    gates are hot; this only keeps the ball on them. */
@@ -561,9 +561,9 @@ let hot = null, plain = null;
 for (let i = 0; i < 6000 && (hot === null || plain === null); i++) {
   const aim = gates && typeof nextGateX === 'function' ? nextGateX() : null;
   const target = (aim === null || aim === undefined) ? 0 : aim;
-  probeKey('keyup', 'ArrowLeft', handlers); probeKey('keyup', 'ArrowRight', handlers);
-  if (ball.x < target - 2) probeKey('keydown', 'ArrowRight', handlers);
-  else if (ball.x > target + 2) probeKey('keydown', 'ArrowLeft', handlers);
+  probeSend('keyup', 'ArrowLeft', handlers); probeSend('keyup', 'ArrowRight', handlers);
+  if (ball.x < target - 2) probeSend('keydown', 'ArrowRight', handlers);
+  else if (ball.x > target + 2) probeSend('keydown', 'ArrowLeft', handlers);
   const kick = frame();
   if (hot === null && alone(rang, 'key')) { hot = { kick: kick, rang: rang.slice() } }
   if (plain === null && alone(rang, 'catch')) { plain = { kick: kick, rang: rang.slice() } }
@@ -582,13 +582,13 @@ def ladder_probe(script: str) -> str:
     from sidra_ai.creation.probekit import (
         PROBE_EARS,
         PROBE_EYES,
-        PROBE_KEYS,
+        PROBE_SEND,
         PROBE_SHAKE,
     )
 
     return (
         LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
-        .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
+        .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
         .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
         .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
         .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)

@@ -1,28 +1,48 @@
-"""Shared pieces for the probes that drive real pages (C-1651, C-1652).
+"""Shared pieces for the probes that drive real pages (C-1652, C-1656).
 
-A probe is an instrument. When one is written from memory each time, the
-same slip comes back: twice in one session a probe built its key events as
-``code: k``, which sends ``code: ' '`` for the space bar. Both times the
-probe still appeared to work - the page under it happened to listen on
-``e.key``, or the probe only ever pressed a letter - so nothing but a
-repo-wide source scan noticed. A scan catches the repeat; it does not stop
-it. The snippet below does, by being the only place the rule is written.
+The pairing of a key with its code lives in :mod:`probekeys`, which C-1651
+built for exactly that reason. This module used to define a second
+``probeKey`` of its own - three arguments, dispatching as well as building
+- behind the *same* injection token, so the one name meant two different
+functions depending on which builder ran (C-1656). Nothing was broken by
+it, because each probe was internally consistent, but swapping a builder
+would have produced a probe that silently dispatched nothing: quieter than
+a crash and harder to notice than the mistake C-1651 set out to stop.
+
+So the branch is not redefined here. What this module adds is the part
+``probekeys`` deliberately does not own: sending the event to the page's
+listeners, and reading one frame's own camera kick.
 """
 
 from __future__ import annotations
+
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 
 #: A synthesised keyboard event, built the way the pages actually read it.
 #: The templates are split: some test ``e.key``, some test ``e.code``, and
 #: for the space bar those two differ (``' '`` against ``'Space'``). Any
 #: probe that presses a key should embed this rather than hand-roll it.
-PROBE_KEYS = """
-function probeKey(type, k, handlers){
+#: Send a key to the page, built by the one function that knows how a
+#: key pairs with its code (:data:`probekeys.KEY_EVENT_JS`). The name is
+#: deliberately NOT ``probeKey``: that name belongs to the shared branch,
+#: and two functions answering to it was the whole of C-1656.
+#:
+#: ``stopImmediatePropagation`` is honoured because the templates' own
+#: listeners call it, and a probe that kept dispatching past it would be
+#: feeding the page events a browser would have withheld.
+PROBE_SEND = (
+    KEY_EVENT_JS
+    + """
+function probeSend(type, k, handlers){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  const e = probeKey(k);
+  const guard = e.stopImmediatePropagation;
+  e.stopImmediatePropagation = function(){ stopped = true; return guard.call(e) };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
   return e }
 """
+)
+
 
 #: Read one frame's own camera kick, not the history of every kick before
 #: it (C-1648). ``shake()`` keeps ``Math.max`` and decays it by 0.78 each
@@ -116,4 +136,4 @@ function earEye(name, width, toNorm){
     mapped: !!toNorm, litNothing: false } }
 """
 
-__all__ = ["PROBE_KEYS", "PROBE_SHAKE", "PROBE_EARS", "PROBE_EYES"]
+__all__ = ["PROBE_SEND", "PROBE_SHAKE", "PROBE_EARS", "PROBE_EYES"]

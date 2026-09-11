@@ -415,7 +415,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
-PROBE_KEYS_PLACEHOLDER
+PROBE_SEND_PLACEHOLDER
 PROBE_EYES_PLACEHOLDER
 PROBE_SHAKE_PLACEHOLDER
 let rang = [];
@@ -430,7 +430,7 @@ function alone(rang, name){ return rang.length === 1 && rang[0] === name }
 function frame(){ rang = [];
   eeTick();
   return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
-probeKey('keydown', ' ', handlers); probeKey('keyup', ' ', handlers);
+probeSend('keydown', ' ', handlers); probeSend('keyup', ' ', handlers);
 frame(); frame();
 function settle(n){ for (let i = 0; i < (n || 40); i++) { frame() } }
 
@@ -466,13 +466,13 @@ def ladder_probe(script: str) -> str:
     from sidra_ai.creation.probekit import (
         PROBE_EARS,
         PROBE_EYES,
-        PROBE_KEYS,
+        PROBE_SEND,
         PROBE_SHAKE,
     )
 
     return (
         LADDER_PROBE.replace("SCRIPT_PLACEHOLDER", script)
-        .replace("PROBE_KEYS_PLACEHOLDER", PROBE_KEYS)
+        .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
         .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
         .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
         .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)
