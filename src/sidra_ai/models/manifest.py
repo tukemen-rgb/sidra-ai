@@ -20,6 +20,7 @@ from typing import Any
 from sidra_ai.models.registry import available_backends
 from sidra_ai.models.routing import LocalModelCandidate
 
+MODEL_MANIFEST_FILENAME = "model-manifest.json"
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_MANIFEST_MODELS = 32
 _SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")

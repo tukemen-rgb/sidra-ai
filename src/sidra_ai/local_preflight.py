@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import sys
 from importlib.metadata import distributions
+from pathlib import Path
 from typing import Any
 
 from sidra_ai.config.settings import Settings, UnsafeConfigurationError
@@ -22,6 +23,7 @@ from sidra_ai.models import (
     available_backends,
     probe_nvidia_vram,
 )
+from sidra_ai.models.manifest import MODEL_MANIFEST_FILENAME
 
 MIN_PYTHON = (3, 11)
 
@@ -53,6 +55,28 @@ def _installed_distribution_names() -> set[str]:
     }
 
 
+def _staged_model_but_running_echo(settings: Settings) -> bool:
+    """True when a reviewed model is staged here but the backend is ``echo``.
+
+    This is the one silent failure the home-PC runtime has: ``echo`` is the
+    clean-machine default and a legitimate backend, so it is not an error - but
+    ``echo`` on a machine where ``scripts/setup_real_model.py`` has already
+    written a reviewed manifest usually means the process lost
+    ``SIDRA_MODEL_BACKEND`` (a new terminal on Windows) and is quietly answering
+    with echo instead of the staged model. The owner lost time to exactly this
+    on 2026-09-02. It is surfaced as an advisory, not a failure: the startup
+    banner and ``sidra-api --check`` name the same condition, and the readiness
+    preflight should not be the one place that stays silent about it.
+    """
+
+    if settings.model_backend != "echo":
+        return False
+    try:
+        return (Path(settings.data_dir) / MODEL_MANIFEST_FILENAME).is_file()
+    except OSError:  # an unreadable data dir is not this check's problem
+        return False
+
+
 def collect_preflight() -> dict[str, Any]:
     """Collect an offline, secret-safe readiness report.
 
@@ -74,6 +98,7 @@ def collect_preflight() -> dict[str, Any]:
         "api_loopback_only": False,
         "configured_backend": "unknown",
         "backend_configuration": "unchecked",
+        "staged_model_but_running_echo": False,
         "gpu_probe": {"status": "unavailable"},
     }
 
@@ -99,6 +124,7 @@ def collect_preflight() -> dict[str, Any]:
 
     report["api_loopback_only"] = settings.is_localhost_only
     report["configured_backend"] = settings.model_backend
+    report["staged_model_but_running_echo"] = _staged_model_but_running_echo(settings)
     if not settings.is_localhost_only:
         # The product can deliberately expose an authenticated non-loopback bind,
         # but the approved home-PC baseline remains loopback-only.

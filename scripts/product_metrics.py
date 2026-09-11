@@ -1305,6 +1305,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1666: local_preflight is the "am I ready before starting sidra-api"
+    # diagnostic, yet it reported ok:true with no word about the one silent
+    # failure this runtime has - a reviewed model staged while running on echo.
+    # collect_preflight now carries a staged_model_but_running_echo advisory.
+    from sidra_ai.evals.preflight_flags_staged_model_echo import (
+        evaluate_preflight_flags_staged_model_echo,
+    )
+
+    preflight_echo = evaluate_preflight_flags_staged_model_echo()
+    c.add(
+        "preflight_flags_staged_model_echo",
+        "local_preflight が staged-model/echo の静かな失敗を報告する",
+        10.0 * preflight_echo.checks_passed / preflight_echo.checks_total,
+        detail=f"{preflight_echo.checks_passed}/{preflight_echo.checks_total} checks; "
+               "src/sidra_ai/evals/preflight_flags_staged_model_echo.py"
+               + ("" if preflight_echo.passed else "; " + "; ".join(preflight_echo.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

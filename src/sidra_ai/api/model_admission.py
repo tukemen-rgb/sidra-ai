@@ -18,6 +18,7 @@ from sidra_ai.config.settings import Settings
 from sidra_ai.models.base import LocalModelAdapter, ModelUnavailableError
 from sidra_ai.models.hardware import HardwareProbeError
 from sidra_ai.models.manifest import (
+    MODEL_MANIFEST_FILENAME,
     LocalModelManifest,
     ManifestModel,
     ModelManifestError,
@@ -31,7 +32,10 @@ from sidra_ai.models.runtime_route import (
     admit_configured_adapter_with_nvidia_probe,
 )
 
-MODEL_MANIFEST_FILENAME = "model-manifest.json"
+# MODEL_MANIFEST_FILENAME now lives in sidra_ai.models.manifest and is imported
+# above so this module's public name is unchanged. Importers that only need the
+# manifest's name (e.g. the diagnostic-only local_preflight) take it from the
+# model layer directly, without importing the API package and its web framework.
 
 
 def _matching_manifest_entry(
