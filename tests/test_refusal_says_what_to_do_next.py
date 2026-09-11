@@ -59,7 +59,18 @@ _REPO = "owner/alpha"
 #: Every code the service can set, and what the operator has to do about it.
 #: Kept here rather than imported so that adding a code to the service without
 #: giving the page words for it fails this file.
-CODES = ("gate", "history", "model_unavailable", "output_guard", "empty")
+CODES = (
+    "gate",
+    "history",
+    "model_unavailable",
+    "output_guard",
+    "empty",
+    # C-1670. Like "empty" this is not a failure - the operator named a thing
+    # and asked nothing, so the answer asks which - and like "empty" the
+    # fallback advice is wrong for it: retrying the same two words produces
+    # the same two readings.
+    "ambiguous",
+)
 
 
 # --------------------------------------------------------------- the service

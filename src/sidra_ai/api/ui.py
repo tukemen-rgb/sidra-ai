@@ -181,7 +181,12 @@ ASK_PAGE = """<!doctype html>
         // here would blame the system for a blank line, and the fallback advice
         // ("wait and try again") is wrong for the one case whose next step is
         // entirely in the operator's hands (C-1515).
-        empty: "\u8cea\u554f\u304c\u7a7a\u3067\u3059\u3002\u8abf\u3079\u305f\u3044\u3053\u3068\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002\u30ea\u30dd\u30b8\u30c8\u30ea\u306e\u5185\u5bb9\u306b\u3064\u3044\u3066\u304a\u7b54\u3048\u3067\u304d\u307e\u3059\u3002"
+        empty: "\u8cea\u554f\u304c\u7a7a\u3067\u3059\u3002\u8abf\u3079\u305f\u3044\u3053\u3068\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002\u30ea\u30dd\u30b8\u30c8\u30ea\u306e\u5185\u5bb9\u306b\u3064\u3044\u3066\u304a\u7b54\u3048\u3067\u304d\u307e\u3059\u3002",
+        // Also not a failure: 「racing game」 names a thing and asks nothing,
+        // so both readings - build one, find one - are guesses and the answer
+        // asks which (C-1670). The fallback advice would have said to wait and
+        // retry, and retrying the same two words gets the same two readings.
+        ambiguous: "\u62d2\u5426\u3067\u306f\u3042\u308a\u307e\u305b\u3093\u3002\u4f5c\u308b\u306e\u304b\u63a2\u3059\u306e\u304b\u3092\u6c7a\u3081\u3089\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u4f5c\u308b\u5834\u5408\u306f\u300c\u30ec\u30fc\u30b9\u30b2\u30fc\u30e0\u3092\u4f5c\u3063\u3066\u300d\u306e\u3088\u3046\u306b\u3001\u63a2\u3059\u5834\u5408\u306f\u77e5\u308a\u305f\u3044\u3053\u3068\u3092\u6587\u306b\u3057\u3066\u304a\u9001\u308a\u304f\u3060\u3055\u3044\u3002"
       }[result.refusal];
       if (!refusalMsg) {
         // An unknown or absent code: say what is known and nothing more.
