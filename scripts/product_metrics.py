@@ -16101,7 +16101,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- nothing sounds before the first touch (§2, C-1682) -------------
+    # --- nothing sounds before the first touch (§2, C-1683) -------------
     #
     # Nine audio judges ask whether a sound happens and what it sounds
     # like; none asks when it is allowed to. §2's own fact is that the

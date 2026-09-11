@@ -1,4 +1,4 @@
-"""Nothing sounds before the first touch (§2, C-1682).
+"""Nothing sounds before the first touch (§2, C-1683).
 
 §2's fact is plain: "ブラウザの自動再生制限があるため、AudioContext は
 最初のユーザー操作で resume する". The page implements the gesture half

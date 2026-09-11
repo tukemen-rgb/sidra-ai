@@ -180,7 +180,7 @@ function engineStop(){if(ENGINE){try{ENGINE.osc.stop()}catch(e){}
 function engineFacts(){return {on:!!ENGINE,rate:ENGINE_RATE,
   freq:ENGINE?ENGINE.osc.frequency.value:0,
   gain:ENGINE?ENGINE.g.gain.value:0,f0:ENGINE_F0,span:ENGINE_SPAN}}
-/* Nothing sounds before the first touch (§2, C-1682). The browser
+/* Nothing sounds before the first touch (§2, C-1683). The browser
    refuses audio started outside a user gesture, and the page already
    knows when that gesture happened: gateGesture() sets GATE_GESTURE on
    the first keydown or pointerdown and rings there, which is what makes
@@ -299,7 +299,7 @@ function sfx(name,pitch,at){
 }
 """
 
-#: Nothing sounds before the first touch (§2, C-1682).
+#: Nothing sounds before the first touch (§2, C-1683).
 #:
 #: The nine audio judges ask whether a sound happens and what it sounds
 #: like. None asks *when it is allowed to*. §2's own fact is that a
@@ -602,7 +602,7 @@ SCRIPT_PLACEHOLDER
 function measure(fn){ played.length = 0; fn(); return played.slice() }
 function press(k){ keyHandlers.forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
   preventDefault(){}, stopImmediatePropagation(){} })) }
-/* Touch the page first (§2, C-1682). Nothing sounds before the first
+/* Touch the page first (§2, C-1683). Nothing sounds before the first
    gesture, because a browser would refuse it - so a probe that measured
    gains without pressing was measuring sounds no visitor could ever
    hear. The press is what a player does before hearing anything. */
