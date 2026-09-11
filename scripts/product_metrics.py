@@ -1420,6 +1420,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1677: sidra-quarantine guarded --path with path.exists(), but a directory
+    # also exists, so a --path pointing at one crashed with an uncaught
+    # IsADirectoryError traceback instead of the "no quarantine log" message. The
+    # guard now uses path.is_file().
+    from sidra_ai.evals.quarantine_cli_rejects_nonfile_path import (
+        evaluate_quarantine_cli_rejects_nonfile_path,
+    )
+
+    quar_path = evaluate_quarantine_cli_rejects_nonfile_path()
+    c.add(
+        "quarantine_cli_rejects_nonfile_path",
+        "sidra-quarantine が非ファイル --path を案内で弾く（生の例外を出さない）",
+        10.0 * quar_path.checks_passed / quar_path.checks_total,
+        detail=f"{quar_path.checks_passed}/{quar_path.checks_total} checks; "
+               "src/sidra_ai/evals/quarantine_cli_rejects_nonfile_path.py"
+               + ("" if quar_path.passed else "; " + "; ".join(quar_path.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

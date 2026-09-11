@@ -68,8 +68,15 @@ def main(argv: list[str] | None = None) -> int:
     path = Path(args.path) if args.path else default_quarantine_path()
     review = QuarantineReview(path)
 
-    if not path.exists():
-        print(f"no quarantine log at {path}", file=sys.stderr)
+    if not path.is_file():
+        # `exists()` is true for a directory too, so a --path pointing at one
+        # (the .sidra data dir instead of .sidra/quarantine.jsonl, say) fell
+        # through to open() and crashed with a raw IsADirectoryError. is_file()
+        # rejects a directory or any other non-file with the same clean message;
+        # the " (not a file)" suffix tells a path that exists apart from one
+        # that is simply missing (C-1677).
+        suffix = " (not a file)" if path.exists() else ""
+        print(f"no quarantine log at {path}{suffix}", file=sys.stderr)
         return 1
 
     if args.command == "list":
