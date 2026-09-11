@@ -24,6 +24,7 @@ Three constraints the output has to satisfy, all checkable:
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import subprocess
@@ -604,6 +605,106 @@ console.log(JSON.stringify({ board: board, innocent: innocent, inForm: inForm,
   firstIsGuard: firstIsGuard,
   listeners: (handlers.keydown || []).length }));
 """
+
+
+#: The page, run with the outside world taken away (§9, C-1677).
+#:
+#: §9's differentiator is that the artifact is one local file the player
+#: owns: nothing fetched, nothing sent, and it keeps working wherever it
+#: is carried. Five scans in the collector look for ``fetch(`` and
+#: ``://``, and every one of them reads a single feature's preamble - a
+#: spelling check over a fragment. This runs the finished page instead,
+#: with the network replaced by functions that throw and with a browser
+#: that refuses storage, because "works when carried" is a behaviour and
+#: not a spelling.
+CARRIED_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }), addEventListener: () => {} };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+/* The network, poisoned. A page that touches any of these says so by
+   failing, which is the only way a scan for the words could be wrong and
+   this could still be right. */
+const reached = [];
+function refuse(name){ return function(){ reached.push(name);
+  throw new Error('no network: ' + name) } }
+globalThis.fetch = refuse('fetch');
+globalThis.XMLHttpRequest = refuse('XMLHttpRequest');
+globalThis.WebSocket = refuse('WebSocket');
+globalThis.EventSource = refuse('EventSource');
+globalThis.navigator = { sendBeacon: refuse('sendBeacon'), userAgent: 'probe',
+  maxTouchPoints: 0, vibrate: () => true };
+/* A browser that refuses storage: the accessor itself throws, the way a
+   private window and a blocked-cookies profile do. A page that only
+   guards with `typeof localStorage !== 'undefined'` passes that test and
+   still dies here. */
+function denyStore(){ const e = new Error('The operation is insecure.');
+  e.name = 'SecurityError'; throw e }
+STORAGE_PLACEHOLDER
+let boom = null;
+try {
+SCRIPT_PLACEHOLDER
+} catch (err) { boom = 'load: ' + (err && err.name) + ': ' + String(err && err.message).slice(0, 80) }
+let F = 0, frames = 0;
+function press(k){
+  const e = { key: k, code: k === ' ' ? 'Space' : k, target: { tagName: 'CANVAS' },
+    preventDefault(){}, stopImmediatePropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+if (!boom) { try { press(' ') }
+  catch (err) { boom = 'start: ' + (err && err.name) + ': ' + String(err && err.message).slice(0, 80) } }
+if (!boom) {
+  for (let i = 0; i < FRAMES_PLACEHOLDER && queued; i++) {
+    const fn = queued; queued = null;
+    try { fn((F++) * 16); frames++ }
+    catch (err) {
+      boom = 'frame ' + i + ': ' + (err && err.name) + ': ' + String(err && err.message).slice(0, 80);
+      break }
+  }
+}
+console.log(JSON.stringify({ boom: boom, frames: frames, reached: reached }));
+"""
+
+#: The two machines the page is carried to: one that keeps what it is
+#: given, and one that refuses to keep anything.
+_KEEPS = """
+const kept = {};
+globalThis.localStorage = { getItem: (k) => (k in kept ? kept[k] : null),
+  setItem(k, v){ kept[k] = String(v) }, removeItem(k){ delete kept[k] } };
+"""
+_REFUSES = """
+globalThis.localStorage = new Proxy({}, {
+  get(){ denyStore() }, set(){ denyStore() }, has(){ denyStore() } });
+"""
+
+
+def carried_probe(script: str, *, storage: str = "keeps", frames: int = 600) -> str:
+    """The page's own script, wrapped so it can be run somewhere else.
+
+    ``storage`` is ``"keeps"`` for a browser that stores, ``"refuses"``
+    for one whose ``localStorage`` throws on every access.
+    """
+
+    if storage not in ("keeps", "refuses"):  # pragma: no cover - caller error
+        raise ValueError(storage)
+    return (
+        CARRIED_PROBE.replace(
+            "STORAGE_PLACEHOLDER", _KEEPS if storage == "keeps" else _REFUSES
+        )
+        .replace("FRAMES_PLACEHOLDER", str(int(frames)))
+        .replace("SCRIPT_PLACEHOLDER", script)
+    )
 
 
 def scrollguard_probe(script: str) -> str:
@@ -1358,6 +1459,39 @@ def _touch_hint(script: str) -> str:
     return "スマホでは画面のボタン（" + " / ".join(groups) + "）で操作できます。"
 
 
+def _inline_favicon(tokens: dict[str, str]) -> str:
+    """The tab icon, declared inline (§9, C-1677).
+
+    C-1260 fixed this for SIDRA's own ask page: a page with no declared
+    icon makes the browser ask for ``/favicon.ico`` on every open, which
+    logs an error and leaves the tab blank. The fix never reached the
+    product's *output* - the file a player saves and shows people - and
+    that file is the whole of §9's claim: one local HTML, owned, with
+    nothing fetched from anywhere.
+
+    So it is drawn here, from the page's own palette: a rounded tile in
+    the surface colour with the accent's mark on it, base64 in a ``data:``
+    URI the way ``api/ui.py``does it. Base64 rather than percent
+    encoding for one reason beyond brevity - a standalone SVG needs its
+    ``xmlns``, and that namespace name contains ``://`` though it
+    addresses nothing. Encoded, the finished page can be held to "not one
+    ``://`` anywhere", which is a contract with no exemption to argue
+    about.
+    """
+
+    surface = tokens["surface"]
+    accent = tokens["accent"]
+    svg = (
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\">"
+        f"<rect width=\"32\" height=\"32\" rx=\"7\" fill=\"{surface}\"/>"
+        f"<rect x=\"7\" y=\"11\" width=\"18\" height=\"10\" rx=\"3\" fill=\"{accent}\"/>"
+        f"<rect x=\"14\" y=\"6\" width=\"4\" height=\"4\" fill=\"{accent}\"/>"
+        "</svg>"
+    )
+    packed = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f'<link rel="icon" href="data:image/svg+xml;base64,{packed}">'
+
+
 def _page(
     title: str, tagline: str, how: str, script: str, evidence: list[str], theme: Theme
 ) -> str:
@@ -1372,6 +1506,7 @@ def _page(
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)}</title>
+{_inline_favicon(t)}
 <style>
 :root{{color-scheme:{t["scheme"]}}}
 body{{margin:0;background:{t["bg"]};color:{t["text"]};

@@ -16063,6 +16063,137 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- one local file, and it works where it is carried (§9, C-1677) --
+    #
+    # §9's differentiator is that the artifact is one local HTML the
+    # player owns: nothing fetched, nothing sent, portable. Five scans in
+    # this file already look for fetch( and ://, and every one reads a
+    # single feature's preamble - a spelling check over a fragment, so a
+    # new template, theme or preamble could add an outward reference and
+    # leave all five green. Measured before fixed: every generated page
+    # carried no <link> at all, so a saved file asked the browser for
+    # /favicon.ico on every open, logged a 404 and showed a blank tab -
+    # the very thing C-1260 fixed for SIDRA's own ask page and never
+    # carried across to the product's output.
+    #
+    # Three things per template, and the last two are behaviour: the
+    # finished page names nothing outside, it declares its icon inline,
+    # and it still runs when the network throws and when the browser
+    # refuses to store anything.
+    from sidra_ai.creation.games import carried_probe as _carry_probe
+
+    _carry_gaps: list[str] = []
+    _carry_ok: list[str] = []
+    _CARRY_NET = (
+        "fetch(", "XMLHttpRequest", "WebSocket", "EventSource",
+        "sendBeacon", "navigator.geolocation", "import(",
+    )
+    _CARRY_REQS = {
+        "adventure": "迷宮を冒険するゲームを作って",
+        "duel": "ビームで撃ち合うゲームを作って",
+        "kaiju": "巨大怪獣と戦うゲームを作って",
+        "shooter": "シューティングゲームを作って",
+        "puzzle": "パズルゲームを作って",
+        "platformer": "ジャンプで進むゲームを作って",
+        "marble": "玉転がしゲームを作って",
+        "racing": "レースゲームを作って",
+        "fishing": "釣りゲームを作って",
+        "catch": "落ちものをキャッチするゲームを作って",
+    }
+    for _cy_key in sorted(_CARRY_REQS):
+        _cy_html = generate_game(_CARRY_REQS[_cy_key]).html
+        _cy_trouble = None
+        # (a) the finished page names nothing outside itself. Held with no
+        # exemption: the icon's SVG is base64 so even its namespace, which
+        # addresses nothing, cannot be the one :// that has to be argued
+        # about.
+        if "://" in _cy_html:
+            _cy_trouble = f"{_cy_key}: the page carries an absolute URL"
+        else:
+            _cy_far = [
+                ref
+                for ref in _re.findall(
+                    r"(?:src|href)\s*=\s*[\"']([^\"']*)", _cy_html
+                )
+                if not ref.startswith("data:")
+            ]
+            if _cy_far:
+                _cy_trouble = f"{_cy_key}: points outside itself ({_cy_far[0][:40]!r})"
+        if _cy_trouble is None:
+            for _cy_net in _CARRY_NET:
+                if _cy_net in _cy_html:
+                    _cy_trouble = f"{_cy_key}: the page contains {_cy_net!r}"
+                    break
+        # (b) the icon is declared, so opening the saved file asks for
+        # nothing.
+        if _cy_trouble is None:
+            _cy_icon = _re.search(
+                r"<link[^>]*rel=[\"']icon[\"'][^>]*>", _cy_html, _re.I
+            )
+            if _cy_icon is None:
+                _cy_trouble = f"{_cy_key}: no icon declared - every open asks for one"
+            elif "href=\"data:" not in _cy_icon.group(0):
+                _cy_trouble = f"{_cy_key}: the icon is not inline"
+        # (c) carried: the network throws, and one machine refuses to store.
+        if _cy_trouble is None:
+            _cy_script = _re.search(r"<script>(.*?)</script>", _cy_html, _re.S)
+            if _cy_script is None:
+                _cy_trouble = f"{_cy_key}: no script on the page"
+            else:
+                for _cy_where in ("keeps", "refuses"):
+                    try:
+                        _cy_run = _sp.run(
+                            ["node", "-"],
+                            input=_carry_probe(
+                                _cy_script.group(1), storage=_cy_where
+                            ),
+                            capture_output=True,
+                            text=True,
+                            timeout=180,
+                        )
+                        if _cy_run.returncode != 0:
+                            raise ValueError(_cy_run.stderr.strip()[:70])
+                        _cy = json.loads(_cy_run.stdout.strip().splitlines()[-1])
+                    except (OSError, _sp.SubprocessError, ValueError) as exc:
+                        _cy_trouble = f"{_cy_key} ({_cy_where}): probe unavailable ({exc})"
+                        break
+                    if _cy["reached"]:
+                        _cy_trouble = (
+                            f"{_cy_key} ({_cy_where}): the page reached for "
+                            f"{_cy['reached'][0]}"
+                        )
+                        break
+                    if _cy["boom"]:
+                        _cy_trouble = f"{_cy_key} ({_cy_where}): {_cy['boom']}"
+                        break
+                    if _cy["frames"] < 600:
+                        _cy_trouble = (
+                            f"{_cy_key} ({_cy_where}): stopped after "
+                            f"{_cy['frames']} frames"
+                        )
+                        break
+        if _cy_trouble:
+            _carry_gaps.append(_cy_trouble)
+        else:
+            _carry_ok.append(_cy_key)
+
+    c.add(
+        "creation_page_is_self_contained",
+        "持ち出した先でも動く 1 枚の HTML である型",
+        0.0 if _carry_gaps else float(len(_carry_ok)),
+        detail=(
+            "; ".join(_carry_gaps)
+            if _carry_gaps
+            else "完成ページ全体に `://` も外向きの src/href も網の API も無く、"
+            "`data:` の favicon を宣言（開くたびの /favicon.ico 要求と白紙タブを止める）。"
+            "**綴りではなく挙動**でも確認: fetch/XHR/WebSocket/EventSource/sendBeacon を"
+            "必ず throw するものに差し替え、さらに localStorage のアクセサ自体が"
+            "SecurityError を投げる端末でも 10 型が 600 フレーム走る"
+            "（§9 の「持ち出し自由」は、持ち出した先で動くことでしか意味を持たない）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the dungeon, walked to its own win (§3, C-1676) ----------------
     #
     # creation_adventure_playable counts rooms and tiles in the generated
