@@ -629,7 +629,9 @@ globalThis.document = { getElementById: () => ({
   getContext: () => nothing }) };
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
+PROBE_EYES_PLACEHOLDER
 PROBE_SEND_PLACEHOLDER
 PROBE_SHAKE_PLACEHOLDER
 let rang = [];
@@ -639,7 +641,7 @@ sfx = function(name){ rang.push(String(name)); return realSfx.apply(this, argume
    the combo step-up kicks by 3, and the hammer earned at five tiles rings
    its own sound on exactly the frames a big clear happens. */
 function alone(name){ return rang.length === 1 && rang[0] === name }
-function frame(){ rang = [];
+function frame(){ rang = []; eeTick();
   return probeKick(() => { if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }) }
 probeSend('keydown', ' ', handlers); probeSend('keyup', ' ', handlers);
 frame(); frame();
@@ -661,7 +663,10 @@ function clearOf(n){
   SHAKE = 0;
   pop();
   const kick = shakeAmount();
-  return { asked: n, size: size, kick: kick, rang: rang.slice() };
+  /* The ear names the centre of the group; the eye lights its members
+     (C-1418). So: is the ear inside what the eye painted? */
+  const span = earInSpan('gem', cv.width);
+  return { asked: n, size: size, kick: kick, rang: rang.slice(), span: span };
 }
 /* Two against four, not two against eight: a clear of five or more earns
    a hammer, which rings its own sound on the same frame. That sound does
@@ -677,12 +682,19 @@ console.log(JSON.stringify({ light: light, heavy: heavy }));
 def slope_probe(script: str) -> str:
     """The page's own script, wrapped so one action can be weighed twice."""
 
-    from sidra_ai.creation.probekit import PROBE_SEND, PROBE_SHAKE
+    from sidra_ai.creation.probekit import (
+        PROBE_EARS,
+        PROBE_EYES,
+        PROBE_SEND,
+        PROBE_SHAKE,
+    )
 
     return (
         SLOPE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("PROBE_SEND_PLACEHOLDER", PROBE_SEND)
         .replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE)
+        .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
+        .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)
     )
 
 

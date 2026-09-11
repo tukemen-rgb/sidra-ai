@@ -526,9 +526,11 @@ globalThis.document = { getElementById: () => ({
   getContext: () => nothing }) };
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_EARS_PLACEHOLDER
 SCRIPT_PLACEHOLDER
+PROBE_EYES_PLACEHOLDER
 let F = 0;
-function run(n){ for (let i = 0; i < n && queued; i++) {
+function run(n){ for (let i = 0; i < n && queued; i++) { eeTick();
   const fn = queued; queued = null; fn((F++) * 16) } }
 function key(type, k){
   const e = { key: k, code: k === ' ' ? 'Space' : k,
@@ -588,8 +590,10 @@ for (let i = 0; i < 2000 && bossFacts().phase !== 'open'; i++) {
 const openedAt = bossFacts().phase;
 const cyclesBefore = bossFacts().cycles;
 const head = strike(-160, 'head');
+/* The blow rings at the leg and lights at the leg (§28, C-1658). */
+const pair = earEye('cut', W);
 console.log(JSON.stringify({
-  leg: leg, head: head, opened: openedAt,
+  pair: pair, leg: leg, head: head, opened: openedAt,
   cyclesBefore: cyclesBefore, cyclesAfter: bossFacts().cycles,
   ground: 320 - 46
 }));
@@ -599,7 +603,13 @@ console.log(JSON.stringify({
 def beats_probe(script: str) -> str:
     """The page's own script, wrapped so both blows can be watched."""
 
-    return BEATS_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+    from sidra_ai.creation.probekit import PROBE_EARS, PROBE_EYES
+
+    return (
+        BEATS_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_EARS_PLACEHOLDER", PROBE_EARS)
+        .replace("PROBE_EYES_PLACEHOLDER", PROBE_EYES)
+    )
 
 
 def probe_source(script: str) -> str:

@@ -572,7 +572,39 @@ for (let i = 0; i < 6000 && (hot === null || plain === null); i++) {
    The page explains why - screen x at gate range would saturate
    the panner - so the two are asked only to agree on the side. */
 const pair = earEye('key', cv.width, null);
-console.log(JSON.stringify({ pair: pair, light: plain, heavy: hot }));
+/* The ear and the eye do not share a coordinate system here, and the page
+   says why: `gpan` is the LANE, while the burst is drawn at the PROJECTED
+   gx, which at gate range magnifies so far that screen x would saturate
+   the panner. Comparing the two numbers is meaningless, which is why
+   C-1653 left this page out. What is not meaningless is whether they MOVE
+   TOGETHER: take two gates and ask that the pan and the painted x step the
+   same way. Signs only - no magnitudes (§28, C-1658). */
+/* The ladder pass above rides the course to its end, so start a fresh
+   run before asking this question - a finished course rolls no gates. */
+reset(); frame(); frame();
+const gates2 = [];
+for (let i = 0; i < 9000 && gates2.length < 2 && state === 'roll'; i++) {
+  const beforeHeard = heard.length, beforeSeen = seen.length;
+  const aim = typeof nextGateX === 'function' ? nextGateX() : 0;
+  const target = (aim === null || aim === undefined) ? 0 : aim;
+  probeSend('keyup', 'ArrowLeft', handlers); probeSend('keyup', 'ArrowRight', handlers);
+  if (ball.x < target - 2) probeSend('keydown', 'ArrowRight', handlers);
+  else if (ball.x > target + 2) probeSend('keydown', 'ArrowLeft', handlers);
+  frame();
+  const rung = heard.slice(beforeHeard).filter(h => h.at !== null &&
+    (h.name === 'catch' || h.name === 'key'));
+  const lit = seen.slice(beforeSeen);
+  if (rung.length === 1 && lit.length) { gates2.push({ pan: rung[0].at, x: lit[0].x }) }
+}
+let together = null;
+if (gates2.length === 2) {
+  const dPan = gates2[1].pan - gates2[0].pan;
+  const dEye = gates2[1].x - gates2[0].x;
+  together = { dPan: dPan, dEye: dEye,
+    sameWay: (dPan > 0 && dEye > 0) || (dPan < 0 && dEye < 0),
+    moved: Math.abs(dPan) > 1e-6 && Math.abs(dEye) > 1e-6, gates: gates2 };
+}
+console.log(JSON.stringify({ pair: pair, together: together, light: plain, heavy: hot }));
 """
 
 

@@ -134,6 +134,27 @@ function earEye(name, width, toNorm){
     apartPx: Math.abs(eyeNorm - ear.at) * width,
     sameSide: side(ear.at) === side(eyeNorm),
     mapped: !!toNorm, litNothing: false } }
+/* Some events do not paint one dot. The puzzle's clear rings at the
+   CENTRE of the group it cleared and lights every tile in it, which is
+   the design (C-1418: a big clear's number appears where the big clear
+   was), so the honest question is whether the ear points INSIDE what the
+   eye painted. For a single-burst event the span collapses and this is
+   the same as coincidence. */
+function earInSpan(name, width, toNorm){
+  const ear = heard.filter(h => h.name === name && h.at !== null).pop();
+  if (!ear) return null;
+  const near = seen.filter(s => Math.abs(s.frame - ear.frame) <= 1);
+  if (!near.length) return { name: name, earNorm: ear.at, litNothing: true,
+    inside: false, lo: null, hi: null };
+  const norm = toNorm || function(x){ return x / width };
+  const xs = near.map(function(s){ return norm(s.x) });
+  const lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs);
+  /* Half a cell of slack at each end: the burst sits at a tile's centre,
+     so a two-tile clear's centroid lands between two dots rather than on
+     one, and the span's own ends are centres too. */
+  const pad = 24 / width;
+  return { name: name, earNorm: ear.at, lo: lo, hi: hi, lit: near.length,
+    inside: ear.at >= lo - pad && ear.at <= hi + pad, litNothing: false } }
 """
 
 __all__ = ["PROBE_SEND", "PROBE_SHAKE", "PROBE_EARS", "PROBE_EYES"]

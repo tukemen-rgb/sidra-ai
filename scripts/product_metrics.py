@@ -11701,6 +11701,7 @@ def measure_creation(c: Collector) -> None:
 
     slope_gaps: list[str] = []
     slope_ok: list[str] = []
+    _sl_read: dict[str, dict] = {}
     _sl_jobs = []
     _sl_targets = (
         ("duel/溜め", "ビームで撃ち合うゲームを作って", _sl_duel, "charge"),
@@ -11752,6 +11753,7 @@ def measure_creation(c: Collector) -> None:
             )
         else:
             slope_ok.append(_sl_key)
+        _sl_read[_sl_key.split("/")[0]] = _sl
     c.add(
         "creation_shake_scales_with_input",
         "同じ動作でも入れたぶんだけ揺れる",
@@ -11863,6 +11865,53 @@ def measure_creation(c: Collector) -> None:
             )
         else:
             ear_ok.append(_ee_who)
+    # C-1658: three more sites, each a different shape of agreement. Asking
+    # all of them the coincidence question would fail two correct pages, so
+    # each is asked the question its own design answers.
+    _ee_kaiju = (_shake_kaiju or {}).get("pair")
+    if not _ee_kaiju:
+        ear_gaps.append("kaiju/脚打: the blow was not driven")
+    elif _ee_kaiju.get("litNothing"):
+        ear_gaps.append("kaiju/脚打: the sound lit nothing on its own frame")
+    elif not _ee_kaiju.get("sameSide") or (_ee_kaiju.get("apartPx") or 0) > 8:
+        ear_gaps.append(
+            f"kaiju/脚打: {(_ee_kaiju.get('apartPx') or 0):.0f}px between "
+            "the sound and the light"
+        )
+    else:
+        ear_ok.append("kaiju/脚打")
+    # The puzzle rings at the CENTRE of the group it cleared and lights
+    # every tile in it (C-1418), so the question is containment, not
+    # coincidence - for a single-burst event the span collapses and the
+    # two are the same question.
+    _ee_span = ((_sl_read.get("puzzle") or {}).get("heavy") or {}).get("span")
+    if not _ee_span:
+        ear_gaps.append("puzzle/消し: the clear was not driven")
+    elif _ee_span.get("litNothing"):
+        ear_gaps.append("puzzle/消し: the clear lit nothing on its own frame")
+    elif not _ee_span.get("inside"):
+        ear_gaps.append(
+            f"puzzle/消し: the ear points at {_ee_span['earNorm']:.2f}, outside "
+            f"the {_ee_span['lo']:.2f}..{_ee_span['hi']:.2f} the eye painted"
+        )
+    else:
+        ear_ok.append("puzzle/消し")
+    # The marble's two channels live in different spaces on purpose, so
+    # their numbers are not comparable (C-1653 left it out for that). What
+    # is comparable is the direction: two gates, both channels stepping the
+    # same way.
+    _ee_mar = (_lad_read.get("marble") or {}).get("together")
+    if not _ee_mar:
+        ear_gaps.append("marble/ゲート: two gates could not be rolled")
+    elif not _ee_mar.get("moved"):
+        ear_gaps.append("marble/ゲート: the two gates were in the same place")
+    elif not _ee_mar.get("sameWay"):
+        ear_gaps.append(
+            f"marble/ゲート: the ear stepped {_ee_mar['dPan']:+.3f} and the eye "
+            f"{_ee_mar['dEye']:+.0f}px - opposite ways"
+        )
+    else:
+        ear_ok.append("marble/ゲート")
     c.add(
         "creation_pan_matches_paint",
         "耳が指した場所を目も指す",
@@ -11870,7 +11919,12 @@ def measure_creation(c: Collector) -> None:
         detail=(
             "; ".join(ear_gaps)
             if ear_gaps
-            else "実走行で駆動し、ページ自身の 2 チャンネル（`sfx` の pan と `burst` の x）を"
+            else "**一致の形は 1 つではない**——同じ問いを全部に当てると"
+            "**正しい実装を 2 つ落とす**ので、型ごとにその設計が答える問いを訊く（C-1658）: "
+            "**同じ点**＝racing・adventure・platformer・shooter・duel・kaiju／"
+            "**耳が目の塗った範囲の中**＝puzzle（`popX` は消した塊の重心、`burst` は各タイル・C-1418）／"
+            "**2 つのゲートで同じ向きへ動く**＝marble（`gpan` はレーン・`burst` は射影後の `gx` で空間が違う）。"
+            "実走行で駆動し、ページ自身の 2 チャンネル（`sfx` の pan と `burst` の x）を"
             "**同じフレームで**突き合わせた（フレーム窓が要る——窓が無いと走行中のどこかの光と"
             "照合してしまい、1900px 離れた再出現が「一致」に見えた）: "
             "racing のスリップストリーム 耳 482px・目 482px／adventure の被弾 0.00px／"
