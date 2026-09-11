@@ -21,6 +21,7 @@ duel itself keeps working.
 """
 
 from __future__ import annotations
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 
 import json
 
@@ -388,7 +389,7 @@ reset();step();
 #: Drives the duel in node so the new rules can be observed rather than
 #: read: hold forever and see whether it costs anything, and compare two
 #: seeds to see whether the opponent's temperament is behaviour or decoration.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -406,7 +407,7 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
 /* Past the start screen first: the gate holds every frame until pressed. */
-const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+const press = probeKey(' ');
 keyHandlers.forEach(fn => fn(press));
 run(2);
 /* Now hold the button down and never let go - the strategy that used to be
@@ -655,7 +656,7 @@ def probe_source(script: str) -> str:
 #: The telegraph, held to its word (C-1309): once the aim locks, the shot
 #: goes where the line said, at least AIM_LOCK frames later; leaving the
 #: lane in that window is a dodge, and staying in it is a hit.
-AIM_PROBE = """
+AIM_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -672,7 +673,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
-const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+const press = probeKey(' ');
 keyHandlers.forEach(fn => fn(press));
 run(2);
 /* One volley, dodged: wait for the lock, step off the line, count the
@@ -707,7 +708,7 @@ def aim_probe(script: str) -> str:
 #: dodger takes twelve volleys at full health, at first blood, and at match
 #: point, and the frames between shots must shrink while the locked
 #: telegraph window stays as long as ever.
-PACE_PROBE = """
+PACE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -734,7 +735,7 @@ function sceneTick(){
   if (typeof SCENE === 'number' && sceneOrder[sceneOrder.length - 1] !== SCENE) {
     sceneOrder.push(SCENE) } }
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16); sceneTick() } }
-const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+const press = probeKey(' ');
 keyHandlers.forEach(fn => fn(press));
 run(2);
 /* Twelve dodged volleys at one health state: step off the locked lane
@@ -841,7 +842,7 @@ def pace_probe(script: str) -> str:
 #: where the eyes lean; stand level and count the blink. The clock ticks
 #: with the frames (C-1348's lesson: a zero-pinned performance.now
 #: freezes the wall-clock FRAME and the blink never comes).
-FACE_PROBE = """
+FACE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -876,8 +877,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
 function ev(type, k){
-  const e2 = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e2 = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e2));
 }
 ev('keydown', ' '); ev('keyup', ' '); run(2);
@@ -952,7 +952,7 @@ def face_probe(script: str, *, reduced: bool = False) -> str:
 #: 1 on every sampled frame. Keys are the template's own; the enemy's aim
 #: is dodged by lane during the charge so nothing but the verb under test
 #: writes the number.
-SQUASH_PROBE = """
+SQUASH_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -992,8 +992,7 @@ function followed(sq){
     Math.abs(n.w - r.w * (2 - sq)) < 1e-6 && Math.abs(n.h - r.h * sq) < 1e-6)) }
 
 function ev(type, k){
-  const e2 = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e2 = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e2));
 }
 ev('keydown', ' '); ev('keyup', ' '); run(2);
@@ -1057,7 +1056,7 @@ def squash_probe(script: str, *, reduced: bool = False) -> str:
 #: recorded pan must match the struck fighter's x through (x/W*2-1)*0.8,
 #: while fire/charge/clash and every other positionless sound builds no
 #: panner at all.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1095,7 +1094,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
-const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+const press = probeKey(' ');
 keyHandlers.forEach(fn => fn(press));
 run(2);
 const before = pans.length;
@@ -1249,7 +1248,7 @@ def loss_probe_source(script: str, *, mode: str = "beam", frames: int = 4000) ->
 #: C-1377): the player's beam lands on the enemy through the trigger-time
 #: rule, then the CPU's own volley lands on the player, and each blow must
 #: flash the body, leave smoke that outlives the flash, and clear.
-BEAT_PROBE = """
+BEAT_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1266,7 +1265,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
-const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+const press = probeKey(' ');
 keyHandlers.forEach(fn => fn(press));
 run(2);
 /* Watch one fighter for seventy frames after its hp drops. */

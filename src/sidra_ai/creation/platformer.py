@@ -34,6 +34,7 @@ and juice preambles.
 """
 
 from __future__ import annotations
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 
 import json
 
@@ -434,7 +435,7 @@ reset();step();
 #: The buffered jump, played (C-1310): pressed and held a few frames before
 #: landing it fires on the landing frame; released before landing it is
 #: discarded - and a press in open air still never jumps on the spot.
-BUFFER_PROBE = """
+BUFFER_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -453,8 +454,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
-function ev(key){ return { key: key, code: key === ' ' ? 'Space' : key,
-  preventDefault(){}, stopImmediatePropagation(){} } }
+function ev(key){ return probeKey(key) }
 function press(key){ keyHandlers.forEach(fn => fn(ev(key))) }
 function lift(key){ upHandlers.forEach(fn => fn(ev(key))) }
 press(' '); lift(' '); run(80);
@@ -501,7 +501,7 @@ def buffer_probe(script: str) -> str:
 #: grepped for. Every fake this template invites passes a source check: a
 #: coyote window that never closes (a double jump), a jump cut that never
 #: fires, a "respawn" that is a reload.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -520,8 +520,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
-function ev(key){ return { key: key, code: key === ' ' ? 'Space' : key,
-  preventDefault(){}, stopImmediatePropagation(){} } }
+function ev(key){ return probeKey(key) }
 function press(key){ keyHandlers.forEach(fn => fn(ev(key))) }
 function lift(key){ upHandlers.forEach(fn => fn(ev(key))) }
 /* Past the start screen, then settle onto the fixed first ledge. */
@@ -855,7 +854,7 @@ def squash_probe(script: str, *, reduced: bool = False) -> str:
 #: respawn point - a power, not a pickup - so the moment it lights must
 #: build the vibrato path. The AudioContext is the audio probe's Recorder:
 #: connections, not constructions.
-LAMP_SFX_PROBE = """
+LAMP_SFX_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -898,8 +897,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -992,7 +990,7 @@ def lamp_sink_probe(script: str) -> str:
 #: base's centre boards it and earns its gems (the lock opens to skill);
 #: the same jump from the stretch's lowest platform falls short (the lock
 #: is real). Direct state ops are the racing/guard probes' precedent.
-ROUTE_PROBE = """
+ROUTE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1012,8 +1010,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 function onShelf(){ return me.ground &&
@@ -1115,7 +1112,7 @@ def route_probe(script: str, *, drive: int = 2400) -> str:
         "DRIVE_INPUT", str(int(drive))
     )
 
-FACE_PROBE = """
+FACE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1153,8 +1150,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -1228,7 +1224,7 @@ def face_probe(script: str, *, reduced: bool = False) -> str:
 #: must show for exactly the old flat count (bit-compat), and the longest
 #: one, whose frame count must reach 15 frames a character = the 4
 #: characters-per-second Japanese subtitle standard.
-SAY_PROBE = """
+SAY_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1251,8 +1247,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -1285,7 +1280,7 @@ def say_probe(script: str, *, short: str, long: str) -> str:
 #: The camera's lead, driven (§27, C-1622). The hero is walked right
 #: until the camera settles, then left, and where it sits on screen is
 #: read back - the view ahead is what is left of the canvas past it.
-CAMERA_PROBE = """
+CAMERA_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1311,7 +1306,7 @@ const held = {};
 function hold(k, on){ held[k] = on }
 globalThis.__held = held;
 function key(type, k){
-  const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 key('keydown', ' '); key('keyup', ' ');
@@ -1357,7 +1352,7 @@ def camera_probe(script: str) -> str:
 
 
 
-TRAIL_PROBE = """
+TRAIL_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1391,8 +1386,7 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
-function ev(k){ return { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
-  preventDefault(){}, stopImmediatePropagation(){} } }
+function ev(k){ return probeKey(k) }
 function down(k){ (handlers.keydown || []).forEach(fn => fn(ev(k))) }
 function up(k){ (handlers.keyup || []).forEach(fn => fn(ev(k))) }
 /* Past the briefing, then hold right: the run is the thing that streaks. */

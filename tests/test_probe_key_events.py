@@ -108,8 +108,23 @@ _OWNS_IT = ("probekeys.py", pathlib.Path(__file__).name)
 #: a constant measured on a tree that no longer exists is not a ratchet,
 #: it is a guess. Raising it needs that kind of reason in writing;
 #: "a new probe needed one" is not one.
-_HAND_ROLLED_SITES = 109
-_HAND_ROLLED_FILES = 33
+#: C-1654 第 2 陣 (2026-09-11): kaiju・platformer・duel の 27 か所を移して
+#: 109 -> 82. **項目が書いていた「kaiju 13 / platformer 11 / duel 9 の 33 か所を
+#: 機械的に」は誤りだった**——正準形（第 1 陣の形）はそのうち 15 か所だけで
+#: (kaiju 11・platformer 4・duel 0)、残りは 4 つの別の形だった。形ごとに規則を
+#: 書き、**認識できない形は触らない**ようにしたので、動いた数がそのまま
+#: 「機械的に移せた数」になる。残る 6 か所（kaiju 1・platformer 3・duel 2)は
+#: どの規則にも当てはまらず、手で読む必要があるので次の陣へ回した。
+#:
+#: **正しさの根拠は 51 本の probe の出力が移行前後でバイト単位で同一**である
+#: こと。probeKey は 'Space' を ' ' へ写すが正準形の literal は写さないので、
+#: k === 'Space' で両者は食い違う——第 1 陣が無事だったのは「その呼び出し側が
+#: 'Space' を渡さない」という**実測の事実**であって置換の性質ではない。だから
+#: 陣ごとに測り直す。
+#:
+#: ファイル数は 32 が実測値（33 は 1 つ古かった）。
+_HAND_ROLLED_SITES = 82
+_HAND_ROLLED_FILES = 32
 
 
 def _hand_rolled() -> dict[str, int]:
