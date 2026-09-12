@@ -79,6 +79,12 @@ def _split_long(text: str, max_chars: int, overlap: int) -> list[str]:
         # spanning the boundary is still retrievable from one side.
         step = max_chars - overlap
         for start in range(0, len(paragraph), step):
+            # Once the remaining tail is no longer than the overlap, it already
+            # sits wholly inside the previous chunk's overlap region: emitting it
+            # would only add a redundant (worst case one-character) chunk. Stop
+            # instead - no content is lost, since that tail is already covered.
+            if start > 0 and len(paragraph) - start <= overlap:
+                break
             pieces.append(paragraph[start : start + max_chars])
         current = ""
     if current:

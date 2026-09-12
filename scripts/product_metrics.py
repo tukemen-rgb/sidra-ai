@@ -1592,6 +1592,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1693: _split_long stepped an oversized paragraph by max_chars-overlap, so
+    # a final window starting within `overlap` of the end produced a chunk wholly
+    # inside the previous one - a redundant, worst-case one-character chunk that
+    # gets indexed. The hard split now stops before emitting such a tail.
+    from sidra_ai.evals.chunker_drops_redundant_overlap_tail import (
+        evaluate_chunker_drops_redundant_overlap_tail,
+    )
+
+    chunker_tail = evaluate_chunker_drops_redundant_overlap_tail()
+    c.add(
+        "chunker_drops_redundant_overlap_tail",
+        "チャンカーが前チャンクに包含される冗長な末尾チャンクを出さない",
+        10.0 * chunker_tail.checks_passed / chunker_tail.checks_total,
+        detail=f"{chunker_tail.checks_passed}/{chunker_tail.checks_total} checks; "
+               "src/sidra_ai/evals/chunker_drops_redundant_overlap_tail.py"
+               + ("" if chunker_tail.passed else "; " + "; ".join(chunker_tail.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
