@@ -157,7 +157,7 @@ function earInSpan(name, width, toNorm){
     inside: ear.at >= lo - pad && ear.at <= hi + pad, litNothing: false } }
 """
 
-#: One thumb, never two (§8 事実 5, C-1700).
+#: One thumb, never two (§8 事実 5, C-1702).
 #:
 #: Voodoo's shipping question is whether the game works one-handed on a
 #: crowded train, and on a phone the pad is a rectangle drawn inside the

@@ -17224,7 +17224,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- one thumb is enough (§8 事実 5, C-1700) -------------------------
+    # --- one thumb is enough (§8 事実 5, C-1702) -------------------------
     #
     # Voodoo's shipping question - can it be played one-handed on a
     # crowded train - and on a phone the pad is a rectangle inside the
