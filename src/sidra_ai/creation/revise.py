@@ -46,7 +46,13 @@ from sidra_ai.creation.intent import (
 )
 from sidra_ai.creation.router import CreationOutcome
 from sidra_ai.creation.intent import CreationKind
-from sidra_ai.creation.themes import DEFAULT_THEME, select_theme
+from sidra_ai.creation.themes import (
+    ACCENT_FLOOR,
+    DEFAULT_THEME,
+    THEMES,
+    contrast_ratio,
+    select_theme,
+)
 from sidra_ai.creation.tuning import AXIS_LABELS
 
 #: The one difficulty ladder the whole project uses, in climbing order.
@@ -119,6 +125,9 @@ _BAND_DOWN: tuple[str, ...] = ("狭く", "せまく", "減らして", "へらし
 #: more: a colour vocabulary that guesses is a colour vocabulary that gets
 #: it wrong silently. Themes still own the whole palette; this is the one
 #: colour the templates paint their own things with.
+#: What a colour value has to look like before it can be measured.
+_HEX = re.compile(r"#[0-9a-fA-F]{6}")
+
 _ACCENT_WORDS: dict[str, str] = {
     "赤": "#ff5a5a",
     "青": "#4aa8ff",
@@ -751,6 +760,28 @@ def _step_band(template: str, current, delta: str):
     return steps[max(0, min(nearest, len(steps) - 1))]
 
 
+
+def _colour_caveat(colour: object, theme_key: str) -> str:
+    """Why the colour that was asked for will not be painted as asked.
+
+    Empty when it will be - a caveat on every colour is 24 of 32 cells
+    apologising for nothing, which teaches the operator to stop reading.
+    """
+
+    if not isinstance(colour, str) or not _HEX.fullmatch(colour):
+        return ""
+    theme = THEMES.get(theme_key) or DEFAULT_THEME
+    ground = theme.tokens.get("surface")
+    if not isinstance(ground, str):
+        return ""
+    ratio = contrast_ratio(colour, ground)
+    if ratio >= ACCENT_FLOOR:
+        return ""
+    return (
+        f"（{theme.key} の地に対して {ratio:.2f}:1 で沈むので、"
+        f"読める濃さに寄せて描きます）"
+    )
+
 def _axis_number(value) -> str:
     """A band as the panel would show it: whole numbers stay whole.
 
@@ -944,7 +975,20 @@ def build_game_reviser(data_dir: str | Path):
                     f"→{_axis_number(now)} に戻しました"
                 )
         if panel.get("accent") != before_panel.get("accent") and "accent" in panel:
-            changed.append("差し色")
+            # Said here, where it was asked, and not only in the panel's own
+            # note - which nobody reads until they have opened the page and
+            # found it wrong (C-1739). The eight colour words were chosen
+            # against a dark ground and all eight fall under this product's
+            # own accent floor on the paper theme (白 at 1.09:1), where the
+            # page lifts them to a readable strength (C-1737). Lifting is
+            # the right thing; doing it silently is 「意図理解の低さ」, the
+            # complaint §9 事実 2 puts second in the market.
+            #
+            # The resulting colour is deliberately not computed here: the
+            # page owns that rule, and a second implementation of it in
+            # Python is the drift C-1342 is about. What this needs is one
+            # comparison the product already has.
+            changed.append("差し色" + _colour_caveat(panel.get("accent"), theme))
         for flag, name in (("daily", "今日の挑戦"), ("brief", "ブリーフィング")):
             if flag in panel and panel.get(flag) != before_panel.get(flag, False):
                 changed.append(f"{name} {'入' if panel[flag] else '切'}")

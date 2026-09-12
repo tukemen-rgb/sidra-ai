@@ -15087,6 +15087,123 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and they are told when the colour cannot be used as asked ------
+    #
+    # C-1739, §4 x §9 事実 2. The eight colour words were chosen against a
+    # dark ground, and all eight fall under this product's own accent floor
+    # on the paper theme (白 at 1.09:1 against #f5f7fb). C-1737 made the
+    # page lift such a colour to a readable strength and say so in the
+    # panel - but the panel's note is only read by somebody who has already
+    # opened the page and found it wrong. The person asked for the colour
+    # in a sentence, and 「意図理解の低さ」 is the complaint §9 事実 2 puts
+    # second in the market: answering 「白にして」 with a grey and saying
+    # nothing is the shape of it.
+    #
+    # The resulting colour is deliberately not recomputed here: the page
+    # owns that rule (C-1737), and a second implementation of it is the
+    # drift C-1342 is about. What the summary needs is one comparison this
+    # product already has.
+    #
+    # All 32 cells, driven through the real reviser. Both directions: the
+    # 8 cells under the floor say so, and the 24 over it say nothing - a
+    # caveat on every colour is 24 apologies for nothing, which teaches the
+    # operator to stop reading them.
+    import tempfile as _say_tmp
+
+    from sidra_ai.creation.games import save_game as _say_save
+    from sidra_ai.creation.revise import (
+        _ACCENT_WORDS as _say_words,
+        build_game_reviser as _say_reviser,
+        detect_revision_intent as _say_intent,
+        save_meta as _say_meta,
+    )
+    from sidra_ai.creation.themes import (
+        ACCENT_FLOOR as _say_floor,
+        THEMES as _say_themes,
+        contrast_ratio as _say_ratio,
+    )
+
+    say_gaps: list[str] = []
+    say_cells = 0
+    _SAY_REQUEST = "冒険ゲームを作って"
+    for _say_theme in sorted(_say_themes):
+        with _say_tmp.TemporaryDirectory() as _say_home:
+            _say_built = _tune_generate(
+                _SAY_REQUEST, template="adventure", theme_name=_say_theme
+            )
+            _say_page = _say_save(_say_built, _say_home)
+            _say_meta(
+                _say_page,
+                request=_SAY_REQUEST,
+                template="adventure",
+                difficulty=_say_built.difficulty,
+                theme=_say_theme,
+                title=_say_built.title,
+                panel={},
+            )
+            _say_ground = _say_themes[_say_theme].tokens["surface"]
+            _say_run = _say_reviser(_say_home)
+            for _say_word, _say_colour in _say_words.items():
+                _say_line = f"冒険ゲームを{_say_word}にして"
+                _say_read = _say_intent(_say_line)
+                if not _say_read.is_revision:
+                    say_gaps.append(f"{_say_theme}/{_say_word}: 修正として読まれない")
+                    continue
+                if _say_read.adjustments.get("accent") != _say_colour:
+                    say_gaps.append(
+                        f"{_say_theme}/{_say_word}: 語が色に結びついていない"
+                    )
+                    continue
+                _say_out = _say_run(_say_line, _say_read)
+                _say_text = str(getattr(_say_out, "summary", "") or _say_out)
+                if "差し色" not in _say_text:
+                    say_gaps.append(f"{_say_theme}/{_say_word}: 差し色を変えたと言わない")
+                    continue
+                _say_ok = _say_ratio(_say_colour, _say_ground) >= _say_floor
+                _say_said = "沈む" in _say_text
+                if _say_ok and _say_said:
+                    say_gaps.append(
+                        f"{_say_theme}/{_say_word}: 読める色に言い訳をつけた"
+                    )
+                    continue
+                if not _say_ok:
+                    if not _say_said:
+                        say_gaps.append(
+                            f"{_say_theme}/{_say_word}: "
+                            f"{_say_ratio(_say_colour, _say_ground):.2f}:1 で沈むのに黙っている"
+                        )
+                        continue
+                    # ...and it says the measured number, not a vague line.
+                    if f"{_say_ratio(_say_colour, _say_ground):.2f}" not in _say_text:
+                        say_gaps.append(
+                            f"{_say_theme}/{_say_word}: 断り書きが実測値を言っていない"
+                        )
+                        continue
+                say_cells += 1
+    c.add(
+        "creation_revision_says_the_colour_wont_read",
+        "頼んだ色が沈むと、その場で言うセル",
+        float(say_cells) if not say_gaps else 0.0,
+        detail=(
+            "**8 語 × 4 テーマ = 32 セル**を**本物の修正器で駆動**"
+            "（「冒険ゲームを{語}にして」→ 実際に版を作り直し、要約の文を読む）。"
+            "**両方向**: 床を割る **8 セル**（紙テーマの 8 語すべて）は"
+            "**実測した比を添えて言う**、床を満たす **24 セル**は**何も言わない**"
+            "——片方だけなら「毎回言う」実装が満点を取り、"
+            "それは 24 回の要らない言い訳で断り書きを読まれなくするだけ。"
+            "**実測**: 紙テーマの地 `#f5f7fb` に対し 赤 2.85／青 2.35／緑 1.73／"
+            "黄 1.35／紫 2.37／橙 1.90／桃 2.23／**白 1.09**——"
+            "他 3 テーマ（gameyard・terminal・dusk）は 8 語とも 5.95〜16.60。"
+            "**塗る色そのものはここで計算しない**: 読める濃さへ寄せる規則は"
+            "C-1737 がページ側に持っており、**同じ規則を Python にもう 1 つ書けば"
+            "2 つが離れていく**（C-1342）。要約が要るのは"
+            "**製品が既に持っている 1 回の比較**だけ"
+            if not say_gaps
+            else "; ".join(say_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a colour the operator picked is still a colour they can read ---
     #
     # C-1737, §4 x §9 学び (4). The panel rounds a number into the author's
