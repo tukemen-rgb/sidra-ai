@@ -20906,6 +20906,91 @@ def measure_creation(c: Collector) -> None:
             lost_gaps.append("引退表に載せた数字の消失も止めてしまう")
     finally:
         del _RETIRED["watched"]
+    # --- 判定器は「別の土俵で採った 2 つ」を revert 指示にしない (C-1707) -----
+    #
+    # Measured 2026-09-12 by 進捗監視, on this tree, with not one byte of the
+    # product changed: collecting once through a venv and once without it made
+    # `--compare` print `REGRESSED: 400 number(s) moved the wrong way. Do not
+    # merge.` The strongest verdict this script can reach, for a difference
+    # that was entirely in which interpreter ran - and the printout never said
+    # so. A loop that believes it reverts work that was never wrong.
+    #
+    # Driven through the real `_report`, because the thing being fixed is the
+    # *verdict*, not a helper: a version that spotted the mismatch and still
+    # returned 2 would pass any check written against `env_mismatch` alone.
+    _env_before = {
+        _ENV_KEY: {"python": "3.11.15", "executable": "/usr/bin/python3", "venv": False},
+        "shipped": {"value": 1.0, "unit": "", "kind": OUTCOME, "detail": ""},
+    }
+
+    class _FakeCollector:
+        def __init__(self, value):
+            self.metrics = [Metric("shipped", "shipped", value, kind=OUTCOME)]
+            self.timings = []
+
+    def _verdict(before, value, mark):
+        import contextlib, io
+
+        collector = _FakeCollector(value)
+        real_snapshot = globals()["_snapshot"]
+        globals()["_snapshot"] = lambda _c: {
+            _ENV_KEY: mark,
+            "shipped": {"value": value, "unit": "", "kind": OUTCOME, "detail": ""},
+        }
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                code = _report(before, collector)
+        finally:
+            globals()["_snapshot"] = real_snapshot
+        return code, out.getvalue()
+
+    _same = dict(_env_before[_ENV_KEY])
+    _other = {"python": "3.11.15", "executable": "/repo/.venv/bin/python", "venv": True}
+    env_gaps: list[str] = []
+
+    # (a) two footings: the number "fell" only because the interpreter changed.
+    _code, _said = _verdict(_env_before, 0.0, _other)
+    if _code == 2:
+        env_gaps.append("別環境どうしの比較を regression（exit 2）と呼ぶ")
+    elif _code != CROSS_ENVIRONMENT:
+        env_gaps.append(f"別環境どうしの比較が専用の出口にならない（{_code}）")
+    if "DIFFERENT FOOTING" not in _said:
+        env_gaps.append("食い違いを名指ししない")
+
+    # (b) ...and the same footing still rules exactly as before, or this could
+    # be satisfied by a judge that stopped refusing anything at all.
+    if _verdict(_env_before, 0.0, _same)[0] != 2:
+        env_gaps.append("同じ環境どうしの悪化を止めなくなった")
+    if _verdict(_env_before, 2.0, _same)[0] != 0:
+        env_gaps.append("同じ環境どうしの改善を通さなくなった")
+    # An older snapshot has no mark. It is unknown, not wrong: refusing it
+    # would strand every measurement already written to disk.
+    _unmarked = {k: v for k, v in _env_before.items() if k != _ENV_KEY}
+    if _verdict(_unmarked, 2.0, _same)[0] != 0:
+        env_gaps.append("印の無い古いスナップショットを拒否する")
+    c.add(
+        "judge_refuses_a_cross_environment_compare",
+        "判定器が「別の土俵で採った 2 つ」を revert 指示にしない",
+        0.0 if env_gaps else 2.0,
+        detail=(
+            "; ".join(env_gaps)
+            if env_gaps
+            else "**本物の `_report()` を合成スナップショットで走らせて**測った"
+            "（純関数なので費用 0）。**2 方向**: (a) 土俵が違う 2 つを比べると"
+            "**exit 2 を出さず**専用の出口（3）で止まり、`DIFFERENT FOOTING` と"
+            "名指しする——exit 2 は「revert せよ」なので、環境差でそれを出すと"
+            "**ループは正しい仕事を巻き戻す**。(b) **同じ**土俵どうしは今までどおり"
+            "——悪化は exit 2、改善は exit 0。(b) が無いと「何も拒まない判定器」で"
+            "満点が取れる。**印の無い古いスナップショット**は「不明」として通す"
+            "（拒否すると既に disk にある計測が全部使えなくなる）。"
+            "**なぜ要るか（起票時の実測・2026-09-12 進捗監視）**: 同じ木・コード無改変で、"
+            "venv 経由と非 venv で同じ収集器を走らせると `REGRESSED: 400 number(s) "
+            "moved the wrong way. Do not merge.` が出た。**この仕組みで最も強い判定が、"
+            "最も説明の無い形で出ていた**。"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "judge_notices_a_lost_number",
         "判定器が「数字が消えた／測れなくなった」を止める",
@@ -24640,11 +24725,65 @@ class Movement:
         return self.before is None
 
 
+#: Where a snapshot records the footing it was taken on. Reserved rather than
+#: a metric key: everything else at the top level of a snapshot IS a metric,
+#: which is why `_values` and both loops in `compare` have to skip it - a mark
+#: read as a metric would be a number that appeared from nowhere, and its
+#: absence in an older file would be read as a number that vanished (C-1491's
+#: failure, arriving by a different door).
+_ENV_KEY = "__env__"
+
+
+def _env_mark() -> dict[str, object]:
+    """What this run was measured on.
+
+    C-1707. Measured 2026-09-12 by 進捗監視: the same tree, not one byte
+    changed, collected once through a venv and once without it, and
+    ``--compare`` printed ``REGRESSED: 400 number(s) moved the wrong way. Do
+    not merge.`` - exit 2, the strongest verdict this script has, for a
+    difference that was entirely in which interpreter ran. The snapshots had
+    no way to disagree about their footing because they recorded none.
+
+    The version and the executable identify the footing; ``VIRTUAL_ENV`` is
+    recorded as **whether** one is active, not which one. The value is a path
+    and nothing here needs it - only the fact that two runs differ.
+    """
+
+    import os
+    import sys
+
+    return {
+        "python": sys.version.split()[0],
+        "executable": sys.executable,
+        "venv": bool(os.environ.get("VIRTUAL_ENV")),
+    }
+
+
+def env_mismatch(before: dict, after: dict) -> str | None:
+    """Say how two snapshots disagree about their footing, or None.
+
+    Returns None when they agree **and** when the older one carries no mark
+    at all: a snapshot taken before this existed is unknown, not wrong, and
+    refusing it would break every measurement already on disk (C-1707 (c)).
+    """
+
+    old, new = before.get(_ENV_KEY), after.get(_ENV_KEY)
+    if not isinstance(old, dict) or not isinstance(new, dict):
+        return None
+    differs = [
+        f"{field}: {old.get(field)!r} -> {new.get(field)!r}"
+        for field in ("python", "executable", "venv")
+        if old.get(field) != new.get(field)
+    ]
+    return "; ".join(differs) if differs else None
+
+
 def _values(snapshot: dict) -> dict[str, float | None]:
     """Read a snapshot written by ``--save`` (or an older flat one)."""
     return {
         key: (entry.get("value") if isinstance(entry, dict) else entry)
         for key, entry in snapshot.items()
+        if not key.startswith("__")
     }
 
 
@@ -24703,7 +24842,7 @@ def compare(before: dict, after: dict, metrics: dict[str, Metric]) -> tuple[list
             moved.append(movement)
 
     for key, entry in before.items():
-        if key in _RETIRED:
+        if key.startswith("__") or key in _RETIRED:
             continue
         old_value = old_values.get(key)
         if old_value is None:
@@ -24729,9 +24868,31 @@ def _fmt(metric: Metric, value: float | None) -> str:
     return replace(metric, value=value).rendered()
 
 
+#: The exit code for "these two were not measured on the same footing".
+#: Deliberately not 2: 2 means *revert this change*, and a loop that reads it
+#: will undo work that was never wrong (C-1707). Deliberately not 0 or 1
+#: either - nothing was learned, so neither "done" nor "no movement" is true.
+CROSS_ENVIRONMENT = 3
+
+
 def _report(before: dict, collector: Collector) -> int:
     metrics = {m.key: m for m in collector.metrics}
-    moved, broken = compare(before, _snapshot(collector), metrics)
+    after = _snapshot(collector)
+
+    mismatch = env_mismatch(before, after)
+    if mismatch is not None:
+        print(f"DIFFERENT FOOTING: {mismatch}")
+        print("The two snapshots were not measured on the same interpreter, so")
+        print("the differences below would be the environment, not the change.")
+        print("This is NOT a regression and NOT a reason to revert: re-take the")
+        print("baseline with the interpreter you are about to compare with.")
+        return CROSS_ENVIRONMENT
+
+    if _ENV_KEY not in before:
+        print("NOTE: the baseline carries no record of what it was measured on,")
+        print("      so this comparison assumes the same interpreter (C-1707).")
+
+    moved, broken = compare(before, after, metrics)
 
     def _line(tag: str, movement: Movement) -> str:
         # C-1491: a deleted metric has no Metric object left to render with,
@@ -24781,8 +24942,11 @@ def _report(before: dict, collector: Collector) -> int:
 
 def _snapshot(collector: Collector) -> dict:
     return {
-        m.key: {"value": m.value, "unit": m.unit, "kind": m.kind, "detail": m.detail}
-        for m in collector.metrics
+        _ENV_KEY: _env_mark(),
+        **{
+            m.key: {"value": m.value, "unit": m.unit, "kind": m.kind, "detail": m.detail}
+            for m in collector.metrics
+        },
     }
 
 
