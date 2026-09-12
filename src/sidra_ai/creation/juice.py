@@ -618,7 +618,132 @@ def settle_probe(script: str, *, kick: float = 9) -> str:
     )
 
 
+
+#: Which beat is the round's peak (§8 事実 2, C-1717). 「失敗の瞬間こそ
+#: 演出で増幅する」 is a comparative, and nothing compared: creation_fail_beat
+#: asks whether the beat fires, creation_win_beat compares one dial (shake
+#: 16 against 14) and leaves the hold and the particles alone.
+#:
+#: ``failBeat`` and ``winBeat`` are wrapped so every shake/hitstop/burst
+#: made INSIDE them is attributed to the beat and everything else to the
+#: round's ordinary juice. Per frame would not do it: a loss usually lands
+#: on the same frame as the blow that caused it, and the two would be
+#: added together.
+BEAT_PEAK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+globalThis.document = { readyState: 'complete', createElement: () => nothing,
+  querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {},
+    addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function turn(){ if (queued) { const fn = queued; queued = null; fn((F++) * 16) } }
+function down(k){ (handlers.keydown || []).forEach(fn => fn(probeKey(k))) }
+function up(k){ (handlers.keyup || []).forEach(fn => fn(probeKey(k))) }
+let inBeat = null;
+const peak = { play: {shake:0, hold:0, parts:0},
+               fail: {shake:0, hold:0, parts:0},
+               win:  {shake:0, hold:0, parts:0} };
+function note(kind, value){ const box = peak[inBeat || 'play'];
+  box[kind] = Math.max(box[kind], Number(value) || 0) }
+const realShake = shake, realHitstop = hitstop, realBurst = burst;
+shake = function(n){ note('shake', n); return realShake.apply(null, arguments) };
+hitstop = function(f){ note('hold', f); return realHitstop.apply(null, arguments) };
+burst = function(x, y, n){ note('parts', n); return realBurst.apply(null, arguments) };
+const realFail = failBeat;
+failBeat = function(){ inBeat = 'fail';
+  try { return realFail.apply(null, arguments) } finally { inBeat = null } };
+if (typeof winBeat === 'function') { const realWin = winBeat;
+  winBeat = function(){ inBeat = 'win';
+    try { return realWin.apply(null, arguments) } finally { inBeat = null } } }
+down(' '); up(' ');
+/* Staged first, because the pilot below usually ends the round: a moment
+   set up after the loss has nothing left to happen in. */
+STAGE_PLACEHOLDER
+/* One ignorant player: mash the action, sweep left and right. Whatever it
+   meets is what this reading covers, which is why the caller can also
+   stage the moments a pilot never reaches. */
+for (let i = 0; i < 4200; i++) {
+  if (i % 7 === 0) { down(' '); up(' ') }
+  if (i % 120 < 60) { down('ArrowRight') } else { up('ArrowRight'); down('ArrowLeft') }
+  if (i % 120 === 119) { up('ArrowLeft') }
+  turn();
+}
+console.log(JSON.stringify({ peak: peak, frames: F, fails: failBeats(),
+  wins: (typeof winBeats === 'function' ? winBeats() : null) }));
+"""
+
+#: The heaviest burst in the product sits where an ignorant pilot never
+#: goes - the guardian's defeat, at the end of the maze's boss fight. A
+#: contract that misses the largest one is not a contract, so the caller
+#: stages it.
+GUARDIAN_STAGE = """
+room = 2;
+for (let i = 0; i < 4; i++) turn();
+if (typeof guard !== 'undefined' && guard) {
+  hero.hp = 3; hero.inv = 90; hero.dir = 1;
+  guard.alive = true; guard.hp = 1; guard.inv = 0;
+  guard.x = hero.x + 18; guard.y = hero.y;
+  for (let i = 0; i < 30 && guard.alive; i++) {
+    hero.hp = 3; hero.inv = 90;
+    guard.x = hero.x + 18; guard.y = hero.y; guard.inv = 0;
+    down(' '); up(' '); turn();
+  }
+}
+"""
+
+
+#: The other moment an ignorant pilot never reaches: the charm behind the
+#: optional door, which costs two gems it has not collected. It threw as
+#: many particles as losing the round while shaking and holding not at all
+#: (C-1717), and the first version of this judge missed it for exactly the
+#: reason the guardian needed staging - so it is staged too.
+CHARM_STAGE = """
+if (typeof rooms !== 'undefined' && typeof hero !== 'undefined') {
+  for (let r = 0; r < rooms.length; r++) {
+    for (let ty = 0; ty < GH; ty++) for (let tx = 0; tx < GW; tx++) {
+      if (rooms[r][ty][tx] === 11) {
+        room = r; hero.hp = 3; hero.inv = 90;
+        hero.x = OX + tx * TILE + TILE / 2;
+        hero.y = OY + ty * TILE + TILE / 2;
+        for (let i = 0; i < 3; i++) turn();
+      }
+    }
+  }
+}
+"""
+
+
+def beat_peak_probe(script: str, *, stage: str = "") -> str:
+    """The page's own script, wrapped so the round's peak can be found."""
+
+    from sidra_ai.creation import probekeys
+
+    return probekeys.with_probe_keys(
+        BEAT_PEAK_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+            "STAGE_PLACEHOLDER", stage
+        )
+    )
+
+
 __all__ = [
+    "BEAT_PEAK_PROBE",
+    "CHARM_STAGE",
+    "GUARDIAN_STAGE",
+    "beat_peak_probe",
     "SETTLE_PROBE",
     "settle_probe",
     "WINHAPTIC_PROBE",

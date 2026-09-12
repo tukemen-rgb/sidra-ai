@@ -372,7 +372,10 @@ function cast(){
     if(Math.abs(pos-SPOT)<=(BAND/2)*CRIT){crits++;
       score+=scorePop(cv.width/2,cv.height/2,pay+FISH_CRIT);
       if(flashGate())flash=1;msg='ど真ん中。会心。';sfx('gem',1,mx);
-      shake(6);hitstop(3);burst(cv.width/2,cv.height/2,22,'ACCENT_JUICE')}
+      /* 18, not 22 (C-1717): the perfect catch shakes 6 against the
+         failure beat's 14 and holds 3 against its 7, and then threw more
+         particles than losing the round. The dials now agree. */
+      shake(6);hitstop(3);burst(cv.width/2,cv.height/2,18,'ACCENT_JUICE')}
     else{score+=scorePop(cv.width/2,cv.height/2,pay);
       if(flashGate())flash=1;msg='かかった。';sfx('catch',1,mx);
       shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}}

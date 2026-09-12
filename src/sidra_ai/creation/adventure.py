@@ -252,7 +252,13 @@ function swing(){if(state!=='play')return;
     burst(guard.x,guard.y,16,'ALERT_JUICE');
     guard.x+=[0,12,0,-12][hero.dir];guard.y+=[-12,0,12,0][hero.dir];
     if(guard.hp<=0){guard.alive=false;sfx('win',1,guard.x/cv.width);shake(12);hitstop(6);
-      burst(guard.x,guard.y,32,'ALERT_JUICE');
+      /* 18, not 32 (C-1717). The takedown's own shake (12) and hold (6)
+         already sit under the round's failure beat (14 and 7) - this
+         template says the guardian is a big moment inside the round, not
+         the round's biggest. The particle count said the opposite, and
+         out-threw even the WIN beat's 26. Brought into line with the two
+         dials that were already stating the order; nothing else moves. */
+      burst(guard.x,guard.y,18,'ALERT_JUICE');
       say('番人は崩れ落ちた。祭壇が静まりかえる。')}
     else if(guard.hp===3){say('番人の足が速くなった。');sfx('charge')}}}
 /* One knock on one mark. The right next mark advances the seal; a wrong
@@ -316,7 +322,9 @@ function moveHero(){
     hero.charm=true;hero.hp=hero.maxhp;
     /* The charm is a one-time life - a power's voice, not a lock's. */
     say('護符を見つけた。一度だけ身代わりになる。');sfx('powerup');
-    burst(hero.x,hero.y,20,'ALERT_JUICE')}
+    /* 16, not 20 (C-1717): a pickup with no shake and no hold at all was
+       throwing exactly as many particles as losing the round. */
+    burst(hero.x,hero.y,16,'ALERT_JUICE')}
   if(keyDrop&&room===1&&Math.hypot(hero.x-keyDrop.x,hero.y-keyDrop.y)<20){
     hero.key=true;keyDrop=null;say('鍵を手に入れた。');sfx('key')}}
 /* The talisman finally guards (§3, C-1323): one fatal hit is taken by

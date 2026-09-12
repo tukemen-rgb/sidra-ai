@@ -17023,6 +17023,153 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the round's beat is the round's peak (§8 事実 2, C-1717) -------
+    #
+    # 「失敗の瞬間こそ演出で増幅する」 is a comparative and nothing compared.
+    # creation_fail_beat asks whether the beat fires, once, and survives
+    # reduced motion; creation_win_beat compares ONE dial (shake 16 against
+    # the failure's 14) and leaves the hold and the particles alone.
+    #
+    # Measured before fixed: fishing's perfect catch threw 22 particles
+    # against the failure beat's 20, while shaking 6 against 14 and holding
+    # 3 against 7 - the other two dials called it light and the particle
+    # count called it heavy. Staged, the maze's guardian died in 32, over
+    # even the WIN beat's 26, with a shake of 12 and a hold of 6 that both
+    # sat under the failure's. The particle channel was the only one not
+    # following the order the other two already stated (C-1716's shape,
+    # one § along), so the counts were brought into line - 32→18, 22→18,
+    # and the charm's 20→16, a pickup with no shake and no hold at all
+    # that threw as many particles as losing.
+    #
+    # failBeat and winBeat are wrapped, so the beat's own calls and the
+    # round's ordinary juice are told apart exactly. Per frame would not
+    # do it: a loss lands on the same frame as the blow that caused it.
+    import re as _bp_re
+    import subprocess as _bp_sp
+
+    from sidra_ai.creation.juice import (
+        CHARM_STAGE as _bp_charm,
+        GUARDIAN_STAGE as _bp_guard,
+        beat_peak_probe as _bp_probe,
+    )
+
+    # Both moments the pilot never reaches, in one staged run.
+    _bp_stage = _bp_guard + _bp_charm
+
+    _BP_REQS = {
+        "adventure": "迷宮を冒険するゲームを作って",
+        "duel": "ビームで撃ち合うゲームを作って",
+        "kaiju": "巨大怪獣と戦うゲームを作って",
+        "shooter": "シューティングゲームを作って",
+        "puzzle": "パズルゲームを作って",
+        "platformer": "ジャンプで進むゲームを作って",
+        "marble": "玉転がしゲームを作って",
+        "racing": "レースゲームを作って",
+        "fishing": "釣りゲームを作って",
+        "catch": "落ちものをキャッチするゲームを作って",
+    }
+    _bp_gaps: list[str] = []
+    _bp_ok: list[str] = []
+    _bp_worst = ""
+
+    def _bp_read(key: str, stage: str = ""):
+        _page = generate_game(_BP_REQS[key]).html
+        _sc = _bp_re.search(r"<script>(.*?)</script>", _page, _bp_re.S)
+        if _sc is None:
+            return None, f"{key}: no script"
+        try:
+            _run = _bp_sp.run(
+                ["node", "-"],
+                input=_bp_probe(_sc.group(1), stage=stage),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if _run.returncode != 0:
+                raise ValueError(_run.stderr.strip()[:80])
+            return json.loads(_run.stdout.strip().splitlines()[-1]), None
+        except (OSError, _bp_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: probe unavailable ({exc})"
+
+    def _bp_check(key: str, seen: dict, label: str) -> None:
+        _play = seen["peak"]["play"]
+        # Whichever round beat this run actually reached is the one the
+        # round is judged against; a run that reached neither proves
+        # nothing and says so.
+        _which = "fail" if seen["fails"] else ("win" if seen["wins"] else None)
+        if _which is None:
+            _bp_gaps.append(f"{label}: the round never ended, so nothing is compared")
+            return
+        _beat = seen["peak"][_which]
+        _short = [
+            f"{_name} {_play[_dial]}≧{_beat[_dial]}"
+            for _name, _dial in (("揺れ", "shake"), ("止まり", "hold"), ("粒子", "parts"))
+            if _beat[_dial] <= _play[_dial]
+        ]
+        if _short:
+            _bp_gaps.append(
+                f"{label}: 通常の演出がラウンドのビートに並ぶか超える（{'・'.join(_short)}）"
+            )
+        else:
+            _bp_ok.append(
+                f"{label}={_which} {_beat['shake']}/{_beat['hold']}/{_beat['parts']} "
+                f">「{_play['shake']}/{_play['hold']}/{_play['parts']}」"
+            )
+
+    # (a) every template, met by an ignorant pilot
+    for _bp_key in sorted(_BP_REQS):
+        _bp_seen, _bp_why = _bp_read(_bp_key)
+        if _bp_why:
+            _bp_gaps.append(_bp_why)
+            continue
+        _bp_check(_bp_key, _bp_seen, _bp_key)
+    # (b) and the two moments the pilot never reaches - the guardian's
+    # defeat, which carried the heaviest burst in the product, and the
+    # charm behind the optional door, which costs gems the pilot has not
+    # collected. A contract that misses the largest one is not a contract,
+    # and the first version of this judge proved the point by missing the
+    # charm: restoring its 20 slipped past until it was staged too.
+    _bp_seen, _bp_why = _bp_read("adventure", _bp_stage)
+    if _bp_why:
+        _bp_gaps.append(_bp_why)
+    else:
+        if not _bp_seen["peak"]["play"]["shake"]:
+            _bp_gaps.append("番人戦が仕込めていない（通常の揺れが 0 のまま）")
+        else:
+            _bp_check("adventure", _bp_seen, "adventure+番人撃破+護符")
+            _bp_worst = (
+                f"番人撃破は揺れ {_bp_seen['peak']['play']['shake']}・"
+                f"止まり {_bp_seen['peak']['play']['hold']}・"
+                f"粒子 {_bp_seen['peak']['play']['parts']}"
+            )
+
+    c.add(
+        "creation_beat_is_the_peak",
+        "ラウンドのビートが、その回のいちばん重い瞬間",
+        0.0 if _bp_gaps else 2.0,
+        detail=(
+            "; ".join(_bp_gaps)
+            if _bp_gaps
+            else f"10 型を無知なプレイヤーで実運転し、`failBeat`/`winBeat` を**包んで**"
+            "「ビートの中で呼ばれた shake/hitstop/burst」と「それ以外」を**厳密に分けた**"
+            "——フレーム単位では負けと、負けを招いた一撃が同じフレームに乗るので混ざる。"
+            "どの型でもラウンドのビートが**3 計器すべてで**通常の演出を上回る。"
+            f"**パイロットが到達しない 2 つの瞬間は仕込んで測る**"
+            "（番人撃破＝製品で最大だった burst、護符＝任意の扉の奥）: "
+            f"{_bp_worst}"
+            "（ラウンドのビートは 14/7/20）。"
+            "**§8 事実 2「失敗の瞬間こそ演出で増幅する」は比較の動詞なのに、"
+            "比較の相手が契約に無かった**——`creation_fail_beat` は鳴るか・1 回か・"
+            "reduced で残るかを見るだけ、`creation_win_beat` は揺れ 1 本だけ比べる。"
+            "**修正前の実測**: fishing の会心が粒子 **22** で負けの 20 を上回り"
+            "（その会心の揺れは 6・止まりは 3）、**番人撃破は粒子 32** で"
+            "**勝ちビートの 26 すら上回っていた**（揺れ 12・止まり 6 はどちらも負けより軽い）。"
+            "**粒子だけが、他の 2 計器が既に述べている順序に従っていなかった**ので、"
+            "**新しい設計判断はせず**その順序に合わせた（32→18・22→18・護符 20→16）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- one weight, on three dials (§1, C-1716) ------------------------
     #
     # §1 lists 「被弾時のヒットストップとノックバック」 as one pair and
