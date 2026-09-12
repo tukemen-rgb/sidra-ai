@@ -3050,7 +3050,8 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       → 動かす数字: `creation_intake_asks_back`（表の語を飾った言い方のうち、
       聞き返しか制作に届く数）0→10。**Q&A 定型文に落ちる数を 0 にすることが
       条件**（作ってしまうのではなく、聞き返しでよい）。
-- [~] 作業中 2026-09-12 13:07 UTC ループA **C-1531: "a racing game, please" の題名が依頼文まるごと。**〔小〕
+- [x] **C-1531: "a racing game, please" の題名が依頼文まるごと。**〔小〕
+- [x] 完了 2026-09-12 13:45 UTC ループA（**`creation_title_drops_make_verb` 3→4**、判定器 exit 0（BETTER・MOVED 1、WORSE/DRIFT/REGRESSED 無し）。**起票は 1 件だったが実測すると同じ穴は 7 通り**——文末の please/pls 系 5 通り（`a racing game, please`・`a racing game please`・`racing game please`・`puzzle please`・`puzzle pls`）と、文頭の give me/gimme 2 通り。**原因は 2 つに分かれる**: 文末型は**制作動詞をどこにも持たない**ので `_STRIP_EN_HEAD` が一度も当たらず、既に please を落とせる `_STRIP_EN_TAIL` が**「頭が当たったときだけ」動く**設計のため到達しない。`give me`/`gimme` は動詞ではあるが頭の一覧に無かった——**C-1530 が前日に router 側へ入れたばかりで題名側が置き去り**（C-1528 の `let's make a`、C-1529 の願望形に続く **3 度目の同じ取り残し**）。**これは日本語の規則が英語に届いた形**: C-1529 が「ください」「ほしい」を `_STRIP` の依頼標識にしたので「パズルをください」は「パズル」になる。`a racing game, please` はその文の英語版で 4 語すべてを残していた。テストも**対で**書いた（「パズルをください」と `a puzzle game, please` を同じ本数で縛る）ので、英語側だけが日本語から静かに離れる直し方では通らない。**C-1528 の留め具は弱めていない**——「a racing game」は今も全語を保つ。冠詞が落ちるのは標識が「これは依頼だ」と言った後だけで、それは「レースゲーム」と「レースゲームをください」の違いそのもの。**冠詞を無条件に落とす近道は判定器が exit 2 で拒否した実績がある**ので、その形を破壊試験に固定した。破壊 3 通り全検出: D1 文末規則を戻す→7 本赤／D2 `give`/`gimme` を戻す→2 本赤／**D3 冠詞を無条件に落とす→留め具 2 本＋他 2 本が赤**。**ついでに実測した（起票しない）**: `a racing game` は `undepicted_subject` が「a」を返すが、そもそも C-1670 の聞き返しに回るので**生成器に届かず利用者には見えない**。本修正の前後で同じ挙動であることも確認済み。pytest exit 0（**6418 passed / 6 skip**）・gate MISS 0（誤検知 0）
       再現: 制作依頼としては通る（C-1527 で直った）が、題名が
       **「a racing game, please」**。「make me a racing game」は「racing」に
       なるので、**末尾の please と冠詞が剥がされていない**。
