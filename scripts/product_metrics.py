@@ -16800,6 +16800,131 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the camera is low and something small stands in the frame ------
+    #                                            (§6 観察 1, C-1706)
+    #
+    # The observation is four instructions in one sentence: do not show
+    # the whole body, put a small thing in the same frame for contrast,
+    # and keep the camera low. Two of them have judges - one counts the
+    # frames in which the head fits (creation_whole_body_is_rare), one
+    # notes the wide shot at the awakening - and both count *events*.
+    # The other two are geometry, and nobody was reading it: move GROUND
+    # to H/2 or draw the walker three times its size and every existing
+    # judge stays green while the giant stops reading as giant.
+    #
+    # Read from the page's own frameFacts(), which is built out of the
+    # same constants the draw uses, so the picture and the judge cannot
+    # drift apart (the C-1342 lesson). Measured twice, because the frame
+    # changes: standing, with the head off the top of the canvas, and
+    # again after the leg is shot open and the head comes down.
+    import re as _gf_re
+    import subprocess as _gf_sp
+
+    from sidra_ai.creation.kaiju import frame_probe as _frame_probe
+
+    _HORIZON_LOW = 0.75  # the ground line sits this far down the frame
+    _HORIZON_FLOOR = 0.05  # but not on the bottom edge: ground still shows
+    _WALKER_SMALL = 0.15  # the walker is drawn no taller than this
+    _CONTRAST = 3.0  # and the creature fills this much more of it
+    _frame_gaps: list[str] = []
+    _frame_note = ""
+    _frame_page = generate_game("巨大怪獣と戦うゲームを作って").html
+    _frame_script = _gf_re.search(r"<script>(.*?)</script>", _frame_page, _gf_re.S)
+    if _frame_script is None:
+        _frame_gaps.append("no script on the page")
+    else:
+        try:
+            _gf_run = _gf_sp.run(
+                ["node", "-"],
+                input=_frame_probe(_frame_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if _gf_run.returncode != 0:
+                raise ValueError(_gf_run.stderr.strip()[:80])
+            _gf = json.loads(_gf_run.stdout.strip().splitlines()[-1])
+        except (OSError, _gf_sp.SubprocessError, ValueError) as exc:
+            _frame_gaps.append(f"probe unavailable ({exc})")
+            _gf = None
+        if _gf is not None and _gf.get("phase") != "open":
+            _frame_gaps.append(f"the leg never opened ({_gf.get('phase')})")
+        elif _gf is not None:
+            _seen: list[str] = []
+            for _when, _label in (("standing", "立ち姿"), ("opened", "脚を開いた後")):
+                _f = _gf[_when]
+                _h, _ground = float(_f["h"]), float(_f["ground"])
+                _tall = float(_f["meHeight"])
+                _head = _f["headNow"]
+                # What the player can see of the creature in this frame:
+                # from the horizon up to its head, or up to the top edge
+                # when the head is above the canvas.
+                _visible = _ground - max(0.0, float(_head if _head is not None else 0.0))
+                if _h <= 0:
+                    _frame_gaps.append(f"{_when}: the frame has no height")
+                    break
+                # (a) the camera is low - the horizon is far down the frame
+                if _ground / _h < _HORIZON_LOW:
+                    _frame_gaps.append(
+                        f"{_when}: the horizon sits {_ground / _h:.0%} down the frame, "
+                        f"above {_HORIZON_LOW:.0%}"
+                    )
+                    break
+                # (a') the other half of "low": a horizon on the bottom
+                # edge passes every "far down the frame" test and leaves
+                # the walker standing on nothing - no floor receding, no
+                # camera, just a wall. Low is a position, not a maximum.
+                if (_h - _ground) / _h < _HORIZON_FLOOR:
+                    _frame_gaps.append(
+                        f"{_when}: only {(_h - _ground) / _h:.0%} of the frame is "
+                        f"ground, under {_HORIZON_FLOOR:.0%} - the horizon is the edge"
+                    )
+                    break
+                # (b) the small thing is small - drawn, not asserted
+                if _tall <= 0:
+                    _frame_gaps.append(f"{_when}: the walker is drawn no height at all")
+                    break
+                if _tall / _h > _WALKER_SMALL:
+                    _frame_gaps.append(
+                        f"{_when}: the walker is drawn {_tall / _h:.0%} of the frame, "
+                        f"over {_WALKER_SMALL:.0%}"
+                    )
+                    break
+                # (c) and the contrast is actually on screen, in one frame
+                if _visible / _tall < _CONTRAST:
+                    _frame_gaps.append(
+                        f"{_when}: the creature fills {_visible / _tall:.1f}x the walker, "
+                        f"under {_CONTRAST:.0f}x"
+                    )
+                    break
+                _seen.append(
+                    f"{_label}は地平線 {_ground / _h:.0%}（床 {(_h - _ground) / _h:.0%}）・"
+                    f"自機 {_tall / _h:.0%}・対比 {_visible / _tall:.1f} 倍"
+                )
+            else:
+                _frame_note = "、".join(_seen)
+
+    c.add(
+        "creation_giant_frame_is_low",
+        "低いカメラと小さい隣人",
+        0.0 if _frame_gaps else 1.0,
+        detail=(
+            "; ".join(_frame_gaps)
+            if _frame_gaps
+            else _frame_note
+            + "（§6 観察 1 は 1 文に 4 つの指示がある——**全身を見せない**・"
+            "**小さい存在と同じフレームに**・**対比**・**カメラは低い**。"
+            "前二つは frame を数える判定器が持っていたが、後ろ二つは"
+            "**幾何**で、誰も読んでいなかった。GROUND を H/2 に上げても"
+            "自機を 3 倍に描いても既存の判定器は緑のままだった。"
+            "「低い」は**位置であって最大値ではない**ので裏も測る——"
+            "地平線が下端そのものだと自機は床の無い壁の前に立つ。"
+            "ページ自身の frameFacts() から読む——描画と同じ定数で"
+            "組み立ててあるので絵と判定器はずれない）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- nothing sounds before the first touch (§2, C-1683) -------------
     #
     # Nine audio judges ask whether a sound happens and what it sounds

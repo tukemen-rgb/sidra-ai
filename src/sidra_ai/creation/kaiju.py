@@ -129,6 +129,16 @@ const LEG_PERIOD=90,LEG_SWING=26,ME_WALK=2.1;
 function legX(){return W*0.72+Math.sin(t/LEG_PERIOD)*LEG_SWING}
 function strideFacts(){return {period:LEG_PERIOD,swing:LEG_SWING,
   walk:ME_WALK,leg:legX()}}
+/* The frame itself (§6 観察 1, C-1706). The observation asks for a LOW
+   camera and a small thing to measure the creature against, and both are
+   geometry: where the horizon sits, and how tall the walker is drawn.
+   Reported rather than left to a probe's arithmetic, so the page and the
+   judge cannot drift apart the way C-1342 warned. */
+const ME_BODY_H=18,ME_TURRET_H=12,ME_BODY_Y=30,ME_TURRET_Y=42;
+function meBox(){return {top:GROUND-ME_TURRET_Y,bottom:GROUND-ME_BODY_Y+ME_BODY_H}}
+function frameFacts(){const b=meBox();return {h:H,w:W,ground:GROUND,
+  meTop:b.top,meBottom:b.bottom,meHeight:b.bottom-b.top,
+  headNow:boss?boss.head:null}}
 function fire(){if(state!=='fight')return;
   /* A press during the cooldown is kept, not dropped (§12, C-1311): one
      queued shot, fired the frame the cannon is ready. */
@@ -361,8 +371,8 @@ function draw(){const now=performance.now();
      to what they were before the crush existed. */
   const sq=me.sq,sqw=2-sq;
   cx.fillStyle='CYAN_TOKEN';
-  cx.fillRect(me.x-16*sqw,GROUND-30*sq,32*sqw,18*sq);
-  cx.fillRect(me.x-4*sqw,GROUND-42*sq,8*sqw,12*sq);
+  cx.fillRect(me.x-16*sqw,GROUND-ME_BODY_Y*sq,32*sqw,ME_BODY_H*sq);
+  cx.fillRect(me.x-4*sqw,GROUND-ME_TURRET_Y*sq,8*sqw,ME_TURRET_H*sq);
   /* Eyes in the canopy (§1, C-1363): the pilot watches the monster.
      Skipped only on the blink frame - under reduced motion the shared
      FRAME pins the beat to 0 and the eyes never close. */
@@ -1255,6 +1265,72 @@ def stride_probe(script: str, *, sample: int = 700) -> str:
         STRIDE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
             "SAMPLE_PLACEHOLDER", str(int(sample))
         )
+    )
+
+
+#: The frame the creature stands in (§6 観察 1, C-1706).
+#:
+#: The observation asks for four things and only two had contracts: the
+#: partial view and the single wide shot are counted by
+#: creation_whole_body_is_rare. A LOW camera and a small thing to compare
+#: against are geometry, not frame counts - move the horizon to mid-frame
+#: or draw the walker three times its size and that judge stays green
+#: while the giant stops reading as giant.
+FRAME_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {},
+  addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }), addEventListener: () => {} };
+const kept = {};
+globalThis.localStorage = { getItem: (k) => (k in kept ? kept[k] : null),
+  setItem(k, v){ kept[k] = String(v) }, removeItem(k){ delete kept[k] } };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function press(k){
+  const e = probeKey(k);
+  e.target = { tagName: 'CANVAS' };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+press(' ');
+for (let i = 0; i < 400 && bossFacts().state !== 'fight'; i++) run(1);
+/* The leg phase: the creature's head is above the frame, so what the
+   player sees is a body that does not fit. */
+const standing = frameFacts();
+/* Break the leg open by shooting it, the way BEATS_PROBE does, and read
+   the frame again - the head is down now, and still the creature owns
+   most of the height. */
+for (let i = 0; i < 2000 && bossFacts().phase !== 'open'; i++) {
+  me.hp = 99;
+  shots.push({x: legX(), y: GROUND - 70 + 8, vy: 0});
+  run(1);
+}
+const opened = frameFacts();
+console.log(JSON.stringify({ standing: standing, opened: opened,
+  phase: bossFacts().phase }));
+"""
+
+
+def frame_probe(script: str) -> str:
+    """The page's own script, wrapped so the frame can be measured."""
+
+    from sidra_ai.creation import probekeys
+
+    return probekeys.with_probe_keys(
+        FRAME_PROBE.replace("SCRIPT_PLACEHOLDER", script)
     )
 
 
