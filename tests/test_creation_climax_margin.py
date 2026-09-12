@@ -1,4 +1,4 @@
-"""The climax keeps a margin (§7 観察 6, C-1703).
+"""The climax keeps a margin (§7 観察 6, C-1704).
 
 The observation's verb is 取っておく - brightness is a resource held back,
 which is why the opening and the talk scenes are kept deliberately dark

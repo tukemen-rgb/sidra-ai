@@ -5776,7 +5776,7 @@ def measure_creation(c: Collector) -> None:
         # costs no extra node run.
         scene_floors[label] = [s["floor"] for s in scenes]
         # ...and their luminance, for the margin judge below (§7 観察 6,
-        # C-1703): "brightest last" is an order, and the observation is
+        # C-1704): "brightest last" is an order, and the observation is
         # about a distance.
         scene_lums[label] = [s["lum"] for s in scenes]
         if isinstance(seen.get("hud"), dict):
@@ -5922,7 +5922,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- the climax keeps a margin (§7 観察 6, C-1703) -------------------
+    # --- the climax keeps a margin (§7 観察 6, C-1704) -------------------
     #
     # The observation's verb is 取っておく - brightness is a resource held
     # back for the climax, which is why the opening and the talk scenes
