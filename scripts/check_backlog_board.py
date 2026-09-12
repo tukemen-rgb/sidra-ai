@@ -74,6 +74,90 @@ FINISHED = ("x", "記録")
 KNOWN_COLLISIONS = {"C-1011"}
 
 
+#: C-1728: a claim line left behind by a renumbering. When a claim's number
+#: is reassigned, the completion is written on a new line under the new
+#: number and the original 「[~]」 line stays. Two of those were live on
+#: 2026-09-12 (C-1694, C-1699) and neither invariant above sees them: the
+#: number is unique and the item is unfinished, which is exactly what a real
+#: claim looks like.
+#:
+#: What gives it away is that the metric the claim says it will 新設 has
+#: already been 新設 somewhere finished. Naming a metric as context must not
+#: count - C-1726 cites its predecessor in prose - so the word has to follow
+#: the name immediately.
+#: Emphasis sits between the name and the word on real completion lines
+#: - 「`creation_one_thumb_play` **新設 unmeasurable→9**」 - so the gap
+#: allows asterisks as well as spaces. Only those: anything else between
+#: them means the name was mentioned, not promised.
+DECLARES_NEW = re.compile(r"`([^`]+)`[\s*]*(?:を)?[\s*]*新設")
+
+#: Measured over 158 board versions (2026-09-11 06:00 - 2026-09-12 16:00):
+#: that rule alone fires on four LIVE claims too (C-1660, C-1696, C-1701,
+#: C-1704), each in exactly one version - the gap between writing a
+#: completion line and flipping one's own 「[~]」. Those states are in pushed
+#: versions, so the rule alone would have blocked every loop four times in
+#: two days, on somebody else's half-finished edit.
+#:
+#: Nothing structural separates the two: claim-to-completion distance is
+#: 1-8 lines for the strandings and 1-3 for the in-flight ones. What
+#: separates them is that a stranding *persists* - 64 and 73 versions
+#: against one. So the previous board is an input, and a claim has to be
+#: stranded in both. Re-measured over the same 158 versions: the strandings
+#: still fire and the four live claims fire zero times.
+#:
+#: The board already had a phrase for "this one is known" - 進捗監視 wrote
+#: 「この行は取り残しです」 on both when it annotated them - so that is the
+#: acknowledgement, and no one's text had to be edited to adopt it.
+ACKNOWLEDGED = re.compile(r"この行[はも]取り残しです")
+
+
+def _stranded_claims(text: str) -> dict[str, tuple[int, str]]:
+    """Claims whose promised metric is already 新設 on a finished line."""
+
+    done: set[str] = set()
+    for line in text.split("\n"):
+        head = HEADING.match(line)
+        if head and head.group(1) in FINISHED:
+            done.update(m.group(1) for m in DECLARES_NEW.finditer(line))
+
+    out: dict[str, tuple[int, str]] = {}
+    for item in read_items(text):
+        if item["box"] != "~":
+            continue
+        promised = [m.group(1) for m in DECLARES_NEW.finditer(item["text"])]
+        hit = [name for name in promised if name in done]
+        if not hit:
+            continue
+        key = item["id"] or f"L{item['line']}"
+        out[key] = (item["line"], hit[0])
+    return out
+
+
+def _stranded_unacknowledged(text: str, previous: str) -> list[str]:
+    """Strandings that are in both boards and that nobody has noted."""
+
+    now = _stranded_claims(text)
+    before = _stranded_claims(previous)
+    items = {item["id"] or f"L{item['line']}": item for item in read_items(text)}
+    problems: list[str] = []
+    for key, (line_number, metric) in sorted(now.items()):
+        if key not in before:
+            # One version only: a completion written just before its own
+            # claim was flipped. That is somebody mid-edit, not a stranding.
+            continue
+        item = items.get(key)
+        body = "\n".join(line for _, line in item["body"]) if item else ""
+        if ACKNOWLEDGED.search(body):
+            continue
+        problems.append(
+            f"L{line_number}: {key} is still 「~」 but `{metric}` is already "
+            "新設 on a finished line, in this board and the one before it - "
+            "a claim left behind by a renumbering. Fold the line, or note it "
+            "with 「この行は取り残しです」 if it is being kept on purpose"
+        )
+    return problems
+
+
 def read_items(text: str) -> list[dict]:
     """Every item on the board, with its box, its number and its body."""
     items: list[dict] = []
@@ -186,8 +270,12 @@ def _misplaced_records(items: list[dict]) -> list[str]:
     return problems
 
 
-def check(text: str) -> list[str]:
-    """Both invariants, in the order the repairs found them."""
+def check(text: str, previous: str | None = None) -> list[str]:
+    """The invariants, in the order the repairs found them.
+
+    ``previous`` is the last committed board. Without it the stranded-claim
+    invariant is skipped, so every existing caller keeps its behaviour.
+    """
     items = read_items(text)
     problems: list[str] = []
 
@@ -222,13 +310,50 @@ def check(text: str) -> list[str]:
                 )
                 break
 
+    if previous is not None:
+        problems.extend(_stranded_unacknowledged(text, previous))
+
     return problems
+
+
+def _previous_board(board: Path) -> str | None:
+    """The board as of the previous commit that changed it.
+
+    Walks the file's own history rather than HEAD/HEAD~1: most commits do
+    not touch the board, and taking the parent commit blindly returned the
+    same text and skipped the check. If the working tree already differs
+    from the newest recorded version, that version is the previous one;
+    otherwise it is the one before it.
+
+    Fails soft on purpose - a shallow clone, a fresh repository or a board
+    outside git leaves the third invariant unchecked rather than turning a
+    missing input into a refusal.
+    """
+
+    import subprocess
+
+    listed = subprocess.run(
+        ["git", "log", "--format=%H", "-3", "--", board.name],
+        cwd=board.parent, capture_output=True, text=True,
+    )
+    if listed.returncode != 0:
+        return None
+    revisions = [line for line in listed.stdout.split("\n") if line.strip()]
+    here = board.read_text(encoding="utf-8")
+    for revision in revisions:
+        shown = subprocess.run(
+            ["git", "show", f"{revision}:./{board.name}"],
+            cwd=board.parent, capture_output=True, text=True,
+        )
+        if shown.returncode == 0 and shown.stdout != here:
+            return shown.stdout
+    return None
 
 
 def main(argv: list[str]) -> int:
     board = Path(argv[1]) if len(argv) > 1 else BOARD
     text = board.read_text(encoding="utf-8")
-    problems = check(text)
+    problems = check(text, _previous_board(board))
     items = read_items(text)
     numbered = sum(1 for item in items if item["id"])
     if problems:

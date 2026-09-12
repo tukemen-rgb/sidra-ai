@@ -21386,6 +21386,94 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 板の検査が取り残された確保行を見る (C-1728) ---------------------
+    #
+    # When a claim's number is reassigned the completion is written under the
+    # new number and the original 「[~]」 line stays. Two were live on
+    # 2026-09-12 and neither existing invariant saw them.
+    #
+    # Run, not read: a throwaway git repository with two commits of a board,
+    # so `_previous_board` is exercised the way the gate exercises it.
+    import os as _os
+    import subprocess as _sc_sp
+    import tempfile as _sc_tmp
+    import pathlib as _sc_pl
+
+    _SC_SCRIPT = str(_sc_pl.Path(__file__).resolve().parent / "check_backlog_board.py")
+    _SC_GHOST = (
+        "- [~] 確保 2026-09-12 18:00 UTC 辛口クリエイター **C-9001: 試験用。**"
+        "（`creation_probe_metric_xyz` 新設 unmeasurable→1 を約束する）"
+    )
+    _SC_DONE = (
+        "- [x] 完了 2026-09-12 18:05 UTC 辛口クリエイター（`creation_probe_metric_xyz` "
+        "**新設 unmeasurable→1**、判定器 exit 0）**C-9002: 試験用の完了。**"
+    )
+    _SC_LIVE = (
+        "- [~] 確保 2026-09-12 18:00 UTC 辛口クリエイター **C-9003: 先行の "
+        "`creation_probe_metric_xyz` を本文で挙げるだけ。**"
+    )
+    _SC_HEAD = "### A. 試験用\n"
+
+    def _sc_run(first: str, second: str) -> tuple[int, str]:
+        """Commit `first`, then `second`, and check the second."""
+
+        with _sc_tmp.TemporaryDirectory() as home:
+            root = _sc_pl.Path(home)
+            docs = root / "docs"
+            docs.mkdir()
+            env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                   "PATH": _os.environ.get("PATH", ""), "HOME": home}
+            _sc_sp.run(["git", "init", "-q"], cwd=root, env=env, check=True)
+            # The two versions must differ or git records one commit and
+            # there is no previous version to compare against - which is
+            # the state this invariant is meant to skip, not the state
+            # being measured here.
+            for n, text in enumerate((first, second)):
+                (docs / "BACKLOG.md").write_text(
+                    text + f"\n<!-- {n} -->\n", encoding="utf-8"
+                )
+                _sc_sp.run(["git", "add", "-A"], cwd=root, env=env, check=True)
+                _sc_sp.run(["git", "commit", "-q", "-m", "x"], cwd=root, env=env, check=True)
+            done = _sc_sp.run(
+                ["python", _SC_SCRIPT, str(docs / "BACKLOG.md")],
+                capture_output=True, text=True, timeout=120, env=env,
+            )
+            return done.returncode, done.stdout
+
+    _sc_stranded = _SC_HEAD + _SC_GHOST + "\n" + _SC_DONE + "\n"
+    _sc_noted = (_SC_HEAD + _SC_GHOST + "\n      **注（この行は取り残しです）**\n"
+                 + _SC_DONE + "\n")
+    _sc_live = _SC_HEAD + _SC_LIVE + "\n" + _SC_DONE + "\n"
+
+    _sc_notes = []
+    # (a) a stranding standing in two versions and noted by nobody.
+    _rc, _out = _sc_run(_sc_stranded, _sc_stranded)
+    if _rc == 0 or "C-9001" not in _out:
+        _sc_notes.append(f"取り残しを見逃す（rc={_rc}）")
+    # (b) the other direction, three ways it must stay quiet.
+    for _label, _first, _second in (
+        ("生きている確保", _sc_live, _sc_live),
+        ("注記済み", _sc_noted, _sc_noted),
+        ("この版だけ", _SC_HEAD, _sc_stranded),
+    ):
+        _rc, _out = _sc_run(_first, _second)
+        if _rc != 0:
+            _sc_notes.append(f"{_label}で赤くなる: {_out.strip()[:70]}")
+
+    c.add(
+        "board_checker_sees_a_stranded_claim",
+        "板の検査が取り残された確保行を見る",
+        0.0 if _sc_notes else 2.0,
+        detail=(
+            "; ".join(_sc_notes)
+            if _sc_notes
+            else "2 版続けて立っている無注記の確保を名指し、生きている確保・注記済み・"
+            "この版だけの 3 通りでは通る（実 git リポジトリで実走行）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- push 前の門が追跡ファイルを全部見る (C-1723) ---------------------
     #
     # `scripts/check_before_push.sh` scanned four directories and called it
