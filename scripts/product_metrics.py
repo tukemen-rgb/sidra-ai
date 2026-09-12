@@ -1649,6 +1649,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1700: the conversation UI kept a prior question in the box after each
+    # answer, so a follow-up needed a manual delete and re-clicking send re-asked
+    # the same question as a follow-up to itself. The success path now clears the
+    # question box on a real answer (refusals/errors keep it for editing).
+    from sidra_ai.evals.ui_clears_question_after_answer import (
+        evaluate_ui_clears_question_after_answer,
+    )
+
+    ui_clear_q = evaluate_ui_clears_question_after_answer()
+    c.add(
+        "ui_clears_question_after_answer",
+        "会話 UI が回答後に質問欄を空にする（拒否・エラー時は残す）",
+        10.0 * ui_clear_q.checks_passed / ui_clear_q.checks_total,
+        detail=f"{ui_clear_q.checks_passed}/{ui_clear_q.checks_total} checks; "
+               "src/sidra_ai/evals/ui_clears_question_after_answer.py"
+               + ("" if ui_clear_q.passed else "; " + "; ".join(ui_clear_q.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

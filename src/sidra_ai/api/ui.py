@@ -506,6 +506,14 @@ ASK_PAGE = """<!doctype html>
       stopWaiting();
       statusLine.textContent = "";
       render(result);
+      // Clear the box only on a real answer, so a follow-up starts empty
+      // instead of on top of the previous question (and a second click cannot
+      // re-ask it as a follow-up to itself). A refusal or an error leaves the
+      // text in place - the catch branch and this gate both keep it - so it can
+      // be edited and retried (C-1700).
+      if (result && result.answer && !result.refused) {
+        document.getElementById("q").value = "";
+      }
       // Only a real exchange joins the conversation: a refusal or an empty
       // answer would replay noise into every later request. A turn longer than
       // the server's per-field cap is also left out: replaying it would 422 the
