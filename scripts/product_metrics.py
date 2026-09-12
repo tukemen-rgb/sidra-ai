@@ -5747,7 +5747,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- the music has a dial of its own (§30 事実 3, C-1693) ------------
+    # --- the music has a dial of its own (§30 事実 3, C-1695) ------------
     #
     # The Cognitive list asks for "separate volume controls or mutes for
     # effects, speech and background / music". SIDRA had one dial: the

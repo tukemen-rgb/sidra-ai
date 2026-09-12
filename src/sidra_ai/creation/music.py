@@ -95,7 +95,7 @@ const MUSIC_MEL=[],MUSIC_BASS=[],MUSIC_WALK=[];
 function musicArm(){MUSIC_ON=true}
 addEventListener('keydown',musicArm);
 addEventListener('pointerdown',musicArm);
-/* The music's own dial (§30 事実 3, C-1693). The page has always had one
+/* The music's own dial (§30 事実 3, C-1695). The page has always had one
    volume, and every contract about it says that one dial moves the
    effects and the tune together - so it stays the parent and this is a
    factor UNDER it. At its default the product sounds unchanged; at zero
@@ -109,7 +109,7 @@ function musicNote(freq,off,dur,vol,wave){
   /* Same rule as the effects: silence is silence (C-1408). Counted as not
      scheduled, because it was not. */
   if(masterGain()<=0)return;
-  /* Zero is silence, not a very quiet tune (§30 事実 3, C-1693) - the same
+  /* Zero is silence, not a very quiet tune (§30 事実 3, C-1695) - the same
      rule sfx() keeps: scheduling a 0 gain would hand a ramp a start value
      of 0 and build a graph for something nobody can hear. */
   if(musicGain()<=0)return;
