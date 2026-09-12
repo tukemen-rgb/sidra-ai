@@ -1179,7 +1179,11 @@ _STRIP_EN_HEAD = re.compile(
     r"^\s*(?:hey\s+|hi\s+)?(?:please\s+)?"
     r"(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
     r"(?:"
-    r"(?:let\s*'?s\s+)?(?:make|create|build|generate|design|produce|draw|write)\s+(?:me\s+)?"
+    r"(?:let\s*'?s\s+)?(?:make|create|build|generate|design|produce|draw|write|give)\s+(?:me\s+)?"
+    # C-1531: 「gimme」 is 「give me」 spoken, and the detector routes
+    # both (C-1530). A head the router accepts and the title builder
+    # does not is how 「gimme a racing game」 became a page title.
+    r"|gimme\s+"
     r"|(?:i|we)\s*(?:'?d\s*|\s+would\s+)like\s+"
     r"|(?:i|we)\s+(?:want|need)\s+"
     r")"
@@ -1223,6 +1227,29 @@ _STRIP_EN_ABOUT = re.compile(
 )
 
 
+#: C-1531: the request marker English can put at the *end*. 「a racing game,
+#: please」 has no making-verb anywhere, so nothing above matched and the page
+#: titled itself with the whole sentence - the request read back to the
+#: operator as their subject, the failure C-1516 and C-1528 fixed for the
+#: phrasings that do carry a verb.
+#:
+#: This is the Japanese rule arriving in English. C-1529 made 「ください」 and
+#: 「ほしい」 request markers in `_STRIP`, so 「パズルをください」 titles itself
+#: 「パズル」; 「a racing game, please」 is that same sentence and was keeping
+#: all four of its words.
+#:
+#: It does not weaken the C-1528 pin. 「a racing game」 with nothing else said
+#: still keeps both words, because the article only becomes strippable once a
+#: marker has established that this is a request - exactly what separates
+#: 「レースゲーム」 from 「レースゲームをください」 in the other language.
+_STRIP_EN_PLEASE = re.compile(
+    r"[,\s]*\b(?:please|pls|plz)\b\s*[,.!?]*\s*$", re.IGNORECASE
+)
+
+#: Removed only after a marker has been found, never on its own.
+_STRIP_EN_ARTICLE = re.compile(r"^(?:a|an|the)\s+", re.IGNORECASE)
+
+
 def _title_from(request: str, fallback: str) -> str:
     """Use the operator's own words when they named the thing.
 
@@ -1237,7 +1264,16 @@ def _title_from(request: str, fallback: str) -> str:
     # ran past the length limit below and fell back to the *Japanese*
     # default title - an English request answered with 「タイミング釣り」.
     without_head = _STRIP_EN_HEAD.sub("", stripped, count=1)
-    if without_head != stripped:
+    asked_in_english = without_head != stripped
+    if not asked_in_english and _STRIP_EN_PLEASE.search(stripped):
+        # The verb is absent but the request is not (C-1531). Take the
+        # politeness word off, then the article it was carrying, and hand the
+        # rest to the same trimming a verb-headed request gets.
+        without_head = _STRIP_EN_ARTICLE.sub(
+            "", _STRIP_EN_PLEASE.sub("", stripped, count=1).strip(), count=1
+        )
+        asked_in_english = True
+    if asked_in_english:
         without_head = _STRIP_EN_ABOUT.sub("", without_head, count=1)
         trimmed = without_head
         while True:

@@ -21607,6 +21607,37 @@ def measure_creation(c: Collector) -> None:
     else:
         _verb_langs.append("日本語（願望形・〜てほしい／〜が欲しい）")
 
+    # C-1531. A fourth unit, and a unit for the same reason the third one is:
+    # the first two are about *where the verb sits* and anchor on it being at
+    # an edge. Here the verb is not at an edge either - it is at the end as a
+    # politeness word (「a racing game, please」 has no making verb at all), or
+    # it is a give-imperative the head list never knew (「gimme」). This is the
+    # English half of what C-1529 fixed for Japanese: 「パズルをください」 already
+    # titled itself 「パズル」 while its English twin kept all four words.
+    #
+    # The third time widening the door left the title rule behind - C-1528 was
+    # 「let's make a」, C-1529 the desire forms, and C-1530 taught the router
+    # 「pls」 and 「gimme」 the day before this was measured.
+    _en_tail = [
+        (q, want) for q, want in (
+            ("a racing game, please", "racing"),
+            ("a racing game please", "racing"),
+            ("racing game please", "racing"),
+            ("puzzle please", "puzzle"),
+            ("puzzle pls", "puzzle"),
+            ("gimme a racing game", "racing"),
+            ("give me a racing game", "racing"),
+        )
+        if _verb_title(q, _verb_fallback) != want
+    ]
+    if _en_tail:
+        _verb_bad.extend(
+            f"英語の依頼標識が落ちない: {q}→{_verb_title(q, _verb_fallback)!r}"
+            for q, _ in _en_tail
+        )
+    else:
+        _verb_langs.append("英語（文末の please／文頭の give me）")
+
     # Both directions: a request that names a thing without asking for it
     # keeps every word it used, in either language. Removing the tail
     # unconditionally would turn `racing game` into `racing`, which is a
@@ -21615,6 +21646,9 @@ def measure_creation(c: Collector) -> None:
         ("racing game", "動詞の無い英語"),
         ("a racing game", "冠詞だけの英語"),
         ("レースゲーム", "動詞の無い日本語"),
+        # C-1531 made a trailing 「please」 a request marker, which is the one
+        # way the article above could start coming off without one.
+        ("a puzzle game", "冠詞だけの英語（別ジャンル）"),
     ):
         if _verb_title(_kept, _verb_fallback) != _kept:
             _verb_bad.append(

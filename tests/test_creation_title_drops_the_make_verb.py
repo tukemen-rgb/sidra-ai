@@ -73,6 +73,59 @@ def test_a_request_without_a_making_verb_keeps_its_words(request_text: str) -> N
     assert _title_from(request_text, FALLBACK) == request_text
 
 
+@pytest.mark.parametrize(
+    "request_text,want",
+    [
+        # C-1531: English can put the request marker at the *end*, where the
+        # head pattern above never looks. 「a racing game, please」 carries no
+        # making verb at all and titled the page with all four of its words.
+        ("a racing game, please", "racing"),
+        ("a racing game please", "racing"),
+        ("racing game please", "racing"),
+        ("puzzle please", "puzzle"),
+        ("puzzle pls", "puzzle"),
+        # And the give-imperative the head list never knew. The router
+        # accepted these the day before (C-1530); the title builder did not,
+        # which is the third time widening the door left this rule behind.
+        ("gimme a racing game", "racing"),
+        ("give me a racing game", "racing"),
+    ],
+)
+def test_an_english_request_marker_at_the_end_is_not_part_of_the_name(
+    request_text: str, want: str
+) -> None:
+    assert _title_from(request_text, FALLBACK) == want
+
+
+def test_the_english_marker_is_the_japanese_rule_in_the_other_language() -> None:
+    """Written as a pair, because the claim is that these two behave alike.
+
+    C-1529 made 「ください」 a request marker on the Japanese side, so
+    「パズルをください」 titles itself 「パズル」. 「a racing game, please」 is
+    that sentence in English and was keeping every word. Asserting both here
+    means the English side cannot be "fixed" by a rule that quietly drifts
+    away from the Japanese one.
+    """
+
+    assert _title_from("パズルをください", FALLBACK) == "パズル"
+    assert _title_from("a puzzle game, please", FALLBACK) == "puzzle"
+
+
+def test_the_marker_is_what_makes_the_article_strippable() -> None:
+    """The C-1528 pin, stated as the contrast it actually is.
+
+    Making the bare article a request head was tried and the judge refused
+    it. So the article comes off only once a marker has said this is a
+    request - which is exactly what separates 「レースゲーム」 from
+    「レースゲームをください」.
+    """
+
+    assert _title_from("a racing game", FALLBACK) == "a racing game"
+    assert _title_from("a racing game, please", FALLBACK) == "racing"
+    assert _title_from("レースゲーム", FALLBACK) == "レースゲーム"
+    assert _title_from("レースゲームをください", FALLBACK) == "レース"
+
+
 def test_a_request_that_is_only_the_verb_falls_back() -> None:
     """Stripping everything must not leave an empty title.
 
