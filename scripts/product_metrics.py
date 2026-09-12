@@ -1611,6 +1611,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1695: plain_text flattened Markdown but had no case for a fenced code
+    # block, so ``` fences left `` artifacts and ~~~ fences survived whole in the
+    # answer's facts, the echo backend and generated documents. It now removes
+    # fence-delimiter lines while keeping the code text as prose.
+    from sidra_ai.evals.answer_flattens_code_fence import (
+        evaluate_answer_flattens_code_fence,
+    )
+
+    code_fence = evaluate_answer_flattens_code_fence()
+    c.add(
+        "answer_flattens_code_fence",
+        "回答・根拠の平文化がコードフェンスを除去する（破片を残さない）",
+        10.0 * code_fence.checks_passed / code_fence.checks_total,
+        detail=f"{code_fence.checks_passed}/{code_fence.checks_total} checks; "
+               "src/sidra_ai/evals/answer_flattens_code_fence.py"
+               + ("" if code_fence.passed else "; " + "; ".join(code_fence.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

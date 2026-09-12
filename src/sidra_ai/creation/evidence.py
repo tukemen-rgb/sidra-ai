@@ -88,6 +88,13 @@ def _drop_dangling_bold(text: str) -> str:
     return "".join(out)
 _MD_EMPHASIS = re.compile(r"(?<![\w*])\*([^*\s][^*]*)\*(?![\w*])")
 _MD_CODE = re.compile(r"`([^`]+)`")
+#: A fenced code block's delimiter line - three or more backticks or tildes (up
+#: to three leading spaces, per CommonMark), plus any info string. Removed whole
+#: so the fence marks never reach the reader: ``_MD_CODE`` only strips an inline
+#: single-backtick span, so a triple fence otherwise lost one backtick per side
+#: and left a 「``」 artifact, and a ``~~~`` fence survived untouched. The code
+#: text between the fences is kept - it is content, like any other line.
+_MD_FENCE = re.compile(r"(?m)^[ \t]*(?:`{3,}|~{3,})[^\n]*$")
 _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
 #: A Markdown link. The corpus cross-references its own files, so an excerpt
 #: carries 「[SPEC.md](../SPEC.md)」 - and when the URL trips the output guard's
@@ -180,6 +187,10 @@ def plain_text(text: str) -> str:
     # dashes could read as a bullet, and while line boundaries still exist.
     text = _MD_TABLE_SEP.sub("", text)
     text = _MD_TABLE_ROW.sub(_flatten_table_row, text)
+    # Fence delimiter lines go before the list/heading/code strips and while line
+    # boundaries still exist, so a triple-backtick fence cannot leave a 「``」
+    # artifact and a ~~~ fence cannot survive whole (C-1695).
+    text = _MD_FENCE.sub("", text)
     text = _MD_LIST.sub("", text)
     text = _MD_HEADING.sub("", text)
     text = _MD_BOLD.sub(r"\1", text)
