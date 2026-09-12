@@ -1901,6 +1901,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1735: /v1/chat attaches a source url to every citation, but the web UI drew
+    # only repository+path (dropping even the sha) and never the url, so a browser
+    # reader could not click through to the cited PR/commit/file. render() now links
+    # it via a scheme-validated anchor (sourceUrl), the sibling of the excerpt (C-1689).
+    from sidra_ai.evals.ui_citation_links_to_source import (
+        evaluate_ui_citation_links_to_source,
+    )
+
+    ui_citation_link = evaluate_ui_citation_links_to_source()
+    c.add(
+        "ui_citation_links_to_source",
+        "web UI の出典が引用元 URL へのリンクを出す（http(s) のみ・安全）",
+        10.0 * ui_citation_link.checks_passed / ui_citation_link.checks_total,
+        detail=f"{ui_citation_link.checks_passed}/{ui_citation_link.checks_total} checks; "
+               "src/sidra_ai/evals/ui_citation_links_to_source.py"
+               + ("" if ui_citation_link.passed else "; " + "; ".join(ui_citation_link.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

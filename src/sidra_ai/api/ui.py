@@ -169,6 +169,15 @@ ASK_PAGE = """<!doctype html>
     while (node.firstChild) { node.removeChild(node.firstChild); }
   }
 
+  function sourceUrl(u) {
+    // The ingestion-recorded address of a cited source, made clickable so a
+    // reader can open the PR/commit/file and check the answer at its origin.
+    // A citation is DATA, so only an http(s) URL is ever turned into a link:
+    // anything else (a javascript: or data: scheme, an empty value) returns ""
+    // and is dropped rather than rendered as a live link (C-1735).
+    return (typeof u === "string" && /^https?:\/\//i.test(u)) ? u : "";
+  }
+
   function refusalMessage(result) {
       // The API reason is the gate's English audit text; a Japanese user needs
       // Japanese and a next step, not the audit trail (C-1238). The raw
@@ -277,6 +286,25 @@ ASK_PAGE = """<!doctype html>
         evidence.className = "excerpt";
         evidence.textContent = c.excerpt;
         item.appendChild(evidence);
+      }
+      // A link to the source this citation points at (C-1735). The page showed
+      // only repository and path - not even the sha - so a browser reader could
+      // not reach the cited PR/commit/file; the excerpt lets them check the
+      // words, this lets them check the source. Built with DOM properties, never
+      // markup, and only for a safe http(s) URL (sourceUrl); the URL is shown as
+      // the link text so the reader sees where it leads before clicking, and it
+      // opens in a new tab with rel=noopener so the source gets no handle back.
+      var href = sourceUrl(c.url);
+      if (href) {
+        var srcLine = document.createElement("p");
+        srcLine.className = "note";
+        var srcLink = document.createElement("a");
+        srcLink.href = href;
+        srcLink.textContent = href;
+        srcLink.target = "_blank";
+        srcLink.rel = "noopener noreferrer";
+        srcLine.appendChild(srcLink);
+        item.appendChild(srcLine);
       }
       list.appendChild(item);
     });
