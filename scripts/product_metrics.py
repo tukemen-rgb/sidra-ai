@@ -1882,6 +1882,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1731: sidra-quarantine list previews up to 3 finding labels per entry but
+    # capped silently, so a 5-way-flagged entry looked like a 3-way one and an
+    # operator under-read it before a release. summary now discloses the remaining
+    # count (show still lists them all).
+    from sidra_ai.evals.quarantine_list_discloses_finding_count import (
+        evaluate_quarantine_list_discloses_finding_count,
+    )
+
+    quarantine_findings = evaluate_quarantine_list_discloses_finding_count()
+    c.add(
+        "quarantine_list_discloses_finding_count",
+        "隔離一覧が entry の検出項目の打ち切りを明示する（+N more）",
+        10.0 * quarantine_findings.checks_passed / quarantine_findings.checks_total,
+        detail=f"{quarantine_findings.checks_passed}/{quarantine_findings.checks_total} checks; "
+               "src/sidra_ai/evals/quarantine_list_discloses_finding_count.py"
+               + ("" if quarantine_findings.passed else "; " + "; ".join(quarantine_findings.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

@@ -104,7 +104,14 @@ class QuarantineEntry:
         """One line, safe to print. Carries no detected value."""
 
         where = self.repository or "(repository withheld)"
-        labels = ", ".join(self.finding_labels[:3]) or "no findings"
+        # Preview the first three finding labels, but say when there are more:
+        # an entry the gate flagged five ways must not read like a three-way one
+        # in the triage list, or an operator under-scrutinises the more dangerous
+        # entry before a release. `show <id>` still lists them all (C-1731).
+        all_labels = self.finding_labels
+        labels = ", ".join(all_labels[:3]) or "no findings"
+        if len(all_labels) > 3:
+            labels += f" (+{len(all_labels) - 3} more)"
         return (
             f"{self.id}  {self.recorded_at[:16]}  {self.decision:10s} "
             f"{where:26s} {self.source_type:12s} {labels}"
