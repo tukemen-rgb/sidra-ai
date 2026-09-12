@@ -1668,6 +1668,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1703: the excerpt cap could cut a [REDACTED:...] placeholder in half,
+    # showing a meaningless [REDACT fragment - visible to users since C-1689/1691
+    # put the excerpt on screen. The excerpt now drops a placeholder whole rather
+    # than splitting it at the boundary.
+    from sidra_ai.evals.citation_excerpt_keeps_redaction_whole import (
+        evaluate_citation_excerpt_keeps_redaction_whole,
+    )
+
+    redaction_whole = evaluate_citation_excerpt_keeps_redaction_whole()
+    c.add(
+        "citation_excerpt_keeps_redaction_whole",
+        "引用抜粋が [REDACTED:...] を途中で切らず丸ごと落とす",
+        10.0 * redaction_whole.checks_passed / redaction_whole.checks_total,
+        detail=f"{redaction_whole.checks_passed}/{redaction_whole.checks_total} checks; "
+               "src/sidra_ai/evals/citation_excerpt_keeps_redaction_whole.py"
+               + ("" if redaction_whole.passed else "; " + "; ".join(redaction_whole.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

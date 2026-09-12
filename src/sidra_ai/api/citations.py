@@ -199,4 +199,16 @@ def citation_excerpt(
     lead = "…" if head_cut else ""
     trail = "…" if tail_cut else ""
     budget = MAX_CITATION_EXCERPT_CHARS - len(lead) - len(trail)
-    return lead + guarded.content[:budget] + trail, False
+    body = guarded.content[:budget]
+    # Don't end inside a [REDACTED:...] placeholder. The cut can land mid-marker
+    # and leave a meaningless 「[REDACT」 fragment - harmless (the secret is
+    # already gone) but, since the excerpt is shown to readers (C-1689/1691), it
+    # reads as broken document text. If the budget opened a placeholder it did
+    # not close, drop back to its start; the 「…」 already says it was clipped.
+    if len(guarded.content) > budget:
+        open_bracket = body.rfind("[")
+        if open_bracket != -1 and "]" not in body[open_bracket:]:
+            tail_frag = body[open_bracket:]
+            if "[REDACTED".startswith(tail_frag) or tail_frag.startswith("[REDACTED"):
+                body = body[:open_bracket].rstrip()
+    return lead + body + trail, False
