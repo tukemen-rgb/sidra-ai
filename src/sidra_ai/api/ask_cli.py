@@ -363,6 +363,23 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
                 companion = PurePosixPath(str(value))
                 if base_url and companion.parent.name == "artifacts" and companion.name:
                     print(f"    取得: GET {clean(base_url)}/v1/artifacts/{clean(companion.name)}")
+        # A project (制作一式) writes a directory of files, each served at
+        # /v1/projects/<slug>/<name> - the web UI's project list offers exactly
+        # those downloads. C-1705/1715 named routes for flat artifacts but
+        # deferred the project case, so a --url reader was handed only the
+        # server-side directory path with no way to fetch any file. The slug and
+        # file list are in details; name the route for each file (a trailing-
+        # slash entry is a directory, not a file) (C-1730).
+        slug = details.get("slug")
+        files = details.get("files")
+        if base_url and slug and isinstance(files, list):
+            for name in files:
+                name = str(name)
+                if name and not name.endswith("/"):
+                    print(
+                        f"  取得: GET {clean(base_url)}/v1/projects/"
+                        f"{clean(str(slug))}/{clean(name)}"
+                    )
     _print_citations(payload, clean, note_when_empty=not outcome)
 
     model = payload.get("model") or {}

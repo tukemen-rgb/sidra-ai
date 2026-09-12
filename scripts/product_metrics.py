@@ -1862,6 +1862,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1730: C-1705/1715 named /v1/artifacts routes for flat artifacts but
+    # deferred a project creation. A project's files are served at
+    # /v1/projects/<slug>/<name> (the web UI offers those downloads); the CLI
+    # printed only the server-side directory path. render now names the project
+    # route for each file the outcome lists.
+    from sidra_ai.evals.cli_names_project_fetch_routes import (
+        evaluate_cli_names_project_fetch_routes,
+    )
+
+    cli_project = evaluate_cli_names_project_fetch_routes()
+    c.add(
+        "cli_names_project_fetch_routes",
+        "sidra-ask CLI がプロジェクト生成物の取得経路（/v1/projects/<slug>/<name>）を示す",
+        10.0 * cli_project.checks_passed / cli_project.checks_total,
+        detail=f"{cli_project.checks_passed}/{cli_project.checks_total} checks; "
+               "src/sidra_ai/evals/cli_names_project_fetch_routes.py"
+               + ("" if cli_project.passed else "; " + "; ".join(cli_project.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
