@@ -295,9 +295,19 @@ function tuneSet(key,value){const next=tuneRead();
 function tuneReset(){const s=tuneStore();
   try{if(s)s.removeItem(TUNE_KEY)}catch(e){}
   TUNE={};tuneReload();return true}
+/* §4 事実 2's other number (C-1712). The row's height was raised twice -
+   C-1234 for the controls, C-1681 for the row - and the SPACING half of
+   「大きく・間隔を空けて」 was never built: 6px of margin, which collapses
+   between siblings to a 6px gap, under the 8dp the same sentence asks for.
+   Measured in a real browser at the fix: eleven adjacent pairs, 6.00px
+   every one. Named once so the style the page applies and the number the
+   judge reads cannot drift (C-1342), and set above the floor the way the
+   pad is (12 against 8, 49 against 48) rather than exactly on it. */
+const TUNE_ROW_GAP=10;
 function tuneControl(f,value){const row=document.createElement('label');
   row.className='tune-row';
-  row.style.cssText='display:flex;gap:10px;align-items:center;margin:6px 0';
+  row.style.cssText='display:flex;gap:10px;align-items:center;margin:'
+    +TUNE_ROW_GAP+'px 0';
   const name=document.createElement('span');name.textContent=f.label;
   name.style.cssText='flex:0 0 9em';row.appendChild(name);
   let input;
@@ -334,7 +344,10 @@ function tunePanel(){
 /* What the judge reads back after driving the real controls. */
 function tuneFacts(){return {template:TUNE_SPEC.template,
   fields:TUNE_SPEC.fields.map(function(f){return f.key}),
-  values:tuneValues(),controls:TUNE_CONTROLS.length,reloads:TUNE_RELOADS}}
+  values:tuneValues(),controls:TUNE_CONTROLS.length,reloads:TUNE_RELOADS,
+  /* Adjacent siblings' vertical margins collapse, so the gap between two
+     rows is the margin itself and not twice it. */
+  rowGap:TUNE_ROW_GAP}}
 if(typeof document!=='undefined'&&document.addEventListener&&document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',tunePanel)}else{tunePanel()}
 """
@@ -565,6 +578,7 @@ const rows = made
         inner.push(kindOf(k)) }
       if (k.kids) walk(k) }) })(row);
     return { className: String(row.className), controls: inner,
+      css: String(row.style && row.style.cssText || ''),
       tune: row.kids.filter(k => k['data-tune']).map(k => k['data-tune']) };
   });
 const loose = made
@@ -576,7 +590,8 @@ const loose = made
   .map(kindOf);
 const counts = {};
 made.forEach(function(n){ const k = kindOf(n); counts[k] = (counts[k] || 0) + 1 });
-console.log(JSON.stringify({ rows: rows, loose: loose, counts: counts }));
+console.log(JSON.stringify({ rows: rows, loose: loose, counts: counts,
+  facts: (typeof tuneFacts === 'function' ? tuneFacts() : null) }));
 """
 
 

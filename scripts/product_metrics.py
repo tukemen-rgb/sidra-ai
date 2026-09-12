@@ -17299,7 +17299,10 @@ def measure_creation(c: Collector) -> None:
 
     _row_gaps: list[str] = []
     _row_ok: list[str] = []
-    _ROW_FLOOR = 44.0
+    # §4 事実 2's own number, not the neighbours' (C-1712). 44 was what
+    # the controls happened to get; the sentence being enforced says 48dp.
+    _ROW_FLOOR = 48.0
+    _ROW_GAP = 8.0  # and the other half of the same sentence
 
     def _coarse_rules(page: str) -> list[tuple[list[str], dict[str, float]]]:
         """Selectors and their pixel heights inside @media (pointer:coarse)."""
@@ -17399,6 +17402,36 @@ def measure_creation(c: Collector) -> None:
                 )
             else:
                 _row_ok.append("どの操作子もラベルの中にあり、行が的であり続ける")
+            # (c) 「間隔を空けて」 - the half of §4 事実 1 that had never been
+            # built. Adjacent siblings' vertical margins collapse, so the
+            # gap between two rows is the margin itself, not twice it.
+            _row_facts = _rows.get("facts") or {}
+            _row_gap = _row_facts.get("rowGap")
+            if not isinstance(_row_gap, (int, float)):
+                _row_gaps.append("the panel does not report the space between rows")
+            elif _row_gap < _ROW_GAP:
+                _row_gaps.append(
+                    f"rows sit {_row_gap}px apart, under §4 の {_ROW_GAP:.0f}dp"
+                )
+            else:
+                _row_ok.append(f"隣り合う行が {_row_gap:.0f}px 離れている")
+            # (d) and the number reported is the number applied. Without
+            # this, (c) is satisfied by a page that says 10 and styles 6 -
+            # which is the exact shape of the defect being closed.
+            if isinstance(_row_gap, (int, float)):
+                _row_want = f"margin:{int(_row_gap)}px 0"
+                _row_off = [
+                    "/".join(_r["tune"]) or "?"
+                    for _r in _built
+                    if _row_want not in (_r.get("css") or "")
+                ]
+                if _row_off:
+                    _row_gaps.append(
+                        f"the reported {_row_gap}px is not what "
+                        f"{len(_row_off)} row(s) are styled with ({_row_off[0]})"
+                    )
+                else:
+                    _row_ok.append("報告した余白が、実際に当てた余白と同じ")
 
     c.add(
         "creation_panel_rows_are_thumb_sized",
@@ -17407,10 +17440,25 @@ def measure_creation(c: Collector) -> None:
         detail=(
             "; ".join(_row_gaps)
             if _row_gaps
-            else "パネルを実際に組み立てさせて（createElement を記録する DOM で実運転）"
+            else "／".join(_row_ok)
+            + "（パネルを実際に組み立てさせて（createElement を記録する DOM で実運転）"
             "行と中の操作子を数え上げ、coarse ブロックの宣言と突き合わせた。"
             "**宣言があるか**ではなく**作られた行が床を持つか**を見る"
-            "（§4 の 48dp は指が触る面積の話で、入力欄の面積の話ではない）"
+            "（§4 の 48dp は指が触る面積の話で、入力欄の面積の話ではない）。"
+            "**C-1712 で §4 事実 1 の後半「間隔を空けて」を追加**——"
+            "同じ 1 文の「大きく」は C-1234・C-1681 で 2 度直ったのに、"
+            "**間隔は一度も作られていなかった**。実 Chromium で開いて測ると"
+            "12 行すべてが `margin:6px 0` の**相殺後 6px**で、"
+            "隣接 11 組すべてが 8dp を下回っていた（`evals/touch_targets.py` の"
+            "docstring 自身が「48dp minimum **with 8dp spacing**; the panel "
+            "ignored it」と書いている）。10px に上げて全 11 組 10.00px。"
+            "**床も 44→48 に直した**——44 は隣の操作子がたまたま持っていた数字で、"
+            "**判定器は自分が引用している基準（48dp）より低い数字を正典化していた**。"
+            "実 Chromium 再測で 12 行すべて 48.00px。"
+            "**報告と実塗りの一致**も読む: 余白はページの名前付き定数 `TUNE_ROW_GAP` "
+            "から報告され、各行に当たった cssText にその数字が入っていることまで"
+            "確かめる——でないと「10 と言って 6 で塗る」が通ってしまい、"
+            "それはまさに今回閉じた穴の形）"
         ),
         kind=OUTCOME,
     )

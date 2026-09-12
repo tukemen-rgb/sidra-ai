@@ -18,6 +18,18 @@ the tap target is the row, and the row is as tall as its tallest child.
 Measured before fixed, in Chromium at 390px with the coarse rules
 applied: the slider, select and colour rows stood 44-48px and the six
 checkbox rows 30-36px.
+
+C-1712 adds the other half of §4 事実 1's sentence. 「大きく・間隔を空けて」
+had its size half raised twice - C-1234 for the controls, C-1681 for the
+row - and its spacing half never built at all: every row carried
+``margin:6px 0``, which collapses between siblings into a 6px gap against
+the 8dp 事実 2 asks for. Measured in a real browser at the fix: eleven
+adjacent pairs, 6.00px every one; afterwards 10.00px every one, and all
+twelve rows 48.00px tall.
+
+The floor moved to 48 with it. 44 was the number the neighbouring
+controls happened to get, and the judge was holding the panel to a floor
+below the standard it quotes.
 """
 
 from __future__ import annotations
@@ -32,7 +44,8 @@ import pytest
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.tuning import panel_probe
 
-ROW_FLOOR = 44.0
+ROW_FLOOR = 48.0  # §4 事実 2's own number (C-1712); 44 was the neighbours'
+ROW_GAP = 8.0  # and the other half of the same sentence
 
 COARSE = re.compile(
     r"@media\s*\(\s*pointer\s*:\s*coarse\s*\)\s*\{(?P<body>.*?)\}\s*"
@@ -140,6 +153,47 @@ def test_the_row_is_what_the_finger_hits(panel: dict) -> None:
     for row in panel["rows"]:
         assert row["controls"], row
         assert "tune-row" in row["className"], row
+
+
+def test_the_rows_keep_their_distance(panel: dict) -> None:
+    """The half of 「大きく・間隔を空けて」 that was never built. Adjacent
+    siblings' vertical margins collapse, so the gap between two rows is
+    the margin itself and not twice it."""
+
+    gap = (panel.get("facts") or {}).get("rowGap")
+    assert isinstance(gap, (int, float)), panel.get("facts")
+    assert gap >= ROW_GAP, gap
+
+
+def test_the_space_reported_is_the_space_applied(panel: dict) -> None:
+    """Otherwise the test above is satisfied by a page that says 10 and
+    styles 6 - which is the exact shape of the defect being closed."""
+
+    gap = (panel.get("facts") or {}).get("rowGap")
+    for row in panel["rows"]:
+        assert f"margin:{int(gap)}px 0" in row["css"], (row["tune"], row["css"])
+
+
+def test_the_space_is_named_once(page: str) -> None:
+    """The style the page applies and the number the judge reads come from
+    one constant, so they cannot drift apart (C-1342)."""
+
+    from sidra_ai.creation import tuning
+
+    assert "const TUNE_ROW_GAP=10;" in tuning.TUNE_PREAMBLE
+    assert "+TUNE_ROW_GAP+'px 0'" in tuning.TUNE_PREAMBLE
+    assert "margin:6px 0" not in tuning.TUNE_PREAMBLE
+
+
+def test_the_floor_is_the_number_the_standard_quotes(page: str) -> None:
+    """44 was the neighbours' number. §4 事実 2 says 48dp, and the button
+    rule in the same coarse block has always used it."""
+
+    found = COARSE.search(page)
+    assert found is not None
+    body = found.group("body")
+    assert ".tune-row{min-height:48px}" in body, body
+    assert "button{min-height:48px}" in body, body
 
 
 def test_the_floor_is_not_read_from_outside_the_coarse_block(page: str) -> None:

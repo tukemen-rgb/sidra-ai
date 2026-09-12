@@ -1679,8 +1679,13 @@ a{{color:{t["accent"]}}}
  * C-1234 floored the controls; a checkbox's floor is 24px, so its row
  * - the <label> that makes the whole line tappable - came out 30-36px
  * in Chromium at 390px while the slider rows next to it were 44-48.
- * The row is the target, so the row carries the floor. */
-@media (pointer:coarse){{button{{min-height:48px}}select,input{{font-size:16px}}select,input[type=number],input[type=text],input[type=color],input[type=range]{{min-height:44px}}input[type=checkbox]{{width:24px;height:24px}}.tune-row{{min-height:44px}}}}
+ * The row is the target, so the row carries the floor.
+ * 48, not 44 (C-1712): 44 was the neighbours' number, and §4 事実 2's own
+ * number is 48dp - the same 48 the button rule above already uses. The
+ * judge had been holding the panel to a floor below the standard it
+ * quotes. The controls' rule stays at 44 because that is a control's
+ * floor and the row is what a finger lands on. */
+@media (pointer:coarse){{button{{min-height:48px}}select,input{{font-size:16px}}select,input[type=number],input[type=text],input[type=color],input[type=range]{{min-height:44px}}input[type=checkbox]{{width:24px;height:24px}}.tune-row{{min-height:48px}}}}
 /* The how-to and the start briefing name keyboard keys (「← →」), which a
  * phone does not have; the on-screen pad appears only once play starts, so
  * before that a touch visitor is told to press keys they cannot (C-1229).
