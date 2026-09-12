@@ -95,6 +95,14 @@ _MD_CODE = re.compile(r"`([^`]+)`")
 #: and left a 「``」 artifact, and a ``~~~`` fence survived untouched. The code
 #: text between the fences is kept - it is content, like any other line.
 _MD_FENCE = re.compile(r"(?m)^[ \t]*(?:`{3,}|~{3,})[^\n]*$")
+#: A setext H1 heading's underline - a line of only ``=`` (CommonMark allows any
+#: number, plus leading/trailing space). Pure syntax, no content, removed whole so
+#: 「タイトル\n===」 does not flatten to 「タイトル ===」 with a raw ``===`` artifact
+#: (C-1709). ATX ``#`` headings go through ``_MD_HEADING``, and a setext H2's
+#: ``---`` underline is already caught by ``_MD_TABLE_SEP`` (a ``-{2,}`` line), but
+#: a ``=`` line had no case. Line-anchored, so a mid-line ``=`` (「key=value」, an
+#: equation) is never touched - only a line that is nothing but ``=``.
+_SETEXT_UNDERLINE = re.compile(r"(?m)^[ \t]*=+[ \t]*$")
 _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
 #: A Markdown link. The corpus cross-references its own files, so an excerpt
 #: carries 「[SPEC.md](../SPEC.md)」 - and when the URL trips the output guard's
@@ -191,6 +199,10 @@ def plain_text(text: str) -> str:
     # boundaries still exist, so a triple-backtick fence cannot leave a 「``」
     # artifact and a ~~~ fence cannot survive whole (C-1695).
     text = _MD_FENCE.sub("", text)
+    # A setext H1 underline (a line of only ``=``) goes next, alongside the fence
+    # and table-separator removals, while line boundaries still exist - otherwise
+    # the ``=`` line survives whitespace collapse as a raw 「===」 artifact (C-1709).
+    text = _SETEXT_UNDERLINE.sub("", text)
     text = _MD_LIST.sub("", text)
     text = _MD_HEADING.sub("", text)
     text = _MD_BOLD.sub(r"\1", text)

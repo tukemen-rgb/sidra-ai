@@ -1706,6 +1706,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1709: plain_text flattened Markdown headings but only ATX (#) and, by
+    # accident, a setext H2's --- underline (via _MD_TABLE_SEP). A setext H1's
+    # === underline had no case at all, so タイトル\n===\n\n本文 flattened to
+    # 「タイトル === 本文」 - a raw === artifact in answers/documents. plain_text
+    # now removes a setext = underline line while keeping the heading and body.
+    from sidra_ai.evals.plain_text_strips_setext_heading import (
+        evaluate_plain_text_strips_setext_heading,
+    )
+
+    setext = evaluate_plain_text_strips_setext_heading()
+    c.add(
+        "plain_text_strips_setext_heading",
+        "plain_text が setext 見出しの = 下線を除去する（本文は残す）",
+        10.0 * setext.checks_passed / setext.checks_total,
+        detail=f"{setext.checks_passed}/{setext.checks_total} checks; "
+               "src/sidra_ai/evals/plain_text_strips_setext_heading.py"
+               + ("" if setext.passed else "; " + "; ".join(setext.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
