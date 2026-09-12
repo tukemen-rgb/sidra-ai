@@ -17935,18 +17935,118 @@ def measure_creation(c: Collector) -> None:
                     f"＝**{_tap / _sinks:.2f} 倍**"
                 )
 
+    # The other template with a collectible and an outlet (C-1714). Its
+    # cell had only ever been a SUM: creation_sink_affordable counts the
+    # orbs the seed placed and compares the total with LAMP_COST, and
+    # never runs a frame. Measured by walking, the low road reached the
+    # lantern holding FOUR against a price of five on easy and normal -
+    # the auto-runner passed its own insurance and finished with six gems
+    # and an unlit lamp, the last two lying after the outlet. A sum can
+    # be right while the ORDER is wrong, and money collected past an
+    # outlet is not that outlet's money.
+    from sidra_ai.creation.platformer import tapsink_probe as _bl_tapsink
+
+    _BL_ROADS = (
+        ("ジャンプで進むゲームを作って", "normal", True),
+        ("ジャンプで進むゲームを作って やさしくして", "easy", True),
+        # The harder course outruns the one-rule pilot, so it is checked
+        # on geometry alone - the same treatment creation_soft_route gives
+        # it, and for the same reason.
+        ("ジャンプで進むゲームを作って 難しくして", "hard", False),
+    )
+    _bl_ok: list[str] = []
+    for _bl_req, _bl_label, _bl_driven in _BL_ROADS:
+        _bl_pg = generate_game(_bl_req).html
+        _bl_sc = _bl_re.search(r"<script>(.*?)</script>", _bl_pg, _bl_re.S)
+        if _bl_sc is None:
+            _bal_gaps.append(f"platformer/{_bl_label}: no script")
+            continue
+        try:
+            _bl_run2 = _bl_sp.run(
+                ["node", "-"],
+                input=_bl_tapsink(_bl_sc.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if _bl_run2.returncode != 0:
+                raise ValueError(_bl_run2.stderr.strip()[:80])
+            _bl_d = json.loads(_bl_run2.stdout.strip().splitlines()[-1])
+        except (OSError, _bl_sp.SubprocessError, ValueError) as exc:
+            _bal_gaps.append(f"platformer/{_bl_label}: probe unavailable ({exc})")
+            continue
+        _bl_cost = _bl_d["cost"]
+        _bl_low = _bl_d["placed"]["low"]
+        _bl_before = _bl_d["placed"]["beforeLamp"]
+        _bl_total = _bl_low + _bl_d["placed"]["shelf"]
+        if _bl_cost <= 0:
+            _bal_gaps.append(f"platformer/{_bl_label}: the lantern is free")
+        # (a) the floor, the claim that was already made - driven here
+        elif _bl_low < _bl_cost:
+            _bal_gaps.append(
+                f"platformer/{_bl_label}: the low road carries {_bl_low} "
+                f"against a price of {_bl_cost}"
+            )
+        # (b) the order: the price is asked where it can be paid
+        elif _bl_before < _bl_cost:
+            _bal_gaps.append(
+                f"platformer/{_bl_label}: only {_bl_before} of {_bl_low} gems lie "
+                f"before the lantern, which asks {_bl_cost}"
+            )
+        # (c) the ceiling, the same one the village is held to
+        elif _bl_total > _bl_cost * _BL_CEILING:
+            _bal_gaps.append(
+                f"platformer/{_bl_label}: {_bl_total} gems against a {_bl_cost} "
+                f"outlet ({_bl_total / _bl_cost:.1f}x) - the gems are a number again"
+            )
+        elif _bl_driven:
+            # ...and the road confirms the geometry: the pilot lights it.
+            if not _bl_d["goal"]:
+                _bal_gaps.append(f"platformer/{_bl_label}: the low road never reached the flag")
+            elif not _bl_d["lit"]:
+                _bal_gaps.append(
+                    f"platformer/{_bl_label}: walked past the lantern unlit "
+                    f"(held {_bl_d['heldNearLamp']}, price {_bl_cost})"
+                )
+            elif (_bl_d["heldAtLamp"] or 0) < _bl_cost:
+                _bal_gaps.append(
+                    f"platformer/{_bl_label}: lit while holding {_bl_d['heldAtLamp']}"
+                )
+            else:
+                _bl_ok.append(
+                    f"{_bl_label} は実走行で灯籠に **{_bl_d['heldAtLamp']} 個**で着いて点け、"
+                    f"旗まで {_bl_d['left']} 個残す"
+                )
+        else:
+            _bl_ok.append(
+                f"{_bl_label} は幾何で手前 {_bl_before}/{_bl_low} 個（費用 {_bl_cost}）"
+            )
+
     c.add(
         "creation_tap_and_sink_balance",
-        "入口と出口が釣り合う（足りて、余りすぎない）",
-        0.0 if _bal_gaps else 1.0,
+        "入口と出口が釣り合う（足りて、余りすぎない、通り過ぎない）",
+        0.0 if _bal_gaps else 2.0,
         detail=(
             "; ".join(_bal_gaps)
             if _bal_gaps
-            else _bal_note
+            else "adventure="
+            + _bal_note
             + f"。**両方向**: 足りること（下回れば出口は飾り）と、"
             f"{_BL_CEILING:.0f} 倍を超えないこと（超えれば祠も扉も選択ではなく通過点になり、"
             "§5 が名指す失敗——収集物がただの数字に戻る——がそのまま起きる）。"
             "どちらの側もソースの定数は読まず、刈って・払って知る"
+            "／platformer="
+            + "、".join(_bl_ok)
+            + "（C-1714 で 2 型目。**合計は合っているのに順序が合っていなかった**——"
+            "`creation_sink_affordable` は置かれた宝石を**数える**だけで 1 フレームも"
+            "走らせず、6 ≥ 5 を見て緑を出していた。実走行すると"
+            "**灯籠に着いた時点の所持は 4 個**で点かず、残り 2 個は**灯籠より先**に"
+            "あった——**通り過ぎてから貯まる金は、その出口の金ではない**。"
+            "灯籠の位置を `LAMP_COST` に参加させ、"
+            "「自分より手前に費用ぶんの宝石がある」最初の足場に置いた。"
+            "**3 方向**: 総額の床・**順序**（手前に費用ぶんある）・3 倍の天井。"
+            "難コースはパイロットの 1 つの規則では旗に届かないので幾何のみ——"
+            "`creation_soft_route` が同じコースに取っている扱い）"
         ),
         kind=OUTCOME,
     )

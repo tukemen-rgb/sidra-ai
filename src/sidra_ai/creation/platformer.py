@@ -170,7 +170,25 @@ function build(){
   plats.push(SHELF[0]);
   orbs.push({x:hb.x+hb.w/2-20,y:sy-26,got:false,shelf:true},
     {x:hb.x+hb.w/2+20,y:sy-26,got:false,shelf:true});
-  const mid=plats[Math.floor((plats.length-1)/2)];
+  /* Where the lantern stands is where the price is asked, so it may not
+     stand anywhere the price cannot be paid (§5, C-1714). Three separate
+     rules used to decide how many gems lay behind it - every other
+     platform carries one, the middle platform carries the lantern, and
+     the lantern's own platform loses its gem - and none of them had ever
+     been compared with LAMP_COST. Measured: the low road reached the
+     lantern holding FOUR on easy and normal against a price of five, so
+     the auto-runner walked past its own insurance and finished with six
+     gems and an unlit lamp. The remaining two lay AFTER it: money that
+     can never be that outlet's money.
+     Start from the middle, as before, and walk right to the first
+     platform that has the price behind it. The gem on the chosen
+     platform is the one about to be filtered away, so it is not counted.
+     Nothing else moves: the price, the shelf and the flag are unchanged. */
+  let mid=plats[Math.floor((plats.length-1)/2)];
+  for(let i=Math.floor((plats.length-1)/2);i<plats.length;i++){
+    const p=plats[i],cx=p.x+p.w/2;
+    if(orbs.filter(o=>!o.shelf&&o.x<cx-1).length>=LAMP_COST){mid=p;break}
+    mid=p}
   lamp={x:mid.x+mid.w/2,y:mid.y,lit:false};
   /* the lantern's platform keeps no gem: two pickups in one spot would
      read as one */
@@ -1098,6 +1116,78 @@ def econ_probe(script: str) -> str:
     return ECON_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
+#: The books, met on the road (§5, C-1714). ``ECON_PROBE`` counts what the
+#: seed placed; this walks the low road with the page's own one-rule pilot
+#: and reports what the player is holding when the price is asked. The two
+#: are different facts: six gems on a course whose lantern stands after
+#: the fourth is a lantern nobody can light on the way past.
+TAPSINK_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+globalThis.document = { readyState: 'complete', createElement: () => nothing,
+  querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {},
+    addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function turn(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){ (handlers[type] || []).forEach(fn => fn(probeKey(k))) }
+/* What the seed placed, before a step is taken - the fact ECON_PROBE
+   reports, kept here so the two readings sit side by side. */
+const placed = { low: orbs.filter(o => !o.shelf).length,
+  shelf: orbs.filter(o => o.shelf).length,
+  beforeLamp: orbs.filter(o => !o.shelf && o.x < lamp.x).length,
+  afterLamp: orbs.filter(o => !o.shelf && o.x >= lamp.x).length };
+ev('keydown', ' '); ev('keyup', ' '); turn(4);
+ev('keydown', 'ArrowRight');
+let goal = false, held = null, lit = false, nearest = Infinity, nearHeld = null;
+for (let i = 0; i < DRIVE_INPUT; i++) {
+  /* The attract pilot's own one rule, the same one ROUTE_PROBE drives. */
+  if (me.ground && !plats.some(p => me.x + 30 > p.x - 6 && me.x + 30 < p.x + p.w + 6
+      && p.y >= me.y - 1 && p.y < me.y + 60)) tryJump();
+  /* The purse as it stands BEFORE the frame runs. The frame that reaches
+     the lantern is also the frame that pays, so read afterwards this is
+     the change and not the fare. */
+  const purse = me.gems;
+  const away = Math.abs(lamp.x - me.x);
+  if (away < nearest) { nearest = away; nearHeld = purse }
+  turn(1);
+  if (!lit && lamp.lit) { lit = true; held = purse }
+  if (state !== 'play') { goal = state === 'goal'; break }
+}
+ev('keyup', 'ArrowRight');
+console.log(JSON.stringify({ cost: LAMP_COST, placed: placed,
+  goal: goal, lit: lamp.lit, heldAtLamp: held, left: me.gems,
+  nearestLamp: Math.round(nearest), heldNearLamp: nearHeld,
+  gotLow: orbs.filter(o => o.got && !o.shelf).length,
+  gotShelf: orbs.filter(o => o.got && o.shelf).length }));
+"""
+
+
+def tapsink_probe(script: str, *, drive: int = 4000) -> str:
+    """The page's own script, wrapped so the fare can be met on the road."""
+
+    from sidra_ai.creation import probekeys
+
+    return probekeys.with_probe_keys(
+        TAPSINK_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+            "DRIVE_INPUT", str(int(drive))
+        )
+    )
+
+
 def route_probe(script: str, *, drive: int = 2400) -> str:
     """The page's own script, wrapped so both roads can be driven.
 
@@ -1558,6 +1648,8 @@ __all__ = [
     "PLATFORMER_DIFFICULTY",
     "ECON_PROBE",
     "econ_probe",
+    "TAPSINK_PROBE",
+    "tapsink_probe",
     "FACE_PROBE",
     "LAMP_SFX_PROBE",
     "SQUASH_PROBE",
