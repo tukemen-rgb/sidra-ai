@@ -1920,6 +1920,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1740: validate() names the constraint for every bounded/enumerated setting
+    # except port, which raised a bare "port out of range". Port is the most
+    # commonly customized setting; the message now names the 1-65535 range and the
+    # offending value, matching its siblings (the C-1661 pattern for --top-k).
+    from sidra_ai.evals.config_port_out_of_range_is_named import (
+        evaluate_config_port_out_of_range_is_named,
+    )
+
+    config_port_range = evaluate_config_port_out_of_range_is_named()
+    c.add(
+        "config_port_out_of_range_is_named",
+        "範囲外の SIDRA_PORT が有効範囲（1-65535）と与えた値を名指す",
+        10.0 * config_port_range.checks_passed / config_port_range.checks_total,
+        detail=f"{config_port_range.checks_passed}/{config_port_range.checks_total} checks; "
+               "src/sidra_ai/evals/config_port_out_of_range_is_named.py"
+               + ("" if config_port_range.passed else "; " + "; ".join(config_port_range.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

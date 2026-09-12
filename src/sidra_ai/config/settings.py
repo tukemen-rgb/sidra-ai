@@ -367,7 +367,13 @@ class Settings:
         self._validate_github_request_timeout()
 
         if self.port < 1 or self.port > 65535:
-            raise UnsafeConfigurationError("port out of range")
+            # Name the value and the range, the way every other bounded setting
+            # here does: port is the setting most likely to be customized, and a
+            # bare "out of range" leaves an operator guessing what is allowed
+            # (C-1740, the config twin of C-1661's --top-k range).
+            raise UnsafeConfigurationError(
+                f"port {self.port} is out of range: must be between 1 and 65535"
+            )
 
         if self.rate_limit_per_minute <= 0:
             raise UnsafeConfigurationError("rate_limit_per_minute must be positive")

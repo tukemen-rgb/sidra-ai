@@ -15,7 +15,11 @@ def test_explicit_zero_port_is_rejected_instead_of_falling_back(
     monkeypatch.setattr(server, "get_settings", lambda: Settings())
 
     assert server.main(["--port", "0"]) == 2
-    assert "port out of range" in capsys.readouterr().err
+    # The message now names the range and the value (C-1740); this test's intent
+    # is only that an explicit 0 is rejected with a port-range error, not the
+    # exact wording, so match the stable parts.
+    err = capsys.readouterr().err
+    assert "port" in err and "out of range" in err
 
 
 def test_explicit_empty_host_is_rejected_instead_of_falling_back(
