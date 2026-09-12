@@ -127,10 +127,34 @@ function gateBrief(){return GBRIEF}
 function gateSkipped(){return GATE_SKIPPED}
 function gateStore(){try{return (typeof localStorage!=='undefined')?localStorage:null}
   catch(e){return null}}
+/* WHICH briefing was read, not merely that one was (C-1738). The key is
+   the template's name and the value used to be '1', which says "this
+   template has been opened" - and the two are the same claim only while
+   every game a template makes says the same three lines. Racing's 目標
+   line does not: it carries the lap count, so 「コースに沿って 2 周を
+   走り切り」 and 「4 周」 are different news under one mark, and the
+   second game skipped a screen the player had never seen. (My own
+   DEVICE_WIDE note in together.py said "the three lines belong to the
+   template"; this is that note being wrong.) The fingerprint is of the
+   words the screen actually prints, so a briefing that changes for any
+   reason - a new lap count, a rewritten line - is news again exactly
+   once. */
+function gateBriefHash(){
+  const text=(GBRIEF&&GBRIEF.length)?GBRIEF.join('\u0001'):String(GHOW||'');
+  let h=2166136261;
+  for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)>>>0}
+  return 'b'+h.toString(36)}
 function gateSeen(){const s=gateStore();
-  try{return !!(s&&s.getItem(GATE_SEEN_KEY))}catch(e){return false}}
+  try{const raw=s&&s.getItem(GATE_SEEN_KEY);if(!raw)return false;
+    if(raw===gateBriefHash())return true;
+    /* '1' is what every page wrote before the words were recorded:
+       somebody read the three lines they were shown, and showing them
+       again is the thing C-1111 removed. Adopted, and re-stamped, so the
+       NEXT change is news. */
+    if(raw==='1'){gateRemember();return true}
+    return false}catch(e){return false}}
 function gateRemember(){const s=gateStore();
-  try{if(s)s.setItem(GATE_SEEN_KEY,'1')}catch(e){}}
+  try{if(s)s.setItem(GATE_SEEN_KEY,gateBriefHash())}catch(e){}}
 /* The gesture the AudioContext has been waiting for. Kept apart from
    starting, because a page that opened straight into play (C-1111) has had
    no gesture yet - and a sound played without one is a sound the browser
@@ -206,7 +230,7 @@ if(GCV){GCV.addEventListener('pointerdown',e=>{
    because a page that opened straight into play must not have made a sound
    yet, and "no sound" is otherwise indistinguishable from a broken stub. */
 function gateFacts(){return {state:GATE,frames:GATE_RAN,skipped:GATE_SKIPPED,
-  seen:gateSeen(),gesture:GATE_GESTURE}}
+  seen:gateSeen(),gesture:GATE_GESTURE,brief:gateBriefHash()}}
 function gateWrap(text,limit){const out=[];let line='';
   for(const ch of text){line+=ch;
     if(line.length>=limit){out.push(line);line=''}}

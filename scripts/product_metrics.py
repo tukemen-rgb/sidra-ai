@@ -16427,6 +16427,148 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- "already read" is about words, not about a template ------------
+    #
+    # C-1738, §8 事実 8. The briefing is skipped from the second visit on
+    # (C-1111) because three lines somebody has read are not news. What was
+    # never checked is what "already" was about: the mark is
+    # sidra.seen.<template> with the value '1', which says the TEMPLATE has
+    # been opened - and that is the same claim only while every game a
+    # template makes says the same three lines.
+    #
+    # Racing's 目標 line does not. It carries the lap count from the
+    # difficulty table, so 「コースに沿って 2 周を走り切り」 and 「4 周」
+    # are different news under one mark: a player who read the first was
+    # dropped straight into the second with the goal never stated.
+    # (together.py's own DEVICE_WIDE note said "the three lines belong to
+    # the template" - written two cycles ago by this loop, and wrong.)
+    #
+    # Both directions, and the second is the one that matters: showing the
+    # briefing every time passes the first on its own, and that is the
+    # defect C-1111 removed.
+    brief_gaps: list[str] = []
+    brief_ok: list[str] = []
+
+    def _brief_gate(template, script, stored):
+        source = _board_probe(
+            script, speed_expr=_board_binding[template], frames=120, stored=stored
+        ).replace(
+            "  writes: [...new Set(allWrites)].sort(),",
+            "  writes: [...new Set(allWrites)].sort(),"
+            f" seenStored: allStored['sidra.seen.{template}']||null,",
+        )
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=180
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            out = json.loads(probe.stdout.strip().splitlines()[-1])
+            return {**out["atLoad"]["gate"], "seenStored": out.get("seenStored")}, None
+        except (OSError, _scene_sp.SubprocessError, ValueError, KeyError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    for key in sorted(_tune_templates):
+        if key not in _board_binding:
+            continue
+        pages = {}
+        for _bf_name, _bf_diff in (("here", "normal"), ("other", "hard")):
+            _bf_page = _tune_generate(
+                "ゲームを作って", template=key, difficulty=_bf_diff
+            ).html
+            _bf_found = _scene_re.search(
+                r"<script>(.*?)</script>", _bf_page, _scene_re.S
+            )
+            if _bf_found is None:
+                break
+            _bf_said = _scene_re.search(r"GBRIEF=(\[.*?\]);", _bf_found.group(1), _scene_re.S)
+            pages[_bf_name] = (_bf_found.group(1), _bf_said.group(1) if _bf_said else "")
+        if len(pages) != 2:
+            brief_gaps.append(f"{key}: no script")
+            continue
+        fresh, problem = _brief_gate(key, pages["here"][0], {})
+        if problem:
+            brief_gaps.append(problem)
+            continue
+        # A first visit is never skipped, whatever else is true.
+        if fresh.get("skipped") or fresh.get("state") != "title":
+            brief_gaps.append(f"{key}: 初回からブリーフィングを飛ばした")
+            continue
+        mark = fresh.get("brief")
+        if not mark:
+            brief_gaps.append(f"{key}: 既読の印が文面を指していない")
+            continue
+        # What the page WRITES. gateSeen adopts a bare '1', so a page that
+        # kept writing '1' would have its own next visit accept it and the
+        # read-side checks below would notice nothing - the destruction
+        # battery walked through exactly that.
+        if fresh.get("seenStored") != mark:
+            brief_gaps.append(
+                f"{key}: 既読に {fresh.get('seenStored')!r} を書いた（文面の印は {mark}）"
+            )
+            continue
+        # (b) the same words are not news twice - C-1111's own contract.
+        again, problem = _brief_gate(key, pages["here"][0], {f"sidra.seen.{key}": mark})
+        if problem:
+            brief_gaps.append(problem)
+            continue
+        if not again.get("skipped"):
+            brief_gaps.append(f"{key}: 同じ文面なのに毎回出す")
+            continue
+        # ...and what an older page wrote is honoured, once.
+        legacy, problem = _brief_gate(key, pages["here"][0], {f"sidra.seen.{key}": "1"})
+        if problem:
+            brief_gaps.append(problem)
+            continue
+        if not legacy.get("skipped"):
+            brief_gaps.append(f"{key}: 以前の既読（'1'）を引き取らず読み直させる")
+            continue
+        # (a) different words ARE news - checked only where the words
+        # actually differ, and the template that has such words is named
+        # rather than assumed: nine of ten say the same three lines at
+        # every difficulty, and for those this asks nothing.
+        other, problem = _brief_gate(key, pages["other"][0], {f"sidra.seen.{key}": mark})
+        if problem:
+            brief_gaps.append(problem)
+            continue
+        _bf_differs = pages["here"][1] != pages["other"][1]
+        if _bf_differs and other.get("skipped"):
+            brief_gaps.append(f"{key}: 文面が変わったのに「もう見た」で飛ばした")
+            continue
+        if not _bf_differs and not other.get("skipped"):
+            brief_gaps.append(f"{key}: 同じ文面を news 扱いした")
+            continue
+        brief_ok.append(key)
+    c.add(
+        "creation_briefing_memory_is_about_words",
+        "「もう見た」が文面についての型",
+        float(len(brief_ok)) if not brief_gaps else 0.0,
+        detail=(
+            "10 型を実走行。**初回は必ず出る／同じ文面は 2 回目から飛ばす／"
+            "以前の既読（`'1'`）は引き取る／文面が変わったらもう一度出す**。"
+            "**書いた値も読む**——`gateSeen` は以前の `'1'` を引き取るので、"
+            "**`'1'` を書き続けるページは自分の次の訪問がそれを受け入れてしまい、"
+            "読み出し側の検査は何も気づかない**（破壊試験が実際にここを通り抜けた）。"
+            "**両方向**——(a) だけなら「毎回出す」実装が満点を取り、"
+            "それは C-1111 が消した欠陥そのもの。"
+            "**修正前の実測**: `sidra.seen.<型>` の値は `'1'` の 1 文字＝"
+            "**「この型を開いた」**で、**「どの文面を読んだ」ではなかった**。"
+            "racing の 目標 行は難度表から周回数を受け取るので、"
+            "easy=「コースに沿って **2 周**を走り切り」・hard=**4 周** と"
+            "**同じ型で文面が違う**——2 周のゲームを開いた人は、"
+            "4 周のゲームで目標を一度も知らされない。"
+            "**文面が違う型だけを検査する**（9 型は難度で 3 行が変わらないので、"
+            "その 9 型にこの検査は何も求めない——**変わらないものに"
+            "「変われば出る」を求めると、検査が嘘になる**）。"
+            "**自己申告**: `together.py` の `DEVICE_WIDE` にある"
+            "`sidra.seen.` の理由「3 行は型のもの」は **C-1734 で私が書き**、"
+            "**racing では成り立っていなかった**。理由も直した"
+            if not brief_gaps
+            else "; ".join(brief_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- all ten of them at once, on the same frame ---------------------
     #
     # C-1118. C-1104 to C-1116 landed in twelve hours and every one has a
