@@ -3050,7 +3050,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       → 動かす数字: `creation_intake_asks_back`（表の語を飾った言い方のうち、
       聞き返しか制作に届く数）0→10。**Q&A 定型文に落ちる数を 0 にすることが
       条件**（作ってしまうのではなく、聞き返しでよい）。
-- [ ] **C-1531: "a racing game, please" の題名が依頼文まるごと。**〔小〕
+- [~] 作業中 2026-09-12 13:07 UTC ループA **C-1531: "a racing game, please" の題名が依頼文まるごと。**〔小〕
       再現: 制作依頼としては通る（C-1527 で直った）が、題名が
       **「a racing game, please」**。「make me a racing game」は「racing」に
       なるので、**末尾の please と冠詞が剥がされていない**。
