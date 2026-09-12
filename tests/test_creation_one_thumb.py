@@ -1,4 +1,4 @@
-"""One thumb is enough - for nine of the ten (§8 事実 5, C-1698).
+"""One thumb is enough - for nine of the ten (§8 事実 5, C-1700).
 
 §8's fifth fact is Voodoo's shipping question: can this be played
 one-handed, first time, on a crowded train? On a phone the pad is a

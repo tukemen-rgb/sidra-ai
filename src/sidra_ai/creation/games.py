@@ -708,7 +708,7 @@ def carried_probe(script: str, *, storage: str = "keeps", frames: int = 600) -> 
     )
 
 
-#: Each template's own verb, reached with one thumb (§8 事実 5, C-1698).
+#: Each template's own verb, reached with one thumb (§8 事実 5, C-1700).
 #:
 #: The driver is ``probekit.PROBE_THUMB``: it cannot hold two keys at
 #: once, so a template that needs a direction held *while* an action
