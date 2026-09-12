@@ -14957,6 +14957,43 @@ def measure_creation(c: Collector) -> None:
         if seen.get("controls") != want:
             tune_gaps.append(f"{key}: controls {seen.get('controls')} != {want}")
             continue
+        # ...and the schema itself is right (C-1729). The line above only
+        # says the form matches the schema; nobody asked whether the schema
+        # matches the page. It did not: the panel offered 「自己ベストの
+        # ゴースト」 on all ten while only three call ghostSample, and
+        # 「押しっぱなしにしない」 on all ten while only the duel reads the
+        # latch - sixteen switches that reloaded the page and changed
+        # nothing. C-1119's rule one level up: a switch nothing reads is
+        # not an edit the operator can make.
+        #
+        # Both directions, because "offer nothing anywhere" would satisfy
+        # one of them.
+        #
+        # The mark is a *call*, not the name. Measured before it was
+        # written: the whole ghost runtime (ghostOn, ghostBucket,
+        # ghostSample, ghostAt, ghostBank) is injected into all ten
+        # pages, so a plain search for "ghostSample(" matches every one
+        # of them and this check would have reported the exact opposite
+        # - seven templates reading a row the panel hides. Only the call
+        # site separates the three that have a trail from the seven that
+        # bank an empty one.
+        _tw_before = len(tune_gaps)
+        for _tw_row, _tw_mark in (
+            ("ghost", r"(?<!function )\bghostSample\("),
+            ("latch", r"(?<!function )\btuneFlag\('latch'"),
+        ):
+            _tw_offered = _tw_row in want
+            _tw_wired = _scene_re.search(_tw_mark, script.group(1)) is not None
+            if _tw_offered and not _tw_wired:
+                tune_gaps.append(
+                    f"{key}: パネルは {_tw_row} を出すのにページは読まない"
+                )
+            elif _tw_wired and not _tw_offered:
+                tune_gaps.append(
+                    f"{key}: ページは {_tw_row} を読むのにパネルが出さない"
+                )
+        if len(tune_gaps) > _tw_before:
+            continue
         if not seen.get("buttons"):
             tune_gaps.append(f"{key}: no way back to the defaults")
             continue
@@ -14988,7 +15025,24 @@ def measure_creation(c: Collector) -> None:
         detail=(
             "難度・2 軸のスライダー・差し色を artifact 内のフォームで変更でき、"
             "保存値がゲーム本体に届き、既定に戻せる。"
-            "作者の easy..hard の範囲に丸められ、通信は無し"
+            "作者の easy..hard の範囲に丸められ、通信は無し。"
+            "**C-1729 で「出している行をそのページが読むか」を足した**"
+            "——それまで見ていたのは**フォームが schema と一致するか**だけで、"
+            "**schema が正しいか**は誰も見ていなかった。"
+            "パネルは「自己ベストのゴースト」を 10 型すべてに出していたが"
+            "`ghostSample` を呼ぶのは 3 型だけ（`ghost.py` の `GHOST_UNWIRED` に"
+            "**残り 7 型それぞれの理由が書いてある**）、"
+            "「押しっぱなしにしない」も 10 型すべてに出していたが"
+            "`tuneFlag('latch'` を読むのは duel の 1 行だけ"
+            "（パネル側の注釈自身が「the duel's charge is exactly that」と書いていた）。"
+            "**16 個のスイッチが、ページを読み直させておいて何も変えなかった**。"
+            "**印は名前ではなく「呼び出し」**——先に測って直した: "
+            "ghost の実行時一式（`ghostOn`/`ghostBucket`/`ghostSample`/`ghostAt`/`ghostBank`）は"
+            "**10 型すべてに注入されている**ので、名前で探すと全型が一致し、"
+            "この検査は**逆の結論**（7 型が隠された行を読んでいる）を出していた。"
+            "**定義は配線ではない**。"
+            "**両方向**: 出している行はページが読む／読む行は出す"
+            "——片方だけなら「全部消す」実装が満点を取る"
             if not tune_gaps
             else "; ".join(tune_gaps)
         ),

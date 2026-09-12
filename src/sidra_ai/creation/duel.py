@@ -56,6 +56,14 @@ DUEL_HOW = (
     "ビーム同士がぶつかったら SPACE 連打で押し返す。先に 3 発当てた方の勝ち。M で消音。"
 )
 
+#: Where 「押しっぱなしにしない」 applies (§29, C-1729). The charge is a
+#: held key - keydown to hold, keyup to fire - and this template is the
+#: only one that reads the latch. The panel used to offer the switch on
+#: all ten pages anyway, so nine of them carried a control that reloaded
+#: the page and changed nothing. Named here, beside the behaviour, and
+#: read by panel_schema so the row and the wiring cannot drift.
+LATCH_TEMPLATES: tuple[str, ...] = ("duel",)
+
 DUEL_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const CSPEED=SPEED_TOKEN,CTHINK=BAND_TOKEN,SEED=SEED_TOKEN;

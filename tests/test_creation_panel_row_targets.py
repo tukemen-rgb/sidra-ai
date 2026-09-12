@@ -41,8 +41,8 @@ import subprocess
 
 import pytest
 
-from sidra_ai.creation.games import generate_game
-from sidra_ai.creation.tuning import panel_probe
+from sidra_ai.creation.games import _DIFFICULTY, generate_game
+from sidra_ai.creation.tuning import panel_probe, panel_schema as _row_schema
 
 ROW_FLOOR = 48.0  # §4 事実 2's own number (C-1712); 44 was the neighbours'
 ROW_GAP = 8.0  # and the other half of the same sentence
@@ -122,7 +122,19 @@ def test_the_panel_is_not_in_the_page_until_it_runs(page: str) -> None:
 
 def test_the_panel_really_builds_its_controls(panel: dict) -> None:
     counts = panel["counts"]
-    assert counts.get("input[checkbox]", 0) >= 5, counts
+    # Exactly the flags this template's schema declares, not a floor
+    # somebody once counted by hand (C-1729). The adventure page has no
+    # ghost trail and no held key, so it stopped getting those two rows
+    # when the panel began offering only what the page reads - and a
+    # hand-written ">= 5" would have called that a regression.
+    flags = [
+        field
+        for field in _row_schema(
+            "adventure", _DIFFICULTY["adventure"], difficulty="normal", accent="#000000"
+        )["fields"]
+        if field["type"] == "flag"
+    ]
+    assert counts.get("input[checkbox]", 0) == len(flags), (counts, flags)
     assert counts.get("input[range]", 0) >= 2, counts
     assert counts.get("select", 0) >= 1, counts
     assert len(panel["rows"]) >= 6, len(panel["rows"])

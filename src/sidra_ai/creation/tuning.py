@@ -118,6 +118,15 @@ def panel_schema(
         band = _clamp_axis(given["band"], bands)
     if isinstance(given.get("accent"), str):
         accent = given["accent"]
+    # Which rows this page can actually act on (C-1729). A control that
+    # reloads the page and changes nothing is C-1119's rule one level up:
+    # a value nothing reads is not a fact about the product, and a switch
+    # nothing reads is not an edit the operator can make. Both lists live
+    # beside the behaviour they describe - ghost.py has already written
+    # down, in GHOST_UNWIRED, why the other seven have no trail.
+    from sidra_ai.creation.duel import LATCH_TEMPLATES
+    from sidra_ai.creation.ghost import GHOST_TEMPLATES
+
     daily_default = bool(given.get("daily", False))
     ghost_default = bool(given.get("ghost", True))
     brief_default = bool(given.get("brief", False))
@@ -184,7 +193,12 @@ def panel_schema(
             },
             # C-1401. On by default: a past self that has to be switched on
             # is a past self nobody meets.
-            {"key": "ghost", "label": "自己ベストのゴースト", "type": "flag", "default": ghost_default},
+            *(
+                [{"key": "ghost", "label": "自己ベストのゴースト",
+                  "type": "flag", "default": ghost_default}]
+                if template in GHOST_TEMPLATES
+                else []
+            ),
             # C-1413. On by default and beside the volume dial, because it is
             # the same kind of thing: a channel the page speaks through that
             # a person may not want in this room. Reduced motion silences it
@@ -204,7 +218,12 @@ def panel_schema(
             # 18 charge leaving the barrel. Off by default, because the
             # hold IS the authored feel; on, a tap starts the charge and a
             # second tap lets it go (§29).
-            {"key": "latch", "label": "押しっぱなしにしない", "type": "flag", "default": False},
+            *(
+                [{"key": "latch", "label": "押しっぱなしにしない",
+                  "type": "flag", "default": False}]
+                if template in LATCH_TEMPLATES
+                else []
+            ),
         ],
     }
 
