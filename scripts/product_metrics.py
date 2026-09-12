@@ -5747,6 +5747,97 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the music has a dial of its own (§30 事実 3, C-1693) ------------
+    #
+    # The Cognitive list asks for "separate volume controls or mutes for
+    # effects, speech and background / music". SIDRA had one dial: the
+    # tune and the effects rode it together, and M silenced both - so
+    # someone who wants the music gone had to lose the effects, which are
+    # how a player knows what just happened. creation_volume_axis had
+    # even made that a contract ("one dial moves both, in the same
+    # ratio"), so the parent stays exactly that and the new dial is a
+    # factor under it.
+    from sidra_ai.creation.audio import VOLUME_PROBE as _MV_PROBE
+
+    _mv_gaps: list[str] = []
+    _mv_page = generate_game("ビームで撃ち合うゲームを作って").html
+    _mv_script = _re.search(r"<script>(.*?)</script>", _mv_page, _re.S)
+
+    def _mv_read(stored: dict) -> dict | None:
+        try:
+            run = _sp.run(
+                ["node", "-"],
+                input=_MV_PROBE.replace("SCRIPT_PLACEHOLDER", _mv_script.group(1)).replace(
+                    "STORED_INPUT", json.dumps(stored)
+                ),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:80])
+            return json.loads(run.stdout.strip().splitlines()[-1])
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            _mv_gaps.append(f"probe unavailable ({exc})")
+            return None
+
+    if _mv_script is None:
+        _mv_gaps.append("no script on the page")
+    else:
+        _mv_full = _mv_read({"volume": 100})
+        _mv_half = _mv_read({"volume": 100, "music": 50})
+        _mv_off = _mv_read({"volume": 100, "music": 0})
+        _mv_quiet = _mv_read({"volume": 50})
+        if all(x is not None for x in (_mv_full, _mv_half, _mv_off, _mv_quiet)):
+            _mv_tune = _mv_full["tune"]
+            _mv_sfx = _mv_full["calm"]
+            if not _mv_tune or not _mv_sfx:
+                _mv_gaps.append("the page did not sound at full")
+            # (a) the dial moves the music
+            elif abs(_mv_half["tune"] - _mv_tune / 2) > 1e-6:
+                _mv_gaps.append(
+                    f"half the music dial left the tune at {_mv_half['tune']}, "
+                    f"not {_mv_tune / 2}"
+                )
+            # (b) and moves nothing else
+            elif abs(_mv_half["calm"] - _mv_sfx) > 1e-9:
+                _mv_gaps.append(
+                    f"the music dial moved the effects too "
+                    f"({_mv_sfx} -> {_mv_half['calm']})"
+                )
+            # (c) zero means the tune is gone and the cues are not
+            elif _mv_off["tuneCount"]:
+                _mv_gaps.append(
+                    f"a zeroed music dial still scheduled {_mv_off['tuneCount']} note(s)"
+                )
+            elif abs(_mv_off["calm"] - _mv_sfx) > 1e-9:
+                _mv_gaps.append(
+                    "silencing the music silenced the effects - the cues went "
+                    "with the tune"
+                )
+            # (d) the parent still moves both, which is the old contract
+            elif abs(_mv_quiet["calm"] - _mv_sfx / 2) > 1e-6:
+                _mv_gaps.append("the parent dial no longer halves the effects")
+            elif abs(_mv_quiet["tune"] - _mv_tune / 2) > 1e-6:
+                _mv_gaps.append("the parent dial no longer halves the music")
+
+    c.add(
+        "creation_music_has_its_own_dial",
+        "音楽だけ下げられる（手がかりは残る）",
+        0.0 if _mv_gaps else 1.0,
+        detail=(
+            "; ".join(_mv_gaps)
+            if _mv_gaps
+            else "実走行で 4 方向: 音楽のダイヤルを半分にすると音楽の予約 gain が"
+            "ちょうど半分になり、**同じとき効果音は 1 ミリも動かない**。"
+            "0 にすると音符は 1 つも予約されず（0 は「とても小さい音」ではなく無音）、"
+            "**効果音はそのまま鳴る**——BGM を消しても、何が起きたかを知らせる音は残る。"
+            "親の「音量」は両方を半分にし続ける（§30 事実 3。"
+            "既存の `creation_volume_axis` の「1 本が同じ比で動かす」は不変）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- hue is what names the place (§7 観察 5, C-1690) -----------------
     #
     # The observation's own words: 土台は全編ほぼ同じ暗い無彩色で、場所

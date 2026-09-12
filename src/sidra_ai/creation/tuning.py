@@ -165,6 +165,23 @@ def panel_schema(
                 "step": 5,
                 "integer": True,
             },
+            # §30 事実 3 (C-1693): "separate volume controls or mutes for
+            # effects, speech and background / music". The dial above stays
+            # the parent - it moves everything, as every existing contract
+            # says it does - and this one sits UNDER it, on the music
+            # alone. At 100 the page sounds exactly as it did, so someone
+            # who wants the tune gone keeps the effects that tell them what
+            # is happening.
+            {
+                "key": "music",
+                "label": "音楽の音量",
+                "type": "number",
+                "default": 100,
+                "min": 0,
+                "max": 100,
+                "step": 5,
+                "integer": True,
+            },
             # C-1401. On by default: a past self that has to be switched on
             # is a past self nobody meets.
             {"key": "ghost", "label": "自己ベストのゴースト", "type": "flag", "default": ghost_default},
