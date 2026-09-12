@@ -39,6 +39,18 @@ if [ -n "$markers" ]; then
   fail=1
 fi
 
+# C-1733: a log line must not claim a time it has not reached. Measured
+# 2026-09-12 over all 1818 timestamped lines: 95.3% sit within +5 minutes of
+# their commit, but 86 lead by more, the worst by 11.7 hours, and reading
+# order steps backwards at 129 places. Only the lines this push ADDS are
+# judged - the 86 already in the file would make every loop red, which is
+# the trap C-1728 walked into.
+times=$(python scripts/check_log_times.py 2>&1)
+if [ "$?" -ne 0 ]; then
+  echo "$times"
+  fail=1
+fi
+
 board=$(python scripts/check_backlog_board.py 2>&1)
 echo "$board" | tail -3
 if echo "$board" | grep -q '不整合なし'; then

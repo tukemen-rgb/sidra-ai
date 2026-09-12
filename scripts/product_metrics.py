@@ -21552,6 +21552,77 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- ログ行の時刻が commit と整合する (C-1733) ------------------------
+    #
+    # Measured 2026-09-12 over all 1818 timestamped lines of the log: 95.3%
+    # sit within +5 minutes of the commit that added them, but 86 lead by
+    # more - the worst by 11.7 hours - and reading order steps backwards at
+    # 129 of 1817 adjacent pairs. The stall watch already stopped trusting
+    # those times and counts commit times instead.
+    #
+    # Run, not read: a throwaway repository with an origin, because the
+    # check asks git what is about to be pushed.
+    import os as _lt_os
+    import subprocess as _lt_sp
+    import tempfile as _lt_tmp
+    import pathlib as _lt_pl
+
+    _LT_SCRIPT = str(_lt_pl.Path(__file__).resolve().parent / "check_log_times.py")
+
+    def _lt_run(line: str, minutes_ahead: int) -> tuple[int, str]:
+        """Commit `line` stamped `minutes_ahead` from now, then check."""
+
+        import datetime as _lt_dt
+
+        with _lt_tmp.TemporaryDirectory() as home:
+            root = _lt_pl.Path(home) / "work"
+            bare = _lt_pl.Path(home) / "origin.git"
+            env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                   "PATH": _lt_os.environ.get("PATH", ""), "HOME": home}
+            _lt_sp.run(["git", "init", "-q", "--bare", str(bare)], env=env, check=True)
+            (root / "docs").mkdir(parents=True)
+            (root / "docs" / "LOOP_LOG.md").write_text("# log\n", encoding="utf-8")
+            _lt_sp.run(["git", "init", "-q", "-b", "main"], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "remote", "add", "origin", str(bare)], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "add", "-A"], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "commit", "-q", "-m", "base"], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "push", "-q", "origin", "main"], cwd=root, env=env, check=True)
+            stamp = (_lt_dt.datetime.now(_lt_dt.timezone.utc)
+                     + _lt_dt.timedelta(minutes=minutes_ahead)).strftime("%Y-%m-%d %H:%M UTC")
+            with (root / "docs" / "LOOP_LOG.md").open("a", encoding="utf-8") as handle:
+                handle.write(f"{stamp} {line}\n")
+            _lt_sp.run(["git", "add", "-A"], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "commit", "-q", "-m", "add a line"], cwd=root, env=env, check=True)
+            done = _lt_sp.run(["python", _LT_SCRIPT], cwd=root, env=env,
+                              capture_output=True, text=True, timeout=120)
+            return done.returncode, done.stdout
+
+    _lt_notes = []
+    # (a) a line claiming a time it has not reached.
+    _rc, _out = _lt_run("ループA 未来を名乗る行", 700)
+    if _rc == 0 or "REFUSED" not in _out:
+        _lt_notes.append(f"未来の時刻を見逃す（rc={_rc}）")
+    # (b) the honest lag must pass. +20.2 is the measured worst honest case
+    # (ループA); +25 is inside the margin and still past it.
+    for _label, _ahead in (("同時刻", 0), ("正直な遅れ +21", 21), ("余裕の内 +25", 25)):
+        _rc, _out = _lt_run("ループA 正常な行", _ahead)
+        if _rc != 0:
+            _lt_notes.append(f"{_label}で赤くなる: {_out.strip()[:70]}")
+
+    c.add(
+        "log_line_times_match_the_commit",
+        "ログ行の時刻が commit と整合する",
+        0.0 if _lt_notes else 2.0,
+        detail=(
+            "; ".join(_lt_notes)
+            if _lt_notes
+            else "push が足す行だけを見て、未来を名乗る行を名指して拒否し、"
+            "実測の正直な遅れ（最大 +20.2 分）は通す（実 git リポジトリで実走行）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- 板の検査が取り残された確保行を見る (C-1728) ---------------------
     #
     # When a claim's number is reassigned the completion is written under the
