@@ -1573,6 +1573,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1691: C-1689 taught the web UI to show the citation excerpt, but its
+    # sibling the sidra-ask CLI still printed only path and marks - it surfaced
+    # 「抜粋を秘匿」 yet never the excerpt itself. _print_citations now prints the
+    # excerpt, terminal-scrubbed, on its own indented line.
+    from sidra_ai.evals.cli_shows_citation_excerpt import (
+        evaluate_cli_shows_citation_excerpt,
+    )
+
+    cli_excerpt = evaluate_cli_shows_citation_excerpt()
+    c.add(
+        "cli_shows_citation_excerpt",
+        "sidra-ask CLI が引用の抜粋（根拠）を表示する",
+        10.0 * cli_excerpt.checks_passed / cli_excerpt.checks_total,
+        detail=f"{cli_excerpt.checks_passed}/{cli_excerpt.checks_total} checks; "
+               "src/sidra_ai/evals/cli_shows_citation_excerpt.py"
+               + ("" if cli_excerpt.passed else "; " + "; ".join(cli_excerpt.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

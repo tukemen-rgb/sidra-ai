@@ -212,6 +212,16 @@ def _print_citations(
             marks.append(_TRUST_LABELS.get(trust, trust))
         suffix = f"  ({', '.join(marks)})" if marks else ""
         print(f"  [{label}] {reference}{suffix}")
+        # The excerpt the service selected so the reader can check the answer
+        # against its source instead of taking repo/path/rank on faith - the web
+        # UI's twin of this (C-1689), which left the CLI showing only the marks
+        # (C-1691). Scrubbed through `clean` (so a control sequence in retrieved
+        # content cannot reach the terminal, counted by _report_stripped) and
+        # collapsed to one indented line beneath the citation. Shown only when
+        # present, so a withheld excerpt still reads as 「抜粋を秘匿」 above.
+        excerpt = " ".join(clean(citation.get("excerpt", "")).split())
+        if excerpt:
+            print(f"      {excerpt}")
 
 
 def _refusal_exit_code(payload: dict[str, Any]) -> int:
