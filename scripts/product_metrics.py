@@ -1630,6 +1630,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1698: the DATA envelope neutralized ChatML and <system> role delimiters
+    # but passed through the Llama-3, Mistral/Llama-2 and Gemma chat delimiters
+    # the supported ollama/llama_cpp backends actually run, so a hostile EXTERNAL
+    # doc could forge a role turn past the layer meant to defang them.
+    from sidra_ai.evals.data_envelope_neutralizes_model_delimiters import (
+        evaluate_data_envelope_neutralizes_model_delimiters,
+    )
+
+    envelope_delims = evaluate_data_envelope_neutralizes_model_delimiters()
+    c.add(
+        "data_envelope_neutralizes_model_delimiters",
+        "DATA エンベロープが対応バックエンドのチャット delimiter を無害化する",
+        10.0 * envelope_delims.checks_passed / envelope_delims.checks_total,
+        detail=f"{envelope_delims.checks_passed}/{envelope_delims.checks_total} checks; "
+               "src/sidra_ai/evals/data_envelope_neutralizes_model_delimiters.py"
+               + ("" if envelope_delims.passed else "; " + "; ".join(envelope_delims.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

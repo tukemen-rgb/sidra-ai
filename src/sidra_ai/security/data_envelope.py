@@ -33,10 +33,19 @@ DATA_CONTRACT = (
 _BLOCK_OPEN = "<<<SIDRA_DATA_BLOCK {label}>>>"
 _BLOCK_CLOSE = "<<<END_SIDRA_DATA_BLOCK {label}>>>"
 
-#: Sequences that could terminate the envelope or forge a role turn.
+#: Sequences that could terminate the envelope or forge a role turn. The
+#: pipe-token form ``<|...|>`` is matched generically rather than by name so it
+#: covers ChatML (``<|im_start|>``) and Llama-3 (``<|start_header_id|>``,
+#: ``<|eot_id|>``) alike - the supported ollama/llama_cpp backends run those
+#: families, plus Mistral/Llama-2 (``[INST]``, ``<<SYS>>``) and Gemma
+#: (``<start_of_turn>``). Defanging is visible, so an incidental match is
+#: reported, not silently dropped (C-1698).
 _DELIMITER_SPOOFS = re.compile(
     r"(?i)(<<<\s*/?\s*SIDRA_DATA_BLOCK[^>]*>>>|<<<\s*END_SIDRA_DATA_BLOCK[^>]*>>>"
-    r"|<\|im_(start|end)\|>|<\|(system|user|assistant)\|>|</?\s*system\s*>)"
+    r"|<\|[^|>\n]{1,64}\|>"
+    r"|\[/?INST\]|<</?SYS>>"
+    r"|<(?:start|end)_of_turn>"
+    r"|</?\s*system\s*>)"
 )
 
 #: Zero-width / bidi characters that hide payloads from human review. Include
