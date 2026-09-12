@@ -17136,6 +17136,94 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the kick settles, and it is still a kick (§1, C-1701) -----------
+    #
+    # Vlambeer's sentence carries three instructions: kick a few px, decay
+    # fast, scale with the weight. creation_shake_ladder holds the third
+    # across six templates and says in its own comment that "the decay
+    # half was wired from the start" - wired, not held. Change 0.78 to
+    # 0.995 and the ladder keeps its order while the screen wobbles for
+    # two seconds after every hit; change it to 0.01 and the kick is a
+    # one-frame flicker nobody reads as weight. Both are measured here,
+    # off the page's own shakeAmount().
+    import re as _st_re2
+    import subprocess as _st_sp2
+
+    from sidra_ai.creation.juice import settle_probe as _settle_probe
+
+    _ST_HALF = 6  # frames; measured 3
+    _ST_ALIVE = 1.0  # px still there at frame 3; measured 4.27
+    _ST_ZERO = 30  # frames to rest; measured 22
+    _settle_gaps: list[str] = []
+    _settle_note = ""
+    _st_page = generate_game("迷宮を冒険するゲームを作って").html
+    _st_script = _st_re2.search(r"<script>(.*?)</script>", _st_page, _st_re2.S)
+    if _st_script is None:
+        _settle_gaps.append("no script on the page")
+    else:
+        try:
+            _st_run2 = _st_sp2.run(
+                ["node", "-"],
+                input=_settle_probe(_st_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _st_run2.returncode != 0:
+                raise ValueError(_st_run2.stderr.strip()[:80])
+            _st_trail = json.loads(_st_run2.stdout.strip().splitlines()[-1])["trail"]
+        except (OSError, _st_sp2.SubprocessError, ValueError, KeyError) as exc:
+            _settle_gaps.append(f"probe unavailable ({exc})")
+            _st_trail = None
+        if _st_trail:
+            _st_peak = _st_trail[0]
+            _st_half = next(
+                (i for i, v in enumerate(_st_trail) if v <= _st_peak / 2), None
+            )
+            _st_rest = next((i for i, v in enumerate(_st_trail) if v == 0), None)
+            if _st_peak <= 0:
+                _settle_gaps.append("the kick never reached the camera")
+            # (a) fast
+            elif _st_half is None or _st_half > _ST_HALF:
+                _settle_gaps.append(
+                    f"the kick is still at half after {_st_half} frames "
+                    f"(wants {_ST_HALF})"
+                )
+            # (b) but not a flicker - "fast" must not be satisfied by "gone"
+            elif _st_trail[3] < _ST_ALIVE:
+                _settle_gaps.append(
+                    f"three frames in the kick is already {_st_trail[3]:.2f}px - "
+                    "a flicker, not a kick"
+                )
+            # (c) and it ends
+            elif _st_rest is None or _st_rest > _ST_ZERO:
+                _settle_gaps.append(
+                    f"the camera had not come to rest after {len(_st_trail)} frames"
+                )
+            else:
+                _settle_note = (
+                    f"{_st_peak:g}px の一撃が**半減 {_st_half} フレーム**"
+                    f"（{_st_half / 60:.2f} 秒）、3 フレーム後もまだ {_st_trail[3]:.2f}px 残り、"
+                    f"**{_st_rest} フレーム**（{_st_rest / 60:.2f} 秒）で 0 に戻る"
+                )
+
+    c.add(
+        "creation_shake_settles_fast",
+        "蹴りは素早く収まる（ただし一瞬ではない）",
+        0.0 if _settle_gaps else 1.0,
+        detail=(
+            "; ".join(_settle_gaps)
+            if _settle_gaps
+            else _settle_note
+            + "（§1 の Vlambeer の 1 文は「数 px 蹴る・**素早く減衰**・重さに比例」の 3 つで、"
+            "比例は `creation_shake_ladder` が 6 型で縛っていたが**減衰は配線されたきり**だった。"
+            "**両方向**: 速いこと、そして**一瞬ではない**こと——"
+            "1 フレームで消える蹴りは重さではなく明滅で、"
+            "「速く減衰」を「即座に消す」で満たさせない）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- one thumb is enough (§8 事実 5, C-1700) -------------------------
     #
     # Voodoo's shipping question - can it be played one-handed on a

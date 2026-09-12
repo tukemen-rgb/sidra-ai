@@ -531,7 +531,69 @@ def win_haptic_probe(script: str, *, reduced: bool = False,
     )
 
 
+#: The settle, sampled (§1, C-1701).
+#:
+#: Vlambeer's sentence has three instructions - kick a few px, decay
+#: fast, scale with the weight - and only the third had a contract
+#: (creation_shake_ladder, which says in its own comment that "the decay
+#: half was wired from the start": wired, not held). Change 0.78 to 0.995
+#: and the ladder keeps its order while the screen wobbles for two
+#: seconds after every hit.
+SETTLE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {},
+  addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }), addEventListener: () => {} };
+const kept = {};
+globalThis.localStorage = { getItem: (k) => (k in kept ? kept[k] : null),
+  setItem(k, v){ kept[k] = String(v) }, removeItem(k){ delete kept[k] } };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function press(k){
+  const e = probeKey(k);
+  e.target = { tagName: 'CANVAS' };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+}
+press(' '); run(5);
+/* One heavy kick, then the page left alone to settle. Cleared first so
+   the curve is this kick's and not a leftover's. */
+SHAKE = 0;
+shake(KICK_PLACEHOLDER);
+const trail = [];
+for (let i = 0; i < 60; i++) { trail.push(shakeAmount()); run(1) }
+console.log(JSON.stringify({ trail: trail }));
+"""
+
+
+def settle_probe(script: str, *, kick: float = 9) -> str:
+    """The page's own script, wrapped so one kick can be watched out."""
+
+    from sidra_ai.creation import probekeys
+
+    return probekeys.with_probe_keys(
+        SETTLE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+            "KICK_PLACEHOLDER", repr(float(kick))
+        )
+    )
+
+
 __all__ = [
+    "SETTLE_PROBE",
+    "settle_probe",
     "WINHAPTIC_PROBE",
     "win_haptic_probe",
     "FAIL_HITSTOP",
