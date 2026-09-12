@@ -48,6 +48,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "winBeats",
     "flashGate",
     "flashCount",
+    "flashFacts",
     "haptic",
     "hapticOn",
     "hapticFacts",
@@ -169,12 +170,29 @@ function winBeats(){return WIN_BEATS}
    untouched, so the effect survives and the strobe cannot. The area
    exemption does not apply: the overlays cover the whole canvas, far
    over the quarter-of-10-degrees rectangle (§15 事実 2). */
-let FLASH_TIMES=[],FLASH_FRAME=0;
+/* The rule's unit is the SECOND, and this gate counted FRAMES (C-1708).
+   §26 事実 1: a rAF callback comes once per refresh, and 120Hz and 144Hz
+   screens are ordinary - so a 60-frame window is half a second there and
+   the gate passed six onsets a second. Measured on the duel's mash fire:
+   three onsets in the worst second at 60Hz, FOUR at 120Hz and at 144Hz.
+   Both windows are kept and both must permit. The clock is the rule; the
+   frame window is what answers when there is no usable clock (a probe
+   hand-turning rAF with no timestamp, or one stubbing it to a constant -
+   a stuck clock would otherwise hold its onsets forever and refuse every
+   flash after the third for the rest of the page's life). At the flat
+   16ms those probes turn, one second is 62.5 callbacks, so the frame
+   window is the binding one and their readings are unchanged. */
+let FLASH_TIMES=[],FLASH_STAMPS=[],FLASH_FRAME=0,FLASH_CLOCK=null,FLASH_MOVED=false;
 function flashGate(){
   FLASH_TIMES=FLASH_TIMES.filter(t=>FLASH_FRAME-t<60);
-  if(FLASH_TIMES.length>=3)return false;
-  FLASH_TIMES.push(FLASH_FRAME);return true}
+  const timed=FLASH_MOVED&&FLASH_CLOCK!==null;
+  if(timed){FLASH_STAMPS=FLASH_STAMPS.filter(t=>FLASH_CLOCK-t<1000)}else{FLASH_STAMPS=[]}
+  if(FLASH_TIMES.length>=3||(timed&&FLASH_STAMPS.length>=3))return false;
+  FLASH_TIMES.push(FLASH_FRAME);if(timed){FLASH_STAMPS.push(FLASH_CLOCK)}
+  return true}
 function flashCount(){return FLASH_TIMES.length}
+function flashFacts(){return {frames:FLASH_TIMES.length,stamps:FLASH_STAMPS.length,
+  timed:FLASH_MOVED&&FLASH_CLOCK!==null,clock:FLASH_CLOCK}}
 /* --- the third sense (§16) -------------------------------------------
    `navigator.vibrate` is one line and no dependency, and on a device that
    does not have it the call is silently ignored by the spec rather than
@@ -308,7 +326,13 @@ requestAnimationFrame=function(fn){
          at 120Hz - the very asymmetry this item is closing. */
       if(HITSTOP<1e-6){HITSTOP=0}
       JUICE_RAF(tick);return}
-    HITSTOP_LAST=typeof t==='number'&&isFinite(t)?t:null;
+    const stamp=typeof t==='number'&&isFinite(t)?t:null;
+    HITSTOP_LAST=stamp;
+    /* Moved, not merely present: a clock that never advances is a stub,
+       and the flash gate must not measure seconds against it. */
+    if(stamp!==null){
+      if(FLASH_CLOCK!==null&&stamp!==FLASH_CLOCK){FLASH_MOVED=true}
+      FLASH_CLOCK=stamp}
     FLASH_FRAME++;HAPTIC_FRAME++;
     fn(t);stepParticles();stepPops();stepShake()})};
 """ % {

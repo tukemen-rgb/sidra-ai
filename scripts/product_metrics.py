@@ -13999,44 +13999,117 @@ def measure_creation(c: Collector) -> None:
         _fl_gated = _fl_spec.script.count("if(flashGate())flash=1")
         if _fl_hits != _fl_gated:
             flash_gaps.append(f"{_fl_key}: {_fl_hits - _fl_gated} ungated flash=1")
+    # The screens the callbacks come from. 60 is the one the gate used to
+    # assume; 120 and 144 are the ones §26 事実 1 says are ordinary, and
+    # they are where a frame-counted window becomes half a rule.
+    _FL_RATES = (60, 120, 144)
+    _FL_ALIVE = 5  # onsets over the 15s run; a gate that passes by
+    # killing the effect is a different defect
+    _fl_worst: dict[int, int] = {}
+    _fl_alive: dict[int, int] = {}
     for _fl_req in ("ビームで撃ち合うゲームを作って", "撃ち合いの対戦を作って"):
         _fl_page = generate_game(_fl_req).html
         _fl_script = _scene_re.search(r"<script>(.*?)</script>", _fl_page, _scene_re.S)
         if _fl_script is None:
             flash_gaps.append(f"{_fl_req}: no script")
             continue
+        for _fl_hz in _FL_RATES:
+            try:
+                _fl_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_duel_flash_probe(_fl_script.group(1), hz=_fl_hz),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if _fl_run.returncode != 0:
+                    flash_gaps.append(f"{_fl_req}@{_fl_hz}Hz: {_fl_run.stderr.strip()[:60]}")
+                    continue
+                _fl = json.loads(_fl_run.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                flash_gaps.append(
+                    f"{_fl_req}@{_fl_hz}Hz: probe unavailable ({type(exc).__name__})"
+                )
+                continue
+            # (a) the rule, in the unit the rule is written in
+            _fl_sec = _fl.get("worstSecond", 99)
+            _fl_worst[_fl_hz] = max(_fl_worst.get(_fl_hz, 0), _fl_sec)
+            if _fl_sec > 3:
+                flash_gaps.append(
+                    f"{_fl_req}@{_fl_hz}Hz: {_fl_sec} flashes in one real second "
+                    "(WCAG 2.3.1 allows 3)"
+                )
+            # (b) and the effect is still there to be capped
+            _fl_on = _fl.get("onsets", 0)
+            _fl_alive[_fl_hz] = max(_fl_alive.get(_fl_hz, 0), _fl_on)
+            if _fl_on < _FL_ALIVE:
+                flash_gaps.append(
+                    f"{_fl_req}@{_fl_hz}Hz: the gate killed the flash ({_fl_on} onsets)"
+                )
+    if not flash_gaps and sorted(_fl_worst) != sorted(_FL_RATES):
+        flash_gaps.append("not every refresh rate was measured")
+    # (c) and the clock is not the only window. A page whose timestamps
+    # never move is a stub, not a slow screen; if the gate believed it, the
+    # one-second window would never slide and the fourth flash would be
+    # refused for the rest of the page's life. The frame window answers
+    # there, and that only means something if it is measured.
+    _fl_frozen = None
+    if not flash_gaps:
+        _fl_page = generate_game("ビームで撃ち合うゲームを作って").html
+        _fl_script = _scene_re.search(r"<script>(.*?)</script>", _fl_page, _scene_re.S)
         try:
+            if _fl_script is None:
+                raise ValueError("no script")
             _fl_run = _scene_sp.run(
                 ["node", "-"],
-                input=_duel_flash_probe(_fl_script.group(1)),
+                input=_duel_flash_probe(_fl_script.group(1), hz=None),
                 capture_output=True,
                 text=True,
-                timeout=120,
+                timeout=180,
             )
             if _fl_run.returncode != 0:
-                flash_gaps.append(f"{_fl_req}: {_fl_run.stderr.strip()[:60]}")
-                continue
-            _fl = json.loads(_fl_run.stdout.strip().splitlines()[-1])
+                raise ValueError(_fl_run.stderr.strip()[:60])
+            _fl_frozen = json.loads(_fl_run.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            flash_gaps.append(f"{_fl_req}: probe unavailable ({type(exc).__name__})")
-            continue
-        if _fl.get("worstWindow", 99) > 3:
-            flash_gaps.append(
-                f"{_fl_req}: {_fl['worstWindow']} flashes in one second (WCAG 2.3.1 allows 3)"
-            )
-        if _fl.get("onsets", 0) < 5:
-            flash_gaps.append(f"{_fl_req}: the gate killed the flash ({_fl.get('onsets')} onsets)")
+            flash_gaps.append(f"止まった時計: probe unavailable ({exc})")
+        if _fl_frozen is not None:
+            if _fl_frozen.get("onsets", 0) < _FL_ALIVE:
+                flash_gaps.append(
+                    "止まった時計の下で閃光が止まる"
+                    f"（onset {_fl_frozen.get('onsets')}）＝フレーム窓が答えていない"
+                )
+            elif _fl_frozen.get("worstWindow", 99) > 3:
+                flash_gaps.append(
+                    f"止まった時計の下で 60 フレームに {_fl_frozen['worstWindow']} 回"
+                )
     c.add(
         "creation_flash_cap",
-        "閃光が 1 秒 3 回を超えない",
-        0.0 if flash_gaps else 1.0,
+        "閃光が 1 秒 3 回を超えない（60/120/144Hz のどれでも）",
+        0.0 if flash_gaps else 3.0,
         detail=(
             "; ".join(flash_gaps)
             if flash_gaps
-            else "連打射撃・土壇場テンポで 15 秒実測: 全画面フラッシュの onset は"
-            "どの 1 秒窓でも 3 回以下（WCAG 2.3.1）で、演出自体は生きている"
-            "（15 秒で 25 回以上）。全テンプレの flash=1 が flashGate() 経由で"
-            "あることも検査（§15・ゲート前の実測は 4 回/秒だった）"
+            else "連打射撃・土壇場テンポで 15 **秒**（callback 数ではなく実時刻）"
+            "駆動し、rAF のタイムスタンプ間隔だけを変えて測った——"
+            + "、".join(
+                f"**{_hz}Hz** で最悪 {_fl_worst[_hz]} 回/秒・onset {_fl_alive[_hz]} 回"
+                for _hz in _FL_RATES
+            )
+            + "。**3 方向**: (a) どの実時刻 1 秒窓でも 3 回以下（WCAG 2.3.1）、"
+            "(b) 演出は生きている（門が効果を殺して通るのは別の欠陥）、"
+            "(c) **時計が動かないページでも閃光は止まらない**"
+            f"（止まった時計で onset {(_fl_frozen or {}).get('onsets')} 回・"
+            f"60 フレーム窓は {(_fl_frozen or {}).get('worstWindow')} 回）——"
+            "止まった時計は遅い画面ではなく stub なので、"
+            "秒の窓を信じると 4 回目以降が永久に拒まれる。フレーム窓はそこで答える。"
+            "全テンプレの `flash=1` が `flashGate()` 経由であることも検査。"
+            "**この計器は 2026-09-12 まで秒を名乗ってフレームを数えていた**"
+            "（C-1708）——`fn((F++)*16)` と 16ms を手回しし `x > t - 60` で"
+            "数えていたので、**速い画面という条件が測れなかった**。"
+            "門の側も同じで、`FLASH_FRAME` は rAF ごとに 1 進むから 120Hz では"
+            "60 フレーム＝0.5 秒——実測 **4 回/秒**（120Hz・144Hz とも）で"
+            "**上限超過**だった。門に実時刻の窓を足し、時計が無い/動かない"
+            "ときだけ従来のフレーム窓へ落ちるようにした（§26 の実装上の注意）"
         ),
         kind=OUTCOME,
     )

@@ -791,7 +791,8 @@ const nothing = new Proxy(function(){}, {
   apply: () => nothing, set: () => true });
 const handlers = {};
 globalThis.matchMedia = () => ({ matches: false });
-globalThis.performance = { now: () => 0 };
+let NOW = 0;
+globalThis.performance = { now: () => NOW };
 globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
 globalThis.Image = function(){ return nothing };
 globalThis.document = { getElementById: () => ({
@@ -801,8 +802,14 @@ globalThis.document = { getElementById: () => ({
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
-let F = 0;
-function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+/* The callback interval, in milliseconds. It used to be a flat 16 with
+   the result counted in FRAMES, which is the very mistake this probe
+   exists to catch (C-1708): §15's rule is written in seconds, and a rAF
+   callback is one refresh, not one sixtieth of a second (§26 事実 1). */
+const STEP = STEP_MS_PLACEHOLDER;
+/* STEP 0 is not a screen: it is a page whose timestamps never move, which
+   is what the frame window is still there for. The flash must survive it. */
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; NOW += STEP; fn(NOW) } }
 function down(){ (handlers.keydown||[]).forEach(fn => fn(probeKey(' '))) }
 function up(){ (handlers.keyup||[]).forEach(fn => fn(probeKey(' '))) }
 down(); up();
@@ -810,25 +817,42 @@ run(5);
 /* Match point, the fastest act; the player machine-guns minimum charges
    and both fighters' pools are pinned so the barrage never ends early. */
 e.hp = 1;
-let prev = 0, onsets = [], frame = 0;
-for (let i = 0; i < 900; i++) {
+let prev = 0, onsets = [], times = [], frame = 0;
+/* Real seconds, not callbacks: a fast screen gets more callbacks for the
+   same span, and counting callbacks would hide exactly that. */
+const CALLS = STEP > 0 ? Math.round(15000 / STEP) : 900;
+for (let i = 0; i < CALLS; i++) {
   if (i % 20 < 14) { down() } else if (i % 20 === 14) { up() }
   p.hp = 3;
   run(1); frame++;
-  if (flash > prev + 0.5) onsets.push(frame);
+  if (flash > prev + 0.5) { onsets.push(frame); times.push(NOW) }
   prev = flash;
 }
 let worst = 0;
 for (const t of onsets) { const w = onsets.filter(x => x > t - 60 && x <= t).length; if (w > worst) worst = w }
-console.log(JSON.stringify({ onsets: onsets.length, frames: frame,
-  worstWindow: worst, state: state }));
+let worstSecond = 0;
+for (const t of times) { const w = times.filter(x => x > t - 1000 && x <= t).length;
+  if (w > worstSecond) worstSecond = w }
+console.log(JSON.stringify({ onsets: onsets.length, frames: frame, ms: NOW,
+  step: STEP, worstWindow: worst, worstSecond: worstSecond, state: state }));
 """
 
 
-def flash_probe(script: str) -> str:
-    """The page's own script, wrapped so the strobe rate can be counted."""
+def flash_probe(script: str, *, hz: float | None = 60.0) -> str:
+    """The page's own script, wrapped so the strobe rate can be counted.
 
-    return FLASH_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+    ``hz`` is the screen the callbacks are meant to come from. §15's limit
+    is three onsets in any one second, and a second holds 60 callbacks on
+    one screen and 144 on another, so the rate has to be an input.
+
+    ``hz=None`` hands the page a clock that never moves - not a screen but
+    a stub, the case the frame window is kept for.
+    """
+
+    step = 0.0 if hz is None else 1000.0 / float(hz)
+    return FLASH_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "STEP_MS_PLACEHOLDER", repr(step)
+    )
 
 
 def pace_probe(script: str) -> str:

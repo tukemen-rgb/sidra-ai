@@ -218,7 +218,7 @@ def test_the_flash_never_strobes_past_three_per_second():
     assert probe.returncode == 0, probe.stderr[:400]
     seen = _json.loads(probe.stdout.strip().splitlines()[-1])
 
-    assert seen["worstWindow"] <= 3, "no second holds a fourth full-screen flash"
+    assert seen["worstSecond"] <= 3, "no second holds a fourth full-screen flash"
     assert seen["onsets"] >= 5, "the gate limits the strobe, it does not kill the flash"
 
 
