@@ -20901,6 +20901,69 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 名指されていない形式を断らない (C-1719) -------------------------
+    #
+    # 「なんか作って」 was answered 「制作のご依頼と受け取りましたが、この形式は
+    # 作れません」 - a sentence about a format, said to someone who named no
+    # format. It reads as "the thing you asked for is unsupported", which is
+    # a claim about a request that was never made.
+    #
+    # The decline itself is right and must stay: 「Excelの表を作って」,
+    # 「動画を作って」, 「アプリを作って」 name formats this product has no
+    # generator for, and telling them so in their own words is what
+    # CreationKind.UNKNOWN's contract promises. So this number counts the
+    # false declines *and* the true ones that went missing - dropping the
+    # decline for everybody would zero the first half and is the obvious way
+    # to score well without fixing anything.
+    _DECLINE_UNNAMED = ("なんか作って", "子どもが喜ぶやつ用意して")
+    _DECLINE_NAMED = (
+        "Excelの表を作って",
+        "動画を作って",
+        "アプリを作って",
+        "曲を作って",
+        "Webサイトを作って",
+    )
+    _DECLINE_BUILT = ("レースゲームを作って", "レポートを作って", "スライドを作って")
+
+    def _decline_outcome(text: str) -> dict:
+        body = _intake_ask(text)
+        return ((body.get("creation") or {}).get("outcome") or {})
+
+    # False: told a format cannot be made, having named none.
+    _decline_false = [
+        _text for _text in _DECLINE_UNNAMED
+        if _decline_outcome(_text).get("declined")
+    ]
+    # Missing: named a format nothing builds and was not told so.
+    _decline_missing = [
+        _text for _text in _DECLINE_NAMED
+        if not _decline_outcome(_text).get("declined")
+    ]
+    # Broken: a format that is built stopped being built.
+    _decline_broken = [
+        _text for _text in _DECLINE_BUILT
+        if not _decline_outcome(_text).get("handled")
+    ]
+    _decline_wrong = _decline_false + _decline_missing + _decline_broken
+    c.add(
+        "creation_decline_names_a_real_format",
+        "名指されていない形式を断らない",
+        float(len(_decline_wrong)),
+        detail=(
+            f"{len(_DECLINE_UNNAMED)} 件の主題なし依頼が聞き返しに、"
+            f"{len(_DECLINE_NAMED)} 件の非対応形式が断りに、"
+            f"{len(_DECLINE_BUILT)} 件の対応形式が制作に届く"
+            if not _decline_wrong
+            else (
+                (f"名指していないのに断った: {'・'.join(_decline_false)}; " if _decline_false else "")
+                + (f"非対応形式を断らなくなった: {'・'.join(_decline_missing)}; " if _decline_missing else "")
+                + (f"作れる形式が作れなくなった: {'・'.join(_decline_broken)}" if _decline_broken else "")
+            ).strip("; ")
+        ),
+        direction="down",
+        kind=OUTCOME,
+    )
+
     # --- 空行は質問ではない (C-1515) ------------------------------------
     #
     # Measured through the real HTTP path: ``chat("   ")`` answered

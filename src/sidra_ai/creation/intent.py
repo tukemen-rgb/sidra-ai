@@ -507,6 +507,40 @@ _UNNAMED_WANT_EN = re.compile(
 )
 
 
+#: C-1719: a make request whose object is a placeholder. 「なんか作って」 and
+#: 「子どもが喜ぶやつ用意して」 were answered 「この形式は作れません」 - a
+#: sentence about a format, said to someone who named no format, which reads
+#: as "the thing you asked for is unsupported". 「Excelの表を作って」 and
+#: 「動画を作って」 get the same sentence and for them it is true, so the
+#: decline is not the problem; saying it about nothing is.
+#:
+#: The test is the head of the object, not the whole phrase. 「子どもが喜ぶ
+#: やつ」 has content words in it - 子ども, 喜ぶ - but they say who it is for
+#: and what it does, never what it is; the noun being asked for is 「やつ」.
+#: 「Excelの表」 ends in 表 and has named one.
+_PLACEHOLDER_OBJECT_JA = re.compile(
+    fold_kana(
+        r"(?:なんか|なにか|何か|もの|やつ)[\s、]*[をのはがも]?[\s、]*"
+        r"(?=作って|作ってく|作成して|制作して|生成して|つくって|書いて|描いて"
+        r"|組んで|用意して|出力して)"
+    )
+)
+
+#: English puts the placeholder after the verb instead of before it.
+_PLACEHOLDER_OBJECT_EN = re.compile(
+    r"\b(?:make|build|create|generate|write|draw)\s+(?:me\s+)?"
+    r"(?:something|anything)\b"
+)
+
+
+def _asked_for_a_placeholder(text: str) -> bool:
+    """Whether a make request named a placeholder instead of a thing."""
+
+    return bool(
+        _PLACEHOLDER_OBJECT_JA.search(text) or _PLACEHOLDER_OBJECT_EN.search(text)
+    )
+
+
 def _wants_something_unnamed(text: str) -> bool:
     """Whether the message asks for a thing without saying which thing.
 
@@ -633,6 +667,18 @@ def detect_creation_intent(message: str) -> CreationIntent:
         )
 
     if artifact is None:
+        if _asked_for_a_placeholder(text):
+            # A make request whose object is 「なんか」/「やつ」/"something".
+            # Reported as `unnamed` so the caller asks what to make, rather
+            # than declining a format that was never named (C-1719). Still
+            # a creation request - that much was said - so `is_creation`
+            # stays true and the evidence keeps the verb that carried it.
+            return CreationIntent(
+                is_creation=True,
+                kind=CreationKind.UNKNOWN,
+                confidence="unnamed",
+                evidence=tuple(sorted(set(verb_hits + ["unnamed_object"]))),
+            )
         # "作って" with nothing to make. Recognised, deliberately unrouted:
         # answering it as a question at least tells the operator something,
         # while guessing an artifact would produce a thing nobody asked for.
