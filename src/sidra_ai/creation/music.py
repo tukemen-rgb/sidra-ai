@@ -31,6 +31,8 @@ under the mute, and under ``MAX_GAIN``.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Names this preamble introduces, held to by the vocabulary test.
 PREAMBLE_NAMES: tuple[str, ...] = (
     "musicTick",
@@ -197,7 +199,7 @@ function musicFacts(){return {on:MUSIC_ON,muted:MUTED,scheduled:MUSIC_N,
 #: The page driven in node, the same no-op browser the template probes
 #: build: silence before the first input, notes reserved once it lands,
 #: and the reservation stops the moment ``M`` mutes.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -216,8 +218,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -257,7 +258,7 @@ console.log(JSON.stringify({
 #: the heavy one-shots well above 0.1, so the two are told apart by
 #: value. The win must pull the music to x0.35 of itself, a light pickup
 #: must not, and one second later the bars must be back at full height.
-DUCK_PROBE = """
+DUCK_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -296,8 +297,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -341,7 +341,7 @@ def probe_source(script: str) -> str:
 #: on its own screen, and the reservations are counted in three windows -
 #: playing, over the end screen, and after R brings a new round. The tune
 #: must run, fall silent, and come back.
-END_PROBE = """
+END_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -360,8 +360,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -397,7 +396,7 @@ def end_probe(script: str) -> str:
 #: through act 0 and act 2, and the scheduler's step count over an equal
 #: window must rise by the tempo table - while act 0's stride stays
 #: exactly the old MUSIC_STEP.
-TEMPO_PROBE = """
+TEMPO_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -434,8 +433,7 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; mClock += 50 / 3; fn(mClock) } }
-function key(k){ (handlers.keydown || []).forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function key(k){ (handlers.keydown || []).forEach(fn => fn(probeKey(k))) }
 /* Arm the band, settle into act 0. */
 key(' ');
 run(60);

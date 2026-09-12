@@ -29,6 +29,8 @@ the thing the CSS would have bought.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: The element the page carries and the script decides about.
 ROTATE_ID = "rotate"
 
@@ -115,7 +117,7 @@ __all__ = [
 #: the same page can be asked upright, sideways, and on a mouse - and can
 #: be rotated *while it is running*, which is the case a stylesheet would
 #: have handled for free and a script has to be shown to handle.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const rotNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : rotNothing),
   apply: () => rotNothing, set: () => true });
@@ -179,8 +181,7 @@ rotTurn(!rotPortrait);
 const turnedBack = rotateFacts();
 let afterStart = null;
 if (PRESS_INPUT) {
-  rotKeys.forEach(fn => fn({ key: ' ', code: 'Space',
-    preventDefault(){}, stopImmediatePropagation(){} }));
+  rotKeys.forEach(fn => fn(probeKey(' ')));
   rotRun(3);
   afterStart = rotateFacts();
   /* ...and turning it after that must not bring the line back. */

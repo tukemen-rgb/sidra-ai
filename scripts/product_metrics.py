@@ -3877,11 +3877,13 @@ def measure_answer_quality(c: Collector) -> None:
 # --- can it make the thing that was asked for -------------------------
 
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS as _KEY_EVENT_JS
+
 #: Plays a generated fishing page in node with a *recording* 2D context and
 #: reports whether a filled body+tail land inside the band the page painted.
 #: The environment stub mirrors sidra_ai.creation.duel.PROBE; the context
 #: records instead of swallowing, because this metric is about what is drawn.
-_FISHING_DRAW_PROBE = """
+_FISHING_DRAW_PROBE = _KEY_EVENT_JS + """
 const calls=[];let path=[],ell=null,style='';
 const recorder={
   get fillStyle(){return style},set fillStyle(v){style=String(v)},
@@ -3909,7 +3911,7 @@ let queued=null;
 globalThis.requestAnimationFrame=(fn)=>{queued=fn;return 1};
 SCRIPT_PLACEHOLDER
 function run(n){for(let i=0;i<n&&queued;i++){const fn=queued;queued=null;fn(i*16)}}
-const press={key:' ',code:'Space',preventDefault(){},stopImmediatePropagation(){}};
+const press=probeKey(' ');
 keyHandlers.forEach(fn=>fn(press));
 run(4);
 /* The band: the page's own zone highlight - on the line (y=134, h=52) but

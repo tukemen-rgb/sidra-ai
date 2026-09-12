@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Wired one template at a time, each judged on a running page before the
 #: next. ``catch`` first (C-1405), then ``shooter`` (C-1411): a kill is
 #: already a discrete success and a hull already ends a run, so the rule
@@ -175,7 +177,7 @@ def preamble_for(template: str) -> str:
 #: away from it to force a miss, and every frame's ``comboFacts()``, score
 #: and HUD line are recorded. A rule that stopped being wired would show up
 #: here as a flat timeline rather than as a passing unit test.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -229,8 +231,10 @@ sfx = (...a) => { sounds.push(String(a[0])); return realSfx(...a) };
 /* Read the briefing, the way a player does: the gate holds the loop
    until a key arrives, so a probe that never presses one measures a
    start screen. */
-function press(code){ const ev = { key: code === 'Space' ? ' ' : code, code: code === ' ' ? 'Space' : code, clientX: 360, clientY: 160,
-  preventDefault(){}, stopImmediatePropagation(){} };
+function press(code){ const ev = probeKey(code);
+  /* Where the press landed. probekeys pairs the key with its code
+     and nothing else, so the point stays written here. */
+  ev.clientX = 360; ev.clientY = 160;
   keys.forEach(fn => fn(ev)); return ev }
 function pump(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; clock += 50 / 3; fn(clock) } }
@@ -281,7 +285,7 @@ def probe_source(script: str, *, frames: int = 2000, misses=(), reduced: bool = 
 #: walks into the nearest hull on purpose, which is the only way to watch a
 #: run end. Every kill and every hull is recorded with the page's own
 #: ``comboFacts()``, score, graze count and HUD line.
-SHOOTER_PROBE = """
+SHOOTER_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -311,8 +315,7 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; fn((F++) * 16) } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e)) }
 /* Past the briefing, then hold the trigger for the whole run. */
 key('keydown', ' '); key('keyup', ' ');
@@ -402,7 +405,7 @@ def shooter_probe_source(
 #: with M held down. The climb calls ``comboHit()`` on the built page - the
 #: same global every template's success handler calls - so what is measured
 #: is the generated preamble and the generated synthesiser, not this file.
-LADDER_PROBE = """
+LADDER_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -447,8 +450,7 @@ globalThis.document = { getElementById: () => ({
 let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
-function press(k){ keyHandlers.forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
+function press(k){ keyHandlers.forEach(fn => fn(probeKey(k))) }
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; fn(i * 16) } }
 run(2); press('Space'); run(2);

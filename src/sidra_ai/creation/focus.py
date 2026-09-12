@@ -28,6 +28,8 @@ find the game where they left it, not somewhere it walked to alone.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Names this preamble introduces, for the vocabulary test.
 PREAMBLE_NAMES: tuple[str, ...] = (
     "focusRelease",
@@ -77,7 +79,7 @@ function focusFacts(){return {held:Object.keys(FOCUS_DOWN),
 #: go, and the game stands still afterwards - read off the running
 #: template, not the source. ``FACTS_PLACEHOLDER`` is a JS expression for
 #: the one number that moves while the key is held (the hero's x).
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -100,8 +102,7 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 /* Past the briefing, and let the board settle. */

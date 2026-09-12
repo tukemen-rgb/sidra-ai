@@ -34,6 +34,8 @@ under the game's own controls afterwards.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: The wrapper that goes fullscreen, the button that asks, and the canvas
 #: they are both about. The wrapper rather than the canvas: a bare canvas
 #: filling the screen would take the button with it and give no way back.
@@ -166,7 +168,7 @@ __all__ = [
 #: rejection handler is the point of the whole harness: rule 3 says a
 #: refusal is swallowed, and the only way to know a ``.catch`` is really
 #: attached is to ask the runtime whether anything escaped.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const fsNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : fsNothing),
   apply: () => fsNothing, set: () => true });
@@ -231,8 +233,7 @@ function fsNotify(){ fsChange.forEach(fn => { try { fn({}) } catch (e) {} }) }
    1 is that none of that puts anybody in fullscreen. */
 fsRun(5);
 const atLoad = fullFacts();
-fsKeys.forEach(fn => fn({ key: ' ', code: 'Space',
-  preventDefault(){}, stopImmediatePropagation(){} }));
+fsKeys.forEach(fn => fn(probeKey(' ')));
 fsRun(30);
 const untouched = fullFacts();
 const callsBeforeAnyPress = fsCalls.slice();

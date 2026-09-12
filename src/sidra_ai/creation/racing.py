@@ -33,7 +33,6 @@ in course units, ``SEED_TOKEN`` the course seed. ``sfx``/``shake``/
 from __future__ import annotations
 
 from sidra_ai.creation.probekeys import KEY_EVENT_JS, with_probe_keys
-
 #: Words that pick this template. The genre table (`games._GENRES`) already
 #: promised these; landing the template is what flips its answer to
 #: "supported" without anyone editing the table.
@@ -450,7 +449,7 @@ console.log(JSON.stringify({
 #: The slipstream, shaved for real (§13, C-1325): one obstacle pinned just
 #: outside the hitbox pays a surge that decays; one far off pays nothing;
 #: one dead centre still cuts the pace and pays nothing.
-SLIP_PROBE = """
+SLIP_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -468,8 +467,7 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
-(handlers.keydown || []).forEach(fn => fn({ key: ' ', code: 'Space',
-  preventDefault(){}, stopImmediatePropagation(){} }));
+(handlers.keydown || []).forEach(fn => fn(probeKey(' ')));
 run(5);
 /* The course is emptied and natural spawns stopped, so each scenario is
    exactly one obstacle. The car is held on the road's centre line and
@@ -1083,7 +1081,7 @@ def probe_source(script: str) -> str:
 #: The obstacle's place, as heard (§2 増築, C-1616). Two obstacles are
 #: clipped - one left of the racing line, one right - and one is passed at
 #: slipstream range, with the panner values read off the real audio graph.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1124,8 +1122,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 5 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');

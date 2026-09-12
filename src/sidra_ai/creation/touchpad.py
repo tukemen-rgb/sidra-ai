@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import re
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: The keys a pad press can produce. ``key`` and ``code`` are both set on the
 #: synthetic event because templates test both (``e.code==='Space'`` in one,
 #: ``ev.key==='ArrowUp'`` in another).
@@ -429,7 +431,7 @@ def pad_probe(script: str, *, floor_token: str) -> str:
 #: context that tracks fillStyle/strokeStyle/globalAlpha/lineWidth through
 #: save/restore, and checks every padButtons() rect really received the
 #: plate fill, both rings at their widths and full alpha, and its glyph.
-PADPAINT_PROBE = """
+PADPAINT_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -464,8 +466,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -595,7 +596,7 @@ def padpaint_probe(script: str) -> str:
 #: touch on a pad button, then a blur with no pointerup - the map must
 #: empty, the keyup must flow, and the next frame's plates must all be
 #: back to the declared plate colour instead of one stuck held highlight.
-PADHOLD_PROBE = """
+PADHOLD_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -631,8 +632,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -675,7 +675,7 @@ def padhold_probe(script: str) -> str:
 #: pad's R must send nothing and change nothing; a full hold must send
 #: exactly one keydown/keyup pair and really reset; the bar must be on
 #: screen mid-hold; and on the end screen the same tap fires instantly.
-PADR_PROBE = """
+PADR_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -708,8 +708,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 5 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 function touch(type, pid, x, y){

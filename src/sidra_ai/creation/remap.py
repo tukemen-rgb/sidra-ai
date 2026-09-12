@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 from sidra_ai.creation.touchpad import keys_read
 
 #: Names this preamble introduces, for the vocabulary test.
@@ -181,7 +182,7 @@ def preamble_for(template: str, script: str) -> str:
 #: The page driven in node: a key with no assignment does nothing the game
 #: notices, the same key moves the game once assigned, and the canonical
 #: key it aliases still works - read off the running template, not the map.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -205,8 +206,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }

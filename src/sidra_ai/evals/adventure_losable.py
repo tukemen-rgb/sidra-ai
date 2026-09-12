@@ -58,6 +58,7 @@ from dataclasses import dataclass
 
 from sidra_ai.creation.adventure import ADVENTURE_SCRIPT  # noqa: F401  (contract anchor)
 from sidra_ai.creation.games import generate_game
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 
 #: The request that produces this template.
 REQUEST = "冒険ゲームを作って"
@@ -137,7 +138,7 @@ function advAim(f){
   return want }
 """
 
-_DRIVER = """
+_DRIVER = KEY_EVENT_JS + """
 const advNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : advNothing),
   apply: () => advNothing, set: () => true });
@@ -163,8 +164,7 @@ globalThis.requestAnimationFrame = (fn) => { advQ = fn; return 1 };
 SCRIPT_PLACEHOLDER
 const CUT_GRASS = CUT_INPUT, MODE = MODE_INPUT;
 let advFrame = 0;
-function advKey(type, key){ (advH[type] || []).forEach(fn => fn({ key: key === 'Space' ? ' ' : key, code: key === ' ' ? 'Space' : key,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
+function advKey(type, key){ (advH[type] || []).forEach(fn => fn(probeKey(key))) }
 const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
 function advHold(want){ ARROWS.forEach(k => {
   advKey(want.indexOf(k) >= 0 ? 'keydown' : 'keyup', k) }) }

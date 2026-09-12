@@ -27,6 +27,8 @@ Three rules, and they are the whole design:
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Wired here first, as the item allows. Racing is the template C-1404
 #: measured driving itself to the finish line, so it is the one that
 #: certainly produces a moving picture from no input at all. Shooter
@@ -313,7 +315,7 @@ def pilot_call(template: str) -> str:
 #: then press start. The whole claim is about what happens *behind* a shut
 #: gate, so the canvas is a recorder rather than a swallowing Proxy - "the
 #: picture moves" is a claim about paint, and only paint can settle it.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const attractNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : attractNothing),
   apply: () => attractNothing, set: () => true });
@@ -430,7 +432,7 @@ const idle = attractRun(IDLE_INPUT);
 const idlePaint = attractLastDrawn || attractOps.slice();
 const beforePress = attractSnap();
 if (PRESS_INPUT) {
-  const ev = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+  const ev = probeKey(' ');
   attractKeys.forEach(fn => fn(ev));
 }
 /* Taken before a single playing frame: whatever the demo did has to be

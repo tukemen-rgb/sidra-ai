@@ -22,8 +22,15 @@ from pathlib import Path
 import pytest
 
 from sidra_ai.creation.games import generate_game
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 
-_PROBE_PATTERN = re.compile(r'_FISHING_DRAW_PROBE = """(.*?)"""', re.S)
+#: The probe as the judge spells it. C-1654 第 5 陣 put the shared
+#: key/code definition in front of it, so the prefix is part of what has
+#: to be read - matching only the string would drive a probe the judge
+#: never runs, which is the drift this test reads the source to prevent.
+_PROBE_PATTERN = re.compile(
+    r'_FISHING_DRAW_PROBE = (_KEY_EVENT_JS \+ )?"""(.*?)"""', re.S
+)
 _METRICS = Path(__file__).resolve().parent.parent / "scripts" / "product_metrics.py"
 
 
@@ -31,7 +38,8 @@ def _probe_source() -> str:
     text = _METRICS.read_text(encoding="utf-8")
     match = _PROBE_PATTERN.search(text)
     assert match, "the fishing draw probe has left product_metrics.py"
-    return match.group(1)
+    prefix, body = match.group(1), match.group(2)
+    return KEY_EVENT_JS + body if prefix else body
 
 
 def test_fishing_page_draws_body_and_tail_inside_the_band():

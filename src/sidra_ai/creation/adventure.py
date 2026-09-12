@@ -26,7 +26,6 @@ generator keeps.
 from __future__ import annotations
 
 from sidra_ai.creation.probekeys import KEY_EVENT_JS, with_probe_keys
-
 import json
 
 #: Words that pick this template. 「ゼルダ」 lands here so the request in the
@@ -2040,7 +2039,7 @@ def adv_face_probe(script: str, *, reduced: bool = False) -> str:
 #: built. The blade's own x is what the sword is heard at, so the hero
 #: standing 20px to the left of the target is a reading the hero's own
 #: position could not produce.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -2081,8 +2080,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 5 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');

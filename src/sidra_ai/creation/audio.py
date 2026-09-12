@@ -39,6 +39,8 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: The names templates may call. One vocabulary for all four games, so a new
 #: template picks from the same drawer instead of growing private sounds.
 PREAMBLE_NAMES: tuple[str, ...] = (
@@ -395,7 +397,7 @@ def gesture_probe(script: str, *, quiet: int = 240, loud: int = 240) -> str:
 
 #: Drives a generated page in node with a recording AudioContext, so the
 #: gain a fight actually plays at can be read back instead of grepped for.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -461,7 +463,7 @@ function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queu
    grepping for the call: a `combat(true)` behind a condition that is never
    true is in the file and never in the fight. */
 run(2);
-keyHandlers.forEach(fn => fn({ key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} }));
+keyHandlers.forEach(fn => fn(probeKey(' ')));
 run(120);
 const combatDuringPlay = combatOn();
 /* A template that only fights when something is near reports false above,
@@ -557,7 +559,7 @@ def probe_source(script: str) -> str:
 #: The volume dial, measured on a page that was opened with the slider
 #: already at a value - which is the path a person's setting actually
 #: takes, through storage and back out on the next load.
-VOLUME_PROBE = """
+VOLUME_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -600,8 +602,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function measure(fn){ played.length = 0; fn(); return played.slice() }
-function press(k){ keyHandlers.forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
+function press(k){ keyHandlers.forEach(fn => fn(probeKey(k))) }
 /* Touch the page first (§2, C-1683). Nothing sounds before the first
    gesture, because a browser would refuse it - so a probe that measured
    gains without pressing was measuring sounds no visitor could ever

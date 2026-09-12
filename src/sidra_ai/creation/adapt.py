@@ -37,6 +37,8 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: How many losses in a row before the game steps toward the player. Three
 #: is §11's number: two is noise, and by four the player has left.
 ADAPT_AFTER = 3
@@ -127,7 +129,7 @@ def preamble_for(template: str, speeds: tuple[float, ...]) -> str:
 #: made every fishing and catch round a defeat, because those two have no
 #: losing state and end on the buzzer every time; three rounds of either
 #: and the game quietly eased itself for a player who had lost nothing.
-STREAK_PROBE = """
+STREAK_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -152,8 +154,7 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; clock += 50 / 3; fn(clock) } }
-function press(k){ (handlers['keydown'] || []).forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function press(k){ (handlers['keydown'] || []).forEach(fn => fn(probeKey(k))) }
 run(2); press(' '); run(2);
 const rounds = [];
 let seenRound = false;

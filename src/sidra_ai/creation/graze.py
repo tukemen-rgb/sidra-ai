@@ -33,6 +33,8 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Wired here first, for the same reason the combo ladder was: one running
 #: page can be judged, nine cannot be judged at once.
 #:
@@ -171,7 +173,7 @@ def preamble_for(template: str) -> str:
 #: The probe. Flies the real generated fight three ways - hugging the
 #: nearest hull, keeping clear of it, and steering into it - so the claim
 #: is read off a page that played rather than off this source.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -198,8 +200,7 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; fn((F++) * 16) } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e)) }
 key('keydown', ' '); key('keyup', ' ');
 run(2);
@@ -279,7 +280,7 @@ def probe_source(
 #: grazed and once with M held: the whoosh is white noise through a
 #: RISING high-pass, once per hazard, silent under the mute - and the
 #: hurt keeps its falling low-pass, which is the axis's other character.
-WHOOSH_PROBE = """
+WHOOSH_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -324,8 +325,7 @@ let queued = null;
 globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
-function press(k){ keyHandlers.forEach(fn => fn({ key: k, code: k === ' ' ? 'Space' : k,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
+function press(k){ keyHandlers.forEach(fn => fn(probeKey(k))) }
 press(' ');
 run(2);
 function whoosh(fn){ nodes.length = 0; filtFreqs.length = 0; fn();

@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Per template: how the page knows this go was lost, and the causes it can
 #: count. Each cause is ``(count expression, line expression)``; the line
 #: expression is JavaScript that builds the sentence from ``n``, the count.
@@ -216,7 +218,7 @@ def preamble_for(template: str) -> str:
 #: The probe. Plays a real go with nobody touching it - which loses, in
 #: every wired template - and reads the line off the page, then asks the
 #: same page what it would say after a win and with the counters at zero.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -245,12 +247,10 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; clock += 50 / 3; fn(clock) } }
-function press(k){ (handlers['keydown'] || []).forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function press(k){ (handlers['keydown'] || []).forEach(fn => fn(probeKey(k))) }
 /* Letting go again. A held key never needed this; a route does, because
    walking a corner means stopping pressing the way you came. */
-function release(k){ (handlers['keyup'] || []).forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function release(k){ (handlers['keyup'] || []).forEach(fn => fn(probeKey(k))) }
 run(2); press(' '); run(2);
 /* A template whose loss has to be *driven* rather than held installs its
    own steering here, and the frame loop below calls ROUTE_STEP. Empty for

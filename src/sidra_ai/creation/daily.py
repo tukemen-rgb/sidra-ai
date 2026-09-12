@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Names the preamble introduces, held to by a test like the other
 #: preambles': a template that happened to define ``seedNow`` would break
 #: only in the generated page.
@@ -167,7 +169,7 @@ def probe_source(*, stamp: str, on: bool) -> str:
 #: PROCESSES, with only the store carried between them, exactly as C-1432
 #: had to do for the row of runs (one round is one page). Anything that
 #: pretended otherwise would be measuring a page that does not exist.
-STREAK_PROBE = """
+STREAK_PROBE = KEY_EVENT_JS + """
 const sNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : sNothing),
   apply: () => sNothing, set: () => true });
@@ -206,8 +208,7 @@ globalThis.location = { reload: () => {} };
 let sQueued = null;
 globalThis.requestAnimationFrame = (fn) => { sQueued = fn; return 1 };
 SCRIPT_PLACEHOLDER
-function sKey(k){ const e = { key: k, code: k === ' ' ? 'Space' : k,
-  preventDefault(){}, stopImmediatePropagation(){} };
+function sKey(k){ const e = probeKey(k);
   sKeys.forEach(fn => fn(e)) }
 function sStep(n, hold){ for (let i = 0; i < n && sQueued; i++) {
   if (hold) { sKey(hold) }

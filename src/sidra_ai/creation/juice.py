@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Names the preamble introduces. Held to by a test, as with the animation
 #: preamble: a template that happened to define ``shake`` would break only in
 #: the generated page.
@@ -397,7 +399,7 @@ def probe_source(*, reduced: bool) -> str:
 #: being judged - a failure beat and a round confirming itself - are only
 #: reachable by playing. ``navigator.vibrate`` is recorded rather than
 #: stubbed away, so what the page asked the device for is what gets read.
-PAGE_PROBE = """
+PAGE_PROBE = KEY_EVENT_JS + """
 const hNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : hNothing),
   apply: () => hNothing, set: () => true });
@@ -430,8 +432,7 @@ let hFrame = 0;
 function hRun(n){ for (let i = 0; i < n && hQueued; i++) {
   const fn = hQueued; hQueued = null; hFrame += 1; fn(hFrame * (50 / 3)) } }
 function hKey(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (hHandlers[type] || []).forEach(fn => fn(e)) }
 hKey('keydown', ' '); hKey('keyup', ' ');
 hRun(4);
@@ -495,7 +496,7 @@ def page_probe_source(
 #: win the heavier; hammering four more wins into the same window sends
 #: at most the gate's three; reduced motion and the panel's haptic switch
 #: each silence the same win completely.
-WINHAPTIC_PROBE = """
+WINHAPTIC_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -521,8 +522,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 5 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -639,7 +642,7 @@ __all__ = [
 #: was and what was painted over the game. The two together are the whole
 #: claim: a 「+N」 that does not match what went in is the page lying about
 #: the one thing the player is trying to learn.
-POP_PROBE = """
+POP_PROBE = KEY_EVENT_JS + """
 const popNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : popNothing),
   apply: () => popNothing, set: () => true });
@@ -680,8 +683,7 @@ function popStepFrame(){ if (!popQueued) return null;
   /* Only the floats: 「+12」 and nothing else on the screen looks like it. */
   return popPaint.filter(op => /^\\+[0-9]+$/.test(op.s)) }
 popStepFrame(); popStepFrame();
-popKeys.forEach(fn => fn({ key: ' ', code: 'Space',
-  preventDefault(){}, stopImmediatePropagation(){} }));
+popKeys.forEach(fn => fn(probeKey(' ')));
 const seen = [];
 /* Counted in frames the game actually advanced, not in frames handed to
    the browser. The juice kit freezes the loop for a few frames on a hit,

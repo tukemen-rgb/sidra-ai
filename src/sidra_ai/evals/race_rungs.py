@@ -39,19 +39,19 @@ import subprocess
 from dataclasses import dataclass
 
 from sidra_ai.creation.games import generate_game
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 from sidra_ai.creation.racing import PROBE, RACING_LAPS
 
 #: The template probe's environment shims (handlers, rAF capture, document),
 #: reused verbatim so this instrument cannot drift from the page contract.
 _SHIMS = PROBE.split("SCRIPT_PLACEHOLDER")[0]
 
-_DRIVER = """
+_DRIVER = KEY_EVENT_JS + """
 let T = 0;
 function tick(){ if (!queued) return false;
   const fn = queued; queued = null; fn(T); T += 1000/60; return true }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 /* Past the briefing gate, then hands off the wheel entirely. */

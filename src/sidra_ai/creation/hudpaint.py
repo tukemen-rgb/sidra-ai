@@ -18,7 +18,9 @@ cannot pass; a painting that drifted from its declaration cannot either.
 
 from __future__ import annotations
 
-PAINT_PROBE = """
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
+PAINT_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -58,8 +60,7 @@ function run(n){ for (let i = 0; i < n && queued.length; i++) {
   const due = queued; queued = []; paintOps = [];
   for (const fn of due) { fn((F++) * 16) } } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }

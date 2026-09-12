@@ -22,6 +22,8 @@ measurement rather than a grep for the word ``transition``.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: Injected at the top of every template's script. Defines the names below
 #: and nothing else, so a template that ignores animation is unaffected by
 #: its presence.
@@ -217,7 +219,7 @@ console.log(JSON.stringify({ reduced: REDUCED, scheduled: scheduled, ran: ran })
 #: measured, and without a per-template idea of "progress". Paints are
 #: counted too, because the promise is that only the WORLD is gated: the
 #: picture still lands at the screen's own rate.
-TICK_PROBE = """
+TICK_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -266,8 +268,7 @@ let MS = 0, FRAMES = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; MS += MSPF; FRAMES++; fn(MS) } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 /* Past whatever start screen this template has, then a second of warm-up:

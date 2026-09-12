@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import json
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
+
 #: What the preamble introduces.
 PREAMBLE_NAMES: tuple[str, ...] = (
     "gateState",
@@ -290,7 +292,7 @@ requestAnimationFrame=function(fn){
 #: Drives a generated page in node: hold the gate shut, count frames, press
 #: start, count again. Recording the listeners is the whole point - a stubbed
 #: ``addEventListener`` that drops them would make every page look gated.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -309,7 +311,7 @@ SCRIPT_PLACEHOLDER
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn(i * 16) } }
 run(10);
 const before = gateFrames(), stateBefore = gateState();
-const press = { key: ' ', code: 'Space', preventDefault(){}, stopImmediatePropagation(){} };
+const press = probeKey(' ');
 keyHandlers.forEach(fn => fn(press));
 run(10);
 console.log(JSON.stringify({
@@ -329,7 +331,7 @@ console.log(JSON.stringify({
 #: ``ctx`` and ``store`` of their own at the top level, and a harness that
 #: reuses one of those does not shadow it - the page refuses to parse at
 #: all (C-1436 was the same lesson from inside a loop).
-PAUSE_PROBE = """
+PAUSE_PROBE = KEY_EVENT_JS + """
 const pgNothing = new Proxy(function(){}, {
   get: (t,k)=>(k===Symbol.toPrimitive?()=>0:pgNothing), apply:()=>pgNothing, set:()=>true });
 globalThis.matchMedia = () => ({ matches: false });
@@ -351,8 +353,7 @@ globalThis.location = { reload: () => {} };
 let pgQueued = null;
 globalThis.requestAnimationFrame = (fn) => { pgQueued = fn; return 1 };
 SCRIPT_PLACEHOLDER
-function pgKey(k){ const e={key:k, code:k===' '?'Space':k,
-  preventDefault(){}, stopImmediatePropagation(){}};
+function pgKey(k){ const e = probeKey(k);
   pgKeys.forEach(fn=>fn(e)) }
 function pgStep(n){ for(let i=0;i<n && pgQueued;i++){
   const fn=pgQueued; pgQueued=null; pgClock+=16; fn(pgClock) } }
