@@ -32,7 +32,16 @@ from sidra_ai.creation.touchpad import padsize_probe
 #: ratio describes a canvas whose CSS aspect does not match its pixel
 #: aspect, and the pad overflows the top edge. That reading would be about
 #: the staging, not the product.
-SHAPES = ((720, 720), (720, 540))
+# Two desk widths and the phone widths §18 names for itself (C-1720).
+# The judge used to stop at 540 and call anything past it "staging",
+# which was wrong: padScale() reads the WIDTH ratio only and the layout's
+# vertical budget is PADCV.height, a constant 320 canvas px, so nothing
+# the probe puts in rect.height changes the layout. The overflow was
+# arithmetic - the top row sits at 320-192s, negative for every scale
+# over 1.667, which is every phone narrower than 432 CSS px.
+SHAPES = ((720, 720), (720, 540), (720, 430), (720, 390), (720, 360))
+#: §18: 「縦持ち 390px 幅の実プレイ面は 390×173 CSS px」.
+PHONE_SHAPES = ((720, 430), (720, 390), (720, 360))
 
 
 def _measured(canvas_w: int, css_w: int) -> dict:
@@ -74,6 +83,37 @@ def test_the_buttons_are_spaced_and_never_overlap(canvas_w, css_w) -> None:
 
     assert seen["overlaps"] == 0, seen["plates"]
     assert seen["minGap"] >= 8, seen["minGap"]
+
+
+@pytest.mark.parametrize(("canvas_w", "css_w"), PHONE_SHAPES)
+def test_the_whole_pad_is_on_the_glass_at_phone_widths(canvas_w, css_w) -> None:
+    """The defect C-1720 closed. At §18's own portrait width the top row -
+    R, P and the D-pad's up button - was laid out at y=-34: outside the
+    bitmap, so not drawn and not reachable. Three rows want
+    3x56+2x12 = 192 CSS px and a 720:320 canvas at 390 CSS px wide is 173
+    CSS px tall; 56 and 12 are a target, 48 and 8 are the floor, and the
+    pad now spends the surplus instead of leaving the screen."""
+
+    seen = _measured(canvas_w, css_w)
+    assert seen["allOnCanvas"], [p for p in seen["plates"] if not p["onCanvas"]]
+    assert seen["smallest"] >= 48, (css_w, seen["smallest"])
+    assert seen["minGap"] >= 8, (css_w, seen["minGap"])
+    assert seen["overlaps"] == 0, seen["plates"]
+
+
+def test_the_pad_gives_up_room_rather_than_the_screen() -> None:
+    """Both halves. It must actually shrink where it has to - a pad that
+    kept 56/12 everywhere would be back off the canvas - and it must never
+    shrink past the floor the shrinking exists to protect."""
+
+    roomy = _measured(720, 540)
+    tight = _measured(720, 360)
+
+    assert roomy["smallest"] > tight["smallest"], (
+        roomy["smallest"], tight["smallest"]
+    )
+    assert roomy["minGap"] > tight["minGap"], (roomy["minGap"], tight["minGap"])
+    assert tight["smallest"] >= 48 and tight["minGap"] >= 8, tight
 
 
 def test_shrinking_the_glass_does_not_shrink_the_thumb() -> None:

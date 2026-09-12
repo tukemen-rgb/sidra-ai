@@ -92,7 +92,30 @@ function padScale(){const r=PADCV.getBoundingClientRect();
    and, on a phone whose play field is a few hundred pixels wide, sits over
    the game (C-1244). PAD_ACTIVE names the live keys; a template that reads
    only SPACE shows A (and R) and leaves the D-pad's space to the game. */
-function padButtons(){const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,
+/* 56 and 12 are a TARGET; §4's floor is 48 and 8 (C-1720). Three rows
+   want 3x56+2x12 = 192 CSS px of height, and a 720:320 canvas shown at
+   §18's own portrait width - 390 CSS px - is only 173 CSS px tall. There
+   was no way to spend the surplus, so instead of giving it back the pad
+   put its top row ABOVE the canvas: the layout's top edge is 320-192s
+   canvas px, negative for any scale over 1.667, which is every phone
+   narrower than 432 CSS px. Measured: css 390 put R, P and the D-pad's up
+   button at y=-34.5, outside the bitmap - not drawn, and not reachable.
+   The gap is spent first (it has the most room above its floor), then the
+   button, and neither goes under §4's minimum. */
+const PAD_BTN_MIN=48,PAD_GAP_MIN=8;
+function padMetrics(){const s=padScale();
+  let b=PAD_BTN,g=PAD_GAP;
+  /* The height the canvas can offer, in the same CSS pixels the floor is
+     written in. */
+  const budget=s>0?PADCV.height/s:PADCV.height;
+  if(3*b+2*g>budget){
+    g=Math.max(PAD_GAP_MIN,(budget-3*b)/2);
+    if(3*b+2*g>budget){b=Math.max(PAD_BTN_MIN,(budget-2*g)/3)}}
+  /* R and P stay flat only while nothing had to be given up: once the pad
+     is shrinking, 0.875 of an already-reduced button falls under 48 (45.8
+     at 390 CSS px), and the floor outranks the shape. */
+  return {s:s,b:b*s,g:g*s,flat:(b<PAD_BTN||g<PAD_GAP)?1:PAD_FLAT}}
+function padButtons(){const m=padMetrics(),s=m.s,b=m.b,g=m.g,
   W=PADCV.width,H=PADCV.height,lx=g+b,ly=H-g-b*1.5;
   return [
     {id:'ArrowLeft',x:g,y:ly-b/2,w:b,h:b,g:'left'},
@@ -100,7 +123,7 @@ function padButtons(){const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,
     {id:'ArrowUp',x:lx+g,y:ly-b/2-(b+g),w:b,h:b,g:'up'},
     {id:'ArrowDown',x:lx+g,y:ly-b/2+(b+g),w:b,h:b,g:'down'},
     {id:' ',x:W-g-b*1.4,y:ly-b/2,w:b*1.4,h:b,g:'A'},
-    {id:'r',x:W-g-b*1.4,y:ly-b/2-(b+g),w:b*1.4,h:b*PAD_FLAT,g:'R'}
+    {id:'r',x:W-g-b*1.4,y:ly-b/2-(b+g),w:b*1.4,h:b*m.flat,g:'R'}
   ].filter(b=>PAD_ACTIVE.has(b.id)).concat(padPauseButton()||[])}
 /* The gate's own control, not the game's (C-1451). Pause was reachable from
    a keyboard only: the canvas pointerdown handler leads to gateStart or
@@ -119,14 +142,14 @@ function padPauseButton(){
   let where='playing';
   try{where=gateState()}catch(e){return null}
   if(where==='title')return null;
-  const s=padScale(),b=PAD_BTN*s,g=PAD_GAP*s,W=PADCV.width,H=PADCV.height,
+  const m=padMetrics(),b=m.b,g=m.g,W=PADCV.width,H=PADCV.height,
     ly=H-g-b*1.5;
   /* Beside R rather than above it (C-1666). Stacked, a button tall enough
      for a thumb (PAD_FLAT) put its top at y=67, seven pixels inside the
      band C-1417's countdown owns - and no gap that still honours the 8dp
      spacing rule would have brought it back down. The row below is empty
      to the left, so the pair sits side by side and both rules hold. */
-  return {id:'p',x:W-g-b*1.4-(b*1.4+g),y:ly-b/2-(b+g),w:b*1.4,h:b*PAD_FLAT,g:'P'}}
+  return {id:'p',x:W-g-b*1.4-(b*1.4+g),y:ly-b/2-(b+g),w:b*1.4,h:b*m.flat,g:'P'}}
 function padAt(ev){const r=PADCV.getBoundingClientRect(),
   x=(ev.clientX-r.left)*(PADCV.width/r.width),
   y=(ev.clientY-r.top)*(PADCV.height/r.height);
@@ -546,9 +569,13 @@ const plates = buttons.map(b => {
   return { id: b.id, drawn: hit.length > 0,
     css: Math.min(b.w, b.h) / scale,
     /* On the glass at all: a button laid out above the top edge is not a
-       small target, it is an absent one. */
-    onCanvas: b.x >= 0 && b.y >= 0 &&
-      b.x + b.w <= PADCV.width && b.y + b.h <= PADCV.height,
+       small target, it is an absent one (C-1720 - at §18's own portrait
+       width the top row sat at y=-34, outside the bitmap). A hundredth of
+       a canvas pixel of tolerance, because the layout fills the height
+       exactly when it has to and `H - x` then `+ x` finishes one ulp out;
+       that is arithmetic dust, not a button off the screen. */
+    onCanvas: b.x >= -0.01 && b.y >= -0.01 &&
+      b.x + b.w <= PADCV.width + 0.01 && b.y + b.h <= PADCV.height + 0.01,
     x: b.x / scale, y: b.y / scale, w: b.w / scale, h: b.h / scale } });
 /* The smallest gap between any two buttons, and whether any two overlap.
    A spacing rule that does not also forbid overlap is not a spacing rule. */
