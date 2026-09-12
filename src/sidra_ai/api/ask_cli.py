@@ -249,8 +249,15 @@ def _refusal_exit_code(payload: dict[str, Any]) -> int:
     return 1
 
 
-def render(payload: dict[str, Any]) -> int:
-    """Print one chat response. Returns the process exit code."""
+def render(payload: dict[str, Any], base_url: str = "") -> int:
+    """Print one chat response. Returns the process exit code.
+
+    ``base_url`` (the server this CLI is talking to) lets a creation name the
+    ``/v1/artifacts/<name>`` route so the generated file is retrievable even when
+    the client is not on the same machine as the server - the artifact_path alone
+    is a server-side filesystem path (C-1705). Empty keeps the pre-existing
+    path-only output for callers that do not pass it.
+    """
 
     clean = _Stripped()
 
@@ -314,6 +321,18 @@ def render(payload: dict[str, Any]) -> int:
     artifact = outcome.get("artifact_path")
     if artifact:
         print(f"\n生成ファイル: {clean(str(artifact))}")
+        # The path above is on the server's disk; a client reaching a non-local
+        # server over --url cannot open it, whereas the web UI offers a download
+        # by name (C-1705). Name the retrieval route too - but only for a flat
+        # artifact, whose parent directory is `artifacts`, so the route is
+        # unambiguously /v1/artifacts/<name>. A project file lives under
+        # projects/<slug>/ and takes a different route, so it is left to its path
+        # rather than risk printing a wrong URL.
+        from pathlib import PurePosixPath
+
+        art = PurePosixPath(str(artifact))
+        if base_url and art.parent.name == "artifacts" and art.name:
+            print(f"  取得: GET {clean(base_url)}/v1/artifacts/{clean(art.name)}")
         # A multi-file creation names only its preview in artifact_path: a 3D
         # model's .obj/.mtl and a deck's .pptx live in the details. The summary
         # tells the reader to open the .obj, so the CLI must give its path or it
@@ -540,7 +559,7 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
             )
         return _refusal_exit_code(payload_out) if payload_out.get("refused") else 0
 
-    return render(payload_out)
+    return render(payload_out, base_url=url)
 
 
 if __name__ == "__main__":  # pragma: no cover

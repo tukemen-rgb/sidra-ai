@@ -1687,6 +1687,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1705: on a creation the CLI printed only the artifact's server-side path,
+    # which a user reaching the server over --url cannot open. The web UI offers a
+    # download by name; the CLI now also names the /v1/artifacts/<name> route for a
+    # flat artifact, closing that client asymmetry.
+    from sidra_ai.evals.cli_names_artifact_fetch_route import (
+        evaluate_cli_names_artifact_fetch_route,
+    )
+
+    cli_fetch_route = evaluate_cli_names_artifact_fetch_route()
+    c.add(
+        "cli_names_artifact_fetch_route",
+        "sidra-ask CLI が生成物の取得経路（/v1/artifacts/<name>）を示す",
+        10.0 * cli_fetch_route.checks_passed / cli_fetch_route.checks_total,
+        detail=f"{cli_fetch_route.checks_passed}/{cli_fetch_route.checks_total} checks; "
+               "src/sidra_ai/evals/cli_names_artifact_fetch_route.py"
+               + ("" if cli_fetch_route.passed else "; " + "; ".join(cli_fetch_route.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
