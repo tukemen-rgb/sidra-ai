@@ -751,6 +751,18 @@ def _step_band(template: str, current, delta: str):
     return steps[max(0, min(nearest, len(steps) - 1))]
 
 
+def _axis_number(value) -> str:
+    """A band as the panel would show it: whole numbers stay whole.
+
+    The ladders are per template - adventure counts enemies, fishing holds
+    a fraction - so this prints what the number is rather than forcing one
+    shape onto all ten.
+    """
+
+    number = float(value)
+    return str(int(number)) if number == int(number) else f"{number:g}"
+
+
 def _panel_after(template: str, panel: dict, adjustments: dict) -> dict:
     """The page's opening values, after the sentence.
 
@@ -854,7 +866,24 @@ def build_game_reviser(data_dir: str | Path):
         # A changed difficulty re-reads both axes off the ladder, so a band
         # the previous sentence set is not carried over it - the newer
         # instruction wins, and the two never disagree about this page.
+        #
+        # Which is a decision, not an accident, and it stays. What had to
+        # change (C-1710) is that it happened in silence: 「敵を減らして」
+        # then 「難しくして」 put the enemies back from 2 to 4 and the
+        # confirmation named only the difficulty. §9 事実 2 records "a fix
+        # breaks something else" as the market's second complaint and §9's
+        # own 学び puts interactive revision on the list SIDRA has not won -
+        # this was that complaint, in this product, one sentence apart.
+        #
+        # The band is remembered before it is dropped so the sentence can
+        # say so. It cannot be recovered afterwards: the comparison below
+        # runs against `before_panel`, and by then "the operator never set
+        # one" and "the operator set one and we have just discarded it"
+        # both read as absent.
+        dropped_band = None
         if "difficulty" in intent.adjustments:
+            if "band" not in intent.adjustments:
+                dropped_band = before_panel.get("band")
             before_panel = {k: v for k, v in before_panel.items() if k != "band"}
         panel = _panel_after(meta["template"], before_panel, intent.adjustments)
 
@@ -888,6 +917,16 @@ def build_game_reviser(data_dir: str | Path):
         labels = dict(zip(("speed", "band"), AXIS_LABELS.get(game.template, ("速さ", "広さ"))))
         if panel.get("band") != before_panel.get("band"):
             changed.append(f"{labels['band']} {panel['band']}")
+        elif dropped_band is not None:
+            # Said with both numbers, because "it changed" is not the part
+            # that is hard to believe - the operator asked for one of them
+            # a sentence ago and is owed the reason it is gone.
+            now = _DIFFICULTY[game.template][game.difficulty][1]
+            if now != dropped_band:
+                changed.append(
+                    f"{labels['band']}は難易度に合わせて {_axis_number(dropped_band)}"
+                    f"→{_axis_number(now)} に戻しました"
+                )
         if panel.get("accent") != before_panel.get("accent") and "accent" in panel:
             changed.append("差し色")
         for flag, name in (("daily", "今日の挑戦"), ("brief", "ブリーフィング")):

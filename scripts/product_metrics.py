@@ -16035,6 +16035,156 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a revision says what it took back (§9 事実 2, C-1710) ----------
+    #
+    # §9's second market complaint is "a fix breaks something else", and
+    # §9's own 学び puts interactive revision on the list SIDRA has not
+    # won. Measured, it was here: 「敵を減らして」 set the enemies to 2 and
+    # said so; 「難しくして」 one sentence later put them back to 4 and the
+    # confirmation named only the difficulty.
+    #
+    # Dropping the band is the design - the ladder owns both axes and the
+    # newer instruction wins - and it stays. The silence is the defect: the
+    # reply compares against a panel the band has already been deleted
+    # from, so "never set" and "set, and just discarded" read the same.
+    #
+    # Held across 42 pairs of the seven axes before this was written: the
+    # only pair that takes anything back is band vs difficulty. So this
+    # judge is narrow on purpose - the whole surface was measured, and
+    # this is the one place with something to say.
+    import json as _ru_json
+    import re as _ru_re
+    import tempfile as _ru_tf
+
+    from sidra_ai.creation.games import (
+        generate_game as _ru_make,
+        save_game as _ru_save,
+    )
+    from sidra_ai.creation.revise import (
+        build_game_reviser as _ru_reviser,
+        detect_revision_intent as _ru_detect,
+        save_meta as _ru_meta,
+    )
+
+    def _ru_dials(path):
+        """The dials the page opens with, read off the page it built."""
+
+        body = _ru_re.search(
+            r"<script>(.*?)</script>", Path(path).read_text(encoding="utf-8"), _ru_re.S
+        )
+        if body is None:
+            return None
+        spec = _ru_re.search(r"const TUNE_SPEC=(\{.*?\});", body.group(1), _ru_re.S)
+        if spec is None:
+            return None
+        return {f["key"]: f["default"] for f in _ru_json.loads(spec.group(1))["fields"]}
+
+    def _ru_run(sentences):
+        """A conversation, from a fresh page, through the real reviser."""
+
+        with _ru_tf.TemporaryDirectory() as home:
+            built = _ru_make("冒険ゲームを作って", template="adventure")
+            page = _ru_save(built, home)
+            _ru_meta(
+                page,
+                request="冒険ゲームを作って",
+                template="adventure",
+                difficulty=built.difficulty,
+                theme="",
+                title=built.title,
+                panel={},
+            )
+            said = [(None, _ru_dials(page))]
+            revise = _ru_reviser(home)
+            for sentence in sentences:
+                out = revise(sentence, _ru_detect(sentence))
+                if not out.artifact_path:
+                    return None
+                said.append((out.summary or "", _ru_dials(out.artifact_path)))
+            return said
+
+    _undo_gaps: list[str] = []
+    _undo_ok: list[str] = []
+    _UNDO_SAYS = "難易度に合わせて"
+    # (a) and (c): both directions of the ladder, because a judge written
+    # on one of them would let the other go quiet.
+    for _un_name, _un_first, _un_then in (
+        ("harder", "さっきのゲームの敵を減らして", "さっきのゲームを難しくして"),
+        ("easier", "さっきのゲームの敵を増やして", "さっきのゲームをやさしくして"),
+    ):
+        _un = _ru_run([_un_first, _un_then])
+        if _un is None or any(d is None for _, d in _un):
+            _undo_gaps.append(f"{_un_name}: the conversation produced no page")
+            continue
+        _un_set = _un[1][1]["band"]
+        _un_now = _un[2][1]["band"]
+        _un_said = _un[2][0]
+        if _un_set == _un_now:
+            _undo_gaps.append(
+                f"{_un_name}: the ladder no longer moves the band ({_un_now}) - "
+                "nothing is being taken back, so nothing here is measured"
+            )
+        elif _UNDO_SAYS not in _un_said:
+            _undo_gaps.append(
+                f"{_un_name}: 敵 {_un_set}→{_un_now} と戻したのに確認文が黙っている"
+                f"（「{_un_said[:48]}」）"
+            )
+        elif not (
+            f"{int(_un_set)}→{int(_un_now)}" in _un_said
+        ):
+            _undo_gaps.append(
+                f"{_un_name}: 戻したとは言うが数字が合わない"
+                f"（実 {int(_un_set)}→{int(_un_now)}・文「{_un_said[:48]}」）"
+            )
+        else:
+            _undo_ok.append(f"{_un_name} {int(_un_set)}→{int(_un_now)}")
+    # (b) nothing was set, so nothing was taken back - and the sentence
+    # must not invent one. A judge with only (a) is passed by a reply that
+    # says it every time.
+    _un_plain = _ru_run(["さっきのゲームを難しくして"])
+    if _un_plain is None:
+        _undo_gaps.append("plain: the conversation produced no page")
+    elif _UNDO_SAYS in (_un_plain[1][0] or ""):
+        _undo_gaps.append(
+            f"plain: 何も指定していないのに取り消しを報告する（「{_un_plain[1][0][:48]}」）"
+        )
+    else:
+        _undo_ok.append("指定していなければ言わない")
+    # (d) and the dials the ladder does NOT own survive it, so "taken back"
+    # keeps meaning the one thing it means.
+    _un_keep = _ru_run(["さっきのゲームを赤にして", "さっきのゲームを難しくして"])
+    if _un_keep is None or any(d is None for _, d in _un_keep):
+        _undo_gaps.append("accent: the conversation produced no page")
+    elif _un_keep[1][1].get("accent") != _un_keep[2][1].get("accent"):
+        _undo_gaps.append(
+            f"accent: 難易度変更が差し色まで戻した"
+            f"（{_un_keep[1][1].get('accent')}→{_un_keep[2][1].get('accent')}）"
+        )
+    elif _UNDO_SAYS in (_un_keep[2][0] or ""):
+        _undo_gaps.append("accent: 戻していないのに戻したと言う")
+    else:
+        _undo_ok.append("梯子が持たない目盛りは残る")
+
+    c.add(
+        "creation_revision_says_what_it_undid",
+        "修正は、取り消したことも言う",
+        0.0 if _undo_gaps else float(len(_undo_ok)),
+        detail=(
+            "; ".join(_undo_gaps)
+            if _undo_gaps
+            else "／".join(_undo_ok)
+            + "（§9 事実 2 の市場不満 2 位「**修正が別箇所を壊す**」は、"
+            "**この製品の中で実際に起きていた**——「敵を減らして」で 2 にした次の文の"
+            "「難しくして」が **敵を 4 に戻し、確認文は難易度しか言わなかった**。"
+            "**戻すこと自体は設計**（梯子が両軸を持ち、新しい指示が勝つ）なので変えていない。"
+            "直したのは**沈黙**のほう——`before_panel` から band を消した後に比べるので"
+            "「設定していない」と「設定を今捨てた」が区別できなかった。"
+            "**7 軸 42 組を総当たりで実測したうえで狭く書いてある**: "
+            "取り消しが起きるのは band↔difficulty の 2 組だけで、残り 40 組は互いに無干渉）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the best run, played back beside this one ----------------------
     #
     # C-1401, §11 事実 1. The personal best existed as a number on a strip
