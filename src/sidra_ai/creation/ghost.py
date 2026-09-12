@@ -79,7 +79,6 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "ghostForget",
     "ghostFacts",
     "ghostRunHash",
-    "ghostWrap",
 )
 
 GHOST_PREAMBLE = """
@@ -90,11 +89,11 @@ const GHOST_KEY='sidra.ghost.'+GHOST_NAME_TOKEN,GHOST_STEP=GHOST_STEP_TOKEN;
    request's own seed (C-1107 decided that "the same request is the same
    world") and the length from the difficulty. So a trail banked on one
    course was being replayed on another - "where you were here last time"
-   about a here the player has never driven. The tag is the smallest thing
-   that can tell those apart, and it travels WITH the trail rather than in
-   the key, so the storage contract in together.py (prefix + template) is
-   untouched. */
-const GHOST_WORLD=WORLD_TOKEN;
+   about a here the player has never driven.
+   The tag and the shape are the ROUND preamble's (C-1734): the trail and
+   the number it belongs to are one memory, and a page that stamped them
+   two different ways would be back where it started. That preamble is
+   installed before this one. */
 /* The second ghost (§11 事実 1, C-1333): the Bath result is about racing
    a GROUP, and a group of one is not one. The best run is the far wall;
    the LAST run is today's self, and only a lap that beats both is the
@@ -109,16 +108,14 @@ function ghostStore(){try{return (typeof localStorage!=='undefined')?localStorag
    nobody meets. The panel can put it away (C-1113). */
 function ghostOn(){try{return tuneFlag('ghost',true)}catch(e){return true}}
 function ghostRead(key){const s=ghostStore();if(!s)return null;
-  try{const raw=s.getItem(key);if(!raw)return null;
-    const v=JSON.parse(raw);
-    /* A trail from another world is not this course's memory, and a bare
-       array is a trail from before anybody wrote the world down - which
-       is the same thing: a run whose course cannot be named. Both are
-       forgotten rather than drawn, because a ghost drawn in the wrong
-       place is worse than no ghost (C-1732). */
-    if(!v||Object.prototype.toString.call(v)!=='[object Object]')return null;
-    if(v.w!==GHOST_WORLD)return null;
-    const t=v.t;
+  try{
+    /* A trail from another world is not this course's memory: "where you
+       were here last time" about a here nobody has driven. memRead
+       refuses those, and adopts the one unstamped trail that predates the
+       world tag on the same terms as the number it belongs to - the two
+       are one memory and must not answer this question differently
+       (C-1732, C-1734). */
+    const t=memRead(key);
     return (t&&Object.prototype.toString.call(t)==='[object Array]'&&t.length)?t:null}
   catch(e){return null}}
 GHOST_TRAIL=ghostRead(GHOST_KEY);GHOST_PREV=ghostRead(GHOST_LAST_KEY);
@@ -153,9 +150,6 @@ function ghostAtLast(progress){
    than the player leaves its own positions in the tail of the trail that
    gets banked as theirs. */
 function ghostForget(){GHOST_RUN=[];GHOST_DRAWN=0;GHOST_PREV_DRAWN=0;GHOST_LAST=null}
-/* Stamped with the world it was driven in, so a later page can tell
-   whether this trail is about its own course (C-1732). */
-function ghostWrap(trail){return JSON.stringify({w:GHOST_WORLD,t:trail})}
 /* Banked with the score it belongs to, through roundBank, so the trail and
    the number can never describe different runs. */
 function ghostBank(record){
@@ -167,9 +161,9 @@ function ghostBank(record){
   /* Every played, finished run becomes tomorrow's second ghost; only a
      record may touch the best trail - a defeat that overwrote it would
      replace the wall with the stumble (C-1333). */
-  try{if(s){s.setItem(GHOST_LAST_KEY,ghostWrap(trail))}}catch(e){}
+  try{if(s){s.setItem(GHOST_LAST_KEY,memWrap(trail))}}catch(e){}
   if(!record)return false;
-  try{if(s){s.setItem(GHOST_KEY,ghostWrap(trail));GHOST_SAVED++}}catch(e){}
+  try{if(s){s.setItem(GHOST_KEY,memWrap(trail));GHOST_SAVED++}}catch(e){}
   return true}
 /* This run's own path, as one number. "The ghost touches nothing" is a
    claim about the car, so the judge compares the car - a lap count is too
@@ -180,7 +174,7 @@ function ghostRunHash(){let h=2166136261;
     const s=String(i)+':'+String(GHOST_RUN[i]);
     for(let j=0;j<s.length;j++){h^=s.charCodeAt(j);h=Math.imul(h,16777619)>>>0}}
   return h}
-function ghostFacts(){return {on:ghostOn(),had:GHOST_TRAIL!==null,world:GHOST_WORLD,
+function ghostFacts(){return {on:ghostOn(),had:GHOST_TRAIL!==null,world:MEM_WORLD,
   drawn:GHOST_DRAWN,saved:GHOST_SAVED,
   lastHad:GHOST_PREV!==null,lastDrawn:GHOST_PREV_DRAWN,
   last:GHOST_LAST?GHOST_LAST.slice():null,

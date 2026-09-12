@@ -33,9 +33,15 @@ import subprocess
 
 import pytest
 
-from sidra_ai.creation.games import generate_game
+from sidra_ai.creation.games import TEMPLATES, generate_game
 from sidra_ai.creation.ghost import GHOST_TEMPLATES
-from sidra_ai.creation.together import STORAGE_PREFIXES, probe_source
+from sidra_ai.creation.together import (
+    DEVICE_WIDE,
+    STORAGE_PREFIXES,
+    WORLD_SCOPED,
+    probe_source,
+    unstamped_writes,
+)
 from sidra_ai.creation.tuning import SPEED_BINDING
 
 TEMPLATE = GHOST_TEMPLATES[0]
@@ -62,7 +68,7 @@ def _script(request: str, difficulty: str) -> str:
 
 
 def _world(script: str) -> str:
-    found = re.search(r'GHOST_WORLD=("[^"]*")', script)
+    found = re.search(r'MEM_WORLD=("[^"]*")', script)
     assert found is not None, "the page does not say which world it is"
     return json.loads(found.group(1))
 
@@ -75,7 +81,10 @@ def _run(script: str, stored: dict, frames: int = 900) -> dict:
     ).replace(
         "  writes: [...new Set(allWrites)].sort(),",
         "  writes: [...new Set(allWrites)].sort(), ghost: ghostFacts(),"
-        f" trail: allStored['sidra.ghost.{TEMPLATE}']||null,",
+        " best: roundBestRead(), row: roundLogFacts().stored,"
+        f" trail: allStored['sidra.ghost.{TEMPLATE}']||null,"
+        f" storedBest: allStored['sidra.best.{TEMPLATE}']||null,"
+        f" storedRow: allStored['sidra.runs.{TEMPLATE}']||null,",
     )
     probe = subprocess.run(
         ["node", "-"], input=source, capture_output=True, text=True, timeout=300
@@ -84,15 +93,30 @@ def _run(script: str, stored: dict, frames: int = 900) -> dict:
     return json.loads(probe.stdout.strip().splitlines()[-1])
 
 
+#: The pilot scores the same number in either world, so a quiet store
+#: cannot tell "refused" from "happened to match". These two are loud.
+LOUD_BEST = 999
+LOUD_ROW = [111, 222]
+
+
 @pytest.fixture(scope="module")
 def drive() -> dict:
     here, there, harder = _script(*HERE), _script(*THERE), _script(*HARDER)
     base = {f"sidra.seen.{TEMPLATE}": "1"}
     first = _run(here, dict(base), frames=3800)
     carried = {**base, f"sidra.ghost.{TEMPLATE}": first["trail"]}
+    loud = {
+        **base,
+        f"sidra.ghost.{TEMPLATE}": json.loads(first["trail"]),
+        f"sidra.best.{TEMPLATE}": {"w": _world(here), "v": LOUD_BEST},
+        f"sidra.runs.{TEMPLATE}": {"w": _world(here), "v": list(LOUD_ROW)},
+    }
     return {
         "here": here,
         "there": there,
+        "loudMine": _run(here, dict(loud), frames=240),
+        "loudAway": _run(there, dict(loud), frames=240),
+        "loudHarder": _run(harder, dict(loud), frames=240),
         "first": first,
         "harder": harder,
         "away": _run(there, dict(carried)),
@@ -117,10 +141,20 @@ def test_the_run_that_set_the_record_saved_a_trail(drive: dict) -> None:
     assert first["ghost"]["saved"] >= 1
 
 
-def test_the_trail_says_which_world_it_came_from(drive: dict) -> None:
-    stored = json.loads(drive["first"]["trail"])
-    assert stored["w"] == _world(drive["here"])
-    assert isinstance(stored["t"], list) and stored["t"], stored
+def test_every_memory_of_a_run_says_which_world_it_came_from(drive: dict) -> None:
+    """One shape for all of them: the trail, the best and the row.
+
+    Two shapes would be how this drifts apart again - C-1732 stamped the
+    trail and left the number, and for one cycle the page refused to draw
+    the trail of the very run whose number it was still showing.
+    """
+
+    here = _world(drive["here"])
+    for what in ("trail", "storedBest", "storedRow"):
+        box = json.loads(drive["first"][what])
+        assert box["w"] == here, (what, box)
+        assert box["v"] not in (None, [], ""), (what, box)
+    assert isinstance(json.loads(drive["first"]["trail"])["v"], list)
 
 
 def test_another_game_does_not_inherit_the_trail(drive: dict) -> None:
@@ -152,20 +186,112 @@ def test_the_game_it_was_driven_in_still_replays_it(drive: dict) -> None:
     assert ghost["drawn"] >= 1, ghost
 
 
-def test_a_trail_from_before_the_world_was_written_is_forgotten(drive: dict) -> None:
-    """The bare array an older page saved names no course, so it is not read.
+def test_a_memory_from_before_the_world_was_written_is_adopted_once(drive: dict) -> None:
+    """An unstamped value is claimed by the first page to read it.
 
-    Not a migration worth writing: a trail whose course cannot be named is
-    exactly the thing this item refuses to draw. The next finished run
-    banks a stamped one.
+    Refusing it was the first answer (C-1732 refused the trail), and what
+    changed it is what refusing costs: every player who had a record
+    before this shipped loses it, and the ordinary single-game player
+    loses everything for a bleed that could never have reached them. So
+    the page claims it and stamps it on the spot - the window in which the
+    wrong game can claim it is one load, and it closes itself.
     """
 
-    legacy = json.dumps(json.loads(drive["first"]["trail"])["t"])
-    ghost = _run(
+    old = json.loads(drive["first"]["trail"])["v"]
+    run = _run(
         drive["here"],
-        {f"sidra.seen.{TEMPLATE}": "1", f"sidra.ghost.{TEMPLATE}": legacy},
-    )["ghost"]
-    assert not ghost["had"] and ghost["drawn"] == 0, ghost
+        {
+            f"sidra.seen.{TEMPLATE}": "1",
+            f"sidra.ghost.{TEMPLATE}": old,
+            f"sidra.best.{TEMPLATE}": LOUD_BEST,
+            f"sidra.runs.{TEMPLATE}": list(LOUD_ROW),
+        },
+        frames=240,
+    )
+    assert run["ghost"]["had"], "印の無い軌跡を、誰も引き取らずに捨てた"
+    assert run["best"] == LOUD_BEST and run["row"] == LOUD_ROW, run
+    # ...and the claim is written down, so the next game cannot claim it.
+    for what in ("storedBest", "storedRow", "trail"):
+        box = json.loads(run[what])
+        assert box["w"] == _world(drive["here"]), (what, box)
+
+
+def test_an_adopted_memory_does_not_reach_the_next_game(drive: dict) -> None:
+    """The one load the window is open for, closed by the load itself."""
+
+    old = json.loads(drive["first"]["trail"])["v"]
+    bare = {
+        f"sidra.seen.{TEMPLATE}": "1",
+        f"sidra.ghost.{TEMPLATE}": old,
+        f"sidra.best.{TEMPLATE}": LOUD_BEST,
+        f"sidra.runs.{TEMPLATE}": list(LOUD_ROW),
+    }
+    claimed = _run(drive["here"], dict(bare), frames=240)
+    after = {
+        f"sidra.seen.{TEMPLATE}": "1",
+        f"sidra.ghost.{TEMPLATE}": json.loads(claimed["trail"]),
+        f"sidra.best.{TEMPLATE}": json.loads(claimed["storedBest"]),
+        f"sidra.runs.{TEMPLATE}": json.loads(claimed["storedRow"]),
+    }
+    run = _run(drive["there"], after, frames=240)
+    assert not run["ghost"]["had"], "引き取り済みの軌跡が別のゲームへ漏れた"
+    assert run["best"] != LOUD_BEST and run["row"] != LOUD_ROW, run
+
+
+def test_another_game_does_not_inherit_the_best_or_the_row(drive: dict) -> None:
+    """The half C-1732 left undone, and the reason this item exists.
+
+    For one cycle the page refused to draw the trail of the very run whose
+    number it was still calling this course's best - a four-lap course
+    telling the player their best here is a two-lap time.
+    """
+
+    for name in ("loudAway", "loudHarder"):
+        run = drive[name]
+        assert run["best"] != LOUD_BEST, f"{name}: 別の世界の自己ベストを読んだ"
+        assert run["row"] != LOUD_ROW, f"{name}: 別の世界の履歴を読んだ"
+
+
+def test_the_game_it_was_driven_in_still_has_its_best_and_row(drive: dict) -> None:
+    """...and the fix is not "forget everything"."""
+
+    run = drive["loudMine"]
+    assert run["best"] == LOUD_BEST
+    assert run["row"] == LOUD_ROW
+
+
+def test_every_registered_key_says_which_kind_of_memory_it_is() -> None:
+    """C-1729's lesson: the list that decides is no use without the rest.
+
+    A key that is neither world-scoped nor deliberately device-wide is a
+    key nobody has thought about, and the next feature to pick it inherits
+    whichever answer the code happened to give.
+    """
+
+    for prefix in STORAGE_PREFIXES:
+        in_world, in_device = prefix in WORLD_SCOPED, prefix in DEVICE_WIDE
+        assert in_world != in_device, prefix
+    assert not set(WORLD_SCOPED) & set(DEVICE_WIDE)
+    assert not (set(WORLD_SCOPED) | set(DEVICE_WIDE)) - set(STORAGE_PREFIXES)
+    for prefix, why in DEVICE_WIDE.items():
+        assert len(why) > 20, f"{prefix} を端末ごとにする理由が書かれていない"
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_every_write_to_a_world_scoped_key_carries_the_stamp(template: str) -> None:
+    """Read at the source, because the run time cannot see this.
+
+    ``memRead`` adopts an unstamped value and re-stamps it, so a page that
+    wrote bare numbers would have its own later reads tidy the evidence
+    away inside the same round - the destruction battery walked straight
+    through the run-time version of this check. What the page WRITES is
+    not something a page can hide from a reader of its own source.
+    """
+
+    page = generate_game("ゲームを作って", template=template).html
+    found = re.search(r"<script>(.*?)</script>", page, re.S)
+    assert found is not None
+    assert unstamped_writes(found.group(1)) == []
 
 
 def test_the_key_shape_did_not_change(drive: dict) -> None:

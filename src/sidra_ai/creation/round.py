@@ -414,6 +414,43 @@ requestAnimationFrame=function(fn){
     /* The template drew its own ending; the strip goes on top of it,
        after the quiet beat. */
     if(roundEnded()&&ROUND_END_FRAMES>ROUND_HOLD){drawResultStrip()}})};
+/* --- which world a memory was made in (C-1732, C-1734) --------------- */
+/* Every key on this page ends in the template's name, and one template
+   makes many games: the layout comes from the request's own seed (C-1107:
+   "the same request is the same world") and the difficulty decides how
+   long a round is. A number scored on one of those is not a number about
+   another - a best set on a two-lap course is unbeatable on a four-lap
+   one, and a history row that mixes them shows a progress nobody made.
+   C-1732 stamped the ghost's trail this way and left the number the trail
+   belongs to unstamped, which broke ghostBank's own promise that "the
+   trail and the number can never describe different runs". One shape and
+   one tag for both, defined here because this preamble is installed
+   before the ghost's. The tag rides in the VALUE: the keys keep the shape
+   together.py's registry requires. */
+const MEM_WORLD=WORLD_TOKEN;
+function memWrap(value){return JSON.stringify({w:MEM_WORLD,v:value})}
+/* A value with no world on it was written before any page recorded one,
+   so it belongs to exactly one game - and this page cannot know whether
+   that game is this one. Refusing it was the first answer (C-1732 did
+   that to the trail); what changed it is what refusing costs. There is
+   exactly one unstamped value per key, it belongs to somebody who has
+   been playing, and the ordinary player - one game per template - would
+   lose their record to a bleed that could never have reached them. So an
+   unstamped value is ADOPTED by the first page that reads it and stamped
+   on the spot: the window in which the wrong game can claim it is one
+   load, and the load itself closes it. */
+function memRead(key){
+  let raw=null;
+  try{if(typeof localStorage==='undefined')return null;
+    raw=localStorage.getItem(key)}catch(e){return null}
+  if(typeof raw!=='string')return null;
+  try{const box=JSON.parse(raw);
+    if(box&&Object.prototype.toString.call(box)==='[object Object]'&&'w' in box){
+      if(box.w!==MEM_WORLD)return null;
+      return box.v===undefined?null:box.v}
+    try{localStorage.setItem(key,memWrap(box))}catch(e){}
+    return box}
+  catch(e){return null}}
 /* --- the result that leads back in (§8 事実 3) ------------------------ */
 const ROUND_KEY='sidra.best.'+ROUND_NAME_TOKEN,ROUND_LABEL=ROUND_LABEL_TOKEN;
 let ROUND_FINAL=null,ROUND_BEST=null,ROUND_RECORD=false,ROUND_BANKED=false;
@@ -423,10 +460,10 @@ let ROUND_FINAL=null,ROUND_BEST=null,ROUND_RECORD=false,ROUND_BANKED=false;
 function roundScore(){try{const v=ROUND_SCORE_TOKEN;
   return (typeof v==='number'&&isFinite(v))?v:null}catch(e){return null}}
 function roundBestRead(){try{if(typeof localStorage==='undefined')return null;
-  const raw=localStorage.getItem(ROUND_KEY);if(raw===null)return null;
-  const v=Number(raw);return isFinite(v)?v:null}catch(e){return null}}
+  const had=memRead(ROUND_KEY);if(had===null||had===undefined)return null;
+  const v=Number(had);return isFinite(v)?v:null}catch(e){return null}}
 function roundBestWrite(v){try{if(typeof localStorage!=='undefined'){
-  localStorage.setItem(ROUND_KEY,String(v))}}catch(e){}}
+  localStorage.setItem(ROUND_KEY,memWrap(v))}}catch(e){}}
 function roundBest(){return ROUND_BEST}
 /* Whether this result has anything to celebrate (C-1502, 第1回批評 #11).
    The bank and the cheer used to be the same flag: a first round is always
@@ -466,13 +503,12 @@ function roundCheer(){
 const ROUND_LOG_KEY='sidra.runs.'+ROUND_NAME_TOKEN,ROUND_LOG_MAX=5;
 let ROUND_LOG=[];
 function roundLogRead(){try{if(typeof localStorage==='undefined')return [];
-  const raw=localStorage.getItem(ROUND_LOG_KEY);if(raw===null)return [];
-  const list=JSON.parse(raw);
+  const list=memRead(ROUND_LOG_KEY);
   if(!Array.isArray(list))return [];
   return list.filter(v=>typeof v==='number'&&isFinite(v)).slice(-ROUND_LOG_MAX)}
   catch(e){return []}}
 function roundLogWrite(list){try{if(typeof localStorage!=='undefined'){
-  localStorage.setItem(ROUND_LOG_KEY,JSON.stringify(list))}}catch(e){}}
+  localStorage.setItem(ROUND_LOG_KEY,memWrap(list))}}catch(e){}}
 /* Re-read before appending rather than trusting the copy in memory: two
    tabs of the same page would otherwise each keep their own row and the
    last one to finish would erase the other's. */
@@ -491,10 +527,10 @@ let ROUND_TIE=null,ROUND_TIE_BEST=null;
 function roundTieNow(){try{const v=ROUND_TIE_TOKEN;
   return (typeof v==='number'&&isFinite(v))?v:null}catch(e){return null}}
 function roundTieRead(){try{if(typeof localStorage==='undefined')return null;
-  const raw=localStorage.getItem(ROUND_TIE_KEY);if(raw===null)return null;
-  const v=Number(raw);return isFinite(v)?v:null}catch(e){return null}}
+  const had=memRead(ROUND_TIE_KEY);if(had===null||had===undefined)return null;
+  const v=Number(had);return isFinite(v)?v:null}catch(e){return null}}
 function roundTieWrite(v){try{if(typeof localStorage!=='undefined'){
-  localStorage.setItem(ROUND_TIE_KEY,String(v))}}catch(e){}}
+  localStorage.setItem(ROUND_TIE_KEY,memWrap(v))}}catch(e){}}
 /* Only consulted when the scores are level - the score is still the
    score. Without a tiebreak this returns false and nothing changes, which
    is what the six templates that have no ceiling get. */

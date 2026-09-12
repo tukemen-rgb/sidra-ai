@@ -37,6 +37,38 @@ import re
 #: another feature that picks an existing prefix fails the sweep instead of
 #: quietly overwriting whichever feature got there first. The sweep caught
 #: C-1432 arriving unregistered, which is what it is for.
+#: Which memories are about ONE GAME and which are about the device
+#: (C-1734). Every key above ends in the template's name, and that is
+#: right - the keys have to be separable - but one template makes many
+#: games: the layout comes from the request's own seed (C-1107) and the
+#: difficulty decides how long a round is. A memory that describes *a run*
+#: has to say which game it was run in, or a best set on a two-lap course
+#: turns up as the target on a four-lap one. A memory that describes *this
+#: device* is right across all of them, and stamping it would only make a
+#: player re-do a setting they already made.
+#:
+#: Written here, beside the registry, with a reason for every key on the
+#: device side - the C-1729 lesson: the list that decides is no use unless
+#: the ones it leaves out say why.
+WORLD_SCOPED: dict[str, str] = {
+    "sidra.best.": "C-1106 the number this run is measured against",
+    "sidra.runs.": "C-1432 the row of runs, which is a progress or it is nothing",
+    "sidra.tie.": "C-1124 the tiebreak, which is part of the same result",
+    "sidra.ghost.": "C-1401 the trail of the run that set that number",
+}
+
+DEVICE_WIDE: dict[str, str] = {
+    "sidra.tune.": "設定であって走りの結果ではない。難度を上げても音量は上げ直さない",
+    "sidra.total.": "C-1109 の累計はスキン解放のためのもので、"
+    "「この型で遊んだ総量」がまさに測りたいもの",
+    "sidra.skin.": "C-1109 で着ている色。同じ型の別のゲームで脱がせる理由がない",
+    "sidra.seen.": "ブリーフィングの 3 行は型のもの（操作は型で決まる）",
+    "sidra.keys.": "C-1305 この端末のキー割り当て。世界とは無関係",
+    "sidra.streak.": "C-1402 連敗はいま詰まっている人の状態で、"
+    "難度は世界の一部なので鍵の側で既に分かれている",
+    "sidra.daily.": "C-1442 日替わりの連続日数は、その日の共有課題についての数",
+}
+
 STORAGE_PREFIXES: dict[str, str] = {
     "sidra.tune.": "C-1113 the tuning panel's values",
     "sidra.best.": "C-1106 the personal best",
@@ -311,3 +343,25 @@ __all__ = [
     "storage_keys",
     "text_width",
 ]
+
+#: Every ``setItem`` into a world-scoped key, as the assembled page writes
+#: it (C-1734). Checked at the source rather than by reading the store
+#: back: ``memRead`` adopts an unstamped value and re-stamps it, so a page
+#: that wrote bare numbers would have its own reads tidy the evidence away
+#: within the same round - which is exactly what the destruction battery
+#: showed when this was checked at run time.
+_WRITE = re.compile(r"setItem\(\s*([A-Za-z_][\w.]*)\s*,([^;]*)", re.S)
+
+
+def unstamped_writes(script: str) -> list[str]:
+    """World-scoped keys the page writes without the world tag on them."""
+
+    scoped = set()
+    for name, head in re.findall(r"const (\w+)\s*=\s*'(sidra\.[a-z.]+)'", script):
+        if any(head.startswith(prefix) for prefix in WORLD_SCOPED):
+            scoped.add(name)
+    bad: list[str] = []
+    for var, value in _WRITE.findall(script):
+        if var in scoped and "memWrap(" not in value:
+            bad.append(f"{var} を印なしで書いている: {value.strip()[:60]}")
+    return bad
