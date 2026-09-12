@@ -991,3 +991,38 @@ URL はすべて 2026-09-03 に実際に開いて確認。
 - SIDRA での反映先: C-1662（duel の「押しっぱなし」に代替を用意する——
   既定は現状のまま、調整パネルの 1 チャンネルとして足す。§4 の C-1393
   「動きを減らす」が第 3 チャンネルとして入ったのと同じ作法）
+
+## 30. 認知のアクセシビリティ——覚えさせない・思い出させる・分けて下げられる（外部調査 2026-09-12・辛口クリエイターループ）
+
+§4（視覚の最低条件）・§20（色覚多様性）・§24（文字サイズの床）で見る側、
+§28 で聞く側、§29 で押す側の基準は入ったが、**認知の側**——覚えておく
+必要があるか・思い出す手立てがあるか・音の情報を用途ごとに落とせるか——
+の基準がどこにも無かったための増築。URL は 2026-09-12 に実際に開いて確認。
+
+- 出典: https://gameaccessibilityguidelines.com/full-list/ の Cognitive 節
+  （§28・§29 と同じ一覧。basic / intermediate / advanced の 3 段）
+- 事実 1（basic）: **「Allow players to progress through text prompts at
+  their own pace」**——文字の提示は読み手の速度に従わせる。
+- 事実 2（intermediate）: **「Indicate / allow reminder of controls during
+  gameplay」**と**「Indicate / allow reminder of current objectives during
+  gameplay」**——操作と**目的**は、遊んでいる最中に思い出せること。
+  2 つは**別々の項目**として並んでいる。
+- 事実 3（intermediate）: **「Provide separate volume controls or mutes for
+  effects, speech and background / music」**——音量は**用途ごとに分けて**
+  下げられること。1 本のダイヤルで全部が動くのは、この項目を満たさない。
+- 事実 4（intermediate）: **「Provide an option to turn off / hide background
+  movement」**・**「Include an option to adjust the game speed」**・
+  **「Include toggle/slider for any haptics」**。
+- 事実 5（advanced）: **「Allow all narrative and instructions to be
+  replayed」**——説明は後からもう一度読めること。
+- 学び（SIDRA と突き合わせ）: 事実 2 は**満たしている**——ブリーフィングの
+  3 行（目的・操作・危険）は一時停止画面にもそのまま出る（`gateBriefTable`）
+  ので、遊びながら P を押せば目的も操作も思い出せる。事実 4 も 3 つとも
+  満たす（「動きを減らす」「速さ」スライダー・「振動」トグル）。事実 5 も
+  同じ一時停止画面で満たす。**丸ごと欠けているのは事実 3 だけ**——
+  SIDRA の音量は**ダイヤル 1 本**（`masterGain()`）で、効果音も音楽も
+  同じ 1 本に乗っている。M は全部を黙らせる。§21 で音楽が重い一発に
+  場所を空ける（ducking）ところまで来ているのに、**「音楽だけ下げる」が
+  できない**——BGM が邪魔な人は、効果音（手がかり）ごと消すしかない。
+- SIDRA での反映先: C-1693（音楽だけの音量——既存の 1 本を親に残し、
+  その下に音楽用の係数を足す形。既存の音量契約は 1 つも動かさない）
