@@ -268,16 +268,19 @@ function draw(now){
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<ship.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(W-208,6,204,54);cx.globalAlpha=1;
+  /* Three lines, so the LEADING grows with the type as well as the box
+     (C-1726): 18 was the gap a 13px line wanted. */
+  const HSB=hudBand(13,5);
+  cx.fillRect(W-208,6,204,hudPx(13)+2*HSB+5);cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   /* The graze run is on screen while it is worth something: a risk the
      player cannot see the state of is a gamble, not a decision. */
   const gz=grazeFacts();
   /* The multiplier is drawn at x1 as much as at x4, and the raw count
      stays beside the points so 「得点」 and 「撃墜」 cannot be confused. */
-  cx.fillText('得点 '+score+' '+comboLabel()+'  第 '+wave+' 波',W-200,19);
-  cx.fillText('撃墜 '+kills,W-200,55);
-  cx.fillText('かすり '+gz.paid+'  '+'・'.repeat(gz.run)+'－'.repeat(gz.need-gz.run),W-170,37);
+  cx.fillText('得点 '+score+' '+comboLabel()+'  第 '+wave+' 波',W-200,6+hudPx(13));
+  cx.fillText('撃墜 '+kills,W-200,6+hudPx(13)+2*HSB);
+  cx.fillText('かすり '+gz.paid+'  '+'・'.repeat(gz.run)+'－'.repeat(gz.need-gz.run),W-170,6+hudPx(13)+HSB);
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a='撃墜 '+kills+' 機・得点 '+score+'。';cx.fillText(a,W/2-a.length*10,H/2-8);

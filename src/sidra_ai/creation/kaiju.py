@@ -396,9 +396,9 @@ function draw(){const now=performance.now();
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<me.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(W-198,5,194,20);cx.globalAlpha=1;
+  cx.fillRect(W-198,5,194,hudBand(13,7));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
-  cx.fillText('周期 '+cycles+'/3  脚 '+Math.max(0,boss.legHp),W-190,19);
+  cx.fillText('周期 '+cycles+'/3  脚 '+Math.max(0,boss.legHp),W-190,5+hudBand(13,1));
   if(state!=='fight'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a=state==='won'?'巨獣、沈黙。':'部隊は退いた。';

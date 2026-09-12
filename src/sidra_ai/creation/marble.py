@@ -324,10 +324,10 @@ function step(rt){
     cx.fillRect(bp.x-br*0.42+ex,bp.y-br*0.34,br*0.2,br*0.34);
     cx.fillRect(bp.x+br*0.22+ex,bp.y-br*0.34,br*0.2,br*0.34)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(32,12,330,24);cx.globalAlpha=1;
+  cx.fillRect(32,12,330,hudBand(13,11));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('スコア '+score+' '+comboLabel()+'  ゲート '+gates
-    +'  距離 '+Math.round(ball.z),40,30);
+    +'  距離 '+Math.round(ball.z),40,12+hudBand(13,5));
   if(state!=='roll'){cx.fillStyle='SCRIM_TOKEN'+'cc';cx.fillRect(0,H/2-40,W,80);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';cx.fillText(over,W/2,H/2-6);

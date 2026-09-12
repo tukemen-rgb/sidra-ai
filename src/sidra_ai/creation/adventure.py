@@ -574,15 +574,15 @@ function draw(now){
     [[6,0],[13,0]].forEach(p=>{glow(OX+p[0]*TILE+16,OY+16,86,now)});
     glow(hero.x,hero.y,64,now)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(OX-4,0,GW*TILE+8,16);cx.globalAlpha=1;
+  cx.fillRect(OX-4,0,GW*TILE+8,hudBand(13,3));cx.globalAlpha=1;
   cx.fillStyle='MAGENTA_TOKEN';
   for(let i=0;i<hero.maxhp;i++){cx.strokeStyle='MAGENTA_TOKEN';
     cx.strokeRect(OX+i*18+0.5,2.5,13,9)}
   for(let i=0;i<hero.hp;i++){cx.fillRect(OX+i*18,2,14,10)}
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('宝石 '+hero.gems+(hero.key?'  鍵あり':'')+(hero.charm?'  護符':''),
-    OX+70,11);
-  cx.fillText(NAMES[room],cv.width-OX-150,11);
+    OX+70,hudBand(13,-2));
+  cx.fillText(NAMES[room],cv.width-OX-150,hudBand(13,-2));
   if(msgT>0){msgT--;cx.fillStyle='SCRIM_TOKEN'+'d9';
     cx.fillRect(OX,cv.height-34,GW*TILE,26);cx.fillStyle='INK_TOKEN';
     cx.fillText(msg,OX+10,cv.height-16)}

@@ -10328,6 +10328,57 @@ def measure_creation(c: Collector) -> None:
         except (OSError, _ts2_sp.SubprocessError, ValueError) as exc:
             return None, f"{key}@{css}: probe unavailable ({exc})"
 
+    _TS2_BODIES = {
+        "adventure": "ADVENTURE_SCRIPT",
+        "duel": "DUEL_SCRIPT",
+        "kaiju": "KAIJU_SCRIPT",
+        "platformer": "PLATFORMER_SCRIPT",
+        "shooter": "SHOOTER_SCRIPT",
+        "puzzle": "PUZZLE_SCRIPT",
+        "marble": "MARBLE_SCRIPT",
+        "racing": "RACING_SCRIPT",
+        "fishing": "_FISHING",
+        "catch": "_CATCH",
+    }
+
+    def _ts2_args(text):
+        """Commas that are not inside a nested call: hudBand(13,3) is one."""
+
+        out, depth, start = [], 0, 0
+        for _i, _ch in enumerate(text):
+            if _ch in "([":
+                depth += 1
+            elif _ch in ")]":
+                depth -= 1
+            elif _ch == "," and depth == 0:
+                out.append(text[start:_i])
+                start = _i + 1
+        out.append(text[start:])
+        return out
+
+    def _ts2_bare_plate(key):
+        """A HUD plate whose height is a number rather than its type."""
+
+        where = "sidra_ai.creation.games" if key in ("fishing", "catch") else (
+            f"sidra_ai.creation.{key}"
+        )
+        try:
+            _mod = __import__(where, fromlist=[_TS2_BODIES[key]])
+            _body = getattr(_mod, _TS2_BODIES[key])
+        except (ImportError, AttributeError) as exc:
+            return f"source unavailable ({exc})"
+        for _m in _ts2_re.finditer(r"fillStyle=HUD_PLATE;\s*\n?\s*(.*)", _body):
+            _line = _m.group(1)
+            for _rect in _ts2_re.finditer(r"fillRect\(([^;]*?)\);", _line):
+                _args = _ts2_args(_rect.group(1))
+                if len(_args) >= 4 and "hudBand(" not in _args[-1]:
+                    return f"高さ {_args[-1].strip()}"
+        # ...and a stacked box's leading, which is the same number by
+        # another name.
+        if "const HSB=" in _body and "const HSB=hudBand(" not in _body:
+            return "行送りが定数"
+        return ""
+
     def _ts2_boxes(seen):
         out = {}
         for where in ("title", "played"):
@@ -10372,6 +10423,31 @@ def measure_creation(c: Collector) -> None:
         if _ts2_over:
             _ts2_gaps.append(f"{_ts2_key}@360: 行が画布からはみ出す（{_ts2_over[0]}）")
             continue
+        # (c) and the word's BOX is on the glass (C-1726). The previous
+        # cycle raised the type and checked its width; the plates and
+        # baselines it sits on were canvas-pixel numbers written for 13px
+        # type, so adventure drew a 22px line on a 16px plate with its cap
+        # 6.6px above the canvas - off the bitmap, not drawn at all.
+        _ts2_off = [
+            f"{v['px']:.0f}px 上端 {v['top']:.1f}/下端 {v['bottom']:.1f}"
+            for v in _ts2_box.values()
+            if v["top"] < -0.01 or v["bottom"] > 320.01
+        ]
+        if _ts2_off:
+            _ts2_gaps.append(f"{_ts2_key}@360: 字の箱が画布の外（{_ts2_off[0]}）")
+            continue
+        # (d) and the backdrop is derived from the type, not written as a
+        # number beside it. Two geometric rules were tried first and both
+        # were withdrawn by measurement, which is recorded in the detail:
+        # "the plate is the rect drawn at a partial alpha" also catches
+        # every particle and scrim, and "a monospace line is len x px
+        # wide" over-counts by half for the half-width digits in 「得点 9
+        # ×1」. What survives is the shared-constant rule (C-1342): a plate
+        # whose height is a bare number cannot follow the type it holds.
+        _ts2_drift = _ts2_bare_plate(_ts2_key)
+        if _ts2_drift:
+            _ts2_gaps.append(f"{_ts2_key}: 板の寸法が字から導かれていない（{_ts2_drift}）")
+            continue
         # (b) and the desk is untouched: raising every font to pass (a)
         # would be a different product, so the 720 reading has to still be
         # the sizes §24 chose.
@@ -10380,6 +10456,14 @@ def measure_creation(c: Collector) -> None:
             _ts2_gaps.append(_ts2_why)
             continue
         _ts2_dbox = _ts2_boxes(_ts2_desk) or {}
+        _ts2_doff = [
+            f"{v['px']:.0f}px 上端 {v['top']:.1f}"
+            for v in _ts2_dbox.values()
+            if v["top"] < -0.01 or v["bottom"] > 320.01
+        ]
+        if _ts2_doff:
+            _ts2_gaps.append(f"{_ts2_key}@720: 机上で字の箱が画布の外（{_ts2_doff[0]}）")
+            continue
         _ts2_grown = [
             f"{v['px']:.1f}px" for v in _ts2_dbox.values() if v["px"] > 22.01
         ]
@@ -10403,8 +10487,8 @@ def measure_creation(c: Collector) -> None:
 
     c.add(
         "creation_text_survives_the_shrink",
-        "画面が縮んでも字は読める大きさのまま",
-        0.0 if _ts2_gaps else 2.0,
+        "画面が縮んでも字は読める大きさのまま（そして載る器からも出ない）",
+        0.0 if _ts2_gaps else 4.0,
         detail=(
             "; ".join(_ts2_gaps)
             if _ts2_gaps
@@ -10412,12 +10496,29 @@ def measure_creation(c: Collector) -> None:
             "タイトル画面と実プレイで**実際に書かれた全ての文字**の"
             "font を記録し、実効サイズ（canvas px × css幅/720）で測った。"
             f"{_ts2_worst}。"
-            "**2 方向**: (a) いちばん狭い 360px 幅でも全ての字が"
+            "**4 方向**: (a) いちばん狭い 360px 幅でも全ての字が"
             f"**実効 {_TS2_FLOOR:.0f} CSS px 以上**（§24 事実 2 の iOS Caption 2）で"
             "**行は画布からはみ出さない**（等幅なので 文字数×px で占有幅が出る）、"
             "(b) **机上（720）は 1 バイトも変わらない**"
             "——`max(px, 11×縮尺)` は縮尺 1 で px そのものなので、"
             "「全部大きくして通す」実装はここで落ちる。"
+            "(c) **字の箱が画布の中**（基線と font から上端 `y-0.8em`・"
+            "下端 `y+0.2em` を出す）——**C-1726 で足した**。"
+            "前巡は字を大きくして**幅**だけ見たので、"
+            "**字が載る板と基線が 13px のまま**だったことを見逃していた: "
+            "360px の adventure は **22px の字を 16px の板に**描き、"
+            "**上端が画布の 6.6px 上＝描かれていなかった**。"
+            "板の高さと基線を `hudBand(px,K)=hudPx(px)+K` から導き、"
+            "**K は元の数値からの逆算なので机上は 1 バイトも変わらない**。"
+            "(d) **板の寸法が字から導かれている**（`hudBand()` 経由・"
+            "積み上げ箱の行送りも同じ）——C-1342 の共有定数則。"
+            "**幾何で書こうとして 2 度失敗し、実測が両方を退けた**: "
+            "「板は部分 α で塗られる矩形」は**粒子も暗幕も全部拾い**、"
+            "「等幅だから 幅＝文字数×px」は「得点 9 ×1」のような"
+            "**半角混じりで 5 割も過大**になり、机上の puzzle で偽の重なりを出した。"
+            "**座標を持たない記録の上に幾何を組むのは無理**だと分かったので、"
+            "**板が字から導かれているか**という、正確に検査できる形だけを残した"
+            "（破壊 D3/D4 はこの形で捕まる）。"
             "**§24 は「床は実効サイズで決める」と書いた上で、"
             "横持ち 667px（縮尺 0.926）だけを勘定に入れて 13px を選んでいた**"
             "——§18 の学びが「縦のままでも遊べる」と書き、"

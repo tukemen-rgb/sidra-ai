@@ -427,10 +427,10 @@ function draw(now){
   cx.beginPath();cx.moveTo(px+3,me.y-6);cx.lineTo(px+3+g2,me.y);cx.stroke();
   cx.lineWidth=1;
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(34,4,330,22);cx.globalAlpha=1;
+  cx.fillRect(34,4,330,hudBand(13,9));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('宝石 '+me.gems+' / '+LAMP_COST+(lamp.lit?'  灯籠 点':'')
-    +'  落下 '+respawns,40,20);
+    +'  落下 '+respawns,40,4+hudBand(13,3));
   if(msgT>0){msgT--;cx.fillStyle='SCRIM_TOKEN'+'d9';cx.fillRect(20,H-34,W-40,26);
     cx.fillStyle='INK_TOKEN';cx.fillText(msg,30,H-16)}
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);

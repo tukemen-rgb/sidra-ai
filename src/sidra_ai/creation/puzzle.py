@@ -246,11 +246,11 @@ function draw(now){
   cx.strokeRect(OX+cur.x*CELL+0.5,OY+cur.y*CELL+0.5,CELL-1,CELL-1);
   cx.lineWidth=1;
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(OX-8,10,336,22);cx.globalAlpha=1;
+  cx.fillRect(OX-8,10,336,hudBand(13,9));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
-  cx.fillText('得点 '+score+' '+comboLabel()+'  つち ×'+hammers,OX,26);
+  cx.fillText('得点 '+score+' '+comboLabel()+'  つち ×'+hammers,OX,10+hudBand(13,3));
   const left=group(cur.x,cur.y).length;
-  cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,26);
+  cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,10+hudBand(13,3));
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';
     cx.fillRect(0,0,cv.width,cv.height);
     cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';

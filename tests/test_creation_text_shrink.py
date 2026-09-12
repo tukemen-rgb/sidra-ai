@@ -102,6 +102,82 @@ def test_raising_the_type_does_not_push_a_line_off_the_canvas(
 
 
 @pytest.mark.parametrize("key", sorted(REQUESTS))
+def test_the_words_box_is_on_the_glass(narrow: dict, desk: dict, key: str) -> None:
+    """C-1726. Raising the type and checking only its width missed the
+    thing it sits on: the HUD plates and baselines were canvas-pixel
+    numbers written for 13px type, so at 360 CSS px adventure drew a 22px
+    line on a 16px plate with its cap 6.6px above the canvas - off the
+    bitmap, and not drawn at all."""
+
+    for where, found in (("360", narrow[key]), ("720", desk[key])):
+        for box in found.values():
+            assert box["top"] >= -0.01, (key, where, box)
+            assert box["bottom"] <= 320.01, (key, where, box)
+
+
+def top_level_args(text: str) -> list[str]:
+    """Split on commas that are not inside a nested call - hudBand(13,3)
+    is one argument, not two."""
+
+    out, depth, start = [], 0, 0
+    for i, ch in enumerate(text):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            out.append(text[start:i])
+            start = i + 1
+    out.append(text[start:])
+    return out
+
+
+BODIES = {
+    "adventure": ("sidra_ai.creation.adventure", "ADVENTURE_SCRIPT"),
+    "duel": ("sidra_ai.creation.duel", "DUEL_SCRIPT"),
+    "kaiju": ("sidra_ai.creation.kaiju", "KAIJU_SCRIPT"),
+    "platformer": ("sidra_ai.creation.platformer", "PLATFORMER_SCRIPT"),
+    "shooter": ("sidra_ai.creation.shooter", "SHOOTER_SCRIPT"),
+    "puzzle": ("sidra_ai.creation.puzzle", "PUZZLE_SCRIPT"),
+    "marble": ("sidra_ai.creation.marble", "MARBLE_SCRIPT"),
+    "racing": ("sidra_ai.creation.racing", "RACING_SCRIPT"),
+    "fishing": ("sidra_ai.creation.games", "_FISHING"),
+    "catch": ("sidra_ai.creation.games", "_CATCH"),
+}
+
+
+@pytest.mark.parametrize("key", sorted(BODIES))
+def test_the_plate_is_sized_from_the_type_it_holds(key: str) -> None:
+    """Two geometric rules were tried for this and measurement withdrew
+    both: "the plate is the rect at a partial alpha" also catches every
+    particle and scrim, and "a monospace line is len x px wide"
+    over-counts by half on 「得点 9 ×1」. What is left is the rule that can
+    be checked exactly - a plate written as a number cannot follow the
+    type it holds (C-1342)."""
+
+    import importlib
+
+    where, name = BODIES[key]
+    body = getattr(importlib.import_module(where), name)
+    for line in re.findall(r"fillStyle=HUD_PLATE;\s*\n?\s*(.*)", body):
+        for rect in re.finditer(r"fillRect\(([^;]*?)\);", line):
+            args = top_level_args(rect.group(1))
+            if len(args) >= 4:
+                assert "hudBand(" in args[-1], (key, rect.group(0))
+    if "const HSB=" in body:
+        assert "const HSB=hudBand(" in body, key
+
+
+def test_the_plate_grows_with_the_type_it_holds() -> None:
+    """One helper, beside the one it borrows from, so a plate and its
+    words cannot drift apart (C-1342)."""
+
+    from sidra_ai.creation import touchpad
+
+    assert "function hudBand(px,pad){return hudPx(px)+pad}" in touchpad.PAD_PREAMBLE
+
+
+@pytest.mark.parametrize("key", sorted(REQUESTS))
 def test_the_desk_is_untouched(desk: dict, key: str) -> None:
     """The other direction. Raising every font until (a) passes would be a
     different product; on a desk the scale is 1 and max(px, 11) is px."""

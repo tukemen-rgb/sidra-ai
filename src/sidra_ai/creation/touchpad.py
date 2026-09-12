@@ -98,6 +98,15 @@ function padScale(){const r=PADCV.getBoundingClientRect();
    max(px, 11) is px, so every existing page is unchanged to the byte. */
 const TEXT_FLOOR=11;
 function hudPx(px){return Math.max(px,TEXT_FLOOR*padScale())}
+/* ...and the backdrop grows with what it holds (C-1726). The HUD plates
+   were rectangles in canvas pixels, written when every HUD word was 13px.
+   C-1725 let the type grow on a narrow screen and the plates did not
+   follow: at 360 CSS px adventure drew its 22px 「宝石」 line on a 16px
+   plate with a baseline of 11, putting the cap 6.6px ABOVE the canvas -
+   off the bitmap, so not drawn at all. Every K below is the old literal
+   minus its font, so on a desk (where hudPx(13) is 13) each call returns
+   exactly the number that was there before. */
+function hudBand(px,pad){return hudPx(px)+pad}
 /* Laid out in canvas pixels from a CSS-pixel size, so the buttons stay
    thumb-sized however the page is scaled down on a small screen. Only the
    buttons this template actually reads are kept: a dead button does nothing

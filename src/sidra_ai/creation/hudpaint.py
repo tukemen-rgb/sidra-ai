@@ -93,14 +93,19 @@ globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] |
 globalThis.Image = function(){ return nothing };
 globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
 const CSS_W = CSS_W_PLACEHOLDER;
-let words = [];
+let words = [], plates = [];
 const textCtx = new Proxy({
-  font: '', textAlign: '',
-  fillText: function(txt){ words.push({ font: String(this.font), text: String(txt) }) },
-  fillRect: function(){},
+  font: '', textAlign: '', textBaseline: '', globalAlpha: 1,
+  fillText: function(txt, x, y){ words.push({ font: String(this.font), text: String(txt),
+    x: Number(x), y: Number(y), base: String(this.textBaseline || 'alphabetic') }) },
+  /* The HUD plate is the only rect drawn at a partial alpha (HUD_A), so
+     the backdrop a word sits on can be told from the world behind it. */
+  fillRect: function(x, y, w, h){ if (this.globalAlpha > 0 && this.globalAlpha < 1) {
+    plates.push({ x: Number(x), y: Number(y), w: Number(w), h: Number(h) }) } },
 }, {
   get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
-  set: (t, k, v) => { if (k === 'font' || k === 'textAlign') { t[k] = v } return true },
+  set: (t, k, v) => { if (k === 'font' || k === 'textAlign' || k === 'textBaseline'
+    || k === 'globalAlpha') { t[k] = v } return true },
 });
 const stage = { width: 720, height: 320, style: {},
   addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
@@ -122,9 +127,18 @@ function key(k){ const e = probeKey(k);
    preamble onto all ten - then play, so the HUD and any toast are drawn
    too, then long enough for the round to end and its strip to appear. */
 turn(3);
-const title = words.slice(); words = [];
+const title = words.slice(); words = []; plates = [];
 key(' ');
-for (let i = 0; i < 4200; i++) { if (i % 7 === 0) { key(' ') } turn(1) }
+let frameWords = [], framePlates = [];
+for (let i = 0; i < 4200; i++) {
+  if (i % 7 === 0) { key(' ') }
+  /* One frame on its own, mid-play, so a word and the plate under it come
+     from the same picture rather than from a thousand frames piled up -
+     and from the picture the HUD is actually drawn in, not the ending. */
+  if (i === 200) { words = []; plates = [] }
+  turn(1);
+  if (i === 200) { frameWords = words.slice(); framePlates = plates.slice() }
+}
 const played = words.slice();
 function sizes(list){
   const out = {};
@@ -133,14 +147,45 @@ function sizes(list){
     if (!m) { out['?'] = (out['?'] || 0) + 1; return }
     const px = Number(m[1]);
     const key = px.toFixed(2);
-    if (!out[key]) { out[key] = { px: px, effective: px * CSS_W / 720, n: 0, longest: 0 } }
+    if (!out[key]) { out[key] = { px: px, effective: px * CSS_W / 720, n: 0, longest: 0,
+      top: Infinity, bottom: -Infinity } }
     out[key].n++;
     out[key].longest = Math.max(out[key].longest, w.text.length);
+    /* The box a word occupies. 'middle' centres it; everything else here
+       draws on the alphabetic baseline, where a monospace cap reaches
+       about 0.8em up and a descender about 0.2em down. */
+    const up = w.base === 'middle' ? px * 0.5 : px * 0.8;
+    const down = w.base === 'middle' ? px * 0.5 : px * 0.2;
+    if (isFinite(w.y)) {
+      out[key].top = Math.min(out[key].top, w.y - up);
+      out[key].bottom = Math.max(out[key].bottom, w.y + down);
+    }
+  });
+  return out;
+}
+/* The one frame, word by word: the judge needs a box and a backdrop, not
+   a histogram. Kept small by dropping exact repeats. */
+function spans(list){
+  const seen = {}, out = [];
+  list.forEach(function(w){
+    const m = /^([0-9.]+)px/.exec(w.font); if (!m) { return }
+    const px = Number(m[1]);
+    const wide = w.text.length * px;
+    const left = w.align === 'center' ? w.x - wide / 2
+      : (w.align === 'right' ? w.x - wide : w.x);
+    const up = w.base === 'middle' ? px * 0.5 : px * 0.8;
+    const down = w.base === 'middle' ? px * 0.5 : px * 0.2;
+    const box = { px: px, x0: left, x1: left + wide,
+      y0: w.y - up, y1: w.y + down, text: w.text.slice(0, 12) };
+    const key = [px, box.x0.toFixed(1), box.y0.toFixed(1), w.text.length].join('|');
+    if (seen[key]) { return }
+    seen[key] = 1; out.push(box);
   });
   return out;
 }
 console.log(JSON.stringify({ cssW: CSS_W, scale: 720 / CSS_W,
   title: sizes(title), played: sizes(played),
+  frame: spans(frameWords), plates: framePlates,
   titleWords: title.length, playedWords: played.length }));
 """
 

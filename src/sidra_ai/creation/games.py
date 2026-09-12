@@ -336,11 +336,11 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(fx+9,fy-3,3,3);
   sprite('target',40+(w-80)*SPOT-16,h/2-16+bob,32,32,'');
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(32,14,400,26);cx.fillRect(32,h-44,430,26);cx.globalAlpha=1;
+  cx.fillRect(32,14,400,hudBand(16,10));cx.fillRect(32,h-44,430,hudBand(16,10));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(16)+'px ui-monospace,monospace';
-  cx.fillText(msg,40,h-28);
+  cx.fillText(msg,40,h-44+hudPx(16));
   cx.fillText('得点 '+score+' / 釣果 '+hits+'/'+casts+' / 会心 '+crits
-    +' / '+comboLabel(),40,34)}
+    +' / '+comboLabel(),40,14+hudBand(16,4))}
 function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
   hits:hits,crits:crits,crit:CRIT,
   casts:casts,scene:SCENE,ms:ROUND_MS}}
@@ -506,12 +506,12 @@ function step(rt){
     cx.fillRect(shown*w-6+ex,h-10-bh+3,3,4*BSQ);
     cx.fillRect(shown*w+3+ex,h-10-bh+3,3,4*BSQ)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(32,14,420,26);cx.fillRect(32,h-44,330,26);cx.globalAlpha=1;
+  cx.fillRect(32,14,420,hudBand(16,10));cx.fillRect(32,h-44,330,hudBand(16,10));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(16)+'px ui-monospace,monospace';
   /* The multiplier is on screen at x1 as much as at x4, and the raw
      count stays beside the points so 「得点」 cannot be mistaken for it. */
-  cx.fillText('得点 '+score+' '+comboLabel()+' / 受け '+caught+' / こぼし '+missed,40,34);
-  cx.fillText('← → またはマウスで動かす',40,h-28);
+  cx.fillText('得点 '+score+' '+comboLabel()+' / 受け '+caught+' / こぼし '+missed,40,14+hudBand(16,4));
+  cx.fillText('← → またはマウスで動かす',40,h-44+hudPx(16));
   requestAnimationFrame(step)}
 step();
 """

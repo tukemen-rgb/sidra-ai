@@ -347,14 +347,14 @@ function draw(){
     cx.strokeStyle=EDGE_B;cx.lineWidth=2;
     cx.strokeRect(car.x-13,CARY-18,26,36);cx.lineWidth=1}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
-  cx.fillRect(6,4,262,22);cx.fillRect(W-178,4,132,38);cx.globalAlpha=1;
+  cx.fillRect(6,4,262,hudBand(13,9));cx.fillRect(W-178,4,132,hudBand(13,25));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('LAP '+Math.min(lap,LAPS)+'/'+LAPS+'  '+(lapT/60).toFixed(1)+'s'+
-    (slips>0?'  ニアミス '+slips:''),12,19);
+    (slips>0?'  ニアミス '+slips:''),12,4+hudBand(13,2));
   cx.strokeStyle='BORDER_TOKEN';cx.strokeRect(W-172,10,120,10);
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(W-172,10,120*Math.min(1,spd/PACE),10);
   cx.fillStyle=HUD_INK;
-  cx.fillText(onRoad()?'走行':'コース外',W-172,34);
+  cx.fillText(onRoad()?'走行':'コース外',W-172,4+hudBand(13,17));
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a='ゴール。';cx.fillText(a,W/2-a.length*10,H/2-52);
