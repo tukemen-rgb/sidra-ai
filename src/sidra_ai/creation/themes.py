@@ -201,6 +201,14 @@ DEFAULT_THEME = THEMES["gameyard"]
 _THEME_CUES: tuple[str, ...] = ("テーマ", "theme", "配色", "カラー")
 
 
+#: The floor an accent is held to, wherever it comes from. Read out of the
+#: table above rather than written twice: the operator's colour well is
+#: held to the same number as a theme in the catalogue (C-1737).
+ACCENT_FLOOR: float = next(
+    floor for fg, bg, floor in CONTRAST_FLOORS if (fg, bg) == ("accent", "surface")
+)
+
+
 def _luminance(colour: str) -> float:
     """WCAG relative luminance of a ``#rrggbb`` string."""
 
@@ -272,6 +280,7 @@ def readable_themes() -> tuple[str, ...]:
 
 
 __all__ = [
+    "ACCENT_FLOOR",
     "CONTRAST_FLOORS",
     "GAMEYARD_TOKENS",
     "DEFAULT_THEME",

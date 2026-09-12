@@ -155,7 +155,13 @@ from sidra_ai.creation.duel import (
 #: rather than a second copy of them, and a module that owns both cannot be
 #: imported by the one that owns neither. Every existing
 #: ``from ...games import GAMEYARD_TOKENS`` keeps working.
-from sidra_ai.creation.themes import GAMEYARD_TOKENS, THEMES, Theme, select_theme
+from sidra_ai.creation.themes import (
+    ACCENT_FLOOR,
+    GAMEYARD_TOKENS,
+    THEMES,
+    Theme,
+    select_theme,
+)
 
 _SOURCE = "tukemen-rgb/site docs/DESIGN.md §2 (tokens) / §3 (prohibited defaults)"
 
@@ -1921,6 +1927,10 @@ def generate_game(
         # generator's own number, which is why this is a substitution and
         # not a rewrite of nine templates.
         .replace("TUNE_SPEC_TOKEN", json.dumps(schema, ensure_ascii=False))
+        # The floor an operator-chosen accent is held to (C-1737). Taken
+        # from the table that already drops a THEME for failing it, so the
+        # two sides of the same rule cannot end up with two numbers.
+        .replace("ACCENT_FLOOR_TOKEN", repr(ACCENT_FLOOR))
         # Which template's briefing has been read, per template.
         .replace("GATE_NAME_TOKEN", json.dumps(key))
         # C-1414: whether this template plays itself behind its own title,

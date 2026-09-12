@@ -15068,6 +15068,171 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a colour the operator picked is still a colour they can read ---
+    #
+    # C-1737, §4 x §9 学び (4). The panel rounds a number into the author's
+    # range and drops a choice that is not on the list; the colour well was
+    # the one control with no range at all, and it is the one control that
+    # decides whether the page's own writing can be read. The product
+    # already owns this floor - themes.py's CONTRAST_FLOORS carries
+    # ("accent", "surface", 3.0) and a THEME that fails it is dropped from
+    # the catalogue - so the rule was enforced where the product picks the
+    # colour and not measured at all where the operator picks it.
+    #
+    # Measured before the fix, on the real page: the shipped accent stands
+    # at 13.30:1 and 「#0b0f17」 from the colour well at 1.05:1, with no
+    # rounding and nothing said.
+    #
+    # Both directions, and the second is what stops the cheap answer: a
+    # page that always paints its own accent passes the first on its own,
+    # and that implementation is "the colour well does nothing" - the very
+    # defect C-1729 spent a cycle removing.
+    from sidra_ai.creation.themes import (
+        ACCENT_FLOOR as _ink_floor,
+        contrast_ratio as _ink_ratio,
+    )
+
+    ink_gaps: list[str] = []
+    ink_ok: list[str] = []
+    #: Colours that fail the floor on a dark ground, and ones that clear it.
+    _INK_DARK = ("#0b0f17", "#001a00", "#1a0000", "#000000", "#404040")
+    _INK_FINE = ("#2ee6ff", "#ff00aa", "#ffffff")
+
+    def _ink_run(template, script, accent):
+        source = _tune_probe(
+            script,
+            stored=({f"sidra.tune.{template}": {"accent": accent}} if accent else {}),
+            target=0,
+            speed_expr=_tune_binding[template],
+        )
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=120
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    for key in sorted(_tune_templates):
+        if key not in _tune_binding:
+            continue
+        page = _tune_generate("ゲームを作って", template=key).html
+        found = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if found is None:
+            ink_gaps.append(f"{key}: no script")
+            continue
+        body = found.group(1)
+        shipped, problem = _ink_run(key, body, None)
+        if problem:
+            ink_gaps.append(problem)
+            continue
+        ground = shipped.get("accentGround")
+        if not ground or shipped.get("accentFloor") != _ink_floor:
+            ink_gaps.append(
+                f"{key}: ページの床 {shipped.get('accentFloor')} が"
+                f" themes.py の {_ink_floor} と違う"
+            )
+            continue
+        _ink_bad = False
+        # (a) a colour under the floor is lifted to it, the hue is kept,
+        # and the panel says so in words a person can read.
+        for _ink_pick in _INK_DARK:
+            seen, problem = _ink_run(key, body, _ink_pick)
+            if problem:
+                ink_gaps.append(problem)
+                _ink_bad = True
+                break
+            painted = seen.get("accentSeen")
+            if not painted or _ink_ratio(painted, ground) < _ink_floor:
+                ink_gaps.append(
+                    f"{key}: {_ink_pick} を選ぶと {painted} が塗られる"
+                    f"（{_ink_ratio(painted, ground):.2f}:1 < {_ink_floor}）"
+                )
+                _ink_bad = True
+                break
+            if not seen.get("accentNote"):
+                ink_gaps.append(f"{key}: 色を動かしておいてパネルが何も言わない")
+                _ink_bad = True
+                break
+            if painted not in seen["accentNote"] or "3.0" not in seen["accentNote"]:
+                ink_gaps.append(f"{key}: 断り書きが実際の色と床を言っていない")
+                _ink_bad = True
+                break
+            # The hue is the operator's; only the brightness was negotiable.
+            _ink_was = [int(_ink_pick[i : i + 2], 16) for i in (1, 3, 5)]
+            _ink_now = [int(painted[i : i + 2], 16) for i in (1, 3, 5)]
+            if max(_ink_was) > 0:
+                if _ink_was.index(max(_ink_was)) != _ink_now.index(max(_ink_now)):
+                    ink_gaps.append(f"{key}: {_ink_pick} の色相が {painted} で変わった")
+                    _ink_bad = True
+                    break
+                # The colour's chroma, which the dominant channel alone
+                # cannot see: mixing #0b0f17 toward white leaves blue on
+                # top (93,96,101) and the colour a grey. Scaling all three
+                # channels leaves (max-min)/max where it was.
+                _ink_spread = (max(_ink_now) - min(_ink_now)) / max(max(_ink_now), 1)
+                _ink_had = (max(_ink_was) - min(_ink_was)) / max(max(_ink_was), 1)
+                if abs(_ink_spread - _ink_had) > 0.1:
+                    ink_gaps.append(
+                        f"{key}: {_ink_pick} の彩度が {painted} で崩れた"
+                        f"（{_ink_had:.2f} → {_ink_spread:.2f}）"
+                    )
+                    _ink_bad = True
+                    break
+        if _ink_bad:
+            continue
+        # (b) ...and a colour that already clears is painted exactly.
+        for _ink_pick in _INK_FINE:
+            if _ink_ratio(_ink_pick, ground) < _ink_floor:
+                continue
+            seen, problem = _ink_run(key, body, _ink_pick)
+            if problem:
+                ink_gaps.append(problem)
+                _ink_bad = True
+                break
+            if seen.get("accentSeen") != _ink_pick:
+                ink_gaps.append(
+                    f"{key}: 床を満たす {_ink_pick} を {seen.get('accentSeen')} に動かした"
+                )
+                _ink_bad = True
+                break
+            if seen.get("accentNote"):
+                ink_gaps.append(f"{key}: 動かしていないのに動かしたと言う")
+                _ink_bad = True
+                break
+        if _ink_bad:
+            continue
+        ink_ok.append(key)
+    c.add(
+        "creation_chosen_colour_stays_readable",
+        "利用者が選んだ差し色が読める型",
+        float(len(ink_ok)) if not ink_gaps else 0.0,
+        detail=(
+            "実ページのパネルを駆動し、**色ピッカーに入る値を実際に入れて"
+            "本体が塗る色を読む**。**両方向**: (a) **床を割る 5 色**"
+            "（`#0b0f17`・`#001a00`・`#1a0000`・`#000000`・`#404040`）は"
+            "**塗られる時点で 3:1 以上**まで持ち上がり、**色相は保たれ**"
+            "（最も強い channel が入れ替わらない）、**パネルが実際の色と床を言葉で言う**"
+            "（DOM に書かれた文を読む——旗ではなく。C-1722: 「判断」と書いた断り書きは"
+            "判断が下された証拠ではない）、(b) **床を満たす色は 1 バイトも動かさない**"
+            "——(b) が無ければ「常に既定色を塗る」＝**色を選ばせない**実装が満点を取る。"
+            "**床は新しい数字ではない**: `themes.py` の `CONTRAST_FLOORS` にある"
+            "`(\"accent\",\"surface\",3.0)`——**出荷テーマを 1 つ落とすのと同じ行**を"
+            "`ACCENT_FLOOR` として取り出して両側で使う（判定器もページの床が"
+            "その値と一致することを確かめる）。"
+            "**修正前の実測**: 既定 `#2ee6ff` は 13.30:1、"
+            "ピッカーで `#0b0f17` を選ぶと **1.05:1** で丸めも警告も無かった。"
+            "**明るさは相対輝度で動かし、混ぜるのではなく channel を掛ける**"
+            "——白へ混ぜると `#0b0f17` が `#5d6065` という**誰も選んでいない灰**になる"
+            "（実測して直した）"
+            if not ink_gaps
+            else "; ".join(ink_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a picture can be swapped for a better one ---------------------
     #
     # C-1116. §9 学び (2): the generators people rate highest are the ones

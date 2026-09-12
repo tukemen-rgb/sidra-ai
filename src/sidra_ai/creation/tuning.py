@@ -273,6 +273,61 @@ function tuneNum(key,fallback){const f=tuneField(key);if(!f)return fallback;
 function tuneText(key,fallback){const f=tuneField(key);if(!f)return fallback;
   const v=TUNE[key];
   return (typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v))?v:fallback}
+/* The colour the operator picked, held to the floor this product already
+   holds its own themes to (C-1737). tuneNum rounds a number into the
+   author's range and tuneChoice drops a value that is not on the list;
+   the colour well was the one control in the panel with no range at all,
+   and it is the one control that decides whether the page's own writing
+   can be read. The floor is not a new number: it is the 3.0 in
+   themes.py's CONTRAST_FLOORS, the same line that drops a THEME from the
+   catalogue for failing it. Only the brightness is negotiable - the hue
+   is what the operator asked for - and it moves by relative luminance
+   rather than HSL lightness, for the reason C-1036 measured: hue carries
+   brightness, so lightness lies about it. */
+const ACCENT_FLOOR=ACCENT_FLOOR_TOKEN,ACCENT_GROUND='SURFACE_TOKEN';
+let ACCENT_MOVED=null;
+function tuneRgb(hex){return [parseInt(hex.slice(1,3),16),
+  parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]}
+function tuneLum(hex){const c=tuneRgb(hex).map(function(v){const s=v/255;
+  return s<=0.03928?s/12.92:Math.pow((s+0.055)/1.055,2.4)});
+  return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2]}
+function tuneRatio(a,b){const x=tuneLum(a),y=tuneLum(b);
+  return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05)}
+function tuneHex(rgb){return '#'+rgb.map(function(v){
+  const n=Math.max(0,Math.min(255,Math.round(v)));
+  return (n<16?'0':'')+n.toString(16)}).join('')}
+/* The nearest colour that clears the floor, and the chosen colour itself
+   when it already clears - a readable colour is not the panel's business.
+   SCALED, not mixed: multiplying the three channels by one factor keeps
+   their ratios, which is the hue the operator picked; mixing toward white
+   would hand back a washed grey (measured: #0b0f17 came back #5d6065,
+   which is not the colour anybody chose). Mixing is the fallback for the
+   colours scaling cannot move - black scales to black. */
+function tuneScan(from,ground,at){
+  let lo=0,hi=1,best=null;
+  for(let i=0;i<16;i++){const t=(lo+hi)/2,near=tuneHex(at(from,t));
+    if(tuneRatio(near,ground)>=ACCENT_FLOOR){best=near;hi=t}else{lo=t}}
+  return best}
+function tuneReadable(hex,ground){
+  if(!/^#[0-9a-fA-F]{6}$/.test(hex))return hex;
+  if(tuneRatio(hex,ground)>=ACCENT_FLOOR)return hex;
+  const from=tuneRgb(hex),dark=tuneLum(ground)>0.18;
+  const top=Math.max(1,Math.max(from[0],Math.max(from[1],from[2])));
+  const scale=dark
+    ? function(c,t){return c.map(function(v){return v*(1-t)})}
+    : function(c,t){return c.map(function(v){return v*(1+t*(255/top-1))})};
+  let best=tuneScan(from,ground,scale);
+  if(best===null){
+    /* Nothing left to scale (black, or a ground this hue cannot clear by
+       brightness alone): take the shortest mix toward the far end. */
+    const toward=dark?0:255;
+    best=tuneScan(from,ground,function(c,t){
+      return c.map(function(v){return v+(toward-v)*t})});
+    if(best===null){best=tuneHex(from.map(function(){return toward}))}}
+  ACCENT_MOVED={from:hex,to:best,was:tuneRatio(hex,ground),
+    now:tuneRatio(best,ground),floor:ACCENT_FLOOR};
+  return best}
+function accentMoved(){return ACCENT_MOVED}
 function tuneChoice(key,fallback){const f=tuneField(key);if(!f)return fallback;
   const v=TUNE[key];
   return (f.choices.indexOf(v)>=0)?v:fallback}
@@ -291,7 +346,8 @@ function tuneValues(){const o={};TUNE_SPEC.fields.forEach(function(f){
   return o}
 /* An explicitly chosen colour wins; otherwise whatever skin the player
    has earned and picked (C-1109); otherwise the theme's own accent. */
-const TUNE_ACCENT=tuneText('accent',skinAccent(tuneField('accent').default));
+const TUNE_ACCENT=tuneReadable(
+  tuneText('accent',skinAccent(tuneField('accent').default)),ACCENT_GROUND);
 /* The motion switch lands here (§4, C-1393): the animation preamble has
    already read the OS query into REDUCED, and this raises it when the
    panel's flag is stored. OR, never overwrite - the OS promise stands. */
@@ -355,6 +411,16 @@ function tunePanel(){
   sum.style.cssText='cursor:pointer';box.appendChild(sum);
   const values=tuneValues();
   TUNE_SPEC.fields.forEach(function(f){box.appendChild(tuneControl(f,values[f.key]))});
+  /* Said, not done quietly (C-1717): a control that silently disagrees
+     with the operator is the same defect as one that does nothing. */
+  const moved=accentMoved();
+  if(moved){const note=document.createElement('p');
+    note.setAttribute('data-tune-note','accent');
+    note.style.cssText='margin:4px 0 8px;opacity:0.85';
+    note.textContent='選んだ差し色は背景に対し '+moved.was.toFixed(2)
+      +':1 でした。文字が読めなくなるので '+moved.floor.toFixed(1)
+      +':1 を満たす近い明るさ（'+moved.to+'）で描いています。';
+    box.appendChild(note)}
   const reset=document.createElement('button');reset.type='button';
   reset.textContent='既定に戻す';
   reset.setAttribute('data-tune-reset','1');
@@ -366,7 +432,8 @@ function tuneFacts(){return {template:TUNE_SPEC.template,
   values:tuneValues(),controls:TUNE_CONTROLS.length,reloads:TUNE_RELOADS,
   /* Adjacent siblings' vertical margins collapse, so the gap between two
      rows is the margin itself and not twice it. */
-  rowGap:TUNE_ROW_GAP}}
+  rowGap:TUNE_ROW_GAP,accent:TUNE_ACCENT,accentMoved:accentMoved(),
+  accentFloor:ACCENT_FLOOR,accentGround:ACCENT_GROUND}}
 if(typeof document!=='undefined'&&document.addEventListener&&document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',tunePanel)}else{tunePanel()}
 """
@@ -435,6 +502,16 @@ console.log(JSON.stringify({
   values: tuneProbeBefore.values,
   speedSeen: SPEED_PROBE,
   accentSeen: TUNE_ACCENT,
+  /* The note the panel writes when it disagrees with the operator's
+     colour. Read off the built DOM, not off a flag: a page that set a
+     flag and drew nothing would be telling the judge and not the person
+     (C-1722). */
+  accentNote: (tuneProbeNodes.filter(n => n.attrs
+    && n.attrs['data-tune-note'] === 'accent')
+    .map(n => String(n.textContent || ''))[0]) || null,
+  accentFacts: tuneProbeBefore.accentMoved,
+  accentFloor: tuneProbeBefore.accentFloor,
+  accentGround: tuneProbeBefore.accentGround,
   moved: tuneProbeMoved,
   cleared: tuneProbeCleared,
   reloads: tuneProbeReloads,
