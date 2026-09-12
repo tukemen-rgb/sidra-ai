@@ -70,6 +70,10 @@ CODES = (
     # fallback advice is wrong for it: retrying the same two words produces
     # the same two readings.
     "ambiguous",
+    # C-1530. The third of these: the message asked for something and named
+    # nothing, so the answer lists what can be made. Retrying "surprise me"
+    # asks the same question again, so the fallback advice is wrong here too.
+    "unnamed",
 )
 
 

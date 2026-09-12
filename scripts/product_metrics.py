@@ -20656,6 +20656,104 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 受付が落とさずに聞き返す (C-1530) -------------------------------
+    #
+    # The seventh review put sixteen ways of asking for a game through the
+    # real /v1/chat and found ten of them answered with the Q&A boilerplate -
+    # told, in effect, that the corpus has no evidence about wanting a game.
+    # The decisive pair was 「パズル」 (asked back) against 「パズルっぽいの」
+    # (boilerplate): four characters of difference.
+    #
+    # Driven through the HTTP path rather than the detector, because the
+    # detector already knew the kind for 「パズルっぽいの」 - it was
+    # `service.chat` that searched anyway. Both directions: a build that
+    # asked back at everything would score full marks on the first half, so
+    # the questions below must keep getting answers.
+    from fastapi.testclient import TestClient as _IntakeClient
+
+    from sidra_ai.api.app import create_app as _intake_create_app
+
+    _intake_client = _IntakeClient(_intake_create_app())
+
+    def _intake_ask(text: str) -> dict:
+        response = _intake_client.post("/v1/chat", json={"message": text})
+        return response.json() if response.status_code == 200 else {}
+
+    #: The ten that fell through, as the review typed them. Five name a genre
+    #: under a vagueness wrapper or an abbreviation; five ask for a thing and
+    #: name none.
+    _INTAKE_FELL_THROUGH = (
+        "パズルっぽいの",
+        "レースみたいなの",
+        "釣りのやつ",
+        "puzzle pls",
+        "gimme a racing game",
+        "ひまだからなにか遊べるもの",
+        "暇つぶしになるもの頼む",
+        "something fun to play",
+        "anything for my kid",
+        "surprise me",
+    )
+    #: The six that were already right, kept so a fix cannot pay for itself
+    #: by breaking them.
+    _INTAKE_ALREADY_RIGHT = ("パズル", "レーシング", "しゅーてぃんぐ", "ゲーム")
+    #: Questions about this repository that carry the same words. These are
+    #: the cost side: 「何かエラーが出てる」 and "anything in the logs" are
+    #: the shape a loosened intake swallows, and an early draft of this fix
+    #: did swallow them.
+    _INTAKE_STILL_QUESTIONS = (
+        "何かエラーが出てる",
+        "なにか問題がある",
+        "something is broken",
+        "anything in the logs",
+        "READMEを見せてください",
+        "ゲーム業界の市場規模",
+        "設定ファイルのやつを教えて",
+    )
+
+    def _intake_lands(text: str) -> bool:
+        """Reached a person rather than the no-evidence boilerplate."""
+
+        body = _intake_ask(text)
+        creation = body.get("creation") or {}
+        outcome = creation.get("outcome") or {}
+        if outcome.get("asked_back"):
+            return True
+        return bool(outcome.get("handled"))
+
+    _intake_ok, _intake_missed = [], []
+    for _text in _INTAKE_FELL_THROUGH + _INTAKE_ALREADY_RIGHT:
+        if _intake_lands(_text):
+            _intake_ok.append(_text)
+        else:
+            _intake_missed.append(_text)
+
+    _intake_swallowed = [
+        _text for _text in _INTAKE_STILL_QUESTIONS if _intake_lands(_text)
+    ]
+
+    #: Only the ten count - the four that already worked are the guard, and
+    #: scoring them would let this number rise without the defect moving.
+    _intake_score = sum(1 for _text in _INTAKE_FELL_THROUGH if _text in _intake_ok)
+    c.add(
+        "creation_intake_asks_back",
+        "受付が落とさずに聞き返す",
+        0.0 if _intake_swallowed else float(_intake_score),
+        detail=(
+            "リポジトリへの質問を作る依頼として飲み込んだ: "
+            + "・".join(_intake_swallowed)
+            if _intake_swallowed
+            else f"{_intake_score}/{len(_INTAKE_FELL_THROUGH)} が聞き返しか制作に届く"
+            + (
+                f"（まだ落ちる: {'・'.join(_intake_missed)}）"
+                if _intake_missed
+                else f"・元から正しい {len(_INTAKE_ALREADY_RIGHT)} 件と"
+                f"リポジトリへの質問 {len(_INTAKE_STILL_QUESTIONS)} 件は変わらず"
+            )
+        ),
+        kind=OUTCOME,
+    )
+
     # --- 空行は質問ではない (C-1515) ------------------------------------
     #
     # Measured through the real HTTP path: ``chat("   ")`` answered

@@ -617,6 +617,41 @@ class SidraService:
         # what would actually have been used, not on the raw input.
         intent = detect_creation_intent(query)
         creation_metadata: dict[str, Any] = {"intent": intent.to_dict()}
+        if intent.confidence == "unnamed":
+            # The message asks for a thing and names none - 「ひまだから
+            # なにか遊べるもの」, "surprise me". There is nothing to retrieve
+            # for and nothing to build yet, and the old path did the worse
+            # of the two: it searched, found nothing, and reported that the
+            # corpus has no evidence about wanting something (C-1530).
+            # Naming what can be made turns a dead end into a choice.
+            #
+            # Before the retrieval, for the same reason the ambiguous branch
+            # is: there is no subject to search for.
+            offered = [
+                _KIND_LABELS.get(kind, kind)
+                for kind in self.creation_router.registered_kinds()
+            ]
+            asked_back = (
+                "何をお作りしましょうか。"
+                + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
+            ).strip()
+            guarded_ask = self.output_guard.scan(asked_back)
+            creation_metadata["outcome"] = {
+                "kind": intent.kind.value,
+                "handled": False,
+                "asked_back": True,
+                "offered": offered,
+            }
+            return {
+                "answer": guarded_ask.content,
+                "refused": True,
+                "refusal": "unnamed",
+                "reason": "the message asked for something without naming it",
+                "citations": [],
+                "security": gate_result.to_dict(),
+                "creation": creation_metadata,
+            }
+
         if intent.confidence == "ambiguous":
             # The message is nothing but the name of a thing - 「racing game」,
             # 「パズル」. That is what someone types to be handed one and what

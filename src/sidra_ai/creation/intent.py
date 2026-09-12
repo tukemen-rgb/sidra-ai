@@ -402,7 +402,18 @@ _DESIRE_AFTER_JA = re.compile(fold_kana(r"^[はがをも]{0,2}[\s、]*(?:欲し�
 #: at all. 「ゲームをください」 is its Japanese twin, and `_POLITE_REQUEST` misses
 #: it because that pattern requires a making stem in front of 「ください」.
 _GIVE_AFTER_JA = re.compile(fold_kana(r"^[はがをも]{0,2}[\s、]*(?:ください|下さい)"))
-_GIVE_AFTER_EN = re.compile(r"^\s*[,.!]?\s*please\b")
+#: C-1530: 「pls」/「plz」 are 「please」 - 「puzzle please」 routed and
+#: 「puzzle pls」 fell through to the Q&A boilerplate on the abbreviation
+#: alone.
+_GIVE_AFTER_EN = re.compile(r"^\s*[,.!]?\s*(?:please|pls|plz)\b")
+
+#: C-1530: the plainest give-request there is. 「パズルをください」 routed and
+#: 「give me a racing game」 did not, which is the same sentence in the other
+#: language; 「gimme」 is that sentence spoken.
+_GIVE_BEFORE_EN = re.compile(
+    r"\b(?:gimme|give\s+me)\s+"
+    r"(?:a|an|the|some|another)?\s*(?:[a-z0-9'-]+\s+){0,2}$"
+)
 
 #: "I want", "we need", "I'd like", "I would like" - and deliberately not a
 #: bare "I like", which is an opinion about a thing that already exists ("I
@@ -435,6 +446,8 @@ def _asks_for_artifact(text: str, word: str) -> str | None:
             return "give_request"
         if _DESIRE_BEFORE_EN.search(before):
             return "desire_request"
+        if _GIVE_BEFORE_EN.search(before):
+            return "give_request"
         start = text.find(needle, start + 1)
     return None
 
@@ -450,7 +463,64 @@ _BARE_LEFTOVERS = re.compile(
     # the middle of 「a**the**letics」 and leave a bare noun looking like
     # something more was said.
     + r"|\b(?:a|an|the|some)\b"
+    # C-1530: the vagueness wrapper a genre gets when it is named loosely.
+    # 「パズルっぽいの」 and 「パズル」 are the same message with the same two
+    # readings - the review measured the pair and found the first falling
+    # through to the Q&A boilerplate while the second asked back, on four
+    # characters of difference. These carry no subject of their own, so
+    # subtracting them cannot turn a question into a bare name: 「ゲーム業界の
+    # 市場規模」 still leaves 業界市場規模 and stays a question.
+    + fold_kana(r"|っぽい|みたいな|みたい|ような|やつ")
 )
+
+
+#: C-1530: a request that names no thing at all. 「ひまだからなにか遊べる
+#: もの」 and "surprise me" are asks, but there is no noun in them to route
+#: on, so they reached retrieval and came back with the Q&A boilerplate -
+#: told, in effect, that the corpus has nothing about wanting something.
+#:
+#: The indefinite pronoun alone will not do it. 「何かエラーが出てる」,
+#: "something is broken" and "anything in the logs" are ordinary questions
+#: about this repository and carry the same pronoun; a rule that read the
+#: pronoun as a request answered all three with an offer to build something.
+#: So the pronoun has to sit in a *wanting* context, and each language
+#: shows that differently.
+_UNNAMED_IDIOM = re.compile(r"\bsurprise\s+me\b")
+
+#: Japanese: either the indefinite pronoun heading a bare 「もの」/「やつ」
+#: (「なにか遊べるもの」), or that bare noun beside a wanting verb
+#: (「…もの頼む」). 「READMEを見せてください」 has the verb but names a
+#: subject, so the ください alone never triggers this.
+_UNNAMED_PRONOUN_JA = re.compile(fold_kana(r"なにか|なんか|何か"))
+_UNNAMED_BARE_NOUN = re.compile(fold_kana(r"もの|やつ"))
+_UNNAMED_WANT_VERB = re.compile(fold_kana(r"頼む|ください|下さい|ほしい|欲しい"))
+
+#: English: the pronoun plus something that makes it a want - what it is
+#: for, or that it is for enjoyment - and no finite verb in between, which
+#: is what separates "anything for my kid" from "anything that broke the
+#: build".
+_UNNAMED_WANT_EN = re.compile(
+    r"\b(?:something|anything)\b"
+    r"(?:(?!\b(?:is|are|was|were|has|have|had|does|did|went|looks|seems|"
+    r"broke|failed|happened|changed)\b)[\s\w',-])*?"
+    r"\b(?:fun|to\s+play|for\s+(?:my|our))\b"
+)
+
+
+def _wants_something_unnamed(text: str) -> bool:
+    """Whether the message asks for a thing without saying which thing.
+
+    Only consulted once an artifact has been looked for and not found, so
+    「なにかゲームを作って」 never reaches here - it named one.
+    """
+
+    if _UNNAMED_IDIOM.search(text) or _UNNAMED_WANT_EN.search(text):
+        return True
+    if not _UNNAMED_BARE_NOUN.search(text):
+        return False
+    return bool(
+        _UNNAMED_PRONOUN_JA.search(text) or _UNNAMED_WANT_VERB.search(text)
+    )
 
 
 def _only_names_the_artifact(text: str) -> bool:
@@ -518,6 +588,22 @@ def detect_creation_intent(message: str) -> CreationIntent:
         verb_hits.append(asked_for)
 
     if not verb_hits:
+        if (
+            artifact is None
+            and not question_hits
+            and not _EXPLANATION_QUESTION.search(text)
+            and _wants_something_unnamed(text)
+        ):
+            # Asked for something and named nothing. Reported as a
+            # non-creation intent with no kind - there is none - so the
+            # caller can name what it can build rather than send the
+            # operator to the index for a question they did not ask
+            # (C-1530).
+            return CreationIntent(
+                is_creation=False,
+                confidence="unnamed",
+                evidence=("unnamed_want",),
+            )
         if (
             artifact is not None
             and not question_hits
