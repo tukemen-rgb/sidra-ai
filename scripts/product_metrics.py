@@ -1746,6 +1746,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1713: an ambiguous query (a bare noun like レースゲーム) makes the service
+    # reply refusal="ambiguous" and ask which was meant, build or find (C-1670).
+    # The web UI's refusal map got a tailored message; the CLI's render map never
+    # did, so it fell to the generic "wait and retry" - advice that repeats the
+    # ambiguity. render now names both choices for an ambiguous refusal.
+    from sidra_ai.evals.cli_ambiguous_refusal_asks_which import (
+        evaluate_cli_ambiguous_refusal_asks_which,
+    )
+
+    cli_ambiguous = evaluate_cli_ambiguous_refusal_asks_which()
+    c.add(
+        "cli_ambiguous_refusal_asks_which",
+        "sidra-ask CLI が曖昧な問いに「作るか探すか」の次の一手を示す",
+        10.0 * cli_ambiguous.checks_passed / cli_ambiguous.checks_total,
+        detail=f"{cli_ambiguous.checks_passed}/{cli_ambiguous.checks_total} checks; "
+               "src/sidra_ai/evals/cli_ambiguous_refusal_asks_which.py"
+               + ("" if cli_ambiguous.passed else "; " + "; ".join(cli_ambiguous.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

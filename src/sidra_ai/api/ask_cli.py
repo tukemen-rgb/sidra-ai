@@ -286,6 +286,14 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             "output_guard": "回答を出せなかった。答えの中に秘密や個人情報らしき箇所が"
                             "見つかったので全体を差し止めた。同じ質問なら同じ結果になる。",
             "empty": "質問が空である。調べたいことを入力する。",
+            # An ambiguous query names a thing without asking anything, so the
+            # service asks which was meant (C-1670): the same fallback the web UI
+            # got, missing here until now, sent the reader to "wait and retry" -
+            # which returns the same two readings. Name the two next steps, with
+            # a build example, the way the web UI's refusal map does (C-1713).
+            "ambiguous": "作るのか探すのかを決められなかった。作る場合は"
+                         "「レースゲームを作って」のように頼み、探す場合は"
+                         "知りたいことを文にして送る。",
         }
         message = messages.get(payload.get("refusal"))
         if message is None:
