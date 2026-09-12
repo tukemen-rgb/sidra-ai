@@ -1766,6 +1766,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1715: C-1705 named the /v1/artifacts/<name> fetch route for the primary
+    # artifact only. A multi-file creation's companions (a 3D model's .obj/.mtl,
+    # a deck's .pptx) are sibling flat artifacts at the same route, and the
+    # summary tells the reader to open the .obj, but the CLI printed only their
+    # server-side paths - unreachable over --url. render now names their routes too.
+    from sidra_ai.evals.cli_names_companion_fetch_routes import (
+        evaluate_cli_names_companion_fetch_routes,
+    )
+
+    cli_companion = evaluate_cli_names_companion_fetch_routes()
+    c.add(
+        "cli_names_companion_fetch_routes",
+        "sidra-ask CLI が生成物の同梱ファイル（.obj/.mtl/.pptx）の取得経路も示す",
+        10.0 * cli_companion.checks_passed / cli_companion.checks_total,
+        detail=f"{cli_companion.checks_passed}/{cli_companion.checks_total} checks; "
+               "src/sidra_ai/evals/cli_names_companion_fetch_routes.py"
+               + ("" if cli_companion.passed else "; " + "; ".join(cli_companion.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

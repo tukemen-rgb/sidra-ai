@@ -353,6 +353,16 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             value = details[key]
             if value and str(value) != str(artifact):
                 print(f"  {clean(str(value))}")
+                # A companion is a sibling flat artifact (a 3D model's .obj/.mtl,
+                # a deck's .pptx) at the same /v1/artifacts/<name> route as the
+                # primary. C-1705 named the route for the primary only, so a --url
+                # reader was told 「.obj は … で開けます」 and handed only its
+                # server-side path - the same asymmetry, on the file that matters
+                # most. Name each companion's route too, on the same flat-artifact
+                # test that guards the primary (C-1715).
+                companion = PurePosixPath(str(value))
+                if base_url and companion.parent.name == "artifacts" and companion.name:
+                    print(f"    取得: GET {clean(base_url)}/v1/artifacts/{clean(companion.name)}")
     _print_citations(payload, clean, note_when_empty=not outcome)
 
     model = payload.get("model") or {}
