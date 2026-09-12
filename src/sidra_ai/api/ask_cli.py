@@ -540,7 +540,14 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
         )
         return 1
     if response.status_code == 429:
-        print("レート制限に当たった。少し待って再試行する。（HTTP 429）", file=sys.stderr)
+        # The server sends the exact seconds until retry in Retry-After (C-1718).
+        # Name them, so the reader knows a 2s wait from a 60s one and a script has
+        # something to sleep on. HTTP allows an HTTP-date there too, but this
+        # server always sends an integer count; anything else falls back to the
+        # vague wording rather than printing a date as if it were seconds.
+        retry_after = (response.headers.get("Retry-After") or "").strip()
+        wait = f"{retry_after} 秒待って" if retry_after.isdigit() else "少し待って"
+        print(f"レート制限に当たった。{wait}再試行する。（HTTP 429）", file=sys.stderr)
         return 1
     if response.status_code >= 500:
         print(

@@ -1786,6 +1786,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1718: on a 429 the server sends Retry-After with the exact seconds until
+    # retry, but sidra-ask printed a flat "少し待って再試行する" - discarding the
+    # number, so a reader could not tell a 2s wait from a 60s one and a script had
+    # nothing to sleep on. render now names the seconds when the header carries them.
+    from sidra_ai.evals.cli_429_names_retry_after import (
+        evaluate_cli_429_names_retry_after,
+    )
+
+    cli_retry = evaluate_cli_429_names_retry_after()
+    c.add(
+        "cli_429_names_retry_after",
+        "sidra-ask CLI が 429 の Retry-After 秒数を伝える",
+        10.0 * cli_retry.checks_passed / cli_retry.checks_total,
+        detail=f"{cli_retry.checks_passed}/{cli_retry.checks_total} checks; "
+               "src/sidra_ai/evals/cli_429_names_retry_after.py"
+               + ("" if cli_retry.passed else "; " + "; ".join(cli_retry.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
