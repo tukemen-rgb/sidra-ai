@@ -5657,6 +5657,7 @@ def measure_creation(c: Collector) -> None:
 
     scene_gaps: list[str] = []
     scene_floors: dict[str, list[str]] = {}
+    scene_lums: dict[str, list[float]] = {}
     scene_ok: list[str] = []
     #: label -> (hudFacts, scenes) for the templates whose probe reports a
     #: HUD contract (the three whose HUD sits on the full-frame sky).
@@ -5774,6 +5775,10 @@ def measure_creation(c: Collector) -> None:
         # the scene probes already paint them, so naming the place by hue
         # costs no extra node run.
         scene_floors[label] = [s["floor"] for s in scenes]
+        # ...and their luminance, for the margin judge below (§7 観察 6,
+        # C-1703): "brightest last" is an order, and the observation is
+        # about a distance.
+        scene_lums[label] = [s["lum"] for s in scenes]
         if isinstance(seen.get("hud"), dict):
             scene_hud[label] = (seen["hud"], scenes)
         if isinstance(seen.get("depth"), list):
@@ -5913,6 +5918,84 @@ def measure_creation(c: Collector) -> None:
             "**効果音はそのまま鳴る**——BGM を消しても、何が起きたかを知らせる音は残る。"
             "親の「音量」は両方を半分にし続ける（§30 事実 3。"
             "既存の `creation_volume_axis` の「1 本が同じ比で動かす」は不変）"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the climax keeps a margin (§7 観察 6, C-1703) -------------------
+    #
+    # The observation's verb is 取っておく - brightness is a resource held
+    # back for the climax, which is why the opening and the talk scenes
+    # are kept deliberately dark. creation_scene_palettes holds the
+    # order (the brightest act is last) and C-1690 added that the scenes
+    # differ in hue. Neither asks by how much: shrink the budget to 0.001
+    # and "brightest last" is still true while the peak stops being a
+    # peak.
+    #
+    # Read as a WCAG ratio, which is the quantity §4 already uses for
+    # "these two values are far enough apart", off the same scene runs.
+    _CLIMAX_MARGIN = 1.08  # measured minimum 1.121 (paper theme)
+    _cl_gaps: list[str] = []
+    _cl_worst: tuple[float, str] | None = None
+
+    def _cl_ratio(bright: float, dim: float) -> float:
+        hi, lo = max(bright, dim), min(bright, dim)
+        return (hi + 0.05) / (lo + 0.05)
+
+    if not scene_lums:
+        _cl_gaps.append("no scene luminance was painted")
+    for _cl_label, _lums in sorted(scene_lums.items()):
+        if len(_lums) < 3:
+            _cl_gaps.append(f"{_cl_label}: {len(_lums)} scene(s) to compare")
+            continue
+        _peak = _lums[-1]
+        _rest = _lums[:-1]
+        if _peak < max(_rest):
+            _cl_gaps.append(f"{_cl_label}: the last act is not the brightest")
+            continue
+        # (a) the climax stands apart from the brightest quiet scene
+        _gap = _cl_ratio(_peak, max(_rest))
+        if _gap < _CLIMAX_MARGIN:
+            _cl_gaps.append(
+                f"{_cl_label}: the climax is only {_gap:.3f}x the scene before it "
+                "- nothing was held back"
+            )
+            continue
+        # A second direction was tried and the product disproved it: "the
+        # climax's step is the largest step in the run" fails on the paper
+        # theme (adventure 1.321x between two quiet scenes against the
+        # climax's 1.191x) and on kaiju's default, because scene.py spends
+        # the budget mirrored on a light theme and adventure's middle act
+        # is deliberately the darkest - §7 観察 8's long quiet valley. The
+        # measured design is "the peak stands above every other scene",
+        # not "the last step is the biggest", so that is what is held.
+        if _cl_worst is None or _gap < _cl_worst[0]:
+            _cl_worst = (_gap, _cl_label)
+
+    c.add(
+        "creation_climax_keeps_a_margin",
+        "山場のために明るさを取っておく",
+        0.0
+        if _cl_gaps
+        else float(len({label.split("/")[0] for label in scene_lums})),
+        detail=(
+            "; ".join(_cl_gaps)
+            if _cl_gaps
+            else f"10 型 × 4 テーマ = {len(scene_lums)} セルで実塗りの床の輝度を採り、"
+            f"山場と 2 番目の差を WCAG 比で測った: どのセルも {_CLIMAX_MARGIN:.2f} 以上"
+            + (
+                f"（最小は {_cl_worst[1]} の {_cl_worst[0]:.3f}）"
+                if _cl_worst
+                else ""
+            )
+            + "。§7 観察 6 の動詞は「取っておく」で、"
+            "**順序（最後が最も明るい）は距離を語らない**——"
+            "予算を 0.001 に縮めても順序は保たれる。"
+            "**「山場の段差が最大の段差」という第 2 方向は実測が否定した**: "
+            "紙テーマの adventure は静かな 2 場面が 1.321 離れ、山場の 1.191 より大きい"
+            "——明るいテーマでは予算が鏡像に使われ、"
+            "adventure の中幕は意図的に最も暗い（§7 観察 8 の長い谷）。"
+            "**設計は「山場が他のどれより上」であって「最後の段差が最大」ではない**"
         ),
         kind=OUTCOME,
     )
