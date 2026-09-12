@@ -21192,6 +21192,74 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- push 前の門が追跡ファイルを全部見る (C-1723) ---------------------
+    #
+    # `scripts/check_before_push.sh` scanned four directories and called it
+    # "the tree". Measured 2026-09-12: 1976 files are tracked and 920 of them
+    # are under docs/src/tests/scripts, so a conflict marker in
+    # `.env.example` - the file operators copy into their own `.env` - got
+    # "OK to push".
+    #
+    # Run, not read: the script itself is executed three times, because the
+    # failure being fixed is precisely a check that looked like it read the
+    # tree and did not. The probes are *untracked* files, so an interrupted
+    # run cannot leave a marker inside a tracked one; the finally clause
+    # removes them either way.
+    import subprocess as _gate_sp
+    import pathlib as _gate_pl
+
+    _gate_root = _gate_pl.Path(__file__).resolve().parent.parent
+    _gate_script = _gate_root / "scripts" / "check_before_push.sh"
+    _gate_marker = "<<<<<<< HEAD\nprobe\n>>>>>>> other\n"
+    #: Outside the four directories the old scan named, and inside them.
+    _gate_outside = _gate_root / ".github" / ".c1723_probe"
+    _gate_inside = _gate_root / "docs" / ".c1723_probe"
+
+    def _gate_run() -> int:
+        return _gate_sp.run(
+            ["bash", str(_gate_script)], capture_output=True, text=True, timeout=120
+        ).returncode
+
+    _gate_clean = _gate_refused_outside = _gate_refused_inside = None
+    try:
+        _gate_clean = _gate_run()
+        _gate_outside.parent.mkdir(parents=True, exist_ok=True)
+        _gate_outside.write_text(_gate_marker, encoding="utf-8")
+        _gate_refused_outside = _gate_run()
+        _gate_outside.unlink()
+        _gate_inside.write_text(_gate_marker, encoding="utf-8")
+        _gate_refused_inside = _gate_run()
+    finally:
+        for _probe in (_gate_outside, _gate_inside):
+            try:
+                _probe.unlink()
+            except FileNotFoundError:
+                pass
+
+    #: Both directions. Refusing everything would score the first half alone,
+    #: so the clean run has to pass - and the inside-the-four-directories
+    #: behaviour has to be the one it always had.
+    _gate_notes = []
+    if _gate_clean != 0:
+        _gate_notes.append(f"clean な木で門が通らない（rc={_gate_clean}）")
+    if _gate_refused_outside == 0:
+        _gate_notes.append("4 つの外のマーカーを見逃す")
+    if _gate_refused_inside == 0:
+        _gate_notes.append("4 つの中のマーカーを見逃す（既存の振る舞いが壊れた）")
+    _gate_score = 0.0 if _gate_notes else 2.0
+    c.add(
+        "gate_reads_every_tracked_file",
+        "push 前の門が追跡ファイルを全部見る",
+        _gate_score,
+        detail=(
+            "; ".join(_gate_notes)
+            if _gate_notes
+            else "門を 3 回実走行: clean は通り、`.github/` に置いたマーカーで拒否し、"
+            "`docs/` に置いたマーカーでも従来どおり拒否する"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- 受付が落とさずに聞き返す (C-1530) -------------------------------
     #
     # The seventh review put sixteen ways of asking for a game through the
