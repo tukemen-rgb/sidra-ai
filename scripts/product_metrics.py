@@ -5757,15 +5757,18 @@ def measure_creation(c: Collector) -> None:
     # even made that a contract ("one dial moves both, in the same
     # ratio"), so the parent stays exactly that and the new dial is a
     # factor under it.
+    import re as _mv_re
+    import subprocess as _mv_sp
+
     from sidra_ai.creation.audio import VOLUME_PROBE as _MV_PROBE
 
     _mv_gaps: list[str] = []
     _mv_page = generate_game("ビームで撃ち合うゲームを作って").html
-    _mv_script = _re.search(r"<script>(.*?)</script>", _mv_page, _re.S)
+    _mv_script = _mv_re.search(r"<script>(.*?)</script>", _mv_page, _mv_re.S)
 
     def _mv_read(stored: dict) -> dict | None:
         try:
-            run = _sp.run(
+            run = _mv_sp.run(
                 ["node", "-"],
                 input=_MV_PROBE.replace("SCRIPT_PLACEHOLDER", _mv_script.group(1)).replace(
                     "STORED_INPUT", json.dumps(stored)
@@ -5777,7 +5780,7 @@ def measure_creation(c: Collector) -> None:
             if run.returncode != 0:
                 raise ValueError(run.stderr.strip()[:80])
             return json.loads(run.stdout.strip().splitlines()[-1])
-        except (OSError, _sp.SubprocessError, ValueError) as exc:
+        except (OSError, _mv_sp.SubprocessError, ValueError) as exc:
             _mv_gaps.append(f"probe unavailable ({exc})")
             return None
 
