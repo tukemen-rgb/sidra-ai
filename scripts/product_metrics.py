@@ -17117,6 +17117,72 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- one thumb is enough (§8 事実 5, C-1698) -------------------------
+    #
+    # Voodoo's shipping question - can it be played one-handed on a
+    # crowded train - and on a phone the pad is a rectangle inside the
+    # canvas, so "two inputs at once" means two thumbs. C-1691 measured
+    # it and found exactly one template that fails: platformer's jump
+    # carries no horizontal motion, so a gap needs a direction held WHILE
+    # jumping. The fix moves §3's soft-lock geometry (C-1367), so the
+    # decision is in the board's E section and this contract names it
+    # instead of pretending it away - the other nine had no contract at
+    # all, which left them free to drift the same way unnoticed.
+    import re as _th_re
+    import subprocess as _th_sp
+
+    from sidra_ai.creation.games import THUMB_VERBS as _TH_VERBS
+    from sidra_ai.creation.games import thumb_probe as _th_probe
+
+    _th_gaps: list[str] = []
+    _th_ok: list[str] = []
+    for _th_key in sorted(_TH_VERBS):
+        _th_req, _th_verb = _TH_VERBS[_th_key]
+        _th_html = generate_game(_th_req).html
+        _th_script = _th_re.search(r"<script>(.*?)</script>", _th_html, _th_re.S)
+        if _th_script is None:
+            _th_gaps.append(f"{_th_key}: no script on the page")
+            continue
+        try:
+            _th_run = _th_sp.run(
+                ["node", "-"],
+                input=_th_probe(_th_script.group(1), verb=_th_verb),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if _th_run.returncode != 0:
+                raise ValueError(_th_run.stderr.strip()[:80])
+            _th = json.loads(_th_run.stdout.strip().splitlines()[-1])
+        except (OSError, _th_sp.SubprocessError, ValueError) as exc:
+            _th_gaps.append(f"{_th_key}: probe unavailable ({exc})")
+            continue
+        if not _th.get("verb"):
+            _th_gaps.append(
+                f"{_th_key}: one thumb never landed the game's own verb "
+                f"({_th.get('note')})"
+            )
+        else:
+            _th_ok.append(f"{_th_key}={_th.get('note')}")
+
+    c.add(
+        "creation_one_thumb_play",
+        "片手で中心の動詞が成立する型",
+        0.0 if _th_gaps else float(len(_th_ok)),
+        detail=(
+            "; ".join(_th_gaps)
+            if _th_gaps
+            else "同時に 2 つ以上の入力を決して出さない運転器（押す前に必ず前のキーを離す）で"
+            "実走行し、各型の中心の動詞が landing することを見た: "
+            + "／".join(_th_ok)
+            + "。**platformer はこの 9 型に入っていない**——跳躍が水平の勢いを持たないため"
+            "隙間を越えるには方向を押しながら跳ぶ必要があり、片手では 21.6px 進んで落ちる"
+            "（C-1691 で実測・修正は §3 の soft lock の幾何を動かすため差し戻し、"
+            "**判断は板の E 節で待機中**）。判断が付けばこの数字は 10 へ動く"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the tap and the sink have to balance (§5, C-1696) ---------------
     #
     # §5's fact is an economy one and its word is 釣り合い: taps and sinks

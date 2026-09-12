@@ -157,4 +157,40 @@ function earInSpan(name, width, toNorm){
     inside: ear.at >= lo - pad && ear.at <= hi + pad, litNothing: false } }
 """
 
-__all__ = ["PROBE_SEND", "PROBE_SHAKE", "PROBE_EARS", "PROBE_EYES"]
+#: One thumb, never two (§8 事実 5, C-1698).
+#:
+#: Voodoo's shipping question is whether the game works one-handed on a
+#: crowded train, and on a phone the pad is a rectangle drawn inside the
+#: canvas - so "two inputs at once" means two thumbs. This driver makes
+#: that impossible by construction: every press releases whatever was
+#: held first, so at no instant is more than one key down. A template
+#: that needs a direction held *while* an action fires cannot make
+#: progress under it, which is the whole point.
+PROBE_THUMB = """
+let thumbDown = null;
+function thumbEvent(type, k){
+  const e = probeKey(k);
+  e.target = { tagName: 'CANVAS' };
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+/* Hold one key - letting go of any other first, so the hand only ever
+   has one finger on the pad. */
+function hold(k, frames){
+  if (thumbDown !== null && thumbDown !== k) { thumbEvent('keyup', thumbDown); thumbDown = null }
+  if (thumbDown !== k) { thumbEvent('keydown', k); thumbDown = k }
+  run(frames);
+}
+function release(){
+  if (thumbDown !== null) { thumbEvent('keyup', thumbDown); thumbDown = null } }
+/* Press, then let go, then let the world move on its own. */
+function tap(k, frames){ hold(k, frames); release(); run(1) }
+function thumbHeld(){ return thumbDown }
+"""
+
+__all__ = [
+    "PROBE_SEND",
+    "PROBE_SHAKE",
+    "PROBE_EARS",
+    "PROBE_EYES",
+    "PROBE_THUMB",
+]

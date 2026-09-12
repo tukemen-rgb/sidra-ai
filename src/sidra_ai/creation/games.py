@@ -708,6 +708,126 @@ def carried_probe(script: str, *, storage: str = "keeps", frames: int = 600) -> 
     )
 
 
+#: Each template's own verb, reached with one thumb (§8 事実 5, C-1698).
+#:
+#: The driver is ``probekit.PROBE_THUMB``: it cannot hold two keys at
+#: once, so a template that needs a direction held *while* an action
+#: fires makes no progress under it. Platformer is that template
+#: (C-1691, measured: 21.6px and into the gap) and the fix moves §3's
+#: soft-lock geometry, so the decision sits in the board's E section and
+#: this contract names it rather than pretending it away.
+THUMB_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {},
+  addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }), addEventListener: () => {} };
+const kept = {};
+globalThis.localStorage = { getItem: (k) => (k in kept ? kept[k] : null),
+  setItem(k, v){ kept[k] = String(v) }, removeItem(k){ delete kept[k] } };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+PROBE_THUMB_PLACEHOLDER
+tap(' ', 2);
+VERB_PLACEHOLDER
+"""
+
+#: What counts as the verb landing, per template - the thing the game is
+#: for, read off the page's own state rather than a proxy.
+THUMB_VERBS: dict[str, tuple[str, str]] = {
+    "adventure": (
+        "迷宮を冒険するゲームを作って",
+        "for (let i = 0; i < 40; i++) { tap('ArrowRight', 6); tap(' ', 4) }\n"
+        "console.log(JSON.stringify({ verb: hero.gems > 0, note: 'gems ' + hero.gems }));",
+    ),
+    "shooter": (
+        "シューティングゲームを作って",
+        "for (let i = 0; i < 60; i++) { tap('ArrowRight', 4); tap(' ', 4) }\n"
+        "console.log(JSON.stringify({ verb: kills > 0, note: 'kills ' + kills }));",
+    ),
+    "kaiju": (
+        "巨大怪獣と戦うゲームを作って",
+        "run(200);\n"
+        "for (let i = 0; i < 400; i++) {\n"
+        "  const gap = legX() - me.x;\n"
+        "  if (gap > 4) tap('ArrowRight', 4); else if (gap < -4) tap('ArrowLeft', 4);\n"
+        "  else { tap(' ', 2); run(12) } }\n"
+        "console.log(JSON.stringify({ verb: bossFacts().legHp < 3,\n"
+        "  note: 'legHp ' + bossFacts().legHp + ' ' + state }));",
+    ),
+    "marble": (
+        "玉転がしゲームを作って",
+        "for (let i = 0; i < 400; i++) { tap('ArrowRight', 4); tap('ArrowLeft', 4) }\n"
+        "console.log(JSON.stringify({ verb: score > 0, note: 'score ' + score }));",
+    ),
+    # Racing drives itself forward, so "reached the goal" lands with no
+    # input at all and cannot tell one thumb from none - the finish is
+    # not the player's verb here, steering is. The car must answer a held
+    # direction, moving away from where the road would have carried it,
+    # three times running.
+    "racing": (
+        "レースゲームを作って",
+        "run(30);\n"
+        "const drift = [];\n"
+        "for (let i = 0; i < 3; i++) {\n"
+        "  const off0 = car.x - roadAt(dist);\n"
+        "  tap('ArrowRight', 20);\n"
+        "  drift.push(car.x - roadAt(dist) - off0); }\n"
+        "let steered = 0; drift.forEach(d => { if (d > 1) steered++ });\n"
+        "console.log(JSON.stringify({ verb: steered === drift.length,\n"
+        "  note: 'steered ' + steered + '/' + drift.length }));",
+    ),
+    "puzzle": (
+        "パズルゲームを作って",
+        "for (let i = 0; i < 200; i++) { tap('ArrowRight', 3); tap('ArrowDown', 3); tap(' ', 3) }\n"
+        "console.log(JSON.stringify({ verb: score > 0, note: 'score ' + score }));",
+    ),
+    "fishing": (
+        "釣りゲームを作って",
+        "for (let i = 0; i < 300; i++) { tap(' ', 4); run(6) }\n"
+        "console.log(JSON.stringify({ verb: score > 0, note: 'score ' + score }));",
+    ),
+    "catch": (
+        "落ちものをキャッチするゲームを作って",
+        "for (let i = 0; i < 400; i++) { tap('ArrowRight', 4); tap('ArrowLeft', 4) }\n"
+        "console.log(JSON.stringify({ verb: score > 0, note: 'score ' + score }));",
+    ),
+    "duel": (
+        "ビームで撃ち合うゲームを作って",
+        "const foe0 = e.hp;\n"
+        "for (let i = 0; i < 200 && state === 'play'; i++) { tap(' ', 20); tap('ArrowUp', 4) }\n"
+        "/* Losing also ends the match, so the verb is the hit the player\n"
+        "   landed - not merely that the round is over. */\n"
+        "console.log(JSON.stringify({ verb: e.hp < foe0,\n"
+        "  note: 'foe ' + e.hp + '/' + foe0 + ' ' + state }));",
+    ),
+}
+
+
+def thumb_probe(script: str, *, verb: str) -> str:
+    """The page's own script, wrapped in a hand with one finger."""
+
+    from sidra_ai.creation import probekeys, probekit
+
+    return probekeys.with_probe_keys(
+        THUMB_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("PROBE_THUMB_PLACEHOLDER", probekit.PROBE_THUMB)
+        .replace("VERB_PLACEHOLDER", verb)
+    )
+
+
 def scrollguard_probe(script: str) -> str:
     """The page's own script, wrapped so the guard's decision can be read."""
 
