@@ -121,7 +121,13 @@ def test_the_record_run_leaves_a_trail(runs: dict) -> None:
 
     assert first["ghost"]["saved"] == 1
     assert first["ghost"]["samples"] > 0
-    assert len(json.loads(first["trail"])) == first["ghost"]["stored"]
+    # The stored value carries the world it was driven in beside the trail
+    # (C-1732), so the positions live under "t". The key's shape did not
+    # change - the tag rides in the value - and neither did what this line
+    # is asking: as many stored positions as the page says it stored.
+    stored = json.loads(first["trail"])
+    assert stored["w"] == first["ghost"]["world"]
+    assert len(stored["t"]) == first["ghost"]["stored"]
 
 
 # ------------------------------------------------- what the page cannot say

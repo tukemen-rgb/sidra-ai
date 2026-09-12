@@ -79,11 +79,22 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "ghostForget",
     "ghostFacts",
     "ghostRunHash",
+    "ghostWrap",
 )
 
 GHOST_PREAMBLE = """
 /* --- the best run, played back beside this one (§11 事実 1) ----------- */
 const GHOST_KEY='sidra.ghost.'+GHOST_NAME_TOKEN,GHOST_STEP=GHOST_STEP_TOKEN;
+/* Which world this trail belongs to (C-1732). The key is the template's
+   name, and one template makes many games: the layout comes from the
+   request's own seed (C-1107 decided that "the same request is the same
+   world") and the length from the difficulty. So a trail banked on one
+   course was being replayed on another - "where you were here last time"
+   about a here the player has never driven. The tag is the smallest thing
+   that can tell those apart, and it travels WITH the trail rather than in
+   the key, so the storage contract in together.py (prefix + template) is
+   untouched. */
+const GHOST_WORLD=WORLD_TOKEN;
 /* The second ghost (§11 事実 1, C-1333): the Bath result is about racing
    a GROUP, and a group of one is not one. The best run is the far wall;
    the LAST run is today's self, and only a lap that beats both is the
@@ -100,7 +111,15 @@ function ghostOn(){try{return tuneFlag('ghost',true)}catch(e){return true}}
 function ghostRead(key){const s=ghostStore();if(!s)return null;
   try{const raw=s.getItem(key);if(!raw)return null;
     const v=JSON.parse(raw);
-    return (v&&Object.prototype.toString.call(v)==='[object Array]'&&v.length)?v:null}
+    /* A trail from another world is not this course's memory, and a bare
+       array is a trail from before anybody wrote the world down - which
+       is the same thing: a run whose course cannot be named. Both are
+       forgotten rather than drawn, because a ghost drawn in the wrong
+       place is worse than no ghost (C-1732). */
+    if(!v||Object.prototype.toString.call(v)!=='[object Object]')return null;
+    if(v.w!==GHOST_WORLD)return null;
+    const t=v.t;
+    return (t&&Object.prototype.toString.call(t)==='[object Array]'&&t.length)?t:null}
   catch(e){return null}}
 GHOST_TRAIL=ghostRead(GHOST_KEY);GHOST_PREV=ghostRead(GHOST_LAST_KEY);
 /* Indexed by where you are on the course, not by how long you have been
@@ -134,6 +153,9 @@ function ghostAtLast(progress){
    than the player leaves its own positions in the tail of the trail that
    gets banked as theirs. */
 function ghostForget(){GHOST_RUN=[];GHOST_DRAWN=0;GHOST_PREV_DRAWN=0;GHOST_LAST=null}
+/* Stamped with the world it was driven in, so a later page can tell
+   whether this trail is about its own course (C-1732). */
+function ghostWrap(trail){return JSON.stringify({w:GHOST_WORLD,t:trail})}
 /* Banked with the score it belongs to, through roundBank, so the trail and
    the number can never describe different runs. */
 function ghostBank(record){
@@ -145,9 +167,9 @@ function ghostBank(record){
   /* Every played, finished run becomes tomorrow's second ghost; only a
      record may touch the best trail - a defeat that overwrote it would
      replace the wall with the stumble (C-1333). */
-  try{if(s){s.setItem(GHOST_LAST_KEY,JSON.stringify(trail))}}catch(e){}
+  try{if(s){s.setItem(GHOST_LAST_KEY,ghostWrap(trail))}}catch(e){}
   if(!record)return false;
-  try{if(s){s.setItem(GHOST_KEY,JSON.stringify(trail));GHOST_SAVED++}}catch(e){}
+  try{if(s){s.setItem(GHOST_KEY,ghostWrap(trail));GHOST_SAVED++}}catch(e){}
   return true}
 /* This run's own path, as one number. "The ghost touches nothing" is a
    claim about the car, so the judge compares the car - a lap count is too
@@ -158,7 +180,7 @@ function ghostRunHash(){let h=2166136261;
     const s=String(i)+':'+String(GHOST_RUN[i]);
     for(let j=0;j<s.length;j++){h^=s.charCodeAt(j);h=Math.imul(h,16777619)>>>0}}
   return h}
-function ghostFacts(){return {on:ghostOn(),had:GHOST_TRAIL!==null,
+function ghostFacts(){return {on:ghostOn(),had:GHOST_TRAIL!==null,world:GHOST_WORLD,
   drawn:GHOST_DRAWN,saved:GHOST_SAVED,
   lastHad:GHOST_PREV!==null,lastDrawn:GHOST_PREV_DRAWN,
   last:GHOST_LAST?GHOST_LAST.slice():null,

@@ -1990,6 +1990,19 @@ def generate_game(
         # The layout seed: same request, same world. Templates without the
         # token are byte-for-byte unaffected by the replace.
         .replace("SEED_TOKEN", f"seedNow({zlib.crc32(request.encode('utf-8'))})")
+        # Which world this page is (C-1732). The page's memories are keyed by
+        # the template's name, and one template makes many games: the layout
+        # comes from the seed above and the length of a lap from the
+        # difficulty. A trail, a best or a history row that crossed between
+        # two of those would be describing a course the player never drove.
+        # Built from exactly the two things that decide the course, next to
+        # the seed itself so the two cannot drift apart.
+        .replace(
+            "WORLD_TOKEN",
+            json.dumps(
+                f"{key}-{zlib.crc32(request.encode('utf-8')):08x}-{difficulty}"
+            ),
+        )
         # The title screen prints the same words the page prints, so a
         # template whose instructions change cannot leave a stale copy
         # of them on the screen nobody can get past without reading.

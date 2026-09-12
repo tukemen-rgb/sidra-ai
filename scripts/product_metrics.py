@@ -16820,6 +16820,153 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a memory belongs to the world it was made in -------------------
+    #
+    # C-1732, §8 x §11. Every one of this page's twelve memories is keyed by
+    # the TEMPLATE's name (together.py's registry says so, and that part is
+    # right - the keys have to be separable). But one template makes many
+    # games: C-1107 decided that the same request is the same world and made
+    # the layout from the request's own seed, and the difficulty decides how
+    # long a lap is. So two racing games a person asked for on different days
+    # shared one trail, and the second one drew the first one's positions as
+    # "where you were here last time" - about a course it had never driven.
+    #
+    # Measured before it was fixed, with two real pages and one store handed
+    # from the first to the second: A = 「レースのゲームを作って」 (easy,
+    # LAPS=2), B = 「宇宙のレースゲームを作って」 (hard, LAPS=4). After A,
+    # B's ghostAt(0) returned 562 - A's x on A's course.
+    #
+    # Both directions, and the second is not optional: a page that refuses
+    # every trail passes the first on its own, and that implementation is
+    # "delete the ghost".
+    world_gaps: list[str] = []
+    world_ok: list[str] = []
+
+    def _world_run(template, script, stored, frames):
+        source = _board_probe(
+            script,
+            speed_expr=_board_binding[template],
+            frames=frames,
+            stored=stored,
+        ).replace(
+            "  writes: [...new Set(allWrites)].sort(),",
+            "  writes: [...new Set(allWrites)].sort(), ghost: ghostFacts(),"
+            f" trail: allStored['sidra.ghost.{template}']||null,",
+        )
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"], input=source, capture_output=True, text=True, timeout=300
+            )
+            if probe.returncode != 0:
+                return None, f"{template}: {probe.stderr.strip()[:60]}"
+            return json.loads(probe.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{template}: probe unavailable ({type(exc).__name__})"
+
+    for key in _ghost_templates:
+        # Two different games from one template: a different request (so a
+        # different seed, so a different course) and a different difficulty
+        # (so, in racing, a different number of laps).
+        here = _tune_generate("レースゲームを作って", template=key).html
+        there = _tune_generate(
+            "宇宙のレースゲームを作って", template=key, difficulty="hard"
+        ).html
+        # ...and the SAME request at another difficulty, which the first
+        # destruction battery had to teach this check: with the difficulty
+        # dropped from the tag, the pair above still passed - they differ in
+        # their request too, so the seed alone kept them apart while easy and
+        # hard went back to sharing one trail. The trail is banked only on a
+        # record, and a record set on easy is not a record for hard.
+        harder = _tune_generate(
+            "レースゲームを作って", template=key, difficulty="hard"
+        ).html
+        _hs = _scene_re.search(r"<script>(.*?)</script>", here, _scene_re.S)
+        _ts = _scene_re.search(r"<script>(.*?)</script>", there, _scene_re.S)
+        _xs = _scene_re.search(r"<script>(.*?)</script>", harder, _scene_re.S)
+        if _hs is None or _ts is None or _xs is None:
+            world_gaps.append(f"{key}: no script")
+            continue
+        _hw = _scene_re.search(r"GHOST_WORLD=(\"[^\"]*\")", _hs.group(1))
+        _tw = _scene_re.search(r"GHOST_WORLD=(\"[^\"]*\")", _ts.group(1))
+        _xw = _scene_re.search(r"GHOST_WORLD=(\"[^\"]*\")", _xs.group(1))
+        if _hw is None or _tw is None or _xw is None:
+            world_gaps.append(f"{key}: the page does not say which world it is")
+            continue
+        # Without this the whole check is vacuous: two pages that call
+        # themselves the same world cannot tell us anything about refusing.
+        if _hw.group(1) == _tw.group(1) or _hw.group(1) == _xw.group(1):
+            world_gaps.append(f"{key}: 2 つの別のゲームが同じ世界を名乗る {_hw.group(1)}")
+            continue
+        base = {f"sidra.seen.{key}": "1"}
+        drove, problem = _world_run(key, _hs.group(1), dict(base), 3800)
+        if problem:
+            world_gaps.append(problem)
+            continue
+        if not drove["trail"] or drove["ghost"]["saved"] < 1:
+            world_gaps.append(f"{key}: the run that set the record saved no trail")
+            continue
+        # The trail carries its world with it, in the value - the key is
+        # still prefix + template, which together.py's registry requires.
+        if _hw.group(1).strip('"') not in drove["trail"]:
+            world_gaps.append(f"{key}: 保存された軌跡が世界を名乗っていない")
+            continue
+        carried = {**base, f"sidra.ghost.{key}": drove["trail"]}
+        # (a) the other game does not inherit it...
+        away, problem = _world_run(key, _ts.group(1), dict(carried), 900)
+        if problem:
+            world_gaps.append(problem)
+            continue
+        if away["ghost"]["had"] or away["ghost"]["drawn"]:
+            world_gaps.append(
+                f"{key}: 別のコースの軌跡を読んだ（drawn={away['ghost']['drawn']}）"
+            )
+            continue
+        # ...nor does the same request at another difficulty.
+        harder_run, problem = _world_run(key, _xs.group(1), dict(carried), 900)
+        if problem:
+            world_gaps.append(problem)
+            continue
+        if harder_run["ghost"]["had"] or harder_run["ghost"]["drawn"]:
+            world_gaps.append(
+                f"{key}: 難度違いの走りを読んだ（drawn={harder_run['ghost']['drawn']}）"
+            )
+            continue
+        # (b) ...and the game it was driven in still does.
+        again, problem = _world_run(key, _hs.group(1), dict(carried), 900)
+        if problem:
+            world_gaps.append(problem)
+            continue
+        if not again["ghost"]["had"] or again["ghost"]["drawn"] < 1:
+            world_gaps.append(f"{key}: 自分の世界の軌跡まで読まなくなった")
+            continue
+        world_ok.append(key)
+    c.add(
+        "creation_memory_belongs_to_its_world",
+        "記憶が自分の世界のものだと確かめる型",
+        float(len(world_ok)) if not world_gaps else 0.0,
+        detail=(
+            "1 つの型から**別々の依頼・別々の難度で 2 つのゲームを生成**し、"
+            "**1 つ目が書いた localStorage をそのまま 2 つ目に渡して**実走行。"
+            "**両方向**: (a) **別の世界の軌跡は読まない**（`had` も `drawn` も 0）、"
+            "（**別の依頼**でも、**同じ依頼の別の難度**でも読まない"
+            "——後者は**破壊試験が教えた**: 難度を印から落としても前者だけなら緑のままだった）、"
+            "(b) **自分の世界の軌跡は今までどおり読む**"
+            "——(b) が無ければ「常に無視する」実装が満点を取り、それはゴーストを消すのと同じ。"
+            "**修正前の実測**: A=「レースのゲームを作って」(easy・LAPS=2)・"
+            "B=「宇宙のレースゲームを作って」(hard・LAPS=4) で、"
+            "**B の `ghostAt(0)` が 562**——**A のコースで A が居た x**——を"
+            "「ここでの前回」として返していた。"
+            "**鍵の形は変えていない**（`sidra.ghost.<型>`）: 世界の印は**値の側**に入るので、"
+            "`together.py` の「前置き＋型名」契約は 1 バイトも動かない。"
+            "**この数が言っていないこと**: `sidra.best.` と `sidra.runs.` の"
+            "同じ混線は**まだ直っていない**（2 周の記録と 4 周の記録を"
+            "別勘定にするかは遊びの判断を含むので別項）"
+            if not world_gaps
+            else "; ".join(world_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the second ghost, and the wall it must not touch ---------------
     #
     # §11 事実 1 is about racing a GROUP - the Bath result doubled with
