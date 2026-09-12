@@ -366,8 +366,10 @@ class SidraService:
             path = getattr(provenance, "path", "")
             # The corpus is Markdown; an excerpt window lands mid-document
             # and would put ## and ** into slide bullets verbatim (C-1212).
-            # Only generator-bound facts are flattened - the /v1/chat
-            # citation excerpts stay raw so they match the source on review.
+            # Generator-bound facts are trimmed to whole sentences as well as
+            # flattened; the /v1/chat citation excerpts are flattened too now
+            # (C-1711, since C-1689/1691 show them to the reader) but keep their
+            # window untrimmed so the 「…」 clip marks still describe the edge.
             facts.append(
                 Fact(text=whole_sentences(plain_text(excerpt)), source=f"{repository} {path}".strip())
             )
@@ -401,7 +403,17 @@ class SidraService:
                 citation["excerpt"] = ""
                 citation["excerpt_withheld"] = True
                 continue
-            citation["excerpt"] = excerpt
+            # Flatten Markdown decoration the reader should not see. C-1689/1691
+            # put this excerpt in front of a general user in the web UI and the
+            # CLI, and the answer text (C-1216) and generator facts (C-1212) are
+            # already flattened - leaving the excerpt raw showed 「##」「**」, table
+            # pipes, code fences and setext 「===」 as a wall of broken document
+            # text under a clean answer (C-1711). plain_text keeps every word, so
+            # the excerpt still matches the source on review; the 「…」 clip marks
+            # and whole redaction placeholders citation_excerpt produced ride
+            # through unchanged. citation_excerpt itself stays raw - it is the
+            # primitive measure_outcomes.py and the truncation eval measure.
+            citation["excerpt"] = plain_text(excerpt)
 
     def retrieve(
         self,

@@ -1726,6 +1726,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1711: /v1/chat attaches an excerpt to each citation and C-1689/1691 show
+    # it to the reader, but while the answer text and generator facts flatten
+    # Markdown, the citation excerpt was left raw - a wall of ##/**/table pipes/
+    # fences/=== under a clean answer. _attach_excerpts now flattens it with
+    # plain_text (words preserved), closing the client asymmetry.
+    from sidra_ai.evals.citation_excerpt_flattens_markdown import (
+        evaluate_citation_excerpt_flattens_markdown,
+    )
+
+    citation_flatten = evaluate_citation_excerpt_flattens_markdown()
+    c.add(
+        "citation_excerpt_flattens_markdown",
+        "利用者に見せる引用抜粋が Markdown 装飾を平文化する（語は残す）",
+        10.0 * citation_flatten.checks_passed / citation_flatten.checks_total,
+        detail=f"{citation_flatten.checks_passed}/{citation_flatten.checks_total} checks; "
+               "src/sidra_ai/evals/citation_excerpt_flattens_markdown.py"
+               + ("" if citation_flatten.passed else "; " + "; ".join(citation_flatten.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
