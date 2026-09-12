@@ -17002,6 +17002,128 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- one weight, on three dials (§1, C-1716) ------------------------
+    #
+    # §1 lists 「被弾時のヒットストップとノックバック」 as one pair and
+    # Vlambeer's rule is that the beat is proportional to the event's
+    # weight - ONE weight. The product answers with three independent
+    # numbers: the camera's kick, the hold's frames, the shove's distance.
+    # Two of the three had a ladder (creation_shake_ladder across six
+    # templates, creation_hold_ladder across two). The shove had none:
+    # creation_hit_knockback asks whether it happens, points away, obeys
+    # the walls and decays - never whether it is proportional. Its own
+    # detail reported +12px against +20px, so the ladder was being
+    # measured and not held.
+    #
+    # And nothing required the three to agree. Drop the guardian's shove
+    # to the roamer's and every judge above stays green while 「重い一撃」
+    # shakes harder, stops longer and pushes exactly as far as a light
+    # one - which is §1's failure, not a variant of it.
+    #
+    # Both blows in one run, on open floor found from the map (a shove
+    # taken beside a wall is clamped by solid(), and a clamped throw says
+    # nothing about how hard it was thrown), with all three overheard
+    # where the page asks for them.
+    import re as _kl_re
+    import subprocess as _kl_sp
+
+    from sidra_ai.creation.adventure import weight_probe as _kl_probe
+
+    _kl_gaps: list[str] = []
+    _kl_ok: list[str] = []
+    _kl_note = ""
+    for _kl_req in ("迷宮を冒険するゲームを作って", "難しい冒険ゲームを作って"):
+        _kl_page = generate_game(_kl_req).html
+        _kl_sc = _kl_re.search(r"<script>(.*?)</script>", _kl_page, _kl_re.S)
+        if _kl_sc is None:
+            _kl_gaps.append(f"{_kl_req}: no script")
+            continue
+        try:
+            _kl_run = _kl_sp.run(
+                ["node", "-"],
+                input=_kl_probe(_kl_sc.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if _kl_run.returncode != 0:
+                raise ValueError(_kl_run.stderr.strip()[:80])
+            _kl = json.loads(_kl_run.stdout.strip().splitlines()[-1])
+        except (OSError, _kl_sp.SubprocessError, ValueError) as exc:
+            _kl_gaps.append(f"{_kl_req}: probe unavailable ({exc})")
+            continue
+        _kl_r, _kl_g = _kl["roam"], _kl["guard"]
+        _kl_label = "既定" if _kl_req.startswith("迷宮") else "難しい"
+        # Both blows have to have landed, or there is nothing to compare.
+        if _kl["hurt"]["roam"] < 1 or _kl["hurt"]["guard"] < 1:
+            _kl_gaps.append(f"{_kl_label}: a blow never landed ({_kl['hurt']})")
+            continue
+        # (a) the shove has a ladder - and the light one is not zero, the
+        # same guard the other two ladders keep.
+        if not _kl_r["shove"] or _kl_r["shove"] <= 0:
+            _kl_gaps.append(f"{_kl_label}: the roamer's blow shoves nobody")
+        elif _kl_g["shove"] <= _kl_r["shove"]:
+            _kl_gaps.append(
+                f"{_kl_label}: 番人 {_kl_g['shove']}px はうろつく敵 "
+                f"{_kl_r['shove']}px を超えない"
+            )
+        # ...and the distance asked for is the distance travelled, or the
+        # ladder is a number the page never acts on.
+        elif abs(_kl_r["moved"] - _kl_r["shove"]) > 0.01 or abs(
+            _kl_g["moved"] - _kl_g["shove"]
+        ) > 0.01:
+            _kl_gaps.append(
+                f"{_kl_label}: 要求 {_kl_r['shove']}/{_kl_g['shove']}px に対し"
+                f"実移動 {_kl_r['moved']:.2f}/{_kl_g['moved']:.2f}px"
+            )
+        else:
+            _kl_ok.append(f"{_kl_label}=突き飛ばし {_kl_r['shove']}→{_kl_g['shove']}px")
+        # (b) and the three dials point the same way for the same pair.
+        _kl_dials = (
+            ("揺れ", _kl_r["kick"], _kl_g["kick"]),
+            ("止まり", _kl_r["hold"], _kl_g["hold"]),
+            ("突き飛ばし", _kl_r["shove"], _kl_g["shove"]),
+        )
+        _kl_bad = [
+            f"{_n} {_a}→{_b}"
+            for _n, _a, _b in _kl_dials
+            if not (_a is not None and _b is not None and _b > _a)
+        ]
+        if _kl_bad:
+            _kl_gaps.append(
+                f"{_kl_label}: 計器が同じ順序を指さない（{'・'.join(_kl_bad)}）"
+            )
+        elif _kl_label == "既定":
+            _kl_note = (
+                f"揺れ {_kl_r['kick']:.2f}→{_kl_g['kick']:.2f}／"
+                f"止まり {_kl_r['hold']}f→{_kl_g['hold']}f／"
+                f"突き飛ばし {_kl_r['shove']}px→{_kl_g['shove']}px"
+            )
+
+    c.add(
+        "creation_knock_ladder",
+        "重い出来事ほど遠くへ突き飛ばす（そして 3 つの計器が同じ順序を指す）",
+        0.0 if _kl_gaps else float(len(_kl_ok)),
+        detail=(
+            "; ".join(_kl_gaps)
+            if _kl_gaps
+            else "／".join(_kl_ok)
+            + f"（同じ走行で 2 つの一撃を実際に受け、3 つとも**ページが要求した値**を"
+            f"拾った: {_kl_note}。§1 の三つ組のうち**突き飛ばしだけ梯子が無かった**"
+            "——`creation_hit_knockback` は起きるか・向き・壁・減衰を見るが"
+            "**比例は見ておらず**、その detail 自身が +12px/+20px と梯子を"
+            "**報告しながら縛っていなかった**。**第 2 方向が本体**: "
+            "Vlambeer の規則の「重さ」は**1 つ**なのに製品には独立した 3 つの数があり、"
+            "**番人の突き飛ばしをうろつく敵と同じにしても既存の判定器は全部緑**だった。"
+            "**壁のない床を地図から探して**そこで受ける——壁際の一撃は `solid()` に"
+            "詰められ、詰められた throw は強さについて何も言わないため"
+            "（要求値と実移動が一致することも読む）。"
+            "リテラルは 2 か所に散っていたので `KNOCK_ROAM`/`KNOCK_GUARD` と"
+            "名付け直した（揺れの `shakeAmount()`・止まりの `hitstopFrames()` と同じ持ち方）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the giant moves like a giant (§6 観察 2, C-1685) ---------------
     #
     # The observation is one sentence with two halves: "多脚戦車は脚の周期

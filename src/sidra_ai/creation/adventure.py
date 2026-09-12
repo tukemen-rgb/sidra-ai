@@ -281,7 +281,20 @@ function knock(mark,tx,ty){if(state!=='play')return;
    so a blow could carry the hero through the structure the dungeon is
    built on. Axis by axis, as moveHero does it, so a shove along a wall
    still slides instead of stopping dead. */
+/* How hard each blow shoves (§1, C-1716). The two distances used to be
+   bare literals at their call sites - 12 beside the roamer, 20 beside the
+   guardian - which is the writing side of the shape C-1640 closed on the
+   reading side: the ladder existed and nothing held it. Named here beside
+   each other so the pair can be seen at once, and reported by
+   shoveFacts() so a judge reads what the page asked for rather than what
+   the source spells. The camera has shakeAmount() and the hold has
+   hitstopFrames(); this is the third of §1's trio. */
+const KNOCK_ROAM=12,KNOCK_GUARD=20;
+let SHOVE_ASKED=null;
+function shoveAmount(kind){return kind==='guard'?KNOCK_GUARD:KNOCK_ROAM}
+function shoveFacts(){return {roam:KNOCK_ROAM,guard:KNOCK_GUARD,asked:SHOVE_ASKED}}
 function shove(dx,dy){const r=10;
+  SHOVE_ASKED=Math.hypot(dx,dy);
   const nx=hero.x+dx;
   if(!solid(nx-r,hero.y-r)&&!solid(nx+r,hero.y-r)&&!solid(nx-r,hero.y+r)&&!solid(nx+r,hero.y+r)){hero.x=nx}
   const ny=hero.y+dy;
@@ -339,8 +352,9 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
        attacker - the opposite of what a knockback is for, and the opposite
        of the form the guardian below already used. */
     const kd=Math.hypot(hero.x-en.x,hero.y-en.y);
-    if(kd>0.001){shove((hero.x-en.x)/kd*12,(hero.y-en.y)/kd*12)}
-    else{const ed=Math.hypot(en.dx,en.dy)||1;shove(en.dx/ed*12,en.dy/ed*12)}
+    const kr=shoveAmount('roam');
+    if(kd>0.001){shove((hero.x-en.x)/kd*kr,(hero.y-en.y)/kd*kr)}
+    else{const ed=Math.hypot(en.dx,en.dy)||1;shove(en.dx/ed*kr,en.dy/ed*kr)}
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
     else{say('いたい。')}}})}
 /* The guardian's turn (§6): a slow stride whose weight is the step, a held
@@ -383,7 +397,8 @@ function moveGuard(){if(room!==2||!guard||!guard.alive)return;
        so the old line pushed along a direction the guardian had already
        left, and the shove came out diagonal to the blow. */
     const gd=Math.hypot(hero.x-guard.x,hero.y-guard.y)||1;
-    shove((hero.x-guard.x)/gd*20,(hero.y-guard.y)/gd*20);
+    const kg=shoveAmount('guard');
+    shove((hero.x-guard.x)/gd*kg,(hero.y-guard.y)/gd*kg);
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
     else{say('重い一撃。')}}}
 function hurtFacts(){return {roam:hurtRoam,guard:hurtGuard,
@@ -1195,6 +1210,93 @@ const pair = earEye('hurt', cv.width);
 console.log(JSON.stringify({ pair: pair, roamWall: roamWall, roamOpen: roamOpen,
   guardWall: guardWall, guardOpen: guardOpen }));
 """
+
+
+#: One weight, read on three instruments (§1, C-1716). Vlambeer's rule is
+#: that the beat is proportional to the event's weight - one weight - and
+#: the page answers with three independent numbers: the camera's kick, the
+#: hold's frames, the shove's distance. Two blows are taken in the same
+#: run, on open floor so a wall cannot shorten the throw, and all three
+#: are overheard where the page asks for them rather than read from the
+#: source (C-1640: a literal is the ledger, not the canvas).
+WEIGHT_PROBE = KEY_EVENT_JS + """
+PROBE_SHAKE_PLACEHOLDER
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+globalThis.document = { readyState: 'complete', createElement: () => nothing,
+  querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {},
+    addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){ const e = probeKey(k);
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e)) }
+key(' '); run(2);
+/* The hold, overheard where it is asked for - the same wrap RUN_PROBE
+   uses, because by the time a frame has run a three-frame hold and a
+   one-frame hold are the same noise. */
+let asked = null;
+const realHitstop = hitstop;
+hitstop = function(f){ asked = Number(f) || 0; return realHitstop.apply(null, arguments) };
+/* Open floor, found on the map rather than assumed: a blow taken beside a
+   wall is clamped by solid(), and a clamped throw says nothing about how
+   hard it was thrown. */
+function openSpot(r){
+  for (let ty = 2; ty < GH - 2; ty++) for (let tx = 2; tx < GW - 2; tx++) {
+    let clear = true;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (rooms[r][ty + dy][tx + dx] !== 0) clear = false }
+    if (clear) return [OX + tx * TILE + TILE / 2, OY + ty * TILE + TILE / 2];
+  }
+  return null }
+function blow(make){
+  asked = null; SHOVE_ASKED = null;
+  const from = { x: hero.x, y: hero.y };
+  const kick = probeKick(() => { make(); run(1) });
+  return { kick: kick, hold: asked, shove: shoveFacts().asked,
+    moved: Math.hypot(hero.x - from.x, hero.y - from.y) };
+}
+/* (1) the roaming enemy, in room 1 */
+room = 1;
+const spot1 = openSpot(1);
+hero.x = spot1[0]; hero.y = spot1[1]; hero.hp = 3; hero.inv = 0;
+enemies[1] = [{ x: hero.x - 6, y: hero.y, dx: 0, dy: 0, t: 0, alive: true }];
+const roam = blow(function(){ hero.inv = 0; hero.hp = 3;
+  enemies[1][0].x = hero.x - 6; enemies[1][0].y = hero.y; enemies[1][0].alive = true });
+/* (2) the guardian, in room 2 */
+run(20);
+room = 2;
+const spot2 = openSpot(2);
+hero.x = spot2[0]; hero.y = spot2[1]; hero.hp = 3; hero.inv = 0;
+const guardBlow = blow(function(){ hero.inv = 0; hero.hp = 3;
+  if (guard) { guard.alive = true; guard.mode = 'stride'; guard.t = 999;
+    guard.inv = 0; guard.x = hero.x - 20; guard.y = hero.y } });
+console.log(JSON.stringify({ roam: roam, guard: guardBlow,
+  facts: shoveFacts(), hurt: hurtFacts() }));
+"""
+
+
+def weight_probe(script: str) -> str:
+    """The page's own script, wrapped so one weight reads on three dials."""
+
+    from sidra_ai.creation.probekit import PROBE_SHAKE
+
+    return WEIGHT_PROBE.replace("PROBE_SHAKE_PLACEHOLDER", PROBE_SHAKE).replace(
+        "SCRIPT_PLACEHOLDER", script
+    )
 
 
 def knock_probe(script: str) -> str:
@@ -2074,6 +2176,8 @@ __all__ = [
     "HURT_PROBE",
     "hurt_probe",
     "KNOCK_PROBE",
+    "WEIGHT_PROBE",
+    "weight_probe",
     "knock_probe",
     "SCENE_ORDER_PROBE",
     "scene_order_probe",
