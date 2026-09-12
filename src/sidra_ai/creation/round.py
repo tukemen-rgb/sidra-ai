@@ -35,6 +35,7 @@ import re
 from typing import Sequence
 
 from sidra_ai.creation.juice import HAPTIC_ROUND
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 
 #: The bound itself. Sixty seconds is §8's number, not a guess of ours.
 ROUND_SECONDS = 60
@@ -640,7 +641,7 @@ function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
 #: Runs a generated page for longer than the bound, pressing start once and
 #: nothing after that. "A go ends" is a claim about a page left alone, so
 #: the probe leaves it alone.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const roundNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : roundNothing),
   apply: () => roundNothing, set: () => true });
@@ -702,8 +703,7 @@ function roundRun(frames){
    nothing - that is the difference between played time and wall time. */
 roundRun(WARMUP_INPUT);
 const beforePress = roundFacts().ms;
-const press = { key: ' ', code: 'Space',
-  preventDefault(){}, stopImmediatePropagation(){} };
+const press = probeKey(' ');
 roundKeys.forEach(fn => fn(press));
 let firstBreak = null;
 const roundHeld = HOLD_INPUT;
@@ -897,7 +897,7 @@ __all__ = [
 #: they ask what one round does. A row of recent runs is a claim about what
 #: survives *between* rounds, so it can only be measured against a store
 #: that remembers, and across loads that really are separate.
-HISTORY_PROBE = """
+HISTORY_PROBE = KEY_EVENT_JS + """
 const hNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : hNothing),
   apply: () => hNothing, set: () => true });
@@ -928,8 +928,7 @@ globalThis.location = { reload: () => {} };
 let hQueued = null;
 globalThis.requestAnimationFrame = (fn) => { hQueued = fn; return 1 };
 SCRIPT_PLACEHOLDER
-function hKey(k){ const e = { key: k, code: k === ' ' ? 'Space' : k,
-  preventDefault(){}, stopImmediatePropagation(){} };
+function hKey(k){ const e = probeKey(k);
   hKeys.forEach(fn => fn(e)) }
 /* Bigger steps than a real frame, so a sixty-second round does not need
    thirty-six hundred of them. The clock the round reads is this one. */
@@ -987,7 +986,7 @@ console.log(JSON.stringify({
 #: The quiet beat, watched (§6 観察 8, C-1382): the round is played to its
 #: break, and the strip must be absent just after it, present after the
 #: hold - while the bank has already happened inside the quiet.
-HOLD_PROBE = """
+HOLD_PROBE = KEY_EVENT_JS + """
 const roundNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : roundNothing),
   apply: () => roundNothing, set: () => true });
@@ -1027,8 +1026,7 @@ function roundRun(frames){
     fn(roundClock);
   }
 }
-function roundKey(k){ roundKeys.forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function roundKey(k){ roundKeys.forEach(fn => fn(probeKey(k))) }
 /* Through the gate, then one real cast so the round is somebody's. */
 roundKey(' ');
 roundRun(30);
@@ -1094,7 +1092,7 @@ def history_probe_source(
 #: is what a player sees, and C-1415's break table has an example of those
 #: two coming apart (the condition decided correctly, the element never
 #: touched).
-CLOCK_PROBE = """
+CLOCK_PROBE = KEY_EVENT_JS + """
 const clkNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : clkNothing),
   apply: () => clkNothing, set: () => true });
@@ -1130,8 +1128,7 @@ function clkStep(){ if (!clkQueued) return null;
   const fn = clkQueued; clkQueued = null; clkPaint = []; clkTime += 50 / 3; fn(clkTime);
   return clkPaint.filter(op => op.s.indexOf('のこり') === 0) }
 clkStep(); clkStep();
-clkKeys.forEach(fn => fn({ key: ' ', code: 'Space',
-  preventDefault(){}, stopImmediatePropagation(){} }));
+clkKeys.forEach(fn => fn(probeKey(' ')));
 const seen = [];
 const clkHold = HOLD_INPUT;
 for (let f = 0; f < FRAMES_INPUT; f++) {
@@ -1176,7 +1173,7 @@ console.log(JSON.stringify({ frames: seen,
 #: rather than the call it made. That distinction is the point of the mute
 #: run: muted, ``sfx`` returns before it touches the context, so a page that
 #: obeys M records zero nodes while still asking once a second.
-TICK_PROBE = """
+TICK_PROBE = KEY_EVENT_JS + """
 const tkNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : tkNothing),
   apply: () => tkNothing, set: () => true });
@@ -1245,9 +1242,7 @@ sfx = function(name, pitch){ const at = tkBuilt.length;
    door spent five thousand frames pressing a key no page was listening
    for. Harmless here today - the only key this one holds is ArrowLeft,
    whose code IS 'ArrowLeft' - and corrected so it stays that way. */
-function tkPress(key){ tkKeys.forEach(fn => fn({ key: key,
-  code: key === ' ' ? 'Space' : key,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
+function tkPress(key){ tkKeys.forEach(fn => fn(probeKey(key))) }
 function tkStep(){ if (!tkQueued) return false;
   const fn = tkQueued; tkQueued = null; tkTime += 50 / 3; fn(tkTime); return true }
 tkStep(); tkStep();
@@ -1278,7 +1273,7 @@ console.log(JSON.stringify({ frames: tkFrames, urgentAt: roundClockFacts().urgen
 #: ``location.reload()`` calls is read frame by frame. The one thing this
 #: has to be able to say is *when* the reload happened, because "the shield
 #: works" and "restart is broken" produce the same total.
-SHIELD_PROBE = """
+SHIELD_PROBE = KEY_EVENT_JS + """
 const shNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : shNothing),
   apply: () => shNothing, set: () => true });
@@ -1319,8 +1314,7 @@ function shPoke(){ if (MASH_INPUT === 'tap') { shTap() } else { shPress() } }
 function shStep(){ if (!shQueued) return false;
   const fn = shQueued; shQueued = null; shTime += 50 / 3; fn(shTime); return true }
 shStep(); shStep();
-shKeys.forEach(fn => fn({ key: ' ', code: 'Space',
-  preventDefault(){}, stopImmediatePropagation(){} }));
+shKeys.forEach(fn => fn(probeKey(' ')));
 /* Play to the buzzer without touching R, so the mash starts exactly where
    the item says it does - at the buzzer, not before it. */
 let shBuzzerAt = null;
@@ -1451,7 +1445,7 @@ def clock_probe_source(
 #: first accepts input: kaiju roars with the same ``hurt`` sound on its
 #: opening frame, and a probe that counted that would report a masher as
 #: punished by the title card.
-MASH_PROBE = """
+MASH_PROBE = KEY_EVENT_JS + """
 const mNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : mNothing),
   apply: () => mNothing, set: () => true });
@@ -1506,9 +1500,7 @@ sfx = function(name, pitch){
    that does not exist - drove the first group and left the second
    untouched, so "one key every frame" was measured on a shooter that
    fired 0 shots in 5400 frames. */
-function mPress(key){ mKeys.forEach(fn => fn({ key: key,
-  code: key === ' ' ? 'Space' : key,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
+function mPress(key){ mKeys.forEach(fn => fn(probeKey(key))) }
 /* What "punished" is read off (C-1623). The shared damage SOUND is not a
    verdict: shooter plays sfx('hurt') when a FOE dies and does not play it
    when the ship does, so a run in which the player was killed came back

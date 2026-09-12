@@ -34,6 +34,7 @@ a template written after it.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 import json
 
 MARBLE_TITLE = "転がる玉のコース"
@@ -367,7 +368,7 @@ step();
 #: marble moves, every sample strictly behind the ball, draining to zero
 #: within a dozen frames of the run ending, and never a single one under
 #: reduced motion.
-TRAIL_PROBE = """
+TRAIL_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -404,8 +405,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 key('keydown', ' '); key('keyup', ' ');
@@ -442,7 +442,7 @@ def trail_probe(script: str, *, reduced: bool = False) -> str:
 #: The page rolled in node: the same no-op browser the other probes build.
 #: The pilot steers at gates and away from blocks, and notes the act of
 #: the sky as each third of the course passes under the marble.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -471,8 +471,7 @@ function sceneTick(){
     sceneOrder.push(SCENE) } }
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16); sceneTick() } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 key('keydown', ' '); key('keyup', ' ');
@@ -640,7 +639,7 @@ def probe_source(script: str) -> str:
 #: the one the shared judge cannot make: the trail is indexed by z down
 #: the corridor, so a *faster* run still meets its past self at the same
 #: place on the course rather than at the same frame.
-GHOST_PROBE = """
+GHOST_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -664,8 +663,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e)) }
 key('keydown', ' '); key('keyup', ' ');
 run(2);
@@ -717,7 +715,7 @@ def ghost_probe_source(
 #: the engine channel while the corridor is driven act by act - the pitch
 #: must step up with ACT_ROLL, stay silent on the title, stop at the end,
 #: and die within a frame of M.
-ENGINE_PROBE = """
+ENGINE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -755,8 +753,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -789,7 +786,7 @@ def engine_probe(script: str) -> str:
 #: The gate's place, as heard (§2 増築, C-1616). Two gates are taken -
 #: one hard left, one hard right - and the panner values are read off the
 #: audio graph the page really built.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -830,8 +827,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 4 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -873,7 +872,7 @@ def pan_probe(script: str) -> str:
 #: one side and the reported look read back, then the blink is counted
 #: over five hundred frames - and under reduced motion it must never
 #: close, because FRAME pins the cycle to 0 there.
-FACE_PROBE = """
+FACE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -931,8 +930,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 4 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -986,7 +987,7 @@ def face_probe(script: str, *, reduced: bool = False) -> str:
 #: The corridor's fade, as painted (§7 観察 7, C-1620). One real frame
 #: is recorded and the rungs' alphas read back: they must fall with the
 #: distance and stop at FAR_FADE, while the marble in front stays solid.
-FADE_PROBE = """
+FADE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -1051,8 +1052,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 4 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -1123,7 +1126,7 @@ __all__ = [
 #: The marble is steered by pressing the arrow keys the template listens
 #: for - never by writing to ``ball.x`` - so the probe can only reach lines
 #: a person could drive.
-COMBO_PROBE = """
+COMBO_PROBE = KEY_EVENT_JS + """
 const mbNothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : mbNothing),
   apply: () => mbNothing, set: () => true });
@@ -1156,8 +1159,7 @@ globalThis.requestAnimationFrame = (fn) => { mbQueued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 const MODE = MODE_INPUT;
 let mbFrame = 0;
-function mbKey(type, k){ (mbHandlers[type] || []).forEach(fn => fn({ key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k,
-  preventDefault(){}, stopImmediatePropagation(){} })) }
+function mbKey(type, k){ (mbHandlers[type] || []).forEach(fn => fn(probeKey(k))) }
 mbKey('keydown', ' '); mbKey('keyup', ' ');
 function mbStep(){ if (!mbQueued) return false;
   const fn = mbQueued; mbQueued = null; mbPaint = []; mbClock += 50 / 3;

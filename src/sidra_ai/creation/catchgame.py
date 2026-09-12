@@ -13,9 +13,10 @@ under the final sky, and confirm the clock still calls the break.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 #: The page driven in node, the same no-op browser the template probes
 #: build. Frames tick 16ms apart, which is the clock ``ROUND_MS`` reads.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -44,7 +45,7 @@ function sceneTick(){
     sceneOrder.push(SCENE) } }
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16); sceneTick() } }
 function key(k){
-  const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
 }
 /* Steers the basket under the lowest falling item until one more catch
@@ -102,7 +103,7 @@ def probe_source(script: str) -> str:
 #: the frame the key is released, and never leave the field. Whether the
 #: catching underneath still works stays the scene probe's question - it
 #: steers and lands catches on this same template every run.
-HOLD_PROBE = """
+HOLD_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -120,10 +121,8 @@ globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
 SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
-function kd(k){ (handlers.keydown || []).forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
-function ku(k){ (handlers.keyup || []).forEach(fn => fn({ key: k,
-  code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} })) }
+function kd(k){ (handlers.keydown || []).forEach(fn => fn(probeKey(k))) }
+function ku(k){ (handlers.keyup || []).forEach(fn => fn(probeKey(k))) }
 /* Past the briefing; the keyboard drives px, so the pointer-easing shown
    is not read at all - px is the truth the keys write. */
 kd(' '); ku(' ');
@@ -161,7 +160,7 @@ def hold_probe(script: str) -> str:
 #: catch frame, settles back to 1 within half a second, and never deforms
 #: while nothing lands. The reduced-motion run is the other half of the
 #: claim: every sampled frame reads exactly 1.
-BOUNCE_PROBE = """
+BOUNCE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -200,7 +199,7 @@ function followed(sq){
     Math.abs(n.w - r.w * (2 - sq)) < 1e-6 && Math.abs(n.h - r.h * sq) < 1e-6)) }
 
 function key(k){
-  const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
 }
 key(' ');
@@ -247,7 +246,7 @@ def bounce_probe(script: str, *, reduced: bool = False) -> str:
 #: blink. The clock ticks with the frames (C-1348's lesson: a zero-pinned
 #: performance.now freezes the wall-clock FRAME and the blink never
 #: comes).
-CATCH_FACE_PROBE = """
+CATCH_FACE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -282,7 +281,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; CLOCK = (F++) * 16; fn(CLOCK) } }
 function key(k){
-  const e = { key: k === 'Space' ? ' ' : k, code: k === ' ' ? 'Space' : k, preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
 }
 key(' '); run(2);
@@ -360,7 +359,7 @@ def catch_face_probe(script: str, *, reduced: bool = False) -> str:
 #: with an item dropped into the pinned basket at x=0.2, one real miss
 #: beside it at x=0.8, and both recorded pans must match the item's own
 #: x through (x*2-1)*0.8 - while every sound before them built no panner.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -401,8 +400,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 4 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');

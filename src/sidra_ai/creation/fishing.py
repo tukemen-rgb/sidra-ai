@@ -15,9 +15,10 @@ a change TO it.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 #: The page driven in node, the same no-op browser the template probes
 #: build. Frames tick 16ms apart, which is the clock ``ROUND_MS`` reads.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -46,8 +47,7 @@ function sceneTick(){
     sceneOrder.push(SCENE) } }
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16); sceneTick() } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -105,7 +105,7 @@ def probe_source(script: str) -> str:
 #: the 会心 centre, one at the cautious edge of the band, one outside it -
 #: and the points each was worth. The edge window is wide enough that even
 #: the fastest marker cannot step across it between frames.
-PRECISION_PROBE = """
+PRECISION_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -124,8 +124,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -183,7 +182,7 @@ def precision_probe(script: str) -> str:
 #: stretch with nothing pressed at all, and the run has to come out the
 #: other side untouched. A rule that drained while a player waited would
 #: make patience the punished move.
-COMBO_PROBE = """
+COMBO_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -212,8 +211,7 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) {
   const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e)) }
 /* Sweep until the marker's offset from the spot, in band half-widths,
@@ -290,7 +288,7 @@ def combo_probe_source(
 #: outside the zone, and both recorded pans must match the marker's own
 #: screen x through (x/W*2-1)*0.8 - while every sound before them built
 #: no panner at all.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -331,8 +329,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 4 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');

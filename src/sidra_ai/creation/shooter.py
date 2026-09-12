@@ -27,6 +27,7 @@ steps once per act, and the final act is the brightest frame of the fight
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 #: Words that pick this template.
 SHOOTER_WORDS: tuple[str, ...] = (
     "シューティング",
@@ -299,7 +300,7 @@ reset();step();
 #: be read off the running page instead of trusted from the palette table.
 #: The pilot holds fire and sidesteps the nearest incoming hull - dodging,
 #: not luck, is what carries three hit points across two thousand frames.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -331,8 +332,7 @@ function sceneTick(){
     sceneOrder.push(SCENE) } }
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16); sceneTick() } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 /* Past the briefing: the gate holds every frame until pressed. */
@@ -488,7 +488,7 @@ def probe_source(script: str) -> str:
 #: shoulder and the ram's throw is read off kbFacts() frame by frame:
 #: away from the hull, settled inside half a second, and pinned by the
 #: screen bound rather than pushed through it.
-KB_PROBE = """
+KB_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -507,8 +507,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -548,7 +547,7 @@ def kb_probe(script: str) -> str:
 #: keeps the hull triangle's own points so the drawn silhouette can be
 #: shown to change with it. Flying and firing untouched must leave the
 #: shape alone, and under reduced motion the ram must not bend it at all.
-SQUASH_PROBE = """
+SQUASH_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -592,8 +591,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 function span(){ if (!HULL) return null;
@@ -649,7 +647,7 @@ def squash_probe(script: str, *, reduced: bool = False) -> str:
 #: The gun's kick, watched frame by frame (§1×§23 事実 3, C-1380): one
 #: real shot must push the hull back three pixels and settle fast; under
 #: reduced motion the same shot moves nothing.
-KICK_PROBE = """
+KICK_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -668,8 +666,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -700,7 +697,7 @@ def kick_probe(script: str, *, reduced: bool = False) -> str:
 #: shot flies, and every flight frame must show the full-alpha head with
 #: two fading afterimages exactly one and two flight-steps behind. Under
 #: reduced motion the same shot flies with the head alone.
-TRAIL_PROBE = """
+TRAIL_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -723,8 +720,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -761,7 +757,7 @@ def trail_probe(script: str, *, reduced: bool = False) -> str:
 #: The muzzle flash, as painted (§1×§23 事実 4, C-1391): one real shot
 #: must light the nose for exactly two frames at 0.85 alpha, and reduced
 #: motion fires the same shot with the nose dark.
-MUZZLE_PROBE = """
+MUZZLE_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -784,8 +780,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 function flashNow(){ return frameFills.some(f => f[2] === 6 && f[3] === 6 &&
@@ -816,7 +811,7 @@ def muzzle_probe(script: str, *, reduced: bool = False) -> str:
 #: kills - one right of centre, one left - and the recorded pan values
 #: must match (x/W*2-1)*0.8 in sign and to the digit, while everything
 #: fired before them (start chirp included) built no panner at all.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -856,8 +851,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers[type] || []).forEach(fn => fn(e));
 }
 ev('keydown', ' '); ev('keyup', ' ');
@@ -886,7 +880,7 @@ def pan_probe(script: str) -> str:
 #: A kill, then gravity (§23, C-1374): the chunks appear where the hull
 #: died, fall every frame, and drain once they leave the screen. Under
 #: reduced motion nothing is spawned at all.
-WRECK_PROBE = """
+WRECK_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -905,8 +899,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }

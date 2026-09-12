@@ -28,6 +28,7 @@ reduced motion no offset is ever written.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekeys import KEY_EVENT_JS
 #: Words that pick this template.
 PUZZLE_WORDS: tuple[str, ...] = (
     "パズル",
@@ -294,7 +295,7 @@ reset();step();
 #: board's distance from rest is read the frame after, then again once the
 #: settle should be over - and under reduced motion the same pop must
 #: never move at all.
-PROBE = """
+PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -313,8 +314,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -347,7 +347,7 @@ console.log(JSON.stringify({
 #: The board's economy, played out (§5, C-1322): greedy biggest-group play
 #: until a big clear banks a hammer, then one lone tile is broken with it.
 #: The refusal at zero hammers is measured first, on the same board.
-HAMMER_PROBE = """
+HAMMER_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -366,8 +366,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -528,7 +527,7 @@ def hammer_probe(script: str) -> str:
 #: pop landed under the last sky, and the sixty-second break untouched.
 #: Two pops leave the board far from a deadlock, so the round has to end
 #: on the clock - which is exactly the claim.
-SKY_PROBE = """
+SKY_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -557,8 +556,7 @@ function sceneTick(){
     sceneOrder.push(SCENE) } }
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16); sceneTick() } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -732,7 +730,7 @@ def probe_source(script: str, *, reduced: bool = False) -> str:
 #: as it happens, one deliberately invalid tap breaks the run, and the
 #: next clear is paid at x1 - which must be exactly cells squared, the
 #: payment this game always made (C-1421's restatement, confirmed live).
-COMBO_PROBE = """
+COMBO_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -751,8 +749,7 @@ SCRIPT_PLACEHOLDER
 let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function key(k){
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){} };
+  const e = probeKey(k);
   (handlers.keydown || []).forEach(fn => fn(e));
   (handlers.keyup || []).forEach(fn => fn(e));
 }
@@ -812,7 +809,7 @@ def combo_probe(script: str) -> str:
 #: ``pop()``, and the panner values are read off the audio graph the page
 #: really built. The board is fixed to the picture, so the canvas x is the
 #: one that means anything here - no camera, no projection.
-PAN_PROBE = """
+PAN_PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing, set: () => true });
@@ -853,8 +850,10 @@ let F = 0;
 function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
 function ev(type, k){
   let stopped = false;
-  const e = { key: k, code: k === ' ' ? 'Space' : k,
-    preventDefault(){}, stopImmediatePropagation(){ stopped = true } };
+  /* The pairing comes from probekeys; the stop stays here, because
+     `if (stopped) break` below reads it (C-1654 第 4 陣). */
+  const e = probeKey(k);
+  e.stopImmediatePropagation = () => { stopped = true };
   for (const fn of (handlers[type] || [])) { fn(e); if (stopped) break }
 }
 ev('keydown', ' '); ev('keyup', ' ');
