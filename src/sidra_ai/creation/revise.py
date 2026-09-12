@@ -782,6 +782,24 @@ def _panel_after(template: str, panel: dict, adjustments: dict) -> dict:
     return after
 
 
+def _names_phrase(names: Sequence[str], limit: int = 5) -> str:
+    """Format up to ``limit`` titles as 「A」「B」…, disclosing any remainder.
+
+    The not-found reply lists what exists so the operator can pick the right
+    game, but the list was capped at five and the rest dropped silently - an
+    operator with more games than that was shown a subset as if it were all,
+    and the game they meant could be among the hidden ones (C-1727). Say how
+    many more there are, the honesty the flat listing (C-1680) and a clipped
+    excerpt (C-1264) already keep. Output is byte-identical at or under the cap.
+    """
+
+    shown = "」「".join(names[:limit])
+    phrase = f"「{shown}」" if shown else ""
+    if len(names) > limit:
+        phrase += f"ほか {len(names) - limit} 件"
+    return phrase
+
+
 def build_game_reviser(data_dir: str | Path):
     """The revision handler the API calls; mirrors a generator's shape."""
 
@@ -811,16 +829,14 @@ def build_game_reviser(data_dir: str | Path):
             here = existing_titles(data_dir)
             remembered = titles_in_history(history)
             if remembered and not [name for name in remembered if name in here]:
-                shown = "」「".join(remembered[:5])
                 summary = (
-                    f"この会話で作った「{shown}」が見つかりません。"
+                    f"この会話で作った{_names_phrase(remembered)}が見つかりません。"
                     "もう一度作るか、今あるものを名前で指定してください。"
                 )
             elif here:
-                shown = "」「".join((remembered or here)[:5])
                 summary = (
                     "その名前のゲームは見つかりません。"
-                    f"あるのは「{shown}」です。"
+                    f"あるのは{_names_phrase(remembered or here)}です。"
                     "どれを修正するか、名前で指定してください。"
                 )
             else:

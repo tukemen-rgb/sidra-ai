@@ -1843,6 +1843,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1727: a revision that names no existing game replies 「あるのは「A」…です」 to
+    # help the operator pick, but capped the title list at 5 and dropped the rest
+    # silently - an operator with 8 games saw 5 as if they were all, and the game
+    # they meant could be among the hidden 3. It now discloses the remainder.
+    from sidra_ai.evals.revision_not_found_lists_all_titles import (
+        evaluate_revision_not_found_lists_all_titles,
+    )
+
+    revision_titles = evaluate_revision_not_found_lists_all_titles()
+    c.add(
+        "revision_not_found_lists_all_titles",
+        "修正対象が見つからない返答が候補一覧の打ち切りを明示する（ほか N 件）",
+        10.0 * revision_titles.checks_passed / revision_titles.checks_total,
+        detail=f"{revision_titles.checks_passed}/{revision_titles.checks_total} checks; "
+               "src/sidra_ai/evals/revision_not_found_lists_all_titles.py"
+               + ("" if revision_titles.passed else "; " + "; ".join(revision_titles.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
