@@ -1568,8 +1568,33 @@ if (shrine) {
       heard: heard.slice(), thrown: thrown });
   }
 }
+/* The other outlet, priced by touching it (§5, C-1696). The balance the
+   section calls for has two sides and the page knows both: what the
+   village pays out, and what every outlet together asks for. Read by
+   spending, never from a constant - a price nobody pays is a ledger. */
+let doorCost = 0;
+let doorAt = null;
+for (let r = 0; r < 3 && !doorAt; r++)
+  for (let ty = 0; ty < GH && !doorAt; ty++)
+    for (let tx = 0; tx < GW && !doorAt; tx++)
+      if (rooms[r][ty][tx] === 10) doorAt = { r: r, tx: tx, ty: ty };
+if (doorAt) {
+  room = doorAt.r;
+  const before = hero.gems;
+  hero.hp = 99; hero.swing = 0;
+  hero.x = OX + doorAt.tx * TILE + TILE / 2 - 20;
+  hero.y = OY + doorAt.ty * TILE + TILE / 2;
+  hero.dir = 1;
+  key(' '); run(8);
+  doorCost = before - hero.gems;
+}
+/* Every heart the shrine will ever sell, at the price it actually took. */
+const heartPrice = buys.length
+  ? Math.max.apply(null, buys.map(b => b.gemsBefore - b.gemsAfter)) : 0;
+const heartsForSale = buys.filter(b => b.heartsAfter > b.heartsBefore).length;
 console.log(JSON.stringify({ cuts: cuts, purse: purse,
-  shrine: shrine !== null, buys: buys }));
+  shrine: shrine !== null, buys: buys,
+  doorCost: doorCost, heartPrice: heartPrice, heartsForSale: heartsForSale }));
 """
 
 

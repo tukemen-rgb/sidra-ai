@@ -17098,6 +17098,90 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the tap and the sink have to balance (§5, C-1696) ---------------
+    #
+    # §5's fact is an economy one and its word is 釣り合い: taps and sinks
+    # in balance. Three judges cover the outlet (it exists, a player can
+    # always afford it, it returns value) and the floor of the inlet. The
+    # ceiling had nothing: make one tuft drop ten gems and every one of
+    # them stays green while the shrine and the door stop being choices.
+    #
+    # Both sides are read by playing - the village cut bare for the tap,
+    # and each outlet priced by actually paying it.
+    import re as _bl_re
+    import subprocess as _bl_sp
+
+    from sidra_ai.creation.adventure import sink_probe as _bl_probe
+
+    _BL_CEILING = 3.0
+    _bal_gaps: list[str] = []
+    _bal_note = ""
+    _bal_page = generate_game("迷宮を冒険するゲームを作って").html
+    _bal_script = _bl_re.search(r"<script>(.*?)</script>", _bal_page, _bl_re.S)
+    if _bal_script is None:
+        _bal_gaps.append("no script on the page")
+    else:
+        try:
+            _bal_run = _bl_sp.run(
+                ["node", "-"],
+                input=_bl_probe(_bal_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if _bal_run.returncode != 0:
+                raise ValueError(_bal_run.stderr.strip()[:80])
+            _bal = json.loads(_bal_run.stdout.strip().splitlines()[-1])
+        except (OSError, _bl_sp.SubprocessError, ValueError) as exc:
+            _bal_gaps.append(f"probe unavailable ({exc})")
+            _bal = None
+        if _bal is not None:
+            _tap = _bal.get("purse") or 0
+            _price = _bal.get("heartPrice") or 0
+            _hearts = _bal.get("heartsForSale") or 0
+            _door = _bal.get("doorCost") or 0
+            _sinks = _price * _hearts + _door
+            if _tap <= 0:
+                _bal_gaps.append("the village paid nothing at all")
+            elif _price <= 0 or _hearts <= 0:
+                _bal_gaps.append("the shrine sold nothing, so it has no price")
+            elif _door <= 0:
+                _bal_gaps.append("the door took nothing, so it is not an outlet")
+            # (a) the floor: what the outlets ask for can be paid
+            elif _tap < _sinks:
+                _bal_gaps.append(
+                    f"the village pays {_tap} against {_sinks} of outlets - "
+                    "the outlets are decoration"
+                )
+            # (b) the ceiling: and they are still a choice
+            elif _tap > _sinks * _BL_CEILING:
+                _bal_gaps.append(
+                    f"the village pays {_tap} against {_sinks} of outlets "
+                    f"({_tap / _sinks:.1f}x) - the gems are a number again"
+                )
+            else:
+                _bal_note = (
+                    f"入口 {_tap} 個（草を刈り切った実走行）に対し出口の総額 {_sinks} 個"
+                    f"（祠 {_price}×{_hearts} ＋ 扉 {_door}、どちらも実際に払って値を知った）"
+                    f"＝**{_tap / _sinks:.2f} 倍**"
+                )
+
+    c.add(
+        "creation_tap_and_sink_balance",
+        "入口と出口が釣り合う（足りて、余りすぎない）",
+        0.0 if _bal_gaps else 1.0,
+        detail=(
+            "; ".join(_bal_gaps)
+            if _bal_gaps
+            else _bal_note
+            + f"。**両方向**: 足りること（下回れば出口は飾り）と、"
+            f"{_BL_CEILING:.0f} 倍を超えないこと（超えれば祠も扉も選択ではなく通過点になり、"
+            "§5 が名指す失敗——収集物がただの数字に戻る——がそのまま起きる）。"
+            "どちらの側もソースの定数は読まず、刈って・払って知る"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a sink must return value, not just take it (§5, C-1674) --------
     #
     # creation_gem_sink proves gems leave; creation_sink_affordable proves
