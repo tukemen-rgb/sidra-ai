@@ -25,6 +25,7 @@ Three constraints the output has to satisfy, all checkable:
 from __future__ import annotations
 
 import base64
+import functools
 import json
 import re
 import subprocess
@@ -2102,12 +2103,29 @@ def _script_of(html: str) -> str:
     return match.group(1) if match else ""
 
 
+@functools.lru_cache(maxsize=256)
 def _javascript_parses(script: str) -> tuple[bool, str]:
     """Parse the script with node when there is one; say which check ran.
 
     A checker that silently degrades is worse than no checker: "playable"
     would keep reporting 1 on a page whose script never parsed. The reason
     string names the tool so the metric's detail cannot hide the difference.
+
+    Remembered by script text (C-1736). node's own parser still decides -
+    the same script is simply not asked about twice. Measured over one
+    collector run: 248 calls, 119 distinct scripts, 48 of them repeated and
+    the most repeated asked 14 times. The waiting was the process startup,
+    not the parse: 230.2s of wall for 11.0s of CPU across 248 spawns, so
+    halving the spawns halves the wait.
+
+    (The item proposing this said outright that it had *not* counted the
+    distinct scripts and that "the same script appears many times" was a
+    hypothesis. It counted 119/248, so the hypothesis held - but it was
+    measured before anything was changed for it.)
+
+    Safe to remember because the answer is a function of the text alone:
+    the same script handed to the same node gives the same verdict. The
+    bound keeps a long-lived process from holding every script it ever saw.
     """
 
     try:
