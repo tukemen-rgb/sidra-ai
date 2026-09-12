@@ -20,7 +20,7 @@ def test_reachable_failure_classes_have_guidance():
 
 
 def test_every_throw_site_uses_the_map():
-    assert ASK_PAGE.count("explain(response.status)") >= 5
+    assert ASK_PAGE.count("explain(response.status") >= 5  # prefix: tolerates the Retry-After 2nd arg (C-1721)
     assert 'Error("HTTP " + response.status)' not in ASK_PAGE
 
 

@@ -41,7 +41,7 @@ def evaluate_ui_error_guidance() -> UiErrorGuidanceResult:
         else:
             failures.append(f"no guidance for HTTP {code}")
 
-    sites = ASK_PAGE.count("explain(response.status)")
+    sites = ASK_PAGE.count("explain(response.status")  # prefix: tolerates the Retry-After 2nd arg (C-1721)
     if sites >= 5 and 'Error("HTTP " + response.status)' not in ASK_PAGE:
         checks += 1
     else:

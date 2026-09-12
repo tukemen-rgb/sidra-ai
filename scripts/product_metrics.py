@@ -1805,6 +1805,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1721: the web UI's explain(status) mapped 429 to a flat "少し待って",
+    # ignoring the Retry-After header the server sends with the exact seconds
+    # (the web twin of the CLI's C-1718). explain now names the seconds and the
+    # fetch call sites pass the header.
+    from sidra_ai.evals.ui_429_names_retry_after import (
+        evaluate_ui_429_names_retry_after,
+    )
+
+    ui_retry = evaluate_ui_429_names_retry_after()
+    c.add(
+        "ui_429_names_retry_after",
+        "web UI が 429 の Retry-After 秒数を伝える",
+        10.0 * ui_retry.checks_passed / ui_retry.checks_total,
+        detail=f"{ui_retry.checks_passed}/{ui_retry.checks_total} checks; "
+               "src/sidra_ai/evals/ui_429_names_retry_after.py"
+               + ("" if ui_retry.passed else "; " + "; ".join(ui_retry.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

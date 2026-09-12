@@ -31,4 +31,4 @@ def test_every_catch_site_routes_through_reason():
 def test_reason_keeps_translated_http_text():
     # reason() must not swallow our own (already-Japanese) HTTP messages.
     assert "return error.message;" in ASK_PAGE
-    assert "function explain(status)" in ASK_PAGE
+    assert "function explain(status" in ASK_PAGE  # prefix: tolerates the retryAfter 2nd param (C-1721)
