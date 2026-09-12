@@ -297,7 +297,7 @@ function beamDraw(f,from,dir,c,now){
   cx.fillRect(x0,y-w/2,x1-x0,w);cx.globalAlpha=1;
   cx.beginPath();cx.arc(from,y,w*0.9,0,6.28318);cx.fill();
   if(clash){const j=REDUCED?0:FRAME(3,3,now)*3;
-    cx.fillStyle='#f5f7ff';cx.beginPath();
+    cx.fillStyle='INK_TOKEN';cx.beginPath();
     cx.arc(cv.width/2+spark*3,y,10+j,0,6.28318);cx.fill()}}
 function draw(now){
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,cv.width,cv.height);
@@ -308,7 +308,7 @@ function draw(now){
     cx.fillRect(fx,cv.height-24-fh,34,fh)}
   cx.globalAlpha=1;
   cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(0,cv.height-24,cv.width,24);
-  if(flash>0){cx.globalAlpha=0.5*ease(flash);cx.fillStyle='#f5f7ff';
+  if(flash>0){cx.globalAlpha=0.5*ease(flash);cx.fillStyle='INK_TOKEN';
     cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1;flash-=0.05}
   aura(PX,LANES[p.lane],26+p.charge*0.2,'CYAN_TOKEN',now);
   aura(EX,LANES[e.lane],26+e.charge*0.2,'MAGENTA_TOKEN',now);
@@ -324,13 +324,13 @@ function draw(now){
       if(cx.setLineDash)cx.setLineDash([]);cx.lineWidth=1}}
   /* Beat one: the blow turns the body white for eight frames - the same
      state paint as the kaiju leg's, not a strobe (§6 観察 2, C-1377). */
-  body(PX,LANES[p.lane],p.hurt>0?'#dfe7f5':'CYAN_TOKEN',true,faceFacts(),p.sq);
-  body(EX,LANES[e.lane],e.hurt>0?'#dfe7f5':'MAGENTA_TOKEN',false,undefined,e.sq);
+  body(PX,LANES[p.lane],p.hurt>0?'INK_TOKEN':'CYAN_TOKEN',true,faceFacts(),p.sq);
+  body(EX,LANES[e.lane],e.hurt>0?'INK_TOKEN':'MAGENTA_TOKEN',false,undefined,e.sq);
   /* Beat two: smoke that outlives the flash, fading where the hit
      landed; beat three is the body already drawn, re-emerging as it
      thins. Same 34-frame envelope as the other two bosses. */
   [[p,PX],[e,EX]].forEach(pair=>{const f=pair[0];
-    if(f.smoke>0){cx.fillStyle='#dfe7f5';cx.globalAlpha=f.smoke/70;
+    if(f.smoke>0){cx.fillStyle='INK_TOKEN';cx.globalAlpha=f.smoke/70;
       cx.beginPath();cx.arc(pair[1],LANES[f.lane],24,0,6.283);cx.fill();
       cx.globalAlpha=1}});
   beamDraw(p,PX+14,1,'CYAN_TOKEN',now);

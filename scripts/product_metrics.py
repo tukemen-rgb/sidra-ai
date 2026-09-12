@@ -19013,6 +19013,144 @@ def measure_creation(c: Collector) -> None:
             )
         else:
             hud_ok.append(_h_key)
+    # --- a mark the page spelled out cannot know the theme (§4×§7, C-1722)
+    #
+    # C-1131 took the default theme's ink out of every WORD on the page and
+    # proved it by running each template on the paper theme
+    # (creation_template_hud_themed). That judge's own detail then set the
+    # playfield aside - 「盤面の物（守衛の体力ピップ・路肩の標識・ボスの被弾
+    # 点滅）は対象外——形と色で情報を運ぶので、塗り替えは可読性の判断」 - and
+    # the readability it named as the reason was never measured.
+    #
+    # Measured: the same literal, '#dfe7f5', which IS gameyard's ink, was
+    # still spelled out in eighteen playfield marks - the guardian's hit
+    # pips and smoke, the duel's and kaiju's hurt flash, the platformer's
+    # flag pole. On the paper theme they stand at 1.08:1 against the floor.
+    # The duel's clash flash was worse: '#f5f7ff' against a #f5f7fb floor,
+    # 1.00:1, a flash nobody can see. The torch's '#e8a33d' was 1.87:1.
+    #
+    # What this judge is NOT: a general "every mark clears 3:1 against its
+    # neighbour". The paint recorder keeps colours and no coordinates, and
+    # a mark drawn ON another object legitimately sits close to the floor -
+    # a shadow is 1.04:1 against a dark floor and is right to be. Measured
+    # that way, ten templates produce dozens of such readings. So this
+    # holds the one thing that is exactly checkable and was exactly wrong:
+    # a literal cannot know which theme it is in, and the default theme's
+    # own ink is the literal that proves it.
+    import re as _lt_re
+
+    from sidra_ai.creation.themes import DEFAULT_THEME as _lt_default
+
+    _LT_SOURCES = {
+        "adventure": "ADVENTURE_SCRIPT",
+        "duel": "DUEL_SCRIPT",
+        "kaiju": "KAIJU_SCRIPT",
+        "platformer": "PLATFORMER_SCRIPT",
+        "shooter": "SHOOTER_SCRIPT",
+        "puzzle": "PUZZLE_SCRIPT",
+        "marble": "MARBLE_SCRIPT",
+        "racing": "RACING_SCRIPT",
+    }
+    #: racing's road edge is a DELIBERATE two-tone pair (C-1287): a dark
+    #: core and a light rim, so one half always clears 3:1 against any
+    #: paint a scene puts under it. It is named here rather than silently
+    #: skipped, and it has its own judge - creation_road_edge_visible.
+    _LT_PAIRED = "const EDGE_A='#05070f',EDGE_B='#dfe7f5';"
+    _lt_ink = _lt_default.tokens["text"].lower()
+    _lt_gaps: list[str] = []
+    _lt_ok: list[str] = []
+    for _lt_key in sorted(_LT_SOURCES):
+        try:
+            _lt_mod = __import__(
+                f"sidra_ai.creation.{_lt_key}", fromlist=[_LT_SOURCES[_lt_key]]
+            )
+            _lt_body = getattr(_lt_mod, _LT_SOURCES[_lt_key])
+        except (ImportError, AttributeError) as exc:
+            _lt_gaps.append(f"{_lt_key}: source unavailable ({exc})")
+            continue
+        _lt_rest = _lt_body.replace(_LT_PAIRED, "")
+        _lt_hits = [
+            m.group(0)
+            for m in _lt_re.finditer(
+                r"(?:fillStyle|strokeStyle)\s*=\s*'" + _lt_ink + r"'",
+                _lt_rest,
+                _lt_re.I,
+            )
+        ]
+        _lt_loose = _lt_rest.lower().count(f"'{_lt_ink}'")
+        if _lt_loose:
+            _lt_gaps.append(
+                f"{_lt_key}: 既定テーマの墨 {_lt_ink} を {_lt_loose} か所で"
+                "リテラルとして綴っている"
+            )
+        else:
+            _lt_ok.append(_lt_key)
+    # ...and the marks are still painted. A fix that deleted them would
+    # satisfy the line above and lose the guardian's health.
+    _lt_painted = None
+    if not _lt_gaps:
+        _lt_page = generate_game("紙のテーマで迷宮を冒険するゲームを作って").html
+        _lt_sc = _lt_re.search(r"<script>(.*?)</script>", _lt_page, _lt_re.S)
+        try:
+            if _lt_sc is None:
+                raise ValueError("no script")
+            _lt_run = _sp.run(
+                ["node", "-"],
+                input=_chrome_probe(_lt_sc.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if _lt_run.returncode != 0:
+                raise ValueError(_lt_run.stderr.strip()[:70])
+            _lt_seen = json.loads(_lt_run.stdout.strip().splitlines()[-1])
+        except (OSError, _sp.SubprocessError, ValueError) as exc:
+            _lt_gaps.append(f"probe unavailable ({exc})")
+            _lt_seen = None
+        if _lt_seen is not None:
+            _lt_cols = {
+                str(p[1]).lower()
+                for p in (_lt_seen.get("paint") or [])
+                if isinstance(p[1], str)
+            }
+            if _lt_ink in _lt_cols:
+                _lt_gaps.append(
+                    f"紙テーマの走行が既定テーマの墨 {_lt_ink} を塗っている"
+                )
+            elif _lt_default.tokens["text"] == "#dfe7f5" and not _lt_cols:
+                _lt_gaps.append("何も塗られていないので、何も証明していない")
+            else:
+                _lt_painted = len(_lt_cols)
+                _lt_ok.append("紙テーマの実走行にその墨は 1 度も現れない")
+
+    c.add(
+        "creation_playfield_survives_the_theme",
+        "ページが綴った色は、テーマを知らないので綴らせない",
+        0.0 if _lt_gaps else 2.0,
+        detail=(
+            "; ".join(_lt_gaps)
+            if _lt_gaps
+            else f"{len(_LT_SOURCES)} 型のどこにも既定テーマの墨 `{_lt_ink}` の"
+            "**色リテラルが無い**（racing の路肩は**二色一対**という設計なので"
+            "名指しで除外——暗い芯と明るい縁でどちらかが必ず 3:1 を満たす"
+            "C-1287 の処方で、`creation_road_edge_visible` が別に測っている）。"
+            f"紙テーマの実走行でもその墨は 1 度も塗られない（塗られた色 {_lt_painted} 種）。"
+            "**C-1131 は語からこの墨を追い出したが、盤面には 18 か所残っていた**"
+            "——番人の体力ピップと煙、duel と kaiju の被弾点滅、platformer の旗竿。"
+            "紙テーマの床に対し **1.08:1**（＝ほぼ見えない）で、"
+            "duel の鍔迫り合いの閃光 `#f5f7ff` は **1.00:1＝完全に見えない**、"
+            "松明の `#e8a33d` は 1.87:1 だった。"
+            "**`creation_template_hud_themed` はその墨を探す目を持ちながら、"
+            "detail で盤面を「対象外——塗り替えは可読性の判断」と断っていた**"
+            "——**可読性の判断と書きながら、可読性を一度も測っていなかった**。"
+            "**この判定器がやらないこと**: 「すべての印が隣接色に 3:1」ではない。"
+            "塗りの記録は色だけで座標を持たず、**物の上に描かれる印**"
+            "（暗い床の上の影は 1.04:1 で、それが正しい）が大量に混ざるため。"
+            "**リテラルはテーマを知らない**という、正確に検査できる 1 点だけを縛る"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "creation_template_hud_themed",
         "どの型の文字もページの配色で書かれる",

@@ -312,23 +312,23 @@ function draw(){const now=performance.now();
     if(c.warn>0){cx.strokeStyle='MAGENTA_TOKEN';cx.lineWidth=2;
       cx.beginPath();cx.moveTo(c.x-16,GROUND+4);cx.lineTo(c.x+16,GROUND+4);cx.stroke()}
     else{cx.fillStyle='#05070f';cx.fillRect(c.x-c.open*0.5,GROUND,c.open,H-GROUND)}});
-  dust.forEach(d=>{cx.fillStyle='#dfe7f5';cx.globalAlpha=d.a*0.5;
+  dust.forEach(d=>{cx.fillStyle='INK_TOKEN';cx.globalAlpha=d.a*0.5;
     cx.beginPath();cx.arc(d.x,d.y,d.r,0,6.283);cx.fill()});
   cx.globalAlpha=1;
   /* The monster is a leg and a tail crossing the frame. Never the body -
      until it is down, and then once. (観察 1) */
   const lx=legX();
   if(!boss.shown){
-    cx.fillStyle=boss.hurt>0?'#dfe7f5':'BORDER_TOKEN';
+    cx.fillStyle=boss.hurt>0?'INK_TOKEN':'BORDER_TOKEN';
     cx.beginPath();cx.moveTo(lx-34,0);cx.lineTo(lx+20,0);
     cx.lineTo(lx+30,GROUND);cx.lineTo(lx-44,GROUND);cx.closePath();cx.fill();
     cx.fillStyle='BORDER_TOKEN';
     cx.beginPath();cx.moveTo(W,GROUND-90);cx.lineTo(W,GROUND-30);
     cx.lineTo(lx+40,GROUND-6);cx.closePath();cx.fill();
-    if(boss.smoke>0){cx.fillStyle='#dfe7f5';cx.globalAlpha=boss.smoke/70;
+    if(boss.smoke>0){cx.fillStyle='INK_TOKEN';cx.globalAlpha=boss.smoke/70;
       cx.beginPath();cx.arc(lx,boss.smokeY,40,0,6.283);cx.fill();cx.globalAlpha=1}
     if(boss.phase==='open'){
-      cx.fillStyle=boss.hurt>0?'#dfe7f5':'MAGENTA_TOKEN';
+      cx.fillStyle=boss.hurt>0?'INK_TOKEN':'MAGENTA_TOKEN';
       cx.beginPath();cx.arc(lx,boss.head,34,0,6.283);cx.fill();
       cx.fillStyle='ALERT_JUICE';cx.beginPath();cx.arc(lx,boss.head,12,0,6.283);cx.fill()}}
   else{cx.fillStyle='BORDER_TOKEN';

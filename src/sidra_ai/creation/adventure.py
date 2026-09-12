@@ -448,7 +448,12 @@ function drawTile(t,x,y,now){
     cx.fillStyle='#ffffff22';cx.fillRect(x+(d>0?TILE-3:0),y,3,TILE)}
   if(t===4){cx.fillStyle='RAISED_TOKEN';cx.fillRect(x+2,y+2,TILE-4,TILE-4);
     const fl=[3,5,4,6][FRAME(4,7,now)];
-    cx.fillStyle='#e8a33d';cx.fillRect(x+12,y+8,8,8+fl)}
+    /* The flame was '#e8a33d', 1.87:1 against the paper theme's floor
+       (C-1722) - warm and correct on the dark themes, a dim smear on the
+       light one. The alert colour is the theme's own "look here", and it
+       clears 5.9:1 on all four; a purple flame on paper reads better than
+       an orange one nobody can see. */
+    cx.fillStyle='ALERT_JUICE';cx.fillRect(x+12,y+8,8,8+fl)}
   if(t===7){cx.fillStyle='#7a5a2e';cx.fillRect(x+4,y+8,TILE-8,TILE-12);
     cx.fillStyle='CYAN_TOKEN';cx.fillRect(x+13,y+14,6,6)}
   if(t===8){sprite('npc',x+6,y+4,TILE-12,TILE-8,'#c8b28a');
@@ -505,8 +510,8 @@ function draw(now){
     const winding=guard.mode==='wind';
     /* The blow's first beat (§6 観察 2, C-1343): one flash, same as the
        kaiju leg's, before the smoke takes over. */
-    cx.fillStyle=guard.hurt>0?'#dfe7f5':
-      (winding&&!REDUCED&&FRAME(2,4,now)===0)?'#dfe7f5':'MAGENTA_TOKEN';
+    cx.fillStyle=guard.hurt>0?'INK_TOKEN':
+      (winding&&!REDUCED&&FRAME(2,4,now)===0)?'INK_TOKEN':'MAGENTA_TOKEN';
     cx.fillRect(guard.x-20,guard.y-18+gb,40,36);
     cx.beginPath();cx.moveTo(guard.x-20,guard.y-18+gb);
     cx.lineTo(guard.x-12,guard.y-30+gb);cx.lineTo(guard.x-6,guard.y-18+gb);
@@ -515,16 +520,24 @@ function draw(now){
     cx.closePath();cx.fill();
     cx.fillStyle='#05070f';
     cx.fillRect(guard.x-13,guard.y-8+gb,8,7);cx.fillRect(guard.x+5,guard.y-8+gb,8,7);
-    if(winding&&REDUCED){cx.strokeStyle='#dfe7f5';cx.lineWidth=3;
+    if(winding&&REDUCED){cx.strokeStyle='INK_TOKEN';cx.lineWidth=3;
       cx.strokeRect(guard.x-23,guard.y-21,46,42);cx.lineWidth=1}
+    /* These used to spell the default theme's ink as a literal
+       (C-1722). C-1131 took that literal out of every word on the page and
+       left it in eleven playfield marks, because the judge that hunts it was
+       told playfield objects were out of scope. On the paper theme the
+       guardian's smoke and its remaining hit pips came out at 1.08:1 against
+       the floor: the boss's health, drawn in a colour the same brightness as
+       the ground it stands on. Written as the token, the default theme is
+       byte-identical and the other three become readable. */
     /* Beats two and three: smoke that stays after the flash is gone, and
        the silhouette re-emerging as it thins (観察 2). */
-    if(guard.smoke>0){cx.fillStyle='#dfe7f5';cx.globalAlpha=guard.smoke/70;
+    if(guard.smoke>0){cx.fillStyle='INK_TOKEN';cx.globalAlpha=guard.smoke/70;
       cx.beginPath();cx.arc(guard.x,guard.y-6+gb,30,0,6.283);cx.fill();
       cx.globalAlpha=1}
-    for(let i=0;i<guard.max;i++){cx.strokeStyle='#dfe7f5';
+    for(let i=0;i<guard.max;i++){cx.strokeStyle='INK_TOKEN';
       cx.strokeRect(guard.x-19.5+i*6.5,guard.y-37.5,5,5)}
-    cx.fillStyle='#dfe7f5';
+    cx.fillStyle='INK_TOKEN';
     for(let i=0;i<guard.hp;i++){cx.fillRect(guard.x-19+i*6.5,guard.y-37,4,4)}}
   if(!(hero.inv>0&&FRAME(2,3,now)===1)){
     /* The hit crush (§1, C-1387): one bottom-anchored joint transform -
@@ -550,9 +563,9 @@ function draw(now){
      visual), so the hero's mercy window gets the same one: drawn only
      under REDUCED, only while inv runs, gone the frame it expires
      (§4×§15, C-1386). */
-  if(hero.inv>0&&REDUCED){cx.strokeStyle='#dfe7f5';cx.lineWidth=2;
+  if(hero.inv>0&&REDUCED){cx.strokeStyle='INK_TOKEN';cx.lineWidth=2;
     cx.strokeRect(hero.x-13,hero.y-17,26,28);cx.lineWidth=1}
-  if(hero.swing>0){const p=ease(hero.swing/10);cx.strokeStyle='#dfe7f5';
+  if(hero.swing>0){const p=ease(hero.swing/10);cx.strokeStyle='INK_TOKEN';
     cx.lineWidth=3;cx.beginPath();
     const ang=[[-2.2,-0.9],[-0.7,0.7],[0.9,2.2],[2.4,3.9]][hero.dir];
     cx.arc(hero.x,hero.y,22,ang[0]+p,ang[1]+p);cx.stroke();cx.lineWidth=1}

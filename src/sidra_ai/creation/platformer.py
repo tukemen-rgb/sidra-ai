@@ -372,14 +372,14 @@ function draw(now){
     cx.fillStyle='BORDER_TOKEN';cx.fillRect(lx-2,lamp.y-26,4,26);
     cx.fillStyle=lamp.lit?'ALERT_JUICE':scenePaint('RAISED_TOKEN');
     cx.fillRect(lx-7,lamp.y-40,14,16);
-    cx.strokeStyle='#dfe7f5';cx.strokeRect(lx-7.5,lamp.y-40.5,15,17);
+    cx.strokeStyle='INK_TOKEN';cx.strokeRect(lx-7.5,lamp.y-40.5,15,17);
     /* A number written on the lamp, so it is ink like every other
        word on the page - white on a light theme is not readable (C-1131). */
     if(!lamp.lit){cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
       cx.fillText(String(LAMP_COST),lx-4,lamp.y-28)}}
   const fx=flag.x-cam;
   if(fx>-40&&fx<W+40){
-    cx.fillStyle='#dfe7f5';cx.fillRect(fx-1,flag.y-46,3,46);
+    cx.fillStyle='INK_TOKEN';cx.fillRect(fx-1,flag.y-46,3,46);
     const wv=[0,2,4,2][FRAME(4,5,now)];
     cx.fillStyle='MAGENTA_TOKEN';cx.beginPath();
     cx.moveTo(fx+2,flag.y-46);cx.lineTo(fx+26+wv,flag.y-38);
