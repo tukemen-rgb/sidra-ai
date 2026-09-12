@@ -1824,6 +1824,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1724: commit_document caps the indexed "changed files:" list at 20 and
+    # dropped the rest silently, so a 50-file refactor was indexed as if it
+    # changed exactly 20 - the silent truncation the product refuses elsewhere
+    # (C-1680/C-1264). It now discloses how many more files there were.
+    from sidra_ai.evals.commit_changed_files_truncation_disclosed import (
+        evaluate_commit_changed_files_truncation_disclosed,
+    )
+
+    commit_trunc = evaluate_commit_changed_files_truncation_disclosed()
+    c.add(
+        "commit_changed_files_truncation_disclosed",
+        "索引コミットが changed files の打ち切りを明示する（ほか N 件）",
+        10.0 * commit_trunc.checks_passed / commit_trunc.checks_total,
+        detail=f"{commit_trunc.checks_passed}/{commit_trunc.checks_total} checks; "
+               "src/sidra_ai/evals/commit_changed_files_truncation_disclosed.py"
+               + ("" if commit_trunc.passed else "; " + "; ".join(commit_trunc.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

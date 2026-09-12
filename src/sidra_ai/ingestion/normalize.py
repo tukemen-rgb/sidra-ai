@@ -150,6 +150,13 @@ def commit_document(
 
     files = payload.get("files") or []
     changed = ", ".join(str(f.get("filename", "")) for f in files[:20])
+    # Cap the list, but say so: a refactor or merge touching more than 20 files
+    # was indexed as if it changed exactly the 20 that sorted first, and a reader
+    # asking what a commit changed got an incomplete list read as complete. Same
+    # honesty the flat listing (C-1680) and a clipped excerpt (C-1264) keep - a
+    # truncation the reader can see beats a silent one (C-1724).
+    if changed and len(files) > 20:
+        changed += f", … and {len(files) - 20} more"
     body = message if not changed else f"{message}\n\nchanged files: {changed}"
 
     return Document(
