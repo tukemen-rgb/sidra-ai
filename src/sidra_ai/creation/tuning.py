@@ -165,7 +165,7 @@ def panel_schema(
                 "step": 5,
                 "integer": True,
             },
-            # §30 事実 3 (C-1695): "separate volume controls or mutes for
+            # §30 事実 3 (C-1697): "separate volume controls or mutes for
             # effects, speech and background / music". The dial above stays
             # the parent - it moves everything, as every existing contract
             # says it does - and this one sits UNDER it, on the music

@@ -1,4 +1,4 @@
-"""The music has a dial of its own (§30 事実 3, C-1695).
+"""The music has a dial of its own (§30 事実 3, C-1697).
 
 The Cognitive list at gameaccessibilityguidelines.com asks for "separate
 volume controls or mutes for effects, speech and background / music"
