@@ -247,16 +247,16 @@ function draw(now){
   cx.lineWidth=1;
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(OX-8,10,336,22);cx.globalAlpha=1;
-  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('得点 '+score+' '+comboLabel()+'  つち ×'+hammers,OX,26);
   const left=group(cur.x,cur.y).length;
   cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,26);
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';
     cx.fillRect(0,0,cv.width,cv.height);
-    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a=cleared?'全部消えた。':'もう消せる手がない。';
     cx.fillText(a,cv.width/2-a.length*10,cv.height/2-8);
-    cx.font='13px ui-monospace,monospace';
+    cx.font=hudPx(13)+'px ui-monospace,monospace';
     const b='得点 '+score+(((typeof roundAskReady!=='function'||roundAskReady()))?' / SPACE か R でもう一度':'');
     cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}}
 /* Only the settling is the world here (§26, C-1608); the picture is

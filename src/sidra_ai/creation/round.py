@@ -310,7 +310,7 @@ function drawRoundClock(){if(!RCV||!roundClockDue())return;
      deliberately does not answer it - 「のこり」 says time is passing,
      not that anybody is losing. */
   c.fillStyle=urgent?'MAGENTA_TOKEN':'INK_TOKEN';
-  c.textAlign='right';c.font='15px ui-monospace,monospace';
+  c.textAlign='right';c.font=hudPx(15)+'px ui-monospace,monospace';
   c.fillText('のこり '+roundLeft(),W-16,box[1]+21);
   c.textAlign='left';c.restore()}
 function roundClockFacts(){return {due:roundClockDue(),left:roundLeft(),
@@ -343,11 +343,11 @@ function drawRoundEnd(){if(!RCV)return;
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
   c.save();c.fillStyle='SCRIM_TOKEN'+'cc';c.fillRect(0,H/2-52,W,104);
   c.fillStyle='INK_TOKEN';c.textAlign='center';
-  c.font='22px ui-monospace,monospace';c.fillText('ここまで',W/2,H/2-10);
+  c.font=hudPx(22)+'px ui-monospace,monospace';c.fillText('ここまで',W/2,H/2-10);
   /* The verdict lands at once; the ask waits out the quiet beat with the
      rest of the chrome (§6 観察 8, C-1382). R itself works throughout. */
   if(ROUND_END_FRAMES>ROUND_HOLD){
-    c.font='13px ui-monospace,monospace';
+    c.font=hudPx(13)+'px ui-monospace,monospace';
     c.fillText('R / タップでもう一度',W/2,H/2+22)}
   c.textAlign='left';c.restore()}
 /* The clock only ever fires over a game that had *not* finished, so there
@@ -573,7 +573,7 @@ function drawResultStrip(){if(!RCV)return;roundBank();
      Found by C-1118's sweep, which is the only run that had them all on. */
   c.save();c.fillStyle='SCRIM_TOKEN'+'e6';c.fillRect(0,H-52,W,52);
   c.fillStyle='INK_TOKEN';c.textAlign='center';
-  c.font='13px ui-monospace,monospace';
+  c.font=hudPx(13)+'px ui-monospace,monospace';
   let left='';
   if(ROUND_FINAL!==null){
     left=ROUND_LABEL+' '+ROUND_FINAL;
@@ -613,7 +613,7 @@ function drawResultStrip(){if(!RCV)return;roundBank();
      twice - and it is drawn under the score rather than beside it so the
      result keeps the line it had. */
   let runs=[];try{runs=roundLog()}catch(e){}
-  if(runs.length>1){c.save();c.font='13px ui-monospace,monospace';
+  if(runs.length>1){c.save();c.font=hudPx(13)+'px ui-monospace,monospace';
     c.textAlign='left';c.globalAlpha=0.72;
     c.fillText('直近 '+runs.join(' / '),16,H-42);c.restore()}
   let news=null;try{news=skinNews()}catch(e){}

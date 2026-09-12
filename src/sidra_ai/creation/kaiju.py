@@ -397,13 +397,13 @@ function draw(){const now=performance.now();
   for(let i=0;i<me.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(W-198,5,194,20);cx.globalAlpha=1;
-  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('周期 '+cycles+'/3  脚 '+Math.max(0,boss.legHp),W-190,19);
   if(state!=='fight'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
-    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a=state==='won'?'巨獣、沈黙。':'部隊は退いた。';
     cx.fillText(a,W/2-a.length*10,H/2-8);
-    cx.font='13px ui-monospace,monospace';
+    cx.font=hudPx(13)+'px ui-monospace,monospace';
     if((typeof roundAskReady!=='function'||roundAskReady())){const b='R でもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}}
 /* One tap from the result goes again (§8 事実 3). The keyboard restart
    above is the only one this template had, which on a phone meant the

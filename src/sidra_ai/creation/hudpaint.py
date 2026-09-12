@@ -76,4 +76,85 @@ def paint_probe(script: str) -> str:
     return PAINT_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 
-__all__ = ["PAINT_PROBE", "paint_probe"]
+#: How big a drawn word really is (§24, C-1725). §24 says the type floor
+#: has to be decided in EFFECTIVE size - a canvas pixel shrinks with the
+#: page - and the judge that held it read `font='13px` out of the HTML with
+#: a regex, which is the canvas number and not the effective one. This
+#: stages a real screen width, records the font in force at every
+#: fillText, and reports what the eye would get.
+TEXTSIZE_PROBE = """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+const CSS_W = CSS_W_PLACEHOLDER;
+let words = [];
+const textCtx = new Proxy({
+  font: '', textAlign: '',
+  fillText: function(txt){ words.push({ font: String(this.font), text: String(txt) }) },
+  fillRect: function(){},
+}, {
+  get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+  set: (t, k, v) => { if (k === 'font' || k === 'textAlign') { t[k] = v } return true },
+});
+const stage = { width: 720, height: 320, style: {},
+  addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
+  getBoundingClientRect: () => ({left:0, top:0, width: CSS_W, height: 320 * CSS_W / 720}),
+  getContext: () => textCtx };
+globalThis.document = { readyState: 'complete',
+  createElement: () => nothing, querySelector: () => null,
+  getElementById: () => stage, addEventListener: () => {} };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+PROBE_KEYS_PLACEHOLDER
+SCRIPT_PLACEHOLDER
+let F = 0;
+function turn(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function key(k){ const e = probeKey(k);
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e)) }
+/* The title screen first - its two lines of controls ride the shared
+   preamble onto all ten - then play, so the HUD and any toast are drawn
+   too, then long enough for the round to end and its strip to appear. */
+turn(3);
+const title = words.slice(); words = [];
+key(' ');
+for (let i = 0; i < 4200; i++) { if (i % 7 === 0) { key(' ') } turn(1) }
+const played = words.slice();
+function sizes(list){
+  const out = {};
+  list.forEach(function(w){
+    const m = /^([0-9.]+)px/.exec(w.font);
+    if (!m) { out['?'] = (out['?'] || 0) + 1; return }
+    const px = Number(m[1]);
+    const key = px.toFixed(2);
+    if (!out[key]) { out[key] = { px: px, effective: px * CSS_W / 720, n: 0, longest: 0 } }
+    out[key].n++;
+    out[key].longest = Math.max(out[key].longest, w.text.length);
+  });
+  return out;
+}
+console.log(JSON.stringify({ cssW: CSS_W, scale: 720 / CSS_W,
+  title: sizes(title), played: sizes(played),
+  titleWords: title.length, playedWords: played.length }));
+"""
+
+
+def textsize_probe(script: str, *, css_w: int = 720) -> str:
+    """The page's own script, wrapped so a word's real size can be read."""
+
+    from sidra_ai.creation import probekeys
+
+    return probekeys.with_probe_keys(
+        TEXTSIZE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+            "CSS_W_PLACEHOLDER", str(int(css_w))
+        )
+    )
+
+
+__all__ = ["PAINT_PROBE", "paint_probe", "TEXTSIZE_PROBE", "textsize_probe"]

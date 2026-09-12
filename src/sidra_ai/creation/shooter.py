@@ -269,7 +269,7 @@ function draw(now){
   for(let i=0;i<ship.hp;i++){cx.fillRect(12+i*18,10,14,10)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(W-208,6,204,54);cx.globalAlpha=1;
-  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   /* The graze run is on screen while it is worth something: a risk the
      player cannot see the state of is a gamble, not a decision. */
   const gz=grazeFacts();
@@ -279,9 +279,9 @@ function draw(now){
   cx.fillText('撃墜 '+kills,W-200,55);
   cx.fillText('かすり '+gz.paid+'  '+'・'.repeat(gz.run)+'－'.repeat(gz.need-gz.run),W-170,37);
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
-    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a='撃墜 '+kills+' 機・得点 '+score+'。';cx.fillText(a,W/2-a.length*10,H/2-8);
-    cx.font='13px ui-monospace,monospace';
+    cx.font=hudPx(13)+'px ui-monospace,monospace';
     if((typeof roundAskReady!=='function'||roundAskReady())){const b='SPACE か R、タップでもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}}
 /* Read back off the running page rather than grepped for: the act the sky
    is in, and the nearest incoming hull, so a probe can dodge like a hand. */

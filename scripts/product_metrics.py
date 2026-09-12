@@ -10220,8 +10220,12 @@ def measure_creation(c: Collector) -> None:
         if _tf_m is None:
             type_gaps.append(f"{_tf_key}: no script on the page")
             continue
+        # The sizes as designed, now that every one is asked for through
+        # hudPx (C-1725). The census still belongs here - 13 is the number
+        # §24 chose for a desk - and what the eye actually gets is measured
+        # by creation_text_survives_the_shrink, which drives real widths.
         _tf_sizes = [
-            int(px) for px in _tf_re.findall(r"font='(\d+)px", _tf_m.group(1))
+            int(px) for px in _tf_re.findall(r"hudPx\((\d+)\)", _tf_m.group(1))
         ]
         if not _tf_sizes:
             type_gaps.append(f"{_tf_key}: no drawn text found by the census")
@@ -10236,10 +10240,176 @@ def measure_creation(c: Collector) -> None:
             if type_gaps
             else "全型の canvas 描画文字が 13px 以上（§24。667px 横持ちの"
             "縮尺 0.926 で実効 12.0px ≥ iOS 最小型 Caption 2 の 11pt。"
-            "11px の 3 箇所と 12px の 4 箇所を 13px へ）"
+            "11px の 3 箇所と 12px の 4 箇所を 13px へ）。"
+            "**C-1725 以降、この数は「設計上の canvas px」だけを見る**"
+            "——§24 が「床は**実効サイズ**で決める」と書いた当の量は"
+            "`creation_text_survives_the_shrink` が実幅で駆動して測る"
+            "（縦持ちでは 13px は実効 7.04px で、この census では見えなかった）"
         ),
         kind=OUTCOME,
     )
+
+    # --- a word keeps its size when the glass shrinks (§24, C-1725) -----
+    #
+    # §24 says the type floor has to be decided in EFFECTIVE size, because
+    # a canvas pixel shrinks with the page - and then picked 13px from the
+    # smallest promoted LANDSCAPE screen (667px, x0.926 -> 12.0 effective,
+    # over iOS's 11pt Caption 2). §18's own 学び says the rotation prompt
+    # is 案内であって遮断ではない, and C-1720 spent a cycle fitting the pad
+    # to portrait at 390 CSS px, so portrait is a play mode this product
+    # supports. There the scale is 1.846: 13 canvas px is 7.04 effective
+    # and even the 20px headline is 10.8, under the floor §24 quotes.
+    #
+    # The pad has kept a thumb's width constant since C-1019 and through
+    # C-1720; nothing did the same for a word. The mechanism was already
+    # on the page - padScale() - and simply not wired to the eye.
+    #
+    # Driven at the desk width and at the narrowest phone. The floor is met
+    # by construction once hudPx is in the path (max(px, 11*s)/s >= 11), so
+    # what this actually catches is a font that does NOT go through it -
+    # which is the only way the defect comes back.
+    import re as _ts2_re
+    import subprocess as _ts2_sp
+
+    from sidra_ai.creation.hudpaint import textsize_probe as _ts2_probe
+
+    _TS2_FLOOR = 11.0  # §24 事実 2: iOS Caption 2
+    _TS2_REQS = {
+        "adventure": "迷宮を冒険するゲームを作って",
+        "duel": "ビームで撃ち合うゲームを作って",
+        "kaiju": "巨大怪獣と戦うゲームを作って",
+        "shooter": "シューティングゲームを作って",
+        "puzzle": "パズルゲームを作って",
+        "platformer": "ジャンプで進むゲームを作って",
+        "marble": "玉転がしゲームを作って",
+        "racing": "レースゲームを作って",
+        "fishing": "釣りゲームを作って",
+        "catch": "落ちものをキャッチするゲームを作って",
+    }
+    _ts2_gaps: list[str] = []
+    _ts2_ok: list[str] = []
+    _ts2_worst = ""
+
+    def _ts2_read(key: str, css: int):
+        _page = generate_game(_TS2_REQS[key]).html
+        _sc = _ts2_re.search(r"<script>(.*?)</script>", _page, _ts2_re.S)
+        if _sc is None:
+            return None, f"{key}: no script"
+        try:
+            _run = _ts2_sp.run(
+                ["node", "-"],
+                input=_ts2_probe(_sc.group(1), css_w=css),
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            if _run.returncode != 0:
+                raise ValueError(_run.stderr.strip()[:80])
+            return json.loads(_run.stdout.strip().splitlines()[-1]), None
+        except (OSError, _ts2_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}@{css}: probe unavailable ({exc})"
+
+    def _ts2_boxes(seen):
+        out = {}
+        for where in ("title", "played"):
+            for name, box in (seen.get(where) or {}).items():
+                if name == "?":
+                    return None
+                keep = out.setdefault(name, dict(box))
+                keep["longest"] = max(keep["longest"], box["longest"])
+        return out
+
+    for _ts2_key in sorted(_TS2_REQS):
+        # (a) the narrowest phone: every word the page draws clears §24's
+        # floor in the size the eye is given.
+        _ts2_seen, _ts2_why = _ts2_read(_ts2_key, 360)
+        if _ts2_why:
+            _ts2_gaps.append(_ts2_why)
+            continue
+        _ts2_box = _ts2_boxes(_ts2_seen)
+        if _ts2_box is None:
+            _ts2_gaps.append(f"{_ts2_key}: a word was drawn with no font at all")
+            continue
+        if not _ts2_box:
+            _ts2_gaps.append(f"{_ts2_key}: nothing was written, so nothing is proved")
+            continue
+        _ts2_small = [
+            f"{v['px']:.1f}px→実効 {v['effective']:.2f}"
+            for v in _ts2_box.values()
+            if v["effective"] < _TS2_FLOOR - 0.01
+        ]
+        if _ts2_small:
+            _ts2_gaps.append(
+                f"{_ts2_key}@360: {'・'.join(_ts2_small[:3])}（床 {_TS2_FLOOR:.0f}）"
+            )
+            continue
+        # ...and raising the type must not push a line off the canvas.
+        # Monospace, so a full-width character is one em wide.
+        _ts2_over = [
+            f"{v['longest']}字×{v['px']:.1f}px"
+            for v in _ts2_box.values()
+            if v["longest"] * v["px"] > 720
+        ]
+        if _ts2_over:
+            _ts2_gaps.append(f"{_ts2_key}@360: 行が画布からはみ出す（{_ts2_over[0]}）")
+            continue
+        # (b) and the desk is untouched: raising every font to pass (a)
+        # would be a different product, so the 720 reading has to still be
+        # the sizes §24 chose.
+        _ts2_desk, _ts2_why = _ts2_read(_ts2_key, 720)
+        if _ts2_why:
+            _ts2_gaps.append(_ts2_why)
+            continue
+        _ts2_dbox = _ts2_boxes(_ts2_desk) or {}
+        _ts2_grown = [
+            f"{v['px']:.1f}px" for v in _ts2_dbox.values() if v["px"] > 22.01
+        ]
+        if _ts2_grown:
+            _ts2_gaps.append(f"{_ts2_key}@720: 机上で字が大きくなっている（{_ts2_grown[0]}）")
+        elif min(v["px"] for v in _ts2_dbox.values()) < 13:
+            _ts2_gaps.append(
+                f"{_ts2_key}@720: 机上の最小が "
+                f"{min(v['px'] for v in _ts2_dbox.values()):.1f}px"
+            )
+        else:
+            _ts2_ok.append(_ts2_key)
+            if _ts2_key == "adventure":
+                _ts2_worst = (
+                    "adventure は 360px 幅で "
+                    + "・".join(
+                        f"{v['px']:.1f}px（実効 {v['effective']:.2f}）"
+                        for v in sorted(_ts2_box.values(), key=lambda b: b["px"])
+                    )
+                )
+
+    c.add(
+        "creation_text_survives_the_shrink",
+        "画面が縮んでも字は読める大きさのまま",
+        0.0 if _ts2_gaps else 2.0,
+        detail=(
+            "; ".join(_ts2_gaps)
+            if _ts2_gaps
+            else f"{len(_ts2_ok)} 型を**実幅で駆動**して、"
+            "タイトル画面と実プレイで**実際に書かれた全ての文字**の"
+            "font を記録し、実効サイズ（canvas px × css幅/720）で測った。"
+            f"{_ts2_worst}。"
+            "**2 方向**: (a) いちばん狭い 360px 幅でも全ての字が"
+            f"**実効 {_TS2_FLOOR:.0f} CSS px 以上**（§24 事実 2 の iOS Caption 2）で"
+            "**行は画布からはみ出さない**（等幅なので 文字数×px で占有幅が出る）、"
+            "(b) **机上（720）は 1 バイトも変わらない**"
+            "——`max(px, 11×縮尺)` は縮尺 1 で px そのものなので、"
+            "「全部大きくして通す」実装はここで落ちる。"
+            "**§24 は「床は実効サイズで決める」と書いた上で、"
+            "横持ち 667px（縮尺 0.926）だけを勘定に入れて 13px を選んでいた**"
+            "——§18 の学びが「縦のままでも遊べる」と書き、"
+            "C-1720 が縦持ち 390px でパッドを画布に収めたのに、"
+            "**縦持ちでは 13px が実効 7.04px・20px の見出しでも 10.8px** だった。"
+            "**指は `padScale()` で守られ、目は守られていなかった**"
+            "——守る機構は既にページにあり、文字に配線されていないだけだった"
+        ),
+        kind=OUTCOME,
+    )
+
 
     # --- the act raises the band too (§6 観察 3, C-1383) ----------------
     #

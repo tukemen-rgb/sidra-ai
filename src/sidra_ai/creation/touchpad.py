@@ -86,6 +86,18 @@ function padRunLive(){try{
 if(PADCV){PADCV.style.touchAction='none'}
 function padScale(){const r=PADCV.getBoundingClientRect();
   return r.width?PADCV.width/r.width:1}
+/* The same scale, wired to the eye (§24 事実 2, C-1725). §24 says the type
+   floor has to be decided in EFFECTIVE size - a canvas pixel shrinks with
+   the page - and then set 13px from the smallest promoted LANDSCAPE screen
+   (667px, x0.926). §18's own 学び says the rotation prompt is 案内であって
+   遮断ではない, and C-1720 fixed the pad for portrait 390 CSS px, so
+   portrait is a play mode this product supports. There the scale is 1.846
+   and 13 canvas px is 7.04 effective - the 20px headline is 10.8, under
+   iOS's smallest type. The pad had kept a thumb's width constant since
+   C-1019; nothing did the same for a word. On a desk the scale is 1 and
+   max(px, 11) is px, so every existing page is unchanged to the byte. */
+const TEXT_FLOOR=11;
+function hudPx(px){return Math.max(px,TEXT_FLOOR*padScale())}
 /* Laid out in canvas pixels from a CSS-pixel size, so the buttons stay
    thumb-sized however the page is scaled down on a small screen. Only the
    buttons this template actually reads are kept: a dead button does nothing

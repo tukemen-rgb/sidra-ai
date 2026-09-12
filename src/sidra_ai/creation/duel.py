@@ -347,9 +347,9 @@ function draw(now){
     cx.fillRect(18,28,p.charge,4);
     if(p.charge>=100){const left=Math.max(0,OVER_LIMIT-p.over);
       cx.fillStyle='ALERT_JUICE';cx.fillRect(18,36,left*100/OVER_LIMIT,2)}}
-  if(p.stun>0){cx.fillStyle='ALERT_JUICE';cx.font='13px ui-monospace,monospace';
+  if(p.stun>0){cx.fillStyle='ALERT_JUICE';cx.font=hudPx(13)+'px ui-monospace,monospace';
     cx.fillText('暴発。'+Math.ceil(p.stun/60)+' 秒動けない',16,50)}
-  if(e.stun>0){cx.fillStyle='ALERT_JUICE';cx.font='13px ui-monospace,monospace';
+  if(e.stun>0){cx.fillStyle='ALERT_JUICE';cx.font=hudPx(13)+'px ui-monospace,monospace';
     cx.fillText('相手が暴発した',cv.width-140,50)}
   /* Who you are fighting, said out loud: the counter-play to a quick draw
      is the opposite of the counter-play to a charger, and a player who
@@ -360,9 +360,9 @@ function draw(now){
      act's floor, and 2.1:1 even on paper (C-1131's check only sees
      the DEFAULT ink misused, so it sailed through). The theme's own
      ink, on the plate, like every other word (C-1334). */
-  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('相手: '+(CPU_STYLE==='quick'?'早撃ち型':'溜め型'),cv.width/2-40,20)
-  cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font=hudPx(13)+'px ui-monospace,monospace';
   if(p.beam>0&&e.beam>0&&p.beamLane===e.beamLane){
     cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
     cx.fillRect(cv.width/2-116,30,232,18);cx.globalAlpha=1;
@@ -379,9 +379,9 @@ function draw(now){
     if(at>=0){cx.fillRect(gx+gw/2,gy,at*gw/2,8)}
     else{cx.fillRect(gx+gw/2+at*gw/2,gy,-at*gw/2,8)}}
   if(state==='end'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
-    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
     cx.fillText(winner,cv.width/2-winner.length*10,cv.height/2-6);
-    cx.font='13px ui-monospace,monospace';
+    cx.font=hudPx(13)+'px ui-monospace,monospace';
     if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('SPACE / タップでもう一度',cv.width/2-78,cv.height/2+20)}}}
 reset();step();
 """

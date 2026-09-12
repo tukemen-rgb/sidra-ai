@@ -266,7 +266,7 @@ function scorePop(x,y,n){
   return n}
 function stepPops(){if(!POPS.length||!JCV)return;
   const c=JCV.getContext('2d');
-  c.save();c.textAlign='center';c.font='13px ui-monospace,monospace';
+  c.save();c.textAlign='center';c.font=hudPx(13)+'px ui-monospace,monospace';
   POPS=POPS.filter(function(p){
     p.life-=1/POP_LIFE;p.y-=POP_RISE;
     if(p.life<=0)return false;

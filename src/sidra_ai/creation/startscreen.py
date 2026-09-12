@@ -226,9 +226,9 @@ function gateBriefTable(c,W,H){
     const LABEL=['目標','操作','敵'];
     GBRIEF.forEach((line,i)=>{
       c.textAlign='left';
-      c.fillStyle='CYAN_TOKEN';c.font='13px ui-monospace,monospace';
+      c.fillStyle='CYAN_TOKEN';c.font=hudPx(13)+'px ui-monospace,monospace';
       c.fillText(LABEL[i],W/2-190,y);
-      c.fillStyle='INK_TOKEN';c.font='13px ui-monospace,monospace';
+      c.fillStyle='INK_TOKEN';c.font=hudPx(13)+'px ui-monospace,monospace';
       gateWrap(line,30).forEach((part,j)=>{c.fillText(part,W/2-140,y+j*18)});
       y+=gateWrap(line,30).length*18+10});
     c.textAlign='center'}
@@ -242,14 +242,14 @@ function drawGate(){if(!GCV||GATE==='playing')return;
   c.fillStyle=(GATE==='title'&&!ATTRACT_FRAMES)?'SURFACE_TOKEN':'SCRIM_TOKEN'+'cc';
   c.fillRect(0,0,W,H);
   c.fillStyle='INK_TOKEN';c.textAlign='center';
-  c.font='22px ui-monospace,monospace';
+  c.font=hudPx(22)+'px ui-monospace,monospace';
   c.fillText(GATE==='title'?GTITLE:'一時停止',W/2,H/2-54);
-  c.font='13px ui-monospace,monospace';
+  c.font=hudPx(13)+'px ui-monospace,monospace';
   gateBriefTable(c,W,H);
-  c.font='15px ui-monospace,monospace';
+  c.font=hudPx(15)+'px ui-monospace,monospace';
   c.fillText(GATE==='title'?'タップ / SPACE ではじめる':'タップ / SPACE でつづける',
     W/2,H-46);
-  c.font='13px ui-monospace,monospace';
+  c.font=hudPx(13)+'px ui-monospace,monospace';
   c.fillStyle='#9fb0c8';
   c.fillText('P で一時停止  /  M で消音',W/2,H-24);
   c.textAlign='left';c.restore()}

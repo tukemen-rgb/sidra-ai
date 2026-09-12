@@ -348,7 +348,7 @@ function draw(){
     cx.strokeRect(car.x-13,CARY-18,26,36);cx.lineWidth=1}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(6,4,262,22);cx.fillRect(W-178,4,132,38);cx.globalAlpha=1;
-  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('LAP '+Math.min(lap,LAPS)+'/'+LAPS+'  '+(lapT/60).toFixed(1)+'s'+
     (slips>0?'  ニアミス '+slips:''),12,19);
   cx.strokeStyle='BORDER_TOKEN';cx.strokeRect(W-172,10,120,10);
@@ -356,9 +356,9 @@ function draw(){
   cx.fillStyle=HUD_INK;
   cx.fillText(onRoad()?'走行':'コース外',W-172,34);
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
-    cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a='ゴール。';cx.fillText(a,W/2-a.length*10,H/2-52);
-    cx.font='13px ui-monospace,monospace';
+    cx.font=hudPx(13)+'px ui-monospace,monospace';
     let y=H/2-24,total=0;
     times.forEach((f,i)=>{total+=f;
       cx.fillText('LAP '+(i+1)+'  '+(f/60).toFixed(2)+'s',W/2-70,y);y+=18});

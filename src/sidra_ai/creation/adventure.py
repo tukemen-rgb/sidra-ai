@@ -471,12 +471,12 @@ function drawTile(t,x,y,now){
      text, never colour alone). */
   if(t===12){cx.fillStyle='RAISED_TOKEN';cx.fillRect(x+5,y+3,TILE-10,TILE-6);
     cx.fillStyle='#00000055';cx.fillRect(x+5,y+TILE-7,TILE-10,4);
-    cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.font=hudPx(13)+'px ui-monospace,monospace';
     cx.fillText('碑',x+9,y+19)}
   if(t===13||t===14||t===15){cx.fillStyle='RAISED_TOKEN';
     cx.fillRect(x+4,y+6,TILE-8,TILE-10);
     cx.fillStyle='#ffffff2e';cx.fillRect(x+4,y+6,TILE-8,3);
-    cx.fillStyle='INK_TOKEN';cx.font='13px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.font=hudPx(13)+'px ui-monospace,monospace';
     cx.fillText(KMARKS[t-13],x+9,y+21)}}
 function diamond(cxp,cyp,r){cx.beginPath();cx.moveTo(cxp,cyp-r);
   cx.lineTo(cxp+r,cyp);cx.lineTo(cxp,cyp+r);cx.lineTo(cxp-r,cyp);cx.closePath()}
@@ -579,7 +579,7 @@ function draw(now){
   for(let i=0;i<hero.maxhp;i++){cx.strokeStyle='MAGENTA_TOKEN';
     cx.strokeRect(OX+i*18+0.5,2.5,13,9)}
   for(let i=0;i<hero.hp;i++){cx.fillRect(OX+i*18,2,14,10)}
-  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('宝石 '+hero.gems+(hero.key?'  鍵あり':'')+(hero.charm?'  護符':''),
     OX+70,11);
   cx.fillText(NAMES[room],cv.width-OX-150,11);
@@ -593,9 +593,9 @@ function glow(x,y,r,now){const g=cx.createRadialGradient(x,y,4,x,y,r);
   g.addColorStop(0,'#f5d89a55');g.addColorStop(1,'#00000000');
   cx.fillStyle=g;cx.fillRect(x-r,y-r,r*2,r*2)}
 function shade(a,b){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
-  cx.fillStyle='INK_TOKEN';cx.font='20px ui-monospace,monospace';
+  cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
   cx.fillText(a,cv.width/2-a.length*10,cv.height/2-8);
-  cx.font='13px ui-monospace,monospace';
+  cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}
 function step(rt){const now=performance.now();
   /* The world advances on real time, not on this display's refresh

@@ -325,13 +325,13 @@ function step(rt){
     cx.fillRect(bp.x+br*0.22+ex,bp.y-br*0.34,br*0.2,br*0.34)}
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(32,12,330,24);cx.globalAlpha=1;
-  cx.fillStyle=HUD_INK;cx.font='13px ui-monospace,monospace';
+  cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('スコア '+score+' '+comboLabel()+'  ゲート '+gates
     +'  距離 '+Math.round(ball.z),40,30);
   if(state!=='roll'){cx.fillStyle='SCRIM_TOKEN'+'cc';cx.fillRect(0,H/2-40,W,80);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
-    cx.font='20px ui-monospace,monospace';cx.fillText(over,W/2,H/2-6);
-    cx.font='13px ui-monospace,monospace';
+    cx.font=hudPx(20)+'px ui-monospace,monospace';cx.fillText(over,W/2,H/2-6);
+    cx.font=hudPx(13)+'px ui-monospace,monospace';
     if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('R / タップでもう一度',W/2,H/2+24)}cx.textAlign='left'}
   requestAnimationFrame(step)}
 /* Read back off the running page: where the run is, which act the sky is
