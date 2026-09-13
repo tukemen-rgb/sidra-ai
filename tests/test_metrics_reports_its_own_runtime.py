@@ -18,6 +18,7 @@ next loop reads the answer instead of rediscovering it.
 
 from __future__ import annotations
 
+import contextlib
 import sys
 from pathlib import Path
 
@@ -179,3 +180,154 @@ def test_the_jobs_actually_overlap() -> None:
     elapsed = _time.monotonic() - started
 
     assert elapsed < 1.0, f"four 0.4s jobs took {elapsed:.2f}s - they queued"
+
+
+# ----------------------------------------------------------- C-1736
+
+
+@contextlib.contextmanager
+def counting(stub=None):
+    """Count spawns without making any.
+
+    ``_spawn_timing`` wraps whatever ``subprocess.run`` is at the moment it
+    is installed, so a stub put in first is what the wrapper calls. That
+    keeps these tests off the clock and off node: what is under test is the
+    bookkeeping, and a real spawn would only add a second of weather to it.
+    """
+
+    import subprocess
+
+    real = subprocess.run
+    subprocess.run = stub or (lambda *a, **k: None)
+    kept_counts = dict(pm._SPAWN_THREADS)
+    kept_sites = dict(pm._SPAWNS)
+    pm._spawn_timing()
+    pm._SPAWN_THREADS.update(bundled=0, alone=0)
+    try:
+        yield pm._SPAWN_THREADS
+    finally:
+        subprocess.run = real
+        pm._SPAWN_THREADS.update(kept_counts)
+        pm._SPAWNS.clear()
+        pm._SPAWNS.update(kept_sites)
+
+
+def _spawn_node():
+    import subprocess
+
+    subprocess.run(["node", "-"], input="", capture_output=True, text=True)
+
+
+def test_a_spawn_on_the_main_thread_is_counted_as_waiting_alone() -> None:
+    """The number exists to say how much of the run queues. A site that
+    never left the main thread is the whole of what it is counting."""
+
+    with counting() as counts:
+        _spawn_node()
+
+        assert counts == {"bundled": 0, "alone": 1}
+
+
+def test_spawns_handed_to_workers_are_counted_as_bundled() -> None:
+    with counting() as counts:
+        pm.in_parallel([_spawn_node, _spawn_node, _spawn_node])
+
+        assert counts == {"bundled": 3, "alone": 0}
+
+
+def test_one_job_through_in_parallel_still_reads_as_alone() -> None:
+    """``in_parallel`` runs a lone job on the caller's thread, and a lone
+    job *is* alone - a count that called it bundled would report a site as
+    fixed by wrapping it in a list."""
+
+    with counting() as counts:
+        pm.in_parallel([_spawn_node])
+
+        assert counts == {"bundled": 0, "alone": 1}
+
+
+def test_the_run_s_other_subprocesses_are_not_counted() -> None:
+    """The claim is about node. git, python and the suites this script
+    shells out to are spawns too, and counting them would let the number
+    move without a single probe being bundled."""
+
+    import subprocess
+
+    with counting() as counts:
+        subprocess.run(["git", "status"], capture_output=True)
+        subprocess.run(["python3", "-c", "pass"], capture_output=True)
+
+        assert counts == {"bundled": 0, "alone": 0}
+
+
+@pytest.mark.parametrize(
+    "cmd,is_node",
+    [
+        (["node", "-"], True),
+        (["/usr/local/bin/node", "--check", "-"], True),
+        (["nodemon", "x"], False),
+        (["python3", "-c", "pass"], False),
+        ("node", True),
+    ],
+)
+def test_node_is_recognised_by_the_program_not_the_prefix(cmd, is_node: bool) -> None:
+    assert pm._is_node((cmd,), {}) is is_node
+    assert pm._is_node((), {"args": cmd}) is is_node
+
+
+def test_the_share_is_reported_as_an_outcome_with_both_counts() -> None:
+    kept = dict(pm._SPAWN_THREADS)
+    pm._SPAWN_THREADS.update(bundled=3, alone=1)
+    try:
+        collector = pm.Collector()
+        pm.measure_runtime(collector)
+    finally:
+        pm._SPAWN_THREADS.update(kept)
+
+    metric = collector.metrics[0]
+    assert metric.key == "metrics_node_work_is_bundled"
+    assert metric.value == 75.0
+    assert metric.kind == pm.OUTCOME
+    assert metric.direction == "up"
+    assert "3" in metric.detail and "1" in metric.detail, (
+        "the share alone cannot say whether a probe was added or bundled"
+    )
+
+
+def test_a_run_that_spawned_no_node_says_so_instead_of_reporting_zero() -> None:
+    """0% would read as "nothing is bundled", which is a measurement. No
+    spawn at all is not one."""
+
+    kept = dict(pm._SPAWN_THREADS)
+    pm._SPAWN_THREADS.update(bundled=0, alone=0)
+    try:
+        collector = pm.Collector()
+        pm.measure_runtime(collector)
+    finally:
+        pm._SPAWN_THREADS.update(kept)
+
+    metric = collector.metrics[0]
+    assert metric.value is None
+    assert metric.kind == pm.OUTCOME
+    assert "no node spawn" in metric.detail
+
+
+def test_the_runtime_section_runs_last() -> None:
+    """It reports what every other section spent. Registered anywhere else
+    it would report a part of the run and call it the run."""
+
+    assert pm.COLLECTORS[-1][0] == "runtime"
+
+
+@pytest.mark.parametrize("worker", ["_world_one", "_daily_one", "_fresh_one"])
+def test_the_bundled_template_probes_stay_bundled(worker: str) -> None:
+    """C-1736 moved these three off the main thread. A later loop editing
+    the section back into a ``for`` loop would put 110 spawns back in the
+    queue, and the only sign would be a number nobody reads."""
+
+    source = (ROOT / "scripts" / "product_metrics.py").read_text(encoding="utf-8")
+
+    assert f"def {worker}(" in source, "the probe was renamed; check it is still bundled"
+    assert f"in_parallel([(lambda k=key: {worker}(k))" in source, (
+        f"{worker} is no longer driven through in_parallel"
+    )

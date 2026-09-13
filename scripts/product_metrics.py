@@ -29,6 +29,7 @@ import importlib
 import io
 import json
 import sys
+import threading
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -15932,13 +15933,20 @@ def measure_creation(c: Collector) -> None:
     # 自己ベスト更新 would pass the first run alone.
     fresh_gaps: list[str] = []
     fresh_ok: list[str] = []
-    for key in sorted(_tune_templates):
+    def _fresh_one(key):
+        """One template's pair of rounds - a first go, then a chased one.
+
+        The pair is a chain (the second is judged against the first), so
+        the bundling is across templates (C-1736).
+        """
+
+        gaps: list[str] = []
         runs = {}
         for label, best in (("first", None), ("chased", 10**6)):
             page = _tune_generate("ゲームを作って", template=key).html
             script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
             if script is None:
-                fresh_gaps.append(f"{key}: no script")
+                gaps.append(f"{key}: no script")
                 break
             gentle = min(pair[0] for pair in _tune_ladder[key].values())
             # A key is pressed every frame, because since C-1123 a round
@@ -15962,42 +15970,51 @@ def measure_creation(c: Collector) -> None:
                     ["node", "-"], input=source, capture_output=True, text=True, timeout=180
                 )
                 if probe.returncode != 0:
-                    fresh_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                    gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
                     break
                 runs[label] = json.loads(probe.stdout.strip().splitlines()[-1])
             except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-                fresh_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+                gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
                 break
         if len(runs) != 2:
-            continue
+            return gaps
         first, chased = runs["first"], runs["chased"]
         if first["score"] is None:
-            fresh_gaps.append(f"{key}: the round ended with no score to show")
-            continue
+            gaps.append(f"{key}: the round ended with no score to show")
+            return gaps
         if not first["record"]:
-            fresh_gaps.append(f"{key}: a first go was not a personal best")
-            continue
+            gaps.append(f"{key}: a first go was not a personal best")
+            return gaps
         strip = [line for line in chased["strip"] if "自己ベスト" in line and "あと" in line]
         if not strip:
-            fresh_gaps.append(f"{key}: no 「あと n」 on the result: {chased['strip'][:3]}")
-            continue
+            gaps.append(f"{key}: no 「あと n」 on the result: {chased['strip'][:3]}")
+            return gaps
         if chased["record"]:
-            fresh_gaps.append(f"{key}: a beaten score still claimed a record")
-            continue
+            gaps.append(f"{key}: a beaten score still claimed a record")
+            return gaps
         if not [line for line in chased["strip"] if "もう一度" in line]:
-            fresh_gaps.append(f"{key}: the result offers no way back in")
-            continue
+            gaps.append(f"{key}: the result offers no way back in")
+            return gaps
         # One tap, from the result, back into play - the thing §8 asks for
         # and the thing a phone has. Reloading the page counts: the round
         # after it is a round.
         tap = chased["afterTap"]
         if not (tap["live"] and not tap["ended"]) and not tap["reloads"]:
-            fresh_gaps.append(f"{key}: one tap on the result did not start another go")
-            continue
+            gaps.append(f"{key}: one tap on the result did not start another go")
+            return gaps
         for line in chased["strip"]:
             if "http" in line or "://" in line:
-                fresh_gaps.append(f"{key}: the result points somewhere outside")
+                gaps.append(f"{key}: the result points somewhere outside")
                 break
+        return gaps
+
+    _fresh_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _fresh_keys,
+        in_parallel([(lambda k=key: _fresh_one(k)) for key in _fresh_keys]),
+    ):
+        if said:
+            fresh_gaps.extend(said)
         else:
             fresh_ok.append(key)
     c.add(
@@ -16112,7 +16129,13 @@ def measure_creation(c: Collector) -> None:
         except (OSError, _scene_sp.SubprocessError, ValueError, KeyError) as exc:
             return None, f"{template}: probe unavailable ({type(exc).__name__})"
 
-    for key in sorted(_tune_templates):
+    def _daily_one(key):
+        """One template's five draws, so ten templates run at once.
+
+        The five are a set that is compared against itself, so they stay
+        in order here; it is the templates that are independent (C-1736).
+        """
+
         boards = {}
         trouble = None
         for label, request, on, stamp, pin in (
@@ -16136,6 +16159,13 @@ def measure_creation(c: Collector) -> None:
                 trouble = f"{key}: with the switch off, every request drew the same world"
             elif boards["offA"] == boards["todayA"]:
                 trouble = f"{key}: the daily board applies with the switch off"
+        return trouble
+
+    _daily_keys = sorted(_tune_templates)
+    for key, trouble in zip(
+        _daily_keys,
+        in_parallel([(lambda k=key: _daily_one(k)) for key in _daily_keys]),
+    ):
         if trouble:
             daily_gaps.append(trouble)
         else:
@@ -17460,7 +17490,17 @@ def measure_creation(c: Collector) -> None:
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             return None, f"{template}: probe unavailable ({type(exc).__name__})"
 
-    for key in sorted(_tune_templates):
+    def _world_one(key):
+        """One template, start to finish, so ten of them can run at once.
+
+        The four spawns inside are a chain - the loud store is built from
+        what the first drive wrote - so the bundling is across templates,
+        not within one. Gaps come back in a list instead of being appended
+        as they are found, because workers would interleave them and the
+        report would read differently run to run (C-1736).
+        """
+
+        gaps: list[str] = []
         pages = {}
         # Three games one template makes: another request (another seed, so
         # another course), and the SAME request at another difficulty - the
@@ -17486,13 +17526,13 @@ def measure_creation(c: Collector) -> None:
                 break
             pages[_mem_name] = (_mem_found.group(1), _mem_world_said.group(1))
         if len(pages) != 3:
-            world_gaps.append(f"{key}: ページが世界を名乗らない")
-            continue
+            gaps.append(f"{key}: ページが世界を名乗らない")
+            return gaps
         # Without this the rest is vacuous: pages that call themselves the
         # same world cannot tell us anything about refusing.
         if len({tag for _body, tag in pages.values()}) != 3:
-            world_gaps.append(f"{key}: 別のゲームが同じ世界を名乗る")
-            continue
+            gaps.append(f"{key}: 別のゲームが同じ世界を名乗る")
+            return gaps
         here_body, here_tag = pages["here"]
         # What the page WRITES, read at the source. memRead adopts an
         # unstamped value and re-stamps it, so a page that wrote bare
@@ -17501,14 +17541,14 @@ def measure_creation(c: Collector) -> None:
         # the run-time version of this check.
         _mem_bare = _mem_unstamped(here_body)
         if _mem_bare:
-            world_gaps.append(f"{key}: {_mem_bare[0]}")
-            continue
+            gaps.append(f"{key}: {_mem_bare[0]}")
+            return gaps
         wired = key in _ghost_templates
         base = {f"sidra.seen.{key}": "1"}
         drove, problem = _world_run(key, here_body, dict(base), 3800)
         if problem:
-            world_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         # The page writes its world down with the number...
         for _mem_what, _mem_value in (
             ("best", drove["storedBest"]),
@@ -17516,9 +17556,9 @@ def measure_creation(c: Collector) -> None:
             *((("ghost", drove["storedTrail"]),) if wired else ()),
         ):
             if not _mem_value or here_tag.strip('"') not in _mem_value:
-                world_gaps.append(f"{key}: 保存された {_mem_what} が世界を名乗っていない")
-        if world_gaps and world_gaps[-1].startswith(f"{key}:"):
-            continue
+                gaps.append(f"{key}: 保存された {_mem_what} が世界を名乗っていない")
+        if gaps:
+            return gaps
         # ...and a loud store says which side of the line each read lands on.
         loud = {
             **base,
@@ -17529,37 +17569,47 @@ def measure_creation(c: Collector) -> None:
             loud[f"sidra.ghost.{key}"] = json.loads(drove["storedTrail"])
         mine, problem = _world_run(key, here_body, dict(loud), 240)
         if problem:
-            world_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if mine["best"] != 999 or mine["row"] != [111, 222]:
-            world_gaps.append(
+            gaps.append(
                 f"{key}: 自分の世界の記録まで読まなくなった（best={mine['best']}, row={mine['row']}）"
             )
-            continue
+            return gaps
         if wired and not mine["ghost"]["had"]:
-            world_gaps.append(f"{key}: 自分の世界の軌跡まで読まなくなった")
-            continue
+            gaps.append(f"{key}: 自分の世界の軌跡まで読まなくなった")
+            return gaps
         _mem_failed = False
         for _mem_name in ("there", "harder"):
             away, problem = _world_run(key, pages[_mem_name][0], dict(loud), 240)
             if problem:
-                world_gaps.append(problem)
+                gaps.append(problem)
                 _mem_failed = True
                 break
             if away["best"] == 999 or away["row"] == [111, 222]:
-                world_gaps.append(
+                gaps.append(
                     f"{key}: {_mem_name} が別の世界の記録を読んだ"
                     f"（best={away['best']}, row={away['row']}）"
                 )
                 _mem_failed = True
                 break
             if wired and away["ghost"]["had"]:
-                world_gaps.append(f"{key}: {_mem_name} が別の世界の軌跡を読んだ")
+                gaps.append(f"{key}: {_mem_name} が別の世界の軌跡を読んだ")
                 _mem_failed = True
                 break
         if _mem_failed:
-            continue
-        world_ok.append(key)
+            return gaps
+        return gaps
+
+    _world_keys = sorted(_tune_templates)
+    for key, _world_said in zip(
+        _world_keys,
+        in_parallel([(lambda k=key: _world_one(k)) for key in _world_keys]),
+    ):
+        if _world_said:
+            world_gaps.extend(_world_said)
+        else:
+            world_ok.append(key)
     c.add(
         "creation_memory_belongs_to_its_world",
         "記憶が自分の世界のものだと確かめる型",
@@ -26970,6 +27020,58 @@ def measure_retrieval_scale(c: Collector) -> None:
         ),
     )
 
+# --- what the run itself costs -----------------------------------------
+
+
+def measure_runtime(c: Collector) -> None:
+    """How much of the run's own node work waited alone (C-1736).
+
+    Runs last, so the two counters have seen every other section.
+
+    Why this number and not the run's headroom: a previous turn of this
+    item wrote a metric for the seconds of headroom left against
+    ``SUBPROCESS_BUDGET_SECONDS`` and withdrew it after measuring the same
+    tree four times - 216.6 / 237.4 / 240.7 / 253.0 seconds. Three loops
+    share this machine, so the swing (36s) is larger than any change worth
+    making, and a judge built on it reports the weather. This counts
+    instead: the same tree gives the same two integers whatever else the
+    machine is doing.
+
+    What it is for: the section is 92% node, and ``in_parallel`` is the one
+    lever that reaches all of it (C-1522). Nothing held loops to using it,
+    so probes have been added straight into ``for`` loops, where each one
+    queues behind every other. A share, not a count, because the count
+    rises whenever anyone writes a probe and that is not a regression -
+    adding a bundled probe leaves this number where it was.
+    """
+
+    bundled = _SPAWN_THREADS["bundled"]
+    alone = _SPAWN_THREADS["alone"]
+    total = bundled + alone
+    if not total:
+        c.unmeasurable(
+            "metrics_node_work_is_bundled",
+            "node spawns that ran beside another",
+            "no node spawn was seen: either node is missing or subprocess.run "
+            "was not wrapped (_spawn_timing runs from main())",
+            kind=OUTCOME,
+        )
+        return
+    c.add(
+        "metrics_node_work_is_bundled",
+        "node spawns that ran beside another",
+        round(bundled / total * 100, 1),
+        unit="%",
+        detail=f"{bundled} of {total} node spawns ran on a worker thread; "
+               f"{alone} waited alone on the main thread",
+        direction="up",
+        kind=OUTCOME,
+        # One spawn in a hundred moving is a probe being added or dropped,
+        # not a site being bundled.
+        min_move=1.0,
+    )
+
+
 COLLECTORS = (
     ("usable", measure_usability),
     ("fresh", measure_freshness),
@@ -26980,6 +27082,7 @@ COLLECTORS = (
     ("cost", measure_cost),
     ("gate", measure_gate),
     ("observable", measure_observability),
+    ("runtime", measure_runtime),
 )
 
 
@@ -27050,9 +27153,11 @@ def _runtime_report(collector: "Collector", elapsed: float) -> str:
         spawns = sum(row[0] for _, row in sites)
         spent = sum(row[1] for _, row in sites)
         lines.append(
-            f"  {spawns} node spawns cost {spent:.1f}s of process time. "
-            "Heaviest sites - `wall` is what the run actually waited, so "
-            "wall << sum means the site is already bundled:"
+            f"  {spawns} subprocess spawns cost {spent:.1f}s of process "
+            "time (this counts every spawn, not only node - 1469 against "
+            "1392 node ones when C-1736 measured both). Heaviest sites - "
+            "`wall` is what the run actually waited, so wall << sum means "
+            "the site is already bundled:"
         )
         for where, (count, seconds, first, last) in sites[:12]:
             wall = last - first
@@ -27069,6 +27174,31 @@ def _runtime_report(collector: "Collector", elapsed: float) -> str:
 #: off ``sys._getframe`` costs nothing measurable - ``inspect.stack()``
 #: would cost more than the thing being measured.
 _SPAWNS: dict[str, list] = {}
+
+#: Node spawns that ran beside another, and node spawns that waited alone
+#: (C-1736). ``in_parallel`` is the lever C-1522 measured - the section is
+#: 92% node, the machine has four cores, and a probe added straight into a
+#: ``for`` loop queues behind every other one. Nothing guarded that, so the
+#: share of bundled work has been falling as probes are added: this counts
+#: it. The thread is the honest test of "beside another": ``in_parallel``
+#: hands a job to a worker only when there are two or more to run, so a
+#: lone job still reads as alone. Counting, not timing - the wall clock on
+#: this machine swings 36s between runs of the same tree (measured), which
+#: is why the run's own headroom was tried as a judge and withdrawn.
+_SPAWN_THREADS = {"bundled": 0, "alone": 0}
+#: Workers count into the same two numbers, and `d[k] += 1` is three
+#: bytecodes, so the count would quietly run low exactly when the run is
+#: most parallel - the case the number exists to report.
+_SPAWN_LOCK = threading.Lock()
+
+
+def _is_node(args, kwargs) -> bool:
+    """Whether this ``subprocess.run`` is one of the node spawns."""
+
+    cmd = args[0] if args else kwargs.get("args")
+    if isinstance(cmd, (list, tuple)):
+        cmd = cmd[0] if cmd else None
+    return isinstance(cmd, str) and cmd.rsplit("/", 1)[-1] == "node"
 
 
 def _spawn_timing(depth: int = 2):
@@ -27087,6 +27217,10 @@ def _spawn_timing(depth: int = 2):
     def timed(*args, **kwargs):
         frame = sys._getframe(1)
         where = f"{frame.f_code.co_filename.rsplit('/', 1)[-1]}:{frame.f_lineno}"
+        if _is_node(args, kwargs):
+            alone = threading.current_thread() is threading.main_thread()
+            with _SPAWN_LOCK:
+                _SPAWN_THREADS["alone" if alone else "bundled"] += 1
         started = time.monotonic()
         try:
             return original(*args, **kwargs)

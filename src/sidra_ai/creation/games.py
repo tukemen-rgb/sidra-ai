@@ -2119,9 +2119,12 @@ def _javascript_parses(script: str) -> tuple[bool, str]:
     Remembered by script text (C-1736). node's own parser still decides -
     the same script is simply not asked about twice. Measured over one
     collector run: 248 calls, 119 distinct scripts, 48 of them repeated and
-    the most repeated asked 14 times. The waiting was the process startup,
-    not the parse: 230.2s of wall for 11.0s of CPU across 248 spawns, so
-    halving the spawns halves the wait.
+    the most repeated asked 14 times. The spawns did halve; the run did not.
+    The wall-for-CPU reading that suggested it would (230.2s of wall for
+    11.0s of CPU across 248 spawns) was read off a report, and four runs
+    of the same tree came back 216.6 / 237.4 / 240.7 / 253.0s - a 36s
+    swing on a machine three loops share, larger than the change being
+    looked for. What is left standing is the count, not the saving.
 
     (The item proposing this said outright that it had *not* counted the
     distinct scripts and that "the same script appears many times" was a
