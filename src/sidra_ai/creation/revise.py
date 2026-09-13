@@ -916,10 +916,14 @@ def build_game_reviser(data_dir: str | Path):
                     f"あるのは{_names_phrase(remembered or here)}です。"
                     "どれを修正するか、名前で指定してください。"
                 )
-            elif stranded_pages(data_dir):
+            elif (stranded := stranded_pages(data_dir)):
                 # C-1745: the page is here. Saying "make one first" would be
                 # false and, followed, would leave two copies of one game.
-                stranded = stranded_pages(data_dir)
+                #
+                # Read once. Asking the directory twice - once for the
+                # branch and once for the value - is a window another
+                # thread can empty, and the concurrency suite found the
+                # IndexError that comes out of it (C-1749 の巡で検出).
                 page, why = stranded[0]
                 rest = (
                     f"（同じ状態のものがほか {len(stranded) - 1} 件あります）"

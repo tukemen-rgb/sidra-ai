@@ -30,6 +30,8 @@ C-1113, is also how a tuning change is applied.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 import json
 import re
 from typing import Sequence
@@ -825,7 +827,7 @@ def probe_source(
     check about *records* has to hold a key to be about anything.
     """
 
-    payload = {key: json.dumps(value, ensure_ascii=False) for key, value in (stored or {}).items()}
+    payload = seed_store(stored)
     return (
         PROBE.replace("FRAMES_INPUT", str(int(frames)))
         .replace("WARMUP_INPUT", str(int(warmup)))

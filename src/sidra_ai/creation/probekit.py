@@ -187,10 +187,46 @@ function tap(k, frames){ hold(k, frames); release(); run(1) }
 function thumbHeld(){ return thumbDown }
 """
 
+
+
+def seed_store(stored: "dict[str, object] | None") -> "dict[str, str]":
+    """What the browser would be holding, for a probe to start from.
+
+    Every probe in this package fakes ``localStorage`` and every one of
+    them has to be seeded with what a *previous visit* left behind. The
+    one rule is the platform's (§31, MDN's Storage API): **values are
+    strings**, and ``setItem`` stringifies whatever it is handed - which
+    the fakes already honour on the write side with ``String(v)``.
+
+    So a seed has to be the string the page would read back:
+
+    * a string is already one, and goes in untouched - a skin id and the
+      briefing mark are read raw, and quoting them makes them match
+      nothing;
+    * anything else is what the page wrote with ``JSON.stringify``, so it
+      is seeded the same way.
+
+    Written here once because the nine probes had drifted into three
+    different answers - ``str()`` for everything in one, JSON for
+    everything in another - and the JSON-for-everything one cost this
+    loop two wrong readings in a night (C-1747, C-1749): a skin could be
+    set in the store and the page would ignore it, which reads exactly
+    like a product that ignores skins.
+    """
+
+    import json as _seed_json
+
+    return {
+        key: (value if isinstance(value, str) else _seed_json.dumps(value, ensure_ascii=False))
+        for key, value in (stored or {}).items()
+    }
+
+
 __all__ = [
     "PROBE_SEND",
     "PROBE_SHAKE",
     "PROBE_EARS",
     "PROBE_EYES",
     "PROBE_THUMB",
+    "seed_store",
 ]

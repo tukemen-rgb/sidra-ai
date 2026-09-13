@@ -39,6 +39,8 @@ all thirty of its uses at load.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 import json
 
 #: The one difficulty ladder, in climbing order - the same three names
@@ -557,10 +559,7 @@ def probe_source(script: str, *, stored: dict[str, dict] | None = None, target: 
     # unable to express the values the page reads raw - a skin id, the
     # briefing mark - so a caller could set them and see no effect. That
     # cost this loop two wrong readings before the disagreement was found.
-    payload = {
-        key: (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
-        for key, value in (stored or {}).items()
-    }
+    payload = seed_store(stored)
     return (
         PROBE.replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("TARGET_INPUT", json.dumps(target))

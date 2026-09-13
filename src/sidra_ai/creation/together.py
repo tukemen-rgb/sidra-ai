@@ -29,6 +29,8 @@ there was nothing" is a result, but only if the looking was real.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 import json
 import re
 
@@ -317,10 +319,7 @@ def probe_source(
     the board. C-1020 already guarantees the decoration is what goes.
     """
 
-    payload = {
-        key: (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
-        for key, value in (stored or {}).items()
-    }
+    payload = seed_store(stored)
     return (
         PROBE.replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("FRAMES_INPUT", str(int(frames)))

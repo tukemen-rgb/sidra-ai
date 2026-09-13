@@ -34,6 +34,8 @@ a template written after it.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 from sidra_ai.creation.probekeys import KEY_EVENT_JS
 import json
 
@@ -702,10 +704,7 @@ def ghost_probe_source(
         tune = dict(seeded.get("sidra.tune.marble") or {})
         tune["speed"] = roll
         seeded["sidra.tune.marble"] = tune
-    packed = {
-        key: (value if isinstance(value, str) else json.dumps(value))
-        for key, value in seeded.items()
-    }
+    packed = seed_store(seeded)
     return GHOST_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
         "STORED_INPUT", json.dumps(packed)
     )

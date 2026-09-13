@@ -24,6 +24,8 @@ re-scheduling itself, exactly as the hitstop does.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 import json
 
 from sidra_ai.creation.probekeys import KEY_EVENT_JS
@@ -514,10 +516,7 @@ def start_probe_source(
 
     import json as _json
 
-    payload = {
-        name: (value if isinstance(value, str) else _json.dumps(value, ensure_ascii=False))
-        for name, value in (stored or {}).items()
-    }
+    payload = seed_store(stored)
     return (
         START_PROBE.replace("STORED_INPUT", _json.dumps(payload, ensure_ascii=False))
         .replace("WARMUP_INPUT", str(int(warmup)))

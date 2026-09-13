@@ -26,6 +26,8 @@ behind it, and nothing else - no share sheet, no network, no analytics.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 import json
 import math
 
@@ -384,10 +386,7 @@ def probe_source(
 ) -> str:
     """The page, played out and then asked for its line."""
 
-    payload = {
-        key: (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
-        for key, value in (stored or {}).items()
-    }
+    payload = seed_store(stored)
     return (
         PROBE.replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("FRAMES_INPUT", str(int(frames)))

@@ -15301,6 +15301,107 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- every probe fakes the same browser ------------------------------
+    #
+    # C-1749. Nine probes in this package fake localStorage, and each one
+    # has to be seeded with what a previous visit left behind. They had
+    # drifted into three different answers: strings raw and the rest JSON
+    # (six), str() for everything (adapt), JSON for everything (round).
+    #
+    # The platform's rule is one (§31, MDN's Storage API): values are
+    # strings, and setItem stringifies what it is handed. A seed therefore
+    # has to be the string the page would read back - and str({'a': 1})
+    # is Python's repr, which no page can parse, while json.dumps('frost')
+    # is quoted and matches nothing the page compares against.
+    #
+    # No judge is seeded wrongly today - adapt is only ever handed numbers
+    # and round only dicts - so this is a trap rather than a live defect.
+    # It had already cost two wrong readings in one night (C-1747): a skin
+    # set in the store that the page then ignored reads exactly like a
+    # product that ignores skins.
+    #
+    # Both directions: every prober uses the one seeder, AND the seeder
+    # produces what the page can read back. Checking only the first lets
+    # a helper call it and then do as it likes.
+    import inspect as _seed_inspect
+
+    from sidra_ai.creation import probekit as _seed_kit
+
+    seed_gaps: list[str] = []
+    seed_ok: list[str] = []
+    _SEED_MODULES = (
+        "adapt", "juice", "marble", "round", "share",
+        "skins", "startscreen", "together", "tuning",
+    )
+    for _seed_name in _SEED_MODULES:
+        _seed_mod = __import__(
+            f"sidra_ai.creation.{_seed_name}", fromlist=["_"]
+        )
+        _seed_src = _seed_inspect.getsource(_seed_mod)
+        if "(stored or {}).items()" in _seed_src or "seeded.items()" in _seed_src:
+            seed_gaps.append(f"{_seed_name}: 種を自前で組み立てている")
+            continue
+        if "seed_store(" not in _seed_src:
+            seed_gaps.append(f"{_seed_name}: 共有の種づけを使っていない")
+            continue
+        seed_ok.append(_seed_name)
+    # ...and the shared seeder holds what the browser holds.
+    _seed_cases = (
+        ("frost", "frost", "生の文字列はそのまま"),
+        ("1", "1", "既読の印はそのまま"),
+        (3, "3", "数値は JSON でも同じ字面"),
+        ({"speed": 1.5}, '{"speed": 1.5}', "dict はページが書いた形"),
+        (True, "true", "真偽は JS の綴り"),
+        ([1, 2], "[1, 2]", "配列は JSON"),
+    )
+    for _seed_value, _seed_want, _seed_why in _seed_cases:
+        _seed_got = _seed_kit.seed_store({"k": _seed_value})["k"]
+        if _seed_got != _seed_want:
+            seed_gaps.append(f"{_seed_why}: {_seed_got!r} != {_seed_want!r}")
+    # The write side the fakes already honour, stated so it cannot drift:
+    # a probe that stored objects would be a browser nobody has.
+    # Every fake setItem, not merely the spelling somewhere in the file:
+    # round.py alone holds eight of them, so one dropping the conversion
+    # is invisible to a module-wide search (the destruction battery
+    # walked through the version that searched).
+    for _seed_name in _SEED_MODULES:
+        _seed_mod = __import__(f"sidra_ai.creation.{_seed_name}", fromlist=["_"])
+        for _seed_write in _scene_re.findall(
+            r"setItem: \(k, v\) => \{[^}]*\}", _seed_inspect.getsource(_seed_mod)
+        ):
+            if "String(v)" not in _seed_write:
+                seed_gaps.append(f"{_seed_name}: setItem が文字列化していない")
+                break
+    c.add(
+        "creation_probes_store_like_the_browser",
+        "ブラウザと同じ形で種づけする probe",
+        float(len(seed_ok)) if not seed_gaps else 0.0,
+        detail=(
+            "localStorage を模す **9 本の probe** が"
+            "`probekit.seed_store()` **1 つ**を通す（ソースで確認・"
+            "自前で組み立てている残骸が無いことも見る）。"
+            "**MDN の規則は 1 つ**（§31 で引いた Storage API）——**値は文字列**で、"
+            "`setItem` は渡されたものを文字列化する。"
+            "だから種は**そのページが読み戻せる文字列**でなければならない: "
+            "生の文字列（スキンの id・既読の印）はそのまま、"
+            "それ以外はページが `JSON.stringify` で書いた形。"
+            "**両方向**——(a) 全員が共有関数を通る、(b) その関数が"
+            "**6 種の値で実際に正しい字面を返す**"
+            "（(a) だけなら「呼ぶだけ呼んで中で好き勝手する」実装が満点を取る）。"
+            "偽 store の**書き込み側**も `setItem` を**1 つずつ**見て文字列化を確かめる"
+            "（round.py だけで 8 つあり、**ファイル全体を検索する版は破壊試験を素通りした**）。"
+            "**直した中身**: `str()` で何でも（adapt——`str({'a':1})` は Python の repr で"
+            "**どのページも読めない**）と、**何でも JSON**（round——`'frost'` が `'\"frost\"'` になり"
+            "**ページの比較に一致しない**）。"
+            "**今日の判定器はどれも誤った種を渡していない**（adapt には数値だけ、round には dict だけ）"
+            "——**活きた欠陥ではなく罠**で、その罠は C-1747 の測定中に"
+            "**2 度、読み違いを作っている**"
+            if not seed_gaps
+            else "; ".join(seed_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the caveat names the control the person actually used ----------
     #
     # C-1747, §4 x §8 事実 6. C-1737 put a sentence in the panel when a

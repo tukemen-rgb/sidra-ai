@@ -35,6 +35,8 @@ template change rather than a rule change.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 import json
 
 from sidra_ai.creation.probekeys import KEY_EVENT_JS
@@ -193,7 +195,7 @@ def streak_probe_source(
 ) -> str:
     """Play ``rounds`` rounds back to back and report the streak each time."""
 
-    payload = {key: str(value) for key, value in (stored or {}).items()}
+    payload = seed_store(stored)
     return (
         STREAK_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("ROUNDS_INPUT", str(int(rounds)))

@@ -29,6 +29,8 @@ than guessed, and the three steps are multiples of it.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 import json
 
 #: One mashed-out round, in that template's own score. Measured by mashing
@@ -443,10 +445,7 @@ def probe_source(
 ) -> str:
     """The page, played out by a masher, watched by two separate traces."""
 
-    payload = {
-        key: (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
-        for key, value in (stored or {}).items()
-    }
+    payload = seed_store(stored)
     return (
         PROBE.replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("FRAMES_INPUT", str(int(frames)))

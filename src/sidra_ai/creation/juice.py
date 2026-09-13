@@ -29,6 +29,8 @@ both ways so this is measured rather than asserted.
 
 from __future__ import annotations
 
+from sidra_ai.creation.probekit import seed_store
+
 import json
 
 from sidra_ai.creation.probekeys import KEY_EVENT_JS
@@ -478,10 +480,7 @@ def page_probe_source(
 
     import json as _json
 
-    packed = {
-        key: (value if isinstance(value, str) else _json.dumps(value))
-        for key, value in (stored or {}).items()
-    }
+    packed = seed_store(stored)
     return (
         PAGE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
         .replace("REDUCED_INPUT", "true" if reduced else "false")
