@@ -187,8 +187,17 @@ function shareText(){
      request-derived seed is the opposite and never appears. */
   let head=SHARE_SPEC.name;
   try{if(dailyBoard()){head='今日の'+SHARE_SPEC.name+' '+dailyStamp();
-    const tuned=shareTuned();
-    if(tuned.length)head+='（'+tuned.join('・')+'）'}}catch(e){}
+    const marks=shareTuned();
+    /* The other runtime source of a diverged daily board (C-1777): adapt's
+       auto-ease (three losses buy one easier rung, C-1402). It is not a
+       hand-set value, so shareTuned() never sees it - but the board it
+       produced is easier than the one everybody else got, which is exactly
+       the "challenge everybody got" claim C-1768 exists to protect. Read
+       ADAPT_EASED (set when adaptSpeed stepped the speed down at load, and
+       still true after the win that clears the streak), so a run played on
+       the eased board is not pasted as the standard daily. */
+    try{if(typeof adaptFacts==='function'&&adaptFacts().eased)marks.push('難度自動緩和')}catch(e){}
+    if(marks.length)head+='（'+marks.join('・')+'）'}}catch(e){}
   const bar=shareBar(score);
   let line=head+(bar?(' '+bar):'')+' '+ROUND_LABEL+' '+score;
   /* Only when there is something to have been best at: a first run that
