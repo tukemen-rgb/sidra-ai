@@ -259,6 +259,11 @@ class OllamaAdapter(_HTTPAdapter):
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         raw = self._post("/api/generate", self._payload(request, stream=False))
+        # A 200 body can still carry an error (the streaming twin guards this at
+        # generate_stream); without this, an error body became an empty
+        # "successful" answer instead of the model_unavailable refusal (C-1771).
+        if raw.get("error"):
+            raise ModelUnavailableError(f"{self.backend} generation failed: {raw['error']}")
         return self._finish(request, str(raw.get("response", "")), raw)
 
     def generate_stream(self, request: GenerationRequest) -> Iterator[GenerationChunk]:
@@ -354,6 +359,11 @@ class LlamaCppAdapter(_HTTPAdapter):
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         raw = self._post("/completion", self._payload(request, stream=False))
+        # A 200 body can still carry an error (as generate_stream guards); an
+        # unguarded error body became an empty "successful" answer rather than
+        # the model_unavailable refusal (C-1771).
+        if raw.get("error"):
+            raise ModelUnavailableError(f"{self.backend} generation failed: {raw['error']}")
         return self._finish(request, str(raw.get("content", "")), raw)
 
     def generate_stream(self, request: GenerationRequest) -> Iterator[GenerationChunk]:

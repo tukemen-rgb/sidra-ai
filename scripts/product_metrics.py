@@ -2173,6 +2173,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1771: the streaming model paths raise on a 200-status {"error": ...}
+    # body, but the non-streaming generate() (the path every /v1/chat uses) took
+    # the empty response blindly, so a misbehaving model server produced a silent
+    # empty "successful" answer instead of the model_unavailable refusal.
+    # generate() now raises ModelUnavailableError like its streaming twin.
+    from sidra_ai.evals.model_error_body_is_not_a_silent_empty_answer import (
+        evaluate_model_error_body_is_not_a_silent_empty_answer,
+    )
+
+    model_error_body = evaluate_model_error_body_is_not_a_silent_empty_answer()
+    c.add(
+        "model_error_body_is_not_a_silent_empty_answer",
+        "本番モデルの 200+error 本文を空回答でなく model_unavailable として扱う",
+        10.0 * model_error_body.checks_passed / model_error_body.checks_total,
+        detail=f"{model_error_body.checks_passed}/{model_error_body.checks_total} checks; "
+               "src/sidra_ai/evals/model_error_body_is_not_a_silent_empty_answer.py"
+               + ("" if model_error_body.passed else "; " + "; ".join(model_error_body.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
