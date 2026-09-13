@@ -15615,6 +15615,132 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- today's board says when it is not everybody's --------------------
+    #
+    # C-1768, §8 事実 7 x §8 事実 4. §8 records why Wordle's sharing worked:
+    # a spoiler-free boast about a challenge everybody got. This product
+    # copies both halves - the daily seed and the pasteable line - and the
+    # line wrote 「今日の」 on the strength of the seed alone. The seed is
+    # only half of the board; the panel holds the other half.
+    #
+    # Measured before the fix, one seed and one date, the band swung to
+    # the far end of the author's own span: catch scored 15 against 40,
+    # fishing 49 against 122, marble 1 against 4, puzzle 106 against 110,
+    # shooter 153 against 116 - and all five pasted the same date. On
+    # puzzle the boards can be compared directly: seed 164438993 both
+    # times, 10 columns and 101 cells against 14 and 131.
+    #
+    # Said, not taken away: forcing the ladder back for a daily run would
+    # silently undo a control the player used (C-1729, C-1764). Both
+    # directions, because "always append a caveat" would pass the moved
+    # case and make the note meaningless on the days it matters.
+    import json as _dl_json
+
+    from sidra_ai.creation.games import _DIFFICULTY as _DL_LADDER
+    from sidra_ai.creation.share import leaks as _dl_leaks
+    from sidra_ai.creation.share import probe_source as _dl_probe
+    from sidra_ai.creation.tuning import AXIS_LABELS as _DL_AXES
+
+    _DL_STAMP = "2026-09-03"
+    _DL_REQUEST = "ゲームを作って"
+
+    def _dl_line(key: str, script: str, store: dict):
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_dl_probe(script, stored={f"sidra.tune.{key}": store}),
+                capture_output=True, text=True, timeout=180,
+            )
+            if out.returncode != 0:
+                raise ValueError(out.stderr.strip()[:60])
+            seen = _dl_json.loads(out.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key}: probe unavailable ({exc})"
+        copied = seen.get("clipboard") or []
+        if not copied:
+            return None, f"{key}: the page copied nothing"
+        return copied[0], None
+
+    def _dl_one(key: str):
+        page = _tune_generate(_DL_REQUEST, template=key).html
+        body = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if body is None:
+            return None, f"{key}: no script on the page"
+        script = body.group(1)
+        rungs = _DL_LADDER[key]
+        default_band = rungs["normal"][1]
+        moved = max(
+            (pair[1] for pair in rungs.values()), key=lambda v: abs(v - default_band)
+        )
+        if moved == default_band:
+            return None, f"{key}: the band span is a point, nothing can move"
+        label = _DL_AXES.get(key, ("", "帯"))[1]
+
+        plain, why = _dl_line(key, script, {"daily": True})
+        if why:
+            return None, why
+        tuned, why = _dl_line(key, script, {"daily": True, "band": moved})
+        if why:
+            return None, why
+        private, why = _dl_line(key, script, {"band": moved})
+        if why:
+            return None, why
+        for where, text in (("daily", plain), ("tuned", tuned), ("private", private)):
+            found = _dl_leaks(text, request=_DL_REQUEST, title="", seed=164438993)
+            if found:
+                return None, f"{key} {where}: {'; '.join(found)}"
+        if _DL_STAMP not in plain:
+            return None, f"{key}: an untouched daily board is not dated"
+        if "（" in plain:
+            return None, f"{key}: an untouched daily board is caveated anyway ({plain})"
+        if _DL_STAMP not in tuned:
+            return None, f"{key}: a tuned daily board lost its date"
+        if label not in tuned or f"{moved:g}" not in tuned:
+            return None, (
+                f"{key}: the board moved to {label} {moved:g} and the line does not "
+                f"say so ({tuned})"
+            )
+        if _DL_STAMP in private:
+            return None, f"{key}: a private board is dated as today's (C-1118)"
+        return key, None
+
+    _dl_keys = sorted(_tune_templates)
+    dl_gaps: list[str] = []
+    dl_ok: list[str] = []
+    for _dl_key, _dl_why in in_parallel([(lambda k=k: _dl_one(k)) for k in _dl_keys]):
+        if _dl_why:
+            dl_gaps.append(_dl_why)
+        else:
+            dl_ok.append(_dl_key)
+    c.add(
+        "creation_daily_share_says_the_board_moved",
+        "今日の盤が全員のものでないときに言う型",
+        float(len(dl_ok)) if not dl_gaps else 0.0,
+        detail=(
+            "**10 型・実ページ・ページ自身のコピーボタンを押して**"
+            "クリップボードに届いた文字列を読む。**3 通り**: "
+            "(a) **日替わり・つまみは出荷時のまま**→日付は付き、**ただし書きは付かない**、"
+            "(b) **日替わり・盤を決める帯を作者の幅の端まで動かす**→"
+            "**その型自身の軸名と数字が行に出る**（puzzle は「盤の幅」・"
+            "fishing は「当たり判定の幅」）、"
+            "(c) **日替わりでない盤**→**日付は付かない**（C-1118 の番兵）。"
+            "**(a) が無ければ「常にただし書きを付ける」実装が満点を取り**、"
+            "**全員同じ日にも毎回付いて意味を失う**。"
+            "3 通りとも `leaks()` が空——依頼文の語・題名・seed は入らない。"
+            "**修正前の実測（同じ日・同じ seed・同じ操作・帯だけ両端）**: "
+            "**5 型で結果が変わった**（catch 15/40・fishing 49/122・marble 1/4・"
+            "puzzle 106/110・shooter 153/116）**のに 5 型とも「今日の◯◯ 2026-09-03」と名乗った**。"
+            "puzzle は盤そのものを比べられる: **seed は両方 164438993 で同一**なのに"
+            "**10 列 101 マス**と**14 列 131 マス**。"
+            "**§8 事実 7 が Wordle の成立条件として記録した「全員同じ日替わり課題」が、"
+            "つまみ 1 つで崩れていた。**"
+            "**残り 5 型は「私の運転では差が出なかった」であって「同じ盤だ」とは測っていない**"
+            if not dl_gaps
+            else "; ".join(dl_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the pad lets go on every exit ------------------------------------
     #
     # C-1766, §22 x §18. §22's contract has two halves and they were built

@@ -121,6 +121,7 @@ def bar_for(score: float | None, spec: dict) -> str:
 #: preambles'.
 PREAMBLE_NAMES: tuple[str, ...] = (
     "shareText",
+    "shareTuned",
     "shareCopy",
     "shareReady",
     "shareBar",
@@ -149,14 +150,45 @@ function shareBar(score){
   const n=Math.max(1,Math.min(SHARE_SPEC.max,Math.round(score/SHARE_SPEC.per)));
   let out='';for(let i=0;i<n;i++){out+=SHARE_SPEC.emoji}
   return out}
+/* What this player changed about the board itself (C-1768). §8 事実 7
+   records why Wordle's sharing worked: a spoiler-free boast about a
+   challenge EVERYBODY GOT. The stamp below used to be written on the
+   strength of the seed alone - and the seed is only half of the board.
+   The panel holds the other half, so two people could paste the same
+   date over two different games: measured, with one seed and one date,
+   catch scored 15 against 40, fishing 49 against 122, puzzle laid out
+   10 columns against 14.
+   Said rather than taken away: forcing the ladder back for a daily run
+   would silently undo a control the player used, which is the harm
+   C-1729 and C-1764 are about.
+   Compared by VALUE, and only the two axes. Setting a dial back to where
+   it started changes nothing and deserves no caveat. The difficulty row
+   is deliberately not a third thing to name: picking a preset writes
+   speed and band (tuneSet), so the axes already say what moved and by
+   how much - while a stored rung on its own moves no axis at all, and
+   naming it claimed a changed board for a board that had not changed.
+   Measured both ways: the preset scored 61 against 78 and is named; the
+   bare rung scored 78, the same as untouched, and is not.
+   Nothing here is the player's own words, the title or the seed: labels
+   are the product's, numbers come from the author's own span, so
+   `leaks()` has nothing new to find. */
+function shareTuned(){
+  const out=[];
+  try{['speed','band'].forEach(function(k){
+    const f=tuneField(k);if(!f)return;
+    const v=tuneNum(k,f.default);
+    if(v!==f.default)out.push(f.label+' '+v)})}catch(e){}
+  return out}
 function shareText(){
   if(!shareReady())return null;
   const score=shareScore();
-  /* The daily stamp is the same for everybody who played today, which is
-     what makes it safe to paste. The request-derived seed is the opposite
-     and never appears. */
+  /* The daily stamp is the same for everybody who played today ONLY when
+     the board is the one this page opens with - see shareTuned. The
+     request-derived seed is the opposite and never appears. */
   let head=SHARE_SPEC.name;
-  try{if(dailyBoard()){head='今日の'+SHARE_SPEC.name+' '+dailyStamp()}}catch(e){}
+  try{if(dailyBoard()){head='今日の'+SHARE_SPEC.name+' '+dailyStamp();
+    const tuned=shareTuned();
+    if(tuned.length)head+='（'+tuned.join('・')+'）'}}catch(e){}
   const bar=shareBar(score);
   let line=head+(bar?(' '+bar):'')+' '+ROUND_LABEL+' '+score;
   /* Only when there is something to have been best at: a first run that
