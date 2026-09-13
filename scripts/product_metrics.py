@@ -1068,6 +1068,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1782: a subjectless follow-up (「もっと詳しく」) retrieves on searched_query
+    # (prev + query) but attached the excerpt with the bare query, which scored
+    # every window zero and fell back to the chunk opening - so the excerpt shown
+    # under 出典 was the top of the document, not the passage that grounds the
+    # answer. The excerpt now follows searched_query.
+    from sidra_ai.evals.citation_excerpt_follows_the_searched_query import (
+        evaluate_citation_excerpt_follows_the_searched_query,
+    )
+
+    excerpt_follow = evaluate_citation_excerpt_follows_the_searched_query()
+    c.add(
+        "citation_excerpt_follows_the_searched_query",
+        "続けての質問の出典抜粋が、冒頭でなく会話の主題の一節を見せる",
+        10.0 * excerpt_follow.checks_passed / excerpt_follow.checks_total,
+        detail=f"{excerpt_follow.checks_passed}/{excerpt_follow.checks_total} checks; "
+               "src/sidra_ai/evals/citation_excerpt_follows_the_searched_query.py"
+               + ("" if excerpt_follow.passed else "; " + "; ".join(excerpt_follow.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1265: art and GIF titles kept the kind noun (「螺旋のアート」/「猫のGIF」),
     # doubling it in the summary, while documents/decks/3D/games strip it. The
     # title is the subject alone now. Checked through chat: a named request shows
