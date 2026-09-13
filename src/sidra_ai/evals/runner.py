@@ -61,7 +61,11 @@ class EvalReport:
 
     @property
     def ok(self) -> bool:
-        return self.failed == 0
+        # A run that judged nothing is not a success: `failed == 0` is
+        # vacuously true for an empty report, so without this guard a suite
+        # that silently produced no outcomes would exit 0 and read as green
+        # (C-1754). "No failures" must mean "something ran and none failed".
+        return self.failed == 0 and bool(self.outcomes)
 
     def to_dict(self) -> dict[str, object]:
         return {

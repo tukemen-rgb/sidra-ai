@@ -2035,6 +2035,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1754: sidra-evals reported success (exit 0) even when it judged nothing -
+    # EvalReport.ok was `failed == 0`, vacuously true for an empty report, so a
+    # run whose suites silently produced no outcomes stayed green. ok now also
+    # requires at least one outcome, so "no failures" cannot mean "nothing ran".
+    from sidra_ai.evals.eval_suite_empty_run_is_not_green import (
+        evaluate_eval_suite_empty_run_is_not_green,
+    )
+
+    empty_run = evaluate_eval_suite_empty_run_is_not_green()
+    c.add(
+        "eval_suite_empty_run_is_not_green",
+        "sidra-evals は 1 件も判定しない run を「成功」と報告しない（空虚な緑を出さない）",
+        10.0 * empty_run.checks_passed / empty_run.checks_total,
+        detail=f"{empty_run.checks_passed}/{empty_run.checks_total} checks; "
+               "src/sidra_ai/evals/eval_suite_empty_run_is_not_green.py"
+               + ("" if empty_run.passed else "; " + "; ".join(empty_run.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
