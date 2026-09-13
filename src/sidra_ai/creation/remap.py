@@ -39,6 +39,9 @@ from sidra_ai.creation.touchpad import keys_read
 #: Names this preamble introduces, for the vocabulary test.
 PREAMBLE_NAMES: tuple[str, ...] = (
     "remapSet",
+    "remapBound",
+    "GUARD_PROBE",
+    "guard_probe",
     "remapReset",
     "remapFacts",
     "REMAP",
@@ -101,9 +104,23 @@ REMAP_AEL('keydown',function(e){
   remapSet(e.key,target);if(done)done(e.key)});
 function remapWrite(next){const s=remapStore();if(!s)return false;
   try{s.setItem(REMAP_KEY,JSON.stringify(next));return true}catch(e){return false}}
+/* Whether this physical key drives the game, so the shared scroll guard
+   can ask instead of carrying its own list (C-1759). The guard is
+   installed before this preamble exists, which is why it asks at press
+   time rather than at install time. */
+function remapBound(k){if(typeof k!=='string'||!k)return false;
+  return REMAP[k]!==undefined||REMAP[k.toLowerCase()]!==undefined}
+/* Keys this page will not take, whatever the operator presses at the
+   prompt (C-1759). Tab is the whole list and the reason is WCAG 2.1.2:
+   once a bound key's default is stopped - which is the point of binding
+   it - Tab would no longer reach 「既定に戻す」, and a person who bound
+   it by accident while tabbing to the button could never undo it. A
+   setting you cannot leave is the trap that criterion is named after. */
+const REMAP_REFUSED=['Tab'];
 function remapSet(physical,target){
   if(REMAP_ACTIONS.indexOf(target)<0)return false;
   if(typeof physical!=='string'||!physical)return false;
+  if(REMAP_REFUSED.indexOf(physical)>=0)return false;
   const next=remapRead();next[physical]=target;
   REMAP=next;remapWrite(next);return true}
 function remapReset(){const s=remapStore();
@@ -249,3 +266,68 @@ __all__ = [
     "preamble_for",
     "probe_source",
 ]
+
+#: Presses keys at a built page and reports, for each, whether the page
+#: stopped the browser's own default (C-1759). The event is written here
+#: rather than taken from ``probekit`` because the answer *is* whether
+#: ``preventDefault`` was reached, so it has to be a call this probe can
+#: see.
+GUARD_PROBE = KEY_EVENT_JS + """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (t, fn) => { (handlers[t] = handlers[t] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+const GUARD_STORE = {};
+globalThis.localStorage = { getItem: (k) => (k in GUARD_STORE ? GUARD_STORE[k] : null),
+  setItem: (k, v) => { GUARD_STORE[k] = String(v) },
+  removeItem: (k) => { delete GUARD_STORE[k] } };
+globalThis.document = { readyState: 'complete', body: { children: [] },
+  createElement: () => nothing, querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {},
+    addEventListener: (t, fn) => { (handlers[t] = handlers[t] || []).push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function guardRun(n){ for (let i = 0; i < n && queued; i++) {
+  const fn = queued; queued = null; fn((F++) * 16) } }
+function guardPress(k, tag){ let stopped = false; const base = probeKey(k);
+  const e = { key: k, code: base.code, bubbles: true, cancelable: true, repeat: false,
+    target: { tagName: tag || 'CANVAS' },
+    preventDefault(){ stopped = true }, stopImmediatePropagation(){}, stopPropagation(){} };
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e));
+  return stopped }
+guardPress(' '); guardRun(20);
+/* The action is taken from the page rather than named here: duel reads
+   Space and the vertical arrows, fishing reads Space alone, and a probe
+   that assumed ArrowRight was refused by both - the product being right
+   and the driving being wrong. */
+const guardTarget = remapFacts().actions[0];
+const before = { spare: guardPress('PageDown'), unbound: guardPress('j'),
+  target: guardTarget };
+const bound = { spare: remapSet('PageDown', guardTarget),
+  tab: remapSet('Tab', guardTarget) };
+const after = { spare: guardPress('PageDown'), unbound: guardPress('j'),
+  tab: guardPress('Tab'), canonical: guardPress('ArrowRight'),
+  inForm: guardPress('ArrowRight', 'INPUT') };
+console.log(JSON.stringify({ before: before, bound: bound, after: after }));
+"""
+
+
+def guard_probe(script: str) -> str:
+    """The page, asked which keys it takes the browser's default away from.
+
+    Which action the spare key is bound to is the page's own first one -
+    templates do not read the same controls, and naming one here made the
+    probe wrong about duel and fishing rather than the product.
+    """
+
+    return GUARD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+

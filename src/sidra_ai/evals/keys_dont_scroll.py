@@ -4,7 +4,10 @@ C-1215: the browser's default for arrows and Space is scrolling, so walking
 south in the adventure pushed the board off screen - 208px in six presses,
 and every template shares the shell. The guard rides the native listener
 before the remap wrapper exists, and excludes form controls so the tuning
-panel's sliders keep their arrow keys.
+panel's sliders keep their arrow keys. Since C-1759 it asks the remap at
+press time as well, so a key somebody re-assigned is guarded too - the
+behavioural halves of that are driven in
+``creation_bound_keys_dont_scroll``.
 
 Scrolling itself needs a browser, so the mechanics are pinned on generated
 pages across templates; the end-to-end proof (scrollY staying 0 through
@@ -19,7 +22,15 @@ from dataclasses import dataclass
 _GUARD_MARKS = (
     "INPUT|TEXTAREA|SELECT|BUTTON",
     "' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'",
-    "indexOf(e.key)>=0)e.preventDefault()",
+    # C-1759 moved the decision behind a name. The five literals above are
+    # still in the page - they are the keys the product ships with - but
+    # the guard now asks whether THIS page acts on the key, so that a key
+    # an operator re-assigned loses its default too. Pinning the old
+    # spelling would have meant pinning the bug: a bound PageDown drove
+    # the game and scrolled the board away, which is the 208px this eval
+    # exists about.
+    "function keyDrivesGame(",
+    "if(keyDrivesGame(e))e.preventDefault()",
 )
 
 

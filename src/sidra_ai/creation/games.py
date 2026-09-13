@@ -545,9 +545,21 @@ _SCROLL_GUARD = """
    the panel's own switches. One predicate, used by all of them. */
 function keyInForm(e){const t=(e&&e.target&&e.target.tagName)||'';
   return /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t)}
+/* Whatever this page actually acts on - the five it ships with, and
+   whatever the operator has bound on top (C-1759). The list used to be
+   these five literals, so a key somebody re-assigned drove the game AND
+   kept its own default: PageDown bound to 「右」 moved the cursor and
+   scrolled the board off the screen, which is the 208px C-1671 found,
+   arriving through the door C-1671 left open.
+   Asked at press time because this guard is installed before the remap
+   preamble exists, and guarded because a template could be assembled
+   without it. */
+function keyDrivesGame(e){
+  if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0)return true;
+  try{return remapBound(e.key)}catch(err){return false}}
 addEventListener('keydown',function(e){
   if(keyInForm(e))return;
-  if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0)e.preventDefault();
+  if(keyDrivesGame(e))e.preventDefault();
 });
 """
 

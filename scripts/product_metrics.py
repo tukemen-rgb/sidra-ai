@@ -15481,6 +15481,99 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a key somebody re-assigned does not also scroll the page --------
+    #
+    # C-1759, §12 x §4. C-1671 put "this page's keys do not scroll it"
+    # into all ten templates, and the guard it wrote carries a literal
+    # list of the five keys the product ships with - installed, as its own
+    # comment says, on the native listener before the remap wrapper
+    # exists. So the table an operator writes was outside the guard's
+    # view: PageDown bound to 「右」 moved the cursor AND scrolled the
+    # board away, which is the 208px C-1671 measured, arriving through the
+    # door C-1671 left open.
+    #
+    # Tab is refused outright rather than guarded. Stopping a bound key's
+    # default is the point of binding it, and a stopped Tab no longer
+    # reaches 「既定に戻す」 - a setting nobody can leave, which is what
+    # WCAG 2.1.2 is named after.
+    #
+    # Both directions: a bound key's default stops, an unbound key's does
+    # not. Without the second, "prevent everything" passes and breaks the
+    # page around the game.
+    from sidra_ai.creation.remap import guard_probe as _bind_probe
+
+    bind_gaps: list[str] = []
+    bind_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            bind_gaps.append(f"{key}: no script")
+            continue
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_bind_probe(script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if probe.returncode != 0:
+                bind_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                continue
+            seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            bind_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            continue
+        if seen["before"]["spare"]:
+            bind_gaps.append(f"{key}: 割り当てる前から既定を止めている")
+            continue
+        if not seen["bound"]["spare"]:
+            bind_gaps.append(f"{key}: 割り当てを受け付けない")
+            continue
+        if seen["bound"]["tab"]:
+            bind_gaps.append(f"{key}: Tab の割り当てを受けた（keyboard trap）")
+            continue
+        if not seen["after"]["spare"]:
+            bind_gaps.append(f"{key}: 割り当てたキーの既定が止まらない（ページも流れる）")
+            continue
+        if seen["after"]["unbound"]:
+            bind_gaps.append(f"{key}: 割り当てていないキーの既定まで止めた")
+            continue
+        if seen["after"]["tab"]:
+            bind_gaps.append(f"{key}: 断ったはずの Tab の既定を止めた")
+            continue
+        if not seen["after"]["canonical"]:
+            bind_gaps.append(f"{key}: 元からのキーの既定が止まらなくなった（C-1671 の回帰）")
+            continue
+        if seen["after"]["inForm"]:
+            bind_gaps.append(f"{key}: フォームに焦点があるのに奪った（C-1671 の回帰）")
+            continue
+        bind_ok.append(key)
+    c.add(
+        "creation_bound_keys_dont_scroll",
+        "割り当て直したキーがページを流さない型",
+        float(len(bind_ok)) if not bind_gaps else 0.0,
+        detail=(
+            "10 型の実ページでキーを押し、**`preventDefault` が届いたかどうか**を読んだ。"
+            "**両方向**: (a) **割り当てたキー（PageDown）の既定が止まる**、"
+            "(b) **割り当てていないキー（j）の既定は止まらない**"
+            "——(b) が無ければ「全部止める」実装が満点を取り、ページの周りを壊す。"
+            "あわせて **C-1671 の 2 つが回帰していないこと**も同じ走行で見る"
+            "（元からの矢印は止まる／フォームに焦点があるときは奪わない）。"
+            "**修正前の実測**: canonical は 3 つとも止まるのに、"
+            "**割り当てた PageDown と Tab は止まらず、しかもゲームは動いていた**"
+            "——**1 つのキーが「右へ」と「ページを下へ」の 2 つをしていた**。"
+            "門番が **5 つの literal 表**を持ち、しかも**remap の wrapper ができる前**に"
+            "付いていたため（注釈自身がそう書いていた）。"
+            "**Tab は割り当て自体を断る**: 止めれば「既定に戻す」へ辿り着けなくなり、"
+            "**出られない設定**＝WCAG 2.1.2 の keyboard trap になる"
+            if not bind_gaps
+            else "; ".join(bind_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the caveat covers the eyes too ----------------------------------
     #
     # C-1756, §20 x §4. creation_cvd_info_pair holds this product's four
