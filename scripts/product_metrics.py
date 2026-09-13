@@ -24833,6 +24833,92 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the judge reads the words, not only the number (C-1763) --------
+    #
+    # Same shape as the two judges above: the real code, driven on
+    # synthetic snapshots, so it costs nothing to run every time.
+    _mean_gaps: list[str] = []
+    _mean_before = {
+        _ENV_KEY: _env_mark(),
+        "shipped": {"value": 1.0, "unit": "", "kind": OUTCOME,
+                    "detail": "4 型（catch, marble, puzzle, shooter）を実走行"},
+        "held": {"value": 2.0, "unit": "", "kind": GUARD, "detail": "同じ"},
+    }
+    _mean_after = {
+        _ENV_KEY: _env_mark(),
+        # The C-1751 shape exactly: the number holds, the claim does not.
+        "shipped": {"value": 1.0, "unit": "", "kind": OUTCOME,
+                    "detail": "10 型（…）を実走行"},
+        "held": {"value": 2.0, "unit": "", "kind": GUARD, "detail": "同じ"},
+    }
+    # (a) the key whose meaning changed is named...
+    _mean_said = changed_meanings(_mean_before, _mean_after)
+    if [k for k, _, _ in _mean_said] != ["shipped"]:
+        _mean_gaps.append(f"意味の変わった鍵を名指さない（{[k for k, _, _ in _mean_said]}）")
+    elif not (_mean_said[0][1] and _mean_said[0][2]):
+        _mean_gaps.append("変わる前と後の文面を両方持って帰らない")
+    # ...and a key that only moved its value is not listed here: the
+    # movement lines already say so, and repeating it would drown the one
+    # case this section exists for.
+    _mean_moved = dict(_mean_after)
+    _mean_moved["shipped"] = {**_mean_after["shipped"], "value": 3.0}
+    if changed_meanings(_mean_before, _mean_moved):
+        _mean_gaps.append("値が動いた鍵まで「意味が変わった」に混ぜる")
+    # (b) an unchanged comparison says nothing, or the section would be
+    # noise on every run and nobody would read the one that mattered.
+    if changed_meanings(_mean_before, dict(_mean_before)):
+        _mean_gaps.append("何も変わっていない比較で出てくる")
+    # ...and the verdict itself is untouched: this must never decide a merge.
+    class _MeanCollector:
+        def __init__(self):
+            self.metrics = [
+                Metric("shipped", "shipped", 1.0, kind=OUTCOME, detail="10 型（…）を実走行"),
+                Metric("held", "held", 2.0, kind=GUARD, detail="同じ"),
+            ]
+            self.timings = []
+
+    import contextlib as _mean_ctx
+    import io as _mean_io
+
+    _real_snapshot = globals()["_snapshot"]
+    globals()["_snapshot"] = lambda _c: dict(_mean_after)
+    try:
+        with _mean_ctx.redirect_stdout(_mean_io.StringIO()) as _mean_out:
+            _mean_code = _report(_mean_before, _MeanCollector())
+    finally:
+        globals()["_snapshot"] = _real_snapshot
+    if _mean_code != 1:
+        _mean_gaps.append(f"detail だけの違いが判定を動かす（exit {_mean_code}）")
+    if "shipped" not in _mean_out.getvalue():
+        _mean_gaps.append("報告が鍵を名指さない")
+    c.add(
+        "judge_notices_a_changed_meaning",
+        "判定器が「数字は同じまま、意味が変わった」を人に見せる",
+        0.0 if _mean_gaps else 2.0,
+        detail=(
+            "; ".join(_mean_gaps)
+            if _mean_gaps
+            else "**本物の `compare` 経路を合成スナップショットで走らせて**測った"
+            "（純関数なので node も subprocess も要らない＝費用 0）。"
+            "**2 方向**: (a) **値が同じで detail だけ変わった鍵を名指し、前後の文面を両方見せる**"
+            "（値が動いた鍵は混ぜない——動いたことは移動の行が既に言っている）、"
+            "(b) **detail が変わっていない比較では何も出さず、exit コードにも触らない**"
+            "——片方だけなら「毎回全部並べる」実装が満点を取り、"
+            "**本当に見るべき 1 件が雑音に埋まる**。"
+            "**不合格にはしない**のが設計判断: detail には生きた秒数や件数が入るので"
+            "**正当に毎回変わる**。人が読む節を 1 つ増やすだけ。"
+            "**必要な理由は実例**: C-1751 が束ねた 4 つの probe で "
+            "`continue`（＝この型は測っていない）が gaps 空＝合格に化け、"
+            "**値は 1 つも動かないまま** 2 つの計器が「10 型を実走行」と言い始めた。"
+            "`--compare` は NO MOVEMENT と言い、そのまま merge された。"
+            "**雑音にならないことは着手前に数えた**: 同じ木を 2 回測って"
+            "**動く detail は 459 中 1 件**（`metrics_runtime_attributed`＝自分の節時間）、"
+            "実際の 3 コミットで **1・1・3 件**——"
+            "**その 3 件が C-1751 の欠陥で、床より上に出たのはちょうど 2 件**"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "metrics_runtime_attributed",
         "判定器が、自分の走った時間の内訳を申告する",
@@ -28796,6 +28882,47 @@ def compare(before: dict, after: dict, metrics: dict[str, Metric]) -> tuple[list
     return moved, broken
 
 
+def changed_meanings(before: dict, after: dict) -> list[tuple[str, str, str]]:
+    """Keys whose number held still while their detail said something else.
+
+    The third of a family (C-1491 saw a number vanish, C-1707 saw two
+    snapshots compared across footings, this is meaning): the snapshot
+    carried the evidence on both sides and ``compare`` never read it. Not a
+    theory - it happened. C-1751 bundled four probes whose ``continue``
+    meant "this template is not measured", the worker returned no gaps, the
+    caller read that as a pass, and two metrics began describing ten
+    templates as driven when seven were. Every value held, so ``--compare``
+    said NO MOVEMENT and it merged. A person diffing details found it a
+    cycle later (C-1755).
+
+    Never a failure, and deliberately not wired to the exit code. Details
+    carry live numbers - seconds, counts, the name of the slowest template -
+    so they change for honest reasons all the time. This prints; a person
+    decides.
+
+    Measured before it was written, because the filing said outright that
+    it had not counted and that a noisy list would be worthless: the same
+    tree measured twice moves **one** detail of 459
+    (``metrics_runtime_attributed``, which quotes its own section times),
+    and three real commits from that morning moved 1, 1 and 3. The 3 is the
+    C-1751 defect - two keys above the floor, on the one occasion there was
+    something to find.
+    """
+
+    shared = (set(before) & set(after)) - {_ENV_KEY}
+    changed: list[tuple[str, str, str]] = []
+    for key in sorted(shared):
+        old, new = before[key], after[key]
+        if not isinstance(old, dict) or not isinstance(new, dict):
+            continue
+        if old.get("value") != new.get("value"):
+            continue            # the value moved; the movement lines say so
+        if old.get("detail") == new.get("detail"):
+            continue
+        changed.append((key, str(old.get("detail") or ""), str(new.get("detail") or "")))
+    return changed
+
+
 def _fmt(metric: Metric, value: float | None) -> str:
     """Render a value the way the table renders it, so 10.199... reads 10.2%."""
     if value is None:
@@ -28845,6 +28972,24 @@ def _report(before: dict, collector: Collector) -> int:
         print(_line("LOST" if movement.gone or movement.after is None else "WORSE", movement))
     for movement in moved:
         print(_line("NEW" if movement.is_new else "BETTER", movement))
+
+    # Said before the verdict, because it is the one thing the verdict
+    # cannot see (C-1763). It changes no exit code.
+    meanings = changed_meanings(before, after)
+    if meanings:
+        print()
+        print(
+            f"  {len(meanings)} number(s) held still while their detail changed."
+            " Usually honest - a detail quotes live seconds and counts - but"
+        )
+        print(
+            "  this is the only place a probe that quietly began measuring"
+            " something else shows up. Read them:"
+        )
+        for key, was, now in meanings:
+            print(f"    {key}")
+            print(f"      was: {was[:110]}")
+            print(f"      now: {now[:110]}")
 
     print()
     if broken:
