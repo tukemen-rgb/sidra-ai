@@ -329,6 +329,9 @@ def test_the_runtime_section_runs_last() -> None:
         # C-1751
         "_brief_one", "_open_one", "_afk_one", "_mash_one",
         "_rot_one", "_fs_one", "_gap_one", "_tick_one",
+        # C-1755
+        "_share_one", "_clk_one", "_pop_one", "_tie_one",
+        "_touch_one", "_round_one", "_tune_one", "_streak_one",
     ],
 )
 def test_the_bundled_template_probes_stay_bundled(worker: str) -> None:
@@ -350,3 +353,68 @@ def test_the_bundled_template_probes_stay_bundled(worker: str) -> None:
     assert f"in_parallel([(lambda k=key: {worker}(k))" in source, (
         f"{worker} is no longer driven through in_parallel"
     )
+
+
+def test_no_bundled_worker_appends_to_a_list_it_does_not_own() -> None:
+    """The bug class C-1755 found, stated once so it cannot come back.
+
+    A bundled probe returns its findings; it must not reach out and append
+    to a list living in the section around it. Two reasons, and the second
+    is the one that actually bit:
+
+    1. Workers finish in whatever order the pool decides, so a shared list
+       comes out shuffled, and these lists are joined into the detail a
+       person reads.
+    2. Far worse: several probes keep a second list for templates they do
+       *not* measure - a clock that never runs long enough to be urgent is
+       recorded as unmeasured, not as a pass. When the loop became a
+       worker, "record it as unmeasured and move on" was translated into
+       "return no gaps", and the caller read no gaps as a pass. Two
+       metrics then described ten templates as driven when seven were.
+       Neither value moved, so ``--compare`` said nothing; the details
+       did, which is how it was caught.
+
+    The rule that removes both: a worker owns every list it appends to.
+    """
+
+    import ast
+
+    source = (ROOT / "scripts" / "product_metrics.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    escaped: list[str] = []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or not node.name.endswith("_one"):
+            continue
+        owned = {a.arg for a in node.args.args}
+        for inner in ast.walk(node):
+            if isinstance(inner, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+                targets = inner.targets if isinstance(inner, ast.Assign) else [inner.target]
+                for t in targets:
+                    for name in ast.walk(t):
+                        if isinstance(name, ast.Name):
+                            owned.add(name.id)
+            elif isinstance(inner, (ast.For, ast.comprehension)):
+                target = inner.target
+                for name in ast.walk(target):
+                    if isinstance(name, ast.Name):
+                        owned.add(name.id)
+            elif isinstance(inner, ast.withitem) and inner.optional_vars is not None:
+                for name in ast.walk(inner.optional_vars):
+                    if isinstance(name, ast.Name):
+                        owned.add(name.id)
+
+        for inner in ast.walk(node):
+            if (
+                isinstance(inner, ast.Call)
+                and isinstance(inner.func, ast.Attribute)
+                and inner.func.attr == "append"
+                and isinstance(inner.func.value, ast.Name)
+                and inner.func.value.id not in owned
+            ):
+                escaped.append(
+                    f"{node.name} appends to {inner.func.value.id} "
+                    f"(line {inner.lineno}), which it does not own"
+                )
+
+    assert not escaped, "; ".join(escaped)

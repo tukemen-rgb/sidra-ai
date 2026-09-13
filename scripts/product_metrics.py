@@ -9521,15 +9521,22 @@ def measure_creation(c: Collector) -> None:
         "racing": "レースゲームを作って",
         "shooter": "シューティングゲームを作って",
     }
-    for key in sorted(_streak_templates):
+    def _streak_one(key):
+        """One template's streak runs, so every template runs at once.
+
+        The runs inside one template are a chain; the
+        templates are not (C-1755).
+        """
+
+        gaps: list[str] = []
         found = _scene_re.search(
             r"<script>(.*?)</script>",
             generate_game(_streak_asks[key]).html,
             _scene_re.S,
         )
         if found is None:
-            streak_gaps.append(f"{key}: no script on the page")
-            continue
+            gaps.append(f"{key}: no script on the page")
+            return gaps
         try:
             # Seeded at two, so both directions show in one run: a losing
             # round must reach three, and a winning one must clear it.
@@ -9556,28 +9563,28 @@ def measure_creation(c: Collector) -> None:
                 raise ValueError(run.stderr.strip()[:60])
             seen = json.loads(run.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            streak_gaps.append(f"{key}: probe unavailable ({exc})")
-            continue
+            gaps.append(f"{key}: probe unavailable ({exc})")
+            return gaps
         # Only the rounds that really were rounds: a clock-ended template
         # restarts by re-running the page, so the probe reads the same
         # finished round again rather than playing a new one.
         rounds = [row for row in seen["rounds"] if row.get("fresh")]
         if not rounds:
-            streak_gaps.append(f"{key}: no round completed")
-            continue
+            gaps.append(f"{key}: no round completed")
+            return gaps
         # 1. the count is per round, never cumulative.
         runaway = [row["beats"] for row in rounds if row["beats"] > 1]
         if runaway:
-            streak_gaps.append(f"{key}: the failure count carried over ({runaway[:3]})")
-            continue
+            gaps.append(f"{key}: the failure count carried over ({runaway[:3]})")
+            return gaps
         # 2. a template with no losing state never records a defeat...
         if not seen["canLose"]:
             if any(row["lost"] for row in rounds):
-                streak_gaps.append(f"{key}: the clock was recorded as a defeat")
-                continue
+                gaps.append(f"{key}: the clock was recorded as a defeat")
+                return gaps
             if any(row["stored"] for row in rounds):
-                streak_gaps.append(f"{key}: a streak was banked for a game with no loss")
-                continue
+                gaps.append(f"{key}: a streak was banked for a game with no loss")
+                return gaps
         else:
             # A round that fired the failure beat *was* a defeat. Checked
             # against the beat rather than against the same predicate that
@@ -9586,10 +9593,10 @@ def measure_creation(c: Collector) -> None:
             # sits at zero, and the judge sees no contradiction.
             unfelt = [row for row in rounds if row["beats"] > 0 and not row["lost"]]
             if unfelt:
-                streak_gaps.append(
+                gaps.append(
                     f"{key}: a round that fired the failure beat was recorded as a win"
                 )
-                continue
+                return gaps
             # ...and one that can lose counts exactly the rounds it lost,
             # starting from the two it was seeded with.
             expected, wrong = 2, []
@@ -9598,12 +9605,22 @@ def measure_creation(c: Collector) -> None:
                 if row["stored"] != expected:
                     wrong.append((row["lost"], row["stored"], expected))
             if wrong:
-                streak_gaps.append(f"{key}: the streak does not follow the losses {wrong[:2]}")
-                continue
+                gaps.append(f"{key}: the streak does not follow the losses {wrong[:2]}")
+                return gaps
             if not any(row["lost"] for row in rounds) and rounds[0]["stored"] != 0:
-                streak_gaps.append(f"{key}: a won round left the streak at {rounds[0]['stored']}")
-                continue
-        streak_ok.append(key)
+                gaps.append(f"{key}: a won round left the streak at {rounds[0]['stored']}")
+                return gaps
+        return gaps
+
+    _streak_keys = sorted(_streak_templates)
+    for key, said in zip(
+        _streak_keys,
+        in_parallel([(lambda k=key: _streak_one(k)) for key in _streak_keys]),
+    ):
+        if said:
+            streak_gaps.extend(said)
+        else:
+            streak_ok.append(key)
     c.add(
         "creation_dda_streak_honest",
         "連敗記録が本当の負けだけを数える",
@@ -9848,20 +9865,27 @@ def measure_creation(c: Collector) -> None:
         except (OSError, _scene_sp.SubprocessError, ValueError, IndexError) as exc:
             return None, f"{key}: probe unavailable ({exc})"
 
-    for key in sorted(_tie_table):
+    def _tie_one(key):
+        """One template's four runs, so every template runs at once.
+
+        The later runs are seeded from what the plain one scored, so they
+        stay in order; the templates do not (C-1755).
+        """
+
+        gaps: list[str] = []
         _expr, better, label = _tie_table[key]
         # What the round scores and what its second key comes to, read off
         # a plain run so the seeds below are about this template's reality.
         plain, problem = _tie_run(key, {})
         if problem:
-            tie_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if plain["score"] is None or plain["tie"]["now"] is None:
-            tie_gaps.append(f"{key}: the round produced no score or no second key")
-            continue
+            gaps.append(f"{key}: the round produced no score or no second key")
+            return gaps
         if plain["tie"]["better"] != better or not plain["tie"]["label"]:
-            tie_gaps.append(f"{key}: the page does not carry the second key")
-            continue
+            gaps.append(f"{key}: the page does not carry the second key")
+            return gaps
         here, tie = plain["score"], plain["tie"]["now"]
         worse = tie + 1000 if better == "less" else tie - 1
         finer = tie - 1000 if better == "less" else tie + 1
@@ -9870,33 +9894,43 @@ def measure_creation(c: Collector) -> None:
             key, {f"sidra.best.{key}": here, f"sidra.tie.{key}": worse}
         )
         if problem:
-            tie_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if not beat["record"]:
-            tie_gaps.append(f"{key}: a level score with a better {label} set no record")
-            continue
+            gaps.append(f"{key}: a level score with a better {label} set no record")
+            return gaps
         # ...and the same score with a worse second key: no record.
         held, problem = _tie_run(
             key, {f"sidra.best.{key}": here, f"sidra.tie.{key}": finer}
         )
         if problem:
-            tie_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if held["record"]:
-            tie_gaps.append(f"{key}: a worse {label} still claimed a record")
-            continue
+            gaps.append(f"{key}: a worse {label} still claimed a record")
+            return gaps
         # ...and it never outranks the score itself: a run that scored less
         # than the stored best sets no record however good its second key.
         outranked, problem = _tie_run(
             key, {f"sidra.best.{key}": here + 1, f"sidra.tie.{key}": worse}
         )
         if problem:
-            tie_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if outranked["record"]:
-            tie_gaps.append(f"{key}: a lower score claimed a record on its {label}")
-            continue
-        tie_ok.append(key)
+            gaps.append(f"{key}: a lower score claimed a record on its {label}")
+            return gaps
+        return gaps
+
+    _tie_keys = sorted(_tie_table)
+    for key, said in zip(
+        _tie_keys,
+        in_parallel([(lambda k=key: _tie_one(k)) for key in _tie_keys]),
+    ):
+        if said:
+            tie_gaps.extend(said)
+        else:
+            tie_ok.append(key)
     c.add(
         "creation_record_improvable",
         "上限に当たった自己ベストがまだ更新できる",
@@ -15123,15 +15157,22 @@ def measure_creation(c: Collector) -> None:
     for banned in ("fetch(", "XMLHttpRequest", "://", "navigator.sendBeacon"):
         if banned in _tune_preamble:
             tune_gaps.append(f"the panel contains {banned!r}")
-    for key in sorted(_tune_templates):
+    def _tune_one(key):
+        """One template's tuning runs, so ten templates run at once.
+
+        The runs inside one template are a chain; the
+        templates are not (C-1755).
+        """
+
+        gaps: list[str] = []
         if key not in _tune_binding:
-            tune_gaps.append(f"{key}: no SPEED binding recorded for the judge")
-            continue
+            gaps.append(f"{key}: no SPEED binding recorded for the judge")
+            return gaps
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            tune_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         speeds = [pair[0] for pair in _tune_ladder[key].values()]
         stored, target = max(speeds), min(speeds)
         want = [f["key"] for f in _tune_schema(
@@ -15151,18 +15192,18 @@ def measure_creation(c: Collector) -> None:
                 timeout=180,
             )
             if probe.returncode != 0:
-                tune_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
-                continue
+                gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                return gaps
             seen = json.loads(probe.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            tune_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
-            continue
+            gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            return gaps
         if not seen.get("panel"):
-            tune_gaps.append(f"{key}: no panel in the page")
-            continue
+            gaps.append(f"{key}: no panel in the page")
+            return gaps
         if seen.get("controls") != want:
-            tune_gaps.append(f"{key}: controls {seen.get('controls')} != {want}")
-            continue
+            gaps.append(f"{key}: controls {seen.get('controls')} != {want}")
+            return gaps
         # ...and the schema itself is right (C-1729). The line above only
         # says the form matches the schema; nobody asked whether the schema
         # matches the page. It did not: the panel offered 「自己ベストの
@@ -15191,39 +15232,49 @@ def measure_creation(c: Collector) -> None:
             _tw_offered = _tw_row in want
             _tw_wired = _scene_re.search(_tw_mark, script.group(1)) is not None
             if _tw_offered and not _tw_wired:
-                tune_gaps.append(
+                gaps.append(
                     f"{key}: パネルは {_tw_row} を出すのにページは読まない"
                 )
             elif _tw_wired and not _tw_offered:
-                tune_gaps.append(
+                gaps.append(
                     f"{key}: ページは {_tw_row} を読むのにパネルが出さない"
                 )
         if len(tune_gaps) > _tw_before:
-            continue
+            return gaps
         if not seen.get("buttons"):
-            tune_gaps.append(f"{key}: no way back to the defaults")
-            continue
+            gaps.append(f"{key}: no way back to the defaults")
+            return gaps
         # The direction that matters: a value the browser remembered has to
         # reach the game body, not just the panel's own readout.
         if seen.get("speedSeen") != stored:
-            tune_gaps.append(
+            gaps.append(
                 f"{key}: stored {stored} but the game runs on {seen.get('speedSeen')}"
             )
-            continue
+            return gaps
         if seen.get("moved") != target:
-            tune_gaps.append(f"{key}: moving the slider stored {seen.get('moved')!r}")
-            continue
+            gaps.append(f"{key}: moving the slider stored {seen.get('moved')!r}")
+            return gaps
         if not seen.get("cleared"):
-            tune_gaps.append(f"{key}: 既定に戻す left the override in place")
-            continue
+            gaps.append(f"{key}: 既定に戻す left the override in place")
+            return gaps
         if not seen.get("reloads"):
-            tune_gaps.append(f"{key}: a change never asked the page to re-run")
-            continue
+            gaps.append(f"{key}: a change never asked the page to re-run")
+            return gaps
         verdict = _tune_validate(page)
         if not verdict["playable"]:
-            tune_gaps.append(f"{key} stopped being playable: {verdict['failures']}")
-            continue
-        tune_ok.append(key)
+            gaps.append(f"{key} stopped being playable: {verdict['failures']}")
+            return gaps
+        return gaps
+
+    _tune_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _tune_keys,
+        in_parallel([(lambda k=key: _tune_one(k)) for key in _tune_keys]),
+    ):
+        if said:
+            tune_gaps.extend(said)
+        else:
+            tune_ok.append(key)
     c.add(
         "creation_param_panel",
         "生成ページ内で自分で直せる型",
@@ -16185,12 +16236,23 @@ def measure_creation(c: Collector) -> None:
     round_by: dict[str, float] = {}
     for key in sorted(_tune_templates):
         round_gaps += [f"{key}: {gap}" for gap in _round_live_gaps(key, _tune_templates[key].script)]
-    for key in sorted(_tune_templates):
+    def _round_one(key):
+        """One template's round runs, so ten templates run at once.
+
+        Carries the break time back with the gaps: the caller records it
+        per template, and a worker writing to that dict would be sharing
+        state between threads (C-1755).
+
+        The runs inside one template are a chain; the
+        templates are not (C-1755).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            round_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps, None
         try:
             probe = _scene_sp.run(
                 ["node", "-"],
@@ -16200,27 +16262,27 @@ def measure_creation(c: Collector) -> None:
                 timeout=180,
             )
             if probe.returncode != 0:
-                round_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
-                continue
+                gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                return gaps, None
             seen = json.loads(probe.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            round_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
-            continue
+            gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            return gaps, None
         at = seen.get("breakAt")
         if at is None:
-            round_gaps.append(f"{key}: no break in {_round_seconds}s of play")
-            continue
+            gaps.append(f"{key}: no break in {_round_seconds}s of play")
+            return gaps, None
         if at > seen["limit"] + 100:
-            round_gaps.append(f"{key}: the break came at {at / 1000:.1f}s")
-            continue
+            gaps.append(f"{key}: the break came at {at / 1000:.1f}s")
+            return gaps, None
         # Held, not stopped. A loop that was dropped could not be handed
         # back, and the page would be a still image with a banner on it.
         if not seen.get("running"):
-            round_gaps.append(f"{key}: the loop stopped rather than held")
-            continue
+            gaps.append(f"{key}: the loop stopped rather than held")
+            return gaps, None
         if seen.get("gatedMs"):
-            round_gaps.append(f"{key}: the title screen burned {seen['gatedMs']:.0f}ms of the round")
-            continue
+            gaps.append(f"{key}: the title screen burned {seen['gatedMs']:.0f}ms of the round")
+            return gaps, None
         # Coming back has to exist, and has to belong to whoever ended the
         # round: the clock re-runs the page, a template's own end screen
         # keeps its own restart and must not be reloaded over. Counted as
@@ -16228,13 +16290,23 @@ def measure_creation(c: Collector) -> None:
         # now offers a tap before the key and a clock break answers both.
         reloaded = seen.get("reloads") or 0
         if (reloaded < 1) if seen["reason"] == "time" else (reloaded != 0):
-            round_gaps.append(
+            gaps.append(
                 f"{key}: coming back after a {seen['reason']} break reloaded "
                 f"{reloaded} time(s)"
             )
-            continue
-        round_ok.append(key)
-        round_by[key] = at / 1000
+            return gaps, None
+        return gaps, at
+
+    _round_keys = sorted(_tune_templates)
+    for key, (said, _round_at) in zip(
+        _round_keys,
+        in_parallel([(lambda k=key: _round_one(k)) for key in _round_keys]),
+    ):
+        if said:
+            round_gaps.extend(said)
+        else:
+            round_ok.append(key)
+            round_by[key] = _round_at / 1000
     by_clock = sorted(k for k in round_ok if round_by[k] >= _round_seconds - 1)
     c.add(
         "creation_round_within_60s",
@@ -17082,7 +17154,14 @@ def measure_creation(c: Collector) -> None:
 
     share_gaps: list[str] = []
     share_ok: list[str] = []
-    for key in sorted(_tune_templates):
+    def _share_one(key):
+        """One template's share runs, so ten templates run at once.
+
+        The runs inside one template are a chain; the templates are
+        not (C-1751).
+        """
+
+        gaps: list[str] = []
         spec = _share_spec(key)
         trouble = None
         for daily in (False, True):
@@ -17154,7 +17233,16 @@ def measure_creation(c: Collector) -> None:
             if trouble:
                 break
         if trouble:
-            share_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps
+
+    _share_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _share_keys,
+        in_parallel([(lambda k=key: _share_one(k)) for key in _share_keys]),
+    ):
+        if said:
+            share_gaps.extend(said)
         else:
             share_ok.append(key)
     # The line is pasted by hand, into whatever the person chooses. Nothing
@@ -21780,17 +21868,29 @@ def measure_creation(c: Collector) -> None:
     clk_ok: list[str] = []
     clk_short: list[str] = []
     _clk_tokens = _clk_theme("ゲームを作って").tokens
-    for key in sorted(_tune_templates):
+    def _clk_one(key):
+        """One template's clock runs, so ten templates run at once.
+
+        The runs inside one template are a chain; the templates are
+        not (C-1751).
+
+        Returns (gaps, unmeasured). An empty gap list is not the same as a
+        pass here: this probe records some templates as unmeasured, and
+        the caller - not a worker - is what files them, so the list
+        stays in template order (C-1755).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            clk_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps, False
         body = script.group(1)
         run, problem = _clk_drive(key, body)
         if problem:
-            clk_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps, False
         frames = run["frames"]
         early = [f for f in frames if f["ms"] >= _clk_show]
         late = [f for f in frames if f["ms"] < _clk_show and not f["done"]]
@@ -21804,8 +21904,7 @@ def measure_creation(c: Collector) -> None:
             # This template's go ends long before the buzzer even when a key
             # is held, so an unattended run never reaches the situation the
             # countdown is for. Recorded as unmeasured, not as a pass.
-            clk_short.append(key)
-            continue
+            return gaps, True
         # 2. Every one of those frames that painted at all says so - not
         #    just the ones where the page thought it was due.
         #
@@ -21869,7 +21968,18 @@ def measure_creation(c: Collector) -> None:
             ):
                 trouble = f"{key}: reduced motion changed how long the countdown showed"
         if trouble:
-            clk_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps, False
+
+    _clk_keys = sorted(_tune_templates)
+    for key, (said, unmeasured) in zip(
+        _clk_keys,
+        in_parallel([(lambda k=key: _clk_one(k)) for key in _clk_keys]),
+    ):
+        if unmeasured:
+            clk_short.append(key)
+        elif said:
+            clk_gaps.extend(said)
         else:
             clk_ok.append(key)
     c.add(
@@ -21923,16 +22033,23 @@ def measure_creation(c: Collector) -> None:
 
     touch_gaps: list[str] = []
     touch_ok: list[str] = []
-    for key in sorted(_tune_templates):
+    def _touch_one(key):
+        """One template's touch runs, so ten templates run at once.
+
+        The runs inside one template are a chain; the templates are
+        not (C-1751).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            touch_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         run, problem = _tp_drive(key, script.group(1))
         if problem:
-            touch_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         seen = {step["what"]: step for step in run["seen"]}
         button = run["button"]
         trouble = None
@@ -21981,7 +22098,16 @@ def measure_creation(c: Collector) -> None:
                     f"{clock_top + clock_height})"
                 )
         if trouble:
-            touch_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps
+
+    _touch_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _touch_keys,
+        in_parallel([(lambda k=key: _touch_one(k)) for key in _touch_keys]),
+    ):
+        if said:
+            touch_gaps.extend(said)
         else:
             touch_ok.append(key)
     c.add(
@@ -22068,6 +22194,11 @@ def measure_creation(c: Collector) -> None:
 
         The runs inside one template are a chain; the templates are
         not (C-1751).
+
+        Returns (gaps, unmeasured). An empty gap list is not the same as a
+        pass here: this probe records some templates as unmeasured, and
+        the caller - not a worker - is what files them, so the list
+        stays in template order (C-1755).
         """
 
         gaps: list[str] = []
@@ -22075,24 +22206,23 @@ def measure_creation(c: Collector) -> None:
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
             gaps.append(f"{key}: no script")
-            return gaps
+            return gaps, False
         body = script.group(1)
         plain, problem = _gap_drive(key, body)
         if problem:
             gaps.append(problem)
-            return gaps
+            return gaps, False
         plain_end, plain_why = _gap_ends(plain)
         # The buzzer has to be what ends this template's go, or there is no
         # clock here to be honest or dishonest about.
         if plain_why != "time" or plain_end is None or plain_end <= _GAP_AT:
-            gap_short.append(key)
-            return gaps
+            return gaps, True
         trouble = None
         away, problem = _gap_drive(key, body, gap_ms=_GAP_LONG, gap_at=_GAP_AT)
         hitch, problem2 = _gap_drive(key, body, gap_ms=_GAP_SHORT, gap_at=_GAP_AT)
         if problem or problem2:
             gaps.append(problem or problem2)
-            return gaps
+            return gaps, False
         away_end, away_why = _gap_ends(away)
         hitch_end, _ = _gap_ends(hitch)
         # 1. The minute away costs the round nothing: same frame, same
@@ -22132,14 +22262,16 @@ def measure_creation(c: Collector) -> None:
                 trouble = f"{key}: the {_GAP_SHORT}ms hitch only cost {charged}ms"
         if trouble:
             gaps.append(trouble)
-        return gaps
+        return gaps, False
 
     _gap_keys = sorted(_tune_templates)
-    for key, said in zip(
+    for key, (said, unmeasured) in zip(
         _gap_keys,
         in_parallel([(lambda k=key: _gap_one(k)) for key in _gap_keys]),
     ):
-        if said:
+        if unmeasured:
+            gap_short.append(key)
+        elif said:
             gap_gaps.extend(said)
         else:
             gap_ok.append(key)
@@ -22226,6 +22358,11 @@ def measure_creation(c: Collector) -> None:
 
         The runs inside one template are a chain; the templates are
         not (C-1751).
+
+        Returns (gaps, unmeasured). An empty gap list is not the same as a
+        pass here: this probe records some templates as unmeasured, and
+        the caller - not a worker - is what files them, so the list
+        stays in template order (C-1755).
         """
 
         gaps: list[str] = []
@@ -22233,12 +22370,12 @@ def measure_creation(c: Collector) -> None:
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
             gaps.append(f"{key}: no script")
-            return gaps
+            return gaps, False
         body = script.group(1)
         run, problem = _tick_drive(key, body)
         if problem:
             gaps.append(problem)
-            return gaps
+            return gaps, False
         urgent_frames = [f for f in run["frames"] if f["urgent"] and not f["done"]]
         ticks = _tick_calls(run)
         trouble = None
@@ -22248,9 +22385,8 @@ def measure_creation(c: Collector) -> None:
             # not passed - the same bookkeeping the clock judge above uses.
             if ticks:
                 gaps.append(f"{key}: ticked {len(ticks)}x without ever being urgent")
-            else:
-                tick_short.append(key)
-            return gaps
+                return gaps, False
+            return gaps, True
         stray = [t for t in ticks if not t["urgent"]]
         expected = sorted(range(1, _tick_urgent // 1000 + 1), reverse=True)
         seconds = [t["left"] for t in ticks]
@@ -22300,14 +22436,16 @@ def measure_creation(c: Collector) -> None:
                     break
         if trouble:
             gaps.append(trouble)
-        return gaps
+        return gaps, False
 
     _tick_keys = sorted(_tune_templates)
-    for key, said in zip(
+    for key, (said, unmeasured) in zip(
         _tick_keys,
         in_parallel([(lambda k=key: _tick_one(k)) for key in _tick_keys]),
     ):
-        if said:
+        if unmeasured:
+            tick_short.append(key)
+        elif said:
             tick_gaps.extend(said)
         else:
             tick_ok.append(key)
@@ -24410,23 +24548,34 @@ def measure_creation(c: Collector) -> None:
     pop_gaps: list[str] = []
     pop_ok: list[str] = []
     pop_quiet: list[str] = []
-    for key in sorted(_tune_templates):
+    def _pop_one(key):
+        """One template's pop runs, so ten templates run at once.
+
+        The runs inside one template are a chain; the templates are
+        not (C-1751).
+
+        Returns (gaps, unmeasured). An empty gap list is not the same as a
+        pass here: this probe records some templates as unmeasured, and
+        the caller - not a worker - is what files them, so the list
+        stays in template order (C-1755).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            pop_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps, False
         body = script.group(1)
         run, problem = _pop_drive(key, body, frames=1800, stress=_pop_max + 3)
         if problem:
-            pop_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps, False
         frames, end, stress = run["frames"], run["end"], run["stress"]
         if not end["shown"]:
             # Nothing scored in an unattended go, so there is no payment to
             # say anything about. Recorded as unmeasured, not as a pass.
-            pop_quiet.append(key)
-            continue
+            return gaps, True
         trouble = None
         # 1. 条件③, end to end: everything floated, against the score the
         #    round reports. This is the check that found the graze bonus -
@@ -24490,7 +24639,18 @@ def measure_creation(c: Collector) -> None:
             # summed, equals what the round scored - which needs no control
             # run at all.
         if trouble:
-            pop_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps, False
+
+    _pop_keys = sorted(_tune_templates)
+    for key, (said, unmeasured) in zip(
+        _pop_keys,
+        in_parallel([(lambda k=key: _pop_one(k)) for key in _pop_keys]),
+    ):
+        if unmeasured:
+            pop_quiet.append(key)
+        elif said:
+            pop_gaps.extend(said)
         else:
             pop_ok.append(key)
     c.add(
