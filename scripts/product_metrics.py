@@ -2115,6 +2115,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1780: decode_content returned "" for any base64 body that was not valid
+    # UTF-8 - the same value binary files give - so a Shift-JIS/EUC-JP README was
+    # dropped like a PNG, the one silent drop on this otherwise truncation-honest
+    # path. It now tells binary from non-UTF-8 text and recovers legacy Japanese
+    # encodings instead of discarding them.
+    from sidra_ai.evals.ingestion_decodes_legacy_text_encodings import (
+        evaluate_ingestion_decodes_legacy_text_encodings,
+    )
+
+    decode_legacy = evaluate_ingestion_decodes_legacy_text_encodings()
+    c.add(
+        "ingestion_decodes_legacy_text_encodings",
+        "非 UTF-8 のテキスト文書（Shift-JIS/EUC-JP）を黙って捨てず索引に入れる",
+        10.0 * decode_legacy.checks_passed / decode_legacy.checks_total,
+        detail=f"{decode_legacy.checks_passed}/{decode_legacy.checks_total} checks; "
+               "src/sidra_ai/evals/ingestion_decodes_legacy_text_encodings.py"
+               + ("" if decode_legacy.passed else "; " + "; ".join(decode_legacy.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1761: /health cannot name the model (unauthenticated), so echo running in
     # place of a staged reviewed model was invisible at runtime - the banner and
     # preflight warn but /v1/index, the authenticated status surface, stayed
