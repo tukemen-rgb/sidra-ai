@@ -16,11 +16,12 @@ by exactly what it was handed.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 
-from sidra_ai.retrieval.search import subject_terms, tokenize
+from sidra_ai.retrieval.search import subject_evidence_probes, tokenize
 
 #: Anything that looks like a quantity. Deliberately broad - a false positive
 #: costs one extra evidence check, a false negative puts an unsourced number
@@ -322,15 +323,93 @@ def on_topic(request: str, facts: Sequence[Fact]) -> tuple[list[Fact], list[Fact
     is its own kind of dishonesty.
     """
 
-    wanted = set(subject_terms(request)) - _artifact_terms()
-    if not wanted:
+    latin, windows = _subject_probes(request)
+    if not latin and not windows:
         return list(facts), []
     kept, aside = [], []
     for fact in facts:
-        (kept if wanted.intersection(tokenize(fact.text)) else aside).append(fact)
+        (kept if _about(latin, windows, fact) else aside).append(fact)
     if not kept:
         return list(facts), []
     return kept, aside
 
 
-__all__ = ["Fact", "NUMBER", "on_topic"]
+@lru_cache(maxsize=1)
+def _artifact_mask() -> "re.Pattern[str]":
+    """The artifact nouns, so they can be cut out of the request first.
+
+    Subtracting an artifact's *probes* afterwards is not enough, and the
+    measured reason is 「進捗レポートを作って」: kanji and katakana run
+    together with no kana between them, so the run is 進捗レポート and its
+    three-character windows are 進捗レ and 捗レポ - straddling the subject
+    and the artifact noun, matching neither on its own. A fact that says
+    「進捗は 3 件です」 then failed to match its own subject, which is the
+    C-1403 case this must never touch. Cutting the noun out before the runs
+    are formed leaves 進捗, and the window is the subject again.
+
+    Longest first, so 「3dモデル」 is removed whole rather than leaving a
+    stray 「3d」 behind.
+    """
+
+    from sidra_ai.creation.intent import _ARTIFACTS
+
+    words = sorted(
+        {word for words in _ARTIFACTS.values() for word in words},
+        key=len,
+        reverse=True,
+    )
+    return re.compile("|".join(re.escape(word) for word in words), re.IGNORECASE)
+
+
+def _subject_probes(request: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """What proves a fact shares this request's subject.
+
+    The answer path's probes (C-1510's three-character windows, plus
+    C-1512's lone-kanji nouns), taken from the request with the artifact
+    noun cut out. The report used :func:`subject_terms` instead, and the
+    difference was the C-1532 defect: a one-character subject has no
+    two-character term to be found in, so 「犬の飼い方のレポート」 offered the
+    filter nothing at all and five facts about other things were printed as
+    根拠. The answer path could already see 犬; the report was asking a
+    weaker question than its own sibling.
+    """
+
+    return subject_evidence_probes(_artifact_mask().sub(" ", request))
+
+
+def _about(latin: Sequence[str], windows: Sequence[str], fact: Fact) -> bool:
+    """Whether one fact carries the subject, matched as the answer path does."""
+
+    if latin and set(latin).intersection(tokenize(fact.text)):
+        return True
+    if not windows:
+        return False
+    content = unicodedata.normalize("NFKC", fact.text).casefold()
+    return any(window in content for window in windows)
+
+
+def subject_unmatched(request: str, facts: Sequence[Fact]) -> bool:
+    """Whether ``on_topic`` kept everything because *nothing* matched.
+
+    ``on_topic`` stands down in two situations and its return value cannot
+    tell them apart: a request whose subject it cannot see at all, and a
+    request whose subject it can see and no retrieved fact carries. The
+    second is what a reader has to be told, and it is the C-1532 defect:
+    the report announced 「根拠 5 件」 over five facts about other subjects,
+    each printed under 「わかっていること」 with a repository path beside it,
+    while the deck asked per slide and left the slides honestly blank.
+
+    The stand-down itself is right and stays (C-1403): 「進捗レポート」 over
+    this repository is built from evidence that does not contain the word
+    進捗, and setting all of it aside produced a document of blank headings.
+    So this changes no filtering - the facts are kept either way. It is the
+    sentence beside them that was wrong.
+    """
+
+    latin, windows = _subject_probes(request)
+    if not latin and not windows:
+        return False
+    return not any(_about(latin, windows, fact) for fact in facts)
+
+
+__all__ = ["Fact", "NUMBER", "on_topic", "subject_unmatched"]

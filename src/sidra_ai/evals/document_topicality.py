@@ -27,6 +27,15 @@ while the product is broken:
 
 Both subjects are asked for, so neither one gets to be the permanent
 intruder - the filter has to be right about whichever was requested.
+
+A third request (C-1532) asks about a subject the corpus has never heard of,
+written with a single kanji so the filter's blind spot is reachable: 犬 has
+no two-character term to be found in, so the report was handed nothing to
+judge with and printed five facts about jam and weekly sales as 根拠. The
+deck, asked the same thing, left its slides blank and said which. Here the
+report is not asked to empty itself - setting everything aside produced
+blank headings (C-1403) - it is asked to *say* that nothing it kept is about
+what was requested.
 """
 
 from __future__ import annotations
@@ -98,6 +107,26 @@ _REQUESTS: tuple[tuple[str, tuple[str, ...], str, tuple[str, ...], str], ...] = 
     ),
 )
 
+#: A subject this corpus has never heard of, asked for in the phrasing that
+#: made the hole reachable. One kanji on purpose (C-1512): 犬 has no
+#: two-character term to be found in, so the report's old filter was handed
+#: nothing at all and printed five facts about jam and weekly sales under
+#: 「わかっていること」 while announcing 「根拠 5 件」. The deck, asked the same
+#: thing, left its slides blank and said which - same index, opposite
+#: manner, which is what C-1532 filed.
+_UNRELATED = "犬の飼い方についてのレポートをまとめて作って"
+
+#: What the report has to say when it kept evidence it could not match. Not
+#: a phrase from the summary - the file itself has to carry it, because the
+#: file is what gets forwarded.
+_UNRELATED_SAID = "触れているものは"
+
+#: ...and what it must no longer lead with. The count is not false - five
+#: passages really are in the file - but it is not what they are evidence
+#: for, so it must not be the sentence a reader acts on.
+_OVERCLAIM = "のレポートを作りました（根拠"
+
+
 #: The two sections a reader treats as claims. The title and 概要 quote the
 #: request back verbatim, so a whole-body word search finds the subject
 #: whether or not a single fact survived - a filter that dropped everything
@@ -119,15 +148,30 @@ class TopicalityResult:
     #: unrelated evidence. Below ``mixed_total`` the corpus stopped
     #: reproducing the failure and the other two counts prove nothing.
     mixed: int = 0
+    #: The unrelated-subject request said so in the document body (C-1532).
+    told: int = 0
+    #: ...and did not lead with a bare 「根拠 N 件」.
+    not_overclaimed: int = 0
+    #: ...on a run where retrieval really did hand facts over. With none,
+    #: the empty-report notice fires and the two checks above prove nothing.
+    unmatched_mixed: int = 0
+    unmatched_total: int = 1
     failures: tuple[str, ...] = ()
 
     @property
     def checks_total(self) -> int:
-        return 3 * self.mixed_total
+        return 3 * self.mixed_total + 3 * self.unmatched_total
 
     @property
     def checks_passed(self) -> int:
-        return self.clean + self.kept + self.mixed
+        return (
+            self.clean
+            + self.kept
+            + self.mixed
+            + self.told
+            + self.not_overclaimed
+            + self.unmatched_mixed
+        )
 
 
 def _provenance(path: str) -> Provenance:
@@ -238,12 +282,45 @@ def evaluate_document_topicality() -> TopicalityResult:
                 "and this run proves nothing"
             )
 
+    # C-1532: the same corpus, a subject it has never heard of. The filter
+    # is not asked to empty the report - setting everything aside produced
+    # blank headings (C-1403) - it is asked to say what it did.
+    told = not_overclaimed = unmatched_mixed = 0
+    creation = (service.chat(_UNRELATED) or {}).get("creation") or {}
+    outcome = creation.get("outcome") or {}
+    body = _document_of({"creation": creation})
+    summary = str(outcome.get("summary") or "")
+    if not body:
+        failures.append("犬: no document was produced at all")
+    else:
+        if _UNRELATED_SAID in body:
+            told += 1
+        else:
+            failures.append(
+                "犬: the document does not say the subject was not found in the index"
+            )
+        if _OVERCLAIM in summary:
+            failures.append(f"犬: the reply still leads with a count: {summary[:60]}")
+        else:
+            not_overclaimed += 1
+        # Were there facts at all? With none, the empty-report notice fires
+        # and both checks above would pass without the disclosure existing.
+        if creation.get("facts"):
+            unmatched_mixed += 1
+        else:
+            failures.append(
+                "犬: retrieval handed over nothing, so this run proves nothing"
+            )
+
     return TopicalityResult(
         passed=not failures,
         clean=clean,
         mixed_total=len(_REQUESTS),
         kept=kept,
         mixed=mixed,
+        told=told,
+        not_overclaimed=not_overclaimed,
+        unmatched_mixed=unmatched_mixed,
         failures=tuple(failures),
     )
 

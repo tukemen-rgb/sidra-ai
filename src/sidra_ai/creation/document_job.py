@@ -16,7 +16,7 @@ from sidra_ai.creation.documents import (
     validate_document,
 )
 from sidra_ai.creation.empty import empty_notice
-from sidra_ai.creation.evidence import Fact, on_topic
+from sidra_ai.creation.evidence import Fact, on_topic, subject_unmatched
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
 
@@ -34,7 +34,13 @@ def build_document_generator(data_dir: str | Path):
         # is the shape a reader trusts most. Facts that share no subject
         # term with the request are set aside rather than printed.
         facts, aside = on_topic(message, list(retrieved or []))
-        document = generate_document(message, facts=facts, set_aside=len(aside))
+        # C-1532: whether the filter kept everything because it could not
+        # find the subject anywhere, as opposed to because everything was
+        # about it. Same facts either way; a different sentence beside them.
+        unmatched = subject_unmatched(message, list(retrieved or []))
+        document = generate_document(
+            message, facts=facts, set_aside=len(aside), subject_unmatched=unmatched
+        )
         verdict = validate_document(document, facts)
         path = save_document(document, data_dir)
         # C-1128: 「レポートを作りました（根拠 0 件、社長が埋める欄 3 箇所）」
@@ -63,12 +69,27 @@ def build_document_generator(data_dir: str | Path):
                 if aside
                 else ""
             )
-            summary = (
-                f"「{document.title}」のレポートを作りました"
-                f"（根拠 {verdict['sources']} 件、社長が埋める欄 {blanks} 箇所）。"
-                f"{put_down}"
-                "Markdown なのでそのまま編集・貼り付けできます。"
-            )
+            if unmatched:
+                # C-1532: 「根拠 N 件」 was counted straight off top_k, so a
+                # subject the corpus has never heard of still produced a
+                # confident number - the deck, asked the same thing, left
+                # its slides blank and said which. The count is not wrong
+                # about how many passages are in the file; it is wrong about
+                # what they are evidence for, so it is not what leads.
+                summary = (
+                    f"「{document.title}」について索引に根拠は見つかりませんでした。"
+                    f"レポートの形にはしましたが、載っている {verdict['sources']} 件は"
+                    "検索が返した資料そのままで、主題に触れていません"
+                    "（文書の冒頭にもそう書いています）。"
+                    "主題を含む資料を取り込むか、依頼の言い方を変えてお試しください。"
+                )
+            else:
+                summary = (
+                    f"「{document.title}」のレポートを作りました"
+                    f"（根拠 {verdict['sources']} 件、社長が埋める欄 {blanks} 箇所）。"
+                    f"{put_down}"
+                    "Markdown なのでそのまま編集・貼り付けできます。"
+                )
         else:
             summary = (
                 f"「{document.title}」のレポートを作りましたが、検証に落ちています: "
@@ -84,6 +105,8 @@ def build_document_generator(data_dir: str | Path):
                 "unfilled": verdict["unfilled"],
                 "sources": verdict["sources"],
                 "off_topic_facts": len(aside),
+                # C-1532: the filter saw the subject and no fact carried it.
+                "subject_unmatched": unmatched,
                 # True when no section evidence fills came out with anything
                 # in it - the file exists and has nothing to read (C-1128).
                 "empty": bool(notice),

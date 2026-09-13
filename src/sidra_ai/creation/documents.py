@@ -123,12 +123,19 @@ def generate_document(
     facts: list[Fact] | None = None,
     now: datetime | None = None,
     set_aside: int = 0,
+    subject_unmatched: bool = False,
 ) -> GeneratedDocument:
     """Build one Markdown report from exactly the facts handed in.
 
     An empty ``facts`` list is a supported input and produces an honest
     skeleton: headings, blanks, and a sources section that says nothing was
     retrieved - which is a document the owner can fill, not a failure.
+
+    ``subject_unmatched`` says the filter could see the subject and not one
+    retrieved fact carried it. The facts are still printed - setting them
+    all aside produced blank headings (C-1403) - but the reader is told,
+    because 「根拠 5 件」 over five facts about other subjects is the
+    overclaim this report was making (C-1532).
 
     ``set_aside`` is how many retrieved facts the caller dropped as off-topic
     before handing over ``facts`` (C-1281). The summary says so, but the summary
@@ -187,9 +194,19 @@ def generate_document(
         # what the document *is* instead. No digit reaches the line, so the
         # fabrication validator has nothing to catch.
         lines += [
-            f"この文書は「{safe_title}」について、索引した資料から見つかった根拠を"
-            "出典つきで下に整理したものです。"
-            "確定していない点は〔社長が埋める欄〕として残しています。",
+            (
+                f"この文書は「{safe_title}」について、索引した資料から見つかった根拠を"
+                "出典つきで下に整理したものです。"
+                "確定していない点は〔社長が埋める欄〕として残しています。"
+                if not subject_unmatched
+                # C-1532: the 概要 is where a reader decides how much to
+                # trust the rest, so the caveat goes here rather than only
+                # in a section further down that a skim never reaches.
+                else f"**索引した資料の中に「{safe_title}」に触れているものは"
+                "ありませんでした。**下に並べているのは検索が返した資料"
+                "そのままで、主題と重なる語は含まれていません。"
+                "主題についての根拠として読まないでください。"
+            ),
             "",
         ]
     else:
@@ -232,6 +249,11 @@ def generate_document(
     # Present even when everything above is filled: a report that cannot say
     # what it does not know reads as if it knows everything.
     lines += ["## まだ埋まっていないこと", "", f"- {BLANK}"]
+    if subject_unmatched:
+        lines.append(
+            f"- 「{safe_title}」そのものについての根拠は、索引の中に見つかりませんでした"
+            "（上の資料は主題と重なる語を持ちません）。"
+        )
     if set_aside > 0:
         lines.append(
             "- 依頼と主題が重ならないと判断した根拠は、この文書には載せていません"

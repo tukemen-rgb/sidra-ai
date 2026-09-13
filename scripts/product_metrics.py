@@ -3363,7 +3363,15 @@ def measure_answer_quality(c: Collector) -> None:
         10.0 * topicality.checks_passed / topicality.checks_total,
         detail=f"{topicality.checks_passed}/{topicality.checks_total} checks "
                f"(clean {topicality.clean}, kept {topicality.kept}, "
-               f"mixed {topicality.mixed} of {topicality.mixed_total}); "
+               f"mixed {topicality.mixed} of {topicality.mixed_total}"
+               # C-1532: the third request is a subject the corpus has never
+               # heard of, written with one kanji so the filter's blind spot
+               # is reachable. The report kept all five facts - which is
+               # right (C-1403) - and announced 「根拠 5 件」, which is not.
+               f"; 無関係主題: 言った {topicality.told}, "
+               f"数を先に出さない {topicality.not_overclaimed}, "
+               f"根拠が渡った {topicality.unmatched_mixed} of "
+               f"{topicality.unmatched_total}); "
                "src/sidra_ai/evals/document_topicality.py",
         kind=OUTCOME,
     )
