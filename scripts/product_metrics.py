@@ -747,6 +747,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1772: C-1476 disclosed an unsourced title number two sections down, but
+    # the report cover kept promising 「数字はすべて下の出典から」 unconditionally,
+    # one line under the very figure the evidence did not support - the cover
+    # contradicted its own section three. The preamble now scopes its promise to
+    # the body and names the unconfirmed title number up front; a clean title, or
+    # a title number the evidence carries, keeps the full assurance.
+    from sidra_ai.evals.report_cover_number_claim_matches_its_sourcing import (
+        evaluate_report_cover_number_claim_matches_its_sourcing,
+    )
+
+    cover_claim = evaluate_report_cover_number_claim_matches_its_sourcing()
+    c.add(
+        "report_cover_number_claim_matches_its_sourcing",
+        "レポート表紙の数値出典の断言が、未確認のタイトル数値と矛盾しない",
+        10.0 * cover_claim.checks_passed / cover_claim.checks_total,
+        detail=f"{cover_claim.checks_passed}/{cover_claim.checks_total} checks; "
+               "src/sidra_ai/evals/report_cover_number_claim_matches_its_sourcing.py"
+               + ("" if cover_claim.passed else "; " + "; ".join(cover_claim.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1483: the report (.md) was the one HTML-bearing artifact that did not
     # escape fact/request content, so a <script> from an EXTERNAL-trust Issue/PR
     # body rode through the index into the document raw - a stored XSS when the

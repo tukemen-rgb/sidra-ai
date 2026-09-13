@@ -164,25 +164,41 @@ def generate_document(
     retrieved = [fact for fact in (facts or []) if fact.text.strip()]
     sources = list(dict.fromkeys(fact.source for fact in retrieved if fact.source))
 
-    lines: list[str] = [f"# {safe_title}", "", f"> SIDRA AI が {stamp} に生成。数字はすべて下の出典から。", ""]
-    unfilled: list[str] = []
-
     # The module's rule - a number appears only if it was retrieved - held for
     # the body but not the cover. `_title_from` copies the request's subject
     # onto the heading, so a request naming a figure (「解約率30%の改善レポート」
-    # 「2024年度の売上」) put that number in the title beside the preamble's
-    # promise 「数字はすべて下の出典から」, and `validate_document` could not see
-    # it: its number check starts below the first heading. A headline statistic
-    # nothing in the evidence supports then read as a sourced, verified figure.
-    # Disclosed where the reader looks for gaps - without reprinting the digit,
-    # because a number the evidence does not carry is exactly what the validator
-    # catches, and the honest disclosure is *that* a figure went unconfirmed,
-    # not to smuggle it into the body (the set-aside line's C-1281 choice).
+    # 「2024年度の売上」) put that number in the title, and `validate_document`
+    # could not see it: its number check starts below the first heading. A
+    # headline statistic nothing in the evidence supports then read as a
+    # sourced, verified figure. It is disclosed where the reader looks for gaps,
+    # in 「まだ埋まっていないこと」 below, without reprinting the digit (C-1476).
     evidence_text = " ".join(f"{fact.text} {fact.source}" for fact in retrieved)
     title_has_unsourced_number = any(
         token and token not in evidence_text
         for token in (number.strip() for number in NUMBER.findall(title))
     )
+
+    # The preamble made the same promise the body validator enforces -
+    # 「数字はすべて下の出典から」 - unconditionally, one line under the very
+    # figure the evidence does not support. That blanket claim, next to an
+    # unsourced headline number, read as if SIDRA had verified it - the exact
+    # impression this module exists to prevent, landing on the cover, while the
+    # document itself discloses two sections down that the figure is unconfirmed.
+    # So the cover states the truth the module already computed: when the title
+    # carries an unsourced number, scope the promise to the body and name the
+    # gap where the reader first meets the figure, instead of asserting every
+    # number is sourced. A clean title keeps the original assurance (C-1772).
+    if title_has_unsourced_number:
+        preamble = (
+            f"> SIDRA AI が {stamp} に生成。本文の数字は下の出典から。"
+            "タイトルの数値は索引した根拠では確認できていません"
+            "（「まだ埋まっていないこと」参照）。"
+        )
+    else:
+        preamble = f"> SIDRA AI が {stamp} に生成。数字はすべて下の出典から。"
+
+    lines: list[str] = [f"# {safe_title}", "", preamble, ""]
+    unfilled: list[str] = []
 
     lines += ["## 概要", ""]
     if retrieved:
