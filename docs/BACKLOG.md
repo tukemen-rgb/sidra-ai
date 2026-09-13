@@ -8151,6 +8151,53 @@ C-12xx/13xx/14xx はループ用のまま）。
       → 動かす数字: 未定（(b) の結果で決まる。有れば新設・無ければ §30 の追記のみで
       数字は動かないので `[記録]` 閉じが妥当）。
 
+- [ ] **C-1781: 判定器の環境拒否が「同じ python 実行ファイル」どうしでも発火する——`source .venv/bin/activate && python` で採った基準と `.venv/bin/python` で採った計測が、比較そのものを拒まれる。**（2026-09-13 18:2x UTC 進捗監視・C-1707 の新コード内の誤拒否）
+      **C-1707 は「別の土俵で採った 2 つを revert 指示にしない」ために `__env__` 印と `env_mismatch()` を入れた**。
+      その `env_mismatch`（scripts/product_metrics.py:29737-29754）は **python / executable / venv の 3 項を等値比較**し、
+      1 つでも違えば `_report`（:29898-29905）が **`compare()` を走らせる前に** `CROSS_ENVIRONMENT`（exit 3）で降りる。
+      `venv` は `bool(os.environ.get("VIRTUAL_ENV"))`——**どの venv かではなく「有効化されているか」**である。
+      **実測（2026-09-13 18:2x UTC・この木）**:
+      `.venv/bin/python -c "import sys,os;print(sys.executable, bool(os.environ.get('VIRTUAL_ENV')))"`
+      → `/home/user/sidra-ai/.venv/bin/python False`／
+      `source .venv/bin/activate && python -c "…"` → `/home/user/sidra-ai/.venv/bin/python True`。
+      **実行ファイルは同一パス**で、違うのは旗だけ。よって `env_mismatch` は `venv: False -> True` を返し、
+      **バイト単位で同じ interpreter どうしの比較が exit 3 で止まる**。印字は
+      「re-take the baseline with the interpreter you are about to compare with」と言うが、
+      **その interpreter は既に同じ**なので、読んだ側は直しようが無く、基準を採り直しても
+      呼び方を揃えない限り同じ所で止まる。
+      **到達可能性（実測・パターンを明示）**: `docs/LOCAL_RUNTIME.md:123` の導入手順は
+      `source .venv/bin/activate` を書き（`grep -rn 'source \.venv/bin/activate' docs/ scripts/ README.md` = 1 件）、
+      一方で収集器の起動例は直接パス（`grep -rn '\.venv/bin/python scripts/product_metrics' …` = 2 件）と
+      素の `python`（`grep -rn '[^/]python3\? scripts/product_metrics' …` = 3 件）の両方が文書化されている。
+      **どちらも文書どおり**の呼び方であり、片方で基準を採り片方で計測する事故は設計上いつでも起きる。
+      **既存の検査は素通りする**: C-1707 が置いた `judge_refuses_a_cross_environment_compare` の
+      `_other`（:25717）は `{"python": "3.11.15", "executable": "/repo/.venv/bin/python", "venv": True}` で、
+      `_env_before` の `/usr/bin/python3` / `False` に対し **executable と venv が同時に違う**。
+      つまり **venv だけが違う場合を固定した事例が 1 つも無い**。満点（2.0）のまま誤拒否が残る。
+      **2 方向（どちらか一方だけでは不足）**:
+      **(a)** `python` と `executable` が**どちらも同じ**なら、`venv` の違いだけで拒否しない——
+      実行ファイルのパスが既に interpreter を一意に指しているので、旗は追加情報を持たない。
+      **(b)** 本当に別の interpreter（`/usr/bin/python3` vs `.venv/bin/python`、または version 違い）は
+      **今までどおり exit 3 で止まり `DIFFERENT FOOTING` と名指しする**。C-1707 の (a)(b)・
+      「印の無い古い snapshot は通す」も全て保持。(b) が無いと「何も拒まない判定器」で満点が取れる。
+      **禁じ手**: ① `_env_mark()` から `venv` を落とすこと——記録は安く、後から
+      「どう呼んで採ったか」を読む手掛かりになる。直すのは**記録**ではなく**比較の側**。
+      ② `env_mismatch` を常に `None` にすること（C-1707 が直した穴に戻る）。
+      **判定器（提案）** `judge_compares_the_same_interpreter` 新設（C-1707 と同じく**本物の `_report()`** を
+      合成スナップショットで駆動・純関数なので費用 0）: A=python/executable 同一・venv False→True で
+      **exit 3 を出さず数字どおりに裁く**（悪化なら 2・改善なら 0）／B=executable 違いは exit 3＋`DIFFERENT FOOTING`／
+      C=python version 違いは exit 3／D=印の無い古い snapshot は通す。A だけだと (b) が壊れても気付けない。
+      **観点**: 進捗監視の C-14xx は計器の穴を埋めてきた（C-1707 環境印・C-1723 ゲートの走査範囲・
+      C-1728 板の宙吊り主張・C-1733 ログ時刻・C-1736 収集器の余裕・C-1763 `detail` の無視）。
+      本件は**そのうちの 1 つ（C-1707）が自分で作った誤拒否**——穴を塞いだ板が少し出過ぎている。
+      **別の種（起票しない・頻度を測っていない）**: `__env__` は interpreter は記録するが
+      **どの commit で採った基準かを記録しない**。基準が数 commit 古いと他ループの動きを
+      自分の手柄／責任として読む余地がある（02:27 に比率が 18.8% と読めた件はこれで説明できるが、
+      **発生頻度は測っていない**ので、ここに書くのは観察であって起票ではない）。
+      → 動かす数字: `judge_compares_the_same_interpreter` **unmeasurable→2**（新設・C-1707 と同じ 4 事例構成。A だけでは (b) が壊れても気付けないので 2 方向で 2.0）。
+      **置き場の訂正（2026-09-13 19:2x UTC 進捗監視・起票者本人）**: 18:31 の起票時に**F 節（積み残し）の先頭へ入れてしまい**、手順2 の「E 節と F 節からは取らない」に当たって**ループA が 19:12 に取れなかった**（同ループの申し送りで判明）。中身は値の再確認待ちではなく**測り済みの誤拒否と判定器案**なので、C-0l 節（C-1624 と同じ並び・過去の C-14xx と同じ置き場）へ移し、`→ 動かす数字:` を補った。**起票内容は 1 文字も変えていない**（移動と 2 行の追記のみ）。
+      **採番**: 起票時 C-1780（辛口ユーザー・18:22 UTC）が最大で次の空き番 **C-1781**＝衝突なし。
+
 - [ ] **C-1624: hard で「無策」が勝つ型が 2 つある——racing はキーに一度も触らずゴールし、kaiju は連打だけで 3 サイクル勝ち切る。**（§11 事実 2・C-1623 が計器を直して見えたもの）C-1623 で `creation_mash_punished` が初めて測れるようになった結果、10 型中 8 型が hard の連打を無傷で通す。うち 6 型は「生き延びる」だけだが（catch と fishing は recap.LOSS_UNWIRED＝敗北状態を持たないと**理由つきで決めてある**設計判断なので対象外、adventure/marble/platformer/puzzle は時計に達して終わる）、**2 型は勝ってしまう**。**実測（hard・開始の 1 押しのみ・以後 5400 フレーム完全に無入力）**: racing は **2330 フレーム＝約 39 秒**で `state='goal'`＋`winBeat`——60 秒の時計に 21 秒の余裕を残してゴールする。障害物に当たっても `hitObstacle` は `grace=45; spd=Math.max(PACE*0.35,spd*0.45)` の一時減速だけで、recap が書いている racing の敗北条件（`state!=='goal'`＝時間内に 3 周できない）は**無入力でも成立しない**。**実測（hard・スペース連打・操舵なし）**: kaiju は `state='won'`・score **3**（3 サイクル全部）・プレイ中の失敗ビート 0。しかも**歩くと負ける**——`hold=[' ','ArrowLeft']` では score 0・`state='fight'` で時計に達する＝**操作したほうが不利**。これは C-1501 が起票した当の欠陥で、「立ち止まる player を罰する」ことが C-1419 の graze 帯（危険の隣に立つことへの報酬）と衝突するため保留されている。（**難度の設計判断を含むので、直す前に何を hard が約束するのかを決める必要がある**。→ 動かす数字: `creation_mash_punished`（2→4）。C-1623 のテスト `test_two_of_them_are_not_merely_survived_but_won` が現状を固定しているので、直すときはそこが落ちる）　**追記 2026-09-10 03:25 UTC 辛口クリエイター（kaiju 側に数字を付ける・117 巡目の調査）**: kaiju の連打勝ちは「立ち止まりを罰するか」（C-1419 の graze 帯との衝突）とは別に、**戦闘そのものが自分の拍より短い**という §6 の問題でもある。実測（全 3 段・スペースを毎フレーム・操舵なし）: easy **368 フレーム**（6.1 秒・hp 2/3）／normal **431 フレーム**（7.2 秒・**hp 3/3 無傷**）／hard **497 フレーム**（8.3 秒・**hp 3/3 無傷**）。§6 定量の攻撃ビートは `BEAT`=126 フレーム（2.1 秒・映像の戦闘ショット長中央値と一致）なので、**最長の段でも怪獣は 3.9 拍しか刻めずに倒れる**。C-1324 が周期ごとに入れたエスカレーション（地割れの成長 1／1.15／1.3）は、周期 3 が 8 秒後に来るので**誰も見ない**。60 秒のラウンドのうち戦闘は 14%。さらに**歩くと不利**（`hold=[' ','ArrowLeft']` は score 0・`state='fight'` で時計に達する）。LEGHP は段ごとに 3／5／7 と正しく増えており、壊れているのは帯ではなく**戦闘の長さそのもの**。（この追記は測るだけで直していない——戦闘長は設計判断なので、決める人に数字を渡す）
       **前提の所在（2026-09-10 05:22 進捗監視）**: この項目の前提条件「hard が何を約束するのかを先に決める」は
       設計判断なので、**E 節へ「要判断: `hard` は「無策では勝てない」を約束するのか。」として持ち上げた**。
@@ -11675,51 +11722,6 @@ C-12xx/13xx/14xx はループ用のまま）。
       **ループは取らない。厳守事項 7 により実装しない。**
 
 ### F. 積み残し（着手前に価値を再確認すること）
-
-- [ ] **C-1781: 判定器の環境拒否が「同じ python 実行ファイル」どうしでも発火する——`source .venv/bin/activate && python` で採った基準と `.venv/bin/python` で採った計測が、比較そのものを拒まれる。**（2026-09-13 18:2x UTC 進捗監視・C-1707 の新コード内の誤拒否）
-      **C-1707 は「別の土俵で採った 2 つを revert 指示にしない」ために `__env__` 印と `env_mismatch()` を入れた**。
-      その `env_mismatch`（scripts/product_metrics.py:29737-29754）は **python / executable / venv の 3 項を等値比較**し、
-      1 つでも違えば `_report`（:29898-29905）が **`compare()` を走らせる前に** `CROSS_ENVIRONMENT`（exit 3）で降りる。
-      `venv` は `bool(os.environ.get("VIRTUAL_ENV"))`——**どの venv かではなく「有効化されているか」**である。
-      **実測（2026-09-13 18:2x UTC・この木）**:
-      `.venv/bin/python -c "import sys,os;print(sys.executable, bool(os.environ.get('VIRTUAL_ENV')))"`
-      → `/home/user/sidra-ai/.venv/bin/python False`／
-      `source .venv/bin/activate && python -c "…"` → `/home/user/sidra-ai/.venv/bin/python True`。
-      **実行ファイルは同一パス**で、違うのは旗だけ。よって `env_mismatch` は `venv: False -> True` を返し、
-      **バイト単位で同じ interpreter どうしの比較が exit 3 で止まる**。印字は
-      「re-take the baseline with the interpreter you are about to compare with」と言うが、
-      **その interpreter は既に同じ**なので、読んだ側は直しようが無く、基準を採り直しても
-      呼び方を揃えない限り同じ所で止まる。
-      **到達可能性（実測・パターンを明示）**: `docs/LOCAL_RUNTIME.md:123` の導入手順は
-      `source .venv/bin/activate` を書き（`grep -rn 'source \.venv/bin/activate' docs/ scripts/ README.md` = 1 件）、
-      一方で収集器の起動例は直接パス（`grep -rn '\.venv/bin/python scripts/product_metrics' …` = 2 件）と
-      素の `python`（`grep -rn '[^/]python3\? scripts/product_metrics' …` = 3 件）の両方が文書化されている。
-      **どちらも文書どおり**の呼び方であり、片方で基準を採り片方で計測する事故は設計上いつでも起きる。
-      **既存の検査は素通りする**: C-1707 が置いた `judge_refuses_a_cross_environment_compare` の
-      `_other`（:25717）は `{"python": "3.11.15", "executable": "/repo/.venv/bin/python", "venv": True}` で、
-      `_env_before` の `/usr/bin/python3` / `False` に対し **executable と venv が同時に違う**。
-      つまり **venv だけが違う場合を固定した事例が 1 つも無い**。満点（2.0）のまま誤拒否が残る。
-      **2 方向（どちらか一方だけでは不足）**:
-      **(a)** `python` と `executable` が**どちらも同じ**なら、`venv` の違いだけで拒否しない——
-      実行ファイルのパスが既に interpreter を一意に指しているので、旗は追加情報を持たない。
-      **(b)** 本当に別の interpreter（`/usr/bin/python3` vs `.venv/bin/python`、または version 違い）は
-      **今までどおり exit 3 で止まり `DIFFERENT FOOTING` と名指しする**。C-1707 の (a)(b)・
-      「印の無い古い snapshot は通す」も全て保持。(b) が無いと「何も拒まない判定器」で満点が取れる。
-      **禁じ手**: ① `_env_mark()` から `venv` を落とすこと——記録は安く、後から
-      「どう呼んで採ったか」を読む手掛かりになる。直すのは**記録**ではなく**比較の側**。
-      ② `env_mismatch` を常に `None` にすること（C-1707 が直した穴に戻る）。
-      **判定器（提案）** `judge_compares_the_same_interpreter` 新設（C-1707 と同じく**本物の `_report()`** を
-      合成スナップショットで駆動・純関数なので費用 0）: A=python/executable 同一・venv False→True で
-      **exit 3 を出さず数字どおりに裁く**（悪化なら 2・改善なら 0）／B=executable 違いは exit 3＋`DIFFERENT FOOTING`／
-      C=python version 違いは exit 3／D=印の無い古い snapshot は通す。A だけだと (b) が壊れても気付けない。
-      **観点**: 進捗監視の C-14xx は計器の穴を埋めてきた（C-1707 環境印・C-1723 ゲートの走査範囲・
-      C-1728 板の宙吊り主張・C-1733 ログ時刻・C-1736 収集器の余裕・C-1763 `detail` の無視）。
-      本件は**そのうちの 1 つ（C-1707）が自分で作った誤拒否**——穴を塞いだ板が少し出過ぎている。
-      **別の種（起票しない・頻度を測っていない）**: `__env__` は interpreter は記録するが
-      **どの commit で採った基準かを記録しない**。基準が数 commit 古いと他ループの動きを
-      自分の手柄／責任として読む余地がある（02:27 に比率が 18.8% と読めた件はこれで説明できるが、
-      **発生頻度は測っていない**ので、ここに書くのは観察であって起票ではない）。
-      **採番**: 起票時 C-1780（辛口ユーザー・18:22 UTC）が最大で次の空き番 **C-1781**＝衝突なし。
 
 - [ ] **C-1778: §30 事実 1 の残り——「読み手が自分で進める」手立てが無い（タイマーは今も頁のもの）。**（§30 事実 1・C-1776 の実測で残った半分）
       **C-1776 で入ったのは「読み返せる」側**（一時停止画面に直近 3 行・`gateSaidTable`）で、ガイドラインの
