@@ -1010,6 +1010,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1790: a project for a genre we cannot build (「格闘ゲームを企画から作って」)
+    # writes scenario/structure/features.md describing the fishing default under a
+    # 格闘 title; only production-log.md disclosed the swap (C-1605), so the three
+    # design docs a reader opens first said nothing. genre_fallback_note now rides
+    # each design doc's header too; a buildable genre adds none.
+    from sidra_ai.evals.project_docs_disclose_genre_fallback import (
+        evaluate_project_docs_disclose_genre_fallback,
+    )
+
+    project_docs_fallback = evaluate_project_docs_disclose_genre_fallback()
+    c.add(
+        "project_docs_disclose_genre_fallback",
+        "企画の設計文書（脚本/構成/機能設定）が、作れないジャンルを既定で代替した旨を開示する",
+        10.0 * project_docs_fallback.checks_passed / project_docs_fallback.checks_total,
+        detail=f"{project_docs_fallback.checks_passed}/{project_docs_fallback.checks_total} checks; "
+               "src/sidra_ai/evals/project_docs_disclose_genre_fallback.py"
+               + ("" if project_docs_fallback.passed
+                  else "; " + "; ".join(project_docs_fallback.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1260: opening the ask page 404'd on /favicon.ico every load (console
     # error + blank tab icon). The page is self-contained, so it now declares
     # an inline data: favicon. Checked on the served page string: an icon link
