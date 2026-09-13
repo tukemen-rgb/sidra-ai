@@ -2134,6 +2134,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1767: a duplicate --repository (case-insensitive) passed the CLI's
+    # allowlist pre-check, was sent, and the server's 422 rendered as "shorten
+    # your question" - the wrong knob. sidra-ask now rejects a duplicate itself
+    # (exit 2), naming the repository, like C-1661/C-1669.
+    from sidra_ai.evals.cli_names_duplicate_repository import (
+        evaluate_cli_names_duplicate_repository,
+    )
+
+    duplicate_repo = evaluate_cli_names_duplicate_repository()
+    c.add(
+        "cli_names_duplicate_repository",
+        "sidra-ask が重複 --repository を名指して弾く（質問を直せと誤誘導しない）",
+        10.0 * duplicate_repo.checks_passed / duplicate_repo.checks_total,
+        detail=f"{duplicate_repo.checks_passed}/{duplicate_repo.checks_total} checks; "
+               "src/sidra_ai/evals/cli_names_duplicate_repository.py"
+               + ("" if duplicate_repo.passed else "; " + "; ".join(duplicate_repo.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

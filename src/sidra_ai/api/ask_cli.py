@@ -504,6 +504,26 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
                 file=sys.stderr,
             )
             return 2
+        # The server rejects case-insensitive duplicate repositories with 422,
+        # which the CLI would render as "shorten your question" - the wrong
+        # knob (C-1767). A repeated --repository (a copy-paste, or Fg vs fg) is
+        # bad usage, so name it here before sending, like the allowlist check
+        # above. casefold matches the server's own duplicate rule (schemas.py).
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for repository in args.repositories:
+            key = repository.casefold()
+            if key in seen:
+                duplicates.append(repository)
+            else:
+                seen.add(key)
+        if duplicates:
+            print(
+                f"--repository が重複している: {'、'.join(duplicates)}。"
+                "同じリポジトリは一度だけ指定する。",
+                file=sys.stderr,
+            )
+            return 2
 
     payload: dict[str, Any] = {"message": args.question, "top_k": args.top_k}
     if args.repositories:
