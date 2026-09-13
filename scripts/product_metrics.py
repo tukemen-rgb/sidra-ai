@@ -869,6 +869,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1786: the colour-not-applied caveat (C-1272) lived only in the chat
+    # summary, but the art HTML is the forwarded/reopened artifact and already
+    # self-discloses the pattern default (C-1284) - a page titled 「青い…」 drawn
+    # in the fixed palette with no word of it is the same C-1784-class gap. The
+    # page now carries the colour caveat too.
+    from sidra_ai.evals.art_page_discloses_color_not_applied import (
+        evaluate_art_page_discloses_color_not_applied,
+    )
+
+    art_color = evaluate_art_page_discloses_color_not_applied()
+    c.add(
+        "art_page_discloses_color_not_applied",
+        "アートの HTML 本体が『依頼の色は反映していない』を開示する",
+        10.0 * art_color.checks_passed / art_color.checks_total,
+        detail=f"{art_color.checks_passed}/{art_color.checks_total} checks; "
+               "src/sidra_ai/evals/art_page_discloses_color_not_applied.py"
+               + ("" if art_color.passed
+                  else "; " + "; ".join(art_color.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1257: right after making a game, demonstrative revisions (その/これ/
     # それ/この …を直して) fell to the Q&A "no evidence, ask an admin to ingest
     # a repository" wall because _BACK_REFERENCES had no demonstratives.
