@@ -890,6 +890,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1779: detect_revision_intent scanned the accent colour over the whole
+    # message, and the accent words are single kanji that appear inside a new
+    # title being set (「赤い彗星」) - so a rename silently repainted the accent.
+    # The adjustment scans now read the message with the new title removed
+    # (_targeting_text), while a colour named outside a title still applies.
+    from sidra_ai.evals.revision_rename_does_not_bleed_into_accent import (
+        evaluate_revision_rename_does_not_bleed_into_accent,
+    )
+
+    revise_accent = evaluate_revision_rename_does_not_bleed_into_accent()
+    c.add(
+        "revision_rename_does_not_bleed_into_accent",
+        "改名（タイトル内の色語）が頼んでいない差し色変更に漏れない",
+        10.0 * revise_accent.checks_passed / revise_accent.checks_total,
+        detail=f"{revise_accent.checks_passed}/{revise_accent.checks_total} checks; "
+               "src/sidra_ai/evals/revision_rename_does_not_bleed_into_accent.py"
+               + ("" if revise_accent.passed else "; " + "; ".join(revise_accent.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1258: the GIF summary named no motif and any request that matched no
     # motif word silently became the default pulse - even more silent than art
     # (C-1256), which at least printed 「パターン: flow」. Measured through the
