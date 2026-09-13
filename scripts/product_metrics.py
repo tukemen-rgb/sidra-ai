@@ -2311,6 +2311,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1774: requires_inference needs indexed > 0, so a changed repo whose new
+    # commits/PRs/issues were fetched but ENTIRELY quarantined/blocked by the
+    # gate (indexed 0, no error) fell to the same "no new commits" wording -
+    # a false all-clear precisely when new external content arrived and was
+    # withheld, the C-1644 residual gap. The reason now names the withholding
+    # (counts + where to review) while a genuine no-new-commits is untouched.
+    from sidra_ai.evals.analyze_reason_names_withheld_content import (
+        evaluate_analyze_reason_names_withheld_content,
+    )
+
+    analyze_withheld = evaluate_analyze_reason_names_withheld_content()
+    c.add(
+        "analyze_reason_names_withheld_content",
+        "解析応答の理由が『取得したが全部隔離／ブロック』を『変更なし』と偽らない",
+        10.0 * analyze_withheld.checks_passed / analyze_withheld.checks_total,
+        detail=f"{analyze_withheld.checks_passed}/{analyze_withheld.checks_total} checks; "
+               "src/sidra_ai/evals/analyze_reason_names_withheld_content.py"
+               + ("" if analyze_withheld.passed else "; " + "; ".join(analyze_withheld.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1642: /openapi.json is served behind the private-API boundary but its
     # schema declared no auth at all - `authenticate` is a plain function
     # dependency, not a FastAPI security scheme - so a client generated from the
