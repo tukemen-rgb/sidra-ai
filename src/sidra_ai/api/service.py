@@ -965,19 +965,32 @@ class SidraService:
         cap_reason = snapshot_cap_reason(report, self.settings.max_items_per_source)
 
         if not report.requires_inference:
-            # "no new commits" and "every fetch failed" both leave
-            # requires_inference False, but they are opposite facts: one says
-            # the repositories are current, the other that none could be
-            # checked. Reporting the first for the second told an operator
-            # all-clear when nothing was seen (C-1644). Name the failure - with
-            # a count and where to read the errors - and keep the exact
-            # no-new-commits wording only when nothing errored.
+            # "no new commits", "every fetch failed", and "new content arrived
+            # but was entirely withheld by the gate" all leave requires_inference
+            # False, but they are different facts. C-1644 told the fetch failure
+            # apart from the genuine no-new-commits and named the failure (with a
+            # count and where to read the errors). The withheld case still read
+            # as "no new commits" - a false all-clear precisely when new EXTERNAL
+            # content (an Issue/PR body, a commit's docs) was fetched and
+            # quarantined/blocked, which is the one outcome an operator most needs
+            # to see: requires_inference needs indexed > 0, so a changed repo
+            # whose every document was withheld (indexed 0, no error) fell to the
+            # "no new commits" wording though commits/activity did arrive (C-1774).
             errored = [r for r in report.repositories if r.error]
+            withheld = report.total_quarantined + report.total_blocked
             if errored:
                 payload["reason"] = (
                     f"ingestion did not complete for {len(errored)} of "
                     f"{len(report.repositories)} repositories; model not invoked "
                     "(see ingestion.repositories[].error)"
+                )
+            elif withheld > 0:
+                payload["reason"] = (
+                    "new content was fetched but withheld by the security gate "
+                    f"({report.total_quarantined} quarantined, "
+                    f"{report.total_blocked} blocked); model not invoked "
+                    "(review with `sidra-quarantine list`; counts in "
+                    "ingestion.repositories[].quarantined/blocked)"
                 )
             else:
                 payload["reason"] = (
