@@ -302,10 +302,22 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     adjustments: dict[str, str] = {}
     evidence: list[str] = []
 
-    if any(fold_kana(word) in text for word in _HARDER):
+    # What to change is read from the message with the *new* title removed. A
+    # colour kanji inside 「赤い彗星」 is part of the name being set, not a
+    # request to recolour the page - `_targeting_text` already strips it to
+    # decide which page is meant, and the same reasoning decides what to change
+    # (C-1779). Before this, `if 赤 in message` fired on the accent word inside
+    # a quoted title and a rename silently repainted the accent. The title match
+    # below still reads the whole message (that is where the new title is), and
+    # theme stays on it too - `select_theme` is gated on a theme cue, so a bare
+    # colour word in a title cannot reach it.
+    body = _targeting_text(message)
+    body_text = fold_kana(body.casefold())
+
+    if any(fold_kana(word) in body_text for word in _HARDER):
         adjustments["difficulty"] = "+1"
         evidence.append("difficulty+1")
-    elif any(fold_kana(word) in text for word in _EASIER):
+    elif any(fold_kana(word) in body_text for word in _EASIER):
         adjustments["difficulty"] = "-1"
         evidence.append("difficulty-1")
 
@@ -317,24 +329,24 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     # The panel's own axes (C-1117). Difficulty is applied first and these
     # land on top, which is the order the words arrive in: 「難しくして、
     # でも敵は減らして」 means both, in that order.
-    if any(fold_kana(word) in text for word in _BAND_UP):
+    if any(fold_kana(word) in body_text for word in _BAND_UP):
         adjustments["band"] = "+1"
         evidence.append("band+1")
-    elif any(fold_kana(word) in text for word in _BAND_DOWN):
+    elif any(fold_kana(word) in body_text for word in _BAND_DOWN):
         adjustments["band"] = "-1"
         evidence.append("band-1")
 
     for word, colour in _ACCENT_WORDS.items():
-        if word in message:
+        if word in body:
             adjustments["accent"] = colour
             evidence.append(f"accent:{word}")
             break
 
-    turned_off = any(fold_kana(word.casefold()) in text for word in _OFF_WORDS)
-    if any(fold_kana(word) in text for word in _DAILY_WORDS):
+    turned_off = any(fold_kana(word.casefold()) in body_text for word in _OFF_WORDS)
+    if any(fold_kana(word) in body_text for word in _DAILY_WORDS):
         adjustments["daily"] = "off" if turned_off else "on"
         evidence.append(f"daily:{adjustments['daily']}")
-    if any(fold_kana(word) in text for word in _BRIEF_WORDS):
+    if any(fold_kana(word) in body_text for word in _BRIEF_WORDS):
         adjustments["brief"] = "off" if turned_off else "on"
         evidence.append(f"brief:{adjustments['brief']}")
 
