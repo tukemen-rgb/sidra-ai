@@ -990,6 +990,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1788: a request for a genre SIDRA cannot build (「格闘」) or a subject with
+    # no template (「猫」) got the default template, and only the chat summary said
+    # so - game.html, the reopened/forwarded artifact, showed 「ジャンル 釣り」 with
+    # no word of the substitution. genre_fallback_note (the project flow's page
+    # wording) now rides the single-game page too; a satisfied request adds none.
+    from sidra_ai.evals.game_page_discloses_genre_fallback import (
+        evaluate_game_page_discloses_genre_fallback,
+    )
+
+    game_fallback = evaluate_game_page_discloses_genre_fallback()
+    c.add(
+        "game_page_discloses_genre_fallback",
+        "生成ゲームの本体が、作れないジャンルを既定で代替した旨を開示する",
+        10.0 * game_fallback.checks_passed / game_fallback.checks_total,
+        detail=f"{game_fallback.checks_passed}/{game_fallback.checks_total} checks; "
+               "src/sidra_ai/evals/game_page_discloses_genre_fallback.py"
+               + ("" if game_fallback.passed else "; " + "; ".join(game_fallback.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1260: opening the ask page 404'd on /favicon.ico every load (console
     # error + blank tab icon). The page is self-contained, so it now declares
     # an inline data: favicon. Checked on the served page string: an icon link
