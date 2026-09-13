@@ -90,7 +90,23 @@ def main(argv: list[str] | None = None) -> int:
                 "pending" if entry.releasable else "policy"
             )
             print(f"[{mark:8s}] {entry.summary()}")
-        print(f"\n{len(entries)} entries. Use `show <id>` for detail.")
+        # The default view is the pending subset, not the whole log. A bare
+        # "{N} entries" hides that released/policy entries exist and that `--all`
+        # would show them - the subset-honesty a truncated listing (C-1680) and a
+        # capped finding count (C-1731) already keep. Name the pending count, the
+        # total, and point to `--all` when entries are hidden (C-1743).
+        if args.all:
+            print(f"\n{len(entries)} entries. Use `show <id>` for detail.")
+        else:
+            total = len(review.entries())
+            hidden = total - len(entries)
+            if hidden > 0:
+                print(
+                    f"\n{len(entries)} pending (of {total} total; {hidden} not shown). "
+                    "Use `--all` to see all, `show <id>` for detail."
+                )
+            else:
+                print(f"\n{len(entries)} pending. Use `show <id>` for detail.")
         return 0
 
     if args.command == "show":

@@ -1958,6 +1958,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1743: `sidra-quarantine list` (no --all) shows only pending entries but its
+    # footer read a bare "{N} entries", hiding that released/policy entries exist.
+    # The footer now names the pending count, the total, and points to --all when
+    # entries are hidden (the C-1680/C-1731 subset-honesty vein).
+    from sidra_ai.evals.quarantine_list_discloses_scope import (
+        evaluate_quarantine_list_discloses_scope,
+    )
+
+    quarantine_scope = evaluate_quarantine_list_discloses_scope()
+    c.add(
+        "quarantine_list_discloses_scope",
+        "隔離 list が pending 部分集合であること・総数・--all を明示する",
+        10.0 * quarantine_scope.checks_passed / quarantine_scope.checks_total,
+        detail=f"{quarantine_scope.checks_passed}/{quarantine_scope.checks_total} checks; "
+               "src/sidra_ai/evals/quarantine_list_discloses_scope.py"
+               + ("" if quarantine_scope.passed else "; " + "; ".join(quarantine_scope.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
