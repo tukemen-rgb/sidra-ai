@@ -365,3 +365,22 @@ def unstamped_writes(script: str) -> list[str]:
         if var in scoped and "memWrap(" not in value:
             bad.append(f"{var} を印なしで書いている: {value.strip()[:60]}")
     return bad
+
+#: How the page describes where a setting lives (§31, C-1741). One string,
+#: read by both panels: the tuning panel and the key-remap panel said the
+#: same thing in two files, and a sentence about a promise is exactly the
+#: kind that drifts.
+#:
+#: 「保存されます」 was the old wording and it asserts something the
+#: platform does not promise. Storage is best-effort by default - a
+#: browser may drop it when space is short - and Safari deletes
+#: script-written storage for an origin that has had no interaction in the
+#: last seven days of browser use. That is the same seven days §8 事実 4
+#: builds D7 retention on, so the product must not tell a player their
+#: record is kept.
+STORAGE_NOTE: str = "この端末に残ります（ブラウザが消すことがあります）"
+
+#: The wording this replaces. Held here so a judge can say the claim is
+#: gone rather than only that a caveat was added.
+STORAGE_OVERCLAIM: str = "この端末だけに保存されます"
+

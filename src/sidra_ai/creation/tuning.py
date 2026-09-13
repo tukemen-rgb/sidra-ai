@@ -407,7 +407,7 @@ function tunePanel(){
   box.style.cssText='margin:18px 0 0;padding:10px 14px;border:1px solid BORDER_TOKEN;'
     +'border-radius:6px;font-size:13px';
   const sum=document.createElement('summary');
-  sum.textContent='調整（この端末だけに保存されます）';
+  sum.textContent='調整（'+STORAGE_NOTE_TOKEN+'）';
   sum.style.cssText='cursor:pointer';box.appendChild(sum);
   const values=tuneValues();
   TUNE_SPEC.fields.forEach(function(f){box.appendChild(tuneControl(f,values[f.key]))});

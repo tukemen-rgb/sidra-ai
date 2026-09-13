@@ -122,7 +122,7 @@ function remapPanel(){
   box.style.cssText='margin:12px 0 0;padding:10px 14px;border:1px solid BORDER_TOKEN;'
     +'border-radius:6px;font-size:13px';
   const sum=document.createElement('summary');
-  sum.textContent='キー設定（この端末だけに保存されます）';
+  sum.textContent='キー設定（'+STORAGE_NOTE_TOKEN+'）';
   sum.style.cssText='cursor:pointer';box.appendChild(sum);
   REMAP_ACTIONS.forEach(function(action){
     const row=document.createElement('div');

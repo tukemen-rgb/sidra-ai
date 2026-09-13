@@ -15223,6 +15223,73 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the page does not promise what the browser will not keep ------
+    #
+    # C-1741, §31 (added this cycle) x §8 事実 4. Both panels said 「この
+    # 端末だけに保存されます」 - "saved on this device" - and the platform
+    # promises no such thing. Storage is best-effort by default (a browser
+    # may drop it when space runs short), and Safari deletes an origin's
+    # script-written storage when the site has had no interaction in the
+    # last seven days of browser use (MDN; web.dev, both read 2026-09-12).
+    #
+    # That is the same seven days §8 事実 4 builds D7 retention on: on iOS
+    # the personal best and the ghost may be gone exactly at the moment the
+    # product is counting on them to bring somebody back. The loop cannot
+    # fix the eviction - what it must not do is tell the player their
+    # record is kept.
+    #
+    # Both directions: the caveat is there, AND the assertion is gone. With
+    # only the first, a page that prints both sentences scores full marks.
+    from sidra_ai.creation.together import (
+        STORAGE_NOTE as _keep_note,
+        STORAGE_OVERCLAIM as _keep_overclaim,
+    )
+
+    keep_gaps: list[str] = []
+    keep_ok: list[str] = []
+    for key in sorted(_tune_templates):
+        page = _tune_generate("ゲームを作って", template=key).html
+        # Both panels - the tuning panel and the key remap - say where a
+        # setting lives, and one honest sentence beside one assertion is
+        # not honesty.
+        if page.count(_keep_note) < 2:
+            keep_gaps.append(
+                f"{key}: 消えうることを言っているのが {page.count(_keep_note)} か所"
+            )
+            continue
+        if _keep_overclaim in page:
+            keep_gaps.append(f"{key}: 「{_keep_overclaim}」がまだ残っている")
+            continue
+        keep_ok.append(key)
+    if "保存されます" in _keep_note:
+        keep_gaps.append("共有文言そのものが断定を含んでいる")
+    c.add(
+        "creation_storage_promise_is_honest",
+        "残ると言い切らない型",
+        float(len(keep_ok)) if not keep_gaps else 0.0,
+        detail=(
+            "**§31（本巡で増築・外部調査 2026-09-12）**: 既定の保存は "
+            "**best-effort** で、**Safari は 7 日そのサイトに触られなければ"
+            "スクリプトが作ったデータを削除する**"
+            "（MDN `Storage_quotas_and_eviction_criteria`／web.dev "
+            "`storage-for-the-web` の両方に同じ記述）。"
+            "**§8 事実 4 の D7 と、削除の 7 日が同じ日に重なっている**"
+            "——「7 日後に戻る理由を蓄積で作れ」と言うその日に、"
+            "iOS では自己ベストもゴーストも**もう無いかもしれない**。"
+            "削除は直せないが、**残ると言い切らないことは直せる**。"
+            "2 つのパネル（調整・キー設定）の見出しを"
+            "`together.STORAGE_NOTE` の 1 文から読むようにした"
+            "（**同じ約束を 2 ファイルに書かない**＝C-1342）。"
+            "**両方向**: (a) 10 型のページで**消えうることを 2 か所とも言う**、"
+            "(b) **断定「この端末だけに保存されます」がどこにも無い**"
+            "——(b) が無ければ、注意書きを足したまま断定も残す実装が満点を取る。"
+            "共有文言自身が断定を含んでいないことも同じ判定器で見る"
+            if not keep_gaps
+            else "; ".join(keep_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a colour the operator picked is still a colour they can read ---
     #
     # C-1737, §4 x §9 学び (4). The panel rounds a number into the author's
