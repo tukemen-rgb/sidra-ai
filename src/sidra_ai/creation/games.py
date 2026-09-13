@@ -1116,6 +1116,27 @@ def detect_genre(request: str) -> GenreRequest | None:
     return None
 
 
+
+def difficulty_in_force(template: str, recorded: str, request: str) -> str:
+    """Which rung this page is actually built on (C-1744).
+
+    A recorded difficulty can name a rung this template does not have -
+    a hand-edited sidecar, a file from another version - and the build
+    deliberately does not raise on it: a bad sidecar must not make an
+    artifact unbuildable, so the request's own reading takes over.
+
+    Which means the recorded word and the page can disagree, and anything
+    that *reports* on the page has to ask this rather than read the file.
+    The revision summary was reading the file, and said 「難易度
+    impossible→hard」 about a game that had never been on 「impossible」.
+    One rule, asked by both.
+    """
+
+    ladder = _DIFFICULTY.get(template)
+    if ladder is None:
+        return choose_difficulty(request)
+    return recorded if recorded in ladder else choose_difficulty(request)
+
 def choose_difficulty(request: str) -> str:
     lowered = request.lower()
     if any(word in lowered for word in _HARD):
@@ -1817,8 +1838,7 @@ def generate_game(
     # did. A request that names no theme gets the default, which is the
     # site's own palette - see sidra_ai.creation.themes.
     theme = THEMES.get(theme_name) or select_theme(request)
-    if difficulty not in _DIFFICULTY[key]:
-        difficulty = choose_difficulty(request)
+    difficulty = difficulty_in_force(key, difficulty, request)
     speed, band = _DIFFICULTY[key][difficulty]
     # C-1117: a sentence can turn any panel axis, and what it turns is the
     # value the page opens with. The difficulty preset lands first and an

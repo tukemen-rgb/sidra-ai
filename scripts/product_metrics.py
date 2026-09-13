@@ -15126,6 +15126,123 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the summary names the rung the game was really on --------------
+    #
+    # C-1744, §9 事実 2. games.py drops a recorded difficulty its template
+    # does not have and reads the request instead - deliberately, so a bad
+    # sidecar cannot make an artifact unbuildable. The revision summary
+    # quoted the file anyway, so a sidecar saying 「impossible」 produced
+    # 「難易度 impossible→hard」 about a game that had never been on it.
+    # Both sides now ask games.difficulty_in_force.
+    #
+    # Both directions: the broken sidecars name the real rung, AND the
+    # healthy ones say exactly what they said before - a summary that
+    # stopped naming the 「from」 at all would pass the first on its own
+    # and tell the operator less.
+    import tempfile as _rung_tmp
+
+    from sidra_ai.creation.games import (
+        choose_difficulty as _rung_choose,
+        difficulty_in_force as _rung_force,
+        save_game as _rung_save,
+    )
+    from sidra_ai.creation.revise import (
+        build_game_reviser as _rung_reviser,
+        detect_revision_intent as _rung_intent,
+        save_meta as _rung_meta,
+    )
+
+    rung_gaps: list[str] = []
+    rung_cells = 0
+    _RUNG_STATES = ("easy", "normal", "hard", "impossible", "")
+    # The sentence has to name the game it means, or the reviser rightly
+    # answers 「その名前のゲームは見つかりません」 - which is the product
+    # working and this check mis-driven. Each template gets its own words.
+    for _rung_template, _rung_request in (
+        ("adventure", "冒険ゲームを作って"),
+        ("racing", "レースゲームを作って"),
+    ):
+        _RUNG_LINE = _rung_request.replace("を作って", "を難しくして")
+        for _rung_recorded in _RUNG_STATES:
+            with _rung_tmp.TemporaryDirectory() as _rung_home:
+                _rung_built = _tune_generate(_rung_request, template=_rung_template)
+                _rung_page = _rung_save(_rung_built, _rung_home)
+                _rung_meta(
+                    _rung_page,
+                    request=_rung_request,
+                    template=_rung_template,
+                    difficulty=_rung_recorded,
+                    theme="",
+                    title=_rung_built.title,
+                    panel={},
+                )
+                _rung_want = _rung_force(_rung_template, _rung_recorded, _rung_request)
+                # Both sides of this item ask the same function, so the
+                # fallback is also checked against the request's own
+                # reading: a fallback quietly changed to a fixed rung
+                # would keep the summary and the page agreeing with each
+                # other and wrong about what was asked. The destruction
+                # battery walked through the version without this.
+                if _rung_recorded not in _tune_ladder[_rung_template]:
+                    if _rung_want != _rung_choose(_rung_request):
+                        rung_gaps.append(
+                            f"{_rung_template}: 読めない記録の落とし所が依頼の読みと違う"
+                            f"（{_rung_want} vs {_rung_choose(_rung_request)}）"
+                        )
+                        continue
+                _rung_read = _rung_intent(_RUNG_LINE)
+                if not _rung_read.is_revision:
+                    rung_gaps.append("「難しくして」が修正として読まれない")
+                    continue
+                _rung_out = _rung_reviser(_rung_home)(_RUNG_LINE, _rung_read)
+                _rung_said = str(getattr(_rung_out, "summary", "") or _rung_out)
+                if "難易度" not in _rung_said:
+                    # Already at the top rung: nothing to report, and the
+                    # summary says so rather than inventing a step.
+                    if "変更なし" in _rung_said:
+                        rung_cells += 1
+                        continue
+                    rung_gaps.append(
+                        f"{_rung_template}/{_rung_recorded or '(空)'}: 難易度に触れない要約"
+                    )
+                    continue
+                _rung_names = _scene_re.search(r"難易度 (\w+)→(\w+)", _rung_said)
+                if _rung_names is None:
+                    rung_gaps.append(
+                        f"{_rung_template}/{_rung_recorded or '(空)'}: 「A→B」の形で言わない"
+                    )
+                    continue
+                if _rung_names.group(1) != _rung_want:
+                    rung_gaps.append(
+                        f"{_rung_template}/{_rung_recorded or '(空)'}: "
+                        f"「{_rung_names.group(1)} から」と言うが実際は {_rung_want}"
+                    )
+                    continue
+                rung_cells += 1
+    c.add(
+        "creation_revision_names_the_real_before",
+        "要約の「から」が現物と一致するセル",
+        float(rung_cells) if not rung_gaps else 0.0,
+        detail=(
+            "2 型 × 5 通りの記録（easy／normal／hard／**知らない語**／**空**）で"
+            "**本物の修正器を駆動**し、要約の「難易度 A→B」の **A** を"
+            "`games.difficulty_in_force()`——**組み立て側が実際に使う規則**——と突き合わせた。"
+            "**両方向**: 壊れた記録では**実際に居た段**を名乗り、"
+            "健全な記録では**今までと同じ文**（片方だけなら「から」を言わない実装が満点を取り、"
+            "それは利用者に渡す情報を減らすだけ）。"
+            "**修正前の実測**: sidecar の difficulty を `impossible` にすると"
+            "要約は「難易度 **impossible**→hard」——"
+            "**この製品が一度も置いたことのない語を、出発点として断定で引用していた**"
+            "（作られたページ自体は hard で正しい）。"
+            "`games.py` は `difficulty not in _DIFFICULTY[key]` を"
+            "**壊れた sidecar でも artifact を作れなくしない**ために構えており、"
+            "**そこで捨てた値を要約だけが拾っていた**"
+            if not rung_gaps
+            else "; ".join(rung_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- and they are told when the colour cannot be used as asked ------
     #
     # C-1739, §4 x §9 事実 2. The eight colour words were chosen against a

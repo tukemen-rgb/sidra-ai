@@ -34,6 +34,7 @@ from sidra_ai.creation.games import (
     TEMPLATES,
     _DIFFICULTY,
     detect_genre,
+    difficulty_in_force,
     generate_game,
     save_game,
     validate_game_html,
@@ -904,7 +905,16 @@ def build_game_reviser(data_dir: str | Path):
                 )
             undone_from, meta = meta, previous[1]
 
-        difficulty = meta["difficulty"]
+        # What this page is actually on, not what the file says (C-1744).
+        # The build drops a rung it does not have and reads the request
+        # instead - deliberately, so a bad sidecar cannot make an artifact
+        # unbuildable - and the summary used to quote the file anyway:
+        # 「難易度 impossible→hard」 about a game that had never been on
+        # 「impossible」. Both sides now ask games.difficulty_in_force.
+        difficulty = difficulty_in_force(
+            meta["template"], meta["difficulty"], meta.get("request", "")
+        )
+        was_difficulty = difficulty
         if "difficulty" in intent.adjustments:
             difficulty = _step_difficulty(difficulty, intent.adjustments["difficulty"])
         theme = intent.adjustments.get("theme", meta.get("theme", ""))
@@ -955,8 +965,8 @@ def build_game_reviser(data_dir: str | Path):
         )
 
         changed: list[str] = []
-        if game.difficulty != meta["difficulty"]:
-            changed.append(f"難易度 {meta['difficulty']}→{game.difficulty}")
+        if game.difficulty != was_difficulty:
+            changed.append(f"難易度 {was_difficulty}→{game.difficulty}")
         if theme and theme != meta.get("theme", ""):
             changed.append(f"配色 {theme}")
         if title and title != meta.get("title", ""):
