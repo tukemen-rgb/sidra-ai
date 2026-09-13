@@ -23154,6 +23154,123 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a page that is here, and a record that cannot be read ----------
+    #
+    # C-1745. Both listings the refusal is built from skip a sidecar they
+    # cannot read - right for *choosing* a target, wrong for saying what
+    # exists. With every sidecar skipped the reply became "no generated
+    # game can be revised, make one first" while the page sat in the same
+    # directory, openable and playable. An operator who follows that advice
+    # ends up with a second copy of a game they already had.
+    #
+    # Both directions, because either alone is scored full marks by a
+    # one-line implementation: the reply must name the file when a page is
+    # stranded, AND must still send someone to the generator when there
+    # really is nothing - a reviser that always says "the record cannot be
+    # read" would pass the first half and lie to everybody else.
+    from sidra_ai.creation.revise import save_meta as _stray_save_meta
+
+    _stray_bad: list[str] = []
+    _stray_made = "先に「◯◯ゲームを作って」で作成してください"
+    _stray_msg = "難しくして"
+
+    def _stray_dir(name: str) -> _pathlib.Path:
+        return _pathlib.Path(_tempfile.mkdtemp(prefix=f"metrics-stray-{name}-"))
+
+    def _stray_page(root: _pathlib.Path, stem: str) -> _pathlib.Path:
+        (root / "artifacts").mkdir(parents=True, exist_ok=True)
+        page = root / "artifacts" / f"{stem}.html"
+        page.write_text("<!doctype html><title>ある</title>", encoding="utf-8")
+        return page
+
+    def _stray_answer(root: _pathlib.Path) -> str:
+        return _build_reviser(root)(_stray_msg, _detect_revision(_stray_msg)).summary
+
+    def _stray_sidecar(page: _pathlib.Path, text: str) -> None:
+        page.with_name(page.stem + ".meta.json").write_text(text, encoding="utf-8")
+
+    # (1) A page is here and its record is unusable, four ways it happens.
+    for _stray_name, _stray_write in (
+        ("unknown-template", lambda page: _stray_save_meta(
+            page, request="ゲームを作って", template="tetris",
+            difficulty="normal", theme="dusk", title="ある",
+        )),
+        ("no-template-key", lambda page: _stray_sidecar(
+            page, '{"request": "ゲームを作って", "difficulty": "normal"}')),
+        ("not-json", lambda page: _stray_sidecar(page, "{ぶつ切り")),
+        ("not-an-object", lambda page: _stray_sidecar(page, '["ゲーム"]')),
+    ):
+        _stray_root = _stray_dir(_stray_name)
+        _stray_file = _stray_page(_stray_root, "game-fishing-20260913T000000Z")
+        _stray_write(_stray_file)
+        _stray_said = _stray_answer(_stray_root)
+        if _stray_file.name not in _stray_said:
+            _stray_bad.append(f"{_stray_name}: 現にあるファイルを名指さない（{_stray_said[:40]}）")
+        elif _stray_made in _stray_said:
+            _stray_bad.append(f"{_stray_name}: あるのに「先に作ってください」と言う")
+
+    # (2) Nothing has been made: the old sentence is the right one.
+    _stray_empty = _stray_dir("empty")
+    (_stray_empty / "artifacts").mkdir(parents=True, exist_ok=True)
+    _stray_nodir = _stray_dir("no-dir")
+    for _stray_name, _stray_root in (
+        ("空の artifacts", _stray_empty),
+        ("artifacts 自体が無い", _stray_nodir),
+    ):
+        _stray_said = _stray_answer(_stray_root)
+        if _stray_made not in _stray_said:
+            _stray_bad.append(f"{_stray_name}: 作ってくださいと言わなくなった（{_stray_said[:40]}）")
+        elif ".html" in _stray_said:
+            _stray_bad.append(f"{_stray_name}: 無いファイルを名指した")
+
+    # (3) A sidecar with no page beside it is not a game anyone can open,
+    # so naming it would send an operator after a file that is not there.
+    _stray_orphan = _stray_dir("orphan")
+    (_stray_orphan / "artifacts").mkdir(parents=True, exist_ok=True)
+    (_stray_orphan / "artifacts" / "game-fishing-20260913T000000Z.meta.json").write_text(
+        "{ぶつ切り", encoding="utf-8"
+    )
+    _stray_said = _stray_answer(_stray_orphan)
+    if _stray_made not in _stray_said:
+        _stray_bad.append(f"記録だけで頁が無い: 作ってくださいと言わない（{_stray_said[:40]}）")
+
+    # (4) The working path is untouched: a real record is still found.
+    _stray_live = _stray_dir("live")
+    _stray_live_page = _stray_page(_stray_live, "game-fishing-20260913T000001Z")
+    _stray_save_meta(
+        _stray_live_page, request="釣りゲームを作って", template="fishing",
+        difficulty="normal", theme="dusk", title="釣り",
+    )
+    _stray_found = _find_target(_stray_live, _stray_msg)
+    if _stray_found is None or _stray_found[0].name != _stray_live_page.stem + ".meta.json":
+        _stray_bad.append("読める記録まで見つからなくなった")
+
+    c.add(
+        "creation_revise_names_the_page_it_cannot_read",
+        "現にあるゲームを「無い」と言わない",
+        float(8 - len(_stray_bad)),
+        detail=(
+            "; ".join(_stray_bad)
+            if _stray_bad
+            else "**実際の修正器を実データ上で走らせて測った 8 通り**。"
+            "**記録が使えない 4 通り**（種類が未知・種類の key ごと無い・"
+            "JSON として壊れている・object ですらない）で、"
+            "**現にあるページのファイル名を挙げて**「修正できません」と言う"
+            "——**「先に作ってください」とは言わない**（ページはそこにあり、"
+            "従うと同じゲームがもう 1 本増える）。"
+            "**両方向**: **本当に 1 本も無い 2 通り**（artifacts が空・"
+            "artifacts 自体が無い）では**今までどおり「先に作ってください」**と言い、"
+            "**ファイル名は挙げない**——片方だけなら"
+            "「いつも『記録が読めません』と言う」実装が満点を取る。"
+            "**記録だけあって頁が無い 1 通り**も「作ってください」側"
+            "（開けないものを名指しても、探しに行く先が無い）。"
+            "**読める記録は今までどおり見つかる 1 通り**も測る"
+            "（新しい枝が働く道を飲み込んでいないこと）"
+        ),
+        kind=OUTCOME,
+    )
+
+
     # Undo, end to end: make, change, undo - and check the file the operator
     # was told is still there really is.
     _undo_bad, _undo_note = [], []

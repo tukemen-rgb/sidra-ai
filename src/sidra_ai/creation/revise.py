@@ -531,6 +531,51 @@ def _asserted_subject(message: str) -> str:
     return ""
 
 
+def stranded_pages(data_dir: str | Path) -> list[tuple[Path, str]]:
+    """Pages that are here but whose record the reviser cannot use.
+
+    ``find_target_meta`` and ``existing_titles`` both skip a sidecar they
+    cannot read. That is right for *choosing* a target - a record we cannot
+    read is a game we cannot rebuild - and wrong for saying what exists:
+    with every sidecar skipped the refusal became "no generated game can be
+    revised, make one first" while the page sat in the same directory,
+    openable and playable (C-1745). An operator who follows that advice
+    ends up with a second copy of a game they already had, which is the
+    same failure C-1511 fixed for a mistyped name.
+
+    Only pages that are really there. A sidecar with no page beside it is
+    not a game anyone can open, and naming it would send someone after a
+    file that is not on disk.
+
+    Newest first, like the other two listings, so the file an operator was
+    most likely working on is the one the sentence names.
+    """
+
+    directory = Path(data_dir) / "artifacts"
+    if not directory.is_dir():
+        return []
+    stranded: list[tuple[Path, str]] = []
+    paths = sorted(
+        directory.glob("game-*.meta.json"),
+        key=lambda p: (p.stat().st_mtime, p.name),
+        reverse=True,
+    )
+    for path in paths:
+        page = path.with_name(path.name[: -len(".meta.json")] + ".html")
+        if not page.is_file():
+            continue
+        meta = _load_meta(path)
+        if meta is None:
+            stranded.append((page, "記録ファイルが読めません"))
+        elif meta["template"] not in TEMPLATES:
+            # Quoted short: the word comes from a file on this machine, and
+            # a refusal is not the place to print an arbitrary amount of it.
+            stranded.append(
+                (page, f"記録が知らない種類「{meta['template'][:24]}」を指しています")
+            )
+    return stranded
+
+
 def existing_titles(data_dir: str | Path) -> list[str]:
     """The titles a revision could actually name, newest first.
 
@@ -870,6 +915,22 @@ def build_game_reviser(data_dir: str | Path):
                     "その名前のゲームは見つかりません。"
                     f"あるのは{_names_phrase(remembered or here)}です。"
                     "どれを修正するか、名前で指定してください。"
+                )
+            elif stranded_pages(data_dir):
+                # C-1745: the page is here. Saying "make one first" would be
+                # false and, followed, would leave two copies of one game.
+                stranded = stranded_pages(data_dir)
+                page, why = stranded[0]
+                rest = (
+                    f"（同じ状態のものがほか {len(stranded) - 1} 件あります）"
+                    if len(stranded) > 1
+                    else ""
+                )
+                summary = (
+                    f"ゲームのファイル「{page.name}」はありますが、{why}ので"
+                    f"修正できません。{rest}"
+                    "ページはそのまま開いて遊べます。"
+                    "作り直すなら「◯◯ゲームを作って」と言ってください。"
                 )
             else:
                 summary = (

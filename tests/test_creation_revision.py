@@ -150,11 +150,25 @@ def test_title_revision_still_passes_the_trademark_guard(tmp_path) -> None:
 
 
 def test_a_corrupt_sidecar_is_skipped_not_fatal(tmp_path) -> None:
+    """The record is unreadable, so the game cannot be rebuilt - and the
+    reviser says so instead of raising.
+
+    The refusal used to be 「修正できる生成済みゲームが見つかりません。先に
+    …作成してください」, and this test pinned that wording. C-1745 measured
+    what it costs: the page is in the same directory, openable, and an
+    operator who follows the advice ends up with two copies of one game.
+    The point of this test is that a corrupt sidecar is skipped rather than
+    fatal, and that still holds - it is the sentence that changed.
+    """
+
     outcome = _generate(tmp_path)
-    meta_path_for(Path(outcome.artifact_path)).write_text("{not json", encoding="utf-8")
+    page = Path(outcome.artifact_path)
+    meta_path_for(page).write_text("{not json", encoding="utf-8")
     revised = _revise(tmp_path, "さっきのゲームを難しくして")
     assert revised.handled
-    assert "見つかりません" in revised.summary
+    assert "修正できません" in revised.summary
+    assert page.name in revised.summary
+    assert page.is_file(), "the page the reply names must be on disk"
 
 
 # ------------------------------------------------------------- API layer
