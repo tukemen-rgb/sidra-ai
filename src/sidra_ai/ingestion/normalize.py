@@ -64,17 +64,44 @@ def _mutable_timestamp(payload: Mapping[str, Any]) -> datetime | None:
     return _parse_time(raw_updated)
 
 
+#: Text encodings tried, in order, when a document is not valid UTF-8. UTF-8
+#: is first, so a valid UTF-8 file always decodes as itself; the legacy
+#: Japanese encodings follow because this is a Japanese product whose repos may
+#: still hold Shift-JIS/EUC-JP docs, and both decode *strictly* (they raise on
+#: an invalid byte sequence), so a UTF-8 file is never silently turned into
+#: mojibake by a looser codec. ``latin-1`` is deliberately absent: it maps
+#: every byte and would "recover" a binary file as garbage.
+_TEXT_ENCODINGS: tuple[str, ...] = ("utf-8", "cp932", "euc_jp")
+
+
 def decode_content(payload: Mapping[str, Any]) -> str:
-    """Decode a GitHub contents payload. Binary files return ``""``."""
+    """Decode a GitHub contents payload. Binary files return ``""``.
+
+    A base64 body that is not valid UTF-8 is not necessarily binary: a
+    Shift-JIS or EUC-JP document is readable text the corpus should hold, and
+    dropping it as if it were a PNG removed user-authored content from the
+    index with no word in the ingestion report - the one silent drop on this
+    path (C-1780). Distinguish the two: a NUL byte marks a binary file (text
+    encodings do not carry them), and only then is a decode failure genuinely
+    "binary". Otherwise try the known text encodings before giving up.
+    """
 
     encoding = payload.get("encoding")
     raw = payload.get("content") or ""
     if encoding != "base64":
         return str(raw)
     try:
-        return base64.b64decode(raw).decode("utf-8")
-    except (binascii.Error, UnicodeDecodeError, ValueError):
+        data = base64.b64decode(raw)
+    except (binascii.Error, ValueError):
         return ""
+    if b"\x00" in data:
+        return ""
+    for enc in _TEXT_ENCODINGS:
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return ""
 
 
 def _author(payload: Mapping[str, Any]) -> str:
