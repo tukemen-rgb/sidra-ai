@@ -51,6 +51,19 @@ if [ "$?" -ne 0 ]; then
   fail=1
 fi
 
+# C-1770's invariant, checked in the seconds before a push instead of the
+# forty minutes after one. Measured 2026-09-13, the day C-1770 landed: of the
+# four judges added after it that needed scratch space, three reached for
+# `tempfile.mkdtemp` directly, and each sat on main red until somebody else's
+# cycle tripped over the full suite. Three loops spent part of a cycle on it in
+# one evening and two of them had not written the judge. The scan is the same
+# AST read as the test, so the rule does not fork.
+scratch=$(python scripts/check_eval_scratch.py 2>&1)
+if [ "$?" -ne 0 ]; then
+  echo "$scratch"
+  fail=1
+fi
+
 board=$(python scripts/check_backlog_board.py 2>&1)
 echo "$board" | tail -3
 if echo "$board" | grep -q '不整合なし'; then

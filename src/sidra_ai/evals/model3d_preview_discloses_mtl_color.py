@@ -15,12 +15,12 @@ real ``generate_model3d`` preview HTML and the ``model3d_job`` chat summary.
 
 from __future__ import annotations
 
-import tempfile
 from dataclasses import dataclass
 
 from sidra_ai.creation.models3d import generate_model3d
 from sidra_ai.creation.model3d_job import build_model3d_generator
 from sidra_ai.creation.intent import detect_creation_intent
+from sidra_ai.evals.scratch import scratch_dir
 
 
 @dataclass(frozen=True)
@@ -57,7 +57,12 @@ def evaluate_model3d_preview_discloses_mtl_color() -> Model3dPreviewMtlResult:
     # --- (D) the C-1283 shape-default note still fires when unshaped -----
     add("既定" in unshaped, "D: the shape-default disclosure (C-1283) regressed")
     # --- (E) the chat summary still carries the .mtl caveat (C-1617) -----
-    gen = build_model3d_generator(tempfile.mkdtemp())
+    # Through the shared helper, not tempfile directly (C-1770): a judge that
+    # makes its own scratch and never removes it is what filled this
+    # container's disk, and a full disk makes the collector die partway and
+    # report the metrics it never reached as REGRESSED. scratch_dir
+    # registers the directory for removal at interpreter exit.
+    gen = build_model3d_generator(scratch_dir())
     outcome = gen("3Dモデルを作って", detect_creation_intent("3Dモデルを作って"))
     summary = getattr(outcome, "summary", "") or ""
     add(".mtl" in summary and ("隣" in summary or "一緒" in summary),

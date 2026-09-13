@@ -12,12 +12,12 @@ note. The checks read the real ``generate_art`` HTML and the ``art_job`` summary
 
 from __future__ import annotations
 
-import tempfile
 from dataclasses import dataclass
 
 from sidra_ai.creation.art import generate_art
 from sidra_ai.creation.art_job import build_art_generator
 from sidra_ai.creation.intent import detect_creation_intent
+from sidra_ai.evals.scratch import scratch_dir
 
 _COLOR_NOTE = "配色に反映していません"
 _FIXED = "固定の配色"
@@ -59,7 +59,12 @@ def evaluate_art_page_discloses_color_not_applied() -> ArtColorPageResult:
     add(_PATTERN_DEFAULT in coloured,
         "D: the pattern-default page note (C-1284) regressed")
     # --- (E) the chat summary still carries the colour caveat (C-1272) ---
-    gen = build_art_generator(tempfile.mkdtemp())
+    # Through the shared helper, not tempfile directly (C-1770): a judge that
+    # makes its own scratch and never removes it is what filled this
+    # container's disk, and a full disk makes the collector die partway and
+    # report the metrics it never reached as REGRESSED. scratch_dir
+    # registers the directory for removal at interpreter exit.
+    gen = build_art_generator(scratch_dir())
     outcome = gen("青い螺旋のアートを作って", detect_creation_intent("青い螺旋のアートを作って"))
     summary = getattr(outcome, "summary", "") or ""
     add(_COLOR_NOTE in summary, "E: the chat summary lost its colour caveat")
