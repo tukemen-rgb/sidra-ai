@@ -17,13 +17,13 @@ chunk whose subject sentence sits past the excerpt cap.
 from __future__ import annotations
 
 import os
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sidra_ai.api.citations import MAX_CITATION_EXCERPT_CHARS
 from sidra_ai.api.service import SidraService
 from sidra_ai.config.settings import Settings
+from sidra_ai.evals.scratch import scratch_dir
 from sidra_ai.documents import Document, Provenance, SourceType, TrustLevel
 from sidra_ai.retrieval.store import DocumentStore
 from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
@@ -38,7 +38,11 @@ _CONTENT = _FILLER + _SUBJECT_SENTENCE + "その後の注意事項がさらに�
 
 
 def _service() -> SidraService:
-    tmp = tempfile.mkdtemp()
+    # Through the shared helper, not tempfile directly (C-1770): a judge
+    # that makes its own scratch and never removes it is what filled this
+    # container's disk. scratch_dir registers the directory for removal at
+    # interpreter exit.
+    tmp = scratch_dir()
     settings = Settings(allowed_repositories=(_REPO,), data_dir=os.path.join(tmp, "sidra"))
     gate = SecurityGate(
         GatePolicy(), allowed_repositories=(_REPO,),
