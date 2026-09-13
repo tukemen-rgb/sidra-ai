@@ -229,6 +229,16 @@ ASK_PAGE = """<!doctype html>
     answer.textContent = result.answer || "";
     if (result.refused) {
       statusLine.textContent = refusalMessage(result);
+    } else if ((result.model || {}).finish_reason === "length"
+            || (result.model || {}).finish_reason === "limit") {
+      // A local model that hit its output-token cap stops mid-answer; the service
+      // carries the reason as model.finish_reason (C-1750, the CLI's twin). Say
+      // the answer is cut off instead of letting a truncated reply read as
+      // complete - the same disclosure the CLI keeps (C-1753). Put it on the
+      // aria-live status region so it is announced; text only, never markup.
+      // The status line was cleared before render(), so this does not clobber a
+      // refusal (that branch is exclusive) and a normal "stop" leaves it empty.
+      statusLine.textContent = "\u56de\u7b54\u304c\u30e2\u30c7\u30eb\u306e\u51fa\u529b\u4e0a\u9650\u306b\u9054\u3057\u3066\u9014\u4e2d\u3067\u7d42\u308f\u3063\u3066\u3044\u308b\u3002\u7d9a\u304d\u306f\u8cea\u554f\u3092\u5206\u3051\u3066\u5c0b\u306d\u3066\u304f\u3060\u3055\u3044\u3002";
     }
     clear(sources);
     var citations = result.citations || [];

@@ -2016,6 +2016,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1753: C-1750 disclosed answer truncation on the backend/CLI; the web UI's
+    # render() never read the model block, so a browser reader saw a truncated
+    # answer as complete. render() now shows a status-region notice when
+    # finish_reason is length/limit (the web twin of C-1750, like C-1742 ↔ C-1735).
+    from sidra_ai.evals.ui_discloses_answer_truncation import (
+        evaluate_ui_discloses_answer_truncation,
+    )
+
+    ui_truncation = evaluate_ui_discloses_answer_truncation()
+    c.add(
+        "ui_discloses_answer_truncation",
+        "web UI が出力上限で途中終了した回答を明示する（C-1750 の web パリティ）",
+        10.0 * ui_truncation.checks_passed / ui_truncation.checks_total,
+        detail=f"{ui_truncation.checks_passed}/{ui_truncation.checks_total} checks; "
+               "src/sidra_ai/evals/ui_discloses_answer_truncation.py"
+               + ("" if ui_truncation.passed else "; " + "; ".join(ui_truncation.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it
