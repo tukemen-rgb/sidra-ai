@@ -118,16 +118,30 @@ def test_only_the_added_lines_are_judged(tmp_path: pathlib.Path) -> None:
 
 
 def test_the_real_log_is_not_read_as_a_whole(tmp_path: pathlib.Path) -> None:
-    """Stated as the contrast it is: this repository's log *does* contain
-    lines that lead their commits, and the check is green anyway."""
+    """Stated as the contrast it is: a whole-file reading would refuse on a
+    line that leads its commit, and the check is green on this repository
+    anyway, because it judges only the lines a commit added.
 
-    whole = (REPO / "docs" / "LOOP_LOG.md").read_text(encoding="utf-8").split("\n")
+    The leading line is written here rather than looked for in the real
+    log. It used to be looked for, with the premise asserted first - and
+    the premise is the weather: whether some other loop happens to have a
+    future-dated line in the log at the moment the suite runs. It held for
+    days and then did not, and the failure said nothing about this code
+    (C-1746 hit it). What the test is about is the contrast, and the
+    contrast can be built.
+    """
+
     now = dt.datetime.now(dt.timezone.utc)
+    ahead = now + dt.timedelta(minutes=log_times.MARGIN_MINUTES + 10)
+    whole = (REPO / "docs" / "LOOP_LOG.md").read_text(encoding="utf-8").split("\n")
+    whole.append(ahead.strftime("%Y-%m-%d %H:%M UTC ループA started"))
 
     assert log_times._late_lines(whole, now), (
-        "this test is only meaningful while the log still has leading lines"
+        "read as a whole, a line stamped past the margin is refused"
     )
-    assert log_times.check()[0] == []
+    assert log_times.check()[0] == [], (
+        "the real log is green, because only the lines a commit added are judged"
+    )
 
 
 def test_the_margin_is_above_the_measured_honest_lag() -> None:

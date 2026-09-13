@@ -319,11 +319,26 @@ def test_the_runtime_section_runs_last() -> None:
     assert pm.COLLECTORS[-1][0] == "runtime"
 
 
-@pytest.mark.parametrize("worker", ["_world_one", "_daily_one", "_fresh_one"])
+@pytest.mark.parametrize(
+    "worker",
+    [
+        # C-1736
+        "_world_one", "_daily_one", "_fresh_one",
+        # C-1746
+        "_ghost_one", "_all_one", "_ts2_one", "_start_one", "_ink_one",
+    ],
+)
 def test_the_bundled_template_probes_stay_bundled(worker: str) -> None:
-    """C-1736 moved these three off the main thread. A later loop editing
-    the section back into a ``for`` loop would put 110 spawns back in the
-    queue, and the only sign would be a number nobody reads."""
+    """These eight were moved off the main thread by measurement (C-1736,
+    then C-1746). A later loop editing one back into a ``for`` loop would
+    put its spawns back in the queue - 339 between them - and the only
+    sign would be a number nobody reads.
+
+    Every one of them has the same shape: the runs *inside* one template
+    are a chain, and the templates are independent. That is the shape to
+    look for when bundling the next one; it is not a licence to wrap any
+    loop in ``in_parallel``.
+    """
 
     source = (ROOT / "scripts" / "product_metrics.py").read_text(encoding="utf-8")
 

@@ -10543,30 +10543,37 @@ def measure_creation(c: Collector) -> None:
                 keep["longest"] = max(keep["longest"], box["longest"])
         return out
 
-    for _ts2_key in sorted(_TS2_REQS):
+    def _ts2_one(_ts2_key):
+        """One template at both widths, so ten templates run at once.
+
+        The desk reading is only taken when the phone reading passed, so
+        the two are a chain; the templates are not (C-1746).
+        """
+
+        gaps: list[str] = []
         # (a) the narrowest phone: every word the page draws clears §24's
         # floor in the size the eye is given.
         _ts2_seen, _ts2_why = _ts2_read(_ts2_key, 360)
         if _ts2_why:
-            _ts2_gaps.append(_ts2_why)
-            continue
+            gaps.append(_ts2_why)
+            return gaps, None
         _ts2_box = _ts2_boxes(_ts2_seen)
         if _ts2_box is None:
-            _ts2_gaps.append(f"{_ts2_key}: a word was drawn with no font at all")
-            continue
+            gaps.append(f"{_ts2_key}: a word was drawn with no font at all")
+            return gaps, None
         if not _ts2_box:
-            _ts2_gaps.append(f"{_ts2_key}: nothing was written, so nothing is proved")
-            continue
+            gaps.append(f"{_ts2_key}: nothing was written, so nothing is proved")
+            return gaps, None
         _ts2_small = [
             f"{v['px']:.1f}px→実効 {v['effective']:.2f}"
             for v in _ts2_box.values()
             if v["effective"] < _TS2_FLOOR - 0.01
         ]
         if _ts2_small:
-            _ts2_gaps.append(
+            gaps.append(
                 f"{_ts2_key}@360: {'・'.join(_ts2_small[:3])}（床 {_TS2_FLOOR:.0f}）"
             )
-            continue
+            return gaps, None
         # ...and raising the type must not push a line off the canvas.
         # Monospace, so a full-width character is one em wide.
         _ts2_over = [
@@ -10575,8 +10582,8 @@ def measure_creation(c: Collector) -> None:
             if v["longest"] * v["px"] > 720
         ]
         if _ts2_over:
-            _ts2_gaps.append(f"{_ts2_key}@360: 行が画布からはみ出す（{_ts2_over[0]}）")
-            continue
+            gaps.append(f"{_ts2_key}@360: 行が画布からはみ出す（{_ts2_over[0]}）")
+            return gaps, None
         # (c) and the word's BOX is on the glass (C-1726). The previous
         # cycle raised the type and checked its width; the plates and
         # baselines it sits on were canvas-pixel numbers written for 13px
@@ -10588,8 +10595,8 @@ def measure_creation(c: Collector) -> None:
             if v["top"] < -0.01 or v["bottom"] > 320.01
         ]
         if _ts2_off:
-            _ts2_gaps.append(f"{_ts2_key}@360: 字の箱が画布の外（{_ts2_off[0]}）")
-            continue
+            gaps.append(f"{_ts2_key}@360: 字の箱が画布の外（{_ts2_off[0]}）")
+            return gaps, None
         # (d) and the backdrop is derived from the type, not written as a
         # number beside it. Two geometric rules were tried first and both
         # were withdrawn by measurement, which is recorded in the detail:
@@ -10600,15 +10607,15 @@ def measure_creation(c: Collector) -> None:
         # whose height is a bare number cannot follow the type it holds.
         _ts2_drift = _ts2_bare_plate(_ts2_key)
         if _ts2_drift:
-            _ts2_gaps.append(f"{_ts2_key}: 板の寸法が字から導かれていない（{_ts2_drift}）")
-            continue
+            gaps.append(f"{_ts2_key}: 板の寸法が字から導かれていない（{_ts2_drift}）")
+            return gaps, None
         # (b) and the desk is untouched: raising every font to pass (a)
         # would be a different product, so the 720 reading has to still be
         # the sizes §24 chose.
         _ts2_desk, _ts2_why = _ts2_read(_ts2_key, 720)
         if _ts2_why:
-            _ts2_gaps.append(_ts2_why)
-            continue
+            gaps.append(_ts2_why)
+            return gaps, None
         _ts2_dbox = _ts2_boxes(_ts2_desk) or {}
         _ts2_doff = [
             f"{v['px']:.0f}px 上端 {v['top']:.1f}"
@@ -10616,28 +10623,41 @@ def measure_creation(c: Collector) -> None:
             if v["top"] < -0.01 or v["bottom"] > 320.01
         ]
         if _ts2_doff:
-            _ts2_gaps.append(f"{_ts2_key}@720: 机上で字の箱が画布の外（{_ts2_doff[0]}）")
-            continue
+            gaps.append(f"{_ts2_key}@720: 机上で字の箱が画布の外（{_ts2_doff[0]}）")
+            return gaps, None
         _ts2_grown = [
             f"{v['px']:.1f}px" for v in _ts2_dbox.values() if v["px"] > 22.01
         ]
         if _ts2_grown:
-            _ts2_gaps.append(f"{_ts2_key}@720: 机上で字が大きくなっている（{_ts2_grown[0]}）")
+            gaps.append(f"{_ts2_key}@720: 机上で字が大きくなっている（{_ts2_grown[0]}）")
         elif min(v["px"] for v in _ts2_dbox.values()) < 13:
-            _ts2_gaps.append(
+            gaps.append(
                 f"{_ts2_key}@720: 机上の最小が "
                 f"{min(v['px'] for v in _ts2_dbox.values()):.1f}px"
             )
+        # The line the detail quotes, carried back rather than written to
+        # an outer name: workers would race for it. Only a template that
+        # cleared everything reports one, as before.
+        if gaps or _ts2_key != "adventure":
+            return gaps, None
+        return gaps, (
+            "adventure は 360px 幅で "
+            + "・".join(
+                f"{v['px']:.1f}px（実効 {v['effective']:.2f}）"
+                for v in sorted(_ts2_box.values(), key=lambda b: b["px"])
+            )
+        )
+
+    for _ts2_key, (_ts2_said, _ts2_best) in zip(
+        sorted(_TS2_REQS),
+        in_parallel([(lambda k=key: _ts2_one(k)) for key in sorted(_TS2_REQS)]),
+    ):
+        if _ts2_said:
+            _ts2_gaps.extend(_ts2_said)
         else:
             _ts2_ok.append(_ts2_key)
-            if _ts2_key == "adventure":
-                _ts2_worst = (
-                    "adventure は 360px 幅で "
-                    + "・".join(
-                        f"{v['px']:.1f}px（実効 {v['effective']:.2f}）"
-                        for v in sorted(_ts2_box.values(), key=lambda b: b["px"])
-                    )
-                )
+            if _ts2_best:
+                _ts2_worst = _ts2_best
 
     c.add(
         "creation_text_survives_the_shrink",
@@ -15622,49 +15642,57 @@ def measure_creation(c: Collector) -> None:
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             return None, f"{template}: probe unavailable ({type(exc).__name__})"
 
-    for key in sorted(_tune_templates):
+    def _ink_one(key):
+        """One template through every colour, so ten run at once.
+
+        The picks inside a template share one generated page and stop at
+        the first that misbehaves, so they stay in order; the templates
+        are independent (C-1746).
+        """
+
+        gaps: list[str] = []
         if key not in _tune_binding:
-            continue
+            return gaps
         page = _tune_generate("ゲームを作って", template=key).html
         found = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if found is None:
-            ink_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         body = found.group(1)
         shipped, problem = _ink_run(key, body, None)
         if problem:
-            ink_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         ground = shipped.get("accentGround")
         if not ground or shipped.get("accentFloor") != _ink_floor:
-            ink_gaps.append(
+            gaps.append(
                 f"{key}: ページの床 {shipped.get('accentFloor')} が"
                 f" themes.py の {_ink_floor} と違う"
             )
-            continue
+            return gaps
         _ink_bad = False
         # (a) a colour under the floor is lifted to it, the hue is kept,
         # and the panel says so in words a person can read.
         for _ink_pick in _INK_DARK:
             seen, problem = _ink_run(key, body, _ink_pick)
             if problem:
-                ink_gaps.append(problem)
+                gaps.append(problem)
                 _ink_bad = True
                 break
             painted = seen.get("accentSeen")
             if not painted or _ink_ratio(painted, ground) < _ink_floor:
-                ink_gaps.append(
+                gaps.append(
                     f"{key}: {_ink_pick} を選ぶと {painted} が塗られる"
                     f"（{_ink_ratio(painted, ground):.2f}:1 < {_ink_floor}）"
                 )
                 _ink_bad = True
                 break
             if not seen.get("accentNote"):
-                ink_gaps.append(f"{key}: 色を動かしておいてパネルが何も言わない")
+                gaps.append(f"{key}: 色を動かしておいてパネルが何も言わない")
                 _ink_bad = True
                 break
             if painted not in seen["accentNote"] or "3.0" not in seen["accentNote"]:
-                ink_gaps.append(f"{key}: 断り書きが実際の色と床を言っていない")
+                gaps.append(f"{key}: 断り書きが実際の色と床を言っていない")
                 _ink_bad = True
                 break
             # The hue is the operator's; only the brightness was negotiable.
@@ -15672,7 +15700,7 @@ def measure_creation(c: Collector) -> None:
             _ink_now = [int(painted[i : i + 2], 16) for i in (1, 3, 5)]
             if max(_ink_was) > 0:
                 if _ink_was.index(max(_ink_was)) != _ink_now.index(max(_ink_now)):
-                    ink_gaps.append(f"{key}: {_ink_pick} の色相が {painted} で変わった")
+                    gaps.append(f"{key}: {_ink_pick} の色相が {painted} で変わった")
                     _ink_bad = True
                     break
                 # The colour's chroma, which the dominant channel alone
@@ -15682,36 +15710,46 @@ def measure_creation(c: Collector) -> None:
                 _ink_spread = (max(_ink_now) - min(_ink_now)) / max(max(_ink_now), 1)
                 _ink_had = (max(_ink_was) - min(_ink_was)) / max(max(_ink_was), 1)
                 if abs(_ink_spread - _ink_had) > 0.1:
-                    ink_gaps.append(
+                    gaps.append(
                         f"{key}: {_ink_pick} の彩度が {painted} で崩れた"
                         f"（{_ink_had:.2f} → {_ink_spread:.2f}）"
                     )
                     _ink_bad = True
                     break
         if _ink_bad:
-            continue
+            return gaps
         # (b) ...and a colour that already clears is painted exactly.
         for _ink_pick in _INK_FINE:
             if _ink_ratio(_ink_pick, ground) < _ink_floor:
                 continue
             seen, problem = _ink_run(key, body, _ink_pick)
             if problem:
-                ink_gaps.append(problem)
+                gaps.append(problem)
                 _ink_bad = True
                 break
             if seen.get("accentSeen") != _ink_pick:
-                ink_gaps.append(
+                gaps.append(
                     f"{key}: 床を満たす {_ink_pick} を {seen.get('accentSeen')} に動かした"
                 )
                 _ink_bad = True
                 break
             if seen.get("accentNote"):
-                ink_gaps.append(f"{key}: 動かしていないのに動かしたと言う")
+                gaps.append(f"{key}: 動かしていないのに動かしたと言う")
                 _ink_bad = True
                 break
         if _ink_bad:
-            continue
-        ink_ok.append(key)
+            return gaps
+        return gaps
+
+    _ink_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _ink_keys,
+        in_parallel([(lambda k=key: _ink_one(k)) for key in _ink_keys]),
+    ):
+        if said:
+            ink_gaps.extend(said)
+        else:
+            ink_ok.append(key)
     c.add(
         "creation_chosen_colour_stays_readable",
         "利用者が選んだ差し色が読める型",
@@ -16883,20 +16921,30 @@ def measure_creation(c: Collector) -> None:
     start_gaps: list[str] = []
     start_ok: list[str] = []
     start_worst = 0.0
-    for key in sorted(_tune_templates):
+    def _start_one(key):
+        """One template's ten runs, so ten templates run at once.
+
+        Inside a template the runs are sequenced - each later one is only
+        taken while nothing has gone wrong yet - so the bundling is across
+        templates (C-1746). The worst frame count comes back rather than
+        being folded into an outer name: workers would race for it.
+        """
+
+        gaps: list[str] = []
+        worst = 0.0
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            start_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps, worst
         body = script.group(1)
         seen = {f"sidra.seen.{key}": "1"}
         trouble = None
         # A first visit is gated: the three lines are what the controls are.
         fresh, problem = _start_run(key, body)
         if problem:
-            start_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps, worst
         if fresh["untouched"]["frames"] != 0 or fresh["untouched"]["state"] != "title":
             trouble = f"{key}: the first visit skipped its own briefing"
         # ...and one input of any kind opens it, within one frame.
@@ -16915,7 +16963,7 @@ def measure_creation(c: Collector) -> None:
             elif not after["stored"]:
                 trouble = f"{key}: starting was not remembered for next time"
             else:
-                start_worst = max(start_worst, after["frames"][0] * 50 / 3)
+                worst = max(worst, after["frames"][0] * 50 / 3)
         if not trouble:
             # A return visit opens straight into play, with no input at all.
             back, problem = _start_run(key, body, stored=dict(seen))
@@ -16944,7 +16992,17 @@ def measure_creation(c: Collector) -> None:
             elif asked["untouched"]["skipped"] or asked["untouched"]["frames"] != 0:
                 trouble = f"{key}: the briefing cannot be asked for again"
         if trouble:
-            start_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps, worst
+
+    _start_keys = sorted(_tune_templates)
+    for key, (_start_said, _start_one_worst) in zip(
+        _start_keys,
+        in_parallel([(lambda k=key: _start_one(k)) for key in _start_keys]),
+    ):
+        start_worst = max(start_worst, _start_one_worst)
+        if _start_said:
+            start_gaps.extend(_start_said)
         else:
             start_ok.append(key)
     c.add(
@@ -17140,12 +17198,19 @@ def measure_creation(c: Collector) -> None:
         return (_all_date(year, month, day) - _all_date(1970, 1, 1)).days
     together_gaps: list[str] = []
     together_ok: list[str] = []
-    for key in sorted(_tune_templates):
+    def _all_one(key):
+        """One template, seeded and driven once, so ten run at once.
+
+        One spawn per template; it is the ten of them that queued
+        (C-1746).
+        """
+
+        gaps: list[str] = []
         art = _tune_generate(_all_request, template=key)
         found = _scene_re.search(r"<script>(.*?)</script>", art.html, _scene_re.S)
         if found is None:
-            together_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         body = found.group(1)
         earned = _all_skin(key)["skins"][1]
         hardest = max(pair[0] for pair in _tune_ladder[key].values())
@@ -17180,12 +17245,12 @@ def measure_creation(c: Collector) -> None:
                 timeout=300,
             )
             if probe.returncode != 0:
-                together_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
-                continue
+                gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                return gaps
             seen = json.loads(probe.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            together_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
-            continue
+            gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            return gaps
         gate, strip = seen["atLoad"]["gate"], seen["strip"]
         lines = sorted({item["text"] for item in strip})
         # The strip's own two lines, told apart from the clock's banner and
@@ -17244,7 +17309,16 @@ def measure_creation(c: Collector) -> None:
         if stray:
             problems.append(f"a write escaped this template's namespace: {stray}")
         if problems:
-            together_gaps.append(f"{key}: " + "; ".join(problems[:3]))
+            gaps.append(f"{key}: " + "; ".join(problems[:3]))
+        return gaps
+
+    _all_driven = sorted(_tune_templates)
+    for key, said in zip(
+        _all_driven,
+        in_parallel([(lambda k=key: _all_one(k)) for key in _all_driven]),
+    ):
+        if said:
+            together_gaps.extend(said)
         else:
             together_ok.append(key)
     c.add(
@@ -17612,50 +17686,67 @@ def measure_creation(c: Collector) -> None:
 
     ghost_gaps: list[str] = []
     ghost_ok: list[str] = []
-    for key in _ghost_templates:
+    def _ghost_one(key):
+        """One template's three runs, so the templates run at once.
+
+        The three are a chain - the second replays the trail the first
+        saved - so the bundling is across templates (C-1746, the shape
+        C-1736 established).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("レースゲームを作って", template=key).html
         found = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if found is None:
-            ghost_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         body = found.group(1)
         base = {f"sidra.seen.{key}": "1"}
         first, problem = _ghost_run(key, body, dict(base))
         if problem:
-            ghost_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if first["ghost"]["had"] or first["ghost"]["drawn"]:
-            ghost_gaps.append(f"{key}: a ghost appeared before anyone had played")
-            continue
+            gaps.append(f"{key}: a ghost appeared before anyone had played")
+            return gaps
         if not first["trail"] or first["ghost"]["saved"] < 1:
-            ghost_gaps.append(f"{key}: the run that set the record saved no trail")
-            continue
+            gaps.append(f"{key}: the run that set the record saved no trail")
+            return gaps
         carried = {**base, f"sidra.ghost.{key}": first["trail"]}
         second, problem = _ghost_run(key, body, dict(carried))
         if problem:
-            ghost_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         off, problem = _ghost_run(
             key, body, {**carried, f"sidra.tune.{key}": {"ghost": False}}
         )
         if problem:
-            ghost_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if not second["ghost"]["had"] or second["ghost"]["drawn"] < 1:
-            ghost_gaps.append(f"{key}: the second run did not replay the first")
+            gaps.append(f"{key}: the second run did not replay the first")
         elif second["geometry"] == first["geometry"]:
-            ghost_gaps.append(f"{key}: the ghost was never drawn on screen")
+            gaps.append(f"{key}: the ghost was never drawn on screen")
         # Drawn, and nothing else. A past run that changed this one would be
         # a second car rather than a memory.
         # The car's own path, not the lap count: a ghost that quietly drags
         # the car keeps the lap count and changes the race, which is what a
         # deliberate break showed before this compared the right thing.
         elif second["ghost"]["runHash"] != off["ghost"]["runHash"]:
-            ghost_gaps.append(f"{key}: the ghost changed how the race went")
+            gaps.append(f"{key}: the ghost changed how the race went")
         elif off["ghost"]["drawn"]:
-            ghost_gaps.append(f"{key}: the switch does not put the ghost away")
+            gaps.append(f"{key}: the switch does not put the ghost away")
         elif off["geometry"] != first["geometry"]:
-            ghost_gaps.append(f"{key}: with the ghost off the page still drew differently")
+            gaps.append(f"{key}: with the ghost off the page still drew differently")
+        return gaps
+
+    _ghost_keys = list(_ghost_templates)
+    for key, said in zip(
+        _ghost_keys,
+        in_parallel([(lambda k=key: _ghost_one(k)) for key in _ghost_keys]),
+    ):
+        if said:
+            ghost_gaps.extend(said)
         else:
             ghost_ok.append(key)
     for banned in ("fetch(", "XMLHttpRequest", "://", "sendBeacon", "WebSocket"):
