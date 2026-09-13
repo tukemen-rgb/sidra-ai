@@ -425,3 +425,47 @@ def test_no_bundled_worker_appends_to_a_list_it_does_not_own() -> None:
                 )
 
     assert not escaped, "; ".join(escaped)
+
+
+# ----------------------------------------------------------- C-1760
+
+
+def test_the_report_says_what_is_left_to_win_by_bundling() -> None:
+    """The question that closed C-1760, answered by the run itself.
+
+    Five cycles went into moving node spawns onto worker threads, and the
+    yield per cycle fell the whole way (+7.5, +15.2, +7.5, +3.5 points).
+    Deciding whether a sixth was worth it needed one number nobody was
+    printing: what the still-serial sites actually cost, against the
+    headroom the run already has. Measured once, it ended the question -
+    so it is printed every run, and the next loop reads it instead of
+    spending a cycle rediscovering it.
+    """
+
+    collector = _collector(creation=150.0)
+    kept = dict(pm._SPAWNS)
+    pm._SPAWNS.clear()
+    pm._SPAWNS.update({
+        # 40 spawns overlapping four ways: 80s of process in 21s of wall.
+        "bundled.py:2": [40, 80.0, 0.0, 21.0],
+        # 10 that waited alone: the wall clock is its own process time.
+        "alone.py:1": [10, 20.0, 0.0, 20.0],
+    })
+    try:
+        report = pm._runtime_report(collector, 185.0)
+    finally:
+        pm._SPAWNS.clear()
+        pm._SPAWNS.update(kept)
+
+    # Read off the line itself, not the report. The budget line at the top
+    # also carries the headroom, and asserting against the whole report let
+    # a deliberate break - dropping the comparison from this line - pass.
+    line = next(ln for ln in report.splitlines() if "waited alone" in ln)
+
+    assert "10 of them, at 1 of 2 sites, waited alone" in line
+    assert "cost 20.0s" in line, "the prize is the serial process time"
+    assert "~15s" in line, "four-wide recovers about three quarters of it"
+    assert "+115.0s of headroom" in line, (
+        "the prize means nothing without the room already in hand - that "
+        "comparison is the whole point of the line"
+    )

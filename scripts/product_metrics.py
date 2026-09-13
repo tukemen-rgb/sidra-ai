@@ -28401,6 +28401,20 @@ def _runtime_report(collector: "Collector", elapsed: float) -> str:
             "`wall` is what the run actually waited, so wall << sum means "
             "the site is already bundled:"
         )
+        # What is left to win by bundling, next to what the run already has
+        # to spare (C-1760). Printed so the question "is another round of
+        # this worth it?" is answered by the run itself rather than by a
+        # loop spending a cycle measuring it again - which is how this line
+        # came to exist. A site counts as alone when nothing overlapped it:
+        # its wall clock is its own process time.
+        alone = [(w, r) for w, r in sites if (r[3] - r[2]) > r[1] * 0.75]
+        left = sum(r[1] for _, r in alone)
+        lines.append(
+            f"  {sum(r[0] for _, r in alone)} of them, at {len(alone)} of "
+            f"{len(sites)} sites, waited alone and cost {left:.1f}s of that. "
+            f"Bundling every one would win at most ~{left * 0.75:.0f}s "
+            f"against {headroom:+.1f}s of headroom."
+        )
         for where, (count, seconds, first, last) in sites[:12]:
             wall = last - first
             lines.append(
