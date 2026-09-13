@@ -5609,6 +5609,26 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1777: the daily stamp claims a challenge everybody got. C-1768 disclosed
+    # hand-set tuning, but adapt's auto-ease (three losses buy one easier rung,
+    # applied at load by adaptSpeed) is not a hand-set value - so a daily played
+    # on the eased board was pasted with the standard 「今日の…{date}」 stamp,
+    # silently misleading the recipient. shareText now names the auto-ease.
+    from sidra_ai.evals.share_daily_discloses_auto_ease import (
+        evaluate_share_daily_discloses_auto_ease,
+    )
+
+    share_ease = evaluate_share_daily_discloses_auto_ease()
+    c.add(
+        "share_daily_discloses_auto_ease",
+        "共有する『今日の…』が、自動で緩めた盤面をそれと明かす",
+        10.0 * share_ease.checks_passed / share_ease.checks_total,
+        detail=f"{share_ease.checks_passed}/{share_ease.checks_total} checks; "
+               "src/sidra_ai/evals/share_daily_discloses_auto_ease.py"
+               + ("" if share_ease.passed else "; " + "; ".join(share_ease.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # --- a race against the clock, judged by driving it ------------------
     #
     # レース sat on the apology side of the genre table. What separates a
