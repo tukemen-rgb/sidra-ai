@@ -326,13 +326,17 @@ def test_the_runtime_section_runs_last() -> None:
         "_world_one", "_daily_one", "_fresh_one",
         # C-1746
         "_ghost_one", "_all_one", "_ts2_one", "_start_one", "_ink_one",
+        # C-1751
+        "_brief_one", "_open_one", "_afk_one", "_mash_one",
+        "_rot_one", "_fs_one", "_gap_one", "_tick_one",
     ],
 )
 def test_the_bundled_template_probes_stay_bundled(worker: str) -> None:
     """These eight were moved off the main thread by measurement (C-1736,
     then C-1746). A later loop editing one back into a ``for`` loop would
-    put its spawns back in the queue - 339 between them - and the only
-    sign would be a number nobody reads.
+    put its spawns back in the queue - 557 between them, half of every
+    node spawn the run makes - and the only sign would be a number
+    nobody reads.
 
     Every one of them has the same shape: the runs *inside* one template
     are a chain, and the templates are independent. That is the shape to

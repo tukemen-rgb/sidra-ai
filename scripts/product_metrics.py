@@ -9656,36 +9656,53 @@ def measure_creation(c: Collector) -> None:
         except (OSError, _scene_sp.SubprocessError, ValueError, IndexError) as exc:
             return None, f"{key}: probe unavailable ({exc})"
 
-    for key in sorted(_afk_templates):
+    def _afk_one(key):
+        """One template's pair of rounds, so ten templates run at once.
+
+        The untouched run is judged before the played one is taken, so
+        the pair stays in order; the templates do not (C-1751).
+        """
+
+        gaps: list[str] = []
         request = _afk_asks[key]
         alone, problem = _afk_run(key, request, None)
         if problem:
-            afk_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if alone["touched"]:
-            afk_gaps.append(f"{key}: an untouched round was counted as played")
-            continue
+            gaps.append(f"{key}: an untouched round was counted as played")
+            return gaps
         banked = [
             name
             for name in ("best", "total")
             if alone[name] is not None
         ]
         if banked or alone["stored"]:
-            afk_gaps.append(f"{key}: an untouched round banked {banked or 'a streak'}")
-            continue
+            gaps.append(f"{key}: an untouched round banked {banked or 'a streak'}")
+            return gaps
         # The other direction, or this number could be had by never
         # recording anything at all.
         played, problem = _afk_run(key, request, "ArrowRight")
         if problem:
-            afk_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if not played["touched"]:
-            afk_gaps.append(f"{key}: a played round was not counted as played")
-            continue
+            gaps.append(f"{key}: a played round was not counted as played")
+            return gaps
         if played["best"] is None:
-            afk_gaps.append(f"{key}: a played round banked no best")
-            continue
-        afk_ok.append(key)
+            gaps.append(f"{key}: a played round banked no best")
+            return gaps
+        return gaps
+
+    _afk_keys = sorted(_afk_templates)
+    for key, said in zip(
+        _afk_keys,
+        in_parallel([(lambda k=key: _afk_one(k)) for key in _afk_keys]),
+    ):
+        if said:
+            afk_gaps.extend(said)
+        else:
+            afk_ok.append(key)
     c.add(
         "creation_afk_no_record",
         "放置したラウンドは記録にならない",
@@ -9720,18 +9737,34 @@ def measure_creation(c: Collector) -> None:
     # cannot restart inside the probe, so one round is asked of each.
     mash_gaps: list[str] = []
     mash_ok: list[str] = []
-    for key in sorted(_afk_templates):
+    def _mash_one(key):
+        """One template's mashed round, so ten templates run at once.
+
+        One run per template, and nothing inside to chain (C-1751).
+        """
+
+        gaps: list[str] = []
         mashed, problem = _afk_run(key, _afk_asks[key], " ")
         if problem:
-            mash_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         # The round ended if anything came out of it: a banked score, the
         # page's own DONE state, or a recorded loss. A stalled clock shows
         # none of these - score stays null and the strip never opens.
         if mashed["score"] is None and not mashed["done"] and not mashed["lost"]:
-            mash_gaps.append(f"{key}: a mashed round never reached its end")
-            continue
-        mash_ok.append(key)
+            gaps.append(f"{key}: a mashed round never reached its end")
+            return gaps
+        return gaps
+
+    _mash_keys = sorted(_afk_templates)
+    for key, said in zip(
+        _mash_keys,
+        in_parallel([(lambda k=key: _mash_one(k)) for key in _mash_keys]),
+    ):
+        if said:
+            mash_gaps.extend(said)
+        else:
+            mash_ok.append(key)
     c.add(
         "creation_mash_round_ends",
         "連打してもラウンドは終わる",
@@ -16641,16 +16674,28 @@ def measure_creation(c: Collector) -> None:
     open_gaps: list[str] = []
     open_ok: list[str] = []
     open_worst = 0.0
-    for key in sorted(_tune_templates):
+    def _open_one(key):
+        """One template over three requests, so ten run at once.
+
+        The three seeds are independent of each other, but they share
+        one verdict - the template passes only if every one of them
+        opened with a success - so they stay together and it is the
+        templates that are bundled (C-1751).
+
+        The slowest first success comes back rather than being folded
+        into an outer name: workers would race for it.
+        """
+
+        gaps: list[str] = []
         if key not in _open_success:
-            open_gaps.append(f"{key}: no first success declared")
-            continue
+            gaps.append(f"{key}: no first success declared")
+            return gaps, None
         slowest = 0.0
         for request in _open_requests:
             page = _tune_generate(request, template=key).html
             script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
             if script is None:
-                open_gaps.append(f"{key}: no script")
+                gaps.append(f"{key}: no script")
                 break
             try:
                 probe = _scene_sp.run(
@@ -16661,28 +16706,39 @@ def measure_creation(c: Collector) -> None:
                     timeout=180,
                 )
                 if probe.returncode != 0:
-                    open_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                    gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
                     break
                 seen = json.loads(probe.stdout.strip().splitlines()[-1])
             except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-                open_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+                gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
                 break
             # A success that was already true before anyone played is not a
             # success, it is a mistake in the expression - and the number
             # would then be measuring nothing at all.
             if seen.get("wonBeforePlaying"):
-                open_gaps.append(f"{key}: the win was already true before playing")
+                gaps.append(f"{key}: the win was already true before playing")
                 break
             if seen.get("firstWinMs") is None:
-                open_gaps.append(
+                gaps.append(
                     f"{key}: no {_open_success[key][1]} in {_open_seconds}s "
                     f"of 「{request}」"
                 )
                 break
             slowest = max(slowest, seen["firstWinMs"] / 1000)
         else:
+            return gaps, slowest
+        return gaps, None
+
+    _open_keys = sorted(_tune_templates)
+    for key, (said, _open_slowest) in zip(
+        _open_keys,
+        in_parallel([(lambda k=key: _open_one(k)) for key in _open_keys]),
+    ):
+        if said:
+            open_gaps.extend(said)
+        elif _open_slowest is not None:
             open_ok.append(key)
-            open_worst = max(open_worst, slowest)
+            open_worst = max(open_worst, _open_slowest)
     c.add(
         "creation_first_success_10s",
         "最初の 10 秒に成功がある型",
@@ -17182,9 +17238,21 @@ def measure_creation(c: Collector) -> None:
         except (OSError, _scene_sp.SubprocessError, ValueError, KeyError) as exc:
             return None, f"{template}: probe unavailable ({type(exc).__name__})"
 
-    for key in sorted(_tune_templates):
+    def _brief_one(key):
+        """One template's four visits, so ten templates run at once.
+
+        The visits are a chain - each later one is driven with the mark
+        the first wrote - so the bundling is across templates (C-1751,
+        the shape C-1736 established).
+
+        Returns None for a template this probe does not cover, which is
+        not the same as a template that passed: an empty gap list here
+        would count it as measured.
+        """
+
         if key not in _board_binding:
-            continue
+            return None
+        gaps: list[str] = []
         pages = {}
         for _bf_name, _bf_diff in (("here", "normal"), ("other", "hard")):
             _bf_page = _tune_generate(
@@ -17198,61 +17266,73 @@ def measure_creation(c: Collector) -> None:
             _bf_said = _scene_re.search(r"GBRIEF=(\[.*?\]);", _bf_found.group(1), _scene_re.S)
             pages[_bf_name] = (_bf_found.group(1), _bf_said.group(1) if _bf_said else "")
         if len(pages) != 2:
-            brief_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         fresh, problem = _brief_gate(key, pages["here"][0], {})
         if problem:
-            brief_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         # A first visit is never skipped, whatever else is true.
         if fresh.get("skipped") or fresh.get("state") != "title":
-            brief_gaps.append(f"{key}: 初回からブリーフィングを飛ばした")
-            continue
+            gaps.append(f"{key}: 初回からブリーフィングを飛ばした")
+            return gaps
         mark = fresh.get("brief")
         if not mark:
-            brief_gaps.append(f"{key}: 既読の印が文面を指していない")
-            continue
+            gaps.append(f"{key}: 既読の印が文面を指していない")
+            return gaps
         # What the page WRITES. gateSeen adopts a bare '1', so a page that
         # kept writing '1' would have its own next visit accept it and the
         # read-side checks below would notice nothing - the destruction
         # battery walked through exactly that.
         if fresh.get("seenStored") != mark:
-            brief_gaps.append(
+            gaps.append(
                 f"{key}: 既読に {fresh.get('seenStored')!r} を書いた（文面の印は {mark}）"
             )
-            continue
+            return gaps
         # (b) the same words are not news twice - C-1111's own contract.
         again, problem = _brief_gate(key, pages["here"][0], {f"sidra.seen.{key}": mark})
         if problem:
-            brief_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if not again.get("skipped"):
-            brief_gaps.append(f"{key}: 同じ文面なのに毎回出す")
-            continue
+            gaps.append(f"{key}: 同じ文面なのに毎回出す")
+            return gaps
         # ...and what an older page wrote is honoured, once.
         legacy, problem = _brief_gate(key, pages["here"][0], {f"sidra.seen.{key}": "1"})
         if problem:
-            brief_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         if not legacy.get("skipped"):
-            brief_gaps.append(f"{key}: 以前の既読（'1'）を引き取らず読み直させる")
-            continue
+            gaps.append(f"{key}: 以前の既読（'1'）を引き取らず読み直させる")
+            return gaps
         # (a) different words ARE news - checked only where the words
         # actually differ, and the template that has such words is named
         # rather than assumed: nine of ten say the same three lines at
         # every difficulty, and for those this asks nothing.
         other, problem = _brief_gate(key, pages["other"][0], {f"sidra.seen.{key}": mark})
         if problem:
-            brief_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         _bf_differs = pages["here"][1] != pages["other"][1]
         if _bf_differs and other.get("skipped"):
-            brief_gaps.append(f"{key}: 文面が変わったのに「もう見た」で飛ばした")
-            continue
+            gaps.append(f"{key}: 文面が変わったのに「もう見た」で飛ばした")
+            return gaps
         if not _bf_differs and not other.get("skipped"):
-            brief_gaps.append(f"{key}: 同じ文面を news 扱いした")
+            gaps.append(f"{key}: 同じ文面を news 扱いした")
+            return gaps
+        return gaps
+
+    _brief_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _brief_keys,
+        in_parallel([(lambda k=key: _brief_one(k)) for key in _brief_keys]),
+    ):
+        if said is None:
             continue
-        brief_ok.append(key)
+        if said:
+            brief_gaps.extend(said)
+        else:
+            brief_ok.append(key)
     c.add(
         "creation_briefing_memory_is_about_words",
         "「もう見た」が文面についての型",
@@ -21272,30 +21352,37 @@ def measure_creation(c: Collector) -> None:
 
     rot_gaps: list[str] = []
     rot_ok: list[str] = []
-    for key in sorted(_tune_templates):
+    def _rot_one(key):
+        """One template's three orientations, so ten run at once.
+
+        The runs inside one template are a chain; the templates are
+        not (C-1751).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            rot_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         body = script.group(1)
         # It is in the page at all, and it is the sentence - not a class
         # name the stylesheet knows about and nobody ever reads.
         if page.count(f'id="{_rot_id}"') != 1 or _rot_text not in page:
-            rot_gaps.append(f"{key}: the page carries no rotate hint")
-            continue
+            gaps.append(f"{key}: the page carries no rotate hint")
+            return gaps
         phone, problem = _rot_drive(key, body, portrait=True, coarse=True, press=True)
         if problem:
-            rot_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         flat, problem = _rot_drive(key, body, portrait=False, coarse=True)
         if problem:
-            rot_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         mouse, problem = _rot_drive(key, body, portrait=True, coarse=False)
         if problem:
-            rot_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         trouble = None
         # 1. Held upright on a phone, the title screen says so.
         if not phone["atLoad"]["shown"]:
@@ -21325,7 +21412,16 @@ def measure_creation(c: Collector) -> None:
         elif phone["gate"]["state"] != "playing" or phone["gate"]["frames"] < 1:
             trouble = f"{key}: the game did not start with the hint on screen"
         if trouble:
-            rot_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps
+
+    _rot_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _rot_keys,
+        in_parallel([(lambda k=key: _rot_one(k)) for key in _rot_keys]),
+    ):
+        if said:
+            rot_gaps.extend(said)
         else:
             rot_ok.append(key)
     c.add(
@@ -21384,12 +21480,19 @@ def measure_creation(c: Collector) -> None:
 
     fs_gaps: list[str] = []
     fs_ok: list[str] = []
-    for key in sorted(_tune_templates):
+    def _fs_one(key):
+        """One template's fullscreen runs, so ten run at once.
+
+        The runs inside one template are a chain; the templates are
+        not (C-1751).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            fs_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         body = script.group(1)
         # The probe supplies its own wrapper and button - it has to, since
         # it is a stub DOM - so nothing it measures can tell whether the
@@ -21401,8 +21504,8 @@ def measure_creation(c: Collector) -> None:
             or page.count(f'id="{_fs_btn}"') != 1
             or _fs_enter not in page
         ):
-            fs_gaps.append(f"{key}: the page carries no fullscreen button")
-            continue
+            gaps.append(f"{key}: the page carries no fullscreen button")
+            return gaps
         runs, problem = {}, None
         for name, kw in (
             ("granted", {}),
@@ -21414,8 +21517,8 @@ def measure_creation(c: Collector) -> None:
             if problem:
                 break
         if problem:
-            fs_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         granted, refused = runs["granted"], runs["refused"]
         absent, locked = runs["absent"], runs["locked"]
         trouble = None
@@ -21471,7 +21574,16 @@ def measure_creation(c: Collector) -> None:
         elif not granted["blurred"]:
             trouble = f"{key}: the button kept keyboard focus after it was pressed"
         if trouble:
-            fs_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps
+
+    _fs_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _fs_keys,
+        in_parallel([(lambda k=key: _fs_one(k)) for key in _fs_keys]),
+    ):
+        if said:
+            fs_gaps.extend(said)
         else:
             fs_ok.append(key)
     c.add(
@@ -21833,29 +21945,36 @@ def measure_creation(c: Collector) -> None:
     gap_gaps: list[str] = []
     gap_ok: list[str] = []
     gap_short: list[str] = []
-    for key in sorted(_tune_templates):
+    def _gap_one(key):
+        """One template's gap runs, so ten templates run at once.
+
+        The runs inside one template are a chain; the templates are
+        not (C-1751).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            gap_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         body = script.group(1)
         plain, problem = _gap_drive(key, body)
         if problem:
-            gap_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         plain_end, plain_why = _gap_ends(plain)
         # The buzzer has to be what ends this template's go, or there is no
         # clock here to be honest or dishonest about.
         if plain_why != "time" or plain_end is None or plain_end <= _GAP_AT:
             gap_short.append(key)
-            continue
+            return gaps
         trouble = None
         away, problem = _gap_drive(key, body, gap_ms=_GAP_LONG, gap_at=_GAP_AT)
         hitch, problem2 = _gap_drive(key, body, gap_ms=_GAP_SHORT, gap_at=_GAP_AT)
         if problem or problem2:
-            gap_gaps.append(problem or problem2)
-            continue
+            gaps.append(problem or problem2)
+            return gaps
         away_end, away_why = _gap_ends(away)
         hitch_end, _ = _gap_ends(hitch)
         # 1. The minute away costs the round nothing: same frame, same
@@ -21894,7 +22013,16 @@ def measure_creation(c: Collector) -> None:
             elif charged is None or charged < _GAP_SHORT * 0.8:
                 trouble = f"{key}: the {_GAP_SHORT}ms hitch only cost {charged}ms"
         if trouble:
-            gap_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps
+
+    _gap_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _gap_keys,
+        in_parallel([(lambda k=key: _gap_one(k)) for key in _gap_keys]),
+    ):
+        if said:
+            gap_gaps.extend(said)
         else:
             gap_ok.append(key)
     c.add(
@@ -21975,17 +22103,24 @@ def measure_creation(c: Collector) -> None:
     tick_gaps: list[str] = []
     tick_ok: list[str] = []
     tick_short: list[str] = []
-    for key in sorted(_tune_templates):
+    def _tick_one(key):
+        """One template's tick runs, so ten templates run at once.
+
+        The runs inside one template are a chain; the templates are
+        not (C-1751).
+        """
+
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            tick_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         body = script.group(1)
         run, problem = _tick_drive(key, body)
         if problem:
-            tick_gaps.append(problem)
-            continue
+            gaps.append(problem)
+            return gaps
         urgent_frames = [f for f in run["frames"] if f["urgent"] and not f["done"]]
         ticks = _tick_calls(run)
         trouble = None
@@ -21994,10 +22129,10 @@ def measure_creation(c: Collector) -> None:
             # the situation the tick exists for never happened. Unmeasured,
             # not passed - the same bookkeeping the clock judge above uses.
             if ticks:
-                tick_gaps.append(f"{key}: ticked {len(ticks)}x without ever being urgent")
+                gaps.append(f"{key}: ticked {len(ticks)}x without ever being urgent")
             else:
                 tick_short.append(key)
-            continue
+            return gaps
         stray = [t for t in ticks if not t["urgent"]]
         expected = sorted(range(1, _tick_urgent // 1000 + 1), reverse=True)
         seconds = [t["left"] for t in ticks]
@@ -22046,7 +22181,16 @@ def measure_creation(c: Collector) -> None:
                     trouble = f"{key}: something else played through {label}"
                     break
         if trouble:
-            tick_gaps.append(trouble)
+            gaps.append(trouble)
+        return gaps
+
+    _tick_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _tick_keys,
+        in_parallel([(lambda k=key: _tick_one(k)) for key in _tick_keys]),
+    ):
+        if said:
+            tick_gaps.extend(said)
         else:
             tick_ok.append(key)
 
