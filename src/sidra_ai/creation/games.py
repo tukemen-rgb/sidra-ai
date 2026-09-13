@@ -1722,7 +1722,8 @@ def _inline_favicon(tokens: dict[str, str]) -> str:
 
 
 def _page(
-    title: str, tagline: str, how: str, script: str, evidence: list[str], theme: Theme
+    title: str, tagline: str, how: str, script: str, evidence: list[str], theme: Theme,
+    note: str = "",
 ) -> str:
     # The canvas must keep its intrinsic 720:320 ratio at every page width:
     # `width:100%` with a pixel height squashed every game 2x horizontally on
@@ -1808,6 +1809,7 @@ a{{color:{t["accent"]}}}
 <body><main>
 <h1>{escape(title)}</h1>
 <p class="tag">{escape(tagline)}</p>
+{f'<p class="tag">{escape(note)}</p>' if note else ""}
 <div class="stagewrap" id="{FULL_WRAP_ID}">
 <canvas id="stage" width="720" height="320"></canvas>
 <button class="fullbtn" id="{FULL_BUTTON_ID}" type="button">{escape(FULL_LABEL)}</button>
@@ -2111,7 +2113,18 @@ def generate_game(
         # The notice itself names no mark: the artifact is distributed, and
         # a disclaimer that prints the trademark still prints the trademark.
         tagline = "依頼にあった作品名は使えないためオリジナル版 / " + tagline
-    html = _page(title, tagline, spec.how_to_play, script, list(evidence or [_SOURCE]), theme)
+    # The genre-substitution caveat belongs on the page, not only in the chat
+    # summary: game.html is the artifact that is reopened and forwarded, and a
+    # 「格闘」 request answered with a fishing game whose subtitle says only
+    # 「ジャンル 釣り」 keeps the substitution silent long after the summary has
+    # scrolled away - the same self-disclosure C-1283/C-1784/C-1786 require, on
+    # the flagship generator. `genre_fallback_note` is the page-shaped wording
+    # already used by the project flow; a satisfied request returns "" (C-1788).
+    fallback_note = genre_fallback_note(request, key, asked_title)
+    html = _page(
+        title, tagline, spec.how_to_play, script, list(evidence or [_SOURCE]), theme,
+        note=fallback_note,
+    )
     return GeneratedGame(
         key,
         title,
