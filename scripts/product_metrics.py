@@ -21667,6 +21667,14 @@ def measure_creation(c: Collector) -> None:
         ("ラーメンの作り方のレポートを書いて", "document", None),
         ("作り方のレポートを書いて", "document", None),
         ("ラーメンの作り方について記事を書いて", "document", None),
+        # C-1773: 「〜にして」 names the artifact and asks for it, and no verb
+        # table can hold it - it is 「する」 with a target. Adding it to
+        # _MAKE_VERBS was tried and diffed first: 「タイトルを『夜のレース』に
+        # して」 became a request to build a racing game. What separates them
+        # is adjacency, so one row per kind to keep that honest.
+        ("ラーメンの作り方をレポートにして", "document", None),
+        ("この内容をレポートにして", "document", None),
+        ("さっきの話を資料にして", "deck", None),
     )
     kana_ok = 0
     kana_misses = []

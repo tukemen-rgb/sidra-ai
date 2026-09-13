@@ -476,6 +476,26 @@ _DESIRE_BEFORE_EN = re.compile(
 )
 
 
+#: 「この内容をレポートにして」: the artifact noun with 「にして」 straight after
+#: it. A request in the same sense as 「レポートが欲しい」 - it names the thing
+#: and asks for it - and one no verb table can hold, because 「にして」 is not a
+#: making verb. It is 「する」 with a target.
+#:
+#: The adjacency is the whole rule, and it was measured before it was written
+#: (C-1773). Adding 「にして」 to ``_MAKE_VERBS`` was tried first and diffed
+#: against ten revision phrasings: 「タイトルを『夜のレース』にして」 became a
+#: request to *build a racing game* (「レース」 is a game word), and both
+#: revisions that carry a referent - 「さっきのゲームのタイトルを『夜』にして」,
+#: 「そのゲームを紙のテーマにして」 - stopped being read as revisions at all.
+#:
+#: Requiring the artifact noun immediately before 「にして」 separates them
+#: without a word list: a revision puts a *value* there (紙, 青, hard, 『夜』,
+#: テーマ), and only a creation request puts the artifact itself.
+_TURN_INTO_JA = re.compile(
+    fold_kana(r"^にして(?:ください|下さい|くれ|ほしい|欲しい|もらえますか|いただけますか)?")
+)
+
+
 def _asks_for_artifact(text: str, word: str) -> str | None:
     """Name the request form that asks for `word` itself, if any.
 
@@ -491,6 +511,8 @@ def _asks_for_artifact(text: str, word: str) -> str | None:
     while start >= 0:
         before = text[:start]
         after = text[start + len(needle):]
+        if _TURN_INTO_JA.match(after):
+            return "turn_into_request"
         if _DESIRE_AFTER_JA.match(after):
             return "desire_request"
         if _GIVE_AFTER_JA.match(after) or _GIVE_AFTER_EN.match(after):
