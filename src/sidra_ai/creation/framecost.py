@@ -46,10 +46,49 @@ FRAME_MEDIAN: dict[str, int] = {
 FRAME_SLACK = 1.2
 
 
+#: The 95th percentile of the same ten runs, measured 2026-09-13 at the
+#: 1200 frames the judge actually drives - not the 2400 of the §32 write-up.
+#: A percentile is a property of its window, so the number has to come from
+#: the window it will be checked in (kaiju, marble and puzzle all differ
+#: between the two windows).
+#:
+#: §32's own reading of its table says this is the column to watch: the
+#: templates whose peak runs far above their middle (fishing 33 -> 112,
+#: shooter 147 -> 245) do three times the work at the climax, and that is
+#: where §1's juice sits. A ratchet on the median alone cannot see a change
+#: that only moves the spike - a few dozen loud frames out of 1200 leave the
+#: median where it was.
+FRAME_P95: dict[str, int] = {
+    "catch": 36,
+    "fishing": 112,
+    "duel": 61,
+    "kaiju": 91,
+    "platformer": 121,
+    "shooter": 245,
+    "marble": 198,
+    "puzzle": 317,
+    "racing": 502,
+    "adventure": 532,
+}
+
+
 def frame_ceiling(template: str) -> int:
     """The most this template may draw per frame before the judge objects."""
 
     return int(FRAME_MEDIAN[template] * FRAME_SLACK)
+
+
+def frame_peak_ceiling(template: str) -> int:
+    """The most this template may draw in its loudest frames.
+
+    The same slack as the median, and that is a measured choice rather than
+    a borrowed one: driven twice, the probe returned identical medians and
+    p95s for all ten templates. The spread that makes this column
+    interesting lives *inside* a run, not between runs, so there is no
+    measurement noise here for a wider allowance to absorb.
+    """
+
+    return int(FRAME_P95[template] * FRAME_SLACK)
 
 
 #: Counts every call into the canvas context, frame by frame. The context

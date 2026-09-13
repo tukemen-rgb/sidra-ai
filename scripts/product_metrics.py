@@ -16687,9 +16687,11 @@ def measure_creation(c: Collector) -> None:
     # is green forever.
     from sidra_ai.creation.framecost import (
         FRAME_MEDIAN as _cost_measured,
+        FRAME_P95 as _peak_measured,
         FRAME_SLACK as _cost_slack,
         count_probe as _cost_probe,
         frame_ceiling as _cost_ceiling,
+        frame_peak_ceiling as _peak_ceiling,
     )
 
     cost_gaps: list[str] = []
@@ -16697,6 +16699,12 @@ def measure_creation(c: Collector) -> None:
     if sorted(_cost_measured) != sorted(_tune_templates):
         cost_gaps.append(
             f"表にある型が {sorted(_cost_measured)} で、製品の型と違う"
+        )
+    peak_gaps: list[str] = []
+    peak_ok: list[str] = []
+    if sorted(_peak_measured) != sorted(_tune_templates):
+        peak_gaps.append(
+            f"山場の表にある型が {sorted(_peak_measured)} で、製品の型と違う"
         )
     if not 1.0 < _cost_slack <= 1.5:
         cost_gaps.append(f"余白 {_cost_slack} が緩すぎる/狭すぎる")
@@ -16711,11 +16719,13 @@ def measure_creation(c: Collector) -> None:
         if key not in _cost_measured:
             return None
         gaps: list[str] = []
+        pgaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
             gaps.append(f"{key}: no script")
-            return gaps
+            pgaps.extend(gaps)
+            return gaps, pgaps
         try:
             probe = _scene_sp.run(
                 ["node", "-"],
@@ -16730,25 +16740,43 @@ def measure_creation(c: Collector) -> None:
             seen = json.loads(probe.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
             gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
-            return gaps
+            pgaps.extend(gaps)
+            return gaps, pgaps
         if seen.get("frames", 0) < 500:
             gaps.append(f"{key}: 描いたフレームが {seen.get('frames')} 枚しかない")
-            return gaps
+            pgaps.extend(gaps)
+            return gaps, pgaps
         median = seen["median"]
+        peak = seen["p95"]
         if median > _cost_ceiling(key):
             gaps.append(
                 f"{key}: 1 フレーム {median} 回で天井 {_cost_ceiling(key)} を超えた"
                 f"（記録は {_cost_measured[key]}）"
             )
-            return gaps
         # ...and the ceiling is still about this page. A table left far
         # above what the product does is a table nobody is held to.
-        if median * 2 < _cost_measured[key]:
+        elif median * 2 < _cost_measured[key]:
             gaps.append(
                 f"{key}: 天井が実測 {median} から離れすぎ（記録は {_cost_measured[key]}）"
             )
-            return gaps
-        return gaps
+        # The loud frames, read off the same run (§32 学び 4): a change that
+        # only moves the spike leaves the median where it was. Both
+        # directions, for the same reason the median needs both.
+        if key not in _peak_measured:
+            # Without this the lookup below raises and takes the whole
+            # metric with it, which reads as LOST rather than as a gap.
+            pgaps.append(f"{key}: 山場の表に無い")
+        elif peak > _peak_ceiling(key):
+            pgaps.append(
+                f"{key}: 山場 {peak} 回で天井 {_peak_ceiling(key)} を超えた"
+                f"（記録は {_peak_measured[key]}）"
+            )
+        elif peak * 2 < _peak_measured[key]:
+            pgaps.append(
+                f"{key}: 山場の天井が実測 {peak} から離れすぎ"
+                f"（記録は {_peak_measured[key]}）"
+            )
+        return gaps, pgaps
 
     _cost_keys = sorted(_tune_templates)
     for key, said in zip(
@@ -16757,10 +16785,15 @@ def measure_creation(c: Collector) -> None:
     ):
         if said is None:
             continue
-        if said:
-            cost_gaps.extend(said)
+        said_cost, said_peak = said
+        if said_cost:
+            cost_gaps.extend(said_cost)
         else:
             cost_ok.append(key)
+        if said_peak:
+            peak_gaps.extend(said_peak)
+        else:
+            peak_ok.append(key)
     c.add(
         "creation_frame_work_has_a_ceiling",
         "1 フレームの仕事量に天井がある型",
@@ -16785,6 +16818,36 @@ def measure_creation(c: Collector) -> None:
             "**誰も思いつかなかった呼び出しも数に入る**"
             if not cost_gaps
             else "; ".join(cost_gaps)
+        ),
+        kind=OUTCOME,
+    )
+    c.add(
+        "creation_frame_peak_has_a_ceiling",
+        "山場（p95）の仕事量に天井がある型",
+        float(len(peak_ok)) if not peak_gaps else 0.0,
+        unit="型",
+        detail=(
+            "**§32 学び 4**: 「**p95 と中央値が大きく離れる型"
+            "（fishing 33→112・shooter 147→245）は、山場で仕事が 3 倍以上になる**。"
+            "§1 の juice がそこに乗っているので、**粒子を増やす変更はこの列を"
+            "見てから**」——**その列に番人がいなかった**。C-1752 の ratchet は "
+            "median だけを読み、**計器が同じ JSON で返している p95 を捨てていた**"
+            "（`framecost.py` は最初から出していた）。"
+            "**中央値だけでは山場の変更が見えない**: juice は当たった瞬間だけ"
+            "仕事を増やすので、1200 フレームのうち山場が数十枚なら"
+            "**中央値はほぼ動かず p95 だけが跳ねる**。"
+            "**同じ 1 回の probe を読むので実行時間は増えていない。**"
+            "天井は `framecost.FRAME_P95`（**実測 2026-09-13・判定器が実際に"
+            "回す 1200 フレームで採取**——百分位は窓の性質なので §32 本文の"
+            "2400 フレームの数字は使わない）の **+20%**。"
+            "**緩みは中央値と同じ 1.2**——山場は散らばるから広く要るかと疑ったが、"
+            "**2 回駆動して 10 型とも中央値・p95 とも完全一致**（probe は決定的）。"
+            "**散らばりは走行の中の話で、走行の間には無い**ので吸収すべきノイズが無い。"
+            "**両方向**（天井超えと、天井が実測から離れすぎ）は中央値と同じ理由。"
+            "**計測できなかった型は緑にしない**——script 無し・probe 失敗・"
+            "フレーム不足はどちらの計器も落とす（C-1755→C-1757 の轍）"
+            if not peak_gaps
+            else "; ".join(peak_gaps)
         ),
         kind=OUTCOME,
     )
