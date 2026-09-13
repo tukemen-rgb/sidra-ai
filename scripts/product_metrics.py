@@ -3104,6 +3104,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1784: the .mtl colour caveat (C-1617) lived only in the chat summary,
+    # but the preview HTML is the primary artifact (forwarded/reopened) and told
+    # the user to open the .obj without warning that its colours come from the
+    # sibling .mtl - so the .obj opened grey. The preview page now carries the
+    # caveat too (the self-disclosure C-1283 requires).
+    from sidra_ai.evals.model3d_preview_discloses_mtl_color import (
+        evaluate_model3d_preview_discloses_mtl_color,
+    )
+
+    m3d_mtl_preview = evaluate_model3d_preview_discloses_mtl_color()
+    c.add(
+        "model3d_preview_discloses_mtl_color",
+        "3D プレビュー本体が『色は隣の .mtl から付く』を開示する",
+        10.0 * m3d_mtl_preview.checks_passed / m3d_mtl_preview.checks_total,
+        detail=f"{m3d_mtl_preview.checks_passed}/{m3d_mtl_preview.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_preview_discloses_mtl_color.py"
+               + ("" if m3d_mtl_preview.passed
+                  else "; " + "; ".join(m3d_mtl_preview.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1268: C-1252 capped the artifact list to a recent slice with a
     # count note, but loadProjects kept rendering every project with a
     # bare items.forEach - the same phone long-scroll, on the projects
