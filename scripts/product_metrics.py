@@ -5589,6 +5589,26 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1775: the adapt panel announced 「1 段やさしく」 from adaptEasing() (streak
+    # >= 3, not manual, >1 rung) but adaptSpeed() bails at the floor - so an
+    # easy-difficulty game on a losing streak claimed a step that was never
+    # applied, the false help aimed at the very player the feature exists for.
+    # adaptEasing() is now floor-aware; the eval runs the real preamble in node.
+    from sidra_ai.evals.adapt_panel_easing_matches_actual_ease import (
+        evaluate_adapt_panel_easing_matches_actual_ease,
+    )
+
+    adapt_panel = evaluate_adapt_panel_easing_matches_actual_ease()
+    c.add(
+        "adapt_panel_easing_matches_actual_ease",
+        "難度緩和の表示が、実際に緩めた時だけ出る（床では出さない）",
+        10.0 * adapt_panel.checks_passed / adapt_panel.checks_total,
+        detail=f"{adapt_panel.checks_passed}/{adapt_panel.checks_total} checks; "
+               "src/sidra_ai/evals/adapt_panel_easing_matches_actual_ease.py"
+               + ("" if adapt_panel.passed else "; " + "; ".join(adapt_panel.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # --- a race against the clock, judged by driving it ------------------
     #
     # レース sat on the apology side of the genre table. What separates a

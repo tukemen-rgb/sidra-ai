@@ -63,6 +63,11 @@ const ADAPT_KEY='sidra.streak.'+ADAPT_NAME_TOKEN;
    is the interval between drops and therefore larger-is-gentler, needs no
    special case. */
 const ADAPT_STEPS=ADAPT_STEPS_TOKEN,ADAPT_AFTER=ADAPT_AFTER_TOKEN;
+/* The speed this page opens with (its difficulty's rung). adaptEasing needs
+   it to tell "being helped" from "already at the easiest rung": at the floor
+   adaptSpeed returns the value unchanged, so a panel that announced a step
+   here would claim a help that never happened (C-1775). */
+const ADAPT_BASE=ADAPT_BASE_TOKEN;
 let ADAPT_EASED=false;
 function adaptStore(){try{return (typeof localStorage!=='undefined')?localStorage:null}
   catch(e){return null}}
@@ -89,8 +94,18 @@ function adaptRecord(lost){const s=adaptStore();
 /* Whether this load is being helped. Computed rather than remembered:
    the line below is written before the template body calls adaptSpeed, so
    a flag set in there would still be false and the page would say 標準
-   while easing. Found by the judge, which is what it is for. */
-function adaptEasing(){return !adaptManual()&&adaptStreak()>=ADAPT_AFTER&&ADAPT_STEPS.length>1}
+   while easing. Found by the judge, which is what it is for. It must ask the
+   same question adaptSpeed answers - including its floor: at the easiest rung
+   adaptSpeed returns the value unchanged, so "being helped" is true only when
+   a lower rung exists to move to, found off ADAPT_BASE the same way (C-1775).
+   Without this the panel announced 「1 段やさしく」 on an easy game where no
+   step was ever applied - the false claim aimed at the very player it helps. */
+function adaptEasing(){
+  if(adaptManual()||adaptStreak()<ADAPT_AFTER||ADAPT_STEPS.length<=1)return false;
+  let at=0,best=Infinity;
+  for(let i=0;i<ADAPT_STEPS.length;i++){const d=Math.abs(ADAPT_STEPS[i]-ADAPT_BASE);
+    if(d<best){best=d;at=i}}
+  return at>0}
 /* Said out loud, next to the panel. A player being helped can see it. */
 function adaptPanel(){
   if(typeof document==='undefined'||!document.createElement)return null;
@@ -110,12 +125,20 @@ if(typeof document!=='undefined'&&document.addEventListener&&document.readyState
 """
 
 
-def preamble_for(template: str, speeds: tuple[float, ...]) -> str:
-    """The rule, told this template's own ladder (easy first)."""
+def preamble_for(template: str, speeds: tuple[float, ...], base: float) -> str:
+    """The rule, told this template's own ladder (easy first) and the speed
+    this page opens with.
+
+    ``base`` is the difficulty's own rung - the value the template will hand
+    ``adaptSpeed``. ``adaptEasing`` needs it to tell an eased load from one
+    already at the easiest rung, where ``adaptSpeed`` changes nothing and a
+    panel step would be a claim of help that never happened (C-1775).
+    """
 
     return (
         ADAPT_PREAMBLE.replace("ADAPT_NAME_TOKEN", json.dumps(template))
         .replace("ADAPT_STEPS_TOKEN", json.dumps(list(speeds)))
+        .replace("ADAPT_BASE_TOKEN", json.dumps(base))
         .replace("ADAPT_AFTER_TOKEN", str(ADAPT_AFTER))
     )
 

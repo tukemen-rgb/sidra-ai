@@ -1944,7 +1944,7 @@ def generate_game(
             + ghost_preamble_for(key)
             # Three losses in a row buy one step (C-1402). After the panel,
             # because a hand-set speed always wins.
-            + adapt_preamble_for(key, tuple(pair[0] for pair in _DIFFICULTY[key].values()))
+            + adapt_preamble_for(key, tuple(pair[0] for pair in _DIFFICULTY[key].values()), speed)
             # Consecutive successes pay more (C-1405). After the juice kit,
             # whose shake and burst it celebrates a rise with, and before
             # the template body, which is the only thing that calls it.
