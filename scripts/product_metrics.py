@@ -2074,6 +2074,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1761: /health cannot name the model (unauthenticated), so echo running in
+    # place of a staged reviewed model was invisible at runtime - the banner and
+    # preflight warn but /v1/index, the authenticated status surface, stayed
+    # silent. /v1/index now carries staged_model_but_running_echo (C-1655's shape).
+    from sidra_ai.evals.index_surfaces_staged_model_echo import (
+        evaluate_index_surfaces_staged_model_echo,
+    )
+
+    staged_echo = evaluate_index_surfaces_staged_model_echo()
+    c.add(
+        "index_surfaces_staged_model_echo",
+        "実行時状態面 /v1/index が「実モデル staged なのに echo 稼働」を開示する",
+        10.0 * staged_echo.checks_passed / staged_echo.checks_total,
+        detail=f"{staged_echo.checks_passed}/{staged_echo.checks_total} checks; "
+               "src/sidra_ai/evals/index_surfaces_staged_model_echo.py"
+               + ("" if staged_echo.passed else "; " + "; ".join(staged_echo.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

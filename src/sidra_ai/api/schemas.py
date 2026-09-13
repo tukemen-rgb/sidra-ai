@@ -289,6 +289,12 @@ class IndexResponse(BaseModel):
     quarantine: QuarantineSummary = Field(default_factory=QuarantineSummary)
     audit: AuditDurabilitySummary = Field(default_factory=AuditDurabilitySummary)
     refresh: RefreshStatusSummary = Field(default_factory=RefreshStatusSummary)
+    # True when a reviewed model is staged here but the process is running echo
+    # (a lost SIDRA_MODEL_BACKEND). An operator checking why an answer looks
+    # thin sees the placeholder here instead of mistaking echo for a real model
+    # (C-1761). /health cannot carry it: it is unauthenticated and must not name
+    # the model.
+    staged_model_but_running_echo: bool = False
 
 
 class HealthResponse(BaseModel):

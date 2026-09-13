@@ -31,6 +31,7 @@ from sidra_ai.models.base import (
     LocalModelAdapter,
     ModelUnavailableError,
 )
+from sidra_ai.models.manifest import MODEL_MANIFEST_FILENAME
 from sidra_ai.models.usage import MeteredAdapter, UsageLedger
 from sidra_ai.retrieval.embedding import build_retriever
 from sidra_ai.retrieval.search import (
@@ -316,7 +317,32 @@ class SidraService:
             "source_types": dict(sorted(store_stats["source_types"].items())),
             "repositories": repositories,
             "quarantine": self._quarantine_summary(),
+            # The one silent failure the runtime has: a reviewed model is staged
+            # here but the process fell back to echo (a lost SIDRA_MODEL_BACKEND;
+            # the owner lost time to this on 2026-09-02). The startup banner
+            # (api.server) and the offline preflight both name it, but /v1/index -
+            # the authenticated place an operator checks when an answer looks
+            # wrong - stayed silent, so echo output looked like a real model's.
+            # /health cannot carry it (unauthenticated; must not name the model),
+            # so it rides here beside the audit/refresh operational facts (C-1655).
+            "staged_model_but_running_echo": self._staged_model_but_running_echo(),
         }
+
+    def _staged_model_but_running_echo(self) -> bool:
+        """True when echo is running but a reviewed manifest is staged here.
+
+        The same condition api.server.staged_model_but_running_echo (the banner)
+        and local_preflight report; kept as a local bool so /v1/index does not
+        depend upward on the server entry point. echo with no staged manifest is
+        the normal clean-machine default and is not flagged.
+        """
+
+        if self.settings.model_backend != "echo":
+            return False
+        try:
+            return (Path(self.settings.data_dir) / MODEL_MANIFEST_FILENAME).is_file()
+        except OSError:  # an unreadable data dir is not this check's problem
+            return False
 
     def _quarantine_summary(self) -> dict[str, Any]:
         """Quarantine counts, or an admission that they could not be read.
