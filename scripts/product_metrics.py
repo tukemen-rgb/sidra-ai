@@ -25884,6 +25884,104 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- ...and it compares the SAME interpreter without refusing (C-1781) --
+    #
+    # The refusal C-1707 built above went one step too far. `venv` in the mark
+    # is `bool(os.environ.get("VIRTUAL_ENV"))` - whether an activation script
+    # ran, not which interpreter answered - and the same executable is reached
+    # both ways: `source .venv/bin/activate && python` and `.venv/bin/python`
+    # are one binary with the flag set and unset. Both spellings are what the
+    # documents tell a reader to type, so a baseline taken one way and a
+    # measurement taken the other is an ordinary accident, and it stopped at
+    # exit 3 saying "re-take the baseline with the interpreter you are about to
+    # compare with" - advice nobody can act on when that interpreter is
+    # already the same one. Re-taking the baseline does not help either: the
+    # run stops in the same place unless the spelling happens to match.
+    #
+    # Measured on this tree 2026-09-13, before the fix: same `executable`,
+    # same `python`, `venv` False -> True, and the real `_report` returned 3
+    # for an improvement AND for a regression. Measured again: setting
+    # VIRTUAL_ENV changes neither `sys.prefix` nor site-packages, so the path
+    # in `executable` already fixes the footing and the flag adds nothing to
+    # it.
+    #
+    # Driven through the real `_report` for C-1707's own reason: the thing
+    # being fixed is the *verdict*. And all four cases are here because (a)
+    # alone would be satisfied by a judge that stopped refusing anything -
+    # which is the hole C-1707 was built to close.
+    interp_gaps: list[str] = []
+
+    # (a) One interpreter, two spellings: judged on the numbers, both ways.
+    _flag_only = dict(_same, venv=not _same["venv"])
+    _code, _said = _verdict(_env_before, 2.0, _flag_only)
+    if _code == CROSS_ENVIRONMENT:
+        interp_gaps.append("同じ実行ファイルどうしの改善を「土俵が違う」で拒む")
+    elif _code != 0:
+        interp_gaps.append(f"同じ実行ファイルどうしの改善が通らない（{_code}）")
+    if "DIFFERENT FOOTING" in _said:
+        interp_gaps.append("同じ実行ファイルなのに食い違いを印字する")
+    # ...and a real regression measured the other way round is still a
+    # regression. A fix that answered 0 to everything would pass the line above.
+    if _verdict(_env_before, 0.0, _flag_only)[0] != 2:
+        interp_gaps.append("同じ実行ファイルどうしの悪化を止めなくなった")
+
+    # (b) A different interpreter still stops, and still says which field.
+    for _label, _mark, _field in (
+        # Taken from `_other` rather than typed out: the baseline fixture is
+        # itself /usr/bin/python3, so spelling that path here made the
+        # "different executable" case identical to the baseline and the probe
+        # measured nothing (it read 0.0 saying the judge "does not stop" -
+        # the product was fine, the probe was not). Caught by running it.
+        ("executable", {**_same, "executable": _other["executable"]}, "executable"),
+        ("python", {**_same, "python": "3.12.4"}, "python"),
+    ):
+        _code, _said = _verdict(_env_before, 0.0, _mark)
+        if _code != CROSS_ENVIRONMENT:
+            interp_gaps.append(f"{_label} が違う 2 つを止めない（{_code}）")
+        if "DIFFERENT FOOTING" not in _said or _field not in _said:
+            interp_gaps.append(f"{_label} の違いを名指ししない")
+    # ...and the flag is still RECORDED and still printed beside a real
+    # difference: the fix is to the comparison, not to the record (禁じ手 ①).
+    if "venv" not in _verdict(
+        _env_before, 0.0, {"python": "3.12.4", "executable": "/usr/bin/python3", "venv": True}
+    )[1]:
+        interp_gaps.append("本物の環境差のときに venv の記録を印字しない")
+    if "venv" not in _env_mark():
+        interp_gaps.append("印から venv が落ちている（禁じ手 ①）")
+
+    # (c) The unmarked baseline is still unknown rather than wrong.
+    _unmarked_now = {k: v for k, v in _env_before.items() if k != _ENV_KEY}
+    if _verdict(_unmarked_now, 2.0, _flag_only)[0] != 0:
+        interp_gaps.append("印の無い古いスナップショットを拒否する")
+    c.add(
+        "judge_compares_the_same_interpreter",
+        "判定器が「同じ実行ファイルどうし」を環境差として拒まない",
+        0.0 if interp_gaps else 2.0,
+        detail=(
+            "; ".join(interp_gaps)
+            if interp_gaps
+            else "**本物の `_report()` を合成スナップショットで走らせて**測った"
+            "（純関数なので費用 0）。**2 方向**: (a) `python` と `executable` が"
+            "同じなら `venv` 旗の違いだけでは拒まず**数字どおりに裁く**"
+            "——改善は exit 0・悪化は exit 2（後者が無いと「何も拒まない判定器」で"
+            "満点が取れる）。(b) **本当に別の interpreter**——`executable` 違い・"
+            "version 違い——は今までどおり exit 3 で止まり、どの項が違うかを"
+            "名指しする。**記録は触らない**（禁じ手 ①）: `venv` は印に残り、"
+            "本物の環境差のときは併せて印字される——直したのは**比較の側**だけ。"
+            "**印の無い古いスナップショット**は不明として通す（C-1707 (c) を保持）。"
+            "**なぜ要るか（実測・2026-09-13 この木）**: 修正前は `executable` も "
+            "`python` も同一で `venv` が False→True になるだけで、**改善でも悪化でも "
+            "exit 3**。印字は「比べる相手の interpreter で基準を採り直せ」と言うが"
+            "**その interpreter は既に同じ**なので読んだ側は直しようが無い。"
+            "`VIRTUAL_ENV` を立てても `sys.prefix` も site-packages も変わらない"
+            "（venv の interpreter は自分の隣の `pyvenv.cfg` から prefix を読む）ので、"
+            "`executable` のパスが既に土俵を一意に決めている。"
+            "C-1707 の 4 事例は 1 つも消していない（あの `_other` は "
+            "`executable` と `venv` が同時に違うので、今も exit 3 で止まる）"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "judge_notices_a_lost_number",
         "判定器が「数字が消えた／測れなくなった」を止める",
@@ -29858,6 +29956,12 @@ def _env_mark() -> dict[str, object]:
     }
 
 
+#: The fields that name WHICH interpreter answered. `venv` is deliberately
+#: not among them (C-1781): it records whether an activation script ran, and
+#: the same executable can be reached with it either way.
+_ENV_IDENTITY: tuple[str, ...] = ("python", "executable")
+
+
 def env_mismatch(before: dict, after: dict) -> str | None:
     """Say how two snapshots disagree about their footing, or None.
 
@@ -29874,7 +29978,33 @@ def env_mismatch(before: dict, after: dict) -> str | None:
         for field in ("python", "executable", "venv")
         if old.get(field) != new.get(field)
     ]
-    return "; ".join(differs) if differs else None
+    if not differs:
+        return None
+    # C-1781: the flag alone is not a different footing. `venv` records
+    # WHETHER an activation script ran, not which interpreter answered, and
+    # the same binary can be reached both ways - `source .venv/bin/activate &&
+    # python` and `.venv/bin/python` are the same executable with the flag set
+    # and unset. Both spellings are documented (docs/LOCAL_RUNTIME.md writes
+    # the activation; this script's own examples write the direct path), so
+    # taking a baseline one way and measuring the other is an ordinary
+    # accident - and it used to stop at exit 3 telling the reader to "re-take
+    # the baseline with the interpreter you are about to compare with", which
+    # is unfollowable advice when that interpreter is already the same one.
+    #
+    # Measured rather than assumed (2026-09-13, this tree): setting
+    # VIRTUAL_ENV changes neither `sys.prefix` nor site-packages. A venv
+    # interpreter reads its prefix from the `pyvenv.cfg` beside its own
+    # executable, so the path in `executable` already fixes everything the
+    # footing means - the flag carries no further information about it.
+    #
+    # So the flag is still RECORDED (it says how a run was invoked, which is
+    # worth reading later) and is still PRINTED when something else differs;
+    # what changed is only that it cannot, by itself, refuse a comparison.
+    # A real change of interpreter - another path, another version - stops
+    # exactly as before.
+    if all(old.get(field) == new.get(field) for field in _ENV_IDENTITY):
+        return None
+    return "; ".join(differs)
 
 
 def _values(snapshot: dict) -> dict[str, float | None]:
