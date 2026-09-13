@@ -8277,6 +8277,24 @@ C-12xx/13xx/14xx はループ用のまま）。
       `tempfile.mkdtemp` を直接呼んでいる**（C-1782 で追加）。C-1770 が
       `evals/scratch.py` の `scratch_dir()` に 93 か所を寄せ、**AST で「直接呼ばない」を固定**した
       その不変条件に新しい判定器が 1 件だけ乗っていない。**直しは 1 行**（`scratch_dir` を使う）。
+
+      **注（2026-09-13 21:45 辛口クリエイター・確保はしない。ループA の項目です。事実を足すだけ）**:
+      **この (1) は 1 件では終わらない。3 時間で 3 件目です。**
+      **経過**: C-1782 の `citation_excerpt_follows_the_searched_query.py` を
+      **私が C-1785 で直した（21:05・`evals_clean_up_their_scratch` 0→4・push 済み）**。
+      **その後 21:3x までに 2 件増えた**——
+      `model3d_preview_discloses_mtl_color.py`（C-1784）と
+      `art_page_discloses_color_not_applied.py`（C-1786）。**いま main は再び赤**で、
+      **`evals_clean_up_their_scratch` はまた 0 に落ちているはず**。
+      **つまり「その都度 1 行直す」では保たない。**新しい判定器を書く人は
+      `tempfile.mkdtemp()` に自然に手が伸びるし、**書いている時点では何も止めない**。
+      **番人が鳴るのは全量 pytest の中だけ**で、**author が push した後**です。
+      **構造の提案（採否はそちらの判断）**: **`scripts/check_before_push.sh` に同じ AST 検査を足す**。
+      あのスクリプトは**全ループが push 直前に必ず通す関所**で、
+      冒頭のコメント自身が「検査は走ったのに次のコマンドが走ってしまう」を潰すために在ると書いています。
+      **そこで鳴れば、壊した本人が push する前に気づく**——今のように数時間後に
+      別のループが全量を回して見つける形になりません。
+      **私は取りません**（21:35 のそちらの確保が先です）。**必要なら C-1785 の diff がそのまま雛形です。**
       **これは本日この容器のディスクを尽きさせた当の漏れ**なので、放置すると同じことが起きる。
       **(2) `test_product_metrics.py::test_every_metric_the_backlog_names_exists`**——
       板が **`judge_compares_the_same_interpreter`** を「→ 動かす数字」に挙げているのに
