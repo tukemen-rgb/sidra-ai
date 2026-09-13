@@ -332,6 +332,8 @@ def test_the_runtime_section_runs_last() -> None:
         # C-1755
         "_share_one", "_clk_one", "_pop_one", "_tie_one",
         "_touch_one", "_round_one", "_tune_one", "_streak_one",
+        # C-1757
+        "_carry_one", "_quiet_one", "_cost_one", "_hud_one",
     ],
 )
 def test_the_bundled_template_probes_stay_bundled(worker: str) -> None:
@@ -349,10 +351,15 @@ def test_the_bundled_template_probes_stay_bundled(worker: str) -> None:
 
     source = (ROOT / "scripts" / "product_metrics.py").read_text(encoding="utf-8")
 
+    import re
+
     assert f"def {worker}(" in source, "the probe was renamed; check it is still bundled"
-    assert f"in_parallel([(lambda k=key: {worker}(k))" in source, (
-        f"{worker} is no longer driven through in_parallel"
+    # The loop variable differs from probe to probe, so the shape is what
+    # is pinned: a default-argument lambda handed straight to in_parallel.
+    driven = re.search(
+        r"in_parallel\(\[\(lambda \w+=\w+: " + re.escape(worker) + r"\(", source
     )
+    assert driven, f"{worker} is no longer driven through in_parallel"
 
 
 def test_no_bundled_worker_appends_to_a_list_it_does_not_own() -> None:

@@ -15594,14 +15594,22 @@ def measure_creation(c: Collector) -> None:
         )
     if not 1.0 < _cost_slack <= 1.5:
         cost_gaps.append(f"余白 {_cost_slack} が緩すぎる/狭すぎる")
-    for key in sorted(_tune_templates):
+    def _cost_one(key):
+        """One template's frame-cost run, so ten run at once.
+
+        Returns None for a template this probe does not cover. An empty
+        gap list would count it as a pass, which is the mistake C-1755
+        found in four probes at once (C-1757).
+        """
+
         if key not in _cost_measured:
-            continue
+            return None
+        gaps: list[str] = []
         page = _tune_generate("ゲームを作って", template=key).html
         script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if script is None:
-            cost_gaps.append(f"{key}: no script")
-            continue
+            gaps.append(f"{key}: no script")
+            return gaps
         try:
             probe = _scene_sp.run(
                 ["node", "-"],
@@ -15611,30 +15619,42 @@ def measure_creation(c: Collector) -> None:
                 timeout=300,
             )
             if probe.returncode != 0:
-                cost_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
-                continue
+                gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                return gaps
             seen = json.loads(probe.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            cost_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
-            continue
+            gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            return gaps
         if seen.get("frames", 0) < 500:
-            cost_gaps.append(f"{key}: 描いたフレームが {seen.get('frames')} 枚しかない")
-            continue
+            gaps.append(f"{key}: 描いたフレームが {seen.get('frames')} 枚しかない")
+            return gaps
         median = seen["median"]
         if median > _cost_ceiling(key):
-            cost_gaps.append(
+            gaps.append(
                 f"{key}: 1 フレーム {median} 回で天井 {_cost_ceiling(key)} を超えた"
                 f"（記録は {_cost_measured[key]}）"
             )
-            continue
+            return gaps
         # ...and the ceiling is still about this page. A table left far
         # above what the product does is a table nobody is held to.
         if median * 2 < _cost_measured[key]:
-            cost_gaps.append(
+            gaps.append(
                 f"{key}: 天井が実測 {median} から離れすぎ（記録は {_cost_measured[key]}）"
             )
+            return gaps
+        return gaps
+
+    _cost_keys = sorted(_tune_templates)
+    for key, said in zip(
+        _cost_keys,
+        in_parallel([(lambda k=key: _cost_one(k)) for key in _cost_keys]),
+    ):
+        if said is None:
             continue
-        cost_ok.append(key)
+        if said:
+            cost_gaps.extend(said)
+        else:
+            cost_ok.append(key)
     c.add(
         "creation_frame_work_has_a_ceiling",
         "1 フレームの仕事量に天井がある型",
@@ -19722,12 +19742,19 @@ def measure_creation(c: Collector) -> None:
         "fishing": "釣りゲームを作って",
         "catch": "落ちものをキャッチするゲームを作って",
     }
-    for _q_key in sorted(_QUIET_REQS):
+    def _quiet_one(_q_key):
+        """One request, driven untouched then touched, so all run at once.
+
+        The two drives are a chain (the second follows the first on the
+        same page); the requests are not (C-1757).
+        """
+
+        gaps: list[str] = []
         _q_html = generate_game(_QUIET_REQS[_q_key]).html
         _q_script = _re.search(r"<script>(.*?)</script>", _q_html, _re.S)
         if _q_script is None:
-            _quiet_gaps.append(f"{_q_key}: no script on the page")
-            continue
+            gaps.append(f"{_q_key}: no script on the page")
+            return gaps
         try:
             _q_run = _sp.run(
                 ["node", "-"],
@@ -19740,34 +19767,43 @@ def measure_creation(c: Collector) -> None:
                 raise ValueError(_q_run.stderr.strip()[:80])
             _q = json.loads(_q_run.stdout.strip().splitlines()[-1])
         except (OSError, _sp.SubprocessError, ValueError) as exc:
-            _quiet_gaps.append(f"{_q_key}: probe unavailable ({exc})")
-            continue
+            gaps.append(f"{_q_key}: probe unavailable ({exc})")
+            return gaps
         _before, _after = _q["untouched"], _q["after"]
         # (a) silent until touched - the demo included.
         if _before["built"]:
-            _quiet_gaps.append(
+            gaps.append(
                 f"{_q_key}: built {_before['built']} AudioContext(s) before any input"
             )
         elif _before["rang"]:
-            _quiet_gaps.append(
+            gaps.append(
                 f"{_q_key}: started {len(_before['rang'])} node(s) before any input"
             )
         # (b) and it does sound once touched - silence is not a pass. The
         # press that opens the gate must sound too: a gate that rings
         # before it opens swallows its own first sound forever.
         elif not _after["rang"]:
-            _quiet_gaps.append(f"{_q_key}: the page never sounded at all")
+            gaps.append(f"{_q_key}: the page never sounded at all")
         elif not _q["atTouch"]["rang"]:
-            _quiet_gaps.append(
+            gaps.append(
                 f"{_q_key}: the press that opened the gate made no sound"
             )
         # (c) §2's rule itself: resumed before anything is scheduled.
         elif "suspended" in _after["rang"]:
-            _quiet_gaps.append(
+            gaps.append(
                 f"{_q_key}: a node started while the context was suspended"
             )
         elif not _after["resumed"]:
-            _quiet_gaps.append(f"{_q_key}: the context was never resumed")
+            gaps.append(f"{_q_key}: the context was never resumed")
+        return gaps
+
+    _quiet_subjects = sorted(_QUIET_REQS)
+    for _q_key, said in zip(
+        _quiet_subjects,
+        in_parallel([(lambda s=s: _quiet_one(s)) for s in _quiet_subjects]),
+    ):
+        if said:
+            _quiet_gaps.extend(said)
         else:
             _quiet_ok.append(_q_key)
 
@@ -20008,15 +20044,22 @@ def measure_creation(c: Collector) -> None:
         "fishing": "釣りゲームを作って",
         "catch": "落ちものをキャッチするゲームを作って",
     }
-    for _cy_key in sorted(_CARRY_REQS):
+    def _carry_one(_cy_key):
+        """One request's page, so every request is driven at once.
+
+        The runs inside one subject are a chain; the subjects are not
+        (C-1757).
+        """
+
+        gaps: list[str] = []
         _cy_html = generate_game(_CARRY_REQS[_cy_key]).html
-        _cy_trouble = None
+        trouble = None
         # (a) the finished page names nothing outside itself. Held with no
         # exemption: the icon's SVG is base64 so even its namespace, which
         # addresses nothing, cannot be the one :// that has to be argued
         # about.
         if "://" in _cy_html:
-            _cy_trouble = f"{_cy_key}: the page carries an absolute URL"
+            trouble = f"{_cy_key}: the page carries an absolute URL"
         else:
             _cy_far = [
                 ref
@@ -20026,27 +20069,27 @@ def measure_creation(c: Collector) -> None:
                 if not ref.startswith("data:")
             ]
             if _cy_far:
-                _cy_trouble = f"{_cy_key}: points outside itself ({_cy_far[0][:40]!r})"
-        if _cy_trouble is None:
+                trouble = f"{_cy_key}: points outside itself ({_cy_far[0][:40]!r})"
+        if trouble is None:
             for _cy_net in _CARRY_NET:
                 if _cy_net in _cy_html:
-                    _cy_trouble = f"{_cy_key}: the page contains {_cy_net!r}"
+                    trouble = f"{_cy_key}: the page contains {_cy_net!r}"
                     break
         # (b) the icon is declared, so opening the saved file asks for
         # nothing.
-        if _cy_trouble is None:
+        if trouble is None:
             _cy_icon = _re.search(
                 r"<link[^>]*rel=[\"']icon[\"'][^>]*>", _cy_html, _re.I
             )
             if _cy_icon is None:
-                _cy_trouble = f"{_cy_key}: no icon declared - every open asks for one"
+                trouble = f"{_cy_key}: no icon declared - every open asks for one"
             elif "href=\"data:" not in _cy_icon.group(0):
-                _cy_trouble = f"{_cy_key}: the icon is not inline"
+                trouble = f"{_cy_key}: the icon is not inline"
         # (c) carried: the network throws, and one machine refuses to store.
-        if _cy_trouble is None:
+        if trouble is None:
             _cy_script = _re.search(r"<script>(.*?)</script>", _cy_html, _re.S)
             if _cy_script is None:
-                _cy_trouble = f"{_cy_key}: no script on the page"
+                trouble = f"{_cy_key}: no script on the page"
             else:
                 for _cy_where in ("keeps", "refuses"):
                     try:
@@ -20063,25 +20106,34 @@ def measure_creation(c: Collector) -> None:
                             raise ValueError(_cy_run.stderr.strip()[:70])
                         _cy = json.loads(_cy_run.stdout.strip().splitlines()[-1])
                     except (OSError, _sp.SubprocessError, ValueError) as exc:
-                        _cy_trouble = f"{_cy_key} ({_cy_where}): probe unavailable ({exc})"
+                        trouble = f"{_cy_key} ({_cy_where}): probe unavailable ({exc})"
                         break
                     if _cy["reached"]:
-                        _cy_trouble = (
+                        trouble = (
                             f"{_cy_key} ({_cy_where}): the page reached for "
                             f"{_cy['reached'][0]}"
                         )
                         break
                     if _cy["boom"]:
-                        _cy_trouble = f"{_cy_key} ({_cy_where}): {_cy['boom']}"
+                        trouble = f"{_cy_key} ({_cy_where}): {_cy['boom']}"
                         break
                     if _cy["frames"] < 600:
-                        _cy_trouble = (
+                        trouble = (
                             f"{_cy_key} ({_cy_where}): stopped after "
                             f"{_cy['frames']} frames"
                         )
                         break
-        if _cy_trouble:
-            _carry_gaps.append(_cy_trouble)
+        if trouble:
+            gaps.append(trouble)
+        return gaps
+
+    _carry_subjects = list(sorted(_CARRY_REQS))
+    for _cy_key, said in zip(
+        _carry_subjects,
+        in_parallel([(lambda s=s: _carry_one(s)) for s in _carry_subjects]),
+    ):
+        if said:
+            _carry_gaps.extend(said)
         else:
             _carry_ok.append(_cy_key)
 
@@ -21115,12 +21167,18 @@ def measure_creation(c: Collector) -> None:
     # marks, which is how the limit was found rather than assumed.
     hud_gaps: list[str] = []
     hud_ok: list[str] = []
-    for _h_key in sorted(_GAME_TEMPLATES):
+    def _hud_one(_h_key):
+        """One template's themed HUD, so ten templates run at once.
+
+        One page per template and nothing inside to chain (C-1757).
+        """
+
+        gaps: list[str] = []
         _h_page = generate_game("紙のテーマでゲームを作って", template=_h_key).html
         _h_script = _scene_re.search(r"<script>(.*?)</script>", _h_page, _scene_re.S)
         if _h_script is None:
-            hud_gaps.append(f"{_h_key}: no script")
-            continue
+            gaps.append(f"{_h_key}: no script")
+            return gaps
         try:
             _h_run = _scene_sp.run(
                 ["node", "-"],
@@ -21133,19 +21191,28 @@ def measure_creation(c: Collector) -> None:
                 raise ValueError(_h_run.stderr.strip()[:70])
             _h_seen = json.loads(_h_run.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            hud_gaps.append(f"{_h_key}: probe unavailable ({exc})")
-            continue
+            gaps.append(f"{_h_key}: probe unavailable ({exc})")
+            return gaps
         _h_paint = _h_seen.get("paint") or []
         _h_words = [p for p in _h_paint if p[0] == "text"]
         if not _h_words:
-            hud_gaps.append(f"{_h_key}: wrote nothing, so nothing was proved")
-            continue
+            gaps.append(f"{_h_key}: wrote nothing, so nothing was proved")
+            return gaps
         _h_dark = sorted({p[1] for p in _h_words if p[1] == _chrome_default.tokens["text"]})
         if _h_dark:
             _h_said = sorted({p[2] for p in _h_words if p[1] in _h_dark})[:3]
-            hud_gaps.append(
+            gaps.append(
                 f"{_h_key}: wrote {_h_said} in the default theme's ink"
             )
+        return gaps
+
+    _hud_keys = sorted(_GAME_TEMPLATES)
+    for _h_key, said in zip(
+        _hud_keys,
+        in_parallel([(lambda k=k: _hud_one(k)) for k in _hud_keys]),
+    ):
+        if said:
+            hud_gaps.extend(said)
         else:
             hud_ok.append(_h_key)
     # --- a mark the page spelled out cannot know the theme (§4×§7, C-1722)
