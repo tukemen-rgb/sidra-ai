@@ -15615,6 +15615,116 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the pad lets go on every exit ------------------------------------
+    #
+    # C-1766, §22 x §18. §22's contract has two halves and they were built
+    # from the same research: focusRelease lifts the keyboard's held keys,
+    # padRelease lifts the pad's. focusRelease has listened to all three
+    # signals since C-1373 - blur, pagehide, visibilitychange - and its own
+    # comment says which is which: hidden is the tab switch and the phone's
+    # home screen. padRelease had the first two. The one surface that
+    # exists only for phones was the half missing the phone's signal.
+    #
+    # Measured before the fix: on hidden the game let go (focusRelease
+    # releases=1, held=[]) while the pad did not - PAD_HELD 1->1, no keyup,
+    # the button still painted held. And because the draw loop advances
+    # PAD_RH_PID every frame whether or not anything is touching, a finger
+    # left on the restart button when the phone went home came back to a
+    # run that restarted itself: marble, platformer and shooter all fired
+    # one 'r' keydown with nothing touching the screen.
+    #
+    # Both directions. The `none` case is the control: an implementation
+    # that released unconditionally would pass all three exits and make the
+    # pad unusable, so "nothing happened, so nothing is released, and a
+    # real full hold still restarts" is checked in the same probe.
+    from sidra_ai.creation.touchpad import EXIT_SIGNALS as _PX_SIGNALS
+    from sidra_ai.creation.touchpad import padexit_probe as _px_probe
+
+    _px_keys = sorted(_tune_templates)
+    _px_order = [(k, s) for k in _px_keys for s in sorted(_PX_SIGNALS)]
+
+    def _px_run(key: str, signal: str):
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            return None, f"{key}: no script on the page"
+        try:
+            out = _scene_sp.run(
+                ["node", "-"],
+                input=_px_probe(script.group(1), signal=signal),
+                capture_output=True, text=True, timeout=180,
+            )
+            if out.returncode != 0:
+                raise ValueError(out.stderr.strip()[:60])
+            return json.loads(out.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{key} {signal}: probe unavailable ({exc})"
+
+    _px_batch = in_parallel([(lambda k=k, s=s: _px_run(k, s)) for k, s in _px_order])
+    _px_seen = dict(zip(_px_order, _px_batch))
+    px_gaps: list[str] = []
+    px_ok: list[str] = []
+    for _px_key in _px_keys:
+        _px_bad: list[str] = []
+        for _px_sig in sorted(_PX_SIGNALS):
+            _px, _px_why = _px_seen[(_px_key, _px_sig)]
+            if _px_why:
+                _px_bad.append(_px_why)
+                continue
+            if _px["heldBefore"] != 1 or _px["plateBefore"] != "held":
+                _px_bad.append(f"{_px_key}: the touch never registered as held")
+                continue
+            if _px_sig == "none":
+                # Nothing happened, so nothing may be released - and a hold
+                # that really is held still has to reach the restart.
+                if _px["heldAfter"] != 1 or _px["upSent"]:
+                    _px_bad.append(f"{_px_key}: the pad let go with no interruption")
+                elif _px["plateAfter"] != "held":
+                    _px_bad.append(f"{_px_key}: the held button stopped looking held")
+                elif _px["hasR"] and not _px["restarts"]:
+                    _px_bad.append(f"{_px_key}: a real full hold no longer restarts")
+                continue
+            if _px["heldAfter"]:
+                _px_bad.append(f"{_px_key}: {_px_sig} leaves {_px['heldAfter']} button(s) held")
+            elif not _px["upSent"]:
+                _px_bad.append(f"{_px_key}: {_px_sig} sent no keyup, so the game keeps the key")
+            elif _px["plateAfter"] != "plate":
+                _px_bad.append(f"{_px_key}: {_px_sig} leaves the button painted held")
+            elif _px["restarts"]:
+                _px_bad.append(
+                    f"{_px_key}: after {_px_sig}, {_px['restarts']} restart(s) fired with "
+                    "nothing touching the screen"
+                )
+        if _px_bad:
+            px_gaps.append(_px_bad[0])
+        else:
+            px_ok.append(_px_key)
+    c.add(
+        "creation_pad_lets_go_on_every_exit",
+        "どの抜け方でもパッドが指を離す型",
+        float(len(px_ok)) if not px_gaps else 0.0,
+        detail=(
+            "**実ページ・pad 自身の listener を通した本物のタッチ・10 型 × 4 通り**。"
+            "**中断は 3 つ**（`blur`／`pagehide`／`visibilitychange`）——"
+            "どれでも **`PAD_HELD` が空になり・keyup が流れ・押下の描画が消え・"
+            "戻ってきて何も触らなければ走行がやり直されない**。"
+            "**4 つ目は中断なしの対照**: **押しっぱなしは押しっぱなしのまま**で、"
+            "**本物の長押しはちゃんと再スタートする**——これが無ければ"
+            "**「常に解放する」実装が 3 通りとも満点を取り**、パッドは使えなくなる。"
+            "**修正前の実測**: `hidden` だけ**ゲーム側は解放するのにパッドは解放せず**"
+            "（`PAD_HELD` 1→1・keyup 0 本・ボタンは押下表示のまま）、"
+            "**再スタートボタンに指を置いたままホーム画面へ出て戻ると、"
+            "何も触っていないのに marble・platformer・shooter の 3 型とも走行がやり直された**"
+            "（長押しは draw ループが 1 フレームずつ進めるので、指が無くても進む）。"
+            "**根**: `focusRelease` は C-1373 から 3 信号すべてに繋がっていて、"
+            "**その注釈自身が「hidden はタブ切り替えとスマホのホーム画面」と書いている**。"
+            "**パッドはスマホのためだけに在る面なのに、スマホの信号だけが欠けていた。**"
+            if not px_gaps
+            else "; ".join(px_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the first sentence survives the second --------------------------
     #
     # C-1764, §9 x §4. §9 事実 2 records the market's second complaint

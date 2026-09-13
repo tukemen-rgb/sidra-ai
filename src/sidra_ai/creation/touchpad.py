@@ -211,6 +211,22 @@ function padRelease(){PAD_RH_PID=null;PAD_RHOLD=0;
   PAD_HELD.forEach(id=>padKey('keyup',id));PAD_HELD.clear()}
 addEventListener('blur',padRelease);
 addEventListener('pagehide',padRelease);
+/* And the phone's own exit (C-1766). focusRelease has listened to all
+   three signals since C-1373, and its comment says which is which:
+   blur is focus leaving, pagehide is navigating away, and hidden is the
+   tab switch AND the home screen. This half had the first two - so the
+   one surface that exists only for phones was the one missing the
+   phone's signal. Left alone, PAD_HELD keeps the button lit for a
+   finger that is gone, and PAD_RH_PID keeps the restart hold running:
+   the draw loop advances it every frame whether or not anything is
+   touching, so a run could come back from the home screen and restart
+   itself. A browser usually sends pointercancel too, but the page
+   cannot be built on that - refusing to depend on the browser is the
+   whole reason C-1373 exists. Same feature check as focusRelease's:
+   a document without addEventListener is a real environment. */
+try{if(typeof document!=='undefined'&&document.addEventListener){
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden)padRelease()})}}catch(e){}
 function padGlyph(c,b){const cxp=b.x+b.w/2,cyp=b.y+b.h/2,r=Math.min(b.w,b.h)*0.22;
   c.fillStyle='INK_TOKEN';
   if(b.g==='A'||b.g==='R'||b.g==='P'){c.font=Math.round(r*2)+'px ui-monospace,monospace';
@@ -712,6 +728,136 @@ console.log(JSON.stringify({ heldBefore: heldBefore, downSent: downSent,
 """
 
 
+#: Every exit an interruption can take, driven (C-1766). One run holds a
+#: pad button with no pointerup, fires one signal, and reads whether the
+#: pad let go; then it puts a finger on the restart button, fires the same
+#: signal, and lets forty frames pass with nothing touching the screen -
+#: a run that restarts itself there is the harm this exists about.
+#:
+#: ``SIGNAL_PLACEHOLDER`` is the JS that stages the exit, and it is empty
+#: for the control run: an implementation that releases unconditionally
+#: would pass every exit and make the pad unusable, so the "nothing
+#: happened" case has to be in the same probe.
+#:
+#: The document mock here is a real event target on purpose. PADHOLD_PROBE
+#: gives ``document`` only ``getElementById``, so ``focusRelease``'s
+#: visibilitychange registration - which sits inside its own
+#: ``document.addEventListener`` feature check - is silently skipped and
+#: the signal reaches nobody. Measured through that harness, a correct
+#: page looks like a broken one.
+PADEXIT_PROBE = KEY_EVENT_JS + """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {}, cvHandlers = {}, sent = [];
+globalThis.matchMedia = (q) => ({ matches: String(q).indexOf('coarse') >= 0 });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.KeyboardEvent = function(type, init){ this.type = type;
+  Object.assign(this, init);
+  this.preventDefault = () => {}; this.stopImmediatePropagation = () => {} };
+globalThis.dispatchEvent = (e) => { sent.push([e.type, e.key]);
+  (handlers[e.type] || []).forEach(fn => fn(e)); return true };
+globalThis.Image = function(){ return nothing };
+let S = { fill: '', alpha: 1 };
+const stack = [];
+let fills = [];
+const rec = {
+  fillRect: (x, y, w, h) => { fills.push([x, y, w, h, S.fill]) },
+  save: () => { stack.push({ fill: S.fill, alpha: S.alpha }) },
+  restore: () => { const p = stack.pop(); if (p) S = p },
+};
+globalThis.document = {
+  hidden: false,
+  addEventListener: (type, fn) => {
+    (handlers['doc:' + type] = handlers['doc:' + type] || []).push(fn) },
+  getElementById: () => ({
+    width: 720, height: 320, style: {}, addEventListener: (type, fn) => {
+      (cvHandlers[type] = cvHandlers[type] || []).push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => new Proxy(rec, {
+      get: (t, k) => (k in t ? t[k] : (k === Symbol.toPrimitive ? () => 0 : nothing)),
+      set: (t, k, v) => { if (k === 'fillStyle') S.fill = v;
+        else if (k === 'globalAlpha') S.alpha = v; return true } }) }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16) } }
+function ev(type, k){
+  const e = probeKey(k);
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+function touch(type, pid, x, y){
+  (cvHandlers[type] || []).forEach(fn => fn({ pointerType: 'touch',
+    pointerId: pid, clientX: x, clientY: y,
+    preventDefault(){}, stopImmediatePropagation(){} }));
+}
+function signal(){ SIGNAL_PLACEHOLDER }
+ev('keydown', ' '); ev('keyup', ' ');
+run(3);
+const facts = padFacts();
+const buttons = padButtons();
+const b0 = buttons[0];
+function plateAt(b){ const hit = fills.filter(f => f[0] === b.x && f[1] === b.y &&
+  f[2] === b.w && f[3] === b.h);
+  return hit.length ? hit[hit.length - 1][4] : null }
+function ups(id){ return sent.filter(s => s[0] === 'keyup' && s[1] === id).length }
+/* A real touch on the first button, through the pad's own listener, and
+   no pointerup ever - exactly what leaving mid-press looks like. */
+touch('pointerdown', 7, b0.x + b0.w / 2, b0.y + b0.h / 2);
+fills = []; run(1);
+const heldBefore = PAD_HELD.size;
+const plateBefore = plateAt(b0) === facts.plate ? 'plate' : 'held';
+sent.length = 0;
+signal();
+const heldAfter = PAD_HELD.size;
+const upSent = ups(b0.id);
+fills = []; run(1);
+const plateAfter = plateAt(b0) === facts.plate ? 'plate' : 'held';
+/* The restart hold. The draw loop advances it every frame while a pointer
+   id is registered, so what matters is whether forty frames with nothing
+   touching the screen can reach it. */
+const rb = buttons.filter(b => b.id === 'r')[0];
+let restarts = null;
+if (rb) {
+  touch('pointerdown', 8, rb.x + rb.w / 2, rb.y + rb.h / 2);
+  run(5);
+  sent.length = 0;
+  signal();
+  run(40);
+  restarts = sent.filter(s => s[0] === 'keydown' && s[1] === 'r').length;
+}
+console.log(JSON.stringify({ heldBefore: heldBefore, plateBefore: plateBefore,
+  heldAfter: heldAfter, upSent: upSent, plateAfter: plateAfter,
+  restarts: restarts, hasR: !!rb }));
+"""
+
+#: How each exit is staged. ``none`` is the control: no interruption at all.
+EXIT_SIGNALS: dict[str, str] = {
+    "blur": "(handlers.blur || []).forEach(fn => fn({}));",
+    "pagehide": "(handlers.pagehide || []).forEach(fn => fn({}));",
+    "hidden": "document.hidden = true;"
+    " (handlers['doc:visibilitychange'] || []).forEach(fn => fn({}));"
+    " document.hidden = false;",
+    "none": "",
+}
+
+
+def padexit_probe(script: str, *, signal: str) -> str:
+    """The page's own script, wrapped so one exit's release can be watched.
+
+    ``signal`` is a key of :data:`EXIT_SIGNALS`; ``none`` runs the same
+    reads with no interruption, which is the direction that stops
+    "release always" from scoring full marks.
+    """
+
+    return (
+        PADEXIT_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("SIGNAL_PLACEHOLDER", EXIT_SIGNALS[signal])
+    )
+
+
 def padhold_probe(script: str) -> str:
     """The page's own script, wrapped so the interrupted touch's release
     can be watched."""
@@ -809,10 +955,12 @@ def padr_probe(script: str) -> str:
 
 __all__ = [
     "ALIASES",
+    "EXIT_SIGNALS",
     "BUTTON_CSS_PX",
     "GAP_CSS_PX",
     "PAD_KEYS",
     "PAD_PREAMBLE",
+    "padexit_probe",
     "PAD_PROBE",
     "PADPAINT_PROBE",
     "PADHOLD_PROBE",
