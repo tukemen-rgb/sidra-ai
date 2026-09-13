@@ -1978,6 +1978,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1748: the flat artifacts listing caps the wire payload but reports the true
+    # total (C-1680); the per-project file listing truncated inside _project_files
+    # and discarded the count, so a >200-file production showed 200 rows with no
+    # sign files were hidden. It now reports file_total the way the flat listing does.
+    from sidra_ai.evals.project_file_listing_discloses_total import (
+        evaluate_project_file_listing_discloses_total,
+    )
+
+    project_file_total = evaluate_project_file_listing_discloses_total()
+    c.add(
+        "project_file_listing_discloses_total",
+        "プロジェクトのファイル一覧が打ち切り時に総数（全 N 件）を明示する",
+        10.0 * project_file_total.checks_passed / project_file_total.checks_total,
+        detail=f"{project_file_total.checks_passed}/{project_file_total.checks_total} checks; "
+               "src/sidra_ai/evals/project_file_listing_discloses_total.py"
+               + ("" if project_file_total.passed else "; " + "; ".join(project_file_total.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

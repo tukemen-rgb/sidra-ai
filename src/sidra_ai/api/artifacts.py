@@ -147,10 +147,16 @@ class ProjectListing:
     files: tuple[Artifact, ...]
 
     def to_dict(self) -> dict:
+        # Cap the wire payload but report the true count, so the entry page can
+        # say "全 N 件" for a production's files honestly - the same disclosure
+        # the flat listing keeps (C-1680), which the per-project view had missed
+        # (C-1748). A >MAX_LISTED-file bundle otherwise showed a truncated list
+        # with no sign files were hidden.
         return {
             "slug": self.slug,
             "modified": self.modified,
-            "files": [artifact.to_dict() for artifact in self.files],
+            "files": [artifact.to_dict() for artifact in self.files[:MAX_LISTED]],
+            "file_total": len(self.files),
         }
 
 
@@ -185,7 +191,11 @@ def _project_files(root: Path) -> list[Artifact]:
         relative = str(path.relative_to(root))
         found.append(Artifact(relative.replace("\\", "/"), path.stat().st_size, _stamp(path)))
     found.sort(key=lambda a: a.name)
-    return found[:MAX_LISTED]
+    # Return the full list; ProjectListing.to_dict caps the wire payload and
+    # reports the true count, so the entry page can say "全 N 件" for a
+    # production's files the way the flat listing does (C-1680). Truncating here
+    # would discard the count and hide files with no sign (C-1748).
+    return found
 
 
 def list_projects(data_dir: str | Path) -> list[ProjectListing]:

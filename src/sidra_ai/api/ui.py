@@ -463,6 +463,18 @@ ASK_PAGE = """<!doctype html>
             row.appendChild(size);
             files.appendChild(row);
           });
+          // A production's file list is capped on the wire like the flat listing;
+          // say when files are hidden so the count is honest (全 N 件), the same
+          // disclosure the project/artifact counts already keep (C-1680/C-1748).
+          // The true count is p.file_total, not the capped rows.
+          var shownFiles = (p.files || []).length;
+          var fileTotal = (p.file_total != null) ? p.file_total : shownFiles;
+          if (fileTotal > shownFiles) {
+            var moreFiles = document.createElement("li");
+            moreFiles.className = "note";
+            moreFiles.textContent = shownFiles + " 件を表示（全 " + fileTotal + " 件）";
+            files.appendChild(moreFiles);
+          }
           item.appendChild(files);
           projectList.appendChild(item);
         });
