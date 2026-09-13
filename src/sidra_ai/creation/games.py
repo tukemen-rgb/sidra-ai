@@ -30,7 +30,7 @@ import json
 import re
 import subprocess
 import zlib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
@@ -195,6 +195,16 @@ class GeneratedGame:
     asked_title: str = ""
     #: Whether the guard did the swapping.
     renamed: bool = False
+    #: The panel rows this page was built with a value for, after the
+    #: schema clamped them (C-1764). Only the keys somebody actually set
+    #: are in here: the sidecar has to keep "nobody chose a band" and
+    #: "somebody chose one" apart, because revise.py says out loud when a
+    #: new difficulty drops a chosen band (C-1710) and must not announce a
+    #: drop nobody asked for. The values are the schema's resolved
+    #: defaults rather than the raw request, so what is recorded is what
+    #: the page opens with - a record that disagrees with the screen is
+    #: the thing C-1744 was about.
+    panel: dict = field(default_factory=dict)
 
     def with_copy(self, *, title: str = "", tagline: str = "") -> "GeneratedGame":
         """Overlay model-written wording on a page that already works.
@@ -2110,7 +2120,45 @@ def generate_game(
         html,
         asked_title=asked_title if asked_title != spec.default_title else "",
         renamed=bool(named),
+        panel=_panel_in_force(schema, panel),
     )
+
+
+#: The panel rows a sentence can turn - the keys ``proposer.parse_proposal``
+#: is allowed to return. Everything else on the panel (volume, haptics,
+#: reduced motion) is the player's to set in the browser, not the request's,
+#: so recording it would put a device preference in a build record.
+PROPOSABLE_ROWS: tuple[str, ...] = ("band", "accent", "daily", "ghost", "brief")
+
+
+def _panel_in_force(schema: dict, given: dict | None) -> dict:
+    """Which panel rows this build actually had a chosen value for.
+
+    C-1764. ``save_meta`` has carried a ``panel=`` argument since C-1117,
+    with a comment above it saying what happens without one: a second
+    sentence rebuilds from the ladder and quietly undoes what the first
+    one turned. Only revise.py ever passed it. The page that a person
+    actually makes - the first one - recorded ``{}``, so 「帯は広めに」
+    survived exactly until the next sentence, whatever that sentence was
+    about (measured: band 14 out of a 10-12-14 span, then 「タイトルを…」,
+    then band 12, and the confirmation mentioned only the title).
+
+    Read back out of the schema rather than out of ``given``: the schema
+    clamps the axis and drops a malformed colour, so this is the value the
+    page opens with. Restricted to keys that were actually given, so that
+    "nobody chose a band" stays distinguishable from "somebody chose the
+    one the ladder would have picked anyway" - C-1710's announcement of a
+    dropped band depends on that difference.
+    """
+
+    if not given:
+        return {}
+    rows = {f["key"]: f for f in schema["fields"]}
+    return {
+        key: rows[key]["default"]
+        for key in PROPOSABLE_ROWS
+        if key in given and key in rows
+    }
 
 
 def save_game(game: GeneratedGame, data_dir: str | Path, *, now: datetime | None = None) -> Path:

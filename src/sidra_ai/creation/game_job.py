@@ -100,6 +100,13 @@ def build_game_generator(
             difficulty=game.difficulty,
             theme=select_theme(message).key,
             title=game.title,
+            # C-1764. The argument has existed since C-1117 and this call
+            # never used it, so every page a person made recorded an empty
+            # panel - and the next sentence, about anything at all, rebuilt
+            # from the ladder and took back what the first one had turned.
+            # `game.panel` is what the schema resolved, not what the model
+            # proposed, so the record and the page agree.
+            panel=game.panel,
         )
         # A request that names a genre we have no template for still gets a
         # playable page - but calling that page a シューティング because the

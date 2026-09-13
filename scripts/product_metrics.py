@@ -15574,6 +15574,246 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the first sentence survives the second --------------------------
+    #
+    # C-1764, §9 x §4. §9 事実 2 records the market's second complaint
+    # about generated games as "a fix breaks something else", and §9's own
+    # 学び puts interactive revision at the top of the list SIDRA has not
+    # won. save_meta has carried a `panel=` argument since C-1117 with a
+    # comment above it naming this exact failure - without it a second
+    # sentence rebuilds from the ladder and quietly undoes what the first
+    # one turned - and only revise.py ever passed it. The page a person
+    # actually makes recorded `{}`.
+    #
+    # Both directions, and they are not symmetric decorations: without
+    # (b) an implementation that ignores revisions outright scores full
+    # marks, and that is a worse product than the one this fixes.
+    #
+    #   (a) the five rows a sentence can turn survive a revision about
+    #       something else entirely (a title),
+    #   (b) a revision that names a row still moves it.
+    #
+    # Plus C-1710's sentinel in the same run: a new difficulty re-reads
+    # both axes, so it DROPS a chosen band on purpose - and has to say so.
+    # A fix that carried the band through a difficulty change would pass
+    # (a) and silently undo C-1710, so the drop is checked for, not
+    # against.
+    import json as _fs_json
+    import re as _fs_re
+    import tempfile as _fs_tmp
+    from pathlib import Path as _FsPath
+
+    from sidra_ai.creation.game_job import build_game_generator as _fs_build
+    from sidra_ai.creation.games import PROPOSABLE_ROWS as _FS_ROWS
+    from sidra_ai.creation.games import _DIFFICULTY as _FS_LADDER
+    from sidra_ai.creation.intent import detect_creation_intent as _fs_intent
+    from sidra_ai.creation.revise import build_game_reviser as _fs_reviser
+    from sidra_ai.creation.revise import detect_revision_intent as _fs_rev_intent
+    from sidra_ai.creation.revise import meta_path_for as _fs_meta
+    from sidra_ai.creation.tuning import AXIS_LABELS as _FS_AXES
+
+    def _fs_spec(path) -> dict:
+        """What the page opens with, read out of the page's own TUNE_SPEC."""
+
+        text = _FsPath(path).read_text(encoding="utf-8")
+        body = _fs_re.search(r"<script>(.*?)</script>", text, _fs_re.S)
+        if body is None:
+            return {}
+        spec = _fs_re.search(r"const TUNE_SPEC=(\{.*?\});", body.group(1), _fs_re.S)
+        if spec is None:
+            return {}
+        return {f["key"]: f["default"] for f in _fs_json.loads(spec.group(1))["fields"]}
+
+    def _fs_newest(home, seen):
+        pages = [p for p in sorted(_FsPath(home).rglob("*.html")) if p not in seen]
+        return pages[-1] if pages else None
+
+    # The job path routes on the sentence, so each template is reached the
+    # way an operator reaches it - by asking for that kind of game - rather
+    # than by handing generate_game a template name it would never be
+    # given in production.
+    from sidra_ai.creation.games import choose_template as _fs_route
+
+    _FS_ASKS = (
+        "釣りゲームを作って",
+        "キャッチゲームを作って",
+        "冒険ゲームを作って",
+        "ビームの撃ち合いゲームを作って",
+        "シューティングゲームを作って",
+        "パズルゲームを作って",
+        "巨大な怪獣と戦うゲームを作って",
+        "レースゲームを作って",
+        "横スクロールのゲームを作って",
+        "3D のゲームを作って",
+    )
+    _fs_gaps: list[str] = []
+    _fs_ok: list[str] = []
+    _fs_asks = {_fs_route(text): text for text in _FS_ASKS}
+    _fs_missing = sorted(set(_tune_templates) - set(_fs_asks))
+    if _fs_missing:
+        _fs_gaps.append(f"no sentence reaches {_fs_missing}")
+    def _fs_gap(reason: str):
+        return (None, reason)
+
+    def _fs_one(_fs_key):
+        """One template's whole chain, in its own home.
+
+        Run through ``in_parallel`` rather than in a loop: every build and
+        every revision spawns the JS checker, and ten templates' worth of
+        them waiting one at a time is exactly what
+        ``metrics_node_work_is_bundled`` counts against this collector
+        (measured: the serial first draft of this block moved it
+        60.2% -> 59.0%). The ten are independent - separate temp dirs,
+        separate pages - so nothing here depends on the order.
+        """
+
+        _fs_bands = tuple(pair[1] for pair in _FS_LADDER[_fs_key].values())
+        _fs_normal = _FS_LADDER[_fs_key]["normal"][1]
+        _fs_hard = _FS_LADDER[_fs_key]["hard"][1]
+        # The band asked for has to differ from BOTH the rung a rebuild
+        # lands on (normal) and the rung 「難しくして」 moves to (hard):
+        # otherwise the carry has nothing to prove, and C-1710 stays
+        # correctly silent because the number it would announce did not
+        # change - a silence that would read as a defect that is not there.
+        _fs_pick = [v for v in sorted(set(_fs_bands)) if v not in (_fs_normal, _fs_hard)]
+        if not _fs_pick:
+            return _fs_gap(f"{_fs_key}: the ladder has no third band to ask for")
+        _fs_chosen = _fs_pick[0]
+        _fs_asked = {"band": _fs_chosen, "accent": "#4fd1c5", "daily": True, "brief": True}
+        with _fs_tmp.TemporaryDirectory() as _fs_home:
+            _fs_msg = _fs_asks[_fs_key]
+            _fs_gen = _fs_build(_fs_home, None, lambda m, t, s: dict(_fs_asked))
+            _fs_gen(_fs_msg, _fs_intent(_fs_msg))
+            _fs_first = _fs_newest(_fs_home, set())
+            if _fs_first is None:
+                return _fs_gap(f"{_fs_key}: nothing was built")
+            _fs_opened = _fs_spec(_fs_first)
+            # Only the rows this template actually shows: ghost is a row on
+            # some templates and not others, and a row that is not there was
+            # never turned.
+            _fs_turned = {
+                k: v for k, v in _fs_asked.items() if k in _fs_opened and k in _FS_ROWS
+            }
+            _fs_wrong = [k for k, v in _fs_turned.items() if _fs_opened.get(k) != v]
+            if _fs_wrong:
+                return _fs_gap(f"{_fs_key}: the first sentence never landed ({_fs_wrong})")
+            _fs_side = _fs_json.loads(_fs_meta(_fs_first).read_text(encoding="utf-8"))
+            _fs_rec = _fs_side.get("panel") or {}
+            _fs_lost = [k for k, v in _fs_turned.items() if _fs_rec.get(k) != v]
+            if _fs_lost:
+                return _fs_gap(
+                    f"{_fs_key}: the build recorded {_fs_rec or '{}'}, "
+                    f"so {_fs_lost} is not there to carry"
+                )
+            # (a) a revision about something else entirely.
+            _fs_seen = {_fs_first}
+            _fs_say = "そのゲームのタイトルを「夜の欠片」に変えて"
+            _fs_ri = _fs_rev_intent(_fs_say)
+            if set(_fs_ri.adjustments) != {"title"}:
+                return _fs_gap(f"{_fs_key}: the title sentence read as {_fs_ri.adjustments}")
+            _fs_out = _fs_reviser(_fs_home)(_fs_say, _fs_ri)
+            _fs_next = _fs_newest(_fs_home, _fs_seen)
+            if _fs_next is None:
+                return _fs_gap(f"{_fs_key}: the revision wrote no page ({_fs_out.summary[:40]})")
+            _fs_after = _fs_spec(_fs_next)
+            _fs_undone = [k for k, v in _fs_turned.items() if _fs_after.get(k) != v]
+            if _fs_undone:
+                return _fs_gap(
+                    f"{_fs_key}: a title-only revision took back {_fs_undone} "
+                    f"(band {_fs_opened.get('band')}→{_fs_after.get('band')})"
+                )
+            # C-1710's sentinel FIRST, while the band standing on the page
+            # is still the one the first sentence chose - which is picked
+            # above to differ from hard's rung, so the announcement has a
+            # real change to announce. Running it after the band revision
+            # below would risk landing on hard's number, where C-1710 is
+            # correctly silent and the silence would read as a defect.
+            _fs_seen.add(_fs_next)
+            _fs_hard_say = "そのゲームを難しくして"
+            _fs_hi = _fs_rev_intent(_fs_hard_say)
+            if _fs_hi.adjustments.get("difficulty") != "+1":
+                return _fs_gap(f"{_fs_key}: 「難しくして」 read as {_fs_hi.adjustments}")
+            _fs_hard_out = _fs_reviser(_fs_home)(_fs_hard_say, _fs_hi)
+            # Named with the template's own axis word, not a generic 「帯」:
+            # a puzzle says 「盤の幅」 and fishing 「当たり判定の幅」.
+            _fs_label = _FS_AXES.get(_fs_key, ("", "帯"))[1]
+            if f"{_fs_label}は難易度に合わせて" not in _fs_hard_out.summary:
+                return _fs_gap(
+                    f"{_fs_key}: a new difficulty dropped the chosen band without "
+                    f"saying so (C-1710): {_fs_hard_out.summary[:60]}"
+                )
+            _fs_third = _fs_newest(_fs_home, _fs_seen)
+            if _fs_third is None:
+                return _fs_gap(f"{_fs_key}: the difficulty revision wrote no page")
+            # (b) the other direction: a revision that names a row moves it.
+            # Measured from whatever is standing now rather than from the
+            # first sentence's number, so the direction is always one the
+            # author's span has room for.
+            _fs_seen.add(_fs_third)
+            _fs_standing = _fs_spec(_fs_third).get("band")
+            if _fs_standing is None:
+                return _fs_gap(f"{_fs_key}: the page stopped reporting a band")
+            _fs_wider = _fs_standing < max(_fs_bands)
+            _fs_word = "そのゲームの帯を広くして" if _fs_wider else "そのゲームの帯を狭くして"
+            _fs_delta = "+1" if _fs_wider else "-1"
+            _fs_ni = _fs_rev_intent(_fs_word)
+            if _fs_ni.adjustments.get("band") != _fs_delta:
+                return _fs_gap(f"{_fs_key}: 「{_fs_word[-5:]}」 read as {_fs_ni.adjustments}")
+            _fs_reviser(_fs_home)(_fs_word, _fs_ni)
+            _fs_fourth = _fs_newest(_fs_home, _fs_seen)
+            if _fs_fourth is None:
+                return _fs_gap(f"{_fs_key}: the band revision wrote no page")
+            _fs_moved = _fs_spec(_fs_fourth).get("band")
+            if _fs_moved is None or (
+                _fs_moved <= _fs_standing if _fs_wider else _fs_moved >= _fs_standing
+            ):
+                return _fs_gap(
+                    f"{_fs_key}: 「{_fs_word[-5:]}」 left the band at {_fs_moved} "
+                    "- carrying the panel forward has swallowed the revision"
+                )
+            return (_fs_key, None)
+
+    for _fs_key, _fs_why in in_parallel([
+        (lambda k=k: _fs_one(k)) for k in sorted(_fs_asks)
+    ]):
+        if _fs_why:
+            _fs_gaps.append(_fs_why)
+        else:
+            _fs_ok.append(_fs_key)
+
+    c.add(
+        "creation_first_sentence_survives_revision",
+        "最初の一文が回したつまみが、次の修正を生き延びる型",
+        float(len(_fs_ok)) if not _fs_gaps else 0.0,
+        detail=(
+            "**実ページと実 sidecar で駆動**: 提案器が帯・差し色・今日の挑戦・"
+            "ブリーフィングを回した状態でページを作り、**無関係な修正**"
+            "（題名だけ）を送ってから、ページが開く値を `TUNE_SPEC` から読み直す。"
+            "**両方向**: (a) **回したつまみが残る**、(b) **帯を名指しした修正は"
+            "ちゃんと帯を動かす**（今の値が上端でなければ「広くして」、上端なら"
+            "「狭くして」）——(b) が無ければ**修正を丸ごと無視する実装**が"
+            "満点を取り、それは直す前より悪い。"
+            "**C-1710 の番兵も同じ走行で**: 難度語は両軸を読み直すので"
+            "**わざと帯を捨てる**——捨てるなら**言う**こと。"
+            "**要約はその型自身の軸名で言う**（puzzle は「盤の幅」・fishing は"
+            "「当たり判定の幅」）ので、番兵もその語を見る。"
+            "**番兵は帯の修正より先に走らせる**——後だと帯が hard の段に"
+            "乗ることがあり、**C-1710 は数字が動かないときは正しく黙る**ので、"
+            "その沈黙を欠陥と読み違える。"
+            "**修正前の実測**: 帯 10/12/14 の puzzle で最初の一文が **14** を出し、"
+            "**ページは 14 で開くのに sidecar は `{}`**。題名だけの修正で"
+            "**帯は 12（はしごの normal）に戻り、確認文は題名しか言わなかった**。"
+            "消えるのは帯だけではない——提案器が返せる **`band`・`accent`・"
+            "`daily`・`ghost`・`brief` の 5 つが同じ経路で消える**。"
+            "`save_meta` の `panel=` は C-1117 から在り、**その真上の注釈が"
+            "この失敗を名指しで説明していた**——渡していたのは revise 側だけで、"
+            "**ページを作る側は一度も渡していなかった**"
+            if not _fs_gaps
+            else "; ".join(_fs_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the caveat covers the eyes too ----------------------------------
     #
     # C-1756, §20 x §4. creation_cvd_info_pair holds this product's four
