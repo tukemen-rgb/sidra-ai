@@ -1939,6 +1939,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1742: the web UI links each citation to its source url (C-1735), but the
+    # CLI's _print_citations printed the reference and excerpt and never the url.
+    # It now prints the http(s) source url on its own indented line, completing
+    # the client parity C-1735 deferred.
+    from sidra_ai.evals.cli_names_citation_source_url import (
+        evaluate_cli_names_citation_source_url,
+    )
+
+    cli_citation_url = evaluate_cli_names_citation_source_url()
+    c.add(
+        "cli_names_citation_source_url",
+        "sidra-ask CLI が各引用の出典 URL を出す（web UI 版 C-1735 の CLI パリティ）",
+        10.0 * cli_citation_url.checks_passed / cli_citation_url.checks_total,
+        detail=f"{cli_citation_url.checks_passed}/{cli_citation_url.checks_total} checks; "
+               "src/sidra_ai/evals/cli_names_citation_source_url.py"
+               + ("" if cli_citation_url.passed else "; " + "; ".join(cli_citation_url.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

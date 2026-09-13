@@ -222,6 +222,15 @@ def _print_citations(
         excerpt = " ".join(clean(citation.get("excerpt", "")).split())
         if excerpt:
             print(f"      {excerpt}")
+        # The source url the ingestion pipeline recorded, so a reader can open the
+        # cited PR/commit/file at its origin instead of rebuilding the address from
+        # the reference - the CLI twin of the web UI's link (C-1735), which left
+        # the CLI showing only the reference (C-1742). Only an http(s) url is shown
+        # (a citation is DATA, so an odd scheme is not presented as a source), and
+        # it is terminal-scrubbed through `clean` like the excerpt above.
+        url = clean(citation.get("url", ""))
+        if url.startswith(("https://", "http://")):
+            print(f"      出典: {url}")
 
 
 def _refusal_exit_code(payload: dict[str, Any]) -> int:
