@@ -320,6 +320,17 @@ def generate_art(
             f"無かったため、既定の「{PATTERN_LABELS[DEFAULT_PATTERN]}」で"
             f"描いています。指定できるパターン: {choices}。</p>"
         )
+    # C-1786: the request named a colour, but the palette is fixed to the brand
+    # (cyan on magenta), so 「青い海」 was drawn in that palette, not blue. The
+    # chat summary says so (C-1272), but the HTML is the artifact forwarded and
+    # reopened - a page titled 「青い…」 in the wrong palette with no word of it
+    # is the same silent artifact C-1283/C-1284 already fixed for the pattern
+    # default here. Disclose it on the page too, alongside the pattern note.
+    if names_color(request):
+        note += (
+            '<p class="note">依頼にあった色は今の配色に反映していません。'
+            "アートはブランド固定の配色（シアン×マゼンタ）で描いています。</p>"
+        )
     html = _PAGE.format(
         title=escape(title),
         bg=BG,
