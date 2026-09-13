@@ -2112,6 +2112,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1765: chat re-screened replayed history through self.gate (which carries
+    # the quarantine store), so every replayed side that tripped a detector -
+    # including SIDRA's own prior answer quoting injection phrasing - wrote a
+    # quarantine record, polluting the operator's triage queue and inflating the
+    # quarantined counts. History is now screened with a store-less gate: the
+    # refusal decision is unchanged (loud forgeries and secrets/PII still
+    # refused), but replayed content is no longer recorded.
+    from sidra_ai.evals.history_screening_does_not_pollute_quarantine import (
+        evaluate_history_screening_does_not_pollute_quarantine,
+    )
+
+    history_pollution = evaluate_history_screening_does_not_pollute_quarantine()
+    c.add(
+        "history_screening_does_not_pollute_quarantine",
+        "会話履歴の再検査が隔離レビューを汚さない（拒否判定は不変・secret/PII 保持）",
+        10.0 * history_pollution.checks_passed / history_pollution.checks_total,
+        detail=f"{history_pollution.checks_passed}/{history_pollution.checks_total} checks; "
+               "src/sidra_ai/evals/history_screening_does_not_pollute_quarantine.py"
+               + ("" if history_pollution.passed else "; " + "; ".join(history_pollution.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

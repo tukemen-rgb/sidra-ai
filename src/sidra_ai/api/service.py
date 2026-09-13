@@ -6,6 +6,7 @@ pipeline is testable without an HTTP client.
 
 from __future__ import annotations
 
+import dataclasses
 import threading
 from pathlib import Path
 from typing import Any, Sequence
@@ -132,6 +133,20 @@ class SidraService:
 
         self.gate = gate or SecurityGate(
             quarantine_store=QuarantineStore(data_dir / "quarantine.jsonl")
+        )
+        # Replayed history is screened with the SAME refusal policy as the input
+        # gate (a loud forgery in history is still refused before the model - a
+        # deliberate, tested defense), but it must not WRITE to the quarantine
+        # review: re-screening replayed content recorded a quarantine entry for
+        # SIDRA's own prior answer on every turn (and again on every retry),
+        # polluting the operator's triage queue and inflating the quarantined
+        # counts /v1/index and sidra-quarantine report (C-1765). The review is
+        # for new content entering the system; replayed history is neither new
+        # nor operator-submitted here. Same policy as self.gate, no store.
+        self._history_gate = SecurityGate(
+            dataclasses.replace(self.gate.policy),
+            allowed_repositories=(),
+            quarantine_store=None,
         )
         self.output_guard = output_guard or OutputGuard()
         # The index lives on disk, not only in this process. Without a path
@@ -599,7 +614,12 @@ class SidraService:
         for question, answer in history or ():
             turn: list[str] = []
             for side in (question, answer):
-                side_result = self.gate.inspect(side, source="operator", repository="")
+                # Injection-tolerant, secret/PII-strict, and non-recording; see
+                # self._history_gate. The neutralizing envelope contains any
+                # injection phrasing the answer replays (C-1765).
+                side_result = self._history_gate.inspect(
+                    side, source="operator", repository=""
+                )
                 if side_result.decision is not Decision.ALLOW:
                     return {
                         "answer": "",
