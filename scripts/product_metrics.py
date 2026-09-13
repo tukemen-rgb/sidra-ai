@@ -15423,6 +15423,127 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the caveat covers the eyes too ----------------------------------
+    #
+    # C-1756, §20 x §4. creation_cvd_info_pair holds this product's four
+    # palettes to a separation between the two information hues under
+    # each dichromacy - and measured only the palettes. Every colour an
+    # operator can choose went unmeasured, which is the same one-sided
+    # rule C-1737 found on the contrast side of the very same control.
+    #
+    # Measured with the repository's own matrices and floors: of the 132
+    # cells a person can reach (8 colour words + 3 unlockable skins, four
+    # themes, three dichromacies) **14 fall under the floor**. The worst
+    # is 「桃」 on dusk at ΔE 8.5 for a protanope, against a floor of 20:
+    # the HUD's headings and 「のこり N」 become one colour.
+    #
+    # The colour is not moved for this - nudging hue is not the same
+    # favour as nudging brightness, and 「桃にして」 answered in another
+    # hue is no longer their page. What is owed is the fact, where it was
+    # asked (C-1739).
+    #
+    # Both directions: the 14 say so, the other 118 stay quiet.
+    import tempfile as _eye_tmp
+
+    from sidra_ai.creation.games import save_game as _eye_save
+    from sidra_ai.creation.revise import (
+        _ACCENT_WORDS as _eye_words,
+        _colour_caveat as _colour_caveat_probe,
+        build_game_reviser as _eye_reviser,
+        detect_revision_intent as _eye_intent_of,
+        save_meta as _eye_meta,
+    )
+    from sidra_ai.creation.skins import SKIN_COLOURS as _eye_skins
+    from sidra_ai.creation.themes import THEMES as _eye_themes
+    from sidra_ai.creation.themes import (
+        CVD_MATRICES as _eye_kinds,
+        cvd_collisions as _eye_collisions,
+        cvd_distance as _eye_distance,
+    )
+
+    _EYE_REQUEST = "冒険ゲームを作って"
+    eye_gaps: list[str] = []
+    eye_cells = 0
+    # The sentinel C-1369 carries, kept with the measurement rather than
+    # left behind in the collector: if the simulator stops collapsing a
+    # red toward a dark yellow, the matrices are no longer simulating and
+    # a passing table would be a blessing from a broken instrument.
+    _eye_raw = _eye_distance("#ff0000", "#9b9b00", "protan")
+    if _eye_raw >= 40.0:
+        eye_gaps.append(f"simulator が simulate をやめている（番兵 {_eye_raw:.1f}）")
+    _eye_choices = [(w, c) for w, c in _eye_words.items()] + [
+        (label, colour) for _ident, label, colour in _eye_skins if colour
+    ]
+    for _eye_theme in sorted(_eye_themes):
+        with _eye_tmp.TemporaryDirectory() as _eye_home:
+            _eye_built = _tune_generate(
+                _EYE_REQUEST, template="adventure", theme_name=_eye_theme
+            )
+            _eye_page = _eye_save(_eye_built, _eye_home)
+            _eye_meta(
+                _eye_page,
+                request=_EYE_REQUEST,
+                template="adventure",
+                difficulty=_eye_built.difficulty,
+                theme=_eye_theme,
+                title=_eye_built.title,
+                panel={},
+            )
+            _eye_run = _eye_reviser(_eye_home)
+            for _eye_word, _eye_colour in _eye_choices:
+                _eye_hit = _eye_collisions(_eye_colour, _eye_theme)
+                if _eye_word not in _eye_words:
+                    # A skin is not reachable by a sentence; the caveat is
+                    # checked directly for it, and the panel's own note
+                    # (C-1747) is what a player sees.
+                    _eye_said = _colour_caveat_probe(_eye_colour, _eye_theme)
+                else:
+                    _eye_line = f"冒険ゲームを{_eye_word}にして"
+                    _eye_intent = _eye_intent_of(_eye_line)
+                    if not _eye_intent.is_revision:
+                        eye_gaps.append(f"{_eye_theme}/{_eye_word}: 修正として読まれない")
+                        continue
+                    _eye_out = _eye_run(_eye_line, _eye_intent)
+                    _eye_said = str(getattr(_eye_out, "summary", "") or _eye_out)
+                _eye_spoke = "見分けにくく" in _eye_said
+                if bool(_eye_hit) != _eye_spoke:
+                    eye_gaps.append(
+                        f"{_eye_theme}/{_eye_word}: "
+                        + ("沈黙" if _eye_hit else "空振り")
+                        + f"（衝突 {len(_eye_hit)}）"
+                    )
+                    continue
+                if _eye_hit:
+                    _eye_worst = min(apart for _k, apart in _eye_hit)
+                    if f"{_eye_worst:.1f}" not in _eye_said:
+                        eye_gaps.append(f"{_eye_theme}/{_eye_word}: 実測値を言っていない")
+                        continue
+                eye_cells += 1
+    c.add(
+        "creation_caveat_covers_colour_vision",
+        "色覚でも見分けられるか言うセル",
+        float(eye_cells) if not eye_gaps else 0.0,
+        detail=(
+            "**利用者が選べる 11 色**（色の語 8＋解放されるスキン 3）× **4 テーマ**を"
+            "**本物の修正器で駆動**し、要約が**色覚の衝突をちょうど衝突するときだけ**"
+            "言うことを確かめた（**両方向**——(b) が無ければ「毎回言う」実装が満点を取り、"
+            "118 回の空振りで断り書きが読まれなくなる）。"
+            "**背景**: `creation_cvd_info_pair` は **4 テーマ × 3 色覚**で "
+            "`accent × alert` の ΔE を床（編集可 20・既定 15）に縛っているが、"
+            "**測っていたのはテーマ自身の accent だけ**だった。"
+            "**実測（repo と同じ Machado 全重度・linear RGB＋ガンマ・同じ床）**: "
+            "**132 セル中 14 セルが床を割る**——最悪は **dusk の「桃」が protan で ΔE 8.5**"
+            "（床 20）、terminal の「橙」が deutan で 8.8、terminal の「黄」が deutan で 9.9。"
+            "**色は動かさない**: 明るさを寄せる C-1737 と違い、"
+            "**色相を寄せるのは「その色にして」を裏切る**。owed なのは**事実**のほう。"
+            "行列と ΔE は `themes.py` へ移し（**製品側から同じ計算ができる**ようになった）、"
+            "**「simulator が simulate をやめたら赤」の番兵も測定と一緒に移した**"
+            if not eye_gaps
+            else "; ".join(eye_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a frame's work has a ceiling ------------------------------------
     #
     # C-1752, §32 (added this cycle) x §1. Every judge here reads what the

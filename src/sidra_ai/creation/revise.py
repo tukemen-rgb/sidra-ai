@@ -51,7 +51,9 @@ from sidra_ai.creation.themes import (
     ACCENT_FLOOR,
     DEFAULT_THEME,
     THEMES,
+    CVD_MATRICES,
     contrast_ratio,
+    cvd_collisions,
     select_theme,
 )
 from sidra_ai.creation.tuning import AXIS_LABELS
@@ -820,13 +822,39 @@ def _colour_caveat(colour: object, theme_key: str) -> str:
     ground = theme.tokens.get("surface")
     if not isinstance(ground, str):
         return ""
+    said: list[str] = []
     ratio = contrast_ratio(colour, ground)
-    if ratio >= ACCENT_FLOOR:
-        return ""
-    return (
-        f"（{theme.key} の地に対して {ratio:.2f}:1 で沈むので、"
-        f"読める濃さに寄せて描きます）"
-    )
+    if ratio < ACCENT_FLOOR:
+        said.append(
+            f"{theme.key} の地に対して {ratio:.2f}:1 で沈むので、読める濃さに寄せて描きます"
+        )
+    # ...and whether it can still be told from the colour that means
+    # danger (C-1756). This product holds its own four palettes to a
+    # separation under each dichromacy (C-1369) and held nothing a person
+    # chooses to anything - the same one-sided rule C-1737 found on the
+    # contrast side.
+    #
+    # The colour is NOT moved for this. Nudging brightness keeps the
+    # colour somebody asked for; nudging hue does not, and 「桃にして」
+    # answered with a different hue is no longer their page. What the
+    # product owes them is the fact, at the moment they ask.
+    names = {"protan": "赤", "deutan": "緑", "tritan": "青黄"}
+    hit = cvd_collisions(colour, theme.key)
+    if hit:
+        # Named one by one while there are one or two; the moment all
+        # three collide, the useful sentence is that none of them can
+        # tell - three clauses saying the same thing is how a caveat
+        # stops being read (C-1739).
+        which = (
+            "どの色覚でも"
+            if len(hit) == len(CVD_MATRICES)
+            else "・".join(names.get(kind, kind) for kind, _ in hit) + "の色覚では"
+        )
+        said.append(
+            f"{which}警告色と見分けにくくなります"
+            f"（ΔE 最小 {min(apart for _kind, apart in hit):.1f}）"
+        )
+    return f"（{'。'.join(said)}）" if said else ""
 
 def _axis_number(value) -> str:
     """A band as the panel would show it: whole numbers stay whole.

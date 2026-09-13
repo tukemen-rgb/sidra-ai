@@ -28,6 +28,8 @@ same request produces the same palette on the echo backend.
 
 from __future__ import annotations
 
+import math
+
 import unicodedata
 from dataclasses import dataclass
 
@@ -281,6 +283,11 @@ def readable_themes() -> tuple[str, ...]:
 
 __all__ = [
     "ACCENT_FLOOR",
+    "CVD_FLOOR",
+    "CVD_MATRICES",
+    "cvd_collisions",
+    "cvd_distance",
+    "cvd_floor",
     "CONTRAST_FLOORS",
     "GAMEYARD_TOKENS",
     "DEFAULT_THEME",
@@ -292,3 +299,98 @@ __all__ = [
     "select_theme",
     "validate_theme",
 ]
+
+#: Machado (2009) full-severity matrices, applied in LINEAR RGB. Skipping
+#: the gamma step invalidates the simulation - §20's own warning, and the
+#: reason the judge that first used these carries a sentinel.
+#:
+#: They lived only inside the metrics collector until C-1756, which meant
+#: the product could not ask the question its own judge was asking: the
+#: four shipped palettes were held to a floor here while any colour an
+#: operator picks went unmeasured.
+CVD_MATRICES: dict[str, tuple[tuple[float, ...], ...]] = {
+    "protan": (
+        (0.152286, 1.052583, -0.204868),
+        (0.114503, 0.786281, 0.099216),
+        (-0.003882, -0.048116, 1.051998),
+    ),
+    "deutan": (
+        (0.367322, 0.860646, -0.227968),
+        (0.280085, 0.672501, 0.047413),
+        (-0.011820, 0.042940, 0.968881),
+    ),
+    "tritan": (
+        (1.255528, -0.076749, -0.178779),
+        (-0.078411, 0.930809, 0.147602),
+        (0.004733, 0.691367, 0.303900),
+    ),
+}
+
+#: How far apart the two information hues must stay under each dichromacy.
+#: 20 on a theme this product may edit; 15 on the brand-locked default,
+#: whose palette is not ours to move (C-1369).
+import re as _re_colour
+
+_HEX_COLOUR = _re_colour.compile(r"#[0-9a-fA-F]{6}")
+
+CVD_FLOOR = 20.0
+CVD_FLOOR_LOCKED = 15.0
+LOCKED_THEME = "gameyard"
+
+
+def _linear(colour: str) -> list[float]:
+    raw = colour.lstrip("#")
+    channels = [int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+    return [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in channels]
+
+
+def _lab(rgb: "list[float]") -> tuple[float, float, float]:
+    x = 0.4124 * rgb[0] + 0.3576 * rgb[1] + 0.1805 * rgb[2]
+    y = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+    z = 0.0193 * rgb[0] + 0.1192 * rgb[1] + 0.9505 * rgb[2]
+
+    def f(t: float) -> float:
+        return t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+
+    fx, fy, fz = f(max(x / 0.95047, 0)), f(max(y, 0)), f(max(z / 1.08883, 0))
+    return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+
+
+def cvd_distance(first: str, second: str, kind: str) -> float:
+    """Lab ΔE between two colours as one dichromacy sees them."""
+
+    matrix = CVD_MATRICES[kind]
+    seen = []
+    for colour in (first, second):
+        rgb = _linear(colour)
+        seen.append(
+            _lab([sum(matrix[r][c] * rgb[c] for c in range(3)) for r in range(3)])
+        )
+    return math.dist(seen[0], seen[1])
+
+
+def cvd_floor(theme_key: str) -> float:
+    """The separation this theme's information hues are held to."""
+
+    return CVD_FLOOR_LOCKED if theme_key == LOCKED_THEME else CVD_FLOOR
+
+
+def cvd_collisions(colour: str, theme_key: str) -> list[tuple[str, float]]:
+    """Which dichromacies cannot tell ``colour`` from this theme's alert.
+
+    Empty when every one of them can - which is the answer for most
+    colours, and the reason a caveat built on this does not cry wolf.
+    """
+
+    theme = THEMES.get(theme_key) or DEFAULT_THEME
+    alert = theme.tokens.get("alert")
+    if not isinstance(alert, str) or not _HEX_COLOUR.fullmatch(colour):
+        return []
+    floor = cvd_floor(theme.key)
+    found = []
+    for kind in CVD_MATRICES:
+        apart = cvd_distance(colour, alert, kind)
+        if apart < floor:
+            found.append((kind, apart))
+    return found
+
