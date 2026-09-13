@@ -185,18 +185,30 @@ def _sources(evidence: tuple[str, ...]) -> str:
     return "\n".join(f"- {escape(line, quote=False)}" for line in evidence)
 
 
-def _header(title: str, stage: str, evidence: tuple[str, ...]) -> str:
+def _header(
+    title: str, stage: str, evidence: tuple[str, ...], fallback: str = ""
+) -> str:
     # The title comes from the request; escape it in the heading for the same
     # reason (C-1486). The stored .title stays raw for the chat summary.
+    #
+    # C-1790: when the request named a genre we cannot build, every design doc
+    # describes the default template under the asked-for title, so each one has
+    # to admit the swap - not only production-log.md (C-1605). The wording is the
+    # single source used by the log, the game page (C-1788) and the chat summary
+    # (C-1285); a buildable genre passes "" and draws no note.
+    swap = f"> ⚠️ {escape(fallback, quote=False)}\n\n" if fallback else ""
     return (
         f"# {escape(title, quote=False)} — {stage}\n\n"
         "> SIDRA AI が生成。**数値と操作は同じディレクトリの game.html が"
         "実際に使うもの**で、文章ではなく生成器から引いています。\n\n"
+        f"{swap}"
         f"## 根拠にした索引\n\n{_sources(evidence)}\n"
     )
 
 
-def scenario(title: str, evidence: tuple[str, ...], plan: ProductionPlan) -> str:
+def scenario(
+    title: str, evidence: tuple[str, ...], plan: ProductionPlan, fallback: str = ""
+) -> str:
     """The one stage that stays mostly blank, and says so.
 
     An あらすじ is a claim about what the game is about. Generating one would
@@ -205,7 +217,7 @@ def scenario(title: str, evidence: tuple[str, ...], plan: ProductionPlan) -> str
     """
 
     spec = TEMPLATES[plan.template]
-    return _header(title, "脚本", evidence) + f"""
+    return _header(title, "脚本", evidence, fallback) + f"""
 ## 遊びの芯（テンプレートが決めている部分）
 
 {spec.how_to_play}
@@ -231,11 +243,13 @@ def scenario(title: str, evidence: tuple[str, ...], plan: ProductionPlan) -> str
 """
 
 
-def structure(title: str, evidence: tuple[str, ...], plan: ProductionPlan) -> str:
+def structure(
+    title: str, evidence: tuple[str, ...], plan: ProductionPlan, fallback: str = ""
+) -> str:
     rows = "\n".join(
         f"| {name} | {shows} | {advance} |" for name, shows, advance in screens(plan)
     )
-    return _header(title, "構成", evidence) + f"""
+    return _header(title, "構成", evidence, fallback) + f"""
 ## 画面フロー
 
 プレイ → 結果表示（同一画面）→ リロードでプレイ
@@ -257,7 +271,9 @@ def structure(title: str, evidence: tuple[str, ...], plan: ProductionPlan) -> st
 """
 
 
-def features(title: str, evidence: tuple[str, ...], plan: ProductionPlan) -> str:
+def features(
+    title: str, evidence: tuple[str, ...], plan: ProductionPlan, fallback: str = ""
+) -> str:
     """The specification that is actually true of the shipped page."""
 
     controls = "\n".join(f"| {key} | {does} |" for key, does in plan.controls) or (
@@ -280,7 +296,7 @@ def features(title: str, evidence: tuple[str, ...], plan: ProductionPlan) -> str
         if plan.template == "fishing"
         else "受けられたら 受け +1、こぼしたら こぼし +1。どちらも画面に出続けます。"
     )
-    return _header(title, "機能設定", evidence) + f"""
+    return _header(title, "機能設定", evidence, fallback) + f"""
 ## 操作
 
 | 入力 | 動作 |

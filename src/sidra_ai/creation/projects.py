@@ -361,6 +361,14 @@ def scaffold_project(
     # the same production, and re-deriving per stage is how two files end up
     # disagreeing about the same game.
     plan = story.plan_for(request)
+    # C-1790: the substitution admission (or "") that every document about this
+    # production has to carry when the request named a genre we cannot build.
+    # Computed once from the shared source (genre_fallback_note) so the design
+    # docs, the production log and the chat summary all say the same thing, and
+    # only when a game was actually built - the sentence speaks of game.html.
+    fallback = genre_fallback_note(
+        request, plan.template if Stage.GAME in stages else "", title
+    )
     # Filled by the assets stage and read by the game stage. Empty when the
     # request asked for a game without assets, which is a supported shape:
     # the page then draws what it always drew.
@@ -372,7 +380,7 @@ def scaffold_project(
     for stage in stages:
         if stage in SKELETONS:
             (root / STAGE_FILES[stage]).write_text(
-                SKELETONS[stage](title, evidence, plan), encoding="utf-8"
+                SKELETONS[stage](title, evidence, plan, fallback), encoding="utf-8"
             )
         elif stage is Stage.ASSETS:
             # Seeded from the request, so regenerating a project gives the
@@ -409,9 +417,6 @@ def scaffold_project(
             )
             (root / "game.html").write_text(game.html, encoding="utf-8")
         elif stage is Stage.LOG:
-            fallback = genre_fallback_note(
-                request, plan.template if Stage.GAME in stages else "", title
-            )
             (root / STAGE_FILES[stage]).write_text(
                 _log_skeleton(title, stages, evidence, fallback), encoding="utf-8"
             )
