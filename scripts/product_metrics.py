@@ -15727,7 +15727,7 @@ def measure_creation(c: Collector) -> None:
         # - seven templates reading a row the panel hides. Only the call
         # site separates the three that have a trail from the seven that
         # bank an empty one.
-        _tw_before = len(tune_gaps)
+        _tw_before = len(gaps)
         for _tw_row, _tw_mark in (
             ("ghost", r"(?<!function )\bghostSample\("),
             ("latch", r"(?<!function )\btuneFlag\('latch'"),
@@ -15742,7 +15742,12 @@ def measure_creation(c: Collector) -> None:
                 gaps.append(
                     f"{key}: ページは {_tw_row} を読むのにパネルが出さない"
                 )
-        if len(tune_gaps) > _tw_before:
+        # C-1789: this read `tune_gaps` - the section's shared list - while
+        # the loop above appends to this worker's own `gaps`. The condition
+        # was therefore always false and the early return never fired: a
+        # guard that reads like it stops here and stops nothing. Left over
+        # from C-1755, when the shared list became a local one.
+        if len(gaps) > _tw_before:
             return gaps
         if not seen.get("buttons"):
             gaps.append(f"{key}: no way back to the defaults")
@@ -17387,7 +17392,11 @@ def measure_creation(c: Collector) -> None:
 
         gaps: list[str] = []
         if key not in _tune_binding:
-            return gaps
+            # None, not an empty list (C-1789, the shape C-1755 found).
+            # The caller reads an empty list as "measured and clean" and
+            # counts the template as a pass; None means "this probe does
+            # not cover it" and is skipped, which is what _cost_one does.
+            return None
         page = _tune_generate("ゲームを作って", template=key).html
         found = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if found is None:
@@ -17477,10 +17486,22 @@ def measure_creation(c: Collector) -> None:
         return gaps
 
     _ink_keys = sorted(_tune_templates)
+    # The table this probe needs has to cover the product, and say so out
+    # loud when it does not (C-1789). Without this the missing templates
+    # would simply go unmeasured and the score would shrink quietly - the
+    # same silence C-1755 found, one level up.
+    if sorted(_tune_binding) != sorted(_tune_templates):
+        ink_gaps.append(
+            f"SPEED_BINDING が {sorted(_tune_binding)} で、製品の型と違う"
+        )
     for key, said in zip(
         _ink_keys,
         in_parallel([(lambda k=key: _ink_one(k)) for key in _ink_keys]),
     ):
+        if said is None:
+            # Not covered by this probe. Skipped rather than counted: an
+            # empty list here would read as "measured and clean".
+            continue
         if said:
             ink_gaps.extend(said)
         else:
@@ -26153,6 +26174,118 @@ def measure_creation(c: Collector) -> None:
             "**動く detail は 459 中 1 件**（`metrics_runtime_attributed`＝自分の節時間）、"
             "実際の 3 コミットで **1・1・3 件**——"
             "**その 3 件が C-1751 の欠陥で、床より上に出たのはちょうど 2 件**"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- a judge never passes what it skipped (C-1789) -------------------
+    #
+    # C-1755's defect: a bundled worker that cannot measure a template
+    # returns no gaps, and the caller reads no gaps as a pass. Two metrics
+    # then described ten templates as driven when seven were, and because
+    # no value moved, --compare said nothing.
+    #
+    # The existing AST test forbids one mechanism - a worker appending to a
+    # list it does not own. It does not forbid the shape itself: returning
+    # your own gaps list without having put anything in it. Measured
+    # 2026-09-13: seven such returns, five of them sound (the branch above
+    # had already appended, or it was the success path at the end) and two
+    # not - _ink_one skipped an uncovered template into the pass column,
+    # and _tune_one's early return tested the outer list and so never fired.
+    #
+    # Counted rather than asserted, so the number says how many workers are
+    # clean and a regression shows up as a drop. The read is the same AST
+    # walk as the test, so the rule does not fork.
+    import ast as _skip_ast
+    import pathlib as _skip_path
+
+    _skip_src = _skip_path.Path(__file__).read_text(encoding="utf-8")
+    _skip_tree = _skip_ast.parse(_skip_src)
+
+    def _skip_fills(fn, name, before_line):
+        """Is there an append to ``name`` earlier in ``fn`` than this return?
+
+        This is what separates the two shapes. ``if _ink_bad: return gaps``
+        is sound because the loop above already appended; ``if key not in
+        table: return gaps`` is the bug because nothing has. Position
+        rather than the enclosing block: the first draft asked whether the
+        return's own branch appended, which excused every ``if ...: return
+        gaps`` guard - including the one this exists to catch. The
+        destruction run said so (the sabotage scored full marks).
+        """
+
+        for n in _skip_ast.walk(fn):
+            if (
+                isinstance(n, _skip_ast.Call)
+                and isinstance(n.func, _skip_ast.Attribute)
+                and n.func.attr in ("append", "extend")
+                and isinstance(n.func.value, _skip_ast.Name)
+                and n.func.value.id == name
+                and n.lineno < before_line
+            ):
+                return True
+        return False
+
+    skip_gaps: list[str] = []
+    skip_ok: list[str] = []
+    for _skip_fn in _skip_ast.walk(_skip_tree):
+        if not isinstance(_skip_fn, _skip_ast.FunctionDef):
+            continue
+        if not _skip_fn.name.endswith("_one"):
+            continue
+        _skip_lists = {
+            t.id
+            for st in _skip_ast.walk(_skip_fn)
+            if isinstance(st, (_skip_ast.Assign, _skip_ast.AnnAssign))
+            for t in (st.targets if isinstance(st, _skip_ast.Assign) else [st.target])
+            if isinstance(t, _skip_ast.Name) and "gap" in t.id.lower()
+        }
+        if not _skip_lists:
+            continue
+        _skip_bad = []
+        for _skip_node in _skip_ast.walk(_skip_fn):
+            for _skip_field in ("body", "orelse", "finalbody"):
+                _skip_block = getattr(_skip_node, _skip_field, None)
+                if not isinstance(_skip_block, list):
+                    continue
+                for _skip_st in _skip_block:
+                    if (
+                        isinstance(_skip_st, _skip_ast.Return)
+                        and isinstance(_skip_st.value, _skip_ast.Name)
+                        and _skip_st.value.id in _skip_lists
+                        and not _skip_fills(
+                            _skip_fn, _skip_st.value.id, _skip_st.lineno
+                        )
+                    ):
+                        _skip_bad.append(_skip_st.lineno)
+        if _skip_bad:
+            skip_gaps.append(
+                f"{_skip_fn.name}: L{_skip_bad[0]} が何も記録せずに gaps を返す"
+                "（測っていないものが合格に数えられる）"
+            )
+        else:
+            skip_ok.append(_skip_fn.name)
+    c.add(
+        "judge_never_passes_what_it_skipped",
+        "測れなかったものを合格にしない束ね判定器",
+        float(len(skip_ok)) if not skip_gaps else 0.0,
+        unit="worker",
+        detail=(
+            "; ".join(skip_gaps)
+            if skip_gaps
+            else "**C-1755 の欠陥の形そのものを AST で禁じる**——束ねた worker が"
+            "「この型は測れない」を **gaps 空**で返すと、呼び出し側の"
+            "`if said: … else: ok.append(key)` が**合格に数える**。"
+            "当時 2 計器が「10 型を実走行」と称して 7 型しか駆動していなかった。"
+            "**既存の番人は機構 1 つ（自分が持っていない list への append）だけを禁じており、"
+            "形そのもの＝自分の gaps に何も入れずに返す枝は素通りだった**。"
+            "**関数末尾の return は数えない**（成功路は空で正しい）——"
+            "**途中の枝だけ**を見る。**実測 2026-09-13**: 該当 7 件のうち"
+            "**5 件は健全**（直前で append 済み）、**2 件が罠**——"
+            "`_ink_one` が表に無い型を空で返して合格に数えさせ、"
+            "`_tune_one` の早期 return は**外側の共有 list を見ていたので常に偽**"
+            "（C-1755 で list を自前に移した時の取り残し）。"
+            "**読み方は既存の C-1755 番人と同じ AST 走査**なので規則が分岐しない"
         ),
         kind=OUTCOME,
     )
