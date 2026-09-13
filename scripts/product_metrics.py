@@ -2093,6 +2093,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1762: the CLI names "no citations = nothing indexed / ingestion has not
+    # run", but the web UI render() returned silently on no citations, so a
+    # browser reader saw a bare, ungrounded answer with no sign of it. render()
+    # now shows the same note in the sources region (the CLI->web parity).
+    from sidra_ai.evals.ui_discloses_missing_grounding import (
+        evaluate_ui_discloses_missing_grounding,
+    )
+
+    missing_grounding = evaluate_ui_discloses_missing_grounding()
+    c.add(
+        "ui_discloses_missing_grounding",
+        "web UI が「引用なし＝索引に根拠が無い/取り込み未実行」を明示する（CLI パリティ）",
+        10.0 * missing_grounding.checks_passed / missing_grounding.checks_total,
+        detail=f"{missing_grounding.checks_passed}/{missing_grounding.checks_total} checks; "
+               "src/sidra_ai/evals/ui_discloses_missing_grounding.py"
+               + ("" if missing_grounding.passed else "; " + "; ".join(missing_grounding.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

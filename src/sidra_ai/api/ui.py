@@ -242,7 +242,23 @@ ASK_PAGE = """<!doctype html>
     }
     clear(sources);
     var citations = result.citations || [];
-    if (!citations.length) { return; }
+    if (!citations.length) {
+      // No indexed grounding to cite. Say so rather than show a bare answer -
+      // the same note the CLI prints (ask_cli._print_citations, C-1762).
+      // Guarded like the CLI's note_when_empty: not for refusals (handled
+      // above) and not for creation turns, which never cite. So a new user
+      // asking before ingesting sees "nothing is indexed yet" instead of
+      // trusting an ungrounded reply. Text only; it rides the sources region,
+      // not the status line the truncation notice uses, so the two never clash.
+      var creationOutcome = (result.creation || {}).outcome;
+      if (!result.refused && !creationOutcome) {
+        var note = document.createElement("p");
+        note.className = "note";
+        note.textContent = "\u5f15\u7528\u306a\u3057\u3002\u7d22\u5f15\u306b\u6839\u62e0\u304c\u7121\u3044\u304b\u3001\u53d6\u308a\u8fbc\u307f\u304c\u307e\u3060\u8d70\u3063\u3066\u3044\u306a\u3044\u3002";
+        sources.appendChild(note);
+      }
+      return;
+    }
     var heading = document.createElement("p");
     heading.className = "note";
     heading.textContent = "\u51fa\u5178";
