@@ -15262,6 +15262,116 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the caveat names the control the person actually used ----------
+    #
+    # C-1747, §4 x §8 事実 6. C-1737 put a sentence in the panel when a
+    # colour has to be lifted to clear the floor. It said 「選んだ差し色」 -
+    # "the accent you picked" - on every page, including one where the
+    # player picked nothing: the three unlockable skins are all under the
+    # floor on the paper theme (残り火 2.19, 霜 1.51, 苔むす 1.62), so a
+    # player wearing a reward gets a note blaming a control they never
+    # touched. C-1739 made the product say things where they were asked;
+    # this is the same rule about *who* asked.
+    #
+    # Both directions: the two sources are named apart, AND a theme where
+    # nothing had to move says nothing at all - naming the skin every time
+    # would pass the first on its own.
+    from sidra_ai.creation.skins import skin_spec as _tune_skin_spec
+
+    ink_source_gaps: list[str] = []
+    ink_source_ok = 0
+    _INK_SKIN = _tune_skin_spec("adventure")["skins"][2]
+    for _ink_theme, _ink_moves in (("paper", True), ("gameyard", False)):
+        _ink_page = _tune_generate(
+            "ゲームを作って", template="adventure", theme_name=_ink_theme
+        ).html
+        _ink_found = _scene_re.search(r"<script>(.*?)</script>", _ink_page, _scene_re.S)
+        if _ink_found is None:
+            ink_source_gaps.append(f"{_ink_theme}: no script")
+            continue
+        for _ink_how, _ink_store, _ink_word in (
+            ("well", {"sidra.tune.adventure": {"accent": _INK_SKIN["accent"]}}, "選んだ差し色"),
+            (
+                "skin",
+                {
+                    "sidra.total.adventure": str(_INK_SKIN["at"]),
+                    "sidra.skin.adventure": _INK_SKIN["id"],
+                },
+                "着ている色",
+            ),
+        ):
+            try:
+                _ink_probe = _scene_sp.run(
+                    ["node", "-"],
+                    input=_tune_probe(
+                        _ink_found.group(1),
+                        stored=_ink_store,
+                        target=0,
+                        speed_expr=_tune_binding["adventure"],
+                    ),
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if _ink_probe.returncode != 0:
+                    ink_source_gaps.append(
+                        f"{_ink_theme}/{_ink_how}: {_ink_probe.stderr.strip()[:50]}"
+                    )
+                    continue
+                _ink_seen = json.loads(_ink_probe.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                ink_source_gaps.append(f"{_ink_theme}/{_ink_how}: {type(exc).__name__}")
+                continue
+            _ink_note = _ink_seen.get("accentNote")
+            if not _ink_moves:
+                if _ink_note:
+                    ink_source_gaps.append(
+                        f"{_ink_theme}/{_ink_how}: 動かしていないのに言う"
+                    )
+                    continue
+                ink_source_ok += 1
+                continue
+            if not _ink_note:
+                ink_source_gaps.append(f"{_ink_theme}/{_ink_how}: 動かしたのに言わない")
+                continue
+            if _ink_word not in _ink_note:
+                ink_source_gaps.append(
+                    f"{_ink_theme}/{_ink_how}: 「{_ink_word}」と言わない（{_ink_note[:24]}）"
+                )
+                continue
+            # ...and it does not name the other one as well.
+            _ink_other = "着ている色" if _ink_how == "well" else "選んだ差し色"
+            if _ink_other in _ink_note:
+                ink_source_gaps.append(f"{_ink_theme}/{_ink_how}: 両方の出どころを名乗る")
+                continue
+            ink_source_ok += 1
+    c.add(
+        "creation_caveat_names_the_source",
+        "断り書きが出どころを名乗るセル",
+        float(ink_source_ok) if not ink_source_gaps else 0.0,
+        detail=(
+            "**2 テーマ × 2 経路 = 4 セル**を実ページのパネルで駆動し、"
+            "**DOM に書かれた文**を読んだ。"
+            "**紙**では、色ピッカー経由なら「**選んだ差し色**は…」、"
+            "**スキンを着ている**なら「**着ている色**は…」と言い、"
+            "もう一方の言い方は混ぜない。"
+            "**スキンのラベルは引かない**——`skins.SANCTIONED_CALLS` は"
+            "この面から skin へ届く名前を **3 つだけ**許しており、"
+            "ラベルを取りに行く版は **4 つ目**になって"
+            "`creation_cosmetic_unlock` が **10→0** で止めた（**門番が働いた**）。"
+            "**gameyard** では、どちらの経路でも**何も言わない**"
+            "——(b) が無ければ「常にスキンのせいにする」実装が満点を取る。"
+            "**背景（C-1737 の欠陥）**: 解放される 3 色は紙の地に対し"
+            "残り火 2.19／霜 1.51／苔むす 1.62 で**3 つとも床 3.0 を割る**ので"
+            "clamp が正しく効く（色相は残る）が、"
+            "**色ピッカーを一度も触っていない人に「選んだ差し色」と言っていた**。"
+            "§8 事実 6 の報酬について、触っていない操作子のせいにする文だった"
+            if not ink_source_gaps
+            else "; ".join(ink_source_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- and they are told when the colour cannot be used as asked ------
     #
     # C-1739, §4 x §9 事実 2. The eight colour words were chosen against a

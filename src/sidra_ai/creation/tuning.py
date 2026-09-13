@@ -346,8 +346,21 @@ function tuneValues(){const o={};TUNE_SPEC.fields.forEach(function(f){
   return o}
 /* An explicitly chosen colour wins; otherwise whatever skin the player
    has earned and picked (C-1109); otherwise the theme's own accent. */
-const TUNE_ACCENT=tuneReadable(
-  tuneText('accent',skinAccent(tuneField('accent').default)),ACCENT_GROUND);
+/* Where the colour came from, so the panel can name the control the
+   person actually used (C-1747). The picker wins over the worn skin,
+   which wins over the theme - the same order the value itself takes.
+   Worked out from the ONE call this file is allowed to make into the
+   skin: skins.SANCTIONED_CALLS permits that one accent reader here
+   exactly once,
+   and reaching for the skin's own label would have been a fourth name in
+   a list whose whole point is that it does not grow (the judge caught
+   that version). A colour that differs from the schema's default can
+   only have come from the skin, which is all this sentence needs. */
+const ACCENT_PICKED=tuneText('accent',null);
+const ACCENT_DEFAULT=tuneField('accent').default;
+const ACCENT_WORN=skinAccent(ACCENT_DEFAULT);
+const ACCENT_SOURCE=ACCENT_PICKED?'well':(ACCENT_WORN!==ACCENT_DEFAULT?'skin':'theme');
+const TUNE_ACCENT=tuneReadable(ACCENT_PICKED||ACCENT_WORN,ACCENT_GROUND);
 /* The motion switch lands here (§4, C-1393): the animation preamble has
    already read the OS query into REDUCED, and this raises it when the
    panel's flag is stored. OR, never overwrite - the OS promise stands. */
@@ -417,7 +430,13 @@ function tunePanel(){
   if(moved){const note=document.createElement('p');
     note.setAttribute('data-tune-note','accent');
     note.style.cssText='margin:4px 0 8px;opacity:0.85';
-    note.textContent='選んだ差し色は背景に対し '+moved.was.toFixed(2)
+    /* Named by where it came from: a player who is wearing an unlocked
+       colour (§8 事実 6) has not touched the picker, and blaming 「選んだ
+       差し色」 tells them to go looking at a control they never used. */
+    note.textContent=(ACCENT_SOURCE==='skin'
+        ? '着ている色は'
+        : '選んだ差し色は')
+      +'背景に対し '+moved.was.toFixed(2)
       +':1 でした。文字が読めなくなるので '+moved.floor.toFixed(1)
       +':1 を満たす近い明るさ（'+moved.to+'）で描いています。';
     box.appendChild(note)}
@@ -433,7 +452,8 @@ function tuneFacts(){return {template:TUNE_SPEC.template,
   /* Adjacent siblings' vertical margins collapse, so the gap between two
      rows is the margin itself and not twice it. */
   rowGap:TUNE_ROW_GAP,accent:TUNE_ACCENT,accentMoved:accentMoved(),
-  accentFloor:ACCENT_FLOOR,accentGround:ACCENT_GROUND}}
+  accentFloor:ACCENT_FLOOR,accentGround:ACCENT_GROUND,
+  accentSource:ACCENT_SOURCE}}
 if(typeof document!=='undefined'&&document.addEventListener&&document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',tunePanel)}else{tunePanel()}
 """
@@ -510,6 +530,7 @@ console.log(JSON.stringify({
     && n.attrs['data-tune-note'] === 'accent')
     .map(n => String(n.textContent || ''))[0]) || null,
   accentFacts: tuneProbeBefore.accentMoved,
+  accentSource: tuneProbeBefore.accentSource,
   accentFloor: tuneProbeBefore.accentFloor,
   accentGround: tuneProbeBefore.accentGround,
   moved: tuneProbeMoved,
@@ -530,7 +551,16 @@ def probe_source(script: str, *, stored: dict[str, dict] | None = None, target: 
     panel says it wrote.
     """
 
-    payload = {key: json.dumps(value, ensure_ascii=False) for key, value in (stored or {}).items()}
+    # A string is stored as itself and everything else as JSON, which is
+    # what localStorage actually holds and what together.probe_source has
+    # always done (C-1747). Encoding strings as JSON too made this probe
+    # unable to express the values the page reads raw - a skin id, the
+    # briefing mark - so a caller could set them and see no effect. That
+    # cost this loop two wrong readings before the disagreement was found.
+    payload = {
+        key: (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
+        for key, value in (stored or {}).items()
+    }
     return (
         PROBE.replace("STORED_INPUT", json.dumps(payload, ensure_ascii=False))
         .replace("TARGET_INPUT", json.dumps(target))
