@@ -11523,6 +11523,137 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a said line can be read back after its timer (§30 事実 1, C-1776)
+    #
+    # C-1395 above made every message stay long enough to READ at 4
+    # characters a second. §30 事実 1 asks for something the frame count
+    # cannot give: 「Allow players to progress through text prompts at
+    # their own pace」 - the reader's pace, not a good guess at it.
+    #
+    # For most of these lines the timer costs nothing: the line repeats
+    # when the action does, and the standing facts (gems, key, charm,
+    # room) are on the HUD, which never expires. The census found one line
+    # that is neither, and it is the one a run turns on. Adventure's stone
+    # names the knock order for THIS run - KORDER is shuffled per seed, so
+    # no briefing can carry it - and the stone stands in the forest
+    # (forest[2][6]) while the three marks it speaks of are in the cave
+    # (cave[6][4,9,14]). Crossing between them says the room's name, which
+    # overwrites the order before it can be used, and re-reading it is a
+    # walk back through the roamers. That is a line whose reading speed
+    # costs hearts.
+    #
+    # So the pause screen keeps the last three lines, and this is driven
+    # rather than read: the probe says one of the page's own literals,
+    # runs the page's own msgT to zero, proves the words are off the
+    # playing screen, and only then presses P. "Readable on pause" cannot
+    # be satisfied here by the message simply still being up.
+    from sidra_ai.creation.startscreen import reread_probe_source as _rr_probe
+    from sidra_ai.creation.games import TEMPLATES as _RR_TEMPLATES
+
+    _rr_keys = tuple(sorted(_RR_TEMPLATES))
+
+    def _rr_one(key: str):
+        page = generate_game("ゲームを作って", template=key).html
+        m = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if m is None:
+            return key, None, "no script"
+        lits = sorted(
+            set(_scene_re.findall(r"say\('([^']+)'\)", m.group(1))),
+            key=len,
+            reverse=True,
+        )
+        if not lits:
+            # Not a failure: eight of the ten templates never speak, and a
+            # metric that counted them as broken would be counting silence.
+            return key, None, None
+        try:
+            run = _scene_sp.run(
+                ["node", "-"],
+                input=_rr_probe(m.group(1), line=lits[0], lines=tuple(lits[:3])),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if run.returncode != 0:
+                raise ValueError(run.stderr.strip()[:60])
+            return key, json.loads(run.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return key, None, f"probe unavailable ({exc})"
+
+    rr_gaps: list[str] = []
+    rr_spoke: list[str] = []
+    rr_silent: list[str] = []
+    for _rr_key, _rr, _rr_why in in_parallel(
+        [(lambda k=key: _rr_one(k)) for key in _rr_keys]
+    ):
+        if _rr_why is not None:
+            rr_gaps.append(f"{_rr_key}: {_rr_why}")
+            continue
+        if _rr is None:
+            rr_silent.append(_rr_key)
+            continue
+        rr_spoke.append(_rr_key)
+        # The probe's own validity first: if the message never expired, or
+        # is still on the screen, "re-readable" would be measuring nothing.
+        if not _rr.get("expired") or _rr.get("upAfterExpiry"):
+            rr_gaps.append(f"{_rr_key}: the line never left the screen")
+            continue
+        if not _rr.get("upWhileTiming"):
+            rr_gaps.append(f"{_rr_key}: the line was never on the screen")
+            continue
+        if not _rr.get("onPause"):
+            rr_gaps.append(f"{_rr_key}: 一時停止で読み返せない")
+        if _rr.get("onResumed"):
+            rr_gaps.append(f"{_rr_key}: the drawer is drawn over the game")
+        if _rr.get("fullShown") != _rr.get("fullKept"):
+            rr_gaps.append(
+                f"{_rr_key}: {_rr.get('fullShown')} of {_rr.get('fullKept')} "
+                "kept lines are drawn"
+            )
+        if not (
+            _rr.get("capHolds")
+            and _rr.get("oldestDropped")
+            and _rr.get("newestHeld")
+        ):
+            rr_gaps.append(f"{_rr_key}: the drawer's cap does not hold")
+        if not _rr.get("repeatsCollapse"):
+            rr_gaps.append(f"{_rr_key}: a repeated line is banked twice")
+        if not _rr.get("forgotDemo"):
+            rr_gaps.append(
+                f"{_rr_key}: the demo's {_rr.get('demoSaid')} lines are "
+                "still in the drawer"
+            )
+        if not (_rr.get("belowBrief") and _rr.get("aboveExit")):
+            rr_gaps.append(f"{_rr_key}: the drawer sits over the briefing or the way out")
+        if not (
+            _rr.get("longClipped")
+            and _rr.get("longAboveExit")
+            and _rr.get("longExitShown")
+        ):
+            rr_gaps.append(f"{_rr_key}: an overlong line is not cut above the way out")
+    if not rr_spoke:
+        rr_gaps.append("no template spoke at all")
+    c.add(
+        "creation_said_text_is_rereadable",
+        "言った文字が一時停止で読み返せる（実表示）",
+        0.0 if rr_gaps else 2.0,
+        detail=(
+            "; ".join(rr_gaps)
+            if rr_gaps
+            else f"{'/'.join(rr_spoke)} の実ページで、頁自身の say() 文言を"
+            "頁自身の msgT が 0 になるまで実描画して画面から消えたことを"
+            "確認した後 P を押し、一時停止画面に同じ文言が実描画される"
+            "（§30 事実 1「Allow players to progress through text prompts "
+            "at their own pace」・gameaccessibilityguidelines.com）。"
+            "直近 3 行・重複は 1 行に畳む・デモの言葉は開始時に破棄・"
+            "説明表の下から「つづける」の上までで打ち切り（規定外の長文"
+            "12 行を 3 行で切って実測）。"
+            f"say() を持たない {len(rr_silent)} 型"
+            f"（{'/'.join(rr_silent)}）は対象外"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the sound comes from where it happened (§2 増築, C-1394) -------
     #
     # All twelve voices played dead centre while the screen always had a

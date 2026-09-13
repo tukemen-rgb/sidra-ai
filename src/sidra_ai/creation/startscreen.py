@@ -36,6 +36,10 @@ PREAMBLE_NAMES: tuple[str, ...] = (
     "gateFrames",
     "gateBrief",
     "gateBriefTable",
+    "gateSaid",
+    "gateSaidLines",
+    "gateSaidForget",
+    "gateSaidTable",
     "gateSkipped",
     "gateSeen",
     "gateGesture",
@@ -191,6 +195,7 @@ function attractOn(){return ATTRACT_WIRED&&GATE==='title'}
 function attractRewind(){if(!ATTRACT_WIRED)return;
   try{ATTRACT_RESET_TOKEN}catch(e){}
   try{ghostForget()}catch(e){}
+  try{gateSaidForget()}catch(e){}
   try{failBeatsReset()}catch(e){}
   try{grazeReset()}catch(e){}
   try{comboMiss()}catch(e){}}
@@ -207,6 +212,35 @@ function gateStart(){if(GATE==='playing')return;
   GATE='playing';gateRemember();gateGesture()}
 function gateTogglePause(){if(GATE==='title')return;
   GATE=GATE==='paused'?'playing':'paused'}
+/* --- what the page just said (§30 事実 1, C-1776) --------------------- */
+/* say() writes one line over the last one and takes it away on a timer,
+   so every word a template speaks is on a clock the player does not hold.
+   §30 事実 1 asks for the opposite: text at the reader's pace. For most
+   of these lines the clock costs nothing - the line repeats when the
+   action does, and the standing facts (gems, key, charm, room) are on the
+   HUD, which never expires. One line is neither. Adventure's stone names
+   the knock order for THIS run - KORDER is shuffled per seed, so no
+   briefing can carry it - and the stone stands in the forest while the
+   marks it speaks of are in the cave. Crossing the rooms says the room's
+   name, which overwrites the order before it can ever be used, and
+   re-reading it is a walk back through the roamers. That is a line whose
+   reading speed costs hearts.
+   So the recent lines are kept and the pause screen shows them: pause is
+   already the one place that answers "what was the key again?" (C-1442),
+   and it is the screen a player reaches for when they need a moment.
+   Three, and three stored - the drawer shows every line it holds, because
+   a log with hidden entries is a log that lies about what it kept. Three
+   is what the walk from the stone to the marks needs: the room's name and
+   one hit, with the stone still first. Repeats collapse, so a second
+   「いたい。」 cannot push the stone out. Nothing else is filtered: the
+   page decides what it says, and a log that guesses which lines mattered
+   is a log that drops the one that did. */
+const GSAID_KEEP=3;let GSAID=[];
+function gateSaid(t){const line=String(t==null?'':t);if(!line)return;
+  if(GSAID[GSAID.length-1]===line)return;
+  GSAID.push(line);while(GSAID.length>GSAID_KEEP)GSAID.shift()}
+function gateSaidLines(){return GSAID.slice()}
+function gateSaidForget(){GSAID=[]}
 /* Second visit onward, the briefing is not news. It is skipped before the
    first frame - so there is nothing to press through - unless the player
    asked to see it every time in 調整. The first visit is never skipped:
@@ -258,7 +292,28 @@ function gateBriefTable(c,W,H){
       gateWrap(line,30).forEach((part,j)=>{c.fillText(part,W/2-140,y+j*18)});
       y+=gateWrap(line,30).length*18+10});
     c.textAlign='center'}
-  else{gateWrap(GHOW,34).forEach((line,i)=>{c.fillText(line,W/2,H/2-18+i*20)})}}
+  else{gateWrap(GHOW,34).forEach((line,i)=>{c.fillText(line,W/2,H/2-18+i*20)});
+    y=H/2-18+gateWrap(GHOW,34).length*20}
+  /* Where the briefing stopped, so whatever comes next starts below it
+     instead of at a literal somebody has to keep in step with it. */
+  return y}
+/* The lines the page said lately, on the pause screen only (§30 事実 1,
+   C-1776). Not on the title: nothing has been said yet, and a heading
+   over an empty drawer is worse than no drawer. Laid out in the
+   briefing's own two columns from the y the briefing itself ended at, so
+   the two blocks cannot overlap whatever the briefing wraps to, and the
+   walk stops before the 「つづける」 line rather than writing over it -
+   the way out must never be the thing that gets covered. */
+function gateSaidTable(c,W,H,y){
+  const said=gateSaidLines();if(!said.length)return y;
+  c.textAlign='left';
+  c.fillStyle='CYAN_TOKEN';c.font=hudPx(13)+'px ui-monospace,monospace';
+  c.fillText('直前',W/2-190,y);
+  c.fillStyle='INK_TOKEN';c.font=hudPx(13)+'px ui-monospace,monospace';
+  said.forEach(line=>{
+    gateWrap(line,30).forEach(part=>{
+      if(y<=H-64){c.fillText(part,W/2-140,y);y+=16}})});
+  c.textAlign='center';return y}
 function drawGate(){if(!GCV||GATE==='playing')return;
   const c=GCV.getContext('2d'),W=GCV.width,H=GCV.height;
   c.save();
@@ -271,7 +326,8 @@ function drawGate(){if(!GCV||GATE==='playing')return;
   c.font=hudPx(22)+'px ui-monospace,monospace';
   c.fillText(GATE==='title'?GTITLE:'一時停止',W/2,H/2-54);
   c.font=hudPx(13)+'px ui-monospace,monospace';
-  gateBriefTable(c,W,H);
+  const briefEnd=gateBriefTable(c,W,H);
+  if(GATE==='paused')gateSaidTable(c,W,H,briefEnd);
   c.font=hudPx(15)+'px ui-monospace,monospace';
   c.fillText(GATE==='title'?'タップ / SPACE ではじめる':'タップ / SPACE でつづける',
     W/2,H-46);
@@ -409,6 +465,179 @@ def pause_probe_source(script: str, *, store: dict[str, str] | None = None) -> s
     )
 
 
+#: A line the page said, read back after its own timer took it away
+#: (§30 事実 1, C-1776).
+#:
+#: The whole claim is about a message that is GONE: the probe drives the
+#: page's own ``say()`` with the page's own literal, runs frames until
+#: ``msgT`` reaches zero, checks the words are really off the playing
+#: screen, and only then presses P. So "readable on pause" cannot be
+#: satisfied by the message simply still being up.
+#:
+#: ``rr`` prefixes throughout, for PAUSE_PROBE's reason: a name the
+#: templates already use at the top level does not shadow here, it stops
+#: the page parsing.
+REREAD_PROBE = KEY_EVENT_JS + """
+const rrNothing = new Proxy(function(){}, {
+  get: (t,k)=>(k===Symbol.toPrimitive?()=>0:rrNothing), apply:()=>rrNothing, set:()=>true });
+globalThis.matchMedia = () => ({ matches: false });
+let rrClock = 0; globalThis.performance = { now: () => rrClock };
+const rrKeys = [];
+globalThis.addEventListener = (type, fn) => { if (type === 'keydown') rrKeys.push(fn) };
+globalThis.Image = function(){ return rrNothing };
+const rrStore = {};
+globalThis.localStorage = { getItem:k=>k in rrStore?rrStore[k]:null,
+  setItem:(k,v)=>{rrStore[k]=String(v)}, removeItem:k=>{delete rrStore[k]} };
+let rrDrawn = [], rrAt = [];
+/* Where, as well as what: the drawer's promise is partly a layout one -
+   it must start below the briefing and stop above the way out - and a
+   list of strings cannot say whether two blocks were written over each
+   other. */
+const rrCtx = new Proxy({ fillText: (t,x,y)=>{ rrDrawn.push(String(t));
+    rrAt.push([String(t), x, y]) } },
+  { get:(t,k)=>(k in t?t[k]:(k===Symbol.toPrimitive?()=>0:rrNothing)), set:()=>true });
+globalThis.document = { readyState:'complete', body:{children:[]},
+  createElement:()=>rrNothing, querySelector:()=>null,
+  getElementById:()=>({ width:720, height:320, style:{}, addEventListener:()=>{},
+    getBoundingClientRect:()=>({left:0,top:0,width:720,height:320}), getContext:()=>rrCtx }) };
+globalThis.location = { reload: () => {} };
+let rrQueued = null;
+globalThis.requestAnimationFrame = (fn) => { rrQueued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+/* A press, dispatched the way the DOM dispatches one. The shared
+   probeKey stubs stopImmediatePropagation as a no-op on purpose - a probe
+   that omitted it would throw - and every other probe hands the same event
+   to every listener regardless. Here that would measure the harness
+   instead of the page: the gate's capture listener swallows the first
+   press, so a template that ALSO sees it does something no player can
+   make it do (the space that opens adventure's title also swung the sword
+   and cut the grass, which put a line in the drawer the demo never said).
+   The stub is left alone - it is shared - and the dispatch rule is honoured
+   here, where the claim depends on it. */
+function rrKey(k){ const e = probeKey(k); let rrStop = false;
+  const rrSip = e.stopImmediatePropagation;
+  e.stopImmediatePropagation = function(){ rrStop = true;
+    if (rrSip) rrSip.call(e) };
+  for (const fn of rrKeys) { fn(e); if (rrStop) break } }
+function rrStep(n){ for(let i=0;i<n && rrQueued;i++){
+  const fn=rrQueued; rrQueued=null; rrClock+=16; fn(rrClock) } }
+function rrFrame(n){ rrDrawn=[]; rrAt=[]; rrStep(n===undefined?3:n);
+  return rrDrawn.slice() }
+/* The y of every row whose text is one of `want`, from the last frame. */
+function rrRows(want){ return rrAt.filter(r=>want.indexOf(r[0])>=0).map(r=>r[2]) }
+const rrSays = typeof say === 'function';
+const rrOut = { says: rrSays };
+if (rrSays) {
+  /* The demo behind the title, given time to speak (§17). Without these
+     frames the attract loop never runs and "the demo's words are not the
+     player's" is a claim about nothing. */
+  rrStep(240);
+  rrOut.demoSaid = gateSaidLines().length;
+  /* Past the title, so the gate is 'playing' and the template is running. */
+  rrKey(' '); rrStep(8);
+  /* A demo's words are the demo's: whatever the attract loop said behind
+     the title must not be waiting on the player's pause screen. */
+  rrOut.forgotDemo = gateSaidLines().length === 0;
+  const rrLine = LINE_PLACEHOLDER;
+  say(rrLine);
+  rrOut.upWhileTiming = rrFrame().indexOf(rrLine) >= 0;
+  /* Run the message's own timer out. The page decides how long that is. */
+  let rrGuard = 0;
+  while (msgT > 0 && rrGuard++ < 6000) { rrStep(1) }
+  rrOut.expired = msgT <= 0;
+  rrOut.upAfterExpiry = rrFrame().indexOf(rrLine) >= 0;
+  /* Only now is there anything to read back. */
+  rrKey('p'); rrStep(3);
+  const rrPaused = rrFrame();
+  rrOut.gate = gateState();
+  rrOut.onPause = rrPaused.indexOf(rrLine) >= 0;
+  rrOut.pauseHeading = rrPaused.indexOf('一時停止') >= 0;
+  rrOut.drawnOnPause = gateSaidLines().filter(l => rrPaused.indexOf(l) >= 0).length;
+  rrOut.kept = gateSaidLines().length;
+  /* Back to play: the drawer belongs to the paused screen. */
+  rrKey('p'); rrStep(3);
+  rrOut.onResumed = rrFrame().indexOf(rrLine) >= 0;
+  /* The cap is real, and it is the oldest that goes. */
+  const rrExtra = [];
+  for (let i = 0; i < GSAID_KEEP + 1; i++) { rrExtra.push('probe-line-' + i); say(rrExtra[i]) }
+  const rrHeld = gateSaidLines();
+  rrOut.capHolds = rrHeld.length === GSAID_KEEP;
+  rrOut.oldestDropped = rrHeld.indexOf(rrExtra[0]) < 0;
+  rrOut.newestHeld = rrHeld.indexOf(rrExtra[rrExtra.length - 1]) >= 0;
+  /* A line repeated is one line: a run of the same words must not push
+     out the line that mattered. */
+  gateSaidForget(); say('probe-same'); say('probe-same'); say('probe-same');
+  rrOut.repeatsCollapse = gateSaidLines().length === 1;
+  rrOut.keep = GSAID_KEEP;
+  /* A full drawer, in the page's own longest words, drawn on the page's
+     own canvas: the drawer's promise is that it shows every line it
+     holds, and the only thing that can break that is the room between
+     the briefing and the way out. Counted as whole lines - every part a
+     wrap produces has to be on the screen, or the line is cut, not shown. */
+  gateSaidForget();
+  LINES_PLACEHOLDER.forEach(l => say(l));
+  rrKey('p'); rrStep(3);
+  /* One frame, so a row count is a row count and not three of them. */
+  const rrFull = rrFrame(1);
+  rrOut.fullKept = gateSaidLines().length;
+  rrOut.fullShown = gateSaidLines().filter(l =>
+    gateWrap(l, 30).every(part => rrFull.indexOf(part) >= 0)).length;
+  /* ...and where it sits. A full drawer must start below the briefing
+     and stop above the way out; both blocks are on one 320px canvas, so
+     this is the measurement that says the drawer did not write over the
+     three lines pause exists to show or over 「つづける」 itself. */
+  const rrSaidRows = rrRows(gateSaidLines().reduce(
+    (all,l)=>all.concat(gateWrap(l,30)), ['直前']));
+  const rrBriefRows = rrRows((GBRIEF||[]).reduce(
+    (all,l)=>all.concat(gateWrap(l,30)), ['目標','操作','敵']));
+  rrOut.exitShown = rrFull.indexOf('タップ / SPACE でつづける') >= 0;
+  rrOut.drawerRows = rrSaidRows.length;
+  rrOut.belowBrief = rrBriefRows.length > 0 && rrSaidRows.length > 0
+    && Math.min.apply(null, rrSaidRows) > Math.max.apply(null, rrBriefRows);
+  rrOut.aboveExit = rrSaidRows.length > 0
+    && Math.max.apply(null, rrSaidRows) <= 320 - 64;
+  /* Longer than any line these pages say today, which is the point: the
+     drawer's stop is a guard, and a guard nothing reaches is a guard
+     nobody has checked. Three of these wrap to more rows than the band
+     between the briefing and 「つづける」 has room for, so the walk must
+     cut them - and every row it did draw must still be above the way out.
+     The words are the probe's, never the page's: a page literal long
+     enough to do this does not exist. */
+  gateSaidForget();
+  const rrLong = ['長い行の一', '長い行の二', '長い行の三'].map(
+    (tag,i)=>tag + '。' + 'あいうえおかきくけこ'.repeat(9));
+  rrLong.forEach(l => say(l));
+  const rrLongFrame = rrFrame(1);
+  const rrWanted = gateSaidLines().reduce((n,l)=>n + gateWrap(l,30).length, 0);
+  const rrLongRows = rrRows(gateSaidLines().reduce(
+    (all,l)=>all.concat(gateWrap(l,30)), []));
+  rrOut.longWanted = rrWanted;
+  rrOut.longDrawn = rrLongRows.length;
+  rrOut.longClipped = rrLongRows.length < rrWanted;
+  rrOut.longAboveExit = rrLongRows.length > 0
+    && Math.max.apply(null, rrLongRows) <= 320 - 64;
+  rrOut.longExitShown = rrLongFrame.indexOf('タップ / SPACE でつづける') >= 0;
+}
+console.log(JSON.stringify(rrOut));
+"""
+
+
+def reread_probe_source(
+    script: str, *, line: str, lines: tuple[str, ...] = ()
+) -> str:
+    """The page driven so one of its own said lines expires, then paused.
+
+    ``line`` is the one whose timer is run out and read back; ``lines``
+    fills the drawer, to see whether a full one is drawn whole.
+    """
+
+    return (
+        REREAD_PROBE.replace("SCRIPT_PLACEHOLDER", script)
+        .replace("LINE_PLACEHOLDER", json.dumps(line, ensure_ascii=False))
+        .replace("LINES_PLACEHOLDER", json.dumps(list(lines), ensure_ascii=False))
+    )
+
+
 def probe_source(script: str) -> str:
     """The page's own script, wrapped so the gate can be pressed in node."""
 
@@ -536,6 +765,8 @@ __all__ = [
     "PROBE",
     "START_PROBE",
     "pause_probe_source",
+    "REREAD_PROBE",
+    "reread_probe_source",
     "probe_source",
     "start_probe_source",
 ]

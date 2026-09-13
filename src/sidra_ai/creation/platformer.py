@@ -208,7 +208,11 @@ function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;TRAIL=[];
   say('足場を渡って、旗まで。')}
 /* Long enough to READ (§4 増築, C-1395): 15 frames a character = the
    4 chars/second subtitle standard; the old 150 stays as the floor. */
-function say(t){msg=t;msgT=Math.max(150,Math.round(t.length*15))}
+/* ...and kept, so the pause screen can hand it back after the timer has
+   taken it away (§30 事実 1, C-1776). Guarded: the gate is prepended to
+   the page, but this template's own probes run the script without it. */
+function say(t){msg=t;msgT=Math.max(150,Math.round(t.length*15));
+  try{if(typeof gateSaid==='function')gateSaid(t)}catch(e){}}
 /* The face, as a fact: which way the eyes point, whether they are lifted
    by the rise, and whether this frame is the blink (§1, C-1348). */
 function faceFacts(){return {look:me.look,up:me.vy<-1,

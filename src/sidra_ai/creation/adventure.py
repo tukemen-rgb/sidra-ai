@@ -158,7 +158,11 @@ function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRST
    door hint out at 9.4/s. Fifteen frames a character IS 4/s at 60fps;
    the old 140 stays as the floor, so anything nine characters or under
    is bit-identical to what it always was. */
-function say(t){msg=t;msgT=Math.max(140,Math.round(t.length*15))}
+/* ...and kept, so the pause screen can hand it back after the timer has
+   taken it away (§30 事実 1, C-1776). Guarded: the gate is prepended to
+   the page, but this template's own probes run the script without it. */
+function say(t){msg=t;msgT=Math.max(140,Math.round(t.length*15));
+  try{if(typeof gateSaid==='function')gateSaid(t)}catch(e){}}
 /* The face, as a fact (§1, C-1351): which way the hero faces, whether the
    eyes are visible at all - facing up is the back of the head, and a back
    has no eyes to draw - and whether this frame is the blink. Under
