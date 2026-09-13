@@ -2153,6 +2153,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1769: an unnamed creation ask ("make me something") is refused with
+    # refusal="unnamed" and a helpful buildable-options answer, but the CLI's
+    # render() map had no "unnamed" entry, so it fell to the generic "wait and
+    # retry" fallback - wrong, since retrying names nothing either. render() now
+    # names the next steps (the web UI already did; empty/ambiguous already do).
+    from sidra_ai.evals.cli_says_what_to_do_for_unnamed import (
+        evaluate_cli_says_what_to_do_for_unnamed,
+    )
+
+    unnamed_cli = evaluate_cli_says_what_to_do_for_unnamed()
+    c.add(
+        "cli_says_what_to_do_for_unnamed",
+        "sidra-ask が無名の制作依頼に次の一手を言う（待って再試行と誤誘導しない）",
+        10.0 * unnamed_cli.checks_passed / unnamed_cli.checks_total,
+        detail=f"{unnamed_cli.checks_passed}/{unnamed_cli.checks_total} checks; "
+               "src/sidra_ai/evals/cli_says_what_to_do_for_unnamed.py"
+               + ("" if unnamed_cli.passed else "; " + "; ".join(unnamed_cli.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

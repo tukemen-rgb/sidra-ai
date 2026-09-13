@@ -303,6 +303,15 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             "ambiguous": "作るのか探すのかを決められなかった。作る場合は"
                          "「レースゲームを作って」のように頼み、探す場合は"
                          "知りたいことを文にして送る。",
+            # A creation ask that names nothing: the service returns the menu of
+            # what can be built in the answer body, but the CLI does not print an
+            # answer on a refusal, so - like ambiguous - name the next step here
+            # instead of pointing at a body the reader never sees. "Wait and
+            # retry" is wrong: retrying "make me something" names nothing either
+            # (C-1769; the web UI already handles this code, C-1530).
+            "unnamed": "作るものが決まっていない。「レースゲームを作って」のように"
+                       "作りたいものを名指して頼む。リポジトリについて知りたい"
+                       "場合は、知りたいことを文にして送る。",
         }
         message = messages.get(payload.get("refusal"))
         if message is None:
