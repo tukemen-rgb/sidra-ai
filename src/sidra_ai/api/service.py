@@ -20,7 +20,11 @@ from sidra_ai.creation.copy_writer import build_copy_writer
 from sidra_ai.creation.proposer import build_param_proposer
 from sidra_ai.creation.router import CreationRouter, build_default_router
 from sidra_ai.ingestion.github_client import GitHubReadOnlyClient
-from sidra_ai.ingestion.pipeline import GitHubIngestionPipeline, IngestionReport
+from sidra_ai.ingestion.pipeline import (
+    GitHubIngestionPipeline,
+    IngestionReport,
+    snapshot_cap_reason,
+)
 from sidra_ai.ingestion.state import StateStore
 from sidra_ai.models.base import (
     GenerationRequest,
@@ -909,6 +913,11 @@ class SidraService:
             "analysis": None,
         }
 
+        # A first-run snapshot bounded to the newest N is not an error, but the
+        # corpus is deliberately partial and nothing else says so (C-1758). Name
+        # it in the human reason line; the machine detail is in ingestion.
+        cap_reason = snapshot_cap_reason(report, self.settings.max_items_per_source)
+
         if not report.requires_inference:
             # "no new commits" and "every fetch failed" both leave
             # requires_inference False, but they are opposite facts: one says
@@ -928,8 +937,14 @@ class SidraService:
                 payload["reason"] = (
                     "no new commits since the last ingestion; model not invoked"
                 )
+            if cap_reason:
+                payload["reason"] = "; ".join(
+                    part for part in (payload.get("reason", ""), cap_reason) if part
+                )
             return payload
 
+        if cap_reason:
+            payload["reason"] = cap_reason
         changed = [r.repository for r in report.repositories if r.changed]
         prompt = question or (
             "Summarize what changed in these repositories and flag anything a "

@@ -2054,6 +2054,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1758: the first-run ingestion snapshot caps commits/PRs/issues at
+    # max_items_per_source and returned the newest N silently (while the same
+    # client fails closed loudly for compare/docs). The pipeline now names the
+    # capped sources on RepositoryReport.capped_sources, to_dict surfaces them in
+    # the analyze response, and analyze_github adds a human reason line.
+    from sidra_ai.evals.ingestion_snapshot_cap_is_disclosed import (
+        evaluate_ingestion_snapshot_cap_is_disclosed,
+    )
+
+    snapshot_cap = evaluate_ingestion_snapshot_cap_is_disclosed()
+    c.add(
+        "ingestion_snapshot_cap_is_disclosed",
+        "初回取り込みが上限で打ち切ったソースを明示する（黙って部分コーパスにしない）",
+        10.0 * snapshot_cap.checks_passed / snapshot_cap.checks_total,
+        detail=f"{snapshot_cap.checks_passed}/{snapshot_cap.checks_total} checks; "
+               "src/sidra_ai/evals/ingestion_snapshot_cap_is_disclosed.py"
+               + ("" if snapshot_cap.passed else "; " + "; ".join(snapshot_cap.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

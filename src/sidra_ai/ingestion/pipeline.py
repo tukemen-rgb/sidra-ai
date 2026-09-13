@@ -189,6 +189,14 @@ class RepositoryReport:
     skipped_reason: str = ""
     error: str = ""
     findings: list[str] = field(default_factory=list)
+    # Sources whose *initial* snapshot hit ``max_items_per_source`` and were
+    # bounded to the newest N. The incremental paths fail closed loudly
+    # (github_client.compare / list_docs_paths); the first-run commit/PR/issue
+    # snapshot instead caps silently, so ``indexed`` reflects only the newest
+    # slice with no sign the corpus is partial. Naming the capped sources keeps
+    # the subset-honesty the listings (C-1680) and finding counts (C-1731)
+    # already keep, on the surface every user hits at setup (C-1758).
+    capped_sources: list[str] = field(default_factory=list)
 
     @property
     def requires_inference(self) -> bool:
@@ -216,6 +224,10 @@ class RepositoryReport:
             # CLI. Order-preserving dedup, as decks/documents dedup their sources
             # (C-1237/1241/1242). C-1602.
             "findings": list(dict.fromkeys(self.findings)),
+            # Which first-run sources were bounded to the newest N (C-1758).
+            # Order-preserving dedup, like findings above. Empty for the common
+            # case, so an uncapped repository reads exactly as it did before.
+            "capped_sources": list(dict.fromkeys(self.capped_sources)),
         }
 
 
@@ -259,6 +271,26 @@ class IngestionReport:
             "total_blocked": self.total_blocked,
             "repositories": [r.to_dict() for r in self.repositories],
         }
+
+
+def snapshot_cap_reason(report: "IngestionReport", limit: int) -> str:
+    """A human line for ``analyze_github`` when a first-run snapshot was bounded.
+
+    The machine-readable disclosure is ``repositories[].capped_sources``; this is
+    the one-sentence summary, in the shape C-1644 uses to tell "no new commits"
+    apart from "every fetch failed". Empty when nothing was capped.
+    """
+
+    capped = [r for r in report.repositories if r.capped_sources]
+    if not capped:
+        return ""
+    names = ", ".join(r.repository for r in capped)
+    plural = "y" if len(capped) == 1 else "ies"
+    return (
+        f"initial snapshot bounded to the newest {limit} items per source for "
+        f"{len(capped)} repositor{plural} ({names}); older commits/PRs/issues are "
+        "not indexed (see ingestion.repositories[].capped_sources)"
+    )
 
 
 class GitHubIngestionPipeline:
@@ -352,6 +384,7 @@ class GitHubIngestionPipeline:
             retirements,
             documentation_snapshot_complete,
             current_documentation_sources,
+            capped_sources,
         ) = self._collect(
             repository,
             head_sha=head_sha,
@@ -386,6 +419,7 @@ class GitHubIngestionPipeline:
                     else ""
                 )
             ),
+            capped_sources=capped_sources,
         )
 
         if error:
@@ -447,7 +481,9 @@ class GitHubIngestionPipeline:
         unchanged items do not trigger inference or redundant index writes.
         """
 
-        documents, error = self._collect_activity(
+        # Mutable-source polling is always incremental, never a snapshot, so it
+        # is never cap-flagged (it drains its window) - snapshot defaults False.
+        documents, error, _ = self._collect_activity(
             repository,
             head_sha=head_sha,
             license_id=license_id,
@@ -550,12 +586,21 @@ class GitHubIngestionPipeline:
         head_sha: str,
         license_id: str,
         since: str | None,
-    ) -> tuple[list[Document], str]:
+        snapshot: bool = False,
+    ) -> tuple[list[Document], str, list[str]]:
         documents: list[Document] = []
         errors: list[str] = []
+        capped: list[str] = []
+        # Only the initial snapshot is bounded to the newest N; incremental
+        # polling drains its whole window (see github_client.list_pull_requests /
+        # list_issues), so a cap is meaningful for snapshot reads only (C-1758).
+        limit = self.settings.max_items_per_source
 
         try:
-            for payload in self.client.list_pull_requests(repository, since=since):
+            pulls = list(self.client.list_pull_requests(repository, since=since))
+            if snapshot and len(pulls) >= limit:
+                capped.append("pull_requests")
+            for payload in pulls:
                 document = normalize.pull_request_document(
                     payload,
                     repository=repository,
@@ -568,7 +613,10 @@ class GitHubIngestionPipeline:
             errors.append(f"pulls: {exc}")
 
         try:
-            for payload in self.client.list_issues(repository, since=since):
+            issues = list(self.client.list_issues(repository, since=since))
+            if snapshot and len(issues) >= limit:
+                capped.append("issues")
+            for payload in issues:
                 document = normalize.issue_document(
                     payload,
                     repository=repository,
@@ -580,7 +628,7 @@ class GitHubIngestionPipeline:
         except GitHubAPIError as exc:
             errors.append(f"issues: {exc}")
 
-        return documents, "; ".join(errors)
+        return documents, "; ".join(errors), capped
 
     def _collect(
         self,
@@ -597,6 +645,7 @@ class GitHubIngestionPipeline:
         list[tuple[str, SourceType]],
         bool,
         set[tuple[str, SourceType]],
+        list[str],
     ]:
         """Gather documents for this run. Errors degrade, never abort."""
 
@@ -604,6 +653,7 @@ class GitHubIngestionPipeline:
         errors: list[str] = []
         retirements: list[tuple[str, SourceType]] = []
         current_documentation_sources: set[tuple[str, SourceType]] = set()
+        capped_sources: list[str] = []
 
         changed_paths: set[str] = set()
         commits: list[dict[str, Any]] = []
@@ -623,6 +673,13 @@ class GitHubIngestionPipeline:
                 commits = self.client.list_commits(repository, head=head_sha)
         except GitHubAPIError as exc:
             errors.append(f"history: {exc}")
+
+        # The first-run commit snapshot is bounded to the newest N (the else
+        # branch above / list_commits); the incremental compare branch fails
+        # closed loudly instead, so a cap is meaningful only on a first run
+        # (C-1758). len >= limit is the boundary; the count is already capped.
+        if first_run and len(commits) >= self.settings.max_items_per_source:
+            capped_sources.append("commits")
 
         for payload in commits[: self.settings.max_items_per_source]:
             document = normalize.commit_document(
@@ -680,15 +737,20 @@ class GitHubIngestionPipeline:
             except GitHubAPIError as exc:
                 errors.append(f"docs: {exc}")
 
-        activity_documents, activity_error = self._collect_activity(
+        activity_documents, activity_error, activity_capped = self._collect_activity(
             repository,
             head_sha=head_sha,
             license_id=license_id,
             since=since,
+            # A first run collects a full snapshot of PRs/issues too, and that
+            # snapshot is the one bounded by the cap; incremental runs drain
+            # their window and are never flagged.
+            snapshot=first_run,
         )
         documents.extend(activity_documents)
         if activity_error:
             errors.append(activity_error)
+        capped_sources.extend(activity_capped)
 
         return (
             documents,
@@ -696,6 +758,7 @@ class GitHubIngestionPipeline:
             retirements,
             full_documentation_refresh,
             current_documentation_sources,
+            capped_sources,
         )
 
     def _screen_and_index(
