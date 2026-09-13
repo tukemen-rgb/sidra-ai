@@ -1,4 +1,4 @@
-"""測れなかったものを合格にしない (C-1789, C-1755 の続き).
+"""測れなかったものを合格にしない (C-1791, C-1755 の続き).
 
 C-1755's defect: a bundled worker that cannot measure a template returns no
 gaps, and the caller reads no gaps as a pass::

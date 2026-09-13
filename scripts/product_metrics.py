@@ -1010,7 +1010,7 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # C-1790: a project for a genre we cannot build (「格闘ゲームを企画から作って」)
+    # C-1791: a project for a genre we cannot build (「格闘ゲームを企画から作って」)
     # writes scenario/structure/features.md describing the fishing default under a
     # 格闘 title; only production-log.md disclosed the swap (C-1605), so the three
     # design docs a reader opens first said nothing. genre_fallback_note now rides
@@ -15742,7 +15742,7 @@ def measure_creation(c: Collector) -> None:
                 gaps.append(
                     f"{key}: ページは {_tw_row} を読むのにパネルが出さない"
                 )
-        # C-1789: this read `tune_gaps` - the section's shared list - while
+        # C-1791: this read `tune_gaps` - the section's shared list - while
         # the loop above appends to this worker's own `gaps`. The condition
         # was therefore always false and the early return never fired: a
         # guard that reads like it stops here and stops nothing. Left over
@@ -17392,7 +17392,7 @@ def measure_creation(c: Collector) -> None:
 
         gaps: list[str] = []
         if key not in _tune_binding:
-            # None, not an empty list (C-1789, the shape C-1755 found).
+            # None, not an empty list (C-1791, the shape C-1755 found).
             # The caller reads an empty list as "measured and clean" and
             # counts the template as a pass; None means "this probe does
             # not cover it" and is skipped, which is what _cost_one does.
@@ -17487,7 +17487,7 @@ def measure_creation(c: Collector) -> None:
 
     _ink_keys = sorted(_tune_templates)
     # The table this probe needs has to cover the product, and say so out
-    # loud when it does not (C-1789). Without this the missing templates
+    # loud when it does not (C-1791). Without this the missing templates
     # would simply go unmeasured and the score would shrink quietly - the
     # same silence C-1755 found, one level up.
     if sorted(_tune_binding) != sorted(_tune_templates):
@@ -26178,7 +26178,7 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # --- a judge never passes what it skipped (C-1789) -------------------
+    # --- a judge never passes what it skipped (C-1791) -------------------
     #
     # C-1755's defect: a bundled worker that cannot measure a template
     # returns no gaps, and the caller reads no gaps as a pass. Two metrics
