@@ -19,7 +19,8 @@ over-stripping), and a real answer over such a document carries no artifact.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -43,7 +44,7 @@ def _chat_answer(message: str, doc_content: str) -> str:
         trust_level=TrustLevel.INTERNAL_REPO, license="proprietary",
     )
     store.add(Document(content=doc_content, provenance=prov))
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     service = SidraService(settings, model=EchoModelAdapter(), store=store, gate=gate)
     client = TestClient(create_app(service=service, settings=settings))
     return client.post("/v1/chat", json={"message": message}).json().get("answer", "")

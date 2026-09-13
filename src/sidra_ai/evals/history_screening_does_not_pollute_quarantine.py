@@ -21,7 +21,8 @@ The checks drive the real ``chat`` and count the quarantine log on disk.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,7 +34,7 @@ def _service():
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     return SidraService(settings), settings
 
 

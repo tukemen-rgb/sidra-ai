@@ -15,6 +15,8 @@ end-to-end file set.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 
@@ -59,11 +61,10 @@ def evaluate_project_production_set_is_whole() -> ProjectWholeResult:
         "「アセット一式」 was widened to the whole project")
 
     # End to end: the router builds and lists the whole file set.
-    import tempfile
     from sidra_ai.creation.intent import detect_creation_intent
     from sidra_ai.creation.router import build_default_router
 
-    router = build_default_router(data_dir=tempfile.mkdtemp())
+    router = build_default_router(data_dir=scratch_dir())
     req = "新機能ローンチのゲーム制作一式を作って"
     out = router.route(req, detect_creation_intent(req), [])
     details = out.details or {}

@@ -15,9 +15,10 @@ it.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -81,7 +82,7 @@ def evaluate_quarantine_review_survives_nonfile_paths() -> QuarantineNonfileResu
             failures.append(msg)
 
     # --- (A) a directory at the release path must not crash the CLI ---
-    tmp = Path(tempfile.mkdtemp())
+    tmp = Path(scratch_dir())
     qp = tmp / "quarantine.jsonl"
     _write_log(qp)
     Path(str(qp) + RELEASE_LOG_SUFFIX).mkdir()
@@ -98,7 +99,7 @@ def evaluate_quarantine_review_survives_nonfile_paths() -> QuarantineNonfileResu
         add(False, f"B: releases() raised on a directory path: {type(exc).__name__}")
 
     # --- (C) a real log still reads, and the CLI lists it ---
-    tmp3 = Path(tempfile.mkdtemp())
+    tmp3 = Path(scratch_dir())
     qp3 = tmp3 / "quarantine.jsonl"
     _write_log(qp3)
     add(len(QuarantineReview(qp3).entries()) == 1, "C: a real log did not read its entry")
@@ -107,7 +108,7 @@ def evaluate_quarantine_review_survives_nonfile_paths() -> QuarantineNonfileResu
 
     # --- (D) invariant: an unreadable *quarantine* log still raises, so
     #         /v1/index can report it unavailable rather than empty (C-1636) ---
-    tmp4 = Path(tempfile.mkdtemp())
+    tmp4 = Path(scratch_dir())
     as_dir = tmp4 / "quarantine.jsonl"
     as_dir.mkdir()
     raised = False

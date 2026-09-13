@@ -18,7 +18,8 @@ The checks read the .md files ``scaffold_project`` actually writes to disk.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -62,7 +63,7 @@ def evaluate_project_escapes_html_in_files() -> ProjectEscapeResult:
         Fact("変更した。", f"docs/{_IMG}.md"),
         Fact("対応した。", f"issues/{_SCRIPT}"),
     ]
-    d = tempfile.mkdtemp(prefix="proj-escape-")
+    d = scratch_dir(prefix="proj-escape-")
     proj = scaffold_project(
         f"{_SCRIPT}のプロジェクトを作って", d, facts=evil_facts, now=_NOW
     )
@@ -87,7 +88,7 @@ def evaluate_project_escapes_html_in_files() -> ProjectEscapeResult:
     add(_SCRIPT in proj.title, "the stored title was altered (should stay raw)")
 
     # 8-10: a clean project is unaffected - real content survives, no spurious tags
-    clean_dir = tempfile.mkdtemp(prefix="proj-clean-")
+    clean_dir = scratch_dir(prefix="proj-clean-")
     clean = scaffold_project(
         "レースゲームのプロジェクトを作って",
         clean_dir,

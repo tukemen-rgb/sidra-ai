@@ -15,6 +15,8 @@ The checks drive the real ``ask_cli.render`` with synthetic and real payloads.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
 from dataclasses import dataclass
@@ -90,9 +92,8 @@ def evaluate_cli_says_what_to_do_for_unnamed() -> UnnamedResult:
     # --- (F) the real service refusal renders without the fallback ------
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
-    import tempfile
 
-    svc = SidraService(Settings(data_dir=tempfile.mkdtemp()))
+    svc = SidraService(Settings(data_dir=scratch_dir()))
     real = svc.chat("なにか作って")  # "make me something"
     real_out = io.StringIO()
     with contextlib.redirect_stdout(real_out):

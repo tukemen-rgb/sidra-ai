@@ -14,7 +14,8 @@ mirroring the server constant) and drive the real endpoint to pin the boundary.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,7 +32,7 @@ def _client():
 
     gate = SecurityGate()
     store = DocumentStore(gate)
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     service = SidraService(settings, model=EchoModelAdapter(), store=store, gate=gate)
     return TestClient(create_app(service=service, settings=settings))
 

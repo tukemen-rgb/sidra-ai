@@ -13,7 +13,8 @@ the list must not take it away from the revise path or a debugging operator.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,7 +30,7 @@ class ArtifactListingResult:
 def evaluate_artifact_listing() -> ArtifactListingResult:
     from sidra_ai.api.artifacts import list_artifacts, read_artifact
 
-    data_dir = Path(tempfile.mkdtemp(prefix="artifact-listing-"))
+    data_dir = Path(scratch_dir(prefix="artifact-listing-"))
     directory = data_dir / "artifacts"
     directory.mkdir()
     (directory / "game-fishing-20260903T000000Z.html").write_text(

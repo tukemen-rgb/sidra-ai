@@ -27,6 +27,8 @@ behaviour the fix must not lose.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -81,7 +83,6 @@ class ExcerptCentersEnglishResult:
 
 def _service_excerpt(content: str, query: str) -> str:
     """The excerpt the real chat path would show for a one-chunk corpus."""
-    import tempfile
     from datetime import datetime, timezone
 
     from sidra_ai.api.service import SidraService
@@ -90,7 +91,7 @@ def _service_excerpt(content: str, query: str) -> str:
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="excerpt-center-en-"))
+    tmp = Path(scratch_dir(prefix="excerpt-center-en-"))
     repo = "tukemen-rgb/sidra-ai"
     settings = Settings(allowed_repositories=(repo,), data_dir=str(tmp / "sidra"))
     gate = SecurityGate(

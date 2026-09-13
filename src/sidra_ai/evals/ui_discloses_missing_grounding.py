@@ -15,8 +15,9 @@ corpus so the ungrounded condition is genuine.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import re
-import tempfile
 from dataclasses import dataclass
 
 # The exact wording the CLI prints (ask_cli._print_citations); parity target.
@@ -36,7 +37,7 @@ def _empty_corpus_chat() -> dict:
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     service = SidraService(settings)  # echo backend, empty store
     client = TestClient(create_app(service=service, settings=settings))
     return client.post("/v1/chat", json={"message": "SIDRA とは？"}).json()

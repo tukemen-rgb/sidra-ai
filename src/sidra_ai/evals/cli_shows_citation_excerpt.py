@@ -15,10 +15,11 @@ reads as ``抜粋を秘匿`` with no body, and an empty excerpt adds no stray li
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
 import re
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -67,7 +68,7 @@ def _real_chat_citations() -> list[dict]:
         license="proprietary",
     )
     store.add(Document(content="# 営業時間\n\n本社の定休日は毎週月曜日です。", provenance=prov))
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     service = SidraService(settings, model=EchoModelAdapter(), store=store, gate=gate)
     client = TestClient(create_app(service=service, settings=settings))
     return client.post("/v1/chat", json={"message": "本社の定休日は？"}).json().get("citations", [])

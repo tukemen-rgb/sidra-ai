@@ -15,8 +15,9 @@ excludes model names). The checks drive the real service and the real endpoints.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import dataclasses
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,7 +27,7 @@ def _service_with(*, staged: bool, backend: str = "echo"):
     from sidra_ai.config.settings import Settings
     from sidra_ai.models.manifest import MODEL_MANIFEST_FILENAME
 
-    tmp = tempfile.mkdtemp()
+    tmp = scratch_dir()
     if staged:
         (Path(tmp) / MODEL_MANIFEST_FILENAME).write_text("{}", encoding="utf-8")
     settings = Settings(data_dir=tmp)

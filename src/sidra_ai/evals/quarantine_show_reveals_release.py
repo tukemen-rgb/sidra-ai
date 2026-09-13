@@ -14,9 +14,10 @@ has been released, and nothing extra when it has not. The checks drive the real
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,7 +42,7 @@ def _build_log() -> tuple[Path, str, str]:
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
     from sidra_ai.security.quarantine_review import QuarantineReview
 
-    tmp = Path(tempfile.mkdtemp(prefix="q-show-"))
+    tmp = Path(scratch_dir(prefix="q-show-"))
     qpath = tmp / "quarantine.jsonl"
     store = QuarantineStore(qpath)
     gate = SecurityGate(

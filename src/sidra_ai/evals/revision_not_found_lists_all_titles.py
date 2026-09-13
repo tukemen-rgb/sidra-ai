@@ -18,7 +18,8 @@ unchanged, and the conversation-scoped variant discloses the remainder too.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 
@@ -26,7 +27,7 @@ def _reviser_with_games(titles: list[str]):
     from sidra_ai.creation.games import generate_game, save_game
     from sidra_ai.creation.revise import build_game_reviser, save_meta
 
-    data_dir = tempfile.mkdtemp()
+    data_dir = scratch_dir()
     for title in titles:
         game = generate_game("シューティングゲームを作って")
         path = save_game(game, data_dir)

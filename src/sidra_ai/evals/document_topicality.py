@@ -31,6 +31,8 @@ intruder - the filter has to be right about whichever was requested.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -144,15 +146,13 @@ def _provenance(path: str) -> Provenance:
 def _build_service():
     """A real service over the mixed corpus, echo backend."""
 
-    import tempfile
-
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
     from sidra_ai.documents import Document
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="doc-topicality-"))
+    tmp = Path(scratch_dir(prefix="doc-topicality-"))
     repository = "tukemen-rgb/sidra-ai"
     settings = Settings(allowed_repositories=(repository,), data_dir=str(tmp / "sidra"))
     gate = SecurityGate(

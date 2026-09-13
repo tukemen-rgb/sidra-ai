@@ -21,15 +21,16 @@ renders the note.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import os
-import tempfile
 from dataclasses import dataclass
 
 
 def _make_project(n_files: int) -> str:
     from sidra_ai.api.artifacts import projects_dir
 
-    data_dir = tempfile.mkdtemp()
+    data_dir = scratch_dir()
     proj = projects_dir(data_dir) / "shooter"
     proj.mkdir(parents=True)
     for i in range(n_files):

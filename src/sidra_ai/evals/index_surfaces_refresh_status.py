@@ -17,8 +17,9 @@ failure tick is reflected on the next request.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import os
-import tempfile
 from dataclasses import dataclass
 
 _TOKEN = "refresh-index-eval-token-0123456789"
@@ -39,7 +40,7 @@ def _app():
     prior = os.environ.get("SIDRA_API_TOKEN")
     os.environ["SIDRA_API_TOKEN"] = _TOKEN
     try:
-        settings = Settings(data_dir=tempfile.mkdtemp())
+        settings = Settings(data_dir=scratch_dir())
         app = create_app(SidraService(settings, model=EchoModelAdapter()), settings)
     finally:
         if prior is None:

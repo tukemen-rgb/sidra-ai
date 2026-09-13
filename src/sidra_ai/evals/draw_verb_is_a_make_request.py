@@ -10,7 +10,8 @@ or to ART when it names one, and a question about drawing is still a question.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,7 +31,7 @@ def _service():
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="draw-verb-"))
+    tmp = Path(scratch_dir(prefix="draw-verb-"))
     repo = "tukemen-rgb/site"
     settings = Settings(allowed_repositories=(repo,), data_dir=str(tmp / "sidra"))
     gate = SecurityGate(GatePolicy(), allowed_repositories=(repo,),

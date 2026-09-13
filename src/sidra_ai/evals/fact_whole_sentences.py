@@ -14,7 +14,8 @@ mid-sentence, and a short terminator-free note that must survive intact.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,7 +48,7 @@ def _service_over(content: str, path: str):
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="whole-sentences-"))
+    tmp = Path(scratch_dir(prefix="whole-sentences-"))
     repository = "tukemen-rgb/sidra-ai"
     settings = Settings(allowed_repositories=(repository,), data_dir=str(tmp / "sidra"))
     gate = SecurityGate(

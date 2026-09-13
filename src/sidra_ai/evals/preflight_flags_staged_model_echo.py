@@ -18,8 +18,9 @@ backend with a manifest staged (quiet - the caution is echo-gated).
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import os
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,7 +37,7 @@ def _collect(*, backend: str, manifest: bool) -> dict:
     for k in list(os.environ):
         if k.startswith("SIDRA_"):
             del os.environ[k]
-    data_dir = tempfile.mkdtemp()
+    data_dir = scratch_dir()
     os.environ["SIDRA_DATA_DIR"] = data_dir
     os.environ["SIDRA_MODEL_BACKEND"] = backend
     if manifest:

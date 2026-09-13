@@ -16,6 +16,8 @@ question still reaches the question path.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,12 +48,11 @@ class CreationUnbuildableDeclinedResult:
 
 
 def _build_service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    tmp = Path(tempfile.mkdtemp(prefix="unbuildable-"))
+    tmp = Path(scratch_dir(prefix="unbuildable-"))
     return SidraService(Settings(data_dir=str(tmp / "sidra")))
 
 

@@ -17,6 +17,8 @@ Measured through the real chat path: the summary is the answer a user reads.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,12 +41,11 @@ class Model3dMtlCompanionResult:
 
 
 def _build_service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    tmp = Path(tempfile.mkdtemp(prefix="m3d-mtl-"))
+    tmp = Path(scratch_dir(prefix="m3d-mtl-"))
     return SidraService(Settings(data_dir=str(tmp / "sidra")))
 
 

@@ -18,10 +18,11 @@ adds no stray line, a non-http scheme is not shown as a source, and a real
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
 import re
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -71,7 +72,7 @@ def _real_chat_citations() -> list[dict]:
         url="https://github.com/acme/handbook/blob/abc1234/faq.md",
     )
     store.add(Document(content="# 営業時間\n\n本社の定休日は毎週月曜日です。", provenance=prov))
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     service = SidraService(settings, model=EchoModelAdapter(), store=store, gate=gate)
     client = TestClient(create_app(service=service, settings=settings))
     return client.post("/v1/chat", json={"message": "本社の定休日は？"}).json().get("citations", [])

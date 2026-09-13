@@ -12,6 +12,8 @@ Measured through the real chat path, over both kinds.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,12 +46,11 @@ class GifModel3dColorHonestResult:
 
 
 def _build_service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    tmp = Path(tempfile.mkdtemp(prefix="gif3d-color-"))
+    tmp = Path(scratch_dir(prefix="gif3d-color-"))
     return SidraService(Settings(data_dir=str(tmp / "sidra")))
 
 

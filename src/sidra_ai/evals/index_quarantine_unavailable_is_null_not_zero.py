@@ -19,7 +19,8 @@ one (no file yet).
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,7 +62,7 @@ def evaluate_index_quarantine_unavailable_is_null_not_zero() -> IndexQuarantineN
             failures.append(msg)
 
     # --- unreadable quarantine log: a directory where the file belongs ---
-    unreadable = tempfile.mkdtemp()
+    unreadable = scratch_dir()
     (Path(unreadable) / "quarantine.jsonl").mkdir()
     body = _index_body(unreadable)
     q = body.get("quarantine", {})
@@ -77,7 +78,7 @@ def evaluate_index_quarantine_unavailable_is_null_not_zero() -> IndexQuarantineN
     add(body.get("documents") == 0, f"unreadable: documents not reported: {body.get('documents')!r}")
 
     # --- readable, empty quarantine log: a genuine zero, an int not null ---
-    readable = tempfile.mkdtemp()
+    readable = scratch_dir()
     body2 = _index_body(readable)
     q2 = body2.get("quarantine", {})
     add(q2.get("available") is True, f"readable: available not True: {q2.get('available')!r}")

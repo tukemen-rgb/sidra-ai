@@ -15635,6 +15635,143 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the judges clean up after themselves ----------------------------
+    #
+    # C-1770. Ninety-three call sites across eighty eval modules reached
+    # for tempfile.mkdtemp() and none removed what they made. Measured:
+    # one collector run leaves 159 directories behind, and a week of five
+    # loops measuring all day had left /tmp holding 30G - qa-honesty-*
+    # alone at 10,697 directories, the oldest from 09-05. The session's
+    # disk ran out and `git pull` failed with ENOSPC.
+    #
+    # It matters because of what a full disk does to measurement: the
+    # collector dies partway and --compare calls everything it never
+    # reached REGRESSED and LOST. That happened, and was read as a
+    # product failure first (C-1759's third self-report: 297 REGRESSED,
+    # 296 LOST, all of it a full disk). The apparatus was corrupting its
+    # own readings.
+    #
+    # Driven in a subprocess with a TMPDIR of its own, because "did this
+    # process clean up when it exited" cannot be asked from inside the
+    # process. Both directions in the one run: the judges must leave
+    # nothing behind, AND must really have used scratch and returned
+    # results while running - otherwise a judge that creates nothing and
+    # does nothing scores full marks.
+    import ast as _sc_ast
+    import os as _sc_os
+    import pathlib as _sc_path
+    import shutil as _sc_shutil
+    import sys as _sc_sys
+    import tempfile as _sc_tempfile
+
+    _SC_DRIVE = (
+        "import sys, os, json\n"
+        "sys.path.insert(0, 'src')\n"
+        "from sidra_ai.evals.qa_honesty import evaluate_qa_honesty\n"
+        "from sidra_ai.evals.creation_unbuildable_declined import "
+        "evaluate_creation_unbuildable_declined\n"
+        "a = evaluate_qa_honesty()\n"
+        "b = evaluate_creation_unbuildable_declined()\n"
+        "print('SCRATCH ' + json.dumps({\n"
+        "  'during': len(os.listdir(os.environ['TMPDIR'])),\n"
+        "  'answered': [a is not None, b is not None]}))\n"
+    )
+
+    sc_gaps: list[str] = []
+    sc_ok = 0
+    _sc_home = _sc_tempfile.mkdtemp(prefix="metrics-scratch-")
+    try:
+        try:
+            _sc_run = _scene_sp.run(
+                [_sc_sys.executable, "-c", _SC_DRIVE],
+                env=dict(_sc_os.environ, TMPDIR=_sc_home),
+                capture_output=True, text=True, timeout=900,
+            )
+            if _sc_run.returncode != 0:
+                raise ValueError(_sc_run.stderr.strip()[-80:])
+            _sc_said = [
+                line for line in _sc_run.stdout.splitlines() if line.startswith("SCRATCH ")
+            ]
+            if not _sc_said:
+                raise ValueError("the driven judges said nothing")
+            _sc = json.loads(_sc_said[-1][len("SCRATCH "):])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            _sc = None
+            sc_gaps.append(f"the driven judges could not run ({exc})")
+        if _sc is not None:
+            # (b) first, because it is the one that stops "do nothing" from
+            # passing (a).
+            if not all(_sc["answered"]):
+                sc_gaps.append("a driven judge returned no result")
+            else:
+                sc_ok += 1
+            if not _sc["during"]:
+                sc_gaps.append(
+                    "the judges made no scratch at all, so leaving none behind "
+                    "proves nothing"
+                )
+            else:
+                sc_ok += 1
+            _sc_left = sorted(p.name for p in _sc_path.Path(_sc_home).iterdir())
+            if _sc_left:
+                sc_gaps.append(
+                    f"{len(_sc_left)} director(ies) outlived the process "
+                    f"({', '.join(_sc_left[:3])})"
+                )
+            else:
+                sc_ok += 1
+    finally:
+        _sc_shutil.rmtree(_sc_home, ignore_errors=True)
+    # And the static half: a judge added tomorrow must not reach past the
+    # shared helper. Read with the AST rather than by grepping, so a call
+    # spelled across two lines still counts.
+    _sc_direct: list[str] = []
+    for _sc_file in sorted(_sc_path.Path("src/sidra_ai/evals").glob("*.py")):
+        if _sc_file.name == "scratch.py":
+            continue
+        for _sc_node in _sc_ast.walk(_sc_ast.parse(_sc_file.read_text(encoding="utf-8"))):
+            if (
+                isinstance(_sc_node, _sc_ast.Call)
+                and isinstance(_sc_node.func, _sc_ast.Attribute)
+                and _sc_node.func.attr == "mkdtemp"
+            ):
+                _sc_direct.append(_sc_file.name)
+                break
+    if _sc_direct:
+        sc_gaps.append(
+            f"{len(_sc_direct)} judge(s) still call mkdtemp directly "
+            f"({', '.join(_sc_direct[:3])})"
+        )
+    else:
+        sc_ok += 1
+    c.add(
+        "evals_clean_up_their_scratch",
+        "判定器が自分の作業場所を片付ける事実",
+        float(sc_ok) if not sc_gaps else 0.0,
+        detail=(
+            "**別プロセス・専用の `TMPDIR` で実際に判定器を走らせて数える**"
+            "——「終了したときに片付いたか」はそのプロセスの中からは訊けない。"
+            "**4 つの事実**: (1) 駆動した判定器が**結果を返す**、"
+            "(2) 走っているあいだ**実際に作業場所を作っている**、"
+            "(3) **プロセスが終わったあと 1 つも残っていない**、"
+            "(4) `evals/` のどの判定器も **`mkdtemp` を直接呼んでいない**（AST で見る）。"
+            "**(1)(2) が無ければ「何も作らず何もしない」実装が満点を取る。**"
+            "**修正前の実測（同じ駆動・同じ TMPDIR）**: 走行中 2・**終了後も 2 残る**"
+            "（`qa-honesty-…`・`unbuildable-…`）。修正後は走行中 2・**終了後 0**。"
+            "**収集器 1 走行で 159 個**が残っていた。"
+            "**1 週間で `/tmp` は 30G**——`qa-honesty-*` だけで **10,697 個**、"
+            "最古は **09-05**。**セッションのディスクが尽きて `git pull` が ENOSPC で落ちた。**"
+            "**片付けが問題なのは行儀ではなく計測のため**: ディスクが尽きると収集器が"
+            "途中で死に、`--compare` は**届かなかった計器を REGRESSED と LOST として報告する**"
+            "——**C-1759 の巡で実際に起き、私は一度それを製品の赤と読み違えた**"
+            "（297 REGRESSED・296 LOST の正体は満杯のディスクだった）。"
+            "**測る道具が、自分の測定を壊す形で環境を汚していた。**"
+            if not sc_gaps
+            else "; ".join(sc_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- today's board says when it is not everybody's --------------------
     #
     # C-1768, §8 事実 7 x §8 事実 4. §8 records why Wordle's sharing worked:

@@ -13,9 +13,10 @@ and a real log file still lists its entries.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -80,7 +81,7 @@ def evaluate_quarantine_cli_rejects_nonfile_path() -> QuarantinePathResult:
         else:
             failures.append(msg)
 
-    tmp = Path(tempfile.mkdtemp())
+    tmp = Path(scratch_dir())
 
     # --- (A) a directory path is refused cleanly, not crashed ---
     a_dir = tmp / "adir"

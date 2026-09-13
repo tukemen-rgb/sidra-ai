@@ -15,6 +15,8 @@ with that clear label, and a genuine 「企画から作って」 still builds a 
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,12 +33,11 @@ class ProjectLabelResult:
 
 
 def _service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    return SidraService(Settings(data_dir=str(Path(tempfile.mkdtemp(prefix="proj-label-")) / "s")))
+    return SidraService(Settings(data_dir=str(Path(scratch_dir(prefix="proj-label-")) / "s")))
 
 
 def _bare_misleading(answer: str) -> bool:

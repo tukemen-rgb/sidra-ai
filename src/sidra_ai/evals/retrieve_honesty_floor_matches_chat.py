@@ -19,6 +19,8 @@ two endpoints.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,7 +50,6 @@ _IN_CORPUS = (
 
 
 def _service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
@@ -57,7 +58,7 @@ def _service():
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="retrieve-floor-"))
+    tmp = Path(scratch_dir(prefix="retrieve-floor-"))
     repo = "tukemen-rgb/site"
     settings = Settings(allowed_repositories=(repo,), data_dir=str(tmp / "sidra"))
     gate = SecurityGate(

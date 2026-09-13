@@ -18,6 +18,8 @@ Measured through the real chat path.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -51,12 +53,11 @@ class ArtColorNamedHonestResult:
 
 
 def _build_service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    tmp = Path(tempfile.mkdtemp(prefix="art-color-"))
+    tmp = Path(scratch_dir(prefix="art-color-"))
     return SidraService(Settings(data_dir=str(tmp / "sidra")))
 
 

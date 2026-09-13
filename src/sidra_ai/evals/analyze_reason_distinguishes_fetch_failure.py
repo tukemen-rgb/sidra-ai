@@ -18,7 +18,8 @@ per-repository error is still present in the response either way.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 _OLD_REASON = "no new commits since the last ingestion; model not invoked"
@@ -29,7 +30,7 @@ def _service():
     from sidra_ai.config.settings import Settings
     from sidra_ai.models.echo import EchoModelAdapter
 
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     return SidraService(settings, model=EchoModelAdapter())
 
 

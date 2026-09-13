@@ -14,7 +14,8 @@ entries, and confirm the page reads ``result.total``.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -64,7 +65,7 @@ def evaluate_artifact_listing_reports_true_total() -> ArtifactTotalResult:
             failures.append(msg)
 
     n = MAX_LISTED + 5
-    tmp = Path(tempfile.mkdtemp())
+    tmp = Path(scratch_dir())
 
     # --- build n artifacts and n projects ---
     art_dir = tmp / "artifacts"

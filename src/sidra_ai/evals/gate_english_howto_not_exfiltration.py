@@ -16,7 +16,8 @@ second are not - recall is a check here, not an afterthought.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,7 +50,7 @@ class GateEnglishHowtoResult:
 def _gate():
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="gate-en-howto-"))
+    tmp = Path(scratch_dir(prefix="gate-en-howto-"))
     return SecurityGate(GatePolicy(), quarantine_store=QuarantineStore(tmp / "q.jsonl"))
 
 

@@ -10,6 +10,8 @@ deduplicated, the way decks and documents dedup their sources.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 
@@ -64,7 +66,6 @@ def evaluate_ingestion_findings_deduplicated() -> IngestionFindingsDedupResult:
     import sys
     if "tests" not in sys.path:
         sys.path.insert(0, "tests")
-    import tempfile
     from pathlib import Path
 
     import conftest
@@ -76,7 +77,7 @@ def evaluate_ingestion_findings_deduplicated() -> IngestionFindingsDedupResult:
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="ingest-dedup-"))
+    tmp = Path(scratch_dir(prefix="ingest-dedup-"))
     repo = "tukemen-rgb/site"
     settings = Settings(allowed_repositories=(repo,), data_dir=str(tmp / "sidra"))
     gate = SecurityGate(GatePolicy(), allowed_repositories=(repo,),

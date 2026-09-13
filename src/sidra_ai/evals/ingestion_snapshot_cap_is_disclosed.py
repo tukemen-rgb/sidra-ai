@@ -18,7 +18,8 @@ so the disclosure is read from running code.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 
@@ -86,7 +87,7 @@ def _pipeline(count: int):
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, SecurityGate
 
-    tmp = tempfile.mkdtemp()
+    tmp = scratch_dir()
     gate = SecurityGate(GatePolicy(), allowed_repositories=("x/y",))
     settings = Settings(data_dir=tmp, max_items_per_source=LIMIT)
     return GitHubIngestionPipeline(

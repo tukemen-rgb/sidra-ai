@@ -15,6 +15,8 @@ would show.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import io
 from contextlib import redirect_stdout
 from dataclasses import dataclass
@@ -42,12 +44,11 @@ def _render(payload: dict) -> str:
 
 
 def _service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    return SidraService(Settings(data_dir=str(Path(tempfile.mkdtemp(prefix="cli-artifact-")) / "s")))
+    return SidraService(Settings(data_dir=str(Path(scratch_dir(prefix="cli-artifact-")) / "s")))
 
 
 def evaluate_cli_shows_artifact_path() -> CliShowsArtifactPathResult:

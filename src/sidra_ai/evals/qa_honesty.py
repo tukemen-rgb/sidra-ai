@@ -24,6 +24,8 @@ without the gate and would prove nothing.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Sequence
@@ -262,8 +264,6 @@ def _build_service(populate: bool = True):
     - the most likely way this fix regresses - drops this number to 0 instead
     of leaving a green instrument pointed at code nobody runs.
     """
-
-    import tempfile
     from pathlib import Path
 
     from sidra_ai.api.service import SidraService
@@ -272,7 +272,7 @@ def _build_service(populate: bool = True):
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="qa-honesty-"))
+    tmp = Path(scratch_dir(prefix="qa-honesty-"))
     repository = "tukemen-rgb/sidra-ai"
     settings = Settings(
         allowed_repositories=(repository,), data_dir=str(tmp / "sidra")

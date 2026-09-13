@@ -21,9 +21,10 @@ The checks call the real ``_finish`` (both backends, and the normal case), drive
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
-import tempfile
 from dataclasses import dataclass
 
 _TRUNCATED = ("length", "limit")
@@ -58,7 +59,7 @@ def _chat_model_block(finish_reason: str) -> dict:
             )
 
     gate = SecurityGate(GatePolicy(), allowed_repositories=())
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     service = SidraService(settings, model=_TruncatingModel(), store=DocumentStore(gate), gate=gate)
     client = TestClient(create_app(service=service, settings=settings))
     return client.post("/v1/chat", json={"message": "SIDRA とは？"}).json().get("model", {})

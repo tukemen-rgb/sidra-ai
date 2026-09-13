@@ -14,7 +14,8 @@ probe, and read the header.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 
@@ -26,7 +27,7 @@ def _client():
     from sidra_ai.config.settings import Settings
     from sidra_ai.models.echo import EchoModelAdapter
 
-    settings = Settings(data_dir=tempfile.mkdtemp(), rate_limit_per_minute=5)
+    settings = Settings(data_dir=scratch_dir(), rate_limit_per_minute=5)
     service = SidraService(settings, model=EchoModelAdapter())
     return TestClient(create_app(service, settings))
 

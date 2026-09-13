@@ -17,8 +17,9 @@ H1 and the project's own title.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import re
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,7 +43,7 @@ class ProjectGameTitleResult:
 def _build(request: str):
     from sidra_ai.creation.projects import scaffold_project
 
-    tmp = Path(tempfile.mkdtemp(prefix="proj-title-"))
+    tmp = Path(scratch_dir(prefix="proj-title-"))
     project = scaffold_project(request, tmp)
     html = (project.root / "game.html").read_text(encoding="utf-8")
     game_title = re.search(r"<title>(.*?)</title>", html)

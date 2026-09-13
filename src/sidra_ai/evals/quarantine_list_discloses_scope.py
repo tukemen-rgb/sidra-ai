@@ -19,16 +19,17 @@ policy entries.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
 import json
 import os
-import tempfile
 from dataclasses import dataclass
 
 
 def _write_log(records: list[dict]) -> str:
-    d = tempfile.mkdtemp()
+    d = scratch_dir()
     log = os.path.join(d, "quarantine.jsonl")
     with open(log, "w", encoding="utf-8") as f:
         for r in records:

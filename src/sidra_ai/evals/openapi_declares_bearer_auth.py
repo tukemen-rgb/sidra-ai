@@ -17,8 +17,9 @@ schema route itself still refuses an unauthenticated request.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import os
-import tempfile
 from dataclasses import dataclass
 
 
@@ -28,7 +29,7 @@ def _app():
     from sidra_ai.config.settings import Settings
     from sidra_ai.models.echo import EchoModelAdapter
 
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     return create_app(SidraService(settings, model=EchoModelAdapter()), settings)
 
 

@@ -19,7 +19,8 @@ The checks build a real ``SidraService`` and read which document each turn cites
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,7 +39,7 @@ def _service():
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
     allowed = ("tukemen-rgb/site",)
-    tmp = Path(tempfile.mkdtemp())
+    tmp = Path(scratch_dir())
     settings = Settings(allowed_repositories=allowed, data_dir=str(tmp / "sidra"))
     gate = SecurityGate(GatePolicy(), allowed_repositories=allowed,
                         quarantine_store=QuarantineStore(tmp / "q.jsonl"))

@@ -14,7 +14,8 @@ still counted in memory, and a writable path still persists to disk.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def evaluate_usage_ledger_disk_write_is_best_effort() -> UsageBestEffortResult:
                     output_tokens=1, duration_seconds=0.1)
 
     # --- (A) record() does not raise when the disk write fails ---
-    bad = Path(tempfile.mkdtemp()) / "usage.jsonl"
+    bad = Path(scratch_dir()) / "usage.jsonl"
     bad.mkdir()  # a directory where the file belongs: open("a") would raise
     ledger = UsageLedger(bad)
     raised = None
@@ -62,7 +63,7 @@ def evaluate_usage_ledger_disk_write_is_best_effort() -> UsageBestEffortResult:
         f"B: the record was not kept in memory (len={len(ledger)})")
 
     # --- (C) a metered generate() over an unwritable ledger does not raise ---
-    bad2 = Path(tempfile.mkdtemp()) / "usage.jsonl"
+    bad2 = Path(scratch_dir()) / "usage.jsonl"
     bad2.mkdir()
     metered = MeteredAdapter(EchoModelAdapter(), UsageLedger(bad2))
     gen_raised = None
@@ -77,7 +78,7 @@ def evaluate_usage_ledger_disk_write_is_best_effort() -> UsageBestEffortResult:
     add(gen_raised is None and ok, f"C: metered generate() failed on disk error: {gen_raised}")
 
     # --- (D) a writable path still persists to disk (best-effort didn't break it) ---
-    good = Path(tempfile.mkdtemp()) / "usage.jsonl"
+    good = Path(scratch_dir()) / "usage.jsonl"
     wledger = UsageLedger(good)
     wledger.record(**_kwargs())
     persisted = good.is_file() and len(good.read_text(encoding="utf-8").splitlines()) == 1

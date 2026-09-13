@@ -20,8 +20,9 @@ name tiebreak, and an empty directory must still be an empty list.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import os
-import tempfile
 from dataclasses import dataclass
 
 
@@ -56,7 +57,7 @@ def evaluate_artifacts_listing_newest_first() -> ListingNewestFirstResult:
             failures.append(msg)
 
     # --- flat artifacts listing ---
-    d = tempfile.mkdtemp()
+    d = scratch_dir()
     adir = artifacts_dir(d)
     adir.mkdir(parents=True)
     # Same integer second (1000.x). Sub-second order = recency; names are its
@@ -78,7 +79,7 @@ def evaluate_artifacts_listing_newest_first() -> ListingNewestFirstResult:
         f"{listed[0].modified if listed else None!r}")
 
     # cross-second: a later second always precedes an earlier one, name aside.
-    d2 = tempfile.mkdtemp()
+    d2 = scratch_dir()
     adir2 = artifacts_dir(d2)
     adir2.mkdir(parents=True)
     (adir2 / "aaa.md").write_bytes(b"x")
@@ -90,7 +91,7 @@ def evaluate_artifacts_listing_newest_first() -> ListingNewestFirstResult:
         f"artifacts cross-second order wrong: {_names(listed2)}")
 
     # genuine tie (identical mtime) keeps the name-descending tiebreak.
-    d3 = tempfile.mkdtemp()
+    d3 = scratch_dir()
     adir3 = artifacts_dir(d3)
     adir3.mkdir(parents=True)
     for name in ("apple.md", "mango.md", "zebra.md"):
@@ -102,11 +103,11 @@ def evaluate_artifacts_listing_newest_first() -> ListingNewestFirstResult:
         f"artifacts tie tiebreak not name-descending: {_names(listed3)}")
 
     # empty directory -> empty list.
-    add(list_artifacts(tempfile.mkdtemp()) == [],
+    add(list_artifacts(scratch_dir()) == [],
         "artifacts empty dir not []")
 
     # --- projects listing ---
-    pd = tempfile.mkdtemp()
+    pd = scratch_dir()
     pdir = projects_dir(pd)
     pdir.mkdir(parents=True)
     pplan = [("z-old", 2000.10), ("m-mid", 2000.50), ("a-new", 2000.90)]
@@ -136,7 +137,7 @@ def evaluate_artifacts_listing_newest_first() -> ListingNewestFirstResult:
         add(False, "projects listing empty")
 
     # projects cross-second.
-    pd2 = tempfile.mkdtemp()
+    pd2 = scratch_dir()
     pdir2 = projects_dir(pd2)
     pdir2.mkdir(parents=True)
     for slug, mtime in (("aaa", 9000.0), ("zzz", 8000.0)):
@@ -147,7 +148,7 @@ def evaluate_artifacts_listing_newest_first() -> ListingNewestFirstResult:
     add([p.slug for p in projects2] == ["aaa", "zzz"],
         f"projects cross-second order wrong: {[p.slug for p in projects2]}")
 
-    add(list_projects(tempfile.mkdtemp()) == [],
+    add(list_projects(scratch_dir()) == [],
         "projects empty dir not []")
 
     total = 12

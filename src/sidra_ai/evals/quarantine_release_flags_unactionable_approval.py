@@ -20,10 +20,11 @@ warning matches reality - only the modern id is in ``released_document_ids``.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
 import json
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -57,7 +58,7 @@ _ACTIONABLE_NOTE = "Re-indexing is a separate"
 
 
 def _write_log() -> Path:
-    d = Path(tempfile.mkdtemp())
+    d = Path(scratch_dir())
     log = d / "quarantine.jsonl"
     log.write_text(
         "\n".join(json.dumps(r) for r in (_MODERN, _LEGACY)) + "\n", encoding="utf-8"

@@ -19,7 +19,8 @@ when enough exist - while the honest no-evidence path is untouched.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -50,7 +51,7 @@ def _service(documents):
         )
         result = gate.inspect(content, source="github", repository=_REPO)
         store.add(Document(content=content, provenance=provenance), gate_result=result)
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     return SidraService(settings, model=EchoModelAdapter(), store=store, gate=gate)
 
 

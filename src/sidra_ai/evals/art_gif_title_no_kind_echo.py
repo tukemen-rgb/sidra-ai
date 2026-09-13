@@ -13,6 +13,8 @@ a handled artifact; and model3d (which already strips) is unchanged.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -34,12 +36,11 @@ class ArtGifTitleResult:
 
 
 def _service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    return SidraService(Settings(data_dir=str(Path(tempfile.mkdtemp(prefix="art-gif-title-")) / "s")))
+    return SidraService(Settings(data_dir=str(Path(scratch_dir(prefix="art-gif-title-")) / "s")))
 
 
 def evaluate_art_gif_title_no_kind_echo() -> ArtGifTitleResult:

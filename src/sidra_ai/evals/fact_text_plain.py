@@ -14,7 +14,8 @@ than the one it fixes.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,7 +43,7 @@ def _build_service():
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="fact-plain-"))
+    tmp = Path(scratch_dir(prefix="fact-plain-"))
     repository = "tukemen-rgb/sidra-ai"
     settings = Settings(allowed_repositories=(repository,), data_dir=str(tmp / "sidra"))
     gate = SecurityGate(

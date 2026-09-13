@@ -19,6 +19,8 @@ redaction and the quarantine-store record are all unchanged.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,11 +37,10 @@ class GateOperatorRefusalResult:
 
 
 def _gate():
-    import tempfile
 
     from sidra_ai.security.gate import GatePolicy, QuarantineStore, SecurityGate
 
-    tmp = Path(tempfile.mkdtemp(prefix="gate-op-reason-"))
+    tmp = Path(scratch_dir(prefix="gate-op-reason-"))
     return SecurityGate(
         GatePolicy(),
         allowed_repositories=("tukemen-rgb/site",),

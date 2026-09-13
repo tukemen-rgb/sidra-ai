@@ -17,9 +17,10 @@ path) print no such warning.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import io
 import json
-import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from pathlib import Path
@@ -102,7 +103,7 @@ def evaluate_quarantine_show_scrubs_terminal_controls() -> QuarantineScrubResult
         else:
             failures.append(msg)
 
-    directory = tempfile.mkdtemp()
+    directory = scratch_dir()
     path = _write_log(directory)
     ids = _entry_ids(path)
     hostile_id, clean_id = ids["hostile01"], ids["clean01"]

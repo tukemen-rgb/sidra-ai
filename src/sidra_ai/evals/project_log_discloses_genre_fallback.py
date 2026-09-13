@@ -11,7 +11,8 @@ is unchanged, sharing one source of truth with the log.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,7 +31,7 @@ class ProjectLogFallbackResult:
 def _log_for(request: str) -> str:
     from sidra_ai.creation.projects import scaffold_project
 
-    tmp = Path(tempfile.mkdtemp(prefix="proj-fallback-"))
+    tmp = Path(scratch_dir(prefix="proj-fallback-"))
     scaffold_project(request, tmp)
     root = next((tmp / "artifacts" / "projects").iterdir())
     return (root / "production-log.md").read_text(encoding="utf-8")
@@ -40,7 +41,7 @@ def _summary_for(request: str) -> str:
     from sidra_ai.creation.intent import detect_creation_intent
     from sidra_ai.creation.project_job import build_project_generator
 
-    gen = build_project_generator(tempfile.mkdtemp())
+    gen = build_project_generator(scratch_dir())
     return gen(request, detect_creation_intent(request)).summary
 
 

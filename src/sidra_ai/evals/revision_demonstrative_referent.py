@@ -18,6 +18,8 @@ stays a question, and a creation request stays a creation.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -48,12 +50,10 @@ class RevisionDemonstrativeResult:
 def _build_service():
     """A real service, echo backend, empty corpus (games need no evidence)."""
 
-    import tempfile
-
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    tmp = Path(tempfile.mkdtemp(prefix="revise-demo-"))
+    tmp = Path(scratch_dir(prefix="revise-demo-"))
     settings = Settings(data_dir=str(tmp / "sidra"))
     return SidraService(settings)
 

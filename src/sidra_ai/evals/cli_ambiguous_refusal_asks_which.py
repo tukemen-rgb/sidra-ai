@@ -17,9 +17,10 @@ unknown refusal code still falls back gracefully.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -69,7 +70,7 @@ def _chat_ambiguous_render() -> str:
         trust_level=TrustLevel.INTERNAL_REPO, license="proprietary",
     )
     store.add(Document(content="本社の定休日は毎週月曜日です。", provenance=prov))
-    settings = Settings(data_dir=tempfile.mkdtemp())
+    settings = Settings(data_dir=scratch_dir())
     service = SidraService(settings, model=EchoModelAdapter(), store=store, gate=gate)
     client = TestClient(create_app(service=service, settings=settings))
     payload = client.post("/v1/chat", json={"message": "レースゲーム"}).json()

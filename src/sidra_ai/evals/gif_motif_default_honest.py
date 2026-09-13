@@ -20,6 +20,8 @@ product stayed silent.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -59,12 +61,10 @@ class GifMotifDefaultHonestResult:
 def _build_service():
     """A real service, echo backend, empty corpus (GIFs need no evidence)."""
 
-    import tempfile
-
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    tmp = Path(tempfile.mkdtemp(prefix="gif-motif-"))
+    tmp = Path(scratch_dir(prefix="gif-motif-"))
     settings = Settings(data_dir=str(tmp / "sidra"))
     return SidraService(settings)
 

@@ -13,7 +13,8 @@ Checks drive the router's project generator and read the summary it returns.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 _FALLBACK = "代わりに既定の"
@@ -32,7 +33,7 @@ def _summary(request: str) -> str:
     from sidra_ai.creation.intent import detect_creation_intent
     from sidra_ai.creation.router import build_default_router
 
-    tmp = tempfile.mkdtemp(prefix="proj-genre-")
+    tmp = scratch_dir(prefix="proj-genre-")
     router = build_default_router(data_dir=tmp)
     out = router.route(request, detect_creation_intent(request), [])
     return out.summary

@@ -13,7 +13,8 @@ an operator reads in chat.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 _SUBJECT_CAVEAT = "の題材を描く型はまだ無いため"
@@ -32,7 +33,7 @@ def evaluate_subject_honesty() -> SubjectHonestyResult:
     from sidra_ai.creation.intent import detect_creation_intent
     from sidra_ai.creation.router import build_default_router
 
-    router = build_default_router(data_dir=tempfile.mkdtemp(prefix="subject-honesty-"))
+    router = build_default_router(data_dir=scratch_dir(prefix="subject-honesty-"))
 
     def summary_for(message: str) -> str:
         return router.route(message, detect_creation_intent(message), []).summary

@@ -14,7 +14,8 @@ source in step. The substitution is always restored.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 
 
@@ -32,7 +33,7 @@ def _app(token: str | None = None):
     else:
         os.environ["SIDRA_API_TOKEN"] = token
     try:
-        settings = Settings(data_dir=tempfile.mkdtemp())
+        settings = Settings(data_dir=scratch_dir())
         app = create_app(SidraService(settings, model=EchoModelAdapter()), settings)
     finally:
         if prior is None:

@@ -14,7 +14,8 @@ asserts the two land on distinct paths with the first file's bytes intact.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,7 +56,7 @@ def evaluate_flat_artifacts_survive_same_second_save() -> FlatArtifactCollisionR
 
     def _run(kind: str, module, save_two) -> None:
         """save_two(dir) -> (path1, path2) with the clock frozen to one second."""
-        tmp = Path(tempfile.mkdtemp(prefix=f"collide-{kind}-"))
+        tmp = Path(scratch_dir(prefix=f"collide-{kind}-"))
         with mock.patch.object(module, "datetime") as m:
             m.now.return_value = _FIXED
             p1, p2 = save_two(tmp)

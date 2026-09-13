@@ -14,6 +14,8 @@ bundle with a fallback title.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -34,12 +36,11 @@ class ProjectTitleResult:
 
 
 def _service():
-    import tempfile
 
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
 
-    return SidraService(Settings(data_dir=str(Path(tempfile.mkdtemp(prefix="proj-title-")) / "s")))
+    return SidraService(Settings(data_dir=str(Path(scratch_dir(prefix="proj-title-")) / "s")))
 
 
 def evaluate_project_title_no_kind_echo() -> ProjectTitleResult:

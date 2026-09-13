@@ -20,7 +20,8 @@ request that mixes an on-topic fact with an off-topic one.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -62,7 +63,7 @@ def _saved_markdown(request: str, facts) -> tuple[str, dict]:
     from sidra_ai.creation.document_job import build_document_generator
     from sidra_ai.creation.intent import detect_creation_intent
 
-    tmp = tempfile.mkdtemp(prefix="doc-aside-")
+    tmp = scratch_dir(prefix="doc-aside-")
     generate = build_document_generator(tmp)
     intent = detect_creation_intent(request)
     out = generate(request, intent, list(facts))

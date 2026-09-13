@@ -13,7 +13,8 @@ for the property, over a request that falls back and requests that name a shape.
 
 from __future__ import annotations
 
-import tempfile
+from sidra_ai.evals.scratch import scratch_dir
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,7 +34,7 @@ def _router_preview(request: str) -> str:
     from sidra_ai.creation.intent import detect_creation_intent
     from sidra_ai.creation.router import build_default_router
 
-    tmp = tempfile.mkdtemp(prefix="m3d-preview-")
+    tmp = scratch_dir(prefix="m3d-preview-")
     router = build_default_router(data_dir=tmp)
     out = router.route(request, detect_creation_intent(request), [])
     return Path(out.artifact_path).read_text(encoding="utf-8")

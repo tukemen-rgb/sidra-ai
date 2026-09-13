@@ -16,10 +16,11 @@ control check confirms the warning tracks the real posture.
 
 from __future__ import annotations
 
+from sidra_ai.evals.scratch import scratch_dir
+
 import contextlib
 import io
 import os
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,7 +37,7 @@ def _run_check(*, manifest: bool):
     for k in list(os.environ):
         if k.startswith("SIDRA_"):
             del os.environ[k]
-    data_dir = tempfile.mkdtemp()
+    data_dir = scratch_dir()
     os.environ["SIDRA_DATA_DIR"] = data_dir
     if manifest:
         Path(data_dir, MODEL_MANIFEST_FILENAME).write_text("{}", encoding="utf-8")
