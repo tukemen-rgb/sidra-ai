@@ -119,7 +119,14 @@ def test_the_mark_records_whether_a_venv_is_active_not_which_one() -> None:
     mark = pm._env_mark()
 
     assert isinstance(mark["venv"], bool)
-    assert all(isinstance(v, (str, bool)) for v in mark.values())
+    # `None` joined the allowed types with C-1789, which added the tree half of
+    # the footing: `commit` and `dirty` are None when git cannot answer (no
+    # git, no repository), because a measurement must stay takeable there.
+    # Everything else is still a string or a bool.
+    assert all(isinstance(v, (str, bool, type(None))) for v in mark.values())
+    assert all(
+        isinstance(mark[field], (str, bool)) for field in ("python", "executable", "venv")
+    ), "the interpreter half is always answerable and must never be None"
 
 
 def test_the_real_snapshot_writes_the_mark() -> None:

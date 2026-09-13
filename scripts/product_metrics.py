@@ -26065,6 +26065,116 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- ...and it records which TREE it measured (C-1789) -----------------
+    #
+    # C-1707 put the interpreter in the mark and stopped. The other half of
+    # the footing is the tree, and this collector reads the working tree - not
+    # a commit - so a baseline taken while the change was already on disk
+    # records the *fixed* numbers as "before". Comparing against it reports NO
+    # MOVEMENT for work that moved.
+    #
+    # Measured 2026-09-13 by the loop it happened to, and written into that
+    # commit's own message: `ce1fd893` took a background baseline that read
+    # the repair first and recorded **4.0** where the true before was **0.0**.
+    # It was caught only because the author knew the number should have been
+    # zero. Nothing in the apparatus said a word.
+    #
+    # The dangerous half of the fix is the half that must NOT happen: C-1781
+    # spent a cycle undoing a refusal that fired on a footing difference, and
+    # a refusal on the tree would be worse, because every honest cycle has a
+    # dirty tree and an older baseline commit. So the note is a note, and case
+    # (c) below is what holds that line.
+    tree_gaps: list[str] = []
+    _tr_base = {
+        "python": "3.11.15", "executable": "/usr/bin/python3", "venv": False,
+        "commit": "a" * 40, "dirty": False,
+    }
+
+    def _tr_snap(mark: dict, value: float = 1.0) -> dict:
+        return {
+            _ENV_KEY: dict(mark),
+            "shipped": {"value": value, "unit": "", "kind": OUTCOME, "detail": ""},
+        }
+
+    # The run being compared is dirty, as every real one is.
+    _tr_now = dict(_tr_base, dirty=True)
+
+    # (a) The snapshot records the tree at all, and answers for this one.
+    _tr_mark = _env_mark()
+    for _tr_field in ("commit", "dirty"):
+        if _tr_field not in _tr_mark:
+            tree_gaps.append(f"印に `{_tr_field}` が無い")
+    if "commit" in _tr_mark and not isinstance(_tr_mark.get("commit"), (str, type(None))):
+        tree_gaps.append("`commit` が文字列でも None でもない")
+    if "dirty" in _tr_mark and not isinstance(_tr_mark.get("dirty"), (bool, type(None))):
+        tree_gaps.append("`dirty` が真偽値でも None でもない")
+    if _ENV_KEY not in _snapshot(_FakeCollector(1.0)):
+        tree_gaps.append("実際のスナップショットが印を書かない")
+
+    # (b) A baseline from an edited tree is said out loud.
+    _tr_code, _tr_said = _verdict(_tr_snap(dict(_tr_base, dirty=True)), 2.0, _tr_now)
+    if "BASELINE FROM AN EDITED TREE" not in _tr_said:
+        tree_gaps.append("dirty な基準を名指ししない")
+    # ...and a clean baseline is not, or the note fires on every comparison
+    # and stops being read.
+    if "BASELINE FROM AN EDITED TREE" in _verdict(_tr_snap(_tr_base), 2.0, _tr_now)[1]:
+        tree_gaps.append("clean な基準でも警告が出る（毎回鳴る警告は読まれない）")
+    if "BASELINE FROM AN EDITED TREE" in _verdict(
+        _tr_snap(dict(_tr_base, commit=None, dirty=None)), 2.0, _tr_now
+    )[1]:
+        tree_gaps.append("git が読めなかった基準を dirty 扱いする")
+
+    # (c) The note never becomes a verdict. This is the half that keeps
+    # C-1781's defect from being rebuilt on the tree axis.
+    for _tr_value, _tr_want, _tr_what in ((2.0, 0, "改善"), (0.0, 2, "悪化")):
+        _tr_got, _tr_out = _verdict(
+            _tr_snap(dict(_tr_base, dirty=True)), _tr_value, _tr_now
+        )
+        if _tr_got == CROSS_ENVIRONMENT:
+            tree_gaps.append(f"dirty な基準で比較そのものを拒む（{_tr_what}）")
+        elif _tr_got != _tr_want:
+            tree_gaps.append(f"dirty な基準で{_tr_what}が数字どおりに裁かれない（{_tr_got}）")
+    # A baseline from another commit is the normal way to work: no note, no
+    # refusal.
+    _tr_code, _tr_said = _verdict(_tr_snap(dict(_tr_base, commit="b" * 40)), 0.0, _tr_now)
+    if _tr_code != 2 or "BASELINE FROM AN EDITED TREE" in _tr_said:
+        tree_gaps.append("基準の commit が違うだけで警告か拒否になる")
+
+    # (d) An older snapshot with no tree in its mark still compares.
+    if _verdict(
+        _tr_snap({"python": "3.11.15", "executable": "/usr/bin/python3", "venv": False}),
+        2.0, _tr_now,
+    )[0] != 0:
+        tree_gaps.append("木の記録が無い古いスナップショットを比較できない")
+    c.add(
+        "judge_records_what_tree_it_measured",
+        "判定器が「どの木を測ったか」を記録し、疑わしい基準を口に出す",
+        0.0 if tree_gaps else 2.0,
+        detail=(
+            "; ".join(tree_gaps)
+            if tree_gaps
+            else "**本物の `_report()` を合成スナップショットで走らせて**測った"
+            "（純関数なので費用 0）。**2 方向**: (a) スナップショットが "
+            "`commit` と `dirty` を記録し、**dirty な基準は `--compare` の出力で"
+            "名指しされる**——clean な基準と、git が答えられなかった基準"
+            "（`None`）では鳴らない（毎回鳴る警告は読まれない）。"
+            "(b) **その警告は判定を変えない**——dirty な基準でも改善は exit 0・"
+            "悪化は exit 2 で、**exit 3 にはならない**。基準の commit が違うのは"
+            "**正常な使い方**なので警告も拒否もしない。"
+            "**(b) が無いと C-1781 の誤拒否を木の側で作り直すことになり、"
+            "しかも今度は毎回の巡が dirty なので全部止まる。**"
+            "**木の記録が無い古いスナップショット**は今までどおり比較できる"
+            "（C-1707 (c) の「印の無いものは不明であって誤りではない」を保持）。"
+            "**なぜ要るか（実測・2026-09-13・踏んだ本人の commit message に記録）**: "
+            "`ce1fd893` は background で採った基準が**修正を先に読んで 4.0 と記録**し、"
+            "**真の before は 0.0** だった。収集器は走行中のディスクを読むので、"
+            "基準を採っている最中に直すと「直った後」が before になる。"
+            "気づいたのは書き手が「0 のはずだ」と知っていたからで、"
+            "**計器は何も言っていなかった**"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "judge_notices_a_lost_number",
         "判定器が「数字が消えた／測れなくなった」を止める",
@@ -30148,6 +30258,67 @@ def _env_mark() -> dict[str, object]:
         "python": sys.version.split()[0],
         "executable": sys.executable,
         "venv": bool(os.environ.get("VIRTUAL_ENV")),
+        # C-1789, the other half of the footing. C-1707 recorded which
+        # interpreter answered and stopped there, so a snapshot still said
+        # nothing about WHICH TREE it read - and this collector reads the
+        # working tree, not a commit. A baseline taken while the fix was
+        # already on disk therefore records the fixed numbers as "before",
+        # and comparing against it prints NO MOVEMENT for work that moved.
+        #
+        # Measured on 2026-09-13 by the loop it happened to: `ce1fd893`'s own
+        # commit message says a background baseline read the repair first and
+        # wrote 4.0 where the true before was 0.0. It was caught only because
+        # the author happened to know the number should have been zero; the
+        # apparatus said nothing at all.
+        #
+        # Recorded, never enforced: see `tree_note`. A baseline from an older
+        # commit is the normal way to work, so a difference here is a note,
+        # never a refusal (C-1781 was exactly that mistake on the other axis).
+        **_tree_mark(),
+    }
+
+
+def _tree_mark() -> dict[str, object]:
+    """Which tree this run read: the commit, and whether it was edited.
+
+    ``dirty`` is the load-bearing half - it says the numbers may not belong to
+    any commit at all. ``commit`` is cheap to keep and says which one they
+    were taken beside.
+
+    Both are ``None`` when git cannot answer (no git, no repository, a
+    detached worktree) - unknown is not wrong, the rule C-1707 (c) already
+    set for an unmarked snapshot, and nothing here may make a measurement
+    impossible to take.
+    """
+
+    import os
+    import subprocess
+
+    #: The repository root: this file's parent's parent.
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def asked(*args: str) -> str | None:
+        try:
+            done = subprocess.run(
+                ["git", *args],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=root,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return done.stdout.strip() if done.returncode == 0 else None
+
+    head = asked("rev-parse", "HEAD")
+    # `--porcelain` is empty exactly when nothing is staged, modified or
+    # untracked-but-not-ignored. An empty answer and an unreadable one are
+    # different things, so the failure is carried through as None rather than
+    # collapsing into "clean".
+    status = asked("status", "--porcelain")
+    return {
+        "commit": head,
+        "dirty": None if status is None else bool(status),
     }
 
 
@@ -30200,6 +30371,43 @@ def env_mismatch(before: dict, after: dict) -> str | None:
     if all(old.get(field) == new.get(field) for field in _ENV_IDENTITY):
         return None
     return "; ".join(differs)
+
+
+def tree_note(before: dict, after: dict) -> str | None:
+    """Say when the baseline cannot be trusted as a "before", or None.
+
+    C-1789. This collector measures the working tree, so a baseline taken
+    while the change was already on disk records the *fixed* numbers as
+    "before" - and the comparison then reports NO MOVEMENT for work that
+    moved. That happened on 2026-09-13: a background baseline read a repair
+    first and wrote 4.0 where the true before was 0.0.
+
+    Only the BASELINE is judged. The run being compared is expected to be
+    dirty - that is what "I changed something, now measure" means - so
+    warning about it would fire on every honest comparison, and a warning
+    that fires every time is one nobody reads.
+
+    A differing commit is NOT reported: taking a baseline on ``main`` and
+    comparing after some commits is the normal way to work. And nothing here
+    ever changes an exit code; C-1781 was precisely the cost of letting a
+    footing difference refuse a comparison, and the same mistake on the tree
+    axis would be worse, because every real cycle has a dirty tree.
+    """
+
+    old = before.get(_ENV_KEY)
+    if not isinstance(old, dict):
+        return None
+    if old.get("dirty") is not True:
+        # False is clean; None is "git could not answer", which is unknown
+        # rather than wrong (C-1707 (c)).
+        return None
+    where = old.get("commit")
+    beside = f" beside {str(where)[:12]}" if isinstance(where, str) and where else ""
+    return (
+        f"BASELINE FROM AN EDITED TREE: the snapshot was taken{beside} with "
+        "uncommitted changes, so its numbers may already include part of what "
+        "is being measured now. Movement below may read as smaller than it is."
+    )
 
 
 def _values(snapshot: dict) -> dict[str, float | None]:
@@ -30356,6 +30564,13 @@ def _report(before: dict, collector: Collector) -> int:
     if _ENV_KEY not in before:
         print("NOTE: the baseline carries no record of what it was measured on,")
         print("      so this comparison assumes the same interpreter (C-1707).")
+
+    # C-1789: said out loud, and deliberately not a verdict. The exit code
+    # below is decided by the numbers alone - an edited baseline makes a
+    # comparison worth doubting, not worth refusing.
+    doubt = tree_note(before, after)
+    if doubt is not None:
+        print(doubt)
 
     moved, broken = compare(before, after, metrics)
 
