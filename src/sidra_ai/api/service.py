@@ -861,7 +861,15 @@ class SidraService:
             # the same honest no-evidence answer 「続けて」「教えて」 already get.
             results = []
         data_context, citations = build_data_context([r.chunk for r in results])
-        self._attach_excerpts(citations, [r.chunk for r in results], query)
+        # The excerpt window is chosen with the query retrieval actually used,
+        # not the bare turn. After a follow-up carries the previous question
+        # (「もっと詳しく」→ searched_query), the follow-up alone has no content
+        # subject, so select_excerpt_window scored every window zero and fell
+        # back to the chunk opening - handing the operator an excerpt off the
+        # top of the source instead of the passage that grounds the answer, the
+        # one thing the excerpt exists to let them check. searched_query equals
+        # query on a single turn, so ordinary excerpts are unchanged (C-1782).
+        self._attach_excerpts(citations, [r.chunk for r in results], searched_query)
 
         history_context = build_history_context(screened_history)
         if history_context:
