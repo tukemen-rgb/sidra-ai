@@ -15353,6 +15353,105 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- a frame's work has a ceiling ------------------------------------
+    #
+    # C-1752, §32 (added this cycle) x §1. Every judge here reads what the
+    # page paints; none asked how much. RAIL puts the budget at 10ms of
+    # the app's own work per frame - 16ms at 60fps, less the ~6ms a
+    # browser needs to render it (web.dev, read 2026-09-13).
+    #
+    # That is a time, and a recording context in node cannot measure time.
+    # So no threshold is invented here: what is recorded is what each
+    # template drew on the day it was measured, and what is refused is a
+    # change that quietly makes it much heavier. The 10ms lives in §32 as
+    # the thing a person reasons with when a ceiling is reached.
+    #
+    # Both directions. Without the second, a ceiling of a hundred thousand
+    # is green forever.
+    from sidra_ai.creation.framecost import (
+        FRAME_MEDIAN as _cost_measured,
+        FRAME_SLACK as _cost_slack,
+        count_probe as _cost_probe,
+        frame_ceiling as _cost_ceiling,
+    )
+
+    cost_gaps: list[str] = []
+    cost_ok: list[str] = []
+    if sorted(_cost_measured) != sorted(_tune_templates):
+        cost_gaps.append(
+            f"表にある型が {sorted(_cost_measured)} で、製品の型と違う"
+        )
+    if not 1.0 < _cost_slack <= 1.5:
+        cost_gaps.append(f"余白 {_cost_slack} が緩すぎる/狭すぎる")
+    for key in sorted(_tune_templates):
+        if key not in _cost_measured:
+            continue
+        page = _tune_generate("ゲームを作って", template=key).html
+        script = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
+        if script is None:
+            cost_gaps.append(f"{key}: no script")
+            continue
+        try:
+            probe = _scene_sp.run(
+                ["node", "-"],
+                input=_cost_probe(script.group(1), frames=1200),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if probe.returncode != 0:
+                cost_gaps.append(f"{key}: {probe.stderr.strip()[:60]}")
+                continue
+            seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            cost_gaps.append(f"{key}: probe unavailable ({type(exc).__name__})")
+            continue
+        if seen.get("frames", 0) < 500:
+            cost_gaps.append(f"{key}: 描いたフレームが {seen.get('frames')} 枚しかない")
+            continue
+        median = seen["median"]
+        if median > _cost_ceiling(key):
+            cost_gaps.append(
+                f"{key}: 1 フレーム {median} 回で天井 {_cost_ceiling(key)} を超えた"
+                f"（記録は {_cost_measured[key]}）"
+            )
+            continue
+        # ...and the ceiling is still about this page. A table left far
+        # above what the product does is a table nobody is held to.
+        if median * 2 < _cost_measured[key]:
+            cost_gaps.append(
+                f"{key}: 天井が実測 {median} から離れすぎ（記録は {_cost_measured[key]}）"
+            )
+            continue
+        cost_ok.append(key)
+    c.add(
+        "creation_frame_work_has_a_ceiling",
+        "1 フレームの仕事量に天井がある型",
+        float(len(cost_ok)) if not cost_gaps else 0.0,
+        detail=(
+            "**§32（本巡で増築・外部調査 2026-09-13）**: RAIL は"
+            "**アニメーションの 1 フレームを 10ms**とする"
+            "（60fps の 16ms から、**ブラウザ自身の描画 ~6ms** を引いた残り）。"
+            "**それは時間であり、node の記録 ctx は時間を測れない**"
+            "——数えられるのは呼び出しの回数で、1 回が何 µs かは端末が決める。"
+            "**だから閾値は作らない**（測っていないものを測ったように書かない）。"
+            "**代わりに ratchet**: 10 型を 1200 フレーム運転して"
+            "**1 フレームあたりの canvas 呼び出しの中央値**を採り、"
+            "`framecost.FRAME_MEDIAN`（実測日 2026-09-13）の **+20%** を天井とする。"
+            "**両方向**: (a) 全型が天井の内側、"
+            "(b) **天井が実測から離れすぎていない**"
+            "——(b) が無ければ天井を 10 万にして永久に緑の実装が満点を取る。"
+            "**実測の幅は 20 倍**（catch 21／fishing 33／duel 40／kaiju 55／"
+            "platformer 119／shooter 147／marble 184／puzzle 284／racing 478／adventure 530）"
+            "——**どちらが正しいという話ではなく、誰もこの数を見ていなかったという話**。"
+            "記録 ctx は**既知のメソッド一覧ではなく Proxy** なので、"
+            "**誰も思いつかなかった呼び出しも数に入る**"
+            if not cost_gaps
+            else "; ".join(cost_gaps)
+        ),
+        kind=OUTCOME,
+    )
+
     # --- every probe fakes the same browser ------------------------------
     #
     # C-1749. Nine probes in this package fake localStorage, and each one
