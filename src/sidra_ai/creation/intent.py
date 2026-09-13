@@ -39,6 +39,7 @@ from sidra_ai.creation.vocabulary import GAME_WORDS
 
 import re
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -320,6 +321,56 @@ def _normalise(message: str) -> str:
     """
 
     return fold_kana(unicodedata.normalize("NFKC", message).casefold())
+
+
+#: Question markers that are *nouns*, so they can be the subject of another
+#: noun. 「作り方」 is the only one in ``_QUESTION_MARKERS`` that can: every
+#: other entry is a verb (教えて), a sentence ending (ですか、とは), or a
+#: leading interrogative (どうやって、how do、why).
+#:
+#: The distinction is what makes the C-1533 rule safe. Reading "a marker with
+#: the artifact after it belongs to the subject" is sound for a nominalised
+#: marker and wrong for a leading one, because in English the interrogative
+#: comes *first* and the artifact always follows it: 「how do I build a game」
+#: has 「game」 after 「how do」 and is plainly a question. The full suite caught
+#: that - ``test_creation_intent`` has held the English phrasings since long
+#: before this - which is why the rule is not simply "is the artifact last".
+_NOMINAL_QUESTION_MARKERS: frozenset[str] = frozenset({"作り方"})
+
+
+def _question_is_the_subject(text: str, artifact_word: str, markers: Sequence[str]) -> bool:
+    """Whether every question marker sits *before* the artifact it describes.
+
+    ``_QUESTION_MARKERS`` win over an earlier making-verb because Japanese
+    puts the operative verb last - that is the rule this file already
+    states. The same rule read the other way says when they must *not* win:
+    a marker with the artifact's own noun after it is not the operative
+    ending, it is part of what the artifact is about.
+
+    「ラーメンの作り方のレポートを書いて」 is the measured case (C-1533).
+    作り方 vetoed it, so a request naming レポート and 書いて was answered
+    with Q&A excerpts, while 「ラーメンのレポートを書いて」 - the same request
+    with a narrower subject - built the document.
+
+    Two things have to hold, and the second was learned the hard way. Every
+    marker present must be a *noun* (see ``_NOMINAL_QUESTION_MARKERS``),
+    because only a noun can be the subject of another noun - English puts
+    its interrogative first, so 「how do I build a game」 has the artifact
+    after the marker and is still a question. And the artifact's own cue
+    must sit after the marker, which keeps 「ゲームの作り方を書いて」 - write
+    out how to make a game - from building one.
+
+    The load-bearing counter-case is this module's own docstring:
+    「ゲームの作り方を教えて」 must stay a question. It does, twice over: 教えて
+    is not a noun, and nothing follows it anyway.
+    """
+
+    if any(marker not in _NOMINAL_QUESTION_MARKERS for marker in markers):
+        return False
+    latest_marker = max(
+        text.rfind(fold_kana(marker.casefold())) for marker in markers
+    )
+    return text.rfind(fold_kana(artifact_word.casefold())) > latest_marker
 
 
 def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
@@ -655,7 +706,18 @@ def detect_creation_intent(message: str) -> CreationIntent:
             )
         return CreationIntent(is_creation=False)
 
-    if question_hits and not polite_request:
+    if (
+        question_hits
+        and not polite_request
+        # C-1533: ...unless the markers are all inside the subject, with the
+        # artifact's own noun after them. 「ラーメンの作り方のレポートを
+        # 書いて」 names what to make and how to make it; only 「ゲームの
+        # 作り方を教えて」 ends on the asking.
+        and not (
+            artifact is not None
+            and _question_is_the_subject(text, artifact[1], question_hits)
+        )
+    ):
         # A making-verb inside a question is still a question. Reported as a
         # non-creation intent carrying its evidence, so the near miss is
         # visible to anyone auditing why a message was not routed. A polite

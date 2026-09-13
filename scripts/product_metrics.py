@@ -21635,6 +21635,17 @@ def measure_creation(c: Collector) -> None:
         # an operator is actually asked. Without that file this row would pass
         # on a detector that knew the answer and said nothing.
         ("racing game", "game", "racing"),
+        # C-1533: 「作り方」 is a question marker, and rightly - 「ゲームの
+        # 作り方を教えて」 must stay a question. But it vetoed even when the
+        # artifact's own noun came after it, so a request that named both
+        # レポート and 書いて was answered with Q&A excerpts while the same
+        # request with a narrower subject (「ラーメンのレポートを書いて」)
+        # built the document. Three spellings, because the marker sits in a
+        # different place in each: after a subject noun, with no subject noun
+        # at all, and behind a different artifact word and connective.
+        ("ラーメンの作り方のレポートを書いて", "document", None),
+        ("作り方のレポートを書いて", "document", None),
+        ("ラーメンの作り方について記事を書いて", "document", None),
     )
     kana_ok = 0
     kana_misses = []
