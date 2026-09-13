@@ -846,6 +846,10 @@ class SidraService:
             "input_tokens_estimate": generation.input_tokens_estimate,
             "output_tokens_estimate": generation.output_tokens_estimate,
             "external_api_cost_usd": self.usage.totals()["external_api_cost_usd"],
+            # Why the model stopped: "length"/"limit" means it hit the output-token
+            # cap and the answer is cut off. Surfaced so a client can say the answer
+            # is incomplete rather than letting it read as whole (C-1750).
+            "finish_reason": generation.finish_reason,
         }
         guarded_output = self.output_guard.scan(generation.text)
         if guarded_output.blocked:

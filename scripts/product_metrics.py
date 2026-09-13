@@ -1997,6 +1997,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1750: the non-streaming _finish dropped the backend's done_reason/stop_type,
+    # so a model answer cut off at model_max_output_tokens was returned as complete
+    # (finish_reason defaulted to "stop"). It now carries the reason like its
+    # streaming twin, the chat model block surfaces it, and the CLI says so.
+    from sidra_ai.evals.answer_truncation_is_disclosed import (
+        evaluate_answer_truncation_is_disclosed,
+    )
+
+    answer_truncation = evaluate_answer_truncation_is_disclosed()
+    c.add(
+        "answer_truncation_is_disclosed",
+        "出力上限で途中終了した回答を「途中で切れた」と明示する（完全と偽らない）",
+        10.0 * answer_truncation.checks_passed / answer_truncation.checks_total,
+        detail=f"{answer_truncation.checks_passed}/{answer_truncation.checks_total} checks; "
+               "src/sidra_ai/evals/answer_truncation_is_disclosed.py"
+               + ("" if answer_truncation.passed else "; " + "; ".join(answer_truncation.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1655: the background refresher records health every tick (runs,
     # consecutive_failures, last_success_at, repositories_failed) but no endpoint
     # returned it, so auto-refresh could fail silently. /v1/index now surfaces it

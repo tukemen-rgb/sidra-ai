@@ -325,6 +325,19 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
     answer = clean(payload.get("answer", "")).strip()
     print(answer if answer else "(空の回答)")
 
+    # A local model that hit its output-token cap stops mid-answer; the backend
+    # reports it (Ollama done_reason "length", llama.cpp stop_type "limit") and the
+    # service now carries it through as model.finish_reason (C-1750). Say the answer
+    # is cut off instead of letting a truncated reply read as complete - the same
+    # "say when it is not the whole thing" the listings keep (C-1680). A normal
+    # "stop" (and the echo backend) adds nothing.
+    finish_reason = (payload.get("model") or {}).get("finish_reason", "")
+    if finish_reason in ("length", "limit"):
+        print(
+            "\n注意: 回答がモデルの出力上限に達して途中で終わっている。"
+            "続きは質問を分けて尋ねるか、SIDRA_MODEL_MAX_OUTPUT_TOKENS を上げる。"
+        )
+
     # A creation response is not an index-grounded answer: it carries no
     # citations, and the empty-index note would misread as an ingestion problem
     # the same way it did after a refusal (C-1254). It also wrote a file the web

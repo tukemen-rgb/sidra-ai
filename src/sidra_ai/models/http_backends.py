@@ -175,6 +175,17 @@ class _HTTPAdapter(LocalModelAdapter):
                 or raw.get("tokens_predicted")
                 or estimate_tokens(text)
             ),
+            # Carry the stop reason the server reports, exactly as the streaming
+            # twin does (generate_stream). Ollama says done_reason "length",
+            # llama.cpp stop_type "limit" when the answer was cut off at the token
+            # cap; dropping it here let a truncated answer read as complete
+            # (C-1750). Defaults to "stop" when the server names no reason.
+            finish_reason=str(
+                raw.get("done_reason")
+                or raw.get("stop_type")
+                or raw.get("stop_reason")
+                or "stop"
+            ),
             metadata={"endpoint": self.endpoint, "cost_usd": 0.0},
         )
 
