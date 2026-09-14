@@ -1308,6 +1308,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1835: revision reads game-*.meta.json and nothing else, and nothing
+    # asked what the message named - so 「さっきのGIFを難しくして」 resolved to the
+    # latest game and edited it, reporting success under the game's title. The
+    # metric reads the game's metadata before and after, not the wording.
+    from sidra_ai.evals.revision_refuses_another_kind import (
+        evaluate_revision_refuses_another_kind,
+    )
+
+    revision_kind = evaluate_revision_refuses_another_kind()
+    c.add(
+        "creation_revision_refuses_another_kind",
+        "ゲーム以外を名指した修正依頼が、ゲームを書き換えずに断られる",
+        10.0 * revision_kind.checks_passed / revision_kind.checks_total,
+        detail=f"{revision_kind.checks_passed}/{revision_kind.checks_total} checks; "
+               "src/sidra_ai/evals/revision_refuses_another_kind.py"
+               + ("" if revision_kind.passed
+                  else "; " + "; ".join(revision_kind.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

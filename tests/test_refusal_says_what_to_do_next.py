@@ -90,6 +90,12 @@ CODES = (
     # same words changes nothing, so the fallback advice is wrong too; the
     # answer names the changes that exist.
     "revision_change",
+    # C-1835, the third of the revision family: the artifact was named and
+    # named as a kind revision cannot change (「さっきのGIFを難しくして」). Until
+    # now that edited the latest *game* and reported success under its title,
+    # so the wrong advice here is not "wait" but any advice about games at
+    # all - the answer says what can be revised and how to remake the rest.
+    "revision_kind",
     # C-1802. The sixth: a meta question about the product (「使い方を教えて」) is
     # not a corpus query; the next step is to say what SIDRA does, not to wait or
     # to ingest a repository.

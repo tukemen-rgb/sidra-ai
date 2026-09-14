@@ -414,6 +414,23 @@ def _question_is_the_subject(text: str, artifact_word: str, markers: Sequence[st
     return text.rfind(fold_kana(artifact_word.casefold())) > latest_marker
 
 
+def named_artifact_kind(message: str) -> CreationKind | None:
+    """Which kind of artifact this message names, or None when it names none.
+
+    C-1835. The revision path needed the same question the creation router
+    asks - "what did they call the thing?" - because it was not asking it at
+    all: 「さっきのGIFを難しくして」 resolved 「さっきの」 to the latest *game* and
+    edited that. One reading of the message, shared, rather than a second
+    table that can drift from this one.
+
+    The latest-match rule below decides it, so 「ゲームの資料」 is a document
+    and 「資料のゲーム」 is a game.
+    """
+
+    found = _find_artifact(fold_kana(message.casefold()))
+    return found[0] if found else None
+
+
 def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
     """Return the artifact whose keyword sits latest in the message.
 

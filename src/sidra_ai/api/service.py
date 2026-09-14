@@ -75,6 +75,20 @@ owner asked a Japanese question and received a confusing English reply
 
 #: How each buildable kind is named to the operator, for the honest decline
 #: given when a creation request names something no generator builds (C-1261).
+#: C-1835: what to call each kind in a refusal. Japanese labels rather than
+#: the router's keys, for the reason C-1619 gives one module over: the key is
+#: an internal name and a reader who sees 「gif」 in a sentence about their own
+#: request is reading our code, not our answer.
+_KIND_LABELS: dict[str, str] = {
+    "deck": "スライド",
+    "gif": "GIF",
+    "art": "アート",
+    "document": "レポート",
+    "model3d": "3D モデル",
+    "project": "制作一式",
+}
+
+
 #: Keyed by the router's own kind values (``registered_kinds()``), so a
 #: generator added or removed there changes the offered list with no edit here.
 _KIND_LABELS: dict[str, str] = {
@@ -816,6 +830,29 @@ class SidraService:
                 "refused": True,
                 "refusal": "revision_change",
                 "reason": "the artifact was named but the change is not one we make",
+                "citations": [],
+                "security": gate_result.to_dict(),
+                "creation": {"revision": {}},
+            }
+        if revision.names_other_kind:
+            # C-1835: they pointed at something and called it a slide, a GIF,
+            # a report. Revision reads game-*.meta.json and nothing else, and
+            # until now nothing asked what they called it - so 「さっきの」
+            # resolved to the latest game and it was edited, announced under
+            # the game's own title. Say what can be changed instead of
+            # changing the wrong thing, and name the kind they asked about so
+            # the sentence is about their request rather than about games.
+            named = _KIND_LABELS.get(revision.names_other_kind, revision.names_other_kind)
+            return {
+                "answer": (
+                    f"いま修正できるのはゲームだけで、{named}は作り直しになります。"
+                    "同じ内容で作り直すには、作ったときの依頼をもう一度送ってください"
+                    f"（例:「{named}を作って」）。"
+                    "ゲームなら「さっきのゲームを難しくして」のように変更できます。"
+                ),
+                "refused": True,
+                "refusal": "revision_kind",
+                "reason": "the named artifact kind is not one revision can change",
                 "citations": [],
                 "security": gate_result.to_dict(),
                 "creation": {"revision": {}},

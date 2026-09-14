@@ -355,6 +355,7 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             # (「さっきのゲームの音を消して」). The mirror of the line above: there
             # the next step is to point at something, here it is to ask for one
             # of the changes that exist (C-1814).
+            "revision_kind": "いま修正できるのはゲームだけ。スライド・GIF・アート・レポート・3D モデルは、作ったときの依頼をもう一度送って作り直す。",
             "revision_change": "どれを変えるかは分かったが、何をどう変えるかが"
                                "読み取れなかった。難易度・テーマ・差し色・題名"
                                "などの中から、「さっきのゲームを難しくして」の"

@@ -44,6 +44,7 @@ from sidra_ai.creation.intent import (
     _MAKE_VERBS,
     _QUESTION_MARKERS,
     fold_kana,
+    named_artifact_kind,
 )
 from sidra_ai.creation.router import CreationOutcome
 from sidra_ai.creation.intent import CreationKind
@@ -291,6 +292,18 @@ class RevisionIntent:
     #: caller must decline it as a change request rather than let it reach the
     #: corpus wall, which is what it did until C-1814.
     wants_change: bool = False
+    #: The artifact kind the message named, when that kind is one this
+    #: mechanism cannot change. C-1835: revision is game-only (it reads
+    #: ``game-*.meta.json``), and nothing checked what the message called the
+    #: thing - so 「さっきのGIFを難しくして」 resolved 「さっきの」 to the latest game
+    #: and wrote a new version of it, reporting success under the game's name.
+    #: Empty means no other kind was named, which is the ordinary case.
+    #:
+    #: Same shape as the two flags above and for the same reason the subject
+    #: rules give (C-1511b, C-1513): a word that can point at a page can also
+    #: name one that is not there, and the honest answer is to say so rather
+    #: than resolve to whatever is nearest.
+    names_other_kind: str = ""
 
 
 def detect_revision_intent(message: str) -> RevisionIntent:
@@ -401,6 +414,31 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     if not adjustments and any(fold_kana(word) in text for word in _REVERT_WORDS):
         adjustments["revert"] = "1"
         evidence.append("revert")
+
+    other_kind = named_artifact_kind(message)
+    if has_referent and other_kind is not None and other_kind is not CreationKind.GAME:
+        # C-1835. They pointed at something and called it a slide, a GIF, a
+        # report. Revision is game-only - this module reads game-*.meta.json -
+        # and nothing here used to ask what they called it, so 「さっきの」
+        # resolved to the latest game and it was edited: measured, a GIF
+        # request moved a game from normal to hard and reported success under
+        # the game's own title.
+        #
+        # Before the two branches below on purpose. A change this detector
+        # cannot read (「さっきのスライドを短くして」) otherwise answered with the
+        # list of things a *game* can change, which never mentions that a
+        # slide cannot be changed at all.
+        #
+        # The subject rules next door already argue this: a word that can
+        # point at a page can also name one that is not there (C-1511b,
+        # C-1513), and the honest answer is to say so rather than resolve to
+        # whatever is nearest.
+        return RevisionIntent(
+            is_revision=False,
+            adjustments=dict(adjustments),
+            evidence=tuple(evidence),
+            names_other_kind=other_kind.value,
+        )
 
     if not adjustments:
         # A change verb with nothing recognisable to change. Inventing an edit
