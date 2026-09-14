@@ -25988,6 +25988,88 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- ...and it refuses a baseline that admits it is incomplete (C-1792) -
+    #
+    # The same family, the other side of the contract. `collect()` survives a
+    # section that raises by recording `<section>_probe` as unmeasurable and
+    # carrying on, so `--save` can write a baseline missing a quarter of the
+    # board with the reason sitting in the file. `compare` then reads every
+    # absent key as newly measurable, which is movement.
+    #
+    # Measured on a real 483-key snapshot before this existed: drop
+    # `measure_creation` from the baseline side alone and the verdict is
+    # 245 movements, 0 regressions, exit 0. Drop it from the new side instead
+    # and it is 247 regressions, exit 2. Strict about its own snapshot,
+    # trusting of the one handed to it.
+    #
+    # Three directions, because the first alone is satisfied by a judge that
+    # refuses everything, and the first two together are satisfied by one that
+    # refuses every unmeasurable number - which would make work no existing
+    # metric can see permanently unfinishable, the thing `compare` documents
+    # itself as counting on purpose.
+    _probe_before = dict(_env_before)
+    _probe_before["creation_probe"] = {
+        "value": None, "unit": "", "kind": CONTEXT, "detail": "KeyError: 'racing'",
+    }
+    base_gaps: list[str] = []
+
+    # (a) a baseline that says it could not measure is not compared at all.
+    _code, _said = _verdict(_probe_before, 2.0, _same)
+    if _code == 0:
+        base_gaps.append("欠測を告白した基準を「前進」として通す")
+    elif _code == 2:
+        base_gaps.append("欠測した基準を regression（exit 2）と呼ぶ")
+    elif _code != CROSS_ENVIRONMENT:
+        base_gaps.append(f"欠測した基準が専用の出口にならない（{_code}）")
+    if "INCOMPLETE BASELINE" not in _said or "creation" not in _said:
+        base_gaps.append("どの節が測れなかったかを名指ししない")
+
+    # (b) a whole baseline still rules exactly as before.
+    if _verdict(_env_before, 0.0, _same)[0] != 2:
+        base_gaps.append("揃った基準どうしの悪化を止めなくなった")
+    if _verdict(_env_before, 2.0, _same)[0] != 0:
+        base_gaps.append("揃った基準どうしの改善を通さなくなった")
+
+    # (c) an ORDINARY unmeasurable number in the baseline is not a broken
+    # baseline. That transition is the designed way to finish work no number
+    # can see yet, and refusing it would close the only door.
+    _blank = {
+        _ENV_KEY: dict(_same),
+        "shipped": {"value": None, "unit": "", "kind": OUTCOME, "detail": "まだ測れない"},
+    }
+    if _verdict(_blank, 1.0, _same)[0] != 0:
+        base_gaps.append("ただの unmeasurable を壊れた基準として拒否する")
+    c.add(
+        "judge_refuses_an_incomplete_baseline",
+        "判定器が「欠測を抱えた基準」を前進の証拠に使わない",
+        0.0 if base_gaps else 3.0,
+        unit="direction",
+        detail=(
+            "; ".join(base_gaps)
+            if base_gaps
+            else "**C-1491 の裏側**。`collect()` は節が落ちても死なず"
+            "`<節>_probe` を unmeasurable として残して走り続ける（それ自体は正しい）。"
+            "結果 **`--save` は「測れなかった」を含んだ基準を書き出せる**。"
+            "`compare()` の第 1 走査は**基準に無い鍵を「新しく測れるようになった」**と読むので、"
+            "**欠測がそのまま前進に化ける**。**実測 2026-09-13**（実スナップショット 483 鍵）: "
+            "**基準側だけ**から creation 節を落とすと **movement 245・regression 0・exit 0**——"
+            "何も動かしていないコミットが満額の「完了」を得る。**新しい側**から落とすと"
+            "**regression 247・exit 2**。**自分が採った側には厳しく、渡された側は無検査**だった。"
+            "**判定は 3（比べてはいけない基準）**——regression ではない（木は何も悪化していない）し、"
+            "ここで revert を指示すれば C-1707 が止めた損害をそのまま作り直す。"
+            "**3 方向**: (a) 告白した基準を拒否し**どの節か**を名指しする "
+            "(b) 揃った基準どうしは今までどおり（悪化 2・改善 0）"
+            "(c) **ただの unmeasurable は拒否しない**——unmeasurable→値は"
+            "**既存の数字で見えない仕事を完了できる唯一の道**なので、"
+            "(a) だけなら「何も拒まない判定器」、(a)+(b) だけなら"
+            "「unmeasurable を全部拒む判定器」が満点を取る。"
+            "**根拠は実際に踏んだ事故**: 新しいコンテナで依存が入らないまま基準を採り、"
+            "**475 ではなく 13 計器**のスナップショットが保存された（今セッション・辛口クリエイター）。"
+            "目で気づいて取り直したが、**気づかなければ判定器は「完了」を出していた**"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- ...and it compares the SAME interpreter without refusing (C-1781) --
     #
     # The refusal C-1707 built above went one step too far. `venv` in the mark
@@ -30429,6 +30511,60 @@ def tree_note(before: dict, after: dict) -> str | None:
         "uncommitted changes, so its numbers may already include part of what "
         "is being measured now. Movement below may read as smaller than it is."
     )
+#: The suffix ``collect()`` gives a section that raised. Nothing else in the
+#: script writes a key with it (grep 2026-09-13: zero literals), and a healthy
+#: snapshot of this tree carries none of 483 keys - so its presence in a file
+#: is unambiguous.
+_PROBE_SUFFIX = "_probe"
+
+
+def incomplete_baseline(before: dict) -> str | None:
+    """What the baseline says it could not measure, or None if it was whole.
+
+    C-1792, and the other half of C-1491. ``collect()`` does not stop when a
+    section raises: it catches, records ``<section>_probe`` as unmeasurable
+    with the exception on it, and runs the rest. That is the right call - one
+    broken probe should not cost the other nine sections - but it means
+    ``--save`` will happily write a baseline that is missing a quarter of the
+    board, and the file says so in a key nobody read.
+
+    Then ``compare`` walks the new snapshot, finds those keys with no
+    counterpart, and its first loop reads *absent in the baseline* as **newly
+    measurable**, which counts as movement. Measured 2026-09-13 on a real
+    483-key snapshot with ``measure_creation`` dropped from the baseline side
+    only: **245 movements, 0 regressions, exit 0** - a full "done" verdict for
+    a commit that moved nothing. The mirror image, the same section dropped
+    from the *new* side, gives **247 regressions and exit 2**. The judge was
+    strict about the snapshot it took and trusted the one it was handed.
+
+    §31 is why this is the shape it is. A record left on disk between two runs
+    can come back missing, so the absence has to be an expected state that the
+    reader handles - not a value. The product was built that way (C-1734,
+    C-1738); the judge reading its own baseline was not.
+
+    Refused rather than repaired, and refused at ``CROSS_ENVIRONMENT`` rather
+    than at a new exit code, because it is the same kind of answer that
+    already lives there: *these two cannot be compared, take the baseline
+    again*. It is deliberately not a regression - nothing about the tree got
+    worse - and a loop told to revert here would revert something that was
+    never wrong, which is exactly the damage C-1707 was written to stop.
+
+    Only the section probes count. An ordinary metric that is unmeasurable in
+    the baseline is normal and must keep passing: ``compare`` counts
+    unmeasurable-to-a-value as progress on purpose, and refusing those would
+    make work that no existing number can see permanently unfinishable.
+    """
+
+    confessed = []
+    for key in sorted(before):
+        entry = before.get(key)
+        if not key.endswith(_PROBE_SUFFIX) or not isinstance(entry, dict):
+            continue
+        if entry.get("value") is not None:
+            continue
+        section = key[: -len(_PROBE_SUFFIX)]
+        confessed.append(f"{section}: {entry.get('detail') or '理由の記録なし'}")
+    return "; ".join(confessed) if confessed else None
 
 
 def _values(snapshot: dict) -> dict[str, float | None]:
@@ -30592,6 +30728,16 @@ def _report(before: dict, collector: Collector) -> int:
     doubt = tree_note(before, after)
     if doubt is not None:
         print(doubt)
+
+    missing = incomplete_baseline(before)
+    if missing is not None:
+        print(f"INCOMPLETE BASELINE: {missing}")
+        print("The baseline itself recorded that a whole section could not be")
+        print("measured, so the numbers that section carries are absent from it")
+        print("and would be read below as newly measurable - as progress.")
+        print("This is NOT a regression and NOT a reason to revert: fix what")
+        print("made the section raise, then take the baseline again (C-1792).")
+        return CROSS_ENVIRONMENT
 
     moved, broken = compare(before, after, metrics)
 
