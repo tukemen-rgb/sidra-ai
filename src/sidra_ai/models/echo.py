@@ -138,7 +138,15 @@ class EchoModelAdapter(LocalModelAdapter):
         # to where it was shown. The footer still lists every source, because
         # "both files say this" is a true and useful fact - only the re-reading
         # is dropped.
-        same_note = "（{} と同じ内容）" if _reply_in_japanese(request.user_message) else "(same text as {})"
+        # C-1808: the dedup key is the truncated `_lead` excerpt, not the full
+        # block, so two DIFFERENT documents whose leads coincide (a shared intro,
+        # distinct later sentences) collapse here. 「同じ内容」 (same content)
+        # asserted the documents were identical - false for that case, and it hid
+        # the later source's distinct text behind a false-sameness claim. The
+        # note now claims only what the dedup actually compares: the excerpt shown
+        # (「抜粋が同じ」 / "same excerpt as"). The full text of each source is in
+        # its citation, where any difference is visible.
+        same_note = "（{} と抜粋が同じ）" if _reply_in_japanese(request.user_message) else "(same excerpt as {})"
         lines = [preamble, ""]
         shown: dict[str, str] = {}
         for match in blocks:

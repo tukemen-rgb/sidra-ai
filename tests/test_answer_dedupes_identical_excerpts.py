@@ -30,7 +30,7 @@ def _answer(question: str, blocks: list[str]) -> str:
 def test_answer_dedupe_eval_passes():
     result = evaluate_answer_dedupes_identical_excerpts()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 9
+    assert result.checks_passed == result.checks_total == 12
 
 
 def test_identical_excerpt_shown_once_footer_keeps_both():
@@ -40,7 +40,7 @@ def test_identical_excerpt_shown_once_footer_keeps_both():
         [_block("S1", "repo@x:TODO.md", dup), _block("S2", "repo@x:report.md", dup)],
     )
     assert ans.count(dup) == 1
-    assert "S1 と同じ内容" in ans
+    assert "S1 と抜粋が同じ" in ans  # C-1808: claims the excerpt, not the content
     footer = ans.rsplit("\n", 1)[-1]
     assert "[S1]" in footer and "[S2]" in footer
 
@@ -55,4 +55,20 @@ def test_distinct_excerpts_not_collapsed():
     )
     assert "検査は 1GB のメモリを使う。" in ans
     assert "レート制限は 6 バースト。" in ans
-    assert "同じ内容" not in ans
+    assert "同じ内容" not in ans and "抜粋が同じ" not in ans
+
+
+def test_same_lead_distinct_documents_not_called_same_content():
+    """C-1808: leads coincide, full text differs -> not 「同じ内容」."""
+    shared = "デプロイは自動で行われます。CI が緑なら本番へ出ます。"
+    ans = _answer(
+        "デプロイは？",
+        [
+            _block("S1", "repo@x:a.md", shared + "金曜のみ手動確認が要ります。"),
+            _block("S2", "repo@x:b.md", shared + "ロールバックは前タグへ即戻せます。"),
+        ],
+    )
+    assert "同じ内容" not in ans  # the documents are not the same
+    assert "S1 と抜粋が同じ" in ans  # but the shown excerpt genuinely is
+    footer = ans.rsplit("\n", 1)[-1]
+    assert "[S1]" in footer and "[S2]" in footer
