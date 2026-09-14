@@ -1031,6 +1031,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1793: a deck for a structure it cannot build (「SWOT分析のスライド」「タイム
+    # ラインのスライド」) is answered with the pitch template under the asked-for
+    # title; neither the deck HTML (forwarded/reopened) nor the chat summary said
+    # the structure was substituted. outline_fallback_note now rides both; a bare
+    # request or a buildable shape (週報→status) adds none.
+    from sidra_ai.evals.deck_discloses_outline_fallback import (
+        evaluate_deck_discloses_outline_fallback,
+    )
+
+    deck_fallback = evaluate_deck_discloses_outline_fallback()
+    c.add(
+        "deck_discloses_outline_fallback",
+        "スライドが、頼まれた構成を作れず標準の構成で代替した旨を開示する",
+        10.0 * deck_fallback.checks_passed / deck_fallback.checks_total,
+        detail=f"{deck_fallback.checks_passed}/{deck_fallback.checks_total} checks; "
+               "src/sidra_ai/evals/deck_discloses_outline_fallback.py"
+               + ("" if deck_fallback.passed
+                  else "; " + "; ".join(deck_fallback.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1260: opening the ask page 404'd on /favicon.ico every load (console
     # error + blank tab icon). The page is self-contained, so it now declares
     # an inline data: favicon. Checked on the served page string: an icon link
