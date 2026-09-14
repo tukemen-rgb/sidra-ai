@@ -195,6 +195,19 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "記事",
         "レポート",
         "報告書",
+        # C-1809: 設計書 belongs with 仕様書 and 要件定義書 above - a design
+        # document about indexed code is exactly what this generator writes -
+        # and was simply missing, so 「設計書を作って」 was answered 「この形式は
+        # 作れません。いま作れるのは … レポート …」, declined by a sentence naming
+        # the generator that would have written it (C-1804's shape).
+        #
+        # 企画書 and 計画書 were measured in the same cycle and deliberately NOT
+        # added. The exclusion note below is about them, and it has more force
+        # than it first appears: the case it pins is 「事業計画書」, a business
+        # plan, which a generator that writes only from indexed evidence cannot
+        # honestly produce. 設計書 contains neither 企画 nor 計画 and no part of
+        # that reasoning reaches it.
+        "設計書",
         # C-1458: common Japanese document deliverables were unrecognised, so
         # 「議事録を作って」「マニュアルを作って」「提案書を作って」 fell to UNKNOWN and
         # were answered as a Q&A search instead of building the grounded report

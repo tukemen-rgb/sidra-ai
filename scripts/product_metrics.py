@@ -1181,6 +1181,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1809: 設計書 was the one 〜書 deliverable that did not route to the
+    # document generator, so 「設計書を作って」 was declined by a sentence naming
+    # レポート (C-1804's shape). 企画書/計画書 were measured in the same cycle and
+    # deliberately left alone: the exclusion note they fall under pins
+    # 「事業計画書」, and a business plan is not what an evidence-grounded
+    # generator can honestly write. That exclusion is asserted here, so the
+    # change is measured as not having reached it.
+    from sidra_ai.evals.design_document_is_a_document import (
+        evaluate_design_document_is_a_document,
+    )
+
+    design_doc = evaluate_design_document_is_a_document()
+    c.add(
+        "creation_design_document_is_a_document",
+        "設計書が、文書として文書生成器に届く",
+        10.0 * design_doc.checks_passed / design_doc.checks_total,
+        detail=f"{design_doc.checks_passed}/{design_doc.checks_total} checks; "
+               "src/sidra_ai/evals/design_document_is_a_document.py"
+               + ("" if design_doc.passed else "; " + "; ".join(design_doc.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1806: the two art patterns depict nothing, so a request that named a
     # subject must hear that the subject was not drawn - in the summary and on
     # the page, which is the half that gets forwarded. GIF has said it about
