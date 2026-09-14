@@ -7825,6 +7825,39 @@ def measure_creation(c: Collector) -> None:
 
     from sidra_ai.creation.games import TEMPLATES as _rs_templates
 
+    # Generalising this, and why it was not generalised (C-1798).
+    #
+    # C-1798 proposed a watcher over every judge driven by a hand-written table
+    # of template names: count the ones that fail to name what they left out.
+    # Measured 2026-09-14 before deciding, and the answer was not to build it -
+    # not because the failure is rare (it is not: C-1755, C-1791 and C-1795 are
+    # the same silence arriving by three different mechanisms) but because
+    # **the population cannot be recovered mechanically**. Four definitions of
+    # "a judge driven by a hand-written table" were tried on this one file:
+    #   - every literal list naming some templates      -> 143
+    #   - the nearest loop that fills each gaps list    ->  10
+    #   - details that name some templates but not all  ->  78 (41 "silent")
+    #   - the filing's own trace from c.add backwards   ->   6
+    # Each population contains obvious non-members, and the "silent" 41 were
+    # wrong on all three that were then read by hand: `creation_combat_loudness`
+    # names all ten and says which four leave it off, `creation_squash_painted`
+    # declares its population in the value itself (7 体), and
+    # `creation_depth_layers` carries the count as its number. Disclosure is
+    # honest in at least three shapes, and a watcher would have to recognise
+    # every shape somebody invents next.
+    #
+    # A number tuned until it is green is the very defect this family is about,
+    # so the rule lives here, in words, at the place the next table is written:
+    #
+    #   **A table of template names is a claim about which templates were
+    #   looked at. Either derive it from the pages every run, the way the
+    #   block below does, or say in the detail which templates were left out
+    #   and why. Do not let the reader infer coverage from a subset.**
+    #
+    # What makes the check below work is that one contract has one mechanical
+    # signal to read - `setScene()`'s argument. A general watcher has no such
+    # signal, which is exactly why it would have to guess.
+    #
     #: What this judge claims to cover - read off the table above, never
     #: written twice (C-1795).
     _rs_here = set(_rs_table)
