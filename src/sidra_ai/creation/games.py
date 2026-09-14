@@ -1191,6 +1191,65 @@ _DIFFICULTY_ONLY = re.compile(
 )
 
 
+#: Words that say something *about* the request without naming anything to
+#: depict. Here for the reason C-1235 gave one class up: a title built from
+#: such a word, followed by 「その題材は描けない」, says the same word is both
+#: understood and not - and 「スマホ」 is worse than that, because the games do
+#: run on a phone (``creation_one_thumb_play`` measures all ten), so the note
+#: denied something the product does.
+#:
+#: Stems, so okurigana and 「な」 inflections come off with them. A closed table
+#: rather than a morphology guess, the same shape ``detect_genre`` and
+#: ``detect_structure`` have - and the same bounded gap: an adjective not
+#: listed here (「渋いゲーム」) is still quoted back as a subject. Adding a row
+#: widens the fix with no other change.
+_NOT_A_SUBJECT: tuple[str, ...] = (
+    # how it should feel or look
+    "面白", "おもしろ", "楽し", "たのし", "新し", "あたらし", "かわい", "可愛",
+    "かっこい", "格好い", "すご", "凄", "短", "長", "シンプル", "地味", "派手",
+    "きれい", "綺麗", "美し", "普通",
+    # where it runs: the device is not the subject
+    "スマホ", "スマートフォン", "携帯", "ケータイ", "パソコン", "ブラウザ",
+    "タブレット", "iPhone", "Android", "PC",
+)
+
+_NOT_A_SUBJECT_RE = re.compile(
+    "(?:" + "|".join(re.escape(stem) for stem in _NOT_A_SUBJECT) + r")[いくかっなのさそうきめ]*",
+    re.IGNORECASE,
+)
+
+#: 「3面」「5ステージ」「2分」「30秒」 - a size or a length. The unit word is what
+#: makes the number one, so 「2026年のゲーム」 does not match (the measurement
+#: that deleted a not-a-count word list in decks.py, C-1821).
+_COUNT_ONLY = re.compile(r"\d{1,3}\s*(?:面|分|秒|ステージ|レベル|ラウンド|ステップ)")
+
+#: Tails that attach such a word to the artifact: 「スマホ**で遊べる**ゲーム」.
+_NOT_A_SUBJECT_TAIL = re.compile(r"(?:で遊べる|で遊ぶ|で動く|向け|用)$")
+
+
+def names_no_subject(text: str) -> bool:
+    """True when what is left of the request names nothing that could be drawn.
+
+    C-1825. The caveat 「「X」の題材を描く型はまだ無い」 was measured across
+    twenty requests that named no genre: it fired nineteen times and was true
+    three times. The other sixteen quoted an adjective, a device or a count
+    back to the operator as their subject.
+
+    Same treatment as ``_is_only_difficulty``: the page takes the template's
+    own title, which is what a request naming nothing at all already gets, and
+    the caveat then has nothing to quote. One place decides it, so the title
+    and the note cannot disagree.
+    """
+
+    left = _COUNT_ONLY.sub("", text)
+    left = _NOT_A_SUBJECT_RE.sub("", left)
+    previous = None
+    while previous != left:
+        previous = left
+        left = _NOT_A_SUBJECT_TAIL.sub("", left.strip())
+    return left.strip("「」\"' 　・のなをがはでゲームgame") == ""
+
+
 def _is_only_difficulty(text: str) -> bool:
     """True when nothing but a difficulty modifier remains after the genre strip.
 
@@ -1342,7 +1401,10 @@ def _title_from(request: str, fallback: str) -> str:
     # 「むずかしい」 and then claiming its subject cannot be drawn is one word
     # playing both roles (C-1235). Fall back to the template's own title, the
     # same page the bare 「ゲームを作って」 gets.
-    if _is_only_difficulty(stripped):
+    # C-1825: and the three other classes of word that name no subject either -
+    # an adjective, the device it runs on, a count of levels or seconds. The
+    # reason is the one above, measured: the caveat was true 3 times out of 19.
+    if _is_only_difficulty(stripped) or names_no_subject(stripped):
         return fallback
     if 1 <= len(stripped) <= 24:
         return stripped

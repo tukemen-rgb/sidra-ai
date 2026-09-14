@@ -1182,6 +1182,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1825: 「「X」の題材を描く型はまだ無い」 fired on 19 of 20 requests that
+    # named no genre and was true on 3 - the rest quoted an adjective, a device
+    # or a count back as the operator's subject, and the device case denied
+    # something the product does. names_no_subject now sends those to the
+    # template's own title, the way a difficulty-only request already went
+    # (C-1235); a real subject still draws the caveat.
+    from sidra_ai.evals.game_note_quotes_a_real_subject import (
+        evaluate_game_note_quotes_a_real_subject,
+    )
+
+    game_subject = evaluate_game_note_quotes_a_real_subject()
+    c.add(
+        "creation_game_note_quotes_a_real_subject",
+        "ゲームの「その題材は描けない」注記が、題材ではない語（形容詞・端末・数量）を引用しない",
+        10.0 * game_subject.checks_passed / game_subject.checks_total,
+        detail=f"{game_subject.checks_passed}/{game_subject.checks_total} checks; "
+               "src/sidra_ai/evals/game_note_quotes_a_real_subject.py"
+               + ("" if game_subject.passed
+                  else "; " + "; ".join(game_subject.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck
