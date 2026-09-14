@@ -12,6 +12,7 @@ from pathlib import Path
 from sidra_ai.creation.documents import (
     CONTENT_SECTIONS,
     generate_document,
+    requested_format,
     save_document,
     validate_document,
 )
@@ -94,6 +95,16 @@ def build_document_generator(data_dir: str | Path):
             summary = (
                 f"「{document.title}」のレポートを作りましたが、検証に落ちています: "
                 + "、".join(str(f) for f in verdict["failures"])
+            )
+        # C-1834: the document generator only writes Markdown. When the request
+        # named a file format it cannot produce (「…をWordで」/PDF/Excel), say so -
+        # the document twin of the deck's pptx notice (C-1465). The generic
+        # 「Markdown なので…」 line above names the output but never that the asked
+        # format was not made, so a reader who wanted Word believed they got it.
+        fmt = requested_format(message)
+        if fmt:
+            summary = summary.rstrip() + (
+                f"なお {fmt} 形式では作れないため、Markdown で保存しています。"
             )
         return CreationOutcome(
             kind=intent.kind,

@@ -88,6 +88,33 @@ _DOC_FORMAT_SUFFIX = re.compile(
     re.IGNORECASE,
 )
 
+#: The requested-format word mapped to the name shown to the operator. C-1834:
+#: the document generator only ever writes Markdown, so a request that names a
+#: format it cannot produce is told so - the document twin of the deck's pptx
+#: notice (C-1465). Keyed lowercase; カナ keys are unchanged by ``lower()``.
+_FORMAT_LABEL: dict[str, str] = {
+    "word": "Word", "ワード": "Word", "docx": "Word（.docx）",
+    "excel": "Excel", "エクセル": "Excel", "xlsx": "Excel（.xlsx）",
+    "pdf": "PDF",
+}
+
+
+def requested_format(request: str) -> str:
+    """The file format a request asked the report to be rendered in, when it is
+    one the document generator does not produce (it only writes Markdown).
+
+    Uses the same gate C-1484 uses to strip the word from the title: after the
+    making verb is cut and the trailing particle dropped, a format word sitting
+    right after を/の is the instrumental 「…をWordで」. Returns the operator-facing
+    name (「Word」/「PDF」…) or "" when no such format was named - so 「Wordの使い方」
+    (word as the subject) and 「PDFで管理する方法」 return "".
+    """
+
+    head = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
+    head = re.sub(r"[をのはがにで]+$", "", head.strip()).strip()
+    match = _DOC_FORMAT_SUFFIX.search(head)
+    return _FORMAT_LABEL.get(match.group(0).lower(), "") if match else ""
+
 #: A length the request asks the report to run to, sitting in front of the
 #: subject: 「3ページのレポート」「2000字のレポート」「5枚の売上のレポート」. C-1822:
 #: this is a length, not a subject, but the tail-anchored kind/format/about peels
