@@ -3899,6 +3899,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1834: the document twin of C-1465. 「レポートをWordで作って」 produced Markdown
+    # and named only Markdown, never that the requested Word/PDF/Excel could not be
+    # made (the document generator only ever writes Markdown). The summary now
+    # names the requested format and that it could not be produced, and stays
+    # silent when no format was named or the format word is the subject.
+    from sidra_ai.evals.document_discloses_format_substitution import (
+        evaluate_document_discloses_format_substitution,
+    )
+
+    doc_fmt_sub = evaluate_document_discloses_format_substitution()
+    c.add(
+        "document_discloses_format_substitution",
+        "Word/PDF 等で頼まれた文書が、その形式は作れず Markdown にした旨を伝える",
+        10.0 * doc_fmt_sub.checks_passed / doc_fmt_sub.checks_total,
+        detail=f"{doc_fmt_sub.checks_passed}/{doc_fmt_sub.checks_total} checks; "
+               "src/sidra_ai/evals/document_discloses_format_substitution.py"
+               + ("" if doc_fmt_sub.passed else "; " + "; ".join(doc_fmt_sub.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1275: sidra-ask printed only artifact_path for a creation, so a 3D
     # model's .obj/.mtl and a deck's .pptx - the files the summary tells the
     # reader to open - had no path in the terminal (C-1262, for the other
