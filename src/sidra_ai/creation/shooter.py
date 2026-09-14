@@ -303,6 +303,42 @@ reset();step();
 #: be read off the running page instead of trusted from the palette table.
 #: The pilot holds fire and sidesteps the nearest incoming hull - dodging,
 #: not luck, is what carries three hit points across two thousand frames.
+#: One pilot, flown by two probes (C-1795). ``PROBE`` reads the escalation
+#: table and stops short of the buzzer; ``SCENE_PROBE`` flies the same round
+#: out to the break to read the acts. The flying is the same work, and a
+#: second copy of it would drift - the two would stop measuring the same
+#: pilot without either one failing. Expects ``f`` (this frame's
+#: ``shooterFacts()``) and ``key`` in scope.
+_PILOT_JS = """\
+  key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
+  /* Two jobs, in priority order. Dodge: only hulls at the ship's own
+     altitude can hit it, so those are the ones that pick the lane - and a
+     lane is no good if getting there means crossing one of them. Hunt:
+     with nothing imminent, sit under the lowest hull so the held trigger
+     thins the field; a pilot that only dodged let the sky saturate. */
+  const im = f.incoming.filter(([fx, fy]) => fy > 226 && fy < 330);
+  let goal = null;
+  if (im.some(([fx]) => Math.abs(fx - f.x) < 40)) {
+    let bestClear = -1e9, bestSafe = null, best = f.x;
+    for (let x = 26; x <= f.w - 26; x += 8) {
+      let clear = 1e9;
+      im.forEach(([fx]) => { clear = Math.min(clear, Math.abs(x - fx)) });
+      const lo = Math.min(f.x, x), hi = Math.max(f.x, x);
+      const blocked = im.some(([fx]) => fx > lo - 28 && fx < hi + 28);
+      const score = Math.min(clear, 120) - Math.abs(x - f.x) * 0.02;
+      if (score > bestClear) { bestClear = score; best = x }
+      if (!blocked && (bestSafe === null || score > bestSafe[1])) bestSafe = [x, score];
+    }
+    goal = bestSafe ? bestSafe[0] : best;
+  } else {
+    let ty = -1;
+    f.incoming.forEach(([fx, fy]) => { if (fy <= 226 && fy > ty) { ty = fy; goal = fx } });
+  }
+  if (goal !== null && goal < f.x - 4) key('keydown', 'ArrowLeft');
+  else if (goal !== null && goal > f.x + 4) key('keydown', 'ArrowRight');
+"""
+
+
 PROBE = KEY_EVENT_JS + """
 const nothing = new Proxy(function(){}, {
   get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
@@ -349,33 +385,7 @@ let sceneMid = null;
 while (shooterFacts().state === 'play' && shooterFacts().t < 3480) {
   const f = shooterFacts();
   if (f.t >= 1300 && f.t < 2400 && sceneMid === null) sceneMid = f.scene;
-  key('keyup', 'ArrowLeft'); key('keyup', 'ArrowRight');
-  /* Two jobs, in priority order. Dodge: only hulls at the ship's own
-     altitude can hit it, so those are the ones that pick the lane - and a
-     lane is no good if getting there means crossing one of them. Hunt:
-     with nothing imminent, sit under the lowest hull so the held trigger
-     thins the field; a pilot that only dodged let the sky saturate. */
-  const im = f.incoming.filter(([fx, fy]) => fy > 226 && fy < 330);
-  let goal = null;
-  if (im.some(([fx]) => Math.abs(fx - f.x) < 40)) {
-    let bestClear = -1e9, bestSafe = null, best = f.x;
-    for (let x = 26; x <= f.w - 26; x += 8) {
-      let clear = 1e9;
-      im.forEach(([fx]) => { clear = Math.min(clear, Math.abs(x - fx)) });
-      const lo = Math.min(f.x, x), hi = Math.max(f.x, x);
-      const blocked = im.some(([fx]) => fx > lo - 28 && fx < hi + 28);
-      const score = Math.min(clear, 120) - Math.abs(x - f.x) * 0.02;
-      if (score > bestClear) { bestClear = score; best = x }
-      if (!blocked && (bestSafe === null || score > bestSafe[1])) bestSafe = [x, score];
-    }
-    goal = bestSafe ? bestSafe[0] : best;
-  } else {
-    let ty = -1;
-    f.incoming.forEach(([fx, fy]) => { if (fy <= 226 && fy > ty) { ty = fy; goal = fx } });
-  }
-  if (goal !== null && goal < f.x - 4) key('keydown', 'ArrowLeft');
-  else if (goal !== null && goal > f.x + 4) key('keydown', 'ArrowRight');
-  run(1);
+""" + _PILOT_JS + """  run(1);
 }
 const end = shooterFacts();
 const palette = sceneFacts();
@@ -486,6 +496,89 @@ def probe_source(script: str) -> str:
     """The page's own script, wrapped so the fight can be flown in node."""
 
     return PROBE.replace("SCRIPT_PLACEHOLDER", script)
+
+
+#: The round flown all the way to the buzzer, so the sky can be judged by
+#: the same contract fishing, catch and puzzle are judged by (C-1795).
+#:
+#: This page has said since C-1315 that it keeps §7 観察 5-6 at round scale
+#: - "the 60-second round in three acts ... the final third is the
+#: brightest sky of the fight" is written above ``ACT`` in the page itself,
+#: and ``setPal``'s third act carries the same +0.22 the other three
+#: clock-bound templates carry. It was simply never in the judge's table,
+#: which named fishing, catch and puzzle and said nothing about anyone
+#: else. The three of them spell the act inline as
+#: ``ROUND_MS/(ROUND_LIMIT_MS/3)``; this one factored the same thirds into
+#: ``actOf()``, and being spelled differently is what kept it out.
+#:
+#: Two things ``PROBE`` does not report are what the contract needs: the
+#: round has to be flown PAST the buzzer (``PROBE`` stops at t<3480, just
+#: short of it) so ``roundFacts()`` can say the clock still ended the go,
+#: and a hull has to go down under the first sky and another under the
+#: last - a palette that exists is not a round that is still playable in
+#: the act it is brightest in. C-1640 made that distinction the hard way:
+#: reading ``sceneFacts().scenes`` alone passed a page pinned to act 0.
+SCENE_PROBE = KEY_EVENT_JS + """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.document = { getElementById: () => ({
+  width: 720, height: 320, style: {}, addEventListener: () => {},
+  getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+  getContext: () => nothing }) };
+let queued = null;
+globalThis.requestAnimationFrame = (fn) => { queued = fn; return 1 };
+SCRIPT_PLACEHOLDER
+let F = 0;
+/* Which act the page was actually IN, in the order it went (C-1645). */
+const sceneOrder = [];
+function sceneTick(){
+  if (typeof SCENE === 'number' && sceneOrder[sceneOrder.length - 1] !== SCENE) {
+    sceneOrder.push(SCENE) } }
+function run(n){ for (let i = 0; i < n && queued; i++) { const fn = queued; queued = null; fn((F++) * 16); sceneTick() } }
+function key(type, k){
+  const e = probeKey(k);
+  (handlers[type] || []).forEach(fn => fn(e));
+}
+/* Past the briefing: the gate holds every frame until pressed. */
+key('keydown', ' '); key('keyup', ' ');
+run(2);
+const early = shooterFacts();
+key('keydown', ' ');
+let sceneMid = null, killEarly = 0, killLate = 0, lastKills = early.kills || 0;
+let guard = 0;
+while (shooterFacts().state === 'play' && !roundFacts().done && guard++ < 12000) {
+  const f = shooterFacts();
+  /* 1300 and the act-2 samples sit well inside their thirds, clear of the
+     1200/2400 step boundaries a frame either side could straddle. */
+  if (f.t >= 1300 && f.t < 2400 && sceneMid === null) sceneMid = f.scene;
+  const kills = f.kills || 0;
+  if (kills > lastKills) { if (f.scene === 0) killEarly = 1; if (f.scene === 2) killLate = 1 }
+  lastKills = kills;
+""" + _PILOT_JS + """  run(1);
+}
+const end = shooterFacts();
+const over = roundFacts();
+console.log(JSON.stringify({
+  sceneOrder: sceneOrder,
+  scenes: sceneFacts().scenes,
+  sceneEarly: early.scene, sceneMid: sceneMid, sceneLate: end.scene,
+  killEarly: killEarly, killLate: killLate,
+  t: end.t, score: end.score, state: end.state,
+  done: over.done, reason: over.reason,
+}));
+"""
+
+
+def scene_probe(script: str) -> str:
+    """The page's own script, wrapped so the round's sky can be watched."""
+
+    return SCENE_PROBE.replace("SCRIPT_PLACEHOLDER", script)
 
 #: The knockback, as played (§1, C-1361). A hull is placed on the ship's
 #: shoulder and the ram's throw is read off kbFacts() frame by frame:

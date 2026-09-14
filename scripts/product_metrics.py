@@ -6396,6 +6396,7 @@ def measure_creation(c: Collector) -> None:
     from sidra_ai.creation.puzzle import sky_probe as _puzzle_sky_probe
     from sidra_ai.creation.racing import probe_source as _racing_hud_probe
     from sidra_ai.creation.shooter import probe_source as _shooter_scene_probe
+    from sidra_ai.creation.shooter import scene_probe as _shooter_sky_probe
     from sidra_ai.creation.themes import select_theme as _scene_theme
 
     #: request phrase -> (template key, probe builder). The templates with
@@ -7701,57 +7702,140 @@ def measure_creation(c: Collector) -> None:
     # called at sixty seconds - the arc decorates the round, it must not
     # touch it.
     round_scene_gaps: list[str] = []
-    for _rs_request, _rs_probe_builder, _rs_hit in (
-        ("釣りゲームを作って", _fishing_scene_probe, "cast"),
-        ("難しい釣りゲームを作って", _fishing_scene_probe, "cast"),
-        ("キャッチゲームを作って", _catch_scene_probe, "caught"),
-        ("難しいキャッチゲームを作って", _catch_scene_probe, "caught"),
+    #: template -> (its two requests, probe builder, what a landed play is
+    #: called in its facts). Keyed by template rather than listed as loose
+    #: rows because the coverage check below reads its KEYS: a row deleted
+    #: from here has to change what this judge claims to cover, or removing
+    #: the shooter again would leave the number at four while measuring
+    #: three - the same silence this item was filed about (C-1795).
+    _rs_table = {
+        "fishing": (("釣りゲームを作って", "難しい釣りゲームを作って"), _fishing_scene_probe, "cast"),
+        "catch": (("キャッチゲームを作って", "難しいキャッチゲームを作って"), _catch_scene_probe, "caught"),
         # The puzzle joined the clock-bound skies with C-1327: its course
         # is the sixty seconds too, and its "hit" is a scored pop.
-        ("パズルゲームを作って", _puzzle_sky_probe, "pop"),
-        ("難しいパズルゲームを作って", _puzzle_sky_probe, "pop"),
-    ):
-        _rs_page = generate_game(_rs_request).html
-        _rs_script = _scene_re.search(r"<script>(.*?)</script>", _rs_page, _scene_re.S)
-        if _rs_script is None:
-            round_scene_gaps.append(f"{_rs_request}: no script")
-            continue
-        try:
-            _rs_run = _scene_sp.run(
-                ["node", "-"],
-                input=_rs_probe_builder(_rs_script.group(1)),
-                capture_output=True,
-                text=True,
-                timeout=180,
-            )
-            if _rs_run.returncode != 0:
-                round_scene_gaps.append(f"{_rs_request}: {_rs_run.stderr.strip()[:80]}")
+        "puzzle": (("パズルゲームを作って", "難しいパズルゲームを作って"), _puzzle_sky_probe, "pop"),
+        # C-1795. The shooter has carried this contract since C-1315 - the
+        # page says so above ACT, and setPal's third act holds the same
+        # +0.22 the other three do - and was never in this table. The three
+        # above spell the act inline as ROUND_MS/(ROUND_LIMIT_MS/3); this one
+        # factored the same thirds into actOf(), and being spelled
+        # differently is the whole reason it sat outside. Its "hit" is a
+        # hull downed.
+        "shooter": (("シューティングゲームを作って", "難しいシューティングゲームを作って"), _shooter_sky_probe, "kill"),
+    }
+    for _rs_key, (_rs_requests, _rs_probe_builder, _rs_hit) in sorted(_rs_table.items()):
+        for _rs_request in _rs_requests:
+            _rs_page = generate_game(_rs_request).html
+            _rs_script = _scene_re.search(r"<script>(.*?)</script>", _rs_page, _scene_re.S)
+            if _rs_script is None:
+                round_scene_gaps.append(f"{_rs_request}: no script")
                 continue
-            _rs = json.loads(_rs_run.stdout.strip().splitlines()[-1])
-        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            round_scene_gaps.append(f"{_rs_request}: probe unavailable ({type(exc).__name__})")
+            try:
+                _rs_run = _scene_sp.run(
+                    ["node", "-"],
+                    input=_rs_probe_builder(_rs_script.group(1)),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if _rs_run.returncode != 0:
+                    round_scene_gaps.append(f"{_rs_request}: {_rs_run.stderr.strip()[:80]}")
+                    continue
+                _rs = json.loads(_rs_run.stdout.strip().splitlines()[-1])
+            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+                round_scene_gaps.append(f"{_rs_request}: probe unavailable ({type(exc).__name__})")
+                continue
+            acts = (_rs.get("sceneEarly"), _rs.get("sceneMid"), _rs.get("sceneLate"))
+            if acts != (0, 1, 2):
+                round_scene_gaps.append(f"{_rs_request}: the sky ignores the clock {acts}")
+            _rs_scenes = _rs.get("scenes") or []
+            if len(_rs_scenes) < 3 or max(
+                range(len(_rs_scenes)), key=lambda i: _rs_scenes[i]["lum"]
+            ) != len(_rs_scenes) - 1:
+                round_scene_gaps.append(f"{_rs_request}: the last sky is not the brightest")
+            if _rs.get(_rs_hit + "Early") != 1 or _rs.get(_rs_hit + "Late") != 1:
+                round_scene_gaps.append(f"{_rs_request}: a play under the sky no longer lands")
+            if not _rs.get("done") or _rs.get("reason") != "time":
+                round_scene_gaps.append(f"{_rs_request}: the round no longer reaches its break")
+    # C-1795: and the table has to be able to say it is complete.
+    #
+    # This judge named fishing, catch and puzzle and said nothing about the
+    # other seven - so when the shooter started stepping its sky with the
+    # clock it simply was not here, and no number fell. The sibling in this
+    # same file (creation_round_clock_honest) already does the honest thing:
+    # it names duel, marble and shooter as unmeasured and refuses to count
+    # them as passes. The rule should not fork between two judges.
+    #
+    # Prose would not have caught it - a sentence saying "the other six are
+    # different" stays true-looking after someone changes one. So the split
+    # is read off the pages every run: pull each template's setScene()
+    # argument, resolve a one-level helper (this is exactly what hid the
+    # shooter - actOf() rather than the inline spelling), and ask whether
+    # what drives the act is the round clock. Measured 2026-09-14: clock-
+    # bound catch/fishing/puzzle/shooter; the other six step on hp
+    # (duelAct), boss phase, the runner's x, the marble's z, the lap and the
+    # room - distance and state, which is creation_scene_palette's contract.
+    from sidra_ai.evals.round_scene import (
+        ELSEWHERE as _rs_elsewhere,
+        clock_bound as _rs_clock_bound,
+    )
+
+    from sidra_ai.creation.games import TEMPLATES as _rs_templates
+
+    #: What this judge claims to cover - read off the table above, never
+    #: written twice (C-1795).
+    _rs_here = set(_rs_table)
+    _rs_found = set()
+    for _rs_key in sorted(_rs_templates):
+        _rs_body = _scene_re.search(
+            r"<script>(.*?)</script>",
+            generate_game("ゲームを作って", template=_rs_key).html,
+            _scene_re.S,
+        )
+        if _rs_body is None:
+            round_scene_gaps.append(f"{_rs_key}: no script")
             continue
-        acts = (_rs.get("sceneEarly"), _rs.get("sceneMid"), _rs.get("sceneLate"))
-        if acts != (0, 1, 2):
-            round_scene_gaps.append(f"{_rs_request}: the sky ignores the clock {acts}")
-        _rs_scenes = _rs.get("scenes") or []
-        if len(_rs_scenes) < 3 or max(
-            range(len(_rs_scenes)), key=lambda i: _rs_scenes[i]["lum"]
-        ) != len(_rs_scenes) - 1:
-            round_scene_gaps.append(f"{_rs_request}: the last sky is not the brightest")
-        if _rs.get(_rs_hit + "Early") != 1 or _rs.get(_rs_hit + "Late") != 1:
-            round_scene_gaps.append(f"{_rs_request}: a play under the sky no longer lands")
-        if not _rs.get("done") or _rs.get("reason") != "time":
-            round_scene_gaps.append(f"{_rs_request}: the round no longer reaches its break")
+        if _rs_clock_bound(_rs_body.group(1)):
+            _rs_found.add(_rs_key)
+    if _rs_found != _rs_here:
+        round_scene_gaps.append(
+            "時計で幕が動く型と、この判定器が見ている型が食い違う"
+            f"（実測 {sorted(_rs_found)} / 表 {sorted(_rs_here)}）"
+        )
+    if _rs_here | set(_rs_elsewhere) != set(_rs_templates):
+        round_scene_gaps.append(
+            "10 型のうち、測ったとも測っていないとも書かれていない型がある"
+            f"（{sorted(set(_rs_templates) - _rs_here - set(_rs_elsewhere))}）"
+        )
     c.add(
         "creation_round_scene",
         "時間の経過で空が変わる",
-        1.0 if not round_scene_gaps else 0.0,
+        float(len(_rs_here)) if not round_scene_gaps else 0.0,
+        unit="型",
         detail=(
-            "fishing・catch・puzzle のラウンドを最後まで実プレイ: 幕 0→1→2 が"
+            "**時計で幕が動く 4 型すべて**（catch・fishing・puzzle・shooter）を"
+            "**各 2 難度・計 8 走行**、ラウンドを最後まで実プレイ: 幕 0→1→2 が"
             "実時間の 3 等分で切り替わり、最終幕が最明、第 1 幕と最終幕の両方で"
-            "合わせ／受け／消しが成立、60 秒の区切りは不変（§7 観察 5-6 の"
-            "ラウンド版）"
+            "合わせ／受け／消し／撃墜が成立、60 秒の区切りは不変"
+            "（§7 観察 5-6 のラウンド版）。"
+            "**数えるのは合否ではなく型の数**——1 型落ちれば数字が落ちる。"
+            "**どの型を測っていないかも、毎回ページから読んで言う**: "
+            "残る 6 型は幕が時計ではなく hp（duel）・boss phase（kaiju）・"
+            "走者の x（platformer）・玉の z（marble）・周回（racing）・room（adventure）"
+            "で動くので**別契約**（`creation_scene_palette` の担当）。"
+            "**この一覧は散文ではなく実測**——10 型の `setScene()` の引数を毎回読み、"
+            "1 段だけ helper を展開して「時計で動くか」を判定し、"
+            "**実測した集合と表が食い違えば gap**にする。"
+            "**起票の理由（C-1795）**: shooter は C-1315 からこの契約を名乗り"
+            "（ページ自身が `ACT` の上に §7 観察 5-6 を引いて「最終幕が戦いで最も明るい空」と書き、"
+            "`setPal` 第 3 幕は他 3 型と同じ +0.22）、それでも**表に無かった**。"
+            "他 3 型が `ROUND_MS/(ROUND_LIMIT_MS/3)` と直書きするのに対し"
+            "**shooter だけ `actOf()` に切り出していた——綴りが違うことだけが理由**。"
+            "**沈黙のほうが問題だった**: 同じファイルの兄弟 `creation_round_clock_honest` は"
+            "未測定の 3 型を名指しして合格に数えないと書くのに、"
+            "こちらは見た 3 型を全体のように書いていた（C-1755 の呼び出し側版・"
+            "`judge_never_passes_what_it_skipped` は `*_one` worker が射程なので届かない）。"
+            "**製品は 1 バイトも変えていない**——shooter の幕は実測で最初から正しい"
             if not round_scene_gaps
             else "; ".join(round_scene_gaps)
         ),
