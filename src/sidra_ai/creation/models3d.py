@@ -23,6 +23,7 @@ from html import escape
 from pathlib import Path
 from random import Random
 
+from sidra_ai.creation.art import names_color
 from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.games import _javascript_parses, _no_external_assets, _script_of
 
@@ -298,7 +299,11 @@ def _mtl_text() -> str:
 
 
 def _preview_html(
-    title: str, mesh: Mesh, evidence: tuple[str, ...], shape_note: str = ""
+    title: str,
+    mesh: Mesh,
+    evidence: tuple[str, ...],
+    shape_note: str = "",
+    color_note: str = "",
 ) -> str:
     vertices, faces = mesh
     verts_js = ",".join(f"[{x:.4f},{y:.4f},{z:.4f}]" for x, y, z in vertices)
@@ -312,6 +317,11 @@ def _preview_html(
     note_html = (
         f'<p id="shape-note">{escape(shape_note)}</p>' if shape_note else ""
     )
+    # C-1818: the requested colour was not applied (the palette is fixed). Same
+    # placement and styling as the shape-default note, under the title.
+    color_html = (
+        f'<p id="color-note">{escape(color_note)}</p>' if color_note else ""
+    )
     return f"""<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -322,12 +332,13 @@ body{{margin:0;background:#05070f;color:#e6f7ff;font-family:system-ui,sans-serif
 display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px}}
 canvas{{background:#0a0f1c;border-radius:12px;max-width:100%;height:auto}}
 h1{{font-size:1.1rem;margin:0}}
-#shape-note{{color:#ffb84d;font-size:.9rem;margin:0;max-width:640px;text-align:center}}
+#shape-note,#color-note{{color:#ffb84d;font-size:.9rem;margin:0;max-width:640px;text-align:center}}
 small,li{{color:#8fb3c7}}
 ul{{margin:0;padding-left:1.2em}}
 </style></head><body>
 <h1>{escape(title)}</h1>
 {note_html}
+{color_html}
 <canvas id="c" width="640" height="480"></canvas>
 <small id="note">ドラッグ不要・自動回転（reduced-motion 設定では静止します）。
 .obj は Windows の 3D ビューアーで開けます（色は隣に保存された .mtl から付くので、.obj と .mtl を一緒に置いてください）。</small>
@@ -419,13 +430,25 @@ def generate_model3d(
             f"既定の「{_SHAPE_TITLES[DEFAULT_SHAPE]}」で表示しています。"
             f"作れる形状: {choices}。"
         )
+    # C-1818. A request that names a colour (「赤い魚」) is titled with it over a
+    # fixed-palette mesh that is not that colour. The chat summary (model3d_job,
+    # C-1272) says the colour was not applied, but the preview HTML is the
+    # forwarded artifact and carried no such note - the same silent-artifact gap
+    # C-1805 closed for the shape default and C-1784 for the .mtl colour. Disclose
+    # it on the page too. Empty when the request names no colour, so a plain
+    # request keeps its clean preview.
+    color_note = (
+        "依頼にあった色は今の配色に反映していません。固定の配色で表示しています。"
+        if names_color(request)
+        else ""
+    )
     return GeneratedModel3D(
         shape=chosen,
         title=title,
         seed=actual_seed,
         obj_text=_obj_text(mesh),
         mtl_text=_mtl_text(),
-        preview_html=_preview_html(title, mesh, trail, shape_note),
+        preview_html=_preview_html(title, mesh, trail, shape_note, color_note),
         vertex_count=len(mesh[0]),
         face_count=len(mesh[1]),
         shape_named=named,

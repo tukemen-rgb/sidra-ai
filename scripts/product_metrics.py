@@ -3468,6 +3468,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1818: the sibling of C-1805/C-1784. A colour request titles the preview
+    # 「赤い魚」 over a fixed-palette mesh; the chat summary said the colour was not
+    # applied but the forwarded preview page did not. The preview now carries the
+    # colour caveat too.
+    from sidra_ai.evals.model3d_preview_discloses_color_not_applied import (
+        evaluate_model3d_preview_discloses_color_not_applied,
+    )
+
+    m3d_color = evaluate_model3d_preview_discloses_color_not_applied()
+    c.add(
+        "model3d_preview_discloses_color_not_applied",
+        "3D プレビュー本体が依頼色の不適用を開示する",
+        10.0 * m3d_color.checks_passed / m3d_color.checks_total,
+        detail=f"{m3d_color.checks_passed}/{m3d_color.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_preview_discloses_color_not_applied.py"
+               + ("" if m3d_color.passed
+                  else "; " + "; ".join(m3d_color.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1784: the .mtl colour caveat (C-1617) lived only in the chat summary,
     # but the preview HTML is the primary artifact (forwarded/reopened) and told
     # the user to open the .obj without warning that its colours come from the
