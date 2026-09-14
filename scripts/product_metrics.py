@@ -890,6 +890,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1800: the art page's default-pattern note bracket-quoted the request
+    # (「依頼「アート」に合うパターン名が無かった」), so a bare 「アートを作って」
+    # told the forwarded reader they had asked for a pattern named 「アート」 -
+    # the medium itself. The chat summary framed it honestly (「依頼にパターン名が
+    # 無かったので」); the page note now matches.
+    from sidra_ai.evals.art_note_matches_summary_framing import (
+        evaluate_art_note_matches_summary_framing,
+    )
+
+    art_note = evaluate_art_note_matches_summary_framing()
+    c.add(
+        "art_note_matches_summary_framing",
+        "アートの既定パターン注記が、依頼を偽の指定として引用せず要約と同じ枠組みで書く",
+        10.0 * art_note.checks_passed / art_note.checks_total,
+        detail=f"{art_note.checks_passed}/{art_note.checks_total} checks; "
+               "src/sidra_ai/evals/art_note_matches_summary_framing.py"
+               + ("" if art_note.passed
+                  else "; " + "; ".join(art_note.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1257: right after making a game, demonstrative revisions (その/これ/
     # それ/この …を直して) fell to the Q&A "no evidence, ask an admin to ingest
     # a repository" wall because _BACK_REFERENCES had no demonstratives.
