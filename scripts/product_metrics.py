@@ -25270,17 +25270,30 @@ def measure_creation(c: Collector) -> None:
     # the first run, which is C-1728's trap exactly.
     _bt_notes: list[str] = []
 
-    def _bt_run(minutes_ahead: int, hide_minute: bool = False, old_lines: int = 0):
-        """A board line stamped `minutes_ahead` from now, then the check."""
+    def _bt_run(minutes_ahead: int, hide_minute: bool = False, old_lines: int = 0,
+                at_minute: int | None = None):
+        """A board line stamped `minutes_ahead` from now, then the check.
+
+        ``at_minute`` pins the clock the throwaway repository is committed at,
+        so case (D) can ask the same question at two minutes of the hour
+        without waiting for one. It is the *commit* that moves; the line is
+        stamped relative to it exactly as before.
+        """
 
         import datetime as _bt_dt
 
         with _lt_tmp.TemporaryDirectory() as home:
             root = _lt_pl.Path(home) / "work"
             bare = _lt_pl.Path(home) / "origin.git"
+            _bt_base = _bt_dt.datetime.now(_bt_dt.timezone.utc)
+            if at_minute is not None:
+                _bt_base = _bt_base.replace(minute=at_minute, second=0, microsecond=0)
             env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
                    "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
                    "PATH": _lt_os.environ.get("PATH", ""), "HOME": home}
+            if at_minute is not None:
+                env["GIT_AUTHOR_DATE"] = _bt_base.isoformat()
+                env["GIT_COMMITTER_DATE"] = _bt_base.isoformat()
             _lt_sp.run(["git", "init", "-q", "--bare", str(bare)], env=env, check=True)
             (root / "docs").mkdir(parents=True)
             (root / "docs" / "LOOP_LOG.md").write_text("# log\n", encoding="utf-8")
@@ -25298,10 +25311,19 @@ def measure_creation(c: Collector) -> None:
             _lt_sp.run(["git", "add", "-A"], cwd=root, env=env, check=True)
             _lt_sp.run(["git", "commit", "-q", "-m", "base"], cwd=root, env=env, check=True)
             _lt_sp.run(["git", "push", "-q", "origin", "main"], cwd=root, env=env, check=True)
-            when = (_bt_dt.datetime.now(_bt_dt.timezone.utc)
-                    + _bt_dt.timedelta(minutes=minutes_ahead))
-            stamp = when.strftime("%Y-%m-%d %H:4x UTC" if hide_minute
-                                  else "%Y-%m-%d %H:%M UTC")
+            when = _bt_base + _bt_dt.timedelta(minutes=minutes_ahead)
+            # C-1826: this used to write a hardcoded 「%H:4x」 whatever the real
+            # minute was. The check reads 「4x」 as :40 - the earliest minute that
+            # spelling can mean - so a line meant to sit *at* its own commit
+            # claimed up to +40, and the honest case went red for every run that
+            # started in the first ten minutes of an hour. This loop fires at
+            # :05, so it was not a flake but a schedule: measured at 18:06 the
+            # honest hidden-minute line was REFUSED while the same line with its
+            # real minute passed. Hiding the units digit of the *actual* minute
+            # keeps the board's commonest spelling 「Nx」 while the lead it can
+            # imply is at most 9 minutes, never 40.
+            stamp = (when.strftime("%Y-%m-%d %H:") + f"{when.minute // 10}x UTC"
+                     if hide_minute else when.strftime("%Y-%m-%d %H:%M UTC"))
             with (root / "docs" / "BACKLOG.md").open("a", encoding="utf-8") as handle:
                 handle.write(f"- [~] 作業中 {stamp} ループA **C-0999: 試験の項目。**\n")
             _lt_sp.run(["git", "add", "-A"], cwd=root, env=env, check=True)
@@ -25337,6 +25359,22 @@ def measure_creation(c: Collector) -> None:
     _bt_rc, _bt_out = _bt_run(0, hide_minute=True)
     if _bt_rc != 0:
         _bt_notes.append("分を伏せた正常な行で赤くなる")
+
+    # (D) ...and the answer must not depend on what minute the run started.
+    # C-1826: it did, and not randomly - this loop fires at :05, inside the
+    # window. The clock is pinned rather than waited for, at a minute inside
+    # the old broken window and one outside it; both verdicts must agree.
+    for _bt_minute in (5, 35):
+        _bt_rc, _bt_out = _bt_run(0, hide_minute=True, at_minute=_bt_minute)
+        if _bt_rc != 0:
+            _bt_notes.append(
+                f"走り出しが :{_bt_minute:02d} 分だと正常な行で赤くなる（時刻依存）"
+            )
+        _bt_rc, _bt_out = _bt_run(279, hide_minute=True, at_minute=_bt_minute)
+        if _bt_rc == 0:
+            _bt_notes.append(
+                f"走り出しが :{_bt_minute:02d} 分だと未来を名乗る行を見逃す"
+            )
     # C-1819: the board checker could name the leftover claims since C-1728 and
     # printed none of it - its whole output was the item count. Three loops
     # re-derived the same sentence from prose for about 59 hours (22 lines of
@@ -25405,7 +25443,7 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "board_times_match_the_commit",
         "板の行の時刻が commit と整合する",
-        0.0 if _bt_notes else 3.0,
+        0.0 if _bt_notes else 4.0,
         detail=(
             "; ".join(_bt_notes)
             if _bt_notes
@@ -25417,6 +25455,22 @@ def measure_creation(c: Collector) -> None:
             "**(C)** 分を伏せた **`13:4x` 形**——**板で一番多い書き方**——も判定する。"
             "`x` は**最も早い分**として読むので、報告する乖離は**下限**であり、"
             "丸めが検査に有利に働くことはない。"
+            "**(D)** **答えが「何分に走り出したか」に依らない**（C-1826）。"
+            "**時計を固定して** :05 と :35 の両方で同じ問いを出し、"
+            "**正直な行は両方で通り、未来を名乗る行は両方で拒まれる**ことを見る。"
+            "**この事例が効くことを実測で確かめた**——欠陥を戻して (D) を外すと、"
+            "**窓の外（18:33）では 4.0 のまま素通り**し、(D) を入れると 0.0 になる。"
+            "つまり**時刻に依らず捕まえるのは (D) だけ**である。"
+            "（なお「未来を名乗る行は両方で拒まれる」側は **A/B/C が同じ向きを"
+            "その時の分で既に見ている**ので、そこだけ外しても数字は動かない。"
+            "**動かないことを確かめた上で残している**——外せば (D) が「いつも通る」"
+            "事例になり、それはこの項目が直した形そのものだから。）"
+            "**なぜ足したか**: この probe は分を**常に `4x`** と書いていて、"
+            "検査が `4x` を `:40` と読むため、**自分の commit と同時刻のつもりの行が最大 +40 分**を名乗り、"
+            "**走り出しの分が 0〜9 なら許容 30 分を超えて必ず赤**になっていた。"
+            "**ゆらぎではなく予定**である——ループA の発火は毎時 **:05**。"
+            "2026-09-14 18:06 の実測で、分を伏せた正直な行は REFUSED、"
+            "**実分を書いた同じ行は通った**。"
             "**なぜ要るか（census・2026-09-14・標本ではない）**: 時刻を持つ板の行 **687** のうち "
             "**73 行（10.6%）**が自分の commit より **+30 分超**先を名乗る"
             "（中央値 +83・最大 +719＝約 12 時間・10 日に分散）。"
