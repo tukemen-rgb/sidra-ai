@@ -82,6 +82,14 @@ CODES = (
     # not a corpus question either; the next step is to point at the artifact,
     # not to wait or to ingest a repository.
     "revision_target",
+    # C-1814, the mirror of the line above: the artifact WAS named and the
+    # change could not be read (「さっきのゲームの音を消して」). It reached the
+    # no-evidence abstention that names the ingest endpoint, which is the
+    # wrong reply for the same reason - and worse here, because the reader had
+    # usually just followed the advice "revision_target" prints. Retrying the
+    # same words changes nothing, so the fallback advice is wrong too; the
+    # answer names the changes that exist.
+    "revision_change",
     # C-1802. The sixth: a meta question about the product (「使い方を教えて」) is
     # not a corpus query; the next step is to say what SIDRA does, not to wait or
     # to ingest a repository.

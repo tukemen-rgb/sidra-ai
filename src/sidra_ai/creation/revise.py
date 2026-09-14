@@ -208,6 +208,26 @@ _TITLE_PLAIN = re.compile(r"(?:タイトル|名前|題名)を([^\s「『にへ�
 #: 「日替わりをやめて」 was vetoed as not-an-instruction. An adjustment still
 #: has to be recognised afterwards, so widening this does not widen what
 #: counts as a revision on its own.
+#: What a revision can actually change, in the order the summary reports them.
+#: Written here beside the words that recognise each one, so a field added to
+#: the detector and a field the product offers cannot drift apart - the reply
+#: that lists them reads this rather than repeating a sentence (C-1814, the
+#: same reason C-1802's help reply reads the live generator registry).
+#:
+#: 「帯」 is per-template, so it is named by what it does rather than by a label
+#: that would be wrong for nine of the ten pages.
+CHANGEABLE: tuple[tuple[str, str], ...] = (
+    ("difficulty", "難易度"),
+    ("theme", "テーマ（配色）"),
+    ("band", "難度の軸（型ごとの呼び名）"),
+    ("accent", "差し色"),
+    ("daily", "今日の挑戦"),
+    ("brief", "ブリーフィング"),
+    ("title", "題名"),
+    ("revert", "前の版へ戻す"),
+)
+
+
 _CHANGE_VERBS: tuple[str, ...] = (
     "して",
     "にして",
@@ -263,6 +283,14 @@ class RevisionIntent:
     #: what the back-reference guards. The caller uses this to ask which one,
     #: rather than answer a plain imperative as a failed corpus search (C-1797).
     wants_referent: bool = False
+    #: True when the message names an artifact and asks for a change this
+    #: detector cannot read - 「さっきのゲームの音を消して」. The mirror of
+    #: ``wants_referent``: there the change was known and the target was not,
+    #: here the target is known and the change is not. Also deliberately not a
+    #: revision - inventing an edit would be worse than declining - but the
+    #: caller must decline it as a change request rather than let it reach the
+    #: corpus wall, which is what it did until C-1814.
+    wants_change: bool = False
 
 
 def detect_revision_intent(message: str) -> RevisionIntent:
@@ -375,9 +403,24 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         evidence.append("revert")
 
     if not adjustments:
-        # A back-reference and a change verb with nothing recognisable to
-        # change. Reported as a non-revision so the question path can at
-        # least answer; inventing a change would be worse than declining.
+        # A change verb with nothing recognisable to change. Inventing an edit
+        # would be worse than declining, so this is still not a revision.
+        #
+        # C-1814: what changed is where it lands. The note here used to say it
+        # was reported as a non-revision "so the question path can at least
+        # answer", and measuring that on 2026-09-14 showed the question path
+        # does no such thing: 「さっきのゲームの音を消して」 was answered
+        # 「現時点では十分な根拠がありません … POST /v1/github/analyze を管理者に
+        # 依頼してください」 - C-1261's mistake, and the very thing C-1797 gave
+        # as its reason for the mirror case. The reader had even followed the
+        # instruction that refusal prints ("「それ」「さっきの」を付けて"), so the
+        # product's own advice did not work on the product.
+        #
+        # Only when an artifact was actually named: with no referent either,
+        # nothing marks the message as a change at all, and sweeping those in
+        # would be a guess rather than a reading.
+        if has_referent:
+            return RevisionIntent(is_revision=False, wants_change=True)
         return RevisionIntent(is_revision=False)
 
     if not has_referent:

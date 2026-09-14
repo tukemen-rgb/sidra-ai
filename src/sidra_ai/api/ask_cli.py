@@ -351,6 +351,14 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             "revision_target": "どれを変えるか分からなかった。直前に作ったものなら"
                                "「それ」「さっきの」を付けて、「さっきのゲームを"
                                "難しくして」のように頼む。",
+            # The artifact was named but the change could not be read
+            # (「さっきのゲームの音を消して」). The mirror of the line above: there
+            # the next step is to point at something, here it is to ask for one
+            # of the changes that exist (C-1814).
+            "revision_change": "どれを変えるかは分かったが、何をどう変えるかが"
+                               "読み取れなかった。難易度・テーマ・差し色・題名"
+                               "などの中から、「さっきのゲームを難しくして」の"
+                               "ように頼む。",
             # A meta question about the product (「使い方を教えて」). Not a corpus
             # query, so the no-evidence line is wrong; say what SIDRA does and
             # what to send next (C-1802).

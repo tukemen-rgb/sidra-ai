@@ -16,7 +16,11 @@ from sidra_ai.api.model_admission import build_runtime_model
 from sidra_ai.config.settings import Settings, get_settings
 from sidra_ai.creation.evidence import Fact, plain_text, whole_sentences
 from sidra_ai.creation.intent import CreationKind, detect_creation_intent
-from sidra_ai.creation.revise import build_game_reviser, detect_revision_intent
+from sidra_ai.creation.revise import (
+    CHANGEABLE,
+    build_game_reviser,
+    detect_revision_intent,
+)
 from sidra_ai.creation.copy_writer import build_copy_writer
 from sidra_ai.creation.proposer import build_param_proposer
 from sidra_ai.creation.router import CreationRouter, build_default_router
@@ -763,6 +767,42 @@ class SidraService:
                 "citations": [],
                 "security": gate_result.to_dict(),
                 "creation": {"revision": dict(revision.adjustments)},
+            }
+        if revision.wants_change:
+            # C-1814, the mirror of C-1797 above. There the change was known
+            # and the artifact was not; here the artifact is named and the
+            # change is not one this detector reads. It used to be reported as
+            # a non-revision "so the question path can at least answer", and
+            # the question path answered 「現時点では十分な根拠がありません …
+            # POST /v1/github/analyze を管理者に依頼してください」 - a maker sent
+            # to repository ingestion, which is C-1261's mistake and the exact
+            # thing C-1797 was written to stop. The reader had usually already
+            # done what the other refusal told them ("「それ」「さっきの」を付けて"),
+            # so the product's own advice did not work on the product.
+            #
+            # What it can change is read from the detector's own table rather
+            # than repeated here, the way the help reply reads the generator
+            # registry (C-1802).
+            return {
+                # Says what was and was not understood, and not more. The
+                # first draft said 「その変更は今できることの中にありません」,
+                # which is false for 「タイトルを変えて」 - 題名 IS in the list;
+                # what was missing was the value. This wording is true of both
+                # an unsupported field and a supported one with nothing to set
+                # it to, which are the two ways to arrive here.
+                "answer": (
+                    "どれを変えるかは分かりましたが、何をどう変えるかが読み取れません"
+                    "でした。いま変えられるのは "
+                    + "・".join(label for _key, label in CHANGEABLE)
+                    + " です。例えば「さっきのゲームを難しくして」"
+                    "「さっきのゲームのタイトルを「〇〇」にして」のように送ってください。"
+                ),
+                "refused": True,
+                "refusal": "revision_change",
+                "reason": "the artifact was named but the change is not one we make",
+                "citations": [],
+                "security": gate_result.to_dict(),
+                "creation": {"revision": {}},
             }
         if revision.is_revision:
             # C-1519: the conversation's own artifacts decide what 「それ」

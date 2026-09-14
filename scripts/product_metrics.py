@@ -1181,6 +1181,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1814, the mirror of C-1797: a message that names its artifact and asks
+    # for a change the detector cannot read (「さっきのゲームの音を消して」) reached
+    # the corpus wall and was told to have an admin ingest a repository -
+    # C-1261's mistake, and the reason C-1797 gave for the other half. The
+    # sharpest check is that the example the new refusal prints is executed and
+    # has to work, because the defect was a refusal whose advice did not.
+    from sidra_ai.evals.revision_names_what_it_can_change import (
+        evaluate_revision_names_what_it_can_change,
+    )
+
+    rev_change = evaluate_revision_names_what_it_can_change()
+    c.add(
+        "creation_revision_names_what_it_can_change",
+        "対象は分かるが変更が読めないとき、取り込み拒否ではなく変えられる項目を言う",
+        10.0 * rev_change.checks_passed / rev_change.checks_total,
+        detail=f"{rev_change.checks_passed}/{rev_change.checks_total} checks; "
+               "src/sidra_ai/evals/revision_names_what_it_can_change.py"
+               + ("" if rev_change.passed else "; " + "; ".join(rev_change.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1809: 設計書 was the one 〜書 deliverable that did not route to the
     # document generator, so 「設計書を作って」 was declined by a sentence naming
     # レポート (C-1804's shape). 企画書/計画書 were measured in the same cycle and
