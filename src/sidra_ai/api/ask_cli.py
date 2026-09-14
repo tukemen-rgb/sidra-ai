@@ -20,6 +20,10 @@ Exit codes are distinct so a script can tell the cases apart:
   2  refused to run - unsafe configuration or bad usage
   3  refused for safety - the security gate blocked the input or history, or
      the output guard withheld a generated answer
+  4  answered conversationally - the input was recognized as not a corpus
+     question (a greeting, a help query, an empty/ambiguous/unnamed request,
+     or a change naming no target) and answered as such; no grounded answer
+     was produced, but nothing failed
 
 Two properties this file is responsible for
 -------------------------------------------
@@ -233,6 +237,19 @@ def _print_citations(
             print(f"      出典: {url}")
 
 
+#: C-1811. Refusal codes that are conversational, not failures: the system
+#: recognized non-question input (a greeting, a help/meta question, an empty or
+#: ambiguous or unnamed request, a change with no target) and responded. They
+#: share the payload shape of a backend outage (``allow`` decision, no ``model``
+#: block), so they fell to exit 1 - the code a monitor reads as "the API is
+#: down". A closed set keyed on the stable ``refusal`` code (the same code the
+#: page reads), not the reason text. These are the non-safety members of the
+#: service's refusal vocabulary.
+_CONVERSATIONAL_REFUSALS = frozenset(
+    {"empty", "ambiguous", "unnamed", "greeting", "revision_target", "help"}
+)
+
+
 def _refusal_exit_code(payload: dict[str, Any]) -> int:
     """The exit code for a refused response.
 
@@ -246,8 +263,15 @@ def _refusal_exit_code(payload: dict[str, Any]) -> int:
     gate and the conversation-history gate) or when the output guard withheld a
     generated answer. The guard runs only after generation, so a ``model``
     metadata block means an answer was produced and then withheld (safety, 3);
-    its absence with an ``allow`` decision means generation never happened
-    (operational, 1). Keyed on the payload's shape, not on the reason text.
+    its absence with an ``allow`` decision means generation never happened.
+
+    That last case was itself two opposite things under one code (C-1811): a
+    **backend outage** (operational, 1) and a **conversational refusal** - a
+    greeting, a help query, an empty/ambiguous/unnamed request - which is the
+    system working, not failing. A monitor keying on exit 1 read every greeting
+    as an outage, the mirror of the C-1456 confusion. A conversational refusal
+    now returns 4; safety stays 3 and a genuine outage stays 1. Keyed on the
+    payload's shape and the stable ``refusal`` code, not the reason text.
     """
 
     decision = (payload.get("security") or {}).get("decision")
@@ -255,6 +279,8 @@ def _refusal_exit_code(payload: dict[str, Any]) -> int:
         return 3
     if payload.get("model"):
         return 3
+    if payload.get("refusal") in _CONVERSATIONAL_REFUSALS:
+        return 4
     return 1
 
 

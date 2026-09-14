@@ -26,7 +26,31 @@ def _code(payload):
 def test_cli_refusal_exit_code_eval_passes():
     result = evaluate_cli_refusal_exit_code_by_cause()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 9
+    assert result.checks_passed == result.checks_total == 15
+
+
+def test_conversational_refusals_are_exit_four():
+    """C-1811: a greeting/help/empty/etc. is not an outage (1) or a block (3)."""
+    for code in ("greeting", "help", "empty", "ambiguous", "unnamed", "revision_target"):
+        payload = {
+            "refused": True,
+            "answer": "…",
+            "refusal": code,
+            "security": {"decision": "allow"},
+            "citations": [],
+        }
+        assert _code(payload) == 4, code
+
+
+def test_backend_outage_stays_exit_one_not_conversational():
+    payload = {
+        "refused": True,
+        "answer": "",
+        "reason": "model backend unavailable",
+        "security": {"decision": "allow"},
+        "citations": [],
+    }
+    assert _code(payload) == 1
 
 
 def test_model_unavailable_is_operational_exit_one():

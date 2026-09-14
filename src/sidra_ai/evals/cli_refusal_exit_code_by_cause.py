@@ -33,6 +33,21 @@ _MODEL_DOWN = {"refused": True, "answer": "", "reason": "model backend unavailab
 _ANSWERED = {"refused": False, "answer": "回答です。", "security": {"decision": "allow"},
              "model": {"backend": "echo"}, "citations": []}
 
+# C-1811: a conversational refusal - a greeting, a help query, an empty or
+# ambiguous or unnamed request, a change with no target - shares the shape of a
+# model-backend outage (decision allow, no model block), so it fell to exit 1,
+# the code a monitor reads as "the backend is down". It is neither an error nor a
+# safety block: the system recognized non-question input and responded. It now
+# gets its own code, 4.
+_GREETING = {"refused": True, "answer": "こんにちは。", "refusal": "greeting",
+             "security": {"decision": "allow"}, "citations": []}
+_HELP = {"refused": True, "answer": "SIDRA は…", "refusal": "help",
+         "security": {"decision": "allow"}, "citations": []}
+_AMBIGUOUS = {"refused": True, "answer": "どちらの…", "refusal": "ambiguous",
+              "security": {"decision": "allow"}, "citations": []}
+_REVISION_TARGET = {"refused": True, "answer": "どれを…", "refusal": "revision_target",
+                    "security": {"decision": "allow"}, "citations": []}
+
 
 @dataclass(frozen=True)
 class CliRefusalExitResult:
@@ -103,7 +118,21 @@ def evaluate_cli_refusal_exit_code_by_cause() -> CliRefusalExitResult:
     add(_json_code(_GATE_BLOCK) == 3, "--json gate block was not exit 3")
     add(_json_code(_ANSWERED) == 0, "--json answered was not exit 0")
 
-    total = 9
+    # C-1811: conversational refusals get exit 4, not the operational 1 they
+    # shared with a backend outage. The outage itself still reads as 1 (guarded
+    # above), and a safety block still as 3, so the new code splits only the
+    # conversational case out of the old 1.
+    add(_render_code(_GREETING) == 4, "a greeting refusal was not exit 4")
+    add(_render_code(_HELP) == 4, "a help refusal was not exit 4")
+    add(_render_code(_AMBIGUOUS) == 4, "an ambiguous refusal was not exit 4")
+    add(_render_code(_REVISION_TARGET) == 4, "a revision-target refusal was not exit 4")
+    # a conversational refusal is not mistaken for a backend outage, and vice
+    # versa - the two used to be the same code.
+    add(_render_code(_MODEL_DOWN) != _render_code(_GREETING),
+        "a backend outage and a greeting still share an exit code")
+    add(_json_code(_GREETING) == 4, "--json greeting refusal was not exit 4")
+
+    total = 15
     return CliRefusalExitResult(
         passed=not failures,
         checks_passed=checks,
