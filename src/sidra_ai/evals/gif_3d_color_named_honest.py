@@ -24,6 +24,13 @@ _COLORED: tuple[tuple[str, str], ...] = (
     ("緑の魚のGIFを作って", "gif"),
     ("青い3Dモデルを作って", "model3d"),
     ("赤い魚の3Dモデルを作って", "model3d"),
+    # C-1820: colour/palette words beyond the basic set were silently ignored -
+    # 「虹色」「カラフル」「パステル」「モノクロ」 named a colouring the fixed palette
+    # cannot honour, but names_color did not see them, so no note was given.
+    ("虹色の魚のGIFを作って", "gif"),
+    ("カラフルなGIFを作って", "gif"),
+    ("パステルの魚の3Dモデルを作って", "model3d"),
+    ("モノクロの魚の3Dモデルを作って", "model3d"),
 )
 
 #: Requests naming no colour: no colour note is due.

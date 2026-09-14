@@ -27,7 +27,18 @@ def _svc():
 def test_gif_3d_color_named_honest_eval_passes():
     result = evaluate_gif_3d_color_named_honest()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 9
+    assert result.checks_passed == result.checks_total == 13
+
+
+def test_nonbasic_colour_words_are_disclosed():
+    """C-1820: 虹色/カラフル/パステル/モノクロ are colours too, not silently ignored."""
+    svc = _svc()
+    for req, kind in (("虹色の魚のGIFを作って", "gif"),
+                      ("カラフルなGIFを作って", "gif"),
+                      ("パステルの魚の3Dモデルを作って", "model3d"),
+                      ("モノクロの魚の3Dモデルを作って", "model3d")):
+        answer = (svc.chat(req) or {}).get("answer") or ""
+        assert _MARKER in answer, req
 
 
 def test_gif_colour_note_only_when_a_colour_is_named():

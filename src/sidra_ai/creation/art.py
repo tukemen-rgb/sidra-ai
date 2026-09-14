@@ -100,6 +100,11 @@ _COLOR_PATTERN = re.compile(
     r"青い|赤い|黒い|白い|青白い|黄色い|茶色い|"
     r"[青赤緑黄紫橙桃茶金銀白黒]色|"
     r"[青赤緑黄紫橙桃茶金銀白黒]の|"
+    # C-1820: colour/palette words beyond the basic set. The fixed palette
+    # cannot honour these either, so names_color must see them for the
+    # colour-not-applied note to fire (C-1271/1272); a request that named them
+    # was otherwise silently ignored. Unambiguous colour/palette words only.
+    r"虹色|カラフル|パステル|モノクロ|セピア|グラデーション|"
     r"ブルー|レッド|グリーン|イエロー|パープル|オレンジ|ピンク|"
     r"(?<![A-Za-z])(?:blue|red|green|yellow|purple|orange|pink|black|white)(?![A-Za-z])",
     re.IGNORECASE,
