@@ -315,8 +315,14 @@ def generate_art(
     note = ""
     if not named:
         choices = " / ".join(PATTERN_LABELS.values())
+        # C-1800: the chat summary says 「依頼にパターン名が無かったので…」, but the
+        # page note used 「依頼「{題}」に合うパターン名が無かった」. For a bare
+        # 「アートを作って」 the quoted 「アート」 is the medium itself, so the
+        # forwarded artifact read as "you asked for a pattern named アート that was
+        # missing", while the chat (not forwarded) framed it honestly. Use the same
+        # subjectless framing here so the page and the summary agree.
         note = (
-            f'<p class="note">依頼「{escape(title)}」に合うパターン名が'
+            f'<p class="note">依頼にパターン名が'
             f"無かったため、既定の「{PATTERN_LABELS[DEFAULT_PATTERN]}」で"
             f"描いています。指定できるパターン: {choices}。</p>"
         )
