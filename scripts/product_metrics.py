@@ -1052,6 +1052,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
+    # while the footer promises every number is sourced. The report already
+    # scopes its promise and caveats an unsourced title number (C-1772); the deck
+    # now does the same. A clean title, or a number the evidence supports, keeps
+    # the original blanket assurance.
+    from sidra_ai.evals.deck_discloses_unsourced_title_number import (
+        evaluate_deck_discloses_unsourced_title_number,
+    )
+
+    deck_title_num = evaluate_deck_discloses_unsourced_title_number()
+    c.add(
+        "deck_discloses_unsourced_title_number",
+        "スライドの表紙の数値が索引で裏付けられない時、その旨を開示し約束を本文に限定する",
+        10.0 * deck_title_num.checks_passed / deck_title_num.checks_total,
+        detail=f"{deck_title_num.checks_passed}/{deck_title_num.checks_total} checks; "
+               "src/sidra_ai/evals/deck_discloses_unsourced_title_number.py"
+               + ("" if deck_title_num.passed
+                  else "; " + "; ".join(deck_title_num.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1796: a bare greeting or thanks (「こんにちは」「ありがとう」) is not a
     # question, but chat sent it through retrieval and returned the no-evidence
     # abstention that names POST /v1/github/analyze. It now gets a friendly
