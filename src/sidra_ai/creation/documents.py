@@ -87,10 +87,24 @@ _DOC_FORMAT_SUFFIX = re.compile(
     re.IGNORECASE,
 )
 
+#: A length the request asks the report to run to, sitting in front of the
+#: subject: 「3ページのレポート」「2000字のレポート」「5枚の売上のレポート」. C-1822:
+#: this is a length, not a subject, but the tail-anchored kind/format/about peels
+#: never reach a leading phrase, so 「3ページ」 rode onto the cover as the title -
+#: and, being a number with no evidence behind it, then failed the body
+#: number-check 「numbers not present in the evidence: 3」. Stripped once, before
+#: the peel loop, so 「3ページのレポート」 falls to the default title and
+#: 「3ページの競合分析のレポート」 titles 「競合分析」. Gated to a real length unit
+#: (ページ/頁/字/文字/枚) closed by の or the end, so a number that is part of a
+#: real subject survives: 第3四半期 (四半期 is not a unit), 3年計画 (年), G3 (no
+#: leading digit), 5枚組の写真集 (枚 is followed by 組, not の/end), 300万円の予算 (万).
+_DOC_LENGTH_PREFIX = re.compile(r"^[0-9０-９]+(?:ページ|頁|字|文字|枚)(?:の|$)")
+
 
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
+    stripped = _DOC_LENGTH_PREFIX.sub("", stripped).strip()
     # The subject alone: a report titled 「競合分析のレポート」 says 「レポート」
     # in its heading, its 概要 and its confirmation, all beside a file that is a
     # report (C-1246). Then the 「について/に関する」 the request pointed with, so
