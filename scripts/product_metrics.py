@@ -1181,6 +1181,30 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1806: the two art patterns depict nothing, so a request that named a
+    # subject must hear that the subject was not drawn - in the summary and on
+    # the page, which is the half that gets forwarded. GIF has said it about
+    # its 絵柄 since C-1258 and 3D has its shape note; art was the one generator
+    # still silent, because the case used to be declined rather than built
+    # until C-1804 (this loop) widened the cues. Both directions: a colour and
+    # a pattern word are not subjects, and a request naming none must not be
+    # apologised to.
+    from sidra_ai.evals.art_says_it_drew_no_subject import (
+        evaluate_art_says_it_drew_no_subject,
+    )
+
+    art_subject = evaluate_art_says_it_drew_no_subject()
+    c.add(
+        "creation_art_says_it_drew_no_subject",
+        "題材を頼まれたアートが、描いていないと言う",
+        10.0 * art_subject.checks_passed / art_subject.checks_total,
+        detail=f"{art_subject.checks_passed}/{art_subject.checks_total} checks; "
+               "src/sidra_ai/evals/art_says_it_drew_no_subject.py"
+               + ("" if art_subject.passed
+                  else "; " + "; ".join(art_subject.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1804: 「絵を描いて」「イラストを描いて」 were declined with 「この形式は作れま
     # せん。いま作れるのは アート・…」 - a refusal naming, in its own sentence, the
     # thing the asker wanted, while 「アートを作って」 built exactly that. The mirror

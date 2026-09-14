@@ -116,6 +116,9 @@ def names_color(request: str) -> bool:
     return bool(_COLOR_PATTERN.search(unicodedata.normalize("NFKC", request)))
 
 
+#: The title when a request leaves nothing else to call the page.
+_TITLE_FALLBACK = "ジェネラティブアート"
+
 #: Art-kind nouns a title should not end with, since the artifact already is
 #: one: 「螺旋のアート」→「螺旋」 (C-1265, the art twin of documents' C-1246 and
 #: decks' C-1249). Longer spellings first, optional leading 「の」, applied once
@@ -125,8 +128,12 @@ def names_color(request: str) -> bool:
 # アート/art, so 「猫の壁紙」 kept 壁紙 and 「海の生成アート」 lost only アート to a
 # broken 「海の生成」 (C-1604). Strip the whole cue set. Longest first within each
 # language so 生成アート beats アート and 「X art」 beats bare art.
+# C-1806: 絵 and イラスト joined the cue set in C-1804 and this pattern was not
+# updated with them, so 「猫の絵」 kept 絵 where 「猫の壁紙」 correctly became 「猫」 -
+# the same defect C-1604 fixed one cue set earlier, made again by the loop that
+# added the cues. The comment above is the instruction that was not followed.
 _TITLE_KIND_SUFFIX = re.compile(
-    r"の?(?:ジェネラティブアート|生成アート|アート|壁紙"
+    r"の?(?:ジェネラティブアート|生成アート|アート|壁紙|イラスト|絵"
     r"|generative art|abstract art|digital art|artwork|wallpaper|art)$",
     re.IGNORECASE,
 )
@@ -142,7 +149,45 @@ def _title_from(request: str) -> str:
     trimmed = re.sub(r"[をのはがにで]+$", "", trimmed).strip()
     if trimmed:
         stripped = trimmed
-    return stripped[:60] or "ジェネラティブアート"
+    return stripped[:60] or _TITLE_FALLBACK
+
+
+#: The art cues, anywhere in a title rather than only at its end, so a subject
+#: can be recovered from what is left.
+_KIND_ANYWHERE = re.compile(
+    r"ジェネラティブアート|生成アート|アート|壁紙|イラスト|絵"
+    r"|generative art|abstract art|digital art|artwork|wallpaper|art",
+    re.IGNORECASE,
+)
+
+
+def subject_of(request: str) -> str:
+    """What the request asked to be *depicted*, or "" when it named nothing.
+
+    C-1806. These two patterns draw flow fields and orbits; they depict
+    nothing. Until C-1804 that barely mattered, because 「猫の絵を描いて」 never
+    arrived - it was declined - and the pattern note could honestly say only
+    「you named no pattern, here are the two」. ``art_job``'s comment says as
+    much in writing: "Not a claim the subject can't be drawn". Widening the
+    cues brought subjects through the door, and the page now titles itself
+    「猫」 over a flow field with no word that no cat was drawn - the silent
+    artifact C-1786 fixed for colour and C-1793 named in general (a title
+    makes a promise, and whoever it is forwarded to reads the title first).
+
+    A subject is what remains of the title after the things that are *not*
+    depiction: the art cues themselves, a colour (which has its own note
+    since C-1271 and must not be reported twice), and a pattern word, since
+    「波の絵」 names one of these two patterns rather than a thing to draw.
+    """
+
+    title = _title_from(request)
+    rest = _KIND_ANYWHERE.sub("", title)
+    rest = _COLOR_PATTERN.sub("", unicodedata.normalize("NFKC", rest))
+    for words in _PATTERN_WORDS.values():
+        for word in words:
+            rest = re.sub(re.escape(word), "", rest, flags=re.IGNORECASE)
+    rest = re.sub(r"[をのはがにでっ・\s　]+", "", rest).strip()
+    return "" if rest == _TITLE_FALLBACK else rest
 
 
 #: Shared page shell. The script differs per pattern; the rules do not.
@@ -336,6 +381,18 @@ def generate_art(
         note += (
             '<p class="note">依頼にあった色は今の配色に反映していません。'
             "アートはブランド固定の配色（シアン×マゼンタ）で描いています。</p>"
+        )
+    # C-1806: the same reasoning one step further. The page is titled with the
+    # asker's own words - 「猫」 - and draws a flow field, so the title promises
+    # a cat the picture does not contain. Said here as well as in the summary
+    # because the HTML is what gets forwarded and reopened, and whoever opens
+    # it reads the title first (C-1793). The subject is NOT quoted back: the
+    # sibling note in gifs does not quote one either, and a recovered subject
+    # is a fragment of the request rather than a phrase worth repeating.
+    if subject_of(request):
+        note += (
+            '<p class="note">依頼にあった題材は描いていません。'
+            f"アートは抽象の模様（{' / '.join(PATTERN_LABELS.values())}）です。</p>"
         )
     html = _PAGE.format(
         title=escape(title),

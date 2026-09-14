@@ -15,6 +15,7 @@ from sidra_ai.creation.art import (
     PATTERNS,
     generate_art,
     names_color,
+    subject_of,
     save_art,
     validate_art,
 )
@@ -62,6 +63,17 @@ def build_art_generator(data_dir: str | Path):
             # honesty the pattern default note gives (C-1271). Colour is not a
             # choice here, so this states the fixed palette instead of offering
             # options.
+            # C-1806: the patterns depict nothing, so a request that named a
+            # subject must hear that the subject was not drawn. Until C-1804
+            # widened the cues this case was declined rather than built, and
+            # the comment above - "Not a claim the subject can't be drawn" -
+            # was written for that world. GIF has said the same thing about
+            # its 絵柄 since C-1258; art was the one generator still silent.
+            if subject_of(message):
+                summary += (
+                    "依頼にあった題材は描いていません。"
+                    f"アートは抽象の模様（{' / '.join(PATTERN_LABELS.values())}）です。"
+                )
             if names_color(message):
                 summary += (
                     "依頼にあった色は今の配色に反映していません。"
