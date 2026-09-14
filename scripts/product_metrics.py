@@ -1073,6 +1073,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1797: a change instruction with no target (「もっと難しくして」) had no
+    # back-reference, so detect_revision_intent (rightly) declined to edit an
+    # artifact nobody pointed at - but it then fell through to retrieval and got
+    # the no-evidence abstention that names POST /v1/github/analyze. It now asks
+    # which artifact (refusal=="revision_target"); a proper revision and a real
+    # question are untouched.
+    from sidra_ai.evals.chat_referentless_revision_asks_which import (
+        evaluate_chat_referentless_revision_asks_which,
+    )
+
+    referentless_rev = evaluate_chat_referentless_revision_asks_which()
+    c.add(
+        "chat_referentless_revision_asks_which",
+        "対象を指さない変更依頼（「難しくして」）に、根拠不足ではなく「どれを？」と聞き返す",
+        10.0 * referentless_rev.checks_passed / referentless_rev.checks_total,
+        detail=f"{referentless_rev.checks_passed}/{referentless_rev.checks_total} checks; "
+               "src/sidra_ai/evals/chat_referentless_revision_asks_which.py"
+               + ("" if referentless_rev.passed
+                  else "; " + "; ".join(referentless_rev.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1260: opening the ask page 404'd on /favicon.ico every load (console
     # error + blank tab icon). The page is self-contained, so it now declares
     # an inline data: favicon. Checked on the served page string: an icon link
