@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 
 from sidra_ai.creation.evidence import plain_text
+from sidra_ai.retrieval.search import tokenize
 from sidra_ai.models.base import (
     GenerationRequest,
     GenerationResult,
@@ -151,7 +152,7 @@ class EchoModelAdapter(LocalModelAdapter):
         shown: dict[str, str] = {}
         for match in blocks:
             label = match.group("label")
-            excerpt = self._lead(match.group("content"))
+            excerpt = self._lead(match.group("content"), request.user_message)
             lines.append(f"[{label}] {match.group('citation')}")
             prior = shown.get(excerpt) if excerpt else None
             if prior is not None:
@@ -169,7 +170,7 @@ class EchoModelAdapter(LocalModelAdapter):
         return self._result(request, "\n".join(lines).strip())
 
     # ------------------------------------------------------------------
-    def _lead(self, content: str) -> str:
+    def _lead(self, content: str, query: str = "") -> str:
         # The corpus is Markdown, and a sentence-terminator split treats a
         # heading label (「## D-CY4.」) and a checkbox stub (「**A.」) as two
         # full sentences - the whole excerpt budget spent before any actual
@@ -177,6 +178,34 @@ class EchoModelAdapter(LocalModelAdapter):
         # already do (C-1212; symbols only, every literal survives), and let
         # short fragments ride along without consuming a sentence slot.
         collapsed = plain_text(content)
+        boundary = re.compile(r"[。！？]|[.!?](?=\s)")
+        # C-1216: a leading Markdown heading is the section label the quoted
+        # evidence sits under - the item id a reader greps for - so it rides
+        # along as context. C-1825 opens the body on the answering sentence,
+        # which can be below that heading; keep the heading as a prefix so the
+        # reader still sees which section the answer came from.
+        heading = ""
+        heading_match = re.match(r"[ \t]*#{1,6}[ \t]+\S.*", content)
+        if heading_match:
+            heading = plain_text(heading_match.group(0)).strip()
+        # C-1825: open the answer on the sentence whose terms best match the
+        # question - the same relevance the citation excerpt already has
+        # (C-1782/select_excerpt_span). With no query terms, or none that appear
+        # anywhere, the head stays at the opening (0), which is the previous
+        # behaviour, so ordinary answers are unchanged. A tie keeps the earliest
+        # sentence, so a topic discussed from the start still opens at the start.
+        head = 0
+        terms = set(tokenize(query))
+        if terms:
+            best = 0
+            span_start = 0
+            for cut in [m.end() for m in boundary.finditer(collapsed)] + [len(collapsed)]:
+                if cut <= span_start:
+                    continue
+                score = len(terms & set(tokenize(collapsed[span_start:cut])))
+                if score > best:
+                    best, head = score, span_start
+                span_start = cut
         # Sentence boundaries by position, not by splitting on whitespace: the
         # old `(?<=[.。!?！？])\s+` required a space *after* the terminator, but
         # Japanese prose puts none after 「。」, so a whole 「…です。…です。」 block
@@ -185,12 +214,13 @@ class EchoModelAdapter(LocalModelAdapter):
         # language (C-1518). A CJK terminator (。！？) ends a sentence on its own;
         # an ASCII terminator (.!?) only when whitespace follows, so 「3.14」 and
         # 「e.g.」 are not cut. Slicing the original preserves its spacing, so no
-        # space is inserted between Japanese sentences that had none.
-        boundary = re.compile(r"[。！？]|[.!?](?=\s)")
-        start = 0
+        # space is inserted between Japanese sentences that had none. The budget
+        # is counted from ``head`` (the query-relevant opening above), so the
+        # sentences shown are the answering one and what follows it.
+        start = head
         informative = 0
         end = len(collapsed)
-        for match in boundary.finditer(collapsed):
+        for match in boundary.finditer(collapsed, head):
             cut = match.end()
             if len(collapsed[start:cut].strip()) >= _MIN_INFORMATIVE:
                 informative += 1
@@ -198,7 +228,13 @@ class EchoModelAdapter(LocalModelAdapter):
                     end = cut
                     break
             start = cut
-        lead = collapsed[:end].strip()
+        lead = collapsed[head:end].strip()
+        # Prepend the section heading when relevance opened the body below it, so
+        # the item id (C-1216) is not lost. If the body already begins with the
+        # heading (head stayed at the top, or the heading matched the query),
+        # nothing is added.
+        if heading and head > 0 and not lead.startswith(heading):
+            lead = f"{heading} {lead}".strip() if lead else heading
         return (lead[:400] + "...") if len(lead) > 400 else lead or "(empty)"
 
     def _result(

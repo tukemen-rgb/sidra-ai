@@ -59,7 +59,7 @@ def _answer(content: str, query: str) -> str:
 def test_answer_body_follows_query_eval_passes():
     result = evaluate_answer_body_follows_the_query()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 6
+    assert result.checks_passed == result.checks_total == 8
 
 
 def test_later_sentence_answers_the_question():

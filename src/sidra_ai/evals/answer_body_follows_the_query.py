@@ -52,9 +52,13 @@ _PRESENT = (
 )
 
 #: (content, query, needle-that-must-NOT-appear). The opening-question answer must
-#: not over-reach and drag in the later port sentence.
+#: not over-reach and drag in the later port sentence; and the port answer must
+#: open on the answering sentence, not carry the unrelated opening prose down with
+#: it (a chunk with no heading has no context line to keep).
 _ABSENT = (
     (_EN, "What language is the service written in?", "8080"),
+    (_EN, "What is the default port?", "wheel"),
+    (_EN, "What is the default port?", "Python"),
 )
 
 
