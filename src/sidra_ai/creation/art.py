@@ -315,7 +315,7 @@ def generate_art(
     note = ""
     if not named:
         choices = " / ".join(PATTERN_LABELS.values())
-        # C-1800: the chat summary says 「依頼にパターン名が無かったので…」, but the
+        # C-1801: the chat summary says 「依頼にパターン名が無かったので…」, but the
         # page note used 「依頼「{題}」に合うパターン名が無かった」. For a bare
         # 「アートを作って」 the quoted 「アート」 is the medium itself, so the
         # forwarded artifact read as "you asked for a pattern named アート that was

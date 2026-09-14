@@ -1,6 +1,6 @@
 """Is the art page's default-pattern note framed like the chat summary?
 
-C-1800. When a request names no pattern, both the chat summary and the on-page
+C-1801. When a request names no pattern, both the chat summary and the on-page
 note disclose that the flow default was used (C-1271/C-1284). But the summary
 says 「依頼にパターン名が無かったので…」 while the page note said 「依頼「{題}」に
 合うパターン名が無かった」 - bracket-quoting the request as a pattern that could

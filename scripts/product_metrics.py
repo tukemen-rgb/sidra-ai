@@ -890,7 +890,7 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # C-1800: the art page's default-pattern note bracket-quoted the request
+    # C-1801: the art page's default-pattern note bracket-quoted the request
     # (「依頼「アート」に合うパターン名が無かった」), so a bare 「アートを作って」
     # told the forwarded reader they had asked for a pattern named 「アート」 -
     # the medium itself. The chat summary framed it honestly (「依頼にパターン名が

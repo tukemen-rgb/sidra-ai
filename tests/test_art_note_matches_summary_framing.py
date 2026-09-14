@@ -1,4 +1,4 @@
-"""C-1800: the art default-pattern note is framed like the chat summary.
+"""C-1801: the art default-pattern note is framed like the chat summary.
 
 A bare 「アートを作って」 named no pattern; the page note used to say 「依頼「アート」
 に合うパターン名が無かった」, quoting the medium as a failed pattern request. It now
