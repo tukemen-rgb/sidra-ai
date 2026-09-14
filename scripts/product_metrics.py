@@ -933,6 +933,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1805: the 3D sibling of C-1801. The preview note bracket-quoted the
+    # request (「依頼「{title}」に合う形状が無かったため」); a bare 「3Dモデルを作って」
+    # titled the model 「魚」 (the default shape's own name), so the note read
+    # 「依頼「魚」…既定の「魚」」 - self-contradictory and attributing a 魚 request the
+    # user never made. The chat summary framed it subject-less; the note now
+    # matches, with the subject kept in the title.
+    from sidra_ai.evals.model3d_note_matches_summary_framing import (
+        evaluate_model3d_note_matches_summary_framing,
+    )
+
+    m3d_note = evaluate_model3d_note_matches_summary_framing()
+    c.add(
+        "model3d_note_matches_summary_framing",
+        "3D プレビューの既定形状注記が、依頼を偽の指定として引用せず要約と同じ枠組みで書く",
+        10.0 * m3d_note.checks_passed / m3d_note.checks_total,
+        detail=f"{m3d_note.checks_passed}/{m3d_note.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_note_matches_summary_framing.py"
+               + ("" if m3d_note.passed
+                  else "; " + "; ".join(m3d_note.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1257: right after making a game, demonstrative revisions (その/これ/
     # それ/この …を直して) fell to the Q&A "no evidence, ask an admin to ingest
     # a repository" wall because _BACK_REFERENCES had no demonstratives.

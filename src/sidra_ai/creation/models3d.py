@@ -407,8 +407,15 @@ def generate_model3d(
     shape_note = ""
     if not named:
         choices = " / ".join(_SHAPE_TITLES.values())
+        # C-1805: the note bracket-quoted `title`, but for a bare request the
+        # title falls back to the default shape's own name (「魚」), so the note
+        # read 「依頼「魚」…既定の「魚」」 - self-contradictory, and attributing a 魚
+        # request the user never made. The chat summary (model3d_job) frames the
+        # fallback without a subject; the note now matches. The subject survives
+        # in the title and <h1>, so a named request loses nothing. (Sibling of
+        # C-1801, the art note's identical bracket quote.)
         shape_note = (
-            f"依頼「{title}」に合う形状が無かったため、"
+            f"依頼に合う形状が無かったため、"
             f"既定の「{_SHAPE_TITLES[DEFAULT_SHAPE]}」で表示しています。"
             f"作れる形状: {choices}。"
         )
