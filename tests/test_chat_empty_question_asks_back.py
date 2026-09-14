@@ -61,10 +61,12 @@ def test_a_real_question_is_untouched(client: TestClient) -> None:
 
     A question the corpus cannot answer must still get the honest
     no-evidence sentence - that sentence is correct there, because a search
-    with a real query did happen and found nothing.
+    with a real query did happen and found nothing. (The example was once
+    「こんにちは」, but a bare greeting is not a question and now gets its own
+    friendly reply - C-1795 - so a genuine question stands in for it here.)
     """
 
-    body = client.post("/v1/chat", json={"message": "こんにちは"}).json()
+    body = client.post("/v1/chat", json={"message": "火星の天気を教えて"}).json()
 
     assert body["refused"] is False
     assert NO_EVIDENCE in body["answer"]

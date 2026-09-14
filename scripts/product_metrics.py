@@ -25052,8 +25052,12 @@ def measure_creation(c: Collector) -> None:
             _blank_bad.append(f"{_blank!r}: {(_body.get('answer') or '(422)')[:40]}")
 
     # A real question the corpus cannot answer must still get the honest
-    # no-evidence sentence: that one is true, because a search happened.
-    _real = _ask("こんにちは")
+    # no-evidence sentence: that one is true, because a search happened. The
+    # probe was once 「こんにちは」, but a bare greeting is not a question and now
+    # gets its own friendly reply (C-1795), so a genuine unanswerable question
+    # stands in for it - the guard's point (don't over-refuse real questions) is
+    # unchanged.
+    _real = _ask("火星の天気を教えて")
     _real_ok = (
         not _real.get("refused")
         and "十分な根拠がありません" in (_real.get("answer") or "")
@@ -25069,9 +25073,10 @@ def measure_creation(c: Collector) -> None:
             else f"**実 HTTP 経路で測った**。空白のみ {len(_blank_ok)} 通り"
             f"（{', '.join(_blank_ok)}——半角・タブ改行・全角空白）は"
             "**検索も引用もせず聞き返す**（`refusal: empty`）。"
-            "**両方向**: 答えの無い実質問「こんにちは」は**今も**"
+            "**両方向**: 答えの無い実質問「火星の天気を教えて」は**今も**"
             "「十分な根拠がありません」と正直に言う——片方だけなら"
-            "「全部聞き返す」実装が満点を取る。"
+            "「全部聞き返す」実装が満点を取る（挨拶だけの入力は C-1795 で"
+            "別扱いになったので、実質問の代表に差し替えた）。"
             "**空文字列 `\"\"` は別の話**で、HTTP schema の `min_length=1` が"
             "既に 422 で弾いている（起票は同じ 1 件として書かれていたが、"
             "実測すると片方は最初から通っていなかった）"

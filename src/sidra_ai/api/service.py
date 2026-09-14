@@ -112,6 +112,31 @@ def _own_content_subject(query: str) -> tuple[str, ...]:
     )
 
 
+#: Social openers that are not questions. Matched against the whole message so
+#: 「こんにちは、売上を教えて」 - a question that opens with a greeting - is not
+#: caught; only a greeting on its own is. Kept a tight, closed set (the readers
+#: are Japanese, echo.py:53), so a real query is never swallowed. Residual: an
+#: English-only greeting still takes the English no-evidence reply.
+_GREETINGS = frozenset({
+    "こんにちは", "こんにちわ", "こんばんは", "こんばんわ", "おはよう", "おはようございます",
+    "はじめまして", "やあ", "どうも", "よろしく", "よろしくおねがいします",
+    "よろしくお願いします", "ありがとう", "ありがとうございます", "ありがとうございました",
+    "どうもありがとう", "おつかれ", "おつかれさま", "お疲れ", "お疲れさま", "お疲れ様",
+    "お疲れ様です", "おつかれさまです",
+})
+
+#: Trailing marks a greeting may carry (「こんにちは！」「ありがとう。」).
+_GREETING_TRAILING = "。.!！?？、,~〜 　\t"
+
+
+def _is_greeting(message: str) -> bool:
+    """True when the whole message is a social greeting or thanks and nothing else."""
+
+    text = " ".join(message.strip().casefold().split())
+    text = text.rstrip(_GREETING_TRAILING)
+    return text in _GREETINGS
+
+
 class SidraService:
     """The application, assembled."""
 
@@ -593,6 +618,26 @@ class SidraService:
                 "refused": True,
                 "refusal": "empty",
                 "reason": "the message was empty or whitespace only",
+                "citations": [],
+            }
+
+        # C-1795: a bare greeting or thanks is not a question. Sent through
+        # retrieval it found nothing and got the no-evidence abstention - the
+        # sentence that names 「POST /v1/github/analyze」 - so the most common
+        # opening message read as a technical failure. It is the blank case's
+        # sibling (C-1515): a content-free input whose honest reply is to ask
+        # for a question, not to report a search that never had one. A greeting
+        # that opens a real question is not matched, so it still gets answered.
+        if _is_greeting(message):
+            return {
+                "answer": (
+                    "ご挨拶ありがとうございます。何について調べますか。"
+                    "索引済みリポジトリについてお答えでき、"
+                    "制作（「レースゲームを作って」など）もできます。"
+                ),
+                "refused": True,
+                "refusal": "greeting",
+                "reason": "the message was a greeting with no question",
                 "citations": [],
             }
 
