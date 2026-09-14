@@ -25376,6 +25376,139 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 起動時に門を git へ繋ぐ (C-1807) ---------------------------------
+    #
+    # C-1794 put `.githooks/pre-push` in the repository and the one-time
+    # `git config core.hooksPath .githooks` into 「検証（省略不可）」. Its own
+    # filing said hooks do not travel with a clone - and six hours later an
+    # inconsistent board reached main again with the gate in place. Why that
+    # particular push got through was never established (another container's
+    # git config is not visible from here), so nothing here claims it was the
+    # hook; what is measurable is where the instruction lives and what an
+    # unwired copy is told.
+    #
+    # The placement is the point. 手順 0 is the one section every loop reads
+    # **before starting work**; 「検証（省略不可）」 is read when it is time to
+    # verify, which is after the copy has already been used. Wiring is startup
+    # work.
+    #
+    # And a notice, never a refusal (禁じ手 ①): running the gate by hand is a
+    # proper use, including while setting a copy up.
+    import os as _sw_os
+    import pathlib as _sw_pl
+    import shutil as _sw_sh
+    import subprocess as _sw_sp
+    import tempfile as _sw_tmp
+
+    _SW_ROOT = _sw_pl.Path(__file__).resolve().parent.parent
+    _SW_WIRE = "git config core.hooksPath .githooks"
+    sw_notes: list[str] = []
+
+    # (A) The line is in 手順 0 - the section read before work, not the one
+    # read at verification time.
+    _sw_board = (_SW_ROOT / "docs" / "BACKLOG.md").read_text(encoding="utf-8")
+    _sw_lines = _sw_board.splitlines()
+    _sw_section = ""
+    for _sw_i, _sw_line in enumerate(_sw_lines):
+        if _sw_line.startswith("## 手順 0"):
+            _sw_rest = _sw_lines[_sw_i + 1:]
+            _sw_end = next((j for j, l in enumerate(_sw_rest) if l.startswith("## ")),
+                           len(_sw_rest))
+            _sw_section = "\n".join(_sw_rest[:_sw_end])
+            break
+    if not _sw_section:
+        sw_notes.append("手順 0 の節が読めない")
+    elif _SW_WIRE not in _sw_section:
+        sw_notes.append("手順 0 が hook を繋ぐコマンドを書いていない")
+
+    # (B) and (C): an unwired copy is told, and is not stopped. Run, because
+    # the claim is about what a loop sees.
+    def _sw_gate(wire: bool):
+        home = _sw_tmp.mkdtemp(prefix="startup-wire-")
+        try:
+            root = _sw_pl.Path(home) / "work"
+            env = {
+                "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                "PATH": _sw_os.environ.get("PATH", ""), "HOME": home,
+            }
+            (root / "scripts").mkdir(parents=True)
+            (root / "docs").mkdir()
+            (root / ".githooks").mkdir()
+            (root / "src" / "sidra_ai" / "evals").mkdir(parents=True)
+            for name in ("check_before_push.sh", "check_log_times.py",
+                         "check_eval_scratch.py", "check_backlog_board.py",
+                         "check_numbers_upstream.py"):
+                _sw_sh.copy2(_SW_ROOT / "scripts" / name, root / "scripts" / name)
+            _sw_sh.copy2(_SW_ROOT / ".githooks" / "pre-push",
+                         root / ".githooks" / "pre-push")
+            (root / ".githooks" / "pre-push").chmod(0o755)
+            (root / "src" / "sidra_ai" / "evals" / "scratch.py").write_text(
+                '\"\"\"h\"\"\"\n\n\ndef scratch_dir(prefix=\"\"):\n    return \"/tmp\"\n',
+                encoding="utf-8")
+            (root / "src" / "sidra_ai" / "evals" / "one.py").write_text(
+                "from sidra_ai.evals.scratch import scratch_dir\n\n\n"
+                "def go():\n    return scratch_dir()\n", encoding="utf-8")
+            (root / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+            (root / "docs" / "BACKLOG.md").write_text(
+                "# board\n\n- [ ] **C-0001: base.**\n", encoding="utf-8")
+            (root / "docs" / "LOOP_LOG.md").write_text("# log\n", encoding="utf-8")
+            _sw_sp.run(["git", "init", "-q", "-b", "main"], cwd=root, env=env,
+                       check=True, capture_output=True, timeout=180)
+            _sw_sp.run(["git", "add", "-A"], cwd=root, env=env, check=True,
+                       capture_output=True, timeout=180)
+            _sw_sp.run(["git", "commit", "-q", "-m", "base"], cwd=root, env=env,
+                       check=True, capture_output=True, timeout=180)
+            if wire:
+                _sw_sp.run(["git", "config", "core.hooksPath", ".githooks"],
+                           cwd=root, env=env, check=True, capture_output=True,
+                           timeout=180)
+            done = _sw_sp.run(["bash", "scripts/check_before_push.sh"], cwd=root,
+                              env=env, capture_output=True, text=True, timeout=300)
+            return done.returncode, done.stdout
+        finally:
+            _sw_sh.rmtree(home, ignore_errors=True)
+
+    _sw_rc, _sw_said = _sw_gate(wire=False)
+    if "core.hooksPath is unset" not in _sw_said:
+        sw_notes.append("繋がっていない作業コピーに何も言わない")
+    if _SW_WIRE not in _sw_said:
+        sw_notes.append("注意が直し方（設定コマンド）を書いていない")
+    # (C) ...and it is a notice: the copy still passes.
+    if _sw_rc != 0:
+        sw_notes.append(f"繋がっていないだけで門が拒否する（rc={_sw_rc}）")
+    # ...and a wired copy is not nagged.
+    _sw_rc2, _sw_said2 = _sw_gate(wire=True)
+    if "core.hooksPath is unset" in _sw_said2:
+        sw_notes.append("繋がっている作業コピーにも注意を出す（毎回鳴る注意は読まれない）")
+    if _sw_rc2 != 0:
+        sw_notes.append(f"繋がっている作業コピーで門が通らない（rc={_sw_rc2}）")
+    c.add(
+        "startup_wires_the_gate",
+        "起動時に門が git へ繋がれる（繋がっていなければそう言う）",
+        0.0 if sw_notes else 3.0,
+        detail=(
+            "; ".join(sw_notes)
+            if sw_notes
+            else "**3 つとも実測**。(A) **手順 0 の節**——全ループが"
+            "**仕事を始める前**に必ず読む唯一の節——が "
+            "`git config core.hooksPath .githooks` を書いている"
+            "（C-1794 は「検証（省略不可）」に書いた。そこは**検証する段になって**"
+            "初めて読まれるので、作業コピーは既に使われた後である）。"
+            "(B) **繋がっていない使い捨てリポジトリで門を実際に走らせて**、"
+            "「この作業コピーは hook を走らせない」と**直し方つきで**印字されることを確認する"
+            "——`git push` が何も呼ばない状態で「OK to push」とだけ言うのが修正前の姿。"
+            "(C) **それは注意であって拒否ではない**（rc=0）。門を直接走らせるのは正当な使い方で、"
+            "設定途中の作業コピーまで止めては本末転倒（禁じ手 ①）。"
+            "**繋がっている作業コピーでは鳴らない**ことも同じ走行で確かめる"
+            "（毎回鳴る注意は読まれない）。"
+            "**言えないことは言わない**: 2026-09-14 08:06 の push が**なぜ**通ったかは"
+            "特定されていない（他容器の git 設定は見えない）。"
+            "**hook が入ったから守られている、とは書けない——設定した作業コピーだけが守られる**"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- 上流で取られた番号を門が見る (C-1800) ----------------------------
     #
     # Each loop reads its own copy of the board, takes `max + 1`, and starts

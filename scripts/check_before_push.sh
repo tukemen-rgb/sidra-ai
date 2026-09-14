@@ -99,5 +99,27 @@ else
   fail=1
 fi
 
+# C-1807: and say so when this working copy has not been wired to git.
+#
+# C-1794 put the hook in the repository and the one-time
+# `git config core.hooksPath .githooks` in the procedure. Hooks do not travel
+# with a clone, so until that runs, `git push` calls nothing - and this script,
+# run by hand, would print "OK to push" without a hint that nothing will check
+# the next push. Six hours after C-1794 landed, an inconsistent board reached
+# main again with the gate in place; why that push got through was never
+# established (another container's git config is not visible from here), so
+# this says only what it can see: whether THIS copy is wired.
+#
+# A notice, never a refusal (禁じ手 ①). Running the gate directly is a proper
+# use - including while setting a copy up - and refusing would stop it.
+hooks=$(git config --get core.hooksPath 2>/dev/null || true)
+if [ -z "$hooks" ]; then
+  echo 'NOTE: core.hooksPath is unset, so `git push` in this working copy runs'
+  echo '      no pre-push hook. One time: git config core.hooksPath .githooks'
+elif [ ! -x "$hooks/pre-push" ]; then
+  echo "NOTE: core.hooksPath is $hooks, which has no executable pre-push hook,"
+  echo '      so `git push` in this working copy runs no check of its own.'
+fi
+
 if [ "$fail" -eq 0 ]; then echo "OK to push"; fi
 exit "$fail"
