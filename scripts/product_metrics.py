@@ -747,6 +747,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1803: C-1772 stopped the cover promising a title number was sourced, but
+    # only for a title that HAD a number. When the index returns nothing and the
+    # title has no number, the empty draft's cover still read 「数字はすべて下の出典
+    # から」 - a sourcing promise for a document with zero sources and zero numbers,
+    # while the chat reply admitted 「中身のある資料を作れませんでした」. The cover now
+    # states the empty, no-evidence truth for that case; sourced covers and
+    # C-1772's title-number disclosure are untouched.
+    from sidra_ai.evals.document_cover_honest_when_empty import (
+        evaluate_document_cover_honest_when_empty,
+    )
+
+    cover_empty = evaluate_document_cover_honest_when_empty()
+    c.add(
+        "document_cover_honest_when_empty",
+        "根拠 0 件で空の下書きになった文書の表紙が出典付きを約束せず空だと開示する",
+        10.0 * cover_empty.checks_passed / cover_empty.checks_total,
+        detail=f"{cover_empty.checks_passed}/{cover_empty.checks_total} checks; "
+               "src/sidra_ai/evals/document_cover_honest_when_empty.py"
+               + ("" if cover_empty.passed else "; " + "; ".join(cover_empty.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1772: C-1476 disclosed an unsourced title number two sections down, but
     # the report cover kept promising 「数字はすべて下の出典から」 unconditionally,
     # one line under the very figure the evidence did not support - the cover

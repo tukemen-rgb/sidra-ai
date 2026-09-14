@@ -194,6 +194,21 @@ def generate_document(
             "タイトルの数値は索引した根拠では確認できていません"
             "（「まだ埋まっていないこと」参照）。"
         )
+    elif not retrieved:
+        # C-1803. C-1772 scoped the promise when the title carried an unsourced
+        # number, but a number-free title with no evidence at all fell through to
+        # the blanket claim below. The body is then entirely 〔社長が埋める欄〕,
+        # 「出典」 names none, and 「まだ埋まっていないこと」 states the miss - yet the
+        # cover promised 「数字はすべて下の出典から」, a sourcing discipline for a
+        # document with zero sources and zero numbers. Reopened or forwarded on
+        # its own the cover read as a normal sourced report while the chat reply
+        # admitted 「中身のある資料を作れませんでした」. State the truth the module has
+        # already computed, and make no sourcing promise. (An empty draft whose
+        # title carries a number still uses the branch above, keeping C-1772.)
+        preamble = (
+            f"> SIDRA AI が {stamp} に生成。"
+            "索引にこの依頼の根拠が無く、本文はまだ空の下書きです（数字は入っていません）。"
+        )
     else:
         preamble = f"> SIDRA AI が {stamp} に生成。数字はすべて下の出典から。"
 
