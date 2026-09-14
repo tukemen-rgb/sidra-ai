@@ -56,6 +56,7 @@ from sidra_ai.creation.recap import preamble_for as recap_preamble_for
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.vocabulary import (
     ARTIFACT_NOUNS,
+    REQUEST_ADVERBS,
     CATCH_WORDS,
     FISHING_WORDS,
     GENRES,
@@ -1028,6 +1029,21 @@ _TRADEMARKS = (
 #: title rule was never told. That is the second time widening the door left
 #: this rule behind (「let's make a」 was the first, C-1528), so both are
 #: written here rather than one now and one later.
+#: C-1829: the adverb 「今すぐ」 sits between the artifact noun and the making
+#: verb, so ``_STRIP`` - anchored to the end - matched nothing and 「猫のゲームを
+#: 今すぐ作って」 was its own page title. Removed only when a making verb follows,
+#: which is what makes it an adverb about the request rather than a word in the
+#: subject: 「今すぐ帰りたい人のゲーム」 keeps all of its.
+#:
+#: The list is shared (``vocabulary``) because six generators need the same
+#: one; the anchoring is local because this file strips the verb where the
+#: others split on it.
+_ADVERB_BEFORE_MAKING = re.compile(
+    r"(?:" + "|".join(re.escape(word) for word in REQUEST_ADVERBS) + r")"
+    r"(?=[\s　]*(?:作って|作成して|生成して|つくって|作れ|ください|下さい|ほしい|欲しい))"
+)
+
+
 _STRIP = re.compile(
     r"(を|の|が)?\s*(ゲーム|game)?\s*(を|が)?\s*"
     r"(?:(?:作って|作成して|生成して|つくって|作れ)"
@@ -1367,7 +1383,15 @@ def _title_from(request: str, fallback: str) -> str:
     so there is nothing to verify - unlike the numbers a deck would carry.
     """
 
-    stripped = _STRIP.sub("", request.strip()).strip("「」\"' 　")
+    # Repeatedly: 「とりあえず今すぐ作って」 stacks two, and one pass only sees
+    # the inner one as standing in front of the verb.
+    without_adverbs = request.strip()
+    while True:
+        shorter = _ADVERB_BEFORE_MAKING.sub("", without_adverbs)
+        if shorter == without_adverbs:
+            break
+        without_adverbs = shorter
+    stripped = _STRIP.sub("", without_adverbs).strip("「」\"' 　")
     # C-1516: the same removal, for the language that puts the verb first.
     # Without it an English request titled its own page `make me a racing
     # game`, and a longer one ("please make a racing game", 25 characters)

@@ -24,6 +24,8 @@ Two properties are load-bearing and easy to lose later:
 
 from __future__ import annotations
 
+from sidra_ai.creation.vocabulary import drop_request_adverbs
+
 import hashlib
 import re
 import unicodedata
@@ -205,8 +207,12 @@ def _title_from(request: str) -> str:
     """The operator's own words, cut at the making-verb."""
 
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって)", request)[0]
+    # C-1829: the words about when to make it come off first, or 「猫のゲームを
+    # 企画から今すぐ作って」 names the production 「猫のゲームを 今すぐ」.
+    stripped = drop_request_adverbs(stripped)
     stripped = re.sub(r"(企画から|一連で|一通り|まとめて|だけ)", " ", stripped)
     stripped = " ".join(stripped.split())
+    stripped = drop_request_adverbs(stripped)
     # Removing "企画から" from "釣りゲームを企画から作って" leaves the particle
     # that used to attach to it, and "釣りゲームを" is not a title. Trailing
     # particles are dropped here rather than in the split, because which one
@@ -216,7 +222,11 @@ def _title_from(request: str) -> str:
     # A request that is only the kind word (「制作一式を作って」) strips to nothing
     # and falls to the default below - keeping 「制作一式」 would echo it anyway.
     stripped = _TITLE_KIND_SUFFIX.sub("", stripped)
-    stripped = re.sub(r"[をのはがにで]+$", "", stripped).strip()
+    # C-1829: .strip() BEFORE the particle removal, not after. Removing 「一式」
+    # leaves 「レースゲームを 」 with the space the phrase removal above put
+    # there, the anchored pattern then matches nothing, and the dangling
+    # particle becomes the name of six files - measured on 5 of 14 requests.
+    stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     return stripped[:60] or "無題のゲーム"
 
 

@@ -29,6 +29,7 @@ from html import escape
 from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
+from sidra_ai.creation.vocabulary import drop_request_adverbs
 
 #: Shared with the game generator so a deck and a game made by the same tool
 #: look like they came from the same place.
@@ -270,6 +271,9 @@ def _title_from(request: str, fallback: str) -> str:
     """
 
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって)", request)[0].strip()
+    # C-1829: 「新商品のスライドをサクッと作って」 kept both サクッと and the
+    # スライド the cover must not print.
+    stripped = drop_request_adverbs(stripped)
     stripped = " ".join(stripped.split())
     # Peel a trailing kind word and the particle before it, repeatedly. The most
     # natural deck request phrases the format twice - 「…のスライドをパワポで作って」

@@ -1204,6 +1204,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1829: a word between the artifact noun and the making verb survived the
+    # cut and turned off the end-anchored kind strip with it - 47 of 48 titles
+    # across six generators carried the request's grammar, 「猫のゲームを今すぐ」
+    # and 「魚のGIFを急い」 among them. REQUEST_ADVERBS is the shared list; words
+    # that describe the artifact (「ざっくりしたアート」) are deliberately not in it.
+    from sidra_ai.evals.title_drops_request_adverbs import (
+        evaluate_title_drops_request_adverbs,
+    )
+
+    title_adverbs = evaluate_title_drops_request_adverbs()
+    c.add(
+        "creation_title_drops_request_adverbs",
+        "成果物の題が、依頼の「いつ・どれくらい急いで」を名前として残さない",
+        10.0 * title_adverbs.checks_passed / title_adverbs.checks_total,
+        detail=f"{title_adverbs.checks_passed}/{title_adverbs.checks_total} checks; "
+               "src/sidra_ai/evals/title_drops_request_adverbs.py"
+               + ("" if title_adverbs.passed
+                  else "; " + "; ".join(title_adverbs.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

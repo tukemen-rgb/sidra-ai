@@ -31,6 +31,7 @@ from html import escape
 from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
+from sidra_ai.creation.vocabulary import drop_request_adverbs
 from sidra_ai.creation.games import _javascript_parses, _no_external_assets, _script_of
 
 #: The DESIGN.md tokens, written once so the page and the tests agree.
@@ -146,6 +147,10 @@ _TITLE_KIND_SUFFIX = re.compile(
 
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって|描いて)", request)[0]
+    # C-1829: 「海のアートを今すぐ作って」 left 今すぐ sitting where the verb had
+    # been, which also stopped the kind strip below - that one is anchored to
+    # the end, so one word after アート turns it off.
+    stripped = drop_request_adverbs(stripped)
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     # The subject alone: a page titled 「螺旋のアート」 says アート in its title and
     # again in the summary 「…のジェネラティブアート」 (C-1265). Dropped only when a

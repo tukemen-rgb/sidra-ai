@@ -22,6 +22,8 @@ through to the default template or, worse, to an answer about documents.
 
 from __future__ import annotations
 
+import re
+
 from sidra_ai.creation.adventure import ADVENTURE_WORDS
 from sidra_ai.creation.duel import DUEL_WORDS
 from sidra_ai.creation.kaiju import KAIJU_WORDS
@@ -157,6 +159,59 @@ ARTIFACT_NOUNS: tuple[str, ...] = _GAME_NOUNS + (
 )
 
 
+#: C-1829: words that say *when* or *how eagerly* to make the thing, never
+#: what to make. 「猫のゲームを今すぐ作って」 titled its page 「猫のゲームを今すぐ」:
+#: every title builder cuts at the making verb, so a word sitting between the
+#: artifact noun and that verb survives - and it also turns off the strip that
+#: takes the kind word off the end, since that one is anchored to the end.
+#: Measured across eight of these and six generators: 47 of 48 titles carried
+#: the request's grammar.
+#:
+#: English already had the rule - ``_STRIP_EN_TAIL`` in ``games`` drops
+#: please/thanks/for my kid (C-1528, C-1531) - and Japanese had only the
+#: request markers ください and ほしい. Here rather than in one generator
+#: because all six need the same list, which is what this module is for.
+#:
+#: Words that describe the ARTIFACT are deliberately absent: 「ざっくりした
+#: アート」 and 「丁寧なレポート」 say what the thing should be like, and a title
+#: that dropped them would be quoting less than the operator asked for. The
+#: test for a row here is that it could be deleted from the request without
+#: changing what gets made.
+REQUEST_ADVERBS: tuple[str, ...] = (
+    "今すぐ", "すぐに", "すぐ", "今から", "これから",
+    "まとめて", "一気に", "一括で",
+    "ちゃんと", "きちんと", "しっかり",
+    "サクッと", "さくっと", "ささっと", "手早く",
+    "とりあえず", "ひとまず", "ついでに",
+    "急いで", "大至急", "早めに", "なるはやで", "至急",
+    "できれば", "よかったら", "もしよければ",
+)
+
+_REQUEST_ADVERB_TAIL = re.compile(
+    r"(?:" + "|".join(re.escape(word) for word in REQUEST_ADVERBS) + r")[\s　]*$"
+)
+
+
+def drop_request_adverbs(text: str) -> str:
+    """The request without the words about when to make it, off the end.
+
+    Applied until nothing more comes off - 「とりあえず今すぐ作って」 stacks two -
+    and the particle that attached the adverb to the verb comes with it, so the
+    kind-word strip that each generator runs next sees the end it expects.
+
+    Only the tail: 「今すぐ帰りたい人のゲーム」 is a subject that happens to
+    contain one of these words, and taking it from the middle would quote the
+    operator saying something they did not (the C-1503 rule, one module over).
+    """
+
+    out = text.strip()
+    while True:
+        shorter = _REQUEST_ADVERB_TAIL.sub("", out).strip()
+        if shorter == out:
+            return out
+        out = re.sub(r"[をにでと]+$", "", shorter).strip()
+
+
 def _game_words() -> tuple[str, ...]:
     """Every word that makes a request a game request, deduplicated.
 
@@ -189,6 +244,8 @@ def labels_for(templates) -> tuple[str, ...]:
 
 __all__ = [
     "CATCH_WORDS",
+    "REQUEST_ADVERBS",
+    "drop_request_adverbs",
     "FISHING_WORDS",
     "GAME_WORDS",
     "GENERIC_GAME_WORDS",

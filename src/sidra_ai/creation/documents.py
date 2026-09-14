@@ -25,6 +25,7 @@ from html import escape
 from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
+from sidra_ai.creation.vocabulary import drop_request_adverbs
 from sidra_ai.creation.evidence import NUMBER, Fact, plain_text
 
 #: Same constant as the deck's, same reason: the renderer and the validator
@@ -103,6 +104,8 @@ _DOC_LENGTH_PREFIX = re.compile(r"^[0-9０-９]+(?:ページ|頁|字|文字|枚)
 
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
+    # C-1829: the words about when to write it, not what to write.
+    stripped = drop_request_adverbs(stripped)
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     stripped = _DOC_LENGTH_PREFIX.sub("", stripped).strip()
     # The subject alone: a report titled 「競合分析のレポート」 says 「レポート」

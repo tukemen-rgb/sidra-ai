@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
+from sidra_ai.creation.vocabulary import drop_request_adverbs
 
 WIDTH = 120
 HEIGHT = 90
@@ -367,6 +368,9 @@ _TITLE_ABOUT_SUFFIX = re.compile(r"(?:について(?:の)?|に関して(?:の)?|
 
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって|出力して)", request)[0]
+    # C-1829: without this 「魚のGIFを急いで作って」 titled itself 「魚のGIFを急い」 -
+    # cut inside the okurigana - and kept the GIF the title must not echo.
+    stripped = drop_request_adverbs(stripped)
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     # The subject alone: 「猫のGIF」 says GIF in its title and again in the summary
     # 「…のアニメ GIF」 (C-1265). C-1485: peel the trailing particle, kind word and
