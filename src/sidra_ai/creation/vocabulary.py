@@ -192,6 +192,49 @@ _REQUEST_ADVERB_TAIL = re.compile(
 )
 
 
+#: C-1833: units that turn a number into a size or a count - how many slides,
+#: how long the animation, how many models. A title is the name of the thing,
+#: and 「5枚」 names no thing: 「5枚のスライドを作って」 titled its deck 「5枚」,
+#: 「30フレームのGIFを作って」 its animation 「30フレーム」, and 「魚の3Dモデルを
+#: 3つ作って」 its model 「魚3つ」. Measured across nine such requests: eight
+#: titles carried the number.
+#:
+#: 年 is deliberately absent. 「2026年のゲーム」 is not a count, and whether a
+#: year is a subject is a question nothing measured answers - so it stays where
+#: C-1832 left it rather than being decided here by a word list.
+#:
+#: The generators keep their own patterns for *reading* a count (the note that
+#: says what was really made needs the number); this one only takes it out of
+#: the name.
+SIZE_UNITS: tuple[str, ...] = (
+    "枚", "ページ", "頁", "スライド", "字", "文字",
+    "フレーム", "コマ", "秒", "分",
+    "個", "つ", "体", "匹", "台", "点",
+    "ステージ", "面", "レベル", "ラウンド",
+)
+
+_SIZE_PHRASE = re.compile(
+    r"\d{1,4}\s*(?:" + "|".join(re.escape(unit) for unit in SIZE_UNITS) + r")(?:の|で|を)?"
+)
+
+
+def drop_size_phrases(text: str) -> str:
+    """The request without its 「5枚」「30フレーム」「3つ」, wherever they sit.
+
+    A whole numeric phrase comes out - digits, unit, and the particle that
+    attached it - never part of a word, so what is left is still a run of the
+    operator's own characters (the C-1503 rule: a title has to be theirs by
+    construction, not by luck).
+
+    Anywhere rather than at one end, because the count moves: 「5枚のスライド」
+    puts it in front and 「スライドを5枚で」 behind, and behind is also where it
+    stops the end-anchored kind-word strip from firing at all.
+    """
+
+    out = _SIZE_PHRASE.sub("", text)
+    return " ".join(out.split()).strip("　 ・")
+
+
 def drop_request_adverbs(text: str) -> str:
     """The request without the words about when to make it, off the end.
 
@@ -245,7 +288,9 @@ def labels_for(templates) -> tuple[str, ...]:
 __all__ = [
     "CATCH_WORDS",
     "REQUEST_ADVERBS",
+    "SIZE_UNITS",
     "drop_request_adverbs",
+    "drop_size_phrases",
     "FISHING_WORDS",
     "GAME_WORDS",
     "GENERIC_GAME_WORDS",

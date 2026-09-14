@@ -1288,6 +1288,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1833: eight of nine count-bearing requests named the artifact after the
+    # number - 「5枚」, 「30フレーム」, 「魚3つ」 - and one kept the kind word behind
+    # it as well. drop_size_phrases is shared now; the document keeps the rule
+    # C-1822 gave it. The notes that state the real number stay put.
+    from sidra_ai.evals.title_drops_the_count import (
+        evaluate_title_drops_the_count,
+    )
+
+    title_count = evaluate_title_drops_the_count()
+    c.add(
+        "creation_title_drops_the_count",
+        "成果物の題が、頼まれた枚数・長さ・個数を名前にしない",
+        10.0 * title_count.checks_passed / title_count.checks_total,
+        detail=f"{title_count.checks_passed}/{title_count.checks_total} checks; "
+               "src/sidra_ai/evals/title_drops_the_count.py"
+               + ("" if title_count.passed
+                  else "; " + "; ".join(title_count.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

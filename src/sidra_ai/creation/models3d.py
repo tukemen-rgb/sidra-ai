@@ -25,6 +25,10 @@ from random import Random
 
 from sidra_ai.creation.art import names_color
 from sidra_ai.creation.artifact_paths import unique_path
+from sidra_ai.creation.vocabulary import (
+    drop_request_adverbs,
+    drop_size_phrases,
+)
 from sidra_ai.creation.games import _javascript_parses, _no_external_assets, _script_of
 
 # GAMEYARD tokens as linear-ish RGB triples for MTL diffuse colours.
@@ -97,6 +101,13 @@ def choose_shape(request: str) -> str:
 
 def _title_from(request: str, fallback: str) -> str:
     stripped = _STRIP.sub("", request.strip()).strip("「」\"' 　")
+    # C-1829 widened six generators and MISSED THIS ONE, so 「魚の3Dモデルを今すぐ
+    # 作って」 was titled 「魚今すぐ」 - the defect that cycle was about, left in the
+    # seventh generator by the cycle that fixed it. C-1833 adds it here with the
+    # count (「魚3つ」), and the eval next door now drives this generator too.
+    stripped = drop_request_adverbs(stripped)
+    stripped = drop_size_phrases(stripped)
+    stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     if 1 <= len(stripped) <= 24:
         return stripped
     return fallback
