@@ -1,4 +1,4 @@
-"""C-1795: a bare greeting gets a friendly reply, not a corpus-miss abstention.
+"""C-1796: a bare greeting gets a friendly reply, not a corpus-miss abstention.
 
 「こんにちは」「ありがとう」 alone are not questions; chat now returns a
 greeting refusal (refusal=="greeting") with a friendly answer that does not

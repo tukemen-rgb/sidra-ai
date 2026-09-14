@@ -74,7 +74,7 @@ CODES = (
     # nothing, so the answer lists what can be made. Retrying "surprise me"
     # asks the same question again, so the fallback advice is wrong here too.
     "unnamed",
-    # C-1795. The fourth: a bare greeting or thanks is not a question, so the
+    # C-1796. The fourth: a bare greeting or thanks is not a question, so the
     # no-evidence abstention (which names the ingest endpoint) is the wrong
     # reply. Retrying 「こんにちは」 is still not a question, so "wait" is wrong here.
     "greeting",

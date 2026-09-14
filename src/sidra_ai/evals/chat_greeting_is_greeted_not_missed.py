@@ -1,6 +1,6 @@
 """Does a bare greeting get a friendly reply, not a corpus-miss abstention?
 
-C-1795. A message that is only a greeting or thanks (「こんにちは」「ありがとう」)
+C-1796. A message that is only a greeting or thanks (「こんにちは」「ありがとう」)
 is not a question, but ``chat`` sent it through retrieval like any query and,
 finding nothing, returned the no-evidence abstention - 「現時点では十分な根拠が
 ありません…（POST /v1/github/analyze）を管理者に依頼してください」. So the most

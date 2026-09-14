@@ -63,7 +63,7 @@ def test_a_real_question_is_untouched(client: TestClient) -> None:
     no-evidence sentence - that sentence is correct there, because a search
     with a real query did happen and found nothing. (The example was once
     「こんにちは」, but a bare greeting is not a question and now gets its own
-    friendly reply - C-1795 - so a genuine question stands in for it here.)
+    friendly reply - C-1796 - so a genuine question stands in for it here.)
     """
 
     body = client.post("/v1/chat", json={"message": "火星の天気を教えて"}).json()

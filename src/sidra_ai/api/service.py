@@ -621,7 +621,7 @@ class SidraService:
                 "citations": [],
             }
 
-        # C-1795: a bare greeting or thanks is not a question. Sent through
+        # C-1796: a bare greeting or thanks is not a question. Sent through
         # retrieval it found nothing and got the no-evidence abstention - the
         # sentence that names 「POST /v1/github/analyze」 - so the most common
         # opening message read as a technical failure. It is the blank case's

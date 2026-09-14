@@ -1052,7 +1052,7 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # C-1795: a bare greeting or thanks (「こんにちは」「ありがとう」) is not a
+    # C-1796: a bare greeting or thanks (「こんにちは」「ありがとう」) is not a
     # question, but chat sent it through retrieval and returned the no-evidence
     # abstention that names POST /v1/github/analyze. It now gets a friendly
     # refusal (refusal=="greeting"), joining empty/ambiguous/unnamed; a greeting
@@ -25054,7 +25054,7 @@ def measure_creation(c: Collector) -> None:
     # A real question the corpus cannot answer must still get the honest
     # no-evidence sentence: that one is true, because a search happened. The
     # probe was once 「こんにちは」, but a bare greeting is not a question and now
-    # gets its own friendly reply (C-1795), so a genuine unanswerable question
+    # gets its own friendly reply (C-1796), so a genuine unanswerable question
     # stands in for it - the guard's point (don't over-refuse real questions) is
     # unchanged.
     _real = _ask("火星の天気を教えて")
@@ -25075,7 +25075,7 @@ def measure_creation(c: Collector) -> None:
             "**検索も引用もせず聞き返す**（`refusal: empty`）。"
             "**両方向**: 答えの無い実質問「火星の天気を教えて」は**今も**"
             "「十分な根拠がありません」と正直に言う——片方だけなら"
-            "「全部聞き返す」実装が満点を取る（挨拶だけの入力は C-1795 で"
+            "「全部聞き返す」実装が満点を取る（挨拶だけの入力は C-1796 で"
             "別扱いになったので、実質問の代表に差し替えた）。"
             "**空文字列 `\"\"` は別の話**で、HTTP schema の `min_length=1` が"
             "既に 422 で弾いている（起票は同じ 1 件として書かれていたが、"

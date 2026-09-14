@@ -313,7 +313,7 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
                        "作りたいものを名指して頼む。リポジトリについて知りたい"
                        "場合は、知りたいことを文にして送る。",
             # A greeting is not a question, and the no-evidence sentence (which
-            # names the ingest endpoint) is the wrong reply to one (C-1795, the
+            # names the ingest endpoint) is the wrong reply to one (C-1796, the
             # conversational sibling of empty/ambiguous/unnamed). Name the next
             # step, not a search that never had a query.
             "greeting": "挨拶を受け取った。調べたいことを入力する。索引済み"
