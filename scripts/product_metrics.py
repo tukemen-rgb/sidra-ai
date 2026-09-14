@@ -672,6 +672,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1831: the chat citation flags a source's trust level (外部/未検証, C-1471),
+    # but the forwardable document/deck named only repo+path, so a third party's
+    # unverified Issue claim read as an internal-verified fact in the report an
+    # executive forwarded. The artifact now carries the same note, non-internal
+    # sources only, so an ordinary internal fact is unchanged.
+    from sidra_ai.evals.generated_artifact_discloses_source_trust import (
+        evaluate_generated_artifact_discloses_source_trust,
+    )
+
+    artifact_trust = evaluate_generated_artifact_discloses_source_trust()
+    c.add(
+        "generated_artifact_discloses_source_trust",
+        "生成 document/deck が外部・未検証の出典をその旨つきで示す",
+        10.0 * artifact_trust.checks_passed / artifact_trust.checks_total,
+        detail=f"{artifact_trust.checks_passed}/{artifact_trust.checks_total} checks; "
+               "src/sidra_ai/evals/generated_artifact_discloses_source_trust.py"
+               + ("" if artifact_trust.passed else "; " + "; ".join(artifact_trust.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1232: 「## 概要」 copied the first retrieved fact whole, and that same
     # fact opened 「## わかっていること」 - so a report began with the identical
     # paragraph twice, and a 「概要」 that is only the top fact is not a summary.
