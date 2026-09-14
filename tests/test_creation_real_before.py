@@ -64,9 +64,16 @@ def _revise(home: Path, recorded: str) -> tuple[str, str]:
     before = {p.name for p in art.glob("*.html")}
     out = build_game_reviser(str(home))(LINE, detect_revision_intent(LINE))
     fresh = [p for p in art.glob("*.html") if p.name not in before]
-    assert len(fresh) == 1, [p.name for p in fresh]
+    # C-1817: a revision that changes nothing now writes no version, so
+    # 「hard」 (already the top rung, nothing to step to) leaves none. The page
+    # the summary describes is then the one already on disk. Still at most
+    # one: a revision that wrote two files is a defect either way, and both
+    # tests below already return without asserting when the summary names no
+    # step, so nothing they actually check is relaxed by this.
+    assert len(fresh) <= 1, [p.name for p in fresh]
+    target = fresh[0] if fresh else page
     spec = re.search(
-        r"const TUNE_SPEC=(\{.*?\});", fresh[0].read_text(encoding="utf-8"), re.S
+        r"const TUNE_SPEC=(\{.*?\});", target.read_text(encoding="utf-8"), re.S
     )
     built_rung = {f["key"]: f["default"] for f in json.loads(spec.group(1))["fields"]}
     return str(getattr(out, "summary", "") or out), built_rung["difficulty"]

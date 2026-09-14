@@ -1164,24 +1164,6 @@ def build_game_reviser(data_dir: str | Path):
             title_override=title,
             panel=panel,
         )
-        verdict = validate_game_html(game.html)
-        path = save_game(game, data_dir)
-        save_meta(
-            path,
-            request=meta["request"],
-            template=game.template,
-            difficulty=game.difficulty,
-            theme=theme,
-            title=game.title,
-            panel=panel,
-            # C-1816: an undo records which version it copied, so a second
-            # 「戻して」 can walk past it instead of copying back what this one
-            # just left.
-            restored_from=(
-                previous[0].name if undone_from is not None else None
-            ),
-        )
-
         changed: list[str] = []
         if game.difficulty != was_difficulty:
             changed.append(f"難易度 {was_difficulty}→{game.difficulty}")
@@ -1220,11 +1202,50 @@ def build_game_reviser(data_dir: str | Path):
         for flag, name in (("daily", "今日の挑戦"), ("brief", "ブリーフィング")):
             if flag in panel and panel.get(flag) != before_panel.get(flag, False):
                 changed.append(f"{name} {'入' if panel[flag] else '切'}")
+        if not changed and undone_from is None:
+            # C-1817: recognised adjustments that all landed on their current
+            # values (already at max difficulty, same theme). This already
+            # refused to claim a change - but it wrote a version anyway, and
+            # the file was written BEFORE the comparison that discovers there
+            # is nothing to record. Two 「難しくして」 at max difficulty left two
+            # versions holding identical pages, and 「元に戻して」 then had to
+            # step through them, saying 「一つ前の版に戻しました」 twice while
+            # nothing moved - the symptom C-1816 fixed, arriving by another
+            # door. There is nothing to keep an old version OF, so the
+            # sign-off does not promise one either.
+            #
+            # Undo is excluded: it always restores something, and its own
+            # sentence is written below.
+            return CreationOutcome(
+                kind=CreationKind.GAME,
+                handled=True,
+                summary=(
+                    f"「{game.title}」は変更なし（すでにその設定です）。"
+                    "新しい版は作っていません。"
+                ),
+                artifact_path=str(target_path).replace(".meta.json", ".html"),
+                details={"revision": intent.adjustments, "changed": []},
+            )
         if not changed:
-            # Recognised adjustments that all landed on their current
-            # values (already at max difficulty, same theme). Saying "done"
-            # would claim a change that did not happen.
             changed.append("変更なし（すでにその設定です）")
+
+        verdict = validate_game_html(game.html)
+        path = save_game(game, data_dir)
+        save_meta(
+            path,
+            request=meta["request"],
+            template=game.template,
+            difficulty=game.difficulty,
+            theme=theme,
+            title=game.title,
+            panel=panel,
+            # C-1816: an undo records which version it copied, so a second
+            # 「戻して」 can walk past it instead of copying back what this one
+            # just left.
+            restored_from=(
+                previous[0].name if undone_from is not None else None
+            ),
+        )
 
         summary = (
             f"「{game.title}」を修正しました: " + "、".join(changed) + "。"

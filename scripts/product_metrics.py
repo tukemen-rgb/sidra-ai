@@ -1205,6 +1205,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1817, next door: a revision that changes nothing wrote a version
+    # anyway, because the file was written before the comparison that finds
+    # there is nothing to record - so 「元に戻して」 had to step through the
+    # empty ones, which is C-1816's symptom by another door.
+    from sidra_ai.evals.no_change_writes_no_version import (
+        evaluate_no_change_writes_no_version,
+    )
+
+    no_change = evaluate_no_change_writes_no_version()
+    c.add(
+        "creation_no_change_writes_no_version",
+        "変更なしの修正は、版を増やさない",
+        10.0 * no_change.checks_passed / no_change.checks_total,
+        detail=f"{no_change.checks_passed}/{no_change.checks_total} checks; "
+               "src/sidra_ai/evals/no_change_writes_no_version.py"
+               + ("" if no_change.passed else "; " + "; ".join(no_change.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1816: 「元に戻して」 twice bounced between the last two versions instead
     # of walking back - an undo writes a new version holding an old state, so
     # the next undo read it as "the state I was just in". Driven end to end
@@ -26639,13 +26658,23 @@ def measure_creation(c: Collector) -> None:
         else:
             _hist_bad.append(f"B の「それ」が自分のものに届かない: {_b_answer[:50]}")
         # No history, and a history that names nothing: unchanged behaviour.
-        _bare_answer = _hist_say("それを難しくして")
+        #
+        # C-1817 changed what these two have to ask for. They check that a
+        # revision still HAPPENS (not which artifact it picks - that is the
+        # pair above), and they read 「を修正しました」 as the proof. The two
+        # checks above have already stepped both games to 「hard」, so asking
+        # for harder again is now a no-op - and since a no-op stopped writing
+        # a version it no longer says 「修正しました」 either. The signal is
+        # right and stays strict; the scenario had an ordering dependency on
+        # its own earlier checks that only became visible once the no-op
+        # stopped pretending. Asking for easier always has a rung to step to.
+        _bare_answer = _hist_say("それをやさしくして")
         if "を修正しました" not in _bare_answer:
             _hist_bad.append(f"履歴なしの修正が壊れた: {_bare_answer[:50]}")
         else:
             _hist_ok.append("履歴なし（CLI 経路）は従来どおり最新")
         _qa_answer = _hist_say(
-            "それを難しくして", [("収益化の方針は？", "掲載順は売らないことです。")]
+            "それをやさしくして", [("収益化の方針は？", "掲載順は売らないことです。")]
         )
         if "を修正しました" not in _qa_answer:
             _hist_bad.append(f"成果物を名指ししない履歴で修正が断られた: {_qa_answer[:50]}")
