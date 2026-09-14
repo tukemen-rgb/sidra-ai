@@ -1052,6 +1052,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1795: a bare greeting or thanks (「こんにちは」「ありがとう」) is not a
+    # question, but chat sent it through retrieval and returned the no-evidence
+    # abstention that names POST /v1/github/analyze. It now gets a friendly
+    # refusal (refusal=="greeting"), joining empty/ambiguous/unnamed; a greeting
+    # that opens a real question is still answered as the question.
+    from sidra_ai.evals.chat_greeting_is_greeted_not_missed import (
+        evaluate_chat_greeting_is_greeted_not_missed,
+    )
+
+    chat_greeting = evaluate_chat_greeting_is_greeted_not_missed()
+    c.add(
+        "chat_greeting_is_greeted_not_missed",
+        "挨拶だけの入力に、根拠不足の技術的な断りではなく友好的に応答する",
+        10.0 * chat_greeting.checks_passed / chat_greeting.checks_total,
+        detail=f"{chat_greeting.checks_passed}/{chat_greeting.checks_total} checks; "
+               "src/sidra_ai/evals/chat_greeting_is_greeted_not_missed.py"
+               + ("" if chat_greeting.passed
+                  else "; " + "; ".join(chat_greeting.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1260: opening the ask page 404'd on /favicon.ico every load (console
     # error + blank tab icon). The page is self-contained, so it now declares
     # an inline data: favicon. Checked on the served page string: an icon link
