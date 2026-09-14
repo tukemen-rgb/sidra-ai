@@ -257,6 +257,12 @@ class RevisionIntent:
     #: "title" -> new title. Empty means the message is not a revision.
     adjustments: dict[str, str] = field(default_factory=dict)
     evidence: tuple[str, ...] = field(default_factory=tuple)
+    #: True when the message reads as a change - a recognised adjustment and a
+    #: change verb - but names no artifact to change (no back-reference). It is
+    #: deliberately *not* a revision: editing an artifact nobody pointed at is
+    #: what the back-reference guards. The caller uses this to ask which one,
+    #: rather than answer a plain imperative as a failed corpus search (C-1797).
+    wants_referent: bool = False
 
 
 def detect_revision_intent(message: str) -> RevisionIntent:
@@ -291,11 +297,15 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     # C-1513b: a bare undo is its own referent. It points at the last change
     # rather than at a page, which is why no word in the table matched it -
     # and why widening that table was the wrong way to let it through.
+    #
+    # C-1797: the back-reference decision is deferred to after the adjustment is
+    # read, so a change with no referent (「もっと難しくして」) can be told apart
+    # from a message that is not a change at all. It is still not a revision -
+    # the guard is unchanged - but the caller can then ask which artifact.
     bare_undo = bool(_BARE_UNDO.fullmatch(message.strip()))
-    if not bare_undo and not any(
+    has_referent = bare_undo or any(
         fold_kana(word.casefold()) in text for word in _BACK_REFERENCES
-    ):
-        return RevisionIntent(is_revision=False)
+    )
     if not any(fold_kana(verb) in text for verb in _CHANGE_VERBS):
         return RevisionIntent(is_revision=False)
 
@@ -369,6 +379,19 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         # change. Reported as a non-revision so the question path can at
         # least answer; inventing a change would be worse than declining.
         return RevisionIntent(is_revision=False)
+
+    if not has_referent:
+        # C-1797: a recognised change with no artifact named. Not a revision -
+        # editing an artifact nobody pointed at is exactly what the
+        # back-reference guards - but it is a change instruction, not a corpus
+        # question, so the caller asks which one instead of answering it as a
+        # failed search.
+        return RevisionIntent(
+            is_revision=False,
+            adjustments=dict(adjustments),
+            evidence=tuple(evidence),
+            wants_referent=True,
+        )
 
     return RevisionIntent(is_revision=True, adjustments=adjustments, evidence=tuple(evidence))
 

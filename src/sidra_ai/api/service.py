@@ -684,6 +684,27 @@ class SidraService:
         # vetoes itself on any creation verb - so creation keeps priority on
         # 「難しいゲームを作って」 by construction, not by ordering luck.
         revision = detect_revision_intent(query)
+        if revision.wants_referent:
+            # C-1797: a change instruction that names no artifact (「もっと難しく
+            # して」). detect_revision_intent declines to edit an unpointed
+            # artifact (the back-reference guards that), and it must not fall
+            # through to retrieval - a plain imperative is not a corpus question,
+            # and answering it 「現時点では十分な根拠がありません…POST /v1/github/
+            # analyze…」 sends the operator entirely the wrong way. Ask which one,
+            # the way empty/ambiguous/unnamed/greeting do for their inputs.
+            return {
+                "answer": (
+                    "変更のご依頼のようですが、どれを変えるか分かりませんでした。"
+                    "直前に作ったものなら「それ」「さっきの」を付けて、"
+                    "例えば「さっきのゲームを難しくして」のように送ってください。"
+                ),
+                "refused": True,
+                "refusal": "revision_target",
+                "reason": "a change was asked for but no artifact was named",
+                "citations": [],
+                "security": gate_result.to_dict(),
+                "creation": {"revision": dict(revision.adjustments)},
+            }
         if revision.is_revision:
             # C-1519: the conversation's own artifacts decide what 「それ」
             # means. Without this the target was whatever this process

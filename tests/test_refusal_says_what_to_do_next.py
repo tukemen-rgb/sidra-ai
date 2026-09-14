@@ -78,6 +78,10 @@ CODES = (
     # no-evidence abstention (which names the ingest endpoint) is the wrong
     # reply. Retrying 「こんにちは」 is still not a question, so "wait" is wrong here.
     "greeting",
+    # C-1797. The fifth: a change with no artifact named (「もっと難しくして」) is
+    # not a corpus question either; the next step is to point at the artifact,
+    # not to wait or to ingest a repository.
+    "revision_target",
 )
 
 

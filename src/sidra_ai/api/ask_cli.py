@@ -319,6 +319,12 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             "greeting": "挨拶を受け取った。調べたいことを入力する。索引済み"
                         "リポジトリについて答えられ、制作（「レースゲームを作って」"
                         "など）もできる。",
+            # A change with no artifact named (「もっと難しくして」). Not a corpus
+            # question, so "wait and retry" and the no-evidence line are both
+            # wrong; name the next step - point at the artifact (C-1797).
+            "revision_target": "どれを変えるか分からなかった。直前に作ったものなら"
+                               "「それ」「さっきの」を付けて、「さっきのゲームを"
+                               "難しくして」のように頼む。",
         }
         message = messages.get(payload.get("refusal"))
         if message is None:
