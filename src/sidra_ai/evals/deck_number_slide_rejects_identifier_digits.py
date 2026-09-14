@@ -91,7 +91,22 @@ def evaluate_deck_number_slide_rejects_identifier_digits() -> DeckNumberSlideRes
     add(Fact("512 MiB・60Hz・80.0% を測った。", "x").mentions_number(),
         "a unit-bearing figure stopped counting as a number")
 
-    total = 10
+    # --- C-1815: a bare year is a date, not a supporting figure ---
+    # The 根拠となる数字 slide promises the numbers that back a pitch; a fact whose
+    # only number is a start-year (「収益化は2024年に開始した」) is not one, the same
+    # way an identifier's digit is not (C-1609 above). It must not anchor the
+    # numeric slide.
+    for text in ("収益化は2024年に開始した。", "創業は1998年である。", "2024年度に着手した。"):
+        add(not Fact(text, "x").mentions_number(),
+            f"a bare year read as a supporting figure: {text!r}")
+    # A real figure alongside a year still counts (the year is masked, the
+    # metric survives), and a four-digit amount with a unit is not a year.
+    add(Fact("2024年に売上は3倍になった。", "x").mentions_number(),
+        "a real figure beside a year stopped counting")
+    add(Fact("初期費用は2024万円かかった。", "x").mentions_number(),
+        "a four-digit amount was mistaken for a year")
+
+    total = 15
     return DeckNumberSlideResult(
         passed=not failures,
         checks_passed=checks,

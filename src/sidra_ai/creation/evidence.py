@@ -38,6 +38,16 @@ NUMBER = re.compile(r"\d[\d,.\s]*\s*(?:%|％|円|万|億|人|件|倍|pt|x)?", re
 #: swallow the Japanese figure that follows an identifier (C-1609).
 _IDENTIFIER = re.compile(r"[A-Za-z]+-?\d[\dA-Za-z.]*")
 
+#: C-1815. A bare year is a date, not a supporting figure - the sibling of the
+#: identifier digit above. The 根拠となる数字 slide is chosen by whether a fact
+#: carries a figure, but a fact whose only number is a start-year
+#: (「収益化は2024年に開始した」「創業は1998年」) is not evidence in the pitch sense; it
+#: was landing on the "backing numbers" slide and reading as a metric. Masked
+#: before the figure test so such a fact no longer counts. The 年 suffix is
+#: required, so a four-digit amount with a unit (「2024万円」) is left a figure, and
+#: a real metric beside a year (「2024年に3倍」) still counts because 「3倍」 survives.
+_YEAR = re.compile(r"(?:19|20)\d{2}年")
+
 
 #: Markdown decoration inside an excerpt window. The corpus is Markdown, so
 #: a 200-character window lands mid-document and drags ``##``, ``**`` and
@@ -262,8 +272,10 @@ class Fact:
 
     def mentions_number(self) -> bool:
         # Mask an identifier's digits first, so a name that carries a digit
-        # (BM25, C-1234) is not read as a supporting figure (C-1609).
-        return bool(NUMBER.search(_IDENTIFIER.sub(" ", self.text)))
+        # (BM25, C-1234) is not read as a supporting figure (C-1609); then mask
+        # bare years, a date rather than a metric (C-1815). A real figure beside
+        # either survives both masks.
+        return bool(NUMBER.search(_YEAR.sub(" ", _IDENTIFIER.sub(" ", self.text))))
 
 
 @lru_cache(maxsize=1)

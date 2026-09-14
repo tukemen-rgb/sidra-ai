@@ -26,7 +26,16 @@ def _slide_text(deck, title: str) -> str:
 def test_deck_number_slide_eval_passes():
     result = evaluate_deck_number_slide_rejects_identifier_digits()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 10
+    assert result.checks_passed == result.checks_total == 15
+
+
+def test_bare_year_is_not_a_supporting_figure():
+    """C-1815: a fact whose only number is a year is a date, not a figure."""
+    for text in ("収益化は2024年に開始した。", "創業は1998年である。", "2024年度に着手した。"):
+        assert not Fact(text, "x").mentions_number(), text
+    # a real figure beside a year still counts; a four-digit amount is not a year
+    assert Fact("2024年に売上は3倍になった。", "x").mentions_number()
+    assert Fact("初期費用は2024万円かかった。", "x").mentions_number()
 
 
 def test_identifier_digit_is_not_a_number():
