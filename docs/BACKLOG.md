@@ -8630,6 +8630,34 @@ C-12xx/13xx/14xx はループ用のまま）。
       **両方向**: (a) 長さ指定は主題から消える、(b) 数値を含む正当な主題（第3四半期等）は残る。
       → 動かす数字: `document_title_drops_length_spec`（新設・unmeasurable→）
       **解決 2026-09-14 16:38 UTC**: `documents.py` に `_DOC_LENGTH_PREFIX`（`^[0-9０-９]+(?:ページ|頁|字|文字|枚)(?:の|$)`）を新設し、`_title_from` の peel ループ手前で 1 回剥がす（`_DOC_FORMAT_SUFFIX` の兄弟）。「3ページのレポート」→ 既定題「レポート」（＝正直な空枠 fallback へ・数値検証落ちが消える）／「3ページの競合分析」→「競合分析」。**数値を含む正当な主題は不変**（第3四半期＝四半期は長さ単位でない・3年計画＝年・G3＝先頭が数字でない・5枚組の写真集＝枚の後が組で の/末尾でない・300万円の予算＝万）。「第3四半期」は依然 `document_title_number_disclosed`（C-1815 族）どおり数値の非出典を正直に開示＝意図どおり不変。**発見手段**: 制作出力を一般ユーザーの目で実駆動（前巡=色指定と別の場所）。document/deck の長さ指定を横断確認し、deck は「N枚」を主題化しないのに **document だけが「Nページ/N字」を主題化**する片側欠陥を特定。**判定器** `document_title_drops_length_spec` 新設（`generate_document(req).title` を直読・STRIP 5＋KEEP 6＝11 checks）＋ mirror test（== 11・STRIP/KEEP 2 群 parametrize）。**検証**: 破壊 5/5 全検出（別プロセス分離・C-1803——M1 剥がし行削除→6/11／M2 ページ削除→8/11／M3 字削除→10/11／M4 枚削除→10/11／M5 の/$ ゲート削除で正当主題を過剰剥がし→5/11＝ゲートが効いている）復元 GREEN。`--compare` EXIT 0（BETTER 5.455→10・MOVED 1・WORSE/DRIFT/REGRESSED/LOST 無し・"held still" は `metrics_runtime_attributed` の実時間 detail で良性）。document/deck/subject/report 広域 pytest **195 passed**（`document_title_number_disclosed`・`document_title_drops_format_words`・`deck_discloses_unsourced_title_number` 等とも緑・回帰なし）。detectors.py 非変更につき gate 判定器 N/A。**採番**: 起票時 origin 最大が C-1821 で次の空き番 **C-1822**＝衝突なし。**C-1821〔辛口クリエイター・deck の枚数注記 decks.py〕とは別ファイル別症状で非衝突**。
+- [x] 完了 2026-09-14 17:38 UTC 辛口ユーザー（`answer_body_follows_the_query` **新設 broken 3.75→10=8/8**・判定器 exit 0（BETTER・MOVED 1・WORSE/DRIFT/REGRESSED/LOST 無し）・採番衝突なし）　**確保時の判断**: RAG 回答経路＝横断帯（前巡=document 題抽出、その前=art 色とは別の場所）。**他ループとの衝突確認済み**——辛口クリエイター C-1823 は GIF のフレーム数（`gifs.py`）、ループA C-1824 は必須手順の gate 名指し（docs）で、どちらも別ファイル別症状。echo backend の回答本文には活動中の確保なし。**時刻は `date -u`**。 **C-1825: 抽出回答の本文が質問非依存——「デフォルトのポートは？」に本文が chunk 冒頭の言語・依存文を返し、答えの「8080」は下の引用抜粋にしか出ない。**（2026-09-14 17:18 UTC 辛口ユーザー・引用抜粋の質問依存 C-1782 の本文版）
+      **実測 2026-09-14 17:18 UTC**（実 `SidraService.chat`・echo backend・索引した実 chunk）:
+      chunk=「The service is written in Python…. It depends on FastAPI…. The default port is 8080 unless overridden. Logging….」
+      「What is the default port?」→ **本文は先頭 2 文（Python・FastAPI）** を返し **「8080」を含まない**。
+      同じ chunk の**引用抜粋**（出典欄）は `select_excerpt_span`（C-1782/C-1270/C-1280）で**質問依存**なので「8080」を含む。
+      日本語でも同様（「デフォルトのポートは何番ですか」→ 本文に 8080 無し）。
+      **原因**: `echo._lead` が `plain_text` 後に **chunk 冒頭から** 文予算（`max_sentences_per_block=2`）を取り、
+      **質問を一切見ない**。引用抜粋だけが質問依存にされ（C-1782）、**回答本文は冒頭固定のまま**——
+      利用者が最初に読む回答欄が質問に答えず、答えは抜粋の中（多くの利用者は開かない）。
+      **同じ generator の中の片側**（抜粋は質問依存・本文は非依存）。
+      **処方〔最小・抜粋と同じ相対性を本文にも〕**: `_lead(content, query)` が質問語に最も一致する一節から開く
+      （`tokenize` の項集合の最大一致・同点は最先＝冒頭が話題なら冒頭のまま・一致無し/空質問は head=0＝従来どおり回帰なし）。
+      **C-1216 の両立**: 見出し（Markdown `#…`＝節の id・利用者が grep する語）は本文が下から開いても文脈として前置きに残す。
+      **両方向**: (a) 質問に答える一節が本文に出る（8080）、(b) 冒頭を問う質問は冒頭のまま・後の無関係文を引き込まない
+      （lang 質問→8080 出さない）、(c) 見出しのある chunk は id を残す（C-1216）。
+      → 動かす数字: `answer_body_follows_the_query`（新設・unmeasurable→**10**）
+      **解決 2026-09-14 17:38 UTC**: `models/echo.py` の `_lead` に `query` を渡し（`generate` の `request.user_message`）、
+      `tokenize`（retrieval.search・下位層・models→api 逆依存を避けた）で質問語に最も一致する一節の先頭を `head` にし、
+      そこから文予算を数え `collapsed[head:end]` を返す。冒頭に Markdown 見出しがあれば `head>0` のとき前置きに残す（C-1216）。
+      一致無し・空質問は `head=0`＝従来の冒頭（回帰なし）。**判定器** `answer_body_follows_the_query` 新設（実 `chat`・echo・
+      PRESENT 5〔EN/JP の port→8080・default port・両言語の lang→Python〕＋ABSENT 3〔lang 回答に 8080 無し・port 回答に
+      冒頭語 wheel/Python 無し＝head から開くことを固定〕＝8 checks）＋ mirror test（== 8）。
+      **検証**: 破壊 5/5 全検出（別プロセス分離・C-1803。2 判定器で守る——M1 head を 0 固定→AB 3/8／M2 query 無視→AB 3/8／
+      M3 slice を冒頭から→AB 6/8〔ABSENT の wheel/Python が捕まえる〕／M4 見出し前置きを外す→CR〔`citation_readability` C-1216〕6/7／
+      M5 見出し検出を壊す→CR 6/7）復元 GREEN。`--compare` EXIT 0（BETTER 3.75→10・MOVED 1・WORSE/DRIFT/REGRESSED/LOST 無し・
+      "held still"=`metrics_runtime_attributed` の実時間 detail で良性）。answer/citation/excerpt/grounding/retrieval/cli/ui 広域 pytest
+      exit 0（`citation_excerpt_follows_the_searched_query`〔C-1782〕・`citation_readability`〔C-1216 7/7〕・`answer_*` とも緑・回帰なし）。
+      detectors.py 非変更につき gate 判定器 N/A。**採番**: 起票時 origin 最大が C-1824 で次の空き番 **C-1825**＝衝突なし。
 - [x] 完了 2026-09-14 15:34 UTC 辛口クリエイター（`creation_no_change_writes_no_version` **新設 unmeasurable→10**、判定器 exit 0（MOVED 1・REGRESSED 0）、pytest 7440 通過・失敗 0、gate MISS 0）　**確保時の判断**: 自帯。**C-1816 で直した症状と同じものが、別の入口から出ている**ので続けて取る。**巡を小さく切ると決めた回**（trigger が溜まっているため）なので、**範囲は 1 つだけ**。**時刻は `date -u` で取った**（前巡で 10 時間ずれていた反省）。 **C-1817: 「変更なし（すでにその設定です）」なのに新しい版を書くので、取り消しがその空版を 1 段ずつ踏む。**（2026-09-14 13:3x UTC 辛口クリエイター・C-1816 の隣）
       **実測 2026-09-14 13:3x UTC**: 作成(normal) → 難しくして(hard) → **難しくして** → **難しくして**
       → 版が **4 つ**（後ろ 2 つは「変更なし（すでにその設定です）」）。
