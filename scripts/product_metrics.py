@@ -1137,6 +1137,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1802: a meta question about the product (「使い方を教えて」「何ができる」
+    # 「ヘルプ」) is not a corpus query, but it got the no-evidence abstention that
+    # names POST /v1/github/analyze - the worst reply for someone asking for help.
+    # It now gets an overview of what SIDRA does (from the live generator
+    # registry); a real question, or one that only contains 「使い方」, is untouched.
+    from sidra_ai.evals.chat_help_query_is_answered_not_missed import (
+        evaluate_chat_help_query_is_answered_not_missed,
+    )
+
+    chat_help = evaluate_chat_help_query_is_answered_not_missed()
+    c.add(
+        "chat_help_query_is_answered_not_missed",
+        "使い方・何ができる等のメタ質問に、根拠不足の断りではなく製品の概要で答える",
+        10.0 * chat_help.checks_passed / chat_help.checks_total,
+        detail=f"{chat_help.checks_passed}/{chat_help.checks_total} checks; "
+               "src/sidra_ai/evals/chat_help_query_is_answered_not_missed.py"
+               + ("" if chat_help.passed
+                  else "; " + "; ".join(chat_help.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1260: opening the ask page 404'd on /favicon.ico every load (console
     # error + blank tab icon). The page is self-contained, so it now declares
     # an inline data: favicon. Checked on the served page string: an icon link

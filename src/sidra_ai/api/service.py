@@ -137,6 +137,27 @@ def _is_greeting(message: str) -> bool:
     return text in _GREETINGS
 
 
+#: Meta questions about the product itself, not the corpus. Matched against the
+#: whole message so 「使い方のドキュメントを探して」 - a real corpus query that
+#: contains 「使い方」 - is not caught; only a bare help question is. A closed set,
+#: for the same low-false-positive reason as _GREETINGS.
+_HELP_QUERIES = frozenset({
+    "使い方", "使い方を教えて", "使い方を教えてください", "使い方は", "つかいかた",
+    "何ができる", "何ができるの", "何ができますか", "何ができるか", "なにができる",
+    "なにができるの", "できること", "できることは", "何ができるの?",
+    "ヘルプ", "help", "このアプリは何", "このアプリについて", "何のアプリ",
+    "何ができますか?", "使い方教えて",
+})
+
+
+def _is_help_query(message: str) -> bool:
+    """True when the whole message asks what the product is or how to use it."""
+
+    text = " ".join(message.strip().casefold().split())
+    text = text.rstrip(_GREETING_TRAILING)
+    return text in _HELP_QUERIES
+
+
 class SidraService:
     """The application, assembled."""
 
@@ -639,6 +660,31 @@ class SidraService:
                 "refusal": "greeting",
                 "reason": "the message was a greeting with no question",
                 "citations": [],
+            }
+
+        # C-1802: a meta question about the product itself (「使い方を教えて」
+        # 「何ができる」「ヘルプ」) is not a corpus query, but it fell through to
+        # retrieval and got the no-evidence abstention that names the ingest
+        # endpoint - the worst reply for someone actively asking for help. Answer
+        # with what SIDRA does, drawn from the live generator registry so it
+        # never drifts, the way empty/ambiguous/unnamed/greeting answer theirs.
+        if _is_help_query(message):
+            offered = [
+                _KIND_LABELS.get(kind, kind)
+                for kind in self.creation_router.registered_kinds()
+            ]
+            answer = (
+                "SIDRA は索引済みリポジトリについてお答えします。"
+                + (f"制作もでき、いま作れるのは {'・'.join(offered)} です。" if offered else "")
+                + "調べたいことや作りたいものを送ってください。"
+            )
+            return {
+                "answer": answer,
+                "refused": True,
+                "refusal": "help",
+                "reason": "the message asked what the product is or how to use it",
+                "citations": [],
+                "creation": {"offered": offered},
             }
 
         gate_result = self.gate.inspect(message, source="operator", repository="")

@@ -325,6 +325,12 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             "revision_target": "どれを変えるか分からなかった。直前に作ったものなら"
                                "「それ」「さっきの」を付けて、「さっきのゲームを"
                                "難しくして」のように頼む。",
+            # A meta question about the product (「使い方を教えて」). Not a corpus
+            # query, so the no-evidence line is wrong; say what SIDRA does and
+            # what to send next (C-1802).
+            "help": "SIDRA は索引済みリポジトリについて答え、制作もできる。"
+                    "調べたいことを文にして送るか、「レースゲームを作って」の"
+                    "ように作りたいものを頼む。",
         }
         message = messages.get(payload.get("refusal"))
         if message is None:

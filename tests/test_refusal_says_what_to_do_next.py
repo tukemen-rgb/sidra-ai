@@ -82,6 +82,10 @@ CODES = (
     # not a corpus question either; the next step is to point at the artifact,
     # not to wait or to ingest a repository.
     "revision_target",
+    # C-1802. The sixth: a meta question about the product (「使い方を教えて」) is
+    # not a corpus query; the next step is to say what SIDRA does, not to wait or
+    # to ingest a repository.
+    "help",
 )
 
 
