@@ -65,7 +65,24 @@ def _paths(result):
 def test_followup_subject_eval_passes():
     result = evaluate_followup_without_subject_carries_context()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 9
+    assert result.checks_passed == result.checks_total == 13
+
+
+def test_kanji_elaboration_followup_carries_topic(svc: SidraService):
+    """C-1810: 「その詳細は？」「その理由は？」 carry the topic, not abstain."""
+    q1 = "デプロイの承認は誰がしますか"
+    r1 = svc.chat(q1)
+    hist = [(q1, r1["answer"])]
+    for fu in ("その詳細は？", "詳細を教えて", "その理由は？"):
+        assert _paths(svc.chat(fu, history=hist))[:1] == ["docs/deploy.md"], fu
+
+
+def test_real_subject_beside_elaboration_noun_keeps_its_topic(svc: SidraService):
+    """「マーケティングの詳細は？」 grounds on marketing, not the deploy topic."""
+    q1 = "デプロイの承認は誰がしますか"
+    r1 = svc.chat(q1)
+    mkd = svc.chat("マーケティングの詳細は？", history=[(q1, r1["answer"])])
+    assert _paths(mkd)[:1] == ["docs/marketing.md"]
 
 
 def test_elaboration_grounds_on_topic_not_glue_match(svc: SidraService):

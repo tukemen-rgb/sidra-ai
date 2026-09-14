@@ -98,17 +98,30 @@ _INTERROGATIVES = frozenset(
     {"why", "how", "what", "when", "where", "who", "which", "whose", "whom"}
 )
 
+#: C-1810. Kanji elaboration nouns are the Japanese analog of the interrogatives
+#: above: as a follow-up's sole subject they name no new topic - 「その詳細は？」
+#: 「その理由は？」 elaborate the previous turn (「詳細」 = details, 「理由」 = why).
+#: The interrogative list is English-only because `subject_terms` already drops
+#: hiragana interrogatives (なぜ/どう); but a kanji noun like 詳細 survives
+#: tokenization and read as a topic, so the carry was skipped and the follow-up
+#: abstained though the topic under discussion was right there. A closed, tight
+#: set (the readers are Japanese, echo.py:53): each is filtered only when it is
+#: the *sole* subject, so a real query beside one (「課金の詳細は？」 → 課金) keeps
+#: its topic. Residual: an elaboration noun outside this set still reads as a
+#: topic; the set can grow.
+_JP_ELABORATIONS = frozenset({"詳細", "理由", "内訳", "背景", "根拠"})
+
 
 def _own_content_subject(query: str) -> tuple[str, ...]:
     """The follow-up's own subject terms, minus bare interrogatives.
 
-    Empty for a pure elaboration (「もっと詳しく」「why is that?」); non-empty when the
-    follow-up names a topic of its own (「料金プランは？」).
+    Empty for a pure elaboration (「もっと詳しく」「why is that?」「その詳細は？」);
+    non-empty when the follow-up names a topic of its own (「料金プランは？」).
     """
 
     return tuple(
         term for term in subject_terms(query)
-        if term.casefold() not in _INTERROGATIVES
+        if term.casefold() not in _INTERROGATIVES and term not in _JP_ELABORATIONS
     )
 
 
@@ -919,7 +932,7 @@ class SidraService:
         results: list[SearchResult] = self.retriever.search(
             query, top_k=top_k, repositories=repositories
         )
-        if screened_history and (not results or not subject_terms(query)):
+        if screened_history and (not results or not _own_content_subject(query)):
             # A follow-up is often unsearchable on its own ("why is that?",
             # 「もっと詳しく」). It is unsearchable when it retrieved nothing - or
             # when it names no subject of its own, a pure elaboration phrase

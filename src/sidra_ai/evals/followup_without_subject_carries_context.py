@@ -118,6 +118,24 @@ def evaluate_followup_without_subject_carries_context() -> FollowupSubjectResult
     add(_paths(svc.chat("続けて", history=hist))[:1] == [_DEPLOY],
         "「続けて」 did not ground on deploy.md")
 
+    # C-1810: a kanji elaboration noun (詳細 details, 理由 why) is a subject term
+    # by tokenization, so these named "a subject of their own" and the carry was
+    # skipped - the most natural Japanese elaboration follow-up abstained with
+    # 「根拠がありません…取り込みを依頼」 though the topic under discussion is right
+    # there. They are Japanese analogs of the English interrogatives and must
+    # carry the topic.
+    for fu in ("その詳細は？", "詳細を教えて", "その理由は？"):
+        paths = _paths(svc.chat(fu, history=hist))
+        add(paths[:1] == [_DEPLOY],
+            f"kanji elaboration {fu!r} did not ground on deploy.md (first={paths[:1]}, all={paths})")
+
+    # But an elaboration noun beside a REAL subject is not swallowed: 「マーケ
+    # ティングの詳細は？」 names its own topic (marketing) and grounds there, not on
+    # the deploy topic under discussion.
+    mkd = _paths(svc.chat("マーケティングの詳細は？", history=hist))
+    add(mkd[:1] == [_MARKETING],
+        f"a real subject beside 詳細 was swallowed as elaboration: {mkd}")
+
     # A follow-up that names a NEW subject is not carried away from it: it
     # grounds on its own subject, and the old topic's doc is not dragged in.
     mk = _paths(svc.chat("マーケティングのレポートは？", history=hist))
@@ -135,7 +153,7 @@ def evaluate_followup_without_subject_carries_context() -> FollowupSubjectResult
                           history=[("does deploy require approval", "yes, it does")]))
     add(_DEPLOY_EN in why, f"English unsearchable follow-up lost its evidence: {why}")
 
-    total = 9
+    total = 13
     return FollowupSubjectResult(
         passed=not failures,
         checks_passed=checks,
