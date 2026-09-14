@@ -1161,6 +1161,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1823: 「30フレームのGIFを作って」 answered with 「30フレーム」 as the title
+    # and 「10 フレーム」 in the parenthesis of the same sentence, and 「5秒のGIF」
+    # never heard the real 0.8 second loop at all. length_note now says both,
+    # with the frames read from the validated bytes; a request with no length,
+    # or one whose length was built, adds none.
+    from sidra_ai.evals.gif_says_it_made_a_different_length import (
+        evaluate_gif_says_it_made_a_different_length,
+    )
+
+    gif_length = evaluate_gif_says_it_made_a_different_length()
+    c.add(
+        "creation_gif_says_it_made_a_different_length",
+        "GIF が、頼まれた長さ（フレーム数・秒）と違う長さで作った旨を開示する",
+        10.0 * gif_length.checks_passed / gif_length.checks_total,
+        detail=f"{gif_length.checks_passed}/{gif_length.checks_total} checks; "
+               "src/sidra_ai/evals/gif_says_it_made_a_different_length.py"
+               + ("" if gif_length.passed
+                  else "; " + "; ".join(gif_length.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

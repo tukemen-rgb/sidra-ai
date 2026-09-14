@@ -16,6 +16,7 @@ from sidra_ai.creation.gifs import (
     DEFAULT_MOTIF,
     MOTIF_LABELS,
     generate_gif,
+    length_note,
     save_gif,
     validate_gif,
 )
@@ -68,6 +69,14 @@ def build_gif_generator(data_dir: str | Path):
                     "依頼にあった色は今の配色に反映していません。"
                     "GIF は固定の配色で描いています。"
                 )
+            # C-1823: and the length. Until now 「30フレームのGIFを作って」 put the
+            # asked-for 30 in the title and the true 10 in the parenthesis of
+            # the same sentence, and 「5秒のGIF」 never heard the real 0.8 second
+            # loop at all. The count comes from the validated bytes, not from
+            # FRAMES, so the sentence reports the file that was actually
+            # written. Empty when no length was asked for, or when the length
+            # asked for is the one made.
+            summary += length_note(message, verdict["frames"])
         else:
             summary = (
                 f"「{gif.title}」の GIF を作りましたが、検証に落ちています: "

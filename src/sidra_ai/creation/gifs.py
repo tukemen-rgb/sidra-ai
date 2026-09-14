@@ -41,6 +41,88 @@ FRAMES = 10
 #: Hundredths of a second per frame; 8 makes the loop ~0.8s.
 DELAY_CS = 8
 
+#: 「30フレーム」「30 コマ」 - a length someone asked for, counted in frames.
+#: The unit word is what makes the number a length, which is why no list of
+#: not-a-length words is needed: 「2026年のGIF」 has no digits in front of one
+#: (the same measurement that deleted such a list in decks.py, C-1821).
+_FRAME_COUNT = re.compile(r"(\d{1,3})\s*(?:フレーム|コマ)")
+
+#: 「5秒」「5 秒間」 - the same length asked for in time instead.
+_SECONDS = re.compile(r"(\d{1,3})\s*秒")
+
+
+def requested_frames(request: str) -> int | None:
+    """How many frames the request asked for, or None when it named none."""
+
+    for match in _FRAME_COUNT.finditer(request):
+        found = int(match.group(1))
+        if found > 0:
+            return found
+    return None
+
+
+def requested_seconds(request: str) -> int | None:
+    """How many seconds the request asked for, or None when it named none."""
+
+    for match in _SECONDS.finditer(request):
+        found = int(match.group(1))
+        if found > 0:
+            return found
+    return None
+
+
+def loop_seconds(frames: int) -> float:
+    """How long one loop of that many frames actually lasts."""
+
+    return frames * DELAY_CS / 100
+
+
+def length_note(request: str, made_frames: int) -> str:
+    """The admission that the animation is not the length asked for, or "".
+
+    C-1823. ``FRAMES`` and ``DELAY_CS`` are constants and there is no length
+    to set, so 「30フレームのGIFを作って」 answered
+
+        「30フレーム」のアニメ GIF を作りました（絵柄: …・10 フレーム・…）
+
+    - the asked-for number became the artifact's name and a different, true
+    number sat in the parenthesis of the same sentence. 「5秒のGIF」 was worse:
+    the real 0.8 second loop was stated nowhere, because the summary reports
+    frames and the request spoke of time.
+
+    This generator already admits the motif it could not draw (C-1258) and the
+    colour it could not use (C-1272). The length was the one left silent, the
+    same asymmetry the deck had about its slide count (C-1821).
+
+    Both numbers are derived - the frames from the validated bytes, the
+    seconds from ``DELAY_CS`` - so a change to either constant carries into
+    this sentence instead of leaving it behind.
+
+    Silent when the request named no length, and silent when the length asked
+    for is the length that was made: a caveat that fires with nothing to
+    report stops being read.
+    """
+
+    said: list[str] = []
+    frames = requested_frames(request)
+    if frames is not None and frames != made_frames:
+        said.append(
+            f"依頼は {frames} フレームでしたが、"
+            f"いまは決まった {made_frames} フレームで作ります。"
+            "フレーム数は指定できません。"
+        )
+    seconds = requested_seconds(request)
+    actual = loop_seconds(made_frames)
+    if seconds is not None and seconds != actual:
+        said.append(
+            f"依頼は {seconds} 秒でしたが、"
+            f"いまは 1 周 {actual:g} 秒"
+            f"（{made_frames} フレーム × {DELAY_CS / 100:g} 秒）のループで作ります。"
+            "長さは指定できません。"
+        )
+    return "".join(said)
+
+
 #: The DESIGN.md tokens and nothing else. Index 0 is the background and the
 #: table is padded to 128 entries so the literal-only packer's fixed code
 #: size is always valid.
@@ -430,6 +512,10 @@ __all__ = [
     "DEFAULT_MOTIF",
     "DELAY_CS",
     "FRAMES",
+    "length_note",
+    "loop_seconds",
+    "requested_frames",
+    "requested_seconds",
     "GeneratedGif",
     "MOTIF_LABELS",
     "PALETTE",
