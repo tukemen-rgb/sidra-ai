@@ -1512,6 +1512,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1825: the citation excerpt was made query-relevant (C-1782), but the
+    # answer body itself (_lead) still showed the chunk's opening sentences, so
+    # "What is the default port?" answered with the language/dependency sentences
+    # and the answering "The default port is 8080" showed only in the excerpt
+    # below. _lead now opens the answer on the sentence best matching the query
+    # (opening fallback when nothing matches, so ordinary answers are unchanged).
+    from sidra_ai.evals.answer_body_follows_the_query import (
+        evaluate_answer_body_follows_the_query,
+    )
+
+    answer_follow = evaluate_answer_body_follows_the_query()
+    c.add(
+        "answer_body_follows_the_query",
+        "抽出回答の本文が、質問に答える一節を見せる（冒頭固定でない）",
+        10.0 * answer_follow.checks_passed / answer_follow.checks_total,
+        detail=f"{answer_follow.checks_passed}/{answer_follow.checks_total} checks; "
+               "src/sidra_ai/evals/answer_body_follows_the_query.py"
+               + ("" if answer_follow.passed else "; " + "; ".join(answer_follow.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1265: art and GIF titles kept the kind noun (「螺旋のアート」/「猫のGIF」),
     # doubling it in the summary, while documents/decks/3D/games strip it. The
     # title is the subject alone now. Checked through chat: a named request shows
