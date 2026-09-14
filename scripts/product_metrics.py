@@ -1181,6 +1181,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1804: 「絵を描いて」「イラストを描いて」 were declined with 「この形式は作れま
+    # せん。いま作れるのは アート・…」 - a refusal naming, in its own sentence, the
+    # thing the asker wanted, while 「アートを作って」 built exactly that. The mirror
+    # of C-1480, which added the English cues on the assumption the Japanese list
+    # was whole. Both directions: the four neighbours that must keep their kinds
+    # (絵柄→GIF, 絵を描くゲーム→GAME, 絵本のスライド→DECK, 絵文字の質問→question)
+    # are measured here too, or a keyword that swallowed them would score full
+    # marks.
+    from sidra_ai.evals.draw_request_makes_art import evaluate_draw_request_makes_art
+
+    draw_art = evaluate_draw_request_makes_art()
+    c.add(
+        "creation_draw_request_makes_art",
+        "「絵を描いて」が、作れる物を断られずに届く",
+        10.0 * draw_art.checks_passed / draw_art.checks_total,
+        detail=f"{draw_art.checks_passed}/{draw_art.checks_total} checks; "
+               "src/sidra_ai/evals/draw_request_makes_art.py"
+               + ("" if draw_art.passed else "; " + "; ".join(draw_art.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1802: a meta question about the product (「使い方を教えて」「何ができる」
     # 「ヘルプ」) is not a corpus query, but it got the no-evidence abstention that
     # names POST /v1/github/analyze - the worst reply for someone asking for help.

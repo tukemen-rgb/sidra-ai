@@ -245,6 +245,34 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "生成アート",
         "アート",
         "壁紙",
+        # C-1804, and the mirror of C-1480. That item added the English words
+        # because 「壁紙」「アート」 routed here and "wallpaper"/"abstract art" did
+        # not, "so an English speaker was declined for what SIDRA can make" - it
+        # assumed the Japanese side was already whole. It was not: 「絵」 and
+        # 「イラスト」 are the ordinary Japanese for the thing this generator
+        # makes, and without them 「絵を描いて」 got 「この形式は作れません。いま作れる
+        # のは アート・…」 - a decline that lists, in its own sentence, the thing
+        # the asker wanted. Measured 2026-09-14 through the real chat path:
+        # 「絵を描いて」「絵を作って」「イラストを描いて」 all declined, while
+        # 「アートを作って」 built the same generative art.
+        #
+        # C-1606 routed 「絵を描いて」 here deliberately and recorded the decline
+        # as the honest outcome. The decline is where that reasoning breaks: a
+        # request with no subject is exactly what this generator makes, so
+        # there is nothing to be honest about declining. A request that names a
+        # subject is a different matter and is NOT addressed here (the art is
+        # abstract; 「魚の絵」 still cannot draw a fish) - that one already has
+        # its own disclosure and is left alone.
+        #
+        # Bare 「絵」 is safe where bare "art" was not. English had to stay out
+        # because it hides inside chart/part/smart/article - unrelated words.
+        # The Japanese compounds that contain 絵 are all still pictures
+        # (絵柄・絵本・浮世絵・似顔絵), and the latest-match rule keeps the four
+        # that belong elsewhere: 「魚の絵柄のGIFを作って」 → GIF, 「絵を描くゲーム
+        # を作って」 → GAME, 「絵本のようなスライドを作って」 → DECK, and
+        # 「絵文字について教えて」 stays a question for want of a make verb.
+        "絵",
+        "イラスト",
         "generative art",
         "artwork",
         # C-1480: Japanese 「壁紙」「アート」 route here but the English words for
