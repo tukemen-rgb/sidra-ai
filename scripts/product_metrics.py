@@ -1141,6 +1141,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1821: 「5枚のスライドを作って」 built the fixed four sections and said
+    # nothing - the number in the request was read by nobody, on the page or in
+    # the summary. slide_count_note now rides both from one source; a request
+    # with no size, or one whose size is the size built, adds none.
+    from sidra_ai.evals.deck_says_it_made_a_different_count import (
+        evaluate_deck_says_it_made_a_different_count,
+    )
+
+    deck_count = evaluate_deck_says_it_made_a_different_count()
+    c.add(
+        "creation_deck_says_it_made_a_different_count",
+        "スライドが、頼まれた枚数と違う枚数で作った旨を開示する",
+        10.0 * deck_count.checks_passed / deck_count.checks_total,
+        detail=f"{deck_count.checks_passed}/{deck_count.checks_total} checks; "
+               "src/sidra_ai/evals/deck_says_it_made_a_different_count.py"
+               + ("" if deck_count.passed
+                  else "; " + "; ".join(deck_count.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

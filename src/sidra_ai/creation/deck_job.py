@@ -20,6 +20,7 @@ from sidra_ai.creation.decks import (
     Fact,
     generate_deck,
     outline_fallback_note,
+    slide_count_note,
     save_deck,
     save_pptx,
     validate_deck,
@@ -129,6 +130,12 @@ def build_deck_generator(
         outline_note = outline_fallback_note(message, deck.outline)
         if outline_note:
             summary += "なお、" + outline_note
+        # C-1821: and the size, from the same single source as the page. The
+        # request's number was read by nobody before this; a deck asked for in
+        # five slides came back in four with no word of it.
+        count_note = slide_count_note(message, len(deck.slides))
+        if count_note:
+            summary += count_note
         return CreationOutcome(
             kind=intent.kind,
             handled=True,

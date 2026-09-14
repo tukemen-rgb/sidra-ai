@@ -183,6 +183,57 @@ def outline_fallback_note(request: str, outline: str) -> str:
     )
 
 
+#: 「5枚」「5ページ」「スライド5枚」 - a count someone asked for. The unit word is
+#: what makes it a count, which is why no list of not-a-count words is needed:
+#: 「5年計画のスライド」「2026年のスライド」「売上5%のスライド」 have no digits in
+#: front of 枚/ページ/スライド and so never match at all. A guard against them was
+#: written first and then measured across twelve requests - including every case
+#: it was written for - and changed the answer in none of them, so it is not
+#: here. Three digits rather than two: 「100枚のスライドを作って」 is exactly the
+#: request this note exists for, and the two-digit bound let it through silent.
+_SLIDE_COUNT = re.compile(r"(\d{1,3})\s*(?:枚|ページ|スライド)")
+
+
+def requested_slide_count(request: str) -> int | None:
+    """How many slides the request asked for, or None when it named no size."""
+
+    for match in _SLIDE_COUNT.finditer(request):
+        found = int(match.group(1))
+        if found > 0:
+            return found
+    return None
+
+
+def slide_count_note(request: str, made: int) -> str:
+    """The admission that the deck is not the size that was asked for, or "".
+
+    C-1821. The two outlines are fixed at four sections each and there is no
+    size to set, so 「5枚のスライドを作って」 built four and said nothing - the
+    number was read by nobody. Every sibling admits this kind of thing: the
+    art says it drew no subject (C-1806), the 3D preview says the colour was
+    not applied (C-1818), the GIF names its motif fallback (C-1258), and this
+    very generator already admits a structure it cannot build (C-1793). The
+    count was the one left silent.
+
+    One source for the page and the chat summary, exactly like
+    ``outline_fallback_note`` above.
+
+    Silent when the request named no size, and silent when the size asked for
+    is the size that was made - a note that fires on a request it has nothing
+    to report about is a note that stops being read
+    (measured on the colour-vision caveat, where 118 empty warnings would have
+    buried it).
+    """
+
+    asked = requested_slide_count(request)
+    if asked is None or asked == made:
+        return ""
+    return (
+        f"依頼は {asked} 枚でしたが、いまは決まった構成の {made} 枚で作ります。"
+        "枚数は指定できません。"
+    )
+
+
 #: Slide-deck-kind nouns a cover title should not end with, since the artifact
 #: already is one: 「GAMEYARD の強みのスライド」→「GAMEYARD の強み」 (C-1249, the
 #: deck twin of the document C-1246). Longer forms are listed first so the
@@ -393,6 +444,8 @@ def _render(
     theme: Theme,
     omitted: bool = False,
     fallback: str = "",
+    # C-1821: the size admission, alongside the structure one.
+    count_caveat: str = "",
     title_number_unsourced: bool = False,
 ) -> str:
     t = theme.tokens
@@ -412,6 +465,12 @@ def _render(
     # substituted genre (C-1788) - a forwarded deck must not read as the shape
     # that was asked for. Empty for a buildable request, so no false caveat.
     fallback_note = f"⚠️ {escape(fallback)} " if fallback else ""
+    # C-1821: the same reasoning for the size. A deck forwarded under a request
+    # for five slides must not read as five; the count is fixed by the outline
+    # and nobody was told. Placed beside the structure note because it is the
+    # same admission about the same deck, and empty when the request named no
+    # size or named the size that was made.
+    count_note = f"⚠️ {escape(count_caveat)} " if count_caveat else ""
     # C-1799: the cover title comes from the request, so a figure in it
     # (「解約率30%の改善」) is not sourced by the corpus - yet the footer promised
     # every number was. Scope that promise to the body and name the gap, the way
@@ -465,7 +524,7 @@ footer{{margin-top:24px;border-top:1px solid {t["border"]};padding-top:14px;
 <body><main>
 <h1>{escape(title)}</h1>
 {"".join(blocks)}
-<footer>{fallback_note}SIDRA AI が生成。{number_scope}索引した文書から引いたものだけを載せ、
+<footer>{fallback_note}{count_note}SIDRA AI が生成。{number_scope}索引した文書から引いたものだけを載せ、
 根拠が無い欄は {escape(BLANK)} のまま残しています（推測で埋めません）。{title_caveat}{omitted_note}</footer>
 </main></body></html>
 """
@@ -492,6 +551,9 @@ def generate_deck(
     omitted = any(fact not in used for fact in provided)
     title = _title_from(request, spec.default_title)
     fallback = outline_fallback_note(request, key)
+    # C-1821: read off the slides actually built, never a literal - an outline
+    # that grows a section must not leave this sentence behind.
+    count_caveat = slide_count_note(request, len(slides))
     # C-1799: a figure in the cover title that no retrieved fact carries is an
     # unsourced number, exactly as the report checks its own title (C-1772). The
     # same source label + text is the evidence a slide could have cited.
@@ -502,6 +564,7 @@ def generate_deck(
     )
     html = _render(
         title, slides, select_theme(request), omitted=omitted, fallback=fallback,
+        count_caveat=count_caveat,
         title_number_unsourced=title_number_unsourced,
     )
     unfilled = tuple(slide.title for slide in slides if slide.blanks)
