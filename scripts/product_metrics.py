@@ -1181,6 +1181,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1816: 「元に戻して」 twice bounced between the last two versions instead
+    # of walking back - an undo writes a new version holding an old state, so
+    # the next undo read it as "the state I was just in". Driven end to end
+    # because the oscillation was only visible in the .meta.json sidecars: the
+    # summary named difficulty, theme and title, so an accent-only undo printed
+    # nothing and three rounds of it read as one answer repeating.
+    from sidra_ai.evals.undo_walks_back import evaluate_undo_walks_back
+
+    undo_walk = evaluate_undo_walks_back()
+    c.add(
+        "creation_undo_walks_back",
+        "「元に戻して」が履歴を遡る（往復しない）",
+        10.0 * undo_walk.checks_passed / undo_walk.checks_total,
+        detail=f"{undo_walk.checks_passed}/{undo_walk.checks_total} checks; "
+               "src/sidra_ai/evals/undo_walks_back.py"
+               + ("" if undo_walk.passed else "; " + "; ".join(undo_walk.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1814, the mirror of C-1797: a message that names its artifact and asks
     # for a change the detector cannot read (「さっきのゲームの音を消して」) reached
     # the corpus wall and was told to have an admin ingest a repository -

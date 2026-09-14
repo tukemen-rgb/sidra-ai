@@ -455,6 +455,7 @@ def save_meta(
     theme: str,
     title: str,
     panel: dict | None = None,
+    restored_from: str | None = None,
 ) -> Path:
     """Record the parameters a page was built from, next to the page.
 
@@ -476,6 +477,13 @@ def save_meta(
                 # sentence would rebuild from the ladder and quietly undo
                 # what the first one turned.
                 "panel": panel or {},
+                # C-1816: the sidecar name of the version an undo copied, and
+                # empty for every ordinary build. An undo writes a NEW version
+                # holding an OLD state, so without this the chain cannot tell
+                # the two apart - and 「元に戻して」 twice walked back to the
+                # state it had just left, oscillating between two versions
+                # while reporting 「一つ前の版に戻しました」 each time.
+                "restored_from": restored_from or "",
             },
             ensure_ascii=False,
             indent=2,
@@ -713,10 +721,34 @@ def _previous_version(
         if other.get("template") != meta.get("template"):
             continue
         chain.append((path, other))
-    for index, (path, _) in enumerate(chain):
-        if path == target:
-            return chain[index - 1] if index else None
-    return None
+    # C-1816: walk the states a person asked for, not the files on disk.
+    #
+    # An undo writes a NEW version holding an OLD state, and it lands at the
+    # end of the chain like any other write. So the next undo saw its
+    # predecessor as "the state I was just in" and copied that back: 「元に戻
+    # して」 three times ran accent-off, accent-on, accent-off, for ever, and
+    # the first change was unreachable. Each reply said 「一つ前の版に戻しまし
+    # た」 - true of the file, and quietly false about the history.
+    #
+    # `restored_from` gives each undo a pointer to what it copied, so a run of
+    # undos can be followed back to where it entered the chain. From there the
+    # previous state is the one before THAT, which is what a second 「戻して」
+    # means. Nothing is deleted - every version stays on disk (§23) - this
+    # only changes which one counts as "previous".
+    by_name = {path.name: index for index, (path, _) in enumerate(chain)}
+    index = by_name.get(target.name)
+    if index is None:
+        return None
+    seen: set[int] = set()
+    while True:
+        if index in seen:          # a restored_from cycle: stop rather than spin
+            return None
+        seen.add(index)
+        source = (chain[index][1].get("restored_from") or "").strip()
+        if not source or source not in by_name:
+            break
+        index = by_name[source]
+    return chain[index - 1] if index else None
 
 
 #: A name this conversation claims to have made. Every generator and every
@@ -1065,12 +1097,21 @@ def build_game_reviser(data_dir: str | Path):
         if "revert" in intent.adjustments:
             previous = _previous_version(data_dir, target_path, meta)
             if previous is None:
+                # C-1816: two ways to have nothing to go back to, and they are
+                # not the same sentence. Before undo could walk, the only way
+                # here was a page nobody had revised; now a reader can also
+                # arrive by undoing all the way to the start, and telling them
+                # they "have not revised even once" would be false about the
+                # two changes they just made and took back.
+                walked_back = bool((meta.get("restored_from") or "").strip())
                 return CreationOutcome(
                     kind=CreationKind.GAME,
                     handled=True,
                     summary=(
-                        f"「{meta.get('title') or 'ゲーム'}」はまだ一度も修正して"
-                        "いないので、戻せる前の版がありません。"
+                        f"「{meta.get('title') or 'ゲーム'}」は"
+                        + ("これ以上戻せる版がありません（最初の版です）。"
+                           if walked_back
+                           else "まだ一度も修正していないので、戻せる前の版がありません。")
                     ),
                     details={"revision": intent.adjustments, "target": str(target_path)},
                 )
@@ -1133,6 +1174,12 @@ def build_game_reviser(data_dir: str | Path):
             theme=theme,
             title=game.title,
             panel=panel,
+            # C-1816: an undo records which version it copied, so a second
+            # 「戻して」 can walk past it instead of copying back what this one
+            # just left.
+            restored_from=(
+                previous[0].name if undone_from is not None else None
+            ),
         )
 
         changed: list[str] = []
@@ -1193,6 +1240,12 @@ def build_game_reviser(data_dir: str | Path):
                 undone.append(f"難易度 {undone_from.get('difficulty')}→{game.difficulty}")
             if theme != undone_from.get("theme", ""):
                 undone.append(f"配色 {theme or '既定'}")
+            # C-1816: the accent was absent from this list, so an undo that
+            # moved only the accent printed 「一つ前の版に戻しました」 and named
+            # nothing - which is how the oscillation stayed invisible through
+            # three rounds of it.
+            if (panel or {}).get("accent") != (undone_from.get("panel") or {}).get("accent"):
+                undone.append("差し色")
             if game.title != undone_from.get("title", ""):
                 undone.append(f"タイトル「{game.title}」")
             summary = (
