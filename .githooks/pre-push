@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# The gate, wired to git instead of to memory (C-1794).
+#
+# `scripts/check_before_push.sh` has existed since C-1660 and says why in its
+# own first lines: three slips in one session, all from a check that printed
+# the problem while the next command ran anyway. On 2026-09-13 23:47 it
+# happened again - the gate printed `REFUSED: the board reports an
+# inconsistency`, the same command line continued with `; git push`, and an
+# inconsistent board landed on main and turned every loop's gate red.
+#
+# Nothing about the gate was wrong. It was reached by remembering to reach for
+# it, and five different spellings of that were in circulation (`&&`, `;`,
+# `| grep -q`, `| tail -1` - which throws the exit status away). A rule kept in
+# five spellings is a rule kept by luck.
+#
+# So git asks instead. `git push` runs this, and a non-zero exit stops the
+# push whatever punctuation joined the commands.
+#
+# Not silently skippable: there is no environment variable here that waves it
+# through, because that variable is what everybody would learn to set. Git's
+# own `--no-verify` still works and is deliberately left alone - it cannot be
+# blocked from inside a hook, and it does not need to be. What this stops is
+# the accident; typing `--no-verify` is a decision, and a decision is allowed
+# to be wrong.
+#
+# Hooks do not travel with a clone. `git config core.hooksPath .githooks`, once
+# per working copy, is what makes this file exist as far as git is concerned -
+# which is why the procedure in docs/BACKLOG.md has to say so, and why a
+# metric that only checked for this file would be measuring a promise.
+set -u
+
+root="$(git rev-parse --show-toplevel)" || exit 2
+gate="$root/scripts/check_before_push.sh"
+
+if [ ! -x "$gate" ] && [ ! -f "$gate" ]; then
+  # A gate that cannot be found must not read as a gate that passed: that is
+  # C-1723's lesson, and the reason this is exit 2 rather than 0.
+  echo "pre-push: $gate is missing, so nothing was checked" >&2
+  exit 2
+fi
+
+bash "$gate" || {
+  status=$?
+  echo "" >&2
+  echo "pre-push: refused by scripts/check_before_push.sh (exit $status)." >&2
+  echo "  Fix what it named, then push again." >&2
+  exit "$status"
+}

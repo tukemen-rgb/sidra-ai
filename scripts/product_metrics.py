@@ -24861,6 +24861,203 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 門が「覚えていること」ではなく配線で支えられている (C-1794) ------
+    #
+    # The gate above has existed since C-1660 and says why in its own first
+    # lines: three slips in one session, all from a check that printed the
+    # problem while the next command ran anyway. On 2026-09-13 23:47 it
+    # happened again - `20225c40` joined `check_before_push.sh` to `git push`
+    # with `;`, the gate printed `REFUSED: the board reports an
+    # inconsistency`, and the push went through. An inconsistent board landed
+    # on main and turned every loop's gate red.
+    #
+    # Nothing about the gate was wrong; it was reached by remembering to reach
+    # for it. Five spellings of that were in circulation - `&&`, `;`,
+    # `| grep -q`, `| tail -1` (which throws the exit status away entirely).
+    #
+    # Measured before it was fixed, in a throwaway repository with a real
+    # remote: with a doubled item number in the board, `bash gate ; git push`
+    # landed the commit (rc=0). With `core.hooksPath` pointing at a tracked
+    # `.githooks/pre-push`, the same spelling failed (rc=1) - git ran the gate
+    # itself, so the punctuation stopped mattering.
+    #
+    # Three facts, because each alone is hollow: a hook nobody configures does
+    # nothing in a fresh container (hooks do not travel with a clone), a
+    # procedure nobody runs does nothing, and a procedure written with `;`
+    # teaches the accident.
+    import datetime as _gw_dt
+    import os as _gw_os
+    import pathlib as _gw_pl
+    import shutil as _gw_sh
+    import subprocess as _gw_sp
+    import tempfile as _gw_tmp
+
+    _GW_ROOT = _gw_pl.Path(__file__).resolve().parent.parent
+    _gw_notes: list[str] = []
+
+    #: Variable names a hook might be tempted to honour. Not exhaustive - no
+    #: list could be - but 禁じ手 ① is about an escape hatch somebody would
+    #: actually learn to set, and these are the ones they would try. Without
+    #: this the metric never attempts to skip the hook at all, and a hook with
+    #: `[ -n "$SKIP_GATE" ] && exit 0` in its second line scored full marks
+    #: (found by destruction, not by reading).
+    _GW_TEMPTING = ("SKIP", "SKIP_GATE", "SKIP_HOOKS", "NO_VERIFY", "FORCE", "CI")
+
+    def _gw_push(board: str, tempting: bool = False) -> int:
+        """Build a repository with the hook wired, and try to push.
+
+        The gate runs four checks; three of them have to be able to pass, or a
+        refusal would prove nothing about the board. So the tree carries the
+        scripts the gate calls and one clean judge for the scratch scan, and
+        the board is the only thing that differs between the two runs.
+        """
+
+        home = _gw_tmp.mkdtemp(prefix="gate-wired-")
+        try:
+            root, bare = _gw_pl.Path(home) / "work", _gw_pl.Path(home) / "origin.git"
+            env = {
+                "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                "PATH": _gw_os.environ.get("PATH", ""), "HOME": home,
+            }
+            if tempting:
+                env.update({name: "1" for name in _GW_TEMPTING})
+            (root / "scripts").mkdir(parents=True)
+            (root / "docs").mkdir()
+            (root / ".githooks").mkdir()
+            (root / "src" / "sidra_ai" / "evals").mkdir(parents=True)
+            for name in ("check_before_push.sh", "check_log_times.py",
+                         "check_eval_scratch.py", "check_backlog_board.py"):
+                _gw_sh.copy2(_GW_ROOT / "scripts" / name, root / "scripts" / name)
+            hook = root / ".githooks" / "pre-push"
+            _gw_sh.copy2(_GW_ROOT / ".githooks" / "pre-push", hook)
+            hook.chmod(0o755)
+            (root / "src" / "sidra_ai" / "evals" / "scratch.py").write_text(
+                '"""helper"""\n\n\ndef scratch_dir(prefix=""):\n    return "/tmp"\n',
+                encoding="utf-8",
+            )
+            (root / "src" / "sidra_ai" / "evals" / "one.py").write_text(
+                "from sidra_ai.evals.scratch import scratch_dir\n\n\n"
+                "def go():\n    return scratch_dir()\n",
+                encoding="utf-8",
+            )
+            (root / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+            (root / "docs" / "BACKLOG.md").write_text(board, encoding="utf-8")
+            (root / "docs" / "LOOP_LOG.md").write_text("# log\n", encoding="utf-8")
+
+            def git(*args: str, check: bool = True):
+                return _gw_sp.run(["git", *args], cwd=root, env=env, check=check,
+                                  capture_output=True, text=True, timeout=180)
+
+            _gw_sp.run(["git", "init", "-q", "--bare", str(bare)], env=env,
+                       check=True, capture_output=True, timeout=180)
+            git("init", "-q", "-b", "main")
+            git("remote", "add", "origin", str(bare))
+            git("add", "-A")
+            git("commit", "-q", "-m", "base")
+            # The history lands before the hook is wired, because a repository
+            # that has never pushed is not the situation being measured - and
+            # with an inconsistent board the gate would refuse this one too,
+            # which would say nothing about the spelling below.
+            git("push", "-q", "origin", "main")
+            git("config", "core.hooksPath", ".githooks")
+            # A second commit, so the push has something to carry - and the
+            # spelling that caused the incident: `;`, which keeps nothing of
+            # the gate's verdict. Only the hook can stop this one.
+            stamp = _gw_dt.datetime.now(_gw_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            with (root / "docs" / "LOOP_LOG.md").open("a", encoding="utf-8") as fh:
+                fh.write(f"{stamp} ループA probe\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "second")
+            done = _gw_sp.run(
+                ["bash", "-c", "bash scripts/check_before_push.sh >/dev/null 2>&1 ; "
+                               "git push -q origin main"],
+                cwd=root, env=env, capture_output=True, text=True, timeout=300,
+            )
+            return done.returncode
+        finally:
+            _gw_sh.rmtree(home, ignore_errors=True)
+
+    # (A) The hook, run for real: a board with one number heading two items is
+    # the shape that actually landed, and the clean control is what says the
+    # refusal came from the board rather than from the setup.
+    _gw_board = (_GW_ROOT / "docs" / "BACKLOG.md").read_text(encoding="utf-8")
+    _gw_twice = "- [ ] **C-9999: 実験用の項目（この複製だけに在る）。**\n"
+    if not (_GW_ROOT / ".githooks" / "pre-push").exists():
+        _gw_notes.append("追跡された pre-push hook が無い")
+    else:
+        if _gw_push(_gw_board + "\n" + _gw_twice + _gw_twice) == 0:
+            _gw_notes.append("不整合な板でも `;` で push が通る")
+        if _gw_push(_gw_board) != 0:
+            _gw_notes.append("整合した板でも push が止まる（門が常に赤い）")
+        # ...and it does not hand out a way around itself (禁じ手 ①).
+        if _gw_push(_gw_board + "\n" + _gw_twice + _gw_twice, tempting=True) == 0:
+            _gw_notes.append(
+                "環境変数（" + "/".join(_GW_TEMPTING) + " のいずれか）で門を素通りできる"
+            )
+
+    # (B) and (C) read the procedure itself: the section a loop is told is
+    # mandatory. Hooks do not travel with a clone, so a hook nobody is told to
+    # configure is a hook that does not exist in the next container.
+    _gw_section = ""
+    _gw_lines = _gw_board.splitlines()
+    for _gw_i, _gw_line in enumerate(_gw_lines):
+        if _gw_line.startswith("## 検証（省略不可）"):
+            _gw_rest = _gw_lines[_gw_i + 1:]
+            _gw_end = next(
+                (j for j, l in enumerate(_gw_rest) if l.startswith("## ")), len(_gw_rest)
+            )
+            _gw_section = "\n".join(_gw_rest[:_gw_end])
+            break
+    if not _gw_section:
+        _gw_notes.append("「検証（省略不可）」の節が読めない")
+    else:
+        if "check_before_push.sh" not in _gw_section:
+            _gw_notes.append("必須手順が門を名指ししない")
+        # The command, not a mention of it. The paragraph under the block
+        # explains why the setting is needed and contains the same word, so a
+        # substring test passed with the command line itself deleted - the
+        # destruction probe found that, not review.
+        if "git config core.hooksPath .githooks" not in _gw_section:
+            _gw_notes.append("必須手順が `core.hooksPath` を設定するコマンドを書いていない")
+        # (C) The spelling shown has to carry the exit status. `;` was the
+        # incident; `| tail -1` is in the records too and is worse, because a
+        # pipeline's status is the LAST command's.
+        _gw_joins = [
+            l for l in _gw_section.splitlines()
+            if "check_before_push.sh" in l and "git push" in l
+        ]
+        if not _gw_joins:
+            _gw_notes.append("門と `git push` を繋いだ行が示されていない")
+        for _gw_join in _gw_joins:
+            if "&&" not in _gw_join:
+                _gw_notes.append(f"繋ぎ方が終了状態を伝えない: {_gw_join.strip()[:48]}")
+            if ";" in _gw_join or "|" in _gw_join:
+                _gw_notes.append(f"終了状態を捨てる繋ぎ方を示している: {_gw_join.strip()[:48]}")
+    c.add(
+        "gate_is_wired_not_remembered",
+        "push 前の門が手順と git の両方に配線されている",
+        0.0 if _gw_notes else 3.0,
+        detail=(
+            "; ".join(_gw_notes)
+            if _gw_notes
+            else "**3 つとも実測**。(A) 追跡された `.githooks/pre-push` を "
+            "`core.hooksPath` で配線した**使い捨てリポジトリに実際に push して**測る"
+            "——1 つの番号が 2 項目の頭に付いた板（**2026-09-13 23:47 に実際に載った形**）では "
+            "`bash 門 ; git push` が**止まり**、整合した板では**通る**"
+            "（対照が無いと「常に赤い門」で満点が取れる）。"
+            "(B) 「検証（省略不可）」の節が門と **`core.hooksPath` の 1 回設定**を名指しする"
+            "——**hook は clone に付いてこない**ので、設定を書かない (A) は次の容器で存在しない。"
+            "(C) そこに示された繋ぎ方が**終了状態を伝える**（`&&`）——`;` は前の失敗を捨て、"
+            "`| tail` は**パイプ全体の状態を最後のコマンドのものにする**。記録に流通していた"
+            "書き方は 5 通りで、事故はそのうち `;` で起きた。"
+            "**なぜ要るか（実測・この木で修正前後）**: 不整合な板を置いて `;` で繋ぐと "
+            "**rc=0 で載り**、hook を配線すると**同じ綴りで rc=1** になった。"
+            "**故意の `--no-verify` は塞いでいない**（塞げないし、止めたいのは事故のほう）"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- 受付が落とさずに聞き返す (C-1530) -------------------------------
     #
     # The seventh review put sixteen ways of asking for a game through the
