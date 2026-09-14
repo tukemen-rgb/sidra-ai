@@ -484,8 +484,18 @@ class SidraService:
             # flattened; the /v1/chat citation excerpts are flattened too now
             # (C-1711, since C-1689/1691 show them to the reader) but keep their
             # window untrimmed so the 「…」 clip marks still describe the edge.
+            # Carry the source's trust level so a forwardable artifact can flag a
+            # third-party or unverified source the way the chat citation does
+            # (C-1831/C-1471). trust_level is a TrustLevel (a str Enum); take its
+            # value, defaulting to "" (reads as internal) when absent.
+            trust = getattr(provenance, "trust_level", "")
+            trust_value = getattr(trust, "value", trust) or ""
             facts.append(
-                Fact(text=whole_sentences(plain_text(excerpt)), source=f"{repository} {path}".strip())
+                Fact(
+                    text=whole_sentences(plain_text(excerpt)),
+                    source=f"{repository} {path}".strip(),
+                    trust_level=str(trust_value),
+                )
             )
         return facts
 

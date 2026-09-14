@@ -179,7 +179,7 @@ def generate_document(
     safe_title = escape(title, quote=False)
     stamp = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
     retrieved = [fact for fact in (facts or []) if fact.text.strip()]
-    sources = list(dict.fromkeys(fact.source for fact in retrieved if fact.source))
+    sources = list(dict.fromkeys(fact.labelled_source for fact in retrieved if fact.source))
 
     # The module's rule - a number appears only if it was retrieved - held for
     # the body but not the cover. `_title_from` copies the request's subject
@@ -280,7 +280,7 @@ def generate_document(
             # becomes prose, a table reads as 「セル / セル；」, every word and
             # number survives, so the fabrication check still sees the figures.
             text = plain_text(fact.text)
-            label = fact.source or "出典不明"
+            label = fact.labelled_source or "出典不明"
             if text not in sources_by_text:
                 sources_by_text[text] = []
                 order.append(text)

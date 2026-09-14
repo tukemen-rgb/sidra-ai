@@ -402,7 +402,7 @@ def _bullets_for(
     bullets = tuple(
         whole_sentences(plain_text(fact.text)[:120]) for fact in hits
     )
-    sources = tuple(dict.fromkeys(fact.source for fact in hits))
+    sources = tuple(dict.fromkeys(fact.labelled_source for fact in hits))
     return bullets, sources, tuple(hits)
 
 

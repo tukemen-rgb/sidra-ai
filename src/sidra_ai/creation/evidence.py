@@ -258,17 +258,49 @@ def whole_sentences(text: str) -> str:
     return text[: last.end()].rstrip()
 
 
+#: Japanese notes for a source whose trust is not the internal-repo norm,
+#: mirroring the chat citation labels (C-1471; ask_cli._TRUST_LABELS and the web
+#: UI's TRUST_LABELS). internal_repo and an empty/unknown level get no note, so
+#: an ordinary in-house fact reads exactly as it did before C-1831.
+_TRUST_NOTE: dict[str, str] = {
+    "external": "外部",
+    "unverified": "未検証",
+    "operator": "運用者",
+    "system": "システム",
+}
+
+
 @dataclass(frozen=True)
 class Fact:
     """One retrieved claim and where it came from.
 
     ``source`` is a repository-and-path label. ``text`` is passage text the
     caller has already taken from an allowed chunk - a generator never reads
-    a document itself.
+    a document itself. ``trust_level`` is the source's provenance trust (the
+    string form of :class:`~sidra_ai.documents.TrustLevel`), so a forwardable
+    artifact can flag a third-party or unverified source the way the chat
+    citation does (C-1831); empty means unspecified and reads as internal.
     """
 
     text: str
     source: str
+    trust_level: str = ""
+
+    @property
+    def labelled_source(self) -> str:
+        """``source`` with a trust note when it is not the internal-repo norm.
+
+        The document report and deck HTML are opened and forwarded, so a source
+        the chat citation would flag 「外部」/「未検証」 (C-1471) must carry the same
+        note here or a third party's unverified claim reads as an internal fact
+        (C-1831). An empty source, or an internal/empty/unknown trust level, is
+        returned unchanged.
+        """
+
+        note = _TRUST_NOTE.get(self.trust_level, "")
+        if not self.source or not note:
+            return self.source
+        return f"{self.source}（{note}）"
 
     def mentions_number(self) -> bool:
         # Mask an identifier's digits first, so a name that carries a digit

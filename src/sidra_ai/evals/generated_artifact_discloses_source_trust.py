@@ -88,6 +88,16 @@ def evaluate_generated_artifact_discloses_source_trust() -> ArtifactTrustResult:
         else:
             failures.append(msg)
 
+    def note_on_claim_line(text: str, note: str) -> bool:
+        # The note must sit on the line that states the claim (the 「わかって
+        # いること」 bullet / the deck's evidence line), not merely somewhere in
+        # the artifact - a reader judges the claim where it is asserted, so the
+        # 出典 list carrying it is not enough on its own.
+        for line in text.splitlines():
+            if _CLAIM[:8] in line:
+                return note in line
+        return False
+
     ext_doc = _artifact_text(TrustLevel.EXTERNAL, SourceType.ISSUE, "issues/42", "競合のレポートを作って")
     int_doc = _artifact_text(TrustLevel.INTERNAL_REPO, SourceType.DOCS, "docs/competitor.md", "競合のレポートを作って")
     unv_doc = _artifact_text(TrustLevel.UNVERIFIED, SourceType.WEB, "web/post", "競合のレポートを作って")
@@ -97,7 +107,8 @@ def evaluate_generated_artifact_discloses_source_trust() -> ArtifactTrustResult:
     # The claim must be present (the artifact was actually built from it), else
     # a "no mark" check would pass vacuously.
     add(_CLAIM[:8] in ext_doc, f"A0: external document did not carry the claim: {ext_doc[:60]!r}")
-    add(_EXTERNAL_MARK in ext_doc, "A: external document omits the 外部 note")
+    add(note_on_claim_line(ext_doc, _EXTERNAL_MARK),
+        "A: external document omits the 外部 note on the claim bullet")
     add(_EXTERNAL_MARK not in int_doc and _UNVERIFIED_MARK not in int_doc,
         "B: internal document wrongly carries a trust note")
     add(_UNVERIFIED_MARK in unv_doc, "C: unverified document omits the 未検証 note")
