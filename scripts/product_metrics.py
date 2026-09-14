@@ -25285,6 +25285,35 @@ def measure_creation(c: Collector) -> None:
     )
 
     _claims = evaluate_board_says_which_claims_are_live()
+    # C-1824: 「検証（省略不可）」 told a loop that touched a detector to
+    # re-measure with measure_gate_baseline.py against 「現在の基準値は 1012
+    # 文書中 3.5%」 - a 2026-08-18 reading - and never named
+    # check_gate_regression.py, which is what CI actually fails a build on.
+    # Same shape as C-1807, where the push gate was missing from 手順 0.
+    from sidra_ai.evals.required_steps_name_the_enforced_gate import (
+        evaluate_required_steps_name_the_enforced_gate,
+    )
+
+    _steps = evaluate_required_steps_name_the_enforced_gate()
+    c.add(
+        "required_steps_name_the_enforced_gate",
+        "「検証（省略不可）」が実際に落ちる検査と上限を名指しする",
+        3.0 * _steps.checks_passed / _steps.checks_total,
+        detail=(
+            f"{_steps.checks_passed}/{_steps.checks_total} checks; "
+            "src/sidra_ai/evals/required_steps_name_the_enforced_gate.py"
+            + ("" if _steps.passed else "; " + "; ".join(_steps.failures[:3]))
+            + "。**A** 節が `check_gate_regression.py` を名指しする／"
+            "**B** 節が CI の強制する上限（blended 13.0% / files 20.0%）を持つ"
+            "——**こっそり上げたときに手順との食い違いとして出る**ため／"
+            "**C** 2026-08-18 の 3.5% は**残したまま**「現在の基準値」と呼ばない"
+            "（消しても 0: 実測の記録は消さない）。**起票の前提 1 つは実測で誤りだった**"
+            "——「この容器では走らせられない」とあるが 4 本とも在り、"
+            "**走らせると 2521 文書 5.7%**（2026-08-18 は 1012 文書 3.5%・母数が違う）。"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "board_says_which_claims_are_live",
         "板の検査器が「どの確保が生きているか」を印字する",

@@ -197,11 +197,25 @@ clone に付いてこないので、設定するまで `.githooks/pre-push` は 
 セキュリティ検知器を触ったときは、実データでの誤検知率も測り直す:
 
 ```
+python scripts/check_gate_regression.py
 python scripts/measure_gate_baseline.py "tukemen-rgb/sidra-ai=<path>" ...
 ```
 
-現在の基準値は 1012 文書中 **3.5%**（`docs/GATE_FALSE_POSITIVE_BASELINE.md`）。
-悪化させた場合は戻す。
+**実際に落ちる検査は `check_gate_regression.py` である。** CI
+（`.github/workflows/integration-v01.yml` L154）が毎回走らせ、**blended 13.0%**
+（`MAX_FLAG_RATE`）と**ファイルのみ 20.0%**（`MAX_FILE_FLAG_RATE`）を機械的に
+強制する。この容器でも他リポジトリ無しで走る（2026-09-14 実測: blended 6.7% /
+files 7.5%、いずれも上限内）。**上限の 2 つの値をここに書くのは、上限をこっそり
+上げたときに手順との食い違いとして出るため**であって、通すために上げてよいという
+意味ではない——script 自身が「読まずに数字を上げる習慣がつき、この検査が防ごうと
+している失敗そのものになる」と書いている。
+
+`measure_gate_baseline.py` のほうは 5 リポジトリの内訳を**見る**ための計器で、
+落ちる検査ではない。`docs/GATE_FALSE_POSITIVE_BASELINE.md` の **1012 文書 3.5%
+は 2026-08-18 に 5 リポジトリで測った値**であり、**「現在の」値ではない**。同じ 5
+本を同じ手順で測り直すと **2026-09-14 時点で 2521 文書 5.7%**（sidra-ai が 363→
+2146 文書に増えたので母数が違う）。**母数の違う率を直接比べないこと**——検知器の
+変更を評価するときは、同じ木で前後 2 回測る。悪化させた場合は戻す。
 
 ## キュー
 
