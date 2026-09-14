@@ -1245,6 +1245,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1830: records.py exists so 「この game.html はいつ・何から作られたか」 has an
+    # answer a week later, and it was called from one place - the whole
+    # production. Three ordinary games for 猫, 犬 and 忍者 were three files named
+    # after the template they share. The router now records every standalone
+    # creation: file, time, title, source labels, parameters - no retrieved
+    # text, no request text.
+    from sidra_ai.evals.standalone_artifact_has_a_record import (
+        evaluate_standalone_artifact_has_a_record,
+    )
+
+    standalone_record = evaluate_standalone_artifact_has_a_record()
+    c.add(
+        "creation_standalone_artifact_has_a_record",
+        "単体で作った成果物にも「いつ・何を・何から作ったか」の記録が残る",
+        10.0 * standalone_record.checks_passed / standalone_record.checks_total,
+        detail=f"{standalone_record.checks_passed}/{standalone_record.checks_total} checks; "
+               "src/sidra_ai/evals/standalone_artifact_has_a_record.py"
+               + ("" if standalone_record.passed
+                  else "; " + "; ".join(standalone_record.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

@@ -101,6 +101,7 @@ def build_document_generator(data_dir: str | Path):
             summary=summary,
             artifact_path=str(path),
             details={
+                "title": document.title,  # C-1830
                 "usable": verdict["usable"],
                 "unfilled": verdict["unfilled"],
                 "sources": verdict["sources"],

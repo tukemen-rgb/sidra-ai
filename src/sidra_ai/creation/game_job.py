@@ -210,6 +210,9 @@ def build_game_generator(
             summary=summary,
             artifact_path=str(path),
             details={
+                # C-1830: what a person recognises the file by, beside the
+                # parameters. The record the router writes reads this.
+                "title": game.title,
                 "template": game.template,
                 "difficulty": game.difficulty,
                 "playable": verdict["playable"],

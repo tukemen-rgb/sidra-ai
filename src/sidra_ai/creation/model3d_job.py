@@ -87,6 +87,7 @@ def build_model3d_generator(data_dir: str | Path):
             summary=summary,
             artifact_path=str(paths["preview"]),
             details={
+                "title": model.title,  # C-1830
                 "shape": model.shape,
                 "seed": model.seed,
                 "valid": verdict["valid"],

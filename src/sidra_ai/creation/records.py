@@ -30,6 +30,11 @@ from pathlib import Path
 
 LOG_NAME = "production-log.md"
 
+#: C-1830: where the same record goes for an artifact made on its own. Outside
+#: ``artifacts/`` on purpose: a file inside it would be listed as an artifact
+#: and change the count that ``/v1/artifacts`` reports as the true total.
+STANDALONE_LOG_NAME = "creation-log.md"
+
 #: The heading records live under. Appending under a heading rather than at
 #: end-of-file keeps hand-written notes below it intact: the section is the
 #: machine's, the rest of the document stays the operator's.
@@ -158,7 +163,62 @@ def append_record(
     return log_path
 
 
-def read_records(project_root: str | Path) -> list[GenerationRecord]:
+#: The heading the standalone log opens with. A log a person opens has to say
+#: what it is before its first line, and the records section below it is the
+#: same one the production log uses, so one parser reads both.
+_STANDALONE_HEADER = (
+    "# 生成の記録\n\n"
+    "SIDRA AI が単体で作った成果物の記録です。ファイル名・時刻・題・"
+    "根拠に使った出典ラベル・パラメータだけを書きます"
+    "（取得した文書の本文や、依頼の文そのものは書きません）。\n"
+)
+
+
+def append_standalone_record(
+    data_dir: str | Path,
+    *,
+    made: list[str],
+    evidence: list[str],
+    parameters: dict[str, object],
+    now: datetime | None = None,
+) -> Path:
+    """Add one record for an artifact that was made on its own.
+
+    C-1830. The module above exists so that 「この game.html はいつ・何から
+    作られたか」 has an answer a week later, and until now it had one only for
+    a game made inside a whole production: ``append_record`` was called from
+    one place. The ordinary request - the common path, six generators - wrote
+    no record at all, and three games for 猫, 犬 and 忍者 came back as
+    ``game-fishing-….html``, ``…-2.html`` and ``…-3.html``.
+
+    **This one creates the file when it is missing, and that is the opposite
+    of its sibling on purpose.** ``append_record`` refuses, because a project
+    without a LOG stage was asked for a partial project and a log file
+    appearing anyway would break that. Here there is no stage to respect: the
+    log is the only record a standalone artifact gets, so refusing to create
+    it would mean never writing one.
+
+    Same line format, same 「生成履歴」 heading, so ``read_records`` reads both.
+    """
+
+    log_path = Path(data_dir) / STANDALONE_LOG_NAME
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    if not log_path.is_file():
+        log_path.write_text(_STANDALONE_HEADER, encoding="utf-8")
+
+    text = log_path.read_text(encoding="utf-8")
+    line = format_record(made=made, evidence=evidence, parameters=parameters, now=now)
+    if RECORDS_HEADING in text:
+        text = text.rstrip("\n") + "\n" + line + "\n"
+    else:
+        text = text.rstrip("\n") + f"\n\n{RECORDS_HEADING}\n\n{line}\n"
+    log_path.write_text(text, encoding="utf-8")
+    return log_path
+
+
+def read_records(
+    project_root: str | Path, *, log_name: str = LOG_NAME
+) -> list[GenerationRecord]:
     """Every record line in the project's log, oldest first.
 
     A missing log is an empty list rather than an error: callers use this to
@@ -166,7 +226,7 @@ def read_records(project_root: str | Path) -> list[GenerationRecord]:
     partial project that never had a LOG stage.
     """
 
-    log_path = Path(project_root) / LOG_NAME
+    log_path = Path(project_root) / log_name
     if not log_path.is_file():
         return []
 
@@ -181,7 +241,11 @@ def read_records(project_root: str | Path) -> list[GenerationRecord]:
         )
         parameters: dict[str, str] = {}
         if match.group("parameters") != _NONE:
-            for pair in match.group("parameters").split(" "):
+            # C-1830: split before a key, not on every space. A value with a
+            # space in it (an English title) used to drop everything after the
+            # first word, silently and only on read-back - the line a person
+            # reads was always complete.
+            for pair in re.split(r" (?=[^ =]+=)", match.group("parameters")):
                 key, sep, value = pair.partition("=")
                 if sep:
                     parameters[key] = value
@@ -200,7 +264,9 @@ __all__ = [
     "GenerationRecord",
     "LOG_NAME",
     "RECORDS_HEADING",
+    "STANDALONE_LOG_NAME",
     "append_record",
+    "append_standalone_record",
     "format_record",
     "read_records",
 ]

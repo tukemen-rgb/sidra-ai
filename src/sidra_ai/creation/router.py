@@ -12,12 +12,15 @@ unmeasurable capability is one nobody can tell apart from an absent one.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 from sidra_ai.creation.copy_writer import CopyWriter
 from sidra_ai.creation.proposer import ParamProposer
 from sidra_ai.creation.evidence import Fact
+from sidra_ai.creation.records import append_standalone_record
 from sidra_ai.creation.intent import CreationIntent, CreationKind
 
 
@@ -82,8 +85,14 @@ class CreationRouter:
     generator nobody decided to enable.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, record_dir: str | Path | None = None) -> None:
         self._generators: dict[CreationKind, CreationGenerator] = {}
+        #: Where the record of each standalone creation is appended (C-1830).
+        #: ``None`` keeps the old behaviour for callers that build a router
+        #: without a data directory - a router that picked a directory of its
+        #: own would write a log nobody knows about, the same reason the deck
+        #: generator is left unregistered without one.
+        self._record_dir = Path(record_dir) if record_dir else None
 
     def register(self, kind: CreationKind, generator: CreationGenerator) -> None:
         if kind is CreationKind.UNKNOWN:
@@ -118,7 +127,56 @@ class CreationRouter:
                 summary=_NO_GENERATOR.format(kind=intent.kind.value),
                 details={"registered_kinds": list(self.registered_kinds())},
             )
-        return generator(message, intent, list(facts or []))
+        outcome = generator(message, intent, list(facts or []))
+        self._record(outcome, facts)
+        return outcome
+
+    def _record(
+        self, outcome: CreationOutcome, facts: list[Fact] | None
+    ) -> None:
+        """Append one line saying what was just made, or do nothing.
+
+        C-1830. ``records`` says it exists so that 「この game.html はいつ・何から
+        作られたか」 has an answer a week later, and it was called from one
+        place: the whole-production scaffold. The ordinary request - six
+        generators, the common path - wrote nothing, so three games for 猫, 犬
+        and 忍者 were three files named after the template they share.
+
+        Here rather than in each generator because this is where all six meet;
+        a record written six times is a record five of them can forget.
+
+        Never raises into the answer. A log that cannot be written is worth a
+        missing line, not a failed creation - the operator has the artifact.
+        """
+
+        if self._record_dir is None or not outcome.handled:
+            return
+        if not outcome.artifact_path:
+            return
+        details = dict(outcome.details)
+        parameters: dict[str, object] = {"kind": outcome.kind.value}
+        title = str(details.get("title") or "").strip()
+        if title:
+            parameters["題"] = title
+        # The generator's own parameters, the same ones the production log
+        # carries. Values that are lists or dicts say nothing to a reader here.
+        for key in ("template", "difficulty", "pattern", "motif", "shape", "outline", "seed"):
+            value = details.get(key)
+            if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+                parameters[key] = value
+        try:
+            append_standalone_record(
+                self._record_dir,
+                made=[Path(outcome.artifact_path).name],
+                # Source labels only. The text they pointed at never reaches a
+                # file that reads as metadata (the module's own rule), and the
+                # request itself is not written either: the audit log decided
+                # it never holds request content.
+                evidence=[fact.source for fact in (facts or []) if fact.source],
+                parameters=parameters,
+            )
+        except OSError:
+            return
 
 
 def build_default_router(
@@ -146,7 +204,10 @@ def build_default_router(
     the default for a kind.
     """
 
-    router = CreationRouter()
+    # C-1830: the record goes beside the artifacts, in the data directory
+    # rather than inside artifacts/ - a file in there would be listed as
+    # an artifact and change the total the listing reports.
+    router = CreationRouter(record_dir=data_dir)
     if data_dir:
         # Imported here: the builders pull in HTML templates and the pptx
         # probe, and a module that only inspects the router should not pay

@@ -88,6 +88,7 @@ def build_gif_generator(data_dir: str | Path):
             summary=summary,
             artifact_path=str(path),
             details={
+                "title": gif.title,  # C-1830
                 "motif": gif.motif,
                 "seed": gif.seed,
                 "valid": verdict["valid"],

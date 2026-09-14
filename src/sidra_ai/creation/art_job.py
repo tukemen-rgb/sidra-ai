@@ -90,6 +90,7 @@ def build_art_generator(data_dir: str | Path):
             summary=summary,
             artifact_path=str(path),
             details={
+                "title": art.title,  # C-1830
                 "pattern": art.pattern,
                 "seed": art.seed,
                 "valid": verdict["valid"],

@@ -142,6 +142,7 @@ def build_deck_generator(
             summary=summary,
             artifact_path=str(path),
             details={
+                "title": deck.title,  # C-1830
                 "outline": deck.outline,
                 "slides": len(deck.slides),
                 "unfilled": list(deck.unfilled),
