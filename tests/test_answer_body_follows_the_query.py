@@ -1,4 +1,4 @@
-"""C-1825: the extractive answer body shows the sentence that answers the query.
+"""C-1827: the extractive answer body shows the sentence that answers the query.
 
 The citation excerpt was made query-relevant (C-1782); the answer body itself
 (``_lead``) still showed the chunk's opening sentences, so "What is the default

@@ -1512,7 +1512,7 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # C-1825: the citation excerpt was made query-relevant (C-1782), but the
+    # C-1827: the citation excerpt was made query-relevant (C-1782), but the
     # answer body itself (_lead) still showed the chunk's opening sentences, so
     # "What is the default port?" answered with the language/dependency sentences
     # and the answering "The default port is 8080" showed only in the excerpt

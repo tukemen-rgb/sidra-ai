@@ -1,6 +1,6 @@
 """Does the extractive answer body show the sentence that answers the question?
 
-C-1825. The citation excerpt a reader can open was made query-relevant
+C-1827. The citation excerpt a reader can open was made query-relevant
 (C-1782/C-1270/C-1280: ``select_excerpt_span`` opens the window on the sentence
 that carries the query's terms). But the answer body itself - the first thing the
 reader sees, the ``[S#]`` block the echo backend prints - was built by ``_lead``,
@@ -22,9 +22,10 @@ drag in a later sentence).
 
 from __future__ import annotations
 
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
+
+from sidra_ai.evals.scratch import scratch_dir
 
 
 _EN = (
@@ -88,7 +89,7 @@ def _answer_of(content: str, query: str) -> str:
     )
     store.add(Document(content=content, provenance=prov))
     service = SidraService(
-        Settings(data_dir=tempfile.mkdtemp()),
+        Settings(data_dir=scratch_dir()),
         model=EchoModelAdapter(), store=store, gate=gate,
     )
     return str((service.chat(query) or {}).get("answer") or "")
