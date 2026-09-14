@@ -460,7 +460,13 @@ class SidraService:
             content = getattr(result.chunk, "content", "")
             if not content:
                 continue
-            excerpt, withheld = citation_excerpt(content, self.output_guard, query)
+            # ``clean_head``: a generator-bound excerpt opens at a sentence, a
+            # heading or a table row, and wears 「…」 only when it truly begins
+            # mid-sentence (C-1534). The same seam already cuts the tail back
+            # to a whole sentence; this is that rule at the other end.
+            excerpt, withheld = citation_excerpt(
+                content, self.output_guard, query, clean_head=True
+            )
             if withheld or not excerpt:
                 continue
             # Repository and path live on the chunk's provenance, not the

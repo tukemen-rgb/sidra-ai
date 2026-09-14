@@ -36,6 +36,8 @@ marker is never available here and this module has no idea one exists.
 
 from __future__ import annotations
 
+import re
+
 from sidra_ai.api.schemas import MAX_CITATION_EXCERPT_CHARS
 from sidra_ai.retrieval.search import tokenize
 from sidra_ai.security.output_guard import OutputGuard
@@ -47,20 +49,32 @@ _MAX_CANDIDATES = 64
 
 
 def select_excerpt_window(content: str, query: str) -> str:
-    """Return the ``MAX_CITATION_EXCERPT_CHARS`` slice most on-topic for ``query``.
+    """The window itself. See :func:`select_excerpt_span` for how it is chosen."""
+
+    return select_excerpt_span(content, query)[1]
+
+
+def select_excerpt_span(
+    content: str, query: str, *, clean_head: bool = False
+) -> tuple[int, str]:
+    """Return ``(start, window)``: the ``MAX_CITATION_EXCERPT_CHARS`` slice most
+    on-topic for ``query``, and where in ``content`` it begins.
 
     Falls back to the opening of the chunk whenever there is nothing to
     prefer: an empty query, a query whose terms appear nowhere, or a chunk
     that fits inside the cap. That fallback is the previous behaviour, so a
     citation can only become more relevant than it was, never less.
+
+    ``clean_head`` is the generator's mode (C-1534); see
+    :func:`_advance_past_a_half_sentence`.
     """
 
     if len(content) <= MAX_CITATION_EXCERPT_CHARS:
-        return content
+        return 0, content
 
     terms = set(tokenize(query))
     if not terms:
-        return content[:MAX_CITATION_EXCERPT_CHARS]
+        return 0, content[:MAX_CITATION_EXCERPT_CHARS]
 
     best_start = 0
     best_score = -1
@@ -80,7 +94,9 @@ def select_excerpt_window(content: str, query: str) -> str:
         # opening, which is the documented fallback above.
         if score > best_score or (score == best_score and score > 0):
             best_start, best_score = start, score
-    return content[best_start : best_start + MAX_CITATION_EXCERPT_CHARS]
+    if clean_head:
+        best_start = _advance_past_a_half_sentence(content, best_start, terms)
+    return best_start, content[best_start : best_start + MAX_CITATION_EXCERPT_CHARS]
 
 
 #: A window may open right after one of these, as well as after a newline.
@@ -169,8 +185,112 @@ def _candidate_starts(content: str) -> list[int]:
     return starts
 
 
+#: A line opening with one of these starts a new block, so the window opens on a
+#: new thought even though the character before it is not a sentence end: a
+#: heading, a bullet, an ordered item, a quote, a table row.
+_BLOCK_OPENER = re.compile(r"(?:#{1,6}\s|[-*+>|]|\d+[.)]\s)")
+
+#: Characters skipped when looking *back* for the end of the previous sentence.
+_LOOK_BACK_SKIP = " \t\n\u3000"
+
+
+def opens_cleanly(content: str, start: int) -> bool:
+    """Does a window opening at ``start`` begin where a reader would begin?
+
+    The excerpt window already opens only at line and sentence boundaries
+    (C-1270/C-1280), and measured over the five repositories that is nearly
+    always a readable place: of the 20 windows four generated reports were
+    built from, 19 opened at a sentence end, a heading, a list item, a table
+    row or a paragraph break. One did not, and the difference matters to the
+    reader rather than to the retriever - 「あって、システムや方針の指示を
+    上書きできない。」 is the back half of a sentence whose front half is on
+    the previous line, because this corpus hard-wraps Japanese prose and a
+    wrap point is a newline like any other.
+
+    Clean means one of:
+
+    * the chunk's own head - nothing was cut, so nothing is broken;
+    * the previous non-space character ends a sentence;
+    * the line the window opens on begins a Markdown block; or
+    * the previous line is blank, so this is a new paragraph.
+
+    Anything else is the middle of a sentence.
+    """
+
+    if start <= 0:
+        return True
+    before = content[:start]
+    stripped = before.rstrip(_LOOK_BACK_SKIP)
+    if not stripped:
+        return True
+    last = stripped[-1]
+    if last in _SENTENCE_ENDERS:
+        return True
+    if last == "." and _ascii_period_ends_sentence(content, len(stripped) - 1):
+        return True
+    # Line starts only from here: mid-line the question does not arise.
+    if not before.rstrip(" \t\u3000").endswith("\n"):
+        return False
+    if _BLOCK_OPENER.match(content[start:]):
+        return True
+    lines = before.rstrip(" \t\u3000").split("\n")
+    return len(lines) >= 2 and not lines[-2].strip()
+
+
+#: A head trim must leave at least this much window. Borrowed from the tail
+#: rule's ``_MIN_TRIMMED``: below this a trimmed excerpt says less than a
+#: dangling one, and the point of the excerpt is the evidence, not the
+#: punctuation.
+_MIN_ADVANCED = 50
+
+
+def _advance_past_a_half_sentence(content: str, start: int, terms: set[str]) -> int:
+    """Move a mid-sentence window start forward to the next clean one.
+
+    C-1534: a report bullet is the president's paste-into-a-deck surface, and a
+    fact that begins in the middle of a sentence reads as broken even when it
+    is correct. The tail of a generator-bound excerpt is already cut back to
+    the last whole sentence (``whole_sentences``, C-1213); this is the same
+    rule at the other end.
+
+    Two things hold it back, both measured rather than assumed:
+
+    * it never costs evidence. The advanced window must still carry every
+      query term the chosen window matched, and still be worth reading
+      (``_MIN_ADVANCED``). A window that cannot be advanced on those terms is
+      left where it is - and then the 「…」 mark is what says so.
+    * it only runs for the generator (``clean_head``). The /v1/chat citation
+      excerpt keeps its window exactly as it was, because there 「…」 is the
+      operator's sign that they are looking at a slice (C-1264), not a
+      blemish on a deliverable.
+
+    It fires rarely, and the reason is worth writing down rather than
+    discovering twice. Every clean start is already a candidate start, and the
+    tie-break above takes the *latest* window of equal score - so a clean start
+    that keeps the evidence has usually been chosen before this is reached.
+    What is left is the case the ``_MAX_CANDIDATES`` budget hid: a chunk whose
+    boundaries ran out before the clean start, which selection therefore never
+    saw. Over the four reports measured for C-1534 it moved nothing; the number
+    moved because the mark became honest. It is kept because the case is real
+    and driven by a test, not because it is the mechanism.
+    """
+
+    if opens_cleanly(content, start):
+        return start
+    wanted = terms & set(tokenize(content[start : start + MAX_CITATION_EXCERPT_CHARS]))
+    for index in range(start + 1, min(len(content), start + MAX_CITATION_EXCERPT_CHARS)):
+        if not opens_cleanly(content, index):
+            continue
+        window = content[index : index + MAX_CITATION_EXCERPT_CHARS]
+        if len(window) < _MIN_ADVANCED:
+            break
+        if wanted <= set(tokenize(window)):
+            return index
+    return start
+
+
 def citation_excerpt(
-    content: str, output_guard: OutputGuard, query: str = ""
+    content: str, output_guard: OutputGuard, query: str = "", *, clean_head: bool = False
 ) -> tuple[str, bool]:
     """Return ``(excerpt, withheld)`` for one cited chunk.
 
@@ -183,7 +303,7 @@ def citation_excerpt(
     may redact in place and a redaction can be longer than what it replaced.
     """
 
-    excerpt = select_excerpt_window(content, query)
+    start, excerpt = select_excerpt_span(content, query, clean_head=clean_head)
     if not excerpt:
         return "", False
     # C-1264: a window that drops the head or tail of the chunk ends (or starts)
@@ -192,6 +312,12 @@ def citation_excerpt(
     # so a redaction cannot confuse the comparison. The cap still holds: the
     # marks' width is taken out of the body, not added on top.
     head_cut = not content.startswith(excerpt)
+    # ...but in ``clean_head`` mode the mark is reserved for a head that is
+    # actually broken (C-1534). 「…」 on a window that opens at a heading, a
+    # table row or a sentence is true about the chunk and false about the
+    # sentence, and on a report bullet the reader only reads the sentence.
+    if clean_head and head_cut and opens_cleanly(content, start):
+        head_cut = False
     tail_cut = not content.endswith(excerpt)
     guarded = output_guard.scan(excerpt)
     if guarded.blocked:

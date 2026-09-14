@@ -615,6 +615,30 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1534: 3 of the 11 facts in four generated reports started at the head
+    # of a sentence - the rest opened with 「…」, which on a deliverable reads as
+    # text broken off mid-thought. Measured, the windows were already fine (19
+    # of 20 opened at a sentence end, heading, list item, table row or paragraph
+    # break); the mark was written for any window that was not the chunk's head,
+    # a fact about the chunk and not about the sentence. Both directions: a
+    # clean head carries no mark, and a genuinely mid-sentence one still does.
+    from sidra_ai.evals.fact_starts_at_a_sentence import (
+        evaluate_fact_starts_at_a_sentence,
+    )
+
+    starts = evaluate_fact_starts_at_a_sentence()
+    c.add(
+        "creation_fact_starts_at_a_sentence",
+        "レポートの事実が文頭から始まる（「…」は本当に途中で切れた時だけ）",
+        10.0 * starts.checks_passed / starts.checks_total,
+        detail=f"{starts.checks_passed}/{starts.checks_total} checks; "
+               f"文頭から始まる事実 {starts.facts_clean}/{starts.facts_total}"
+               " (現物の 5 リポジトリでは 3/11 → 10/11); "
+               "src/sidra_ai/evals/fact_starts_at_a_sentence.py"
+               + ("" if starts.passed else "; " + "; ".join(starts.failures[:3])),
+        kind=OUTCOME,
+    )
+
     # C-1212: slide bullets carried the corpus's Markdown decoration as
     # literal ## / ** / > characters. Facts are flattened at the seam that
     # makes them; both directions measured - decoration gone, words intact.
