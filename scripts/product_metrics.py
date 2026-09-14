@@ -1555,6 +1555,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1828: the multi-turn sibling of C-1827. A subject-less follow-up
+    # (「もっと詳しく」) carries the previous question into searched_query, and the
+    # excerpt follows it (C-1782) - but the answer body was fed the bare turn, so
+    # its query-relevant _lead (C-1827) scored zero and fell back to the chunk
+    # opening. The service now passes the effective retrieval query to the model,
+    # so the body opens on the carried subject too. Single turns unchanged.
+    from sidra_ai.evals.answer_body_follows_carried_subject import (
+        evaluate_answer_body_follows_carried_subject,
+    )
+
+    answer_carry = evaluate_answer_body_follows_carried_subject()
+    c.add(
+        "answer_body_follows_carried_subject",
+        "続けての質問の回答本文が、carry した主題の一節を見せる",
+        10.0 * answer_carry.checks_passed / answer_carry.checks_total,
+        detail=f"{answer_carry.checks_passed}/{answer_carry.checks_total} checks; "
+               "src/sidra_ai/evals/answer_body_follows_carried_subject.py"
+               + ("" if answer_carry.passed else "; " + "; ".join(answer_carry.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1265: art and GIF titles kept the kind noun (「螺旋のアート」/「猫のGIF」),
     # doubling it in the summary, while documents/decks/3D/games strip it. The
     # title is the subject alone now. Checked through chat: a named request shows
