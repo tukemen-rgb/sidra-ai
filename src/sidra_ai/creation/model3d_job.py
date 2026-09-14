@@ -14,6 +14,7 @@ from sidra_ai.creation.art import names_color
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.models3d import (
+    count_note,
     DEFAULT_SHAPE,
     SHAPE_LABELS,
     generate_model3d,
@@ -76,6 +77,10 @@ def build_model3d_generator(data_dir: str | Path):
                     "依頼にあった色は今の配色に反映していません。"
                     "3D モデルは固定の配色で描いています。"
                 )
+            # C-1832: and the count. 「3つ作って」 built one and said nothing,
+            # with the title 「魚3つ」 claiming otherwise. Same source as the
+            # preview page's note, so the artifact and the summary agree.
+            summary += count_note(message)
         else:
             summary = (
                 f"「{model.title}」の 3D モデルを作りましたが、検証に落ちています: "

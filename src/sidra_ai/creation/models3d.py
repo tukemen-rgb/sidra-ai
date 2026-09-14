@@ -298,12 +298,60 @@ def _mtl_text() -> str:
     return "\n".join(lines) + "\n"
 
 
+#: 「3つ」「2体」「10個」 - how many models someone asked for. The unit word is
+#: what makes the number a count, so 「2026年の3Dモデル」 never matches and no
+#: list of not-a-count words is needed (measured in decks.py, C-1821, where
+#: such a list changed the answer in none of twelve requests).
+_MODEL_COUNT = re.compile(r"(\d{1,3})\s*(?:個|つ|体|匹|台|点)")
+
+#: One request builds one mesh. Named rather than written into the sentence so
+#: a generator that ever builds more carries the note with it.
+MADE_PER_REQUEST = 1
+
+
+def requested_count(request: str) -> int | None:
+    """How many models the request asked for, or None when it named no count."""
+
+    for match in _MODEL_COUNT.finditer(request):
+        found = int(match.group(1))
+        if found > 0:
+            return found
+    return None
+
+
+def count_note(request: str, made: int = MADE_PER_REQUEST) -> str:
+    """The admission that this is not the number that was asked for, or "".
+
+    C-1832. One request builds one mesh and there is no count to set, so
+    「魚の3Dモデルを3つ作って」 built one, titled it 「魚3つ」 and said nothing.
+    The shape existed, so the shape-fallback note (C-1283) stayed silent too -
+    that request carried no disclosure at all while its title claimed three.
+
+    This generator already admits the shape it substituted (C-1283) and the
+    colour it could not apply (C-1818), on the preview page and in the summary
+    both. The count was the one left out, the same asymmetry the deck had
+    about its slides (C-1821) and the GIF about its length (C-1823).
+
+    Silent when no count was named, and silent when the count asked for is the
+    one that was made: a caveat with nothing to report stops being read.
+    """
+
+    asked = requested_count(request)
+    if asked is None or asked == made:
+        return ""
+    return (
+        f"依頼は {asked} つでしたが、いまは 1 回の依頼につき {made} 体だけ作ります。"
+        "個数は指定できません。"
+    )
+
+
 def _preview_html(
     title: str,
     mesh: Mesh,
     evidence: tuple[str, ...],
     shape_note: str = "",
     color_note: str = "",
+    count_caveat: str = "",
 ) -> str:
     vertices, faces = mesh
     verts_js = ",".join(f"[{x:.4f},{y:.4f},{z:.4f}]" for x, y, z in vertices)
@@ -322,6 +370,11 @@ def _preview_html(
     color_html = (
         f'<p id="color-note">{escape(color_note)}</p>' if color_note else ""
     )
+    # C-1832: and the count, in the same place and style. The title is what a
+    # reader sees first - 「魚3つ」 over one fish - so the page has to say it.
+    count_html = (
+        f'<p id="count-note">{escape(count_caveat)}</p>' if count_caveat else ""
+    )
     return f"""<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -332,13 +385,14 @@ body{{margin:0;background:#05070f;color:#e6f7ff;font-family:system-ui,sans-serif
 display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px}}
 canvas{{background:#0a0f1c;border-radius:12px;max-width:100%;height:auto}}
 h1{{font-size:1.1rem;margin:0}}
-#shape-note,#color-note{{color:#ffb84d;font-size:.9rem;margin:0;max-width:640px;text-align:center}}
+#shape-note,#color-note,#count-note{{color:#ffb84d;font-size:.9rem;margin:0;max-width:640px;text-align:center}}
 small,li{{color:#8fb3c7}}
 ul{{margin:0;padding-left:1.2em}}
 </style></head><body>
 <h1>{escape(title)}</h1>
 {note_html}
 {color_html}
+{count_html}
 <canvas id="c" width="640" height="480"></canvas>
 <small id="note">ドラッグ不要・自動回転（reduced-motion 設定では静止します）。
 .obj は Windows の 3D ビューアーで開けます（色は隣に保存された .mtl から付くので、.obj と .mtl を一緒に置いてください）。</small>
@@ -448,7 +502,9 @@ def generate_model3d(
         seed=actual_seed,
         obj_text=_obj_text(mesh),
         mtl_text=_mtl_text(),
-        preview_html=_preview_html(title, mesh, trail, shape_note, color_note),
+        preview_html=_preview_html(
+            title, mesh, trail, shape_note, color_note, count_note(request)
+        ),
         vertex_count=len(mesh[0]),
         face_count=len(mesh[1]),
         shape_named=named,
@@ -544,6 +600,9 @@ def validate_model3d(model: GeneratedModel3D) -> dict:
 SHAPE_LABELS = dict(_SHAPE_TITLES)
 
 __all__ = [
+    "MADE_PER_REQUEST",
+    "count_note",
+    "requested_count",
     "DEFAULT_SHAPE",
     "GeneratedModel3D",
     "SHAPE_LABELS",

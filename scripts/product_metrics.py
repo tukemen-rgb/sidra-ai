@@ -1267,6 +1267,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1832: 「魚の3Dモデルを3つ作って」 built one mesh, titled it 「魚3つ」 and said
+    # nothing - and because the shape existed, the shape-default note stayed
+    # silent too, so that request carried no disclosure at all. count_note now
+    # rides the preview page and the summary, the same two channels the shape
+    # (C-1283) and colour (C-1818) notes already use.
+    from sidra_ai.evals.model3d_says_it_made_one import (
+        evaluate_model3d_says_it_made_one,
+    )
+
+    model3d_count = evaluate_model3d_says_it_made_one()
+    c.add(
+        "creation_model3d_says_it_made_one",
+        "3D モデルが、頼まれた個数と違って 1 体だけ作った旨を開示する",
+        10.0 * model3d_count.checks_passed / model3d_count.checks_total,
+        detail=f"{model3d_count.checks_passed}/{model3d_count.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_says_it_made_one.py"
+               + ("" if model3d_count.passed
+                  else "; " + "; ".join(model3d_count.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck
