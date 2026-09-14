@@ -19,7 +19,7 @@ from sidra_ai.evals.deck_title_drops_format_words import (
 def test_deck_title_format_eval_passes():
     result = evaluate_deck_title_drops_format_words()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 13
+    assert result.checks_passed == result.checks_total == 14
 
 
 @pytest.mark.parametrize(

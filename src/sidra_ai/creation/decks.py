@@ -33,6 +33,7 @@ from sidra_ai.creation.vocabulary import drop_request_adverbs, drop_size_phrases
 
 #: Shared with the game generator so a deck and a game made by the same tool
 #: look like they came from the same place.
+from sidra_ai.creation.documents import _DOC_FORMAT_SUFFIX
 from sidra_ai.creation.evidence import NUMBER, Fact, plain_text, whole_sentences
 from sidra_ai.creation.themes import Theme, select_theme
 
@@ -292,6 +293,11 @@ def _title_from(request: str, fallback: str) -> str:
     peeled = stripped
     while True:
         step = re.sub(r"[をのはがにで]+$", "", peeled).strip()
+        # C-1836: a deck asked for in a document format (「…をPDFで」「…をWordで」)
+        # left the format word AND the スライド pushed off the tail behind it on
+        # the cover (「売上のスライドをPDF」). The document strips these (C-1484);
+        # reuse the same tail-gated pattern so 「…をWord」→「…を」→ kind strip runs.
+        step = _DOC_FORMAT_SUFFIX.sub("", step).strip()
         step = _TITLE_KIND_SUFFIX.sub("", step).strip()
         if step == peeled:
             break

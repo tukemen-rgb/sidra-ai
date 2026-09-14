@@ -44,6 +44,10 @@ _SINGLE = (
     ("会議のスライドを作って", "会議"),
     ("営業戦略のスライドを作って", "営業戦略"),
     ("資料設計の指針のスライドを作って", "資料設計の指針"),
+    # C-1836: a format word that is the SUBJECT (「Wordの使い方」, not 「…をWordで」)
+    # must survive - the strip is gated to a format word right after を/の at the
+    # tail, so this is untouched (the deck twin of the document's keyword guard).
+    ("Wordの使い方のスライドを作って", "Wordの使い方"),
 )
 
 # Only kind/format words: the outline's default cover is better than a blank
