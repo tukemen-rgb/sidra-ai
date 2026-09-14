@@ -25150,8 +25150,13 @@ def measure_creation(c: Collector) -> None:
             (root / "docs").mkdir()
             (root / ".githooks").mkdir()
             (root / "src" / "sidra_ai" / "evals").mkdir(parents=True)
+            # Every script the gate calls. A tree missing one makes the gate
+            # red for a reason that has nothing to do with what is measured -
+            # which is what the consistent-board control below is for, and it
+            # caught exactly that when C-1800 added a fourth check.
             for name in ("check_before_push.sh", "check_log_times.py",
-                         "check_eval_scratch.py", "check_backlog_board.py"):
+                         "check_eval_scratch.py", "check_backlog_board.py",
+                         "check_numbers_upstream.py"):
                 _gw_sh.copy2(_GW_ROOT / "scripts" / name, root / "scripts" / name)
             hook = root / ".githooks" / "pre-push"
             _gw_sh.copy2(_GW_ROOT / ".githooks" / "pre-push", hook)
@@ -25278,6 +25283,184 @@ def measure_creation(c: Collector) -> None:
             "**なぜ要るか（実測・この木で修正前後）**: 不整合な板を置いて `;` で繋ぐと "
             "**rc=0 で載り**、hook を配線すると**同じ綴りで rc=1** になった。"
             "**故意の `--no-verify` は塞いでいない**（塞げないし、止めたいのは事故のほう）"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- 上流で取られた番号を門が見る (C-1800) ----------------------------
+    #
+    # Each loop reads its own copy of the board, takes `max + 1`, and starts
+    # working; a claim another loop has not pushed yet is not in that copy.
+    # Measured 2026-09-14 across the log and the board: 49 distinct numbers
+    # appear in a renumbering record, 9 of them in the last ~28 hours.
+    #
+    # Most of it was already caught, and that was worth measuring before
+    # building anything: `check_backlog_board.py` refuses a board where one
+    # number heads two items, which is what a rebase produces when both claims
+    # land - the colliding push is refused today.
+    #
+    # One path escaped, and it is the worst one. Resolve the rebase by keeping
+    # only your own line and the duplicate is gone: nothing refuses, the push
+    # lands, and the other loop's claim is deleted from origin/main. Measured
+    # in a throwaway repository with a real remote - rc=0, and their item no
+    # longer existed upstream. 厳守事項 5 broken by accident, in silence.
+    #
+    # Driven the same way here, and the check that matters is not "was the
+    # push refused" but **"is their claim still upstream afterwards"**.
+    import os as _nu_os
+    import pathlib as _nu_pl
+    import shutil as _nu_sh
+    import subprocess as _nu_sp
+    import tempfile as _nu_tmp
+
+    _NU_ROOT = _nu_pl.Path(__file__).resolve().parent.parent
+    nu_notes: list[str] = []
+
+    def _nu_repo(board: str, drop_theirs: bool, reachable: bool = True):
+        """Two loops, one number. Returns (push rc, their claim survived)."""
+
+        home = _nu_tmp.mkdtemp(prefix="number-upstream-")
+        try:
+            root, bare = _nu_pl.Path(home) / "work", _nu_pl.Path(home) / "origin.git"
+            env = {
+                "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                "PATH": _nu_os.environ.get("PATH", ""), "HOME": home,
+            }
+            (root / "scripts").mkdir(parents=True)
+            (root / "docs").mkdir()
+            # Every script the gate calls, plus the hook - because what is
+            # measured is the GATE stopping the push, not this one script
+            # answering. A probe that unwired it from check_before_push.sh
+            # moved no number until this was driven end to end.
+            for name in ("check_before_push.sh", "check_log_times.py",
+                         "check_eval_scratch.py", "check_backlog_board.py",
+                         "check_numbers_upstream.py"):
+                _nu_sh.copy2(_NU_ROOT / "scripts" / name, root / "scripts" / name)
+            (root / ".githooks").mkdir()
+            _nu_sh.copy2(_NU_ROOT / ".githooks" / "pre-push", root / ".githooks" / "pre-push")
+            (root / ".githooks" / "pre-push").chmod(0o755)
+            (root / "src" / "sidra_ai" / "evals").mkdir(parents=True)
+            (root / "src" / "sidra_ai" / "evals" / "scratch.py").write_text(
+                '\"\"\"h\"\"\"\n\n\ndef scratch_dir(prefix=\"\"):\n    return \"/tmp\"\n',
+                encoding="utf-8")
+            (root / "src" / "sidra_ai" / "evals" / "one.py").write_text(
+                "from sidra_ai.evals.scratch import scratch_dir\n\n\n"
+                "def go():\n    return scratch_dir()\n", encoding="utf-8")
+            (root / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+            (root / "docs" / "LOOP_LOG.md").write_text("# log\n", encoding="utf-8")
+
+            def git(*args: str, where=None, check: bool = True):
+                return _nu_sp.run(["git", *args], cwd=where or root, env=env,
+                                  check=check, capture_output=True, text=True,
+                                  timeout=180)
+
+            _nu_sp.run(["git", "init", "-q", "--bare", str(bare)], env=env,
+                       check=True, capture_output=True, timeout=180)
+            (root / "docs" / "BACKLOG.md").write_text(
+                "# board\n\n- [ ] **C-0001: base.**\n", encoding="utf-8")
+            git("init", "-q", "-b", "main")
+            git("remote", "add", "origin", str(bare))
+            git("add", "-A"); git("commit", "-q", "-m", "base")
+            git("push", "-q", "origin", "main")
+
+            # The other loop claims the number and pushes.
+            other = _nu_pl.Path(home) / "other"
+            git("clone", "-q", "-b", "main", str(bare), str(other), where=_nu_pl.Path(home))
+            with (other / "docs" / "BACKLOG.md").open("a", encoding="utf-8") as fh:
+                fh.write("- [~] 確保 **C-0002: 他ループの項目。**\n")
+            git("add", "-A", where=other); git("commit", "-q", "-m", "other", where=other)
+            git("push", "-q", "origin", "main", where=other)
+
+            # Ours, then the rebase - resolved by dropping theirs, or not.
+            with (root / "docs" / "BACKLOG.md").open("a", encoding="utf-8") as fh:
+                fh.write(board)
+            git("add", "-A"); git("commit", "-q", "-m", "mine")
+            git("fetch", "-q", "origin", "main")
+            if git("rebase", "-q", "origin/main", check=False).returncode != 0:
+                if drop_theirs:
+                    (root / "docs" / "BACKLOG.md").write_text(
+                        "# board\n\n- [ ] **C-0001: base.**\n" + board,
+                        encoding="utf-8")
+                else:
+                    (root / "docs" / "BACKLOG.md").write_text(
+                        "# board\n\n- [ ] **C-0001: base.**\n"
+                        "- [~] 確保 **C-0002: 他ループの項目。**\n" + board,
+                        encoding="utf-8")
+                git("add", "-A")
+                _nu_sp.run(["git", "rebase", "--continue"], cwd=root,
+                           env=dict(env, GIT_EDITOR="true"), capture_output=True,
+                           text=True, timeout=180)
+            git("config", "core.hooksPath", ".githooks")
+            if not reachable:
+                git("remote", "set-url", "origin", str(_nu_pl.Path(home) / "gone.git"))
+            # Through the gate, the way a loop pushes. The hook runs it, so a
+            # check that exists but is not wired in stops nothing.
+            checked = _nu_sp.run(["bash", "scripts/check_before_push.sh"],
+                                 cwd=root, env=env, capture_output=True,
+                                 text=True, timeout=300)
+            if reachable:
+                git("push", "-q", "origin", "main", check=False)
+            survived = "他ループの項目" in git(
+                "show", "origin/main:docs/BACKLOG.md", check=False).stdout
+            return checked.returncode, checked.stdout, survived
+        finally:
+            _nu_sh.rmtree(home, ignore_errors=True)
+
+    import sys as _nu_sys
+
+    # (A) Their claim dropped in the rebase: refused, and their item survives.
+    _nu_rc, _nu_said, _nu_alive = _nu_repo("- [ ] **C-0002: 私の項目。**\n", drop_theirs=True)
+    if _nu_rc == 0:
+        nu_notes.append("他ループの確保を消す push を止めない")
+    if not _nu_alive:
+        nu_notes.append("他ループの item が origin/main から消える")
+    if "REFUSED" not in _nu_said:
+        nu_notes.append("何が起きたか名指ししない")
+
+    # (B) ...and an ordinary push is not refused. A number that only appears
+    # in prose is not a claim; refusing it would rebuild C-1781's false
+    # rejection on a new axis.
+    _nu_rc, _nu_said, _nu_alive = _nu_repo(
+        "- [ ] **C-0003: 私の項目。**\n      C-0002 は本文で触れるだけ。\n",
+        drop_theirs=False)
+    if _nu_rc != 0:
+        nu_notes.append(f"本文で番号に触れただけの push を拒む（{_nu_said.strip()[:50]}）")
+    if not _nu_alive:
+        nu_notes.append("正常な push で他ループの item が消える")
+
+    # (C) origin unreadable: pass, and do not claim to have checked (C-1723).
+    _nu_rc, _nu_said, _nu_alive = _nu_repo(
+        "- [ ] **C-0002: 私の項目。**\n", drop_theirs=True, reachable=False)
+    if _nu_rc != 0:
+        nu_notes.append("origin が読めないだけで push を止める（網の瞬断で全ループが止まる）")
+    if "NOTE" not in _nu_said:
+        nu_notes.append("読めなかったことを言わない")
+    if "none collides" in _nu_said:
+        nu_notes.append("読んでいないのに「衝突なし」と印字する")
+    c.add(
+        "gate_sees_a_number_taken_upstream",
+        "門が「上流で取られた番号」を見る",
+        0.0 if nu_notes else 3.0,
+        detail=(
+            "; ".join(nu_notes)
+            if nu_notes
+            else "**使い捨てリポジトリ（実リモート）で 2 ループの採番衝突を実際に起こして**測る。"
+            "**(A)** rebase で相手の確保行を落とした push を**拒否**し、"
+            "**相手の item が origin/main に残っている**ことを確認する"
+            "——測っているのは「拒否したか」ではなく**相手の仕事が生きているか**。"
+            "**(B)** 番号が**本文で触れられているだけ**の push は通す"
+            "（見出しだけを見る＝誤拒否を作らない・C-1781 の教訓）。"
+            "**(C)** `origin/main` が読めないときは**止めず**、"
+            "**「衝突なし」とも印字しない**（`check_log_times.py` の先例に合わせ、"
+            "読まなかったのに OK と言わないのが C-1723 の本体）。"
+            "**なぜ要るか（実測・2026-09-14）**: 板の検査は「1 番号 2 item」を既に拒むので、"
+            "**両方の行が残る普通の経路は今日でも止まる**。逃げるのは 1 経路だけで、"
+            "それが最悪のもの——rebase で相手の行を落とすと重複が消え、"
+            "**push は rc=0 で通り、相手の確保が origin/main から消えた**。"
+            "厳守事項 5 が事故として、しかも無言で破られていた。"
+            "**これは衝突を無くさない**。番号を読んでから push するまでの窓"
+            "（実測 30〜80 分）は残り、同じ秒に push すれば同じことが起きる"
         ),
         kind=OUTCOME,
     )

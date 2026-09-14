@@ -64,6 +64,32 @@ if [ "$?" -ne 0 ]; then
   fail=1
 fi
 
+# C-1800: and the number this push claims must not already head somebody
+# else's item. The board check above sees a number that heads two items HERE,
+# which is the ordinary outcome and is already refused. What it cannot see is
+# the case where the other loop's claim was dropped in the rebase: no duplicate
+# remains, nothing refuses, and the push deletes their item from origin/main.
+# Measured 2026-09-14 in a throwaway repository - push rc=0, their claim gone.
+# Passes with a note when origin/main cannot be read (check_log_times.py's
+# precedent), and never says it checked when it did not (C-1723).
+numbers=$(python scripts/check_numbers_upstream.py 2>&1)
+rc=$?
+# Printed either way, like the board check below: when origin cannot be read
+# this check passes with a NOTE, and a NOTE nobody sees is the same as
+# claiming it looked (C-1723). Measured - driving the gate rather than the
+# script showed the note being swallowed on success.
+if [ "$rc" -ne 0 ]; then
+  # The whole reason, not a tail of it: a refusal has to name the number and
+  # say what to do about it.
+  echo "$numbers"
+  fail=1
+else
+  # And the verdict is shown even when it passes, because when origin cannot
+  # be read this check passes with a NOTE - and a NOTE nobody sees is the same
+  # as claiming it looked (C-1723).
+  echo "$numbers" | tail -1
+fi
+
 board=$(python scripts/check_backlog_board.py 2>&1)
 echo "$board" | tail -3
 if echo "$board" | grep -q '不整合なし'; then
