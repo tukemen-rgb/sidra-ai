@@ -3254,6 +3254,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1822: a length specifier is not a subject. 「3ページのレポートを作って」
+    # titled the report 「3ページ」 and then failed the body number-check on the
+    # 3; the leading length spec (digits + ページ/頁/字/文字/枚, closed by の/$)
+    # now strips before the peel loop, so the length falls away and a real
+    # subject or the default title stands. Numbers in real subjects (第3四半期,
+    # 3年計画) survive - the units 年/四半期/組/万円 are not length units.
+    from sidra_ai.evals.document_title_drops_length_spec import (
+        evaluate_document_title_drops_length_spec,
+    )
+
+    doc_len_title = evaluate_document_title_drops_length_spec()
+    c.add(
+        "document_title_drops_length_spec",
+        "ドキュメントの表題が依頼の長さ指定（Nページ/N字等）を主題にしない",
+        10.0 * doc_len_title.checks_passed / doc_len_title.checks_total,
+        detail=f"{doc_len_title.checks_passed}/{doc_len_title.checks_total} checks; "
+               "src/sidra_ai/evals/document_title_drops_length_spec.py"
+               + ("" if doc_len_title.passed
+                  else "; " + "; ".join(doc_len_title.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1468: the standalone twin of C-1453. A subject-less phrase as a first
     # message (「もっと詳しく」) has no previous question to carry and no subject of
     # its own, so the honesty floor could not rule and a generic glue hit was
