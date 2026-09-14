@@ -30,6 +30,13 @@ _STACKED = (
     ("提案資料をpptxで作成して", "提案"),
     ("営業戦略のスライドをパワーポイントで作って", "営業戦略"),
     ("プレゼンの極意をスライドで作って", "プレゼンの極意"),
+    # C-1836: the deck twin of the document's C-1484. A deck asked for in a
+    # document format (「…をPDFで」「…をWordで」「…をExcelで」) left the format word
+    # AND the スライド pushed off the tail behind it on the cover
+    # (「売上のスライドをPDF」). The document strips these; the deck did not.
+    ("売上のスライドをPDFで作って", "売上"),
+    ("会議のスライドをWordで作って", "会議"),
+    ("企画のスライドをExcelで作って", "企画"),
 )
 
 # Single kind word - already correct, must stay correct (no over-stripping).
