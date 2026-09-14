@@ -49,8 +49,34 @@ from pathlib import Path
 
 LOG = Path("docs/LOOP_LOG.md")
 
+#: The board claims times too, and nothing was checking them (C-1813).
+#: Census 2026-09-14 with `git blame --line-porcelain` over every timestamped
+#: line of the board - 687 lines, not a sample: **73 (10.6%) lead their own
+#: commit by more than 30 minutes**, median +83, worst +719 (about 12 hours),
+#: spread over ten days up to that morning. A live one that day claimed
+#: 13:4x for a line committed at 09:01.
+#:
+#: It is not a cosmetic lie. The stall watch reads the time on a `[~]` line to
+#: decide whether an item has been sitting; a claim line hours ahead looks like
+#: work that has not started, so a stalled item never rings. That watch had
+#: already given up and switched to commit times - one instrument lying has
+#: meant using a second instrument, which is the same cost C-1733 recorded.
+BOARD = Path("docs/BACKLOG.md")
+
+#: Every file whose added lines are judged. LOOP_LOG's behaviour is unchanged.
+FILES = (LOG, BOARD)
+
 #: The stamp a log line leads with: 「2026-09-12 20:07 UTC ループA …」.
 STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s*UTC")
+
+#: The board writes its stamp after the box and a word: 「- [~] 作業中
+#: 2026-09-14 13:4x UTC ループA」, 「- [x] 完了 …」, 「- [記録] 実測 …」.
+#: Only item headings are read - the body quotes measurement times
+#: (「実測（2026-09-14 08:2x UTC…」), which are facts about when something was
+#: measured, not claims about when the line was written.
+BOARD_STAMP = re.compile(
+    r"^- \[(?: |x|~|記録)\]\s*\S{0,6}\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:[\dx]{2})\s*UTC"
+)
 
 #: Minutes a line may lead the commit that carries it. See the docstring:
 #: measured honest lag tops out at +20.2, p98 of the whole file is +37.7.
@@ -69,19 +95,26 @@ def _added_lines(diff: str) -> list[str]:
     ]
 
 
-def _claimed(line: str) -> dt.datetime | None:
-    found = STAMP.match(line.strip())
+def _claimed(line: str, board: bool = False) -> dt.datetime | None:
+    found = (BOARD_STAMP if board else STAMP).match(line.strip() if not board else line)
     if not found:
         return None
+    # 「13:4x」 hides the minute. Read the `x` as 0 - the EARLIEST minute that
+    # spelling can mean - so the lead this reports is a lower bound and the
+    # rounding never works in the check's favour. It is also the commonest
+    # spelling on the board, so refusing to parse it would skip most of it.
+    minute = found.group(2).replace("x", "0")
     return dt.datetime.strptime(
-        f"{found.group(1)} {found.group(2)}", "%Y-%m-%d %H:%M"
+        f"{found.group(1)} {minute}", "%Y-%m-%d %H:%M"
     ).replace(tzinfo=dt.timezone.utc)
 
 
-def _late_lines(lines: list[str], made: dt.datetime) -> list[tuple[float, str]]:
+def _late_lines(
+    lines: list[str], made: dt.datetime, board: bool = False
+) -> list[tuple[float, str]]:
     out: list[tuple[float, str]] = []
     for line in lines:
-        claimed = _claimed(line)
+        claimed = _claimed(line, board=board)
         if claimed is None:
             continue
         ahead = (claimed - made).total_seconds() / 60
@@ -106,25 +139,35 @@ def check() -> tuple[list[str], list[str]]:
     else:
         for sha in [s for s in listed.stdout.split("\n") if s.strip()]:
             stamped = _git("show", "-s", "--format=%ct", sha)
-            shown = _git("show", "--format=", "--unified=0", sha, "--", str(LOG))
-            if stamped.returncode != 0 or shown.returncode != 0:
+            if stamped.returncode != 0:
                 notes.append(f"{sha[:8]} を読めない")
                 continue
             made = dt.datetime.fromtimestamp(int(stamped.stdout.strip()), dt.timezone.utc)
-            for ahead, line in _late_lines(_added_lines(shown.stdout), made):
-                problems.append(
-                    f"{sha[:8]}: この行は commit の {ahead:+.0f} 分先を名乗っている"
-                    f"（許容 {MARGIN_MINUTES} 分）: {line[:80]}"
-                )
+            for path in FILES:
+                shown = _git("show", "--format=", "--unified=0", sha, "--", str(path))
+                if shown.returncode != 0:
+                    notes.append(f"{sha[:8]} の {path} を読めない")
+                    continue
+                for ahead, line in _late_lines(
+                    _added_lines(shown.stdout), made, board=path == BOARD
+                ):
+                    problems.append(
+                        f"{sha[:8]} {path}: この行は commit の {ahead:+.0f} 分先を"
+                        f"名乗っている（許容 {MARGIN_MINUTES} 分）: {line[:80]}"
+                    )
 
     # And anything staged but not yet committed, against now.
-    staged = _git("diff", "--cached", "--unified=0", "--", str(LOG))
-    if staged.returncode == 0:
-        now = dt.datetime.now(dt.timezone.utc)
-        for ahead, line in _late_lines(_added_lines(staged.stdout), now):
+    now = dt.datetime.now(dt.timezone.utc)
+    for path in FILES:
+        staged = _git("diff", "--cached", "--unified=0", "--", str(path))
+        if staged.returncode != 0:
+            continue
+        for ahead, line in _late_lines(
+            _added_lines(staged.stdout), now, board=path == BOARD
+        ):
             problems.append(
-                f"(staged): この行は現在時刻の {ahead:+.0f} 分先を名乗っている"
-                f"（許容 {MARGIN_MINUTES} 分）: {line[:80]}"
+                f"(staged) {path}: この行は現在時刻の {ahead:+.0f} 分先を"
+                f"名乗っている（許容 {MARGIN_MINUTES} 分）: {line[:80]}"
             )
 
     return problems, notes

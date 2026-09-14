@@ -25039,6 +25039,120 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- 板の行も自分の時刻について正直である (C-1813) --------------------
+    #
+    # C-1733 taught `check_log_times.py` that a log line must not claim a time
+    # it has not reached, and pointed it at `docs/LOOP_LOG.md` alone. The board
+    # stamps times in the same shape and nothing was reading them. Census
+    # 2026-09-14 with `git blame --line-porcelain` over every timestamped board
+    # line - 687 lines, not a sample: **73 (10.6%) lead their own commit by
+    # more than 30 minutes**, median +83, worst +719 (about 12 hours), spread
+    # over ten days up to that morning. One live that day claimed 13:4x on a
+    # line committed at 09:01.
+    #
+    # The cost is the same one C-1733 recorded: the stall watch reads the time
+    # on a `[~]` line to decide whether an item has been sitting, so a claim
+    # hours ahead looks like work that has not started and a stalled item never
+    # rings. That watch had already switched to commit times - one instrument
+    # lying means a second instrument is needed.
+    #
+    # Narrow on purpose, and the narrowness is what is measured: only the lines
+    # a push ADDS. Judging the 73 already there would make every loop red on
+    # the first run, which is C-1728's trap exactly.
+    _bt_notes: list[str] = []
+
+    def _bt_run(minutes_ahead: int, hide_minute: bool = False, old_lines: int = 0):
+        """A board line stamped `minutes_ahead` from now, then the check."""
+
+        import datetime as _bt_dt
+
+        with _lt_tmp.TemporaryDirectory() as home:
+            root = _lt_pl.Path(home) / "work"
+            bare = _lt_pl.Path(home) / "origin.git"
+            env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                   "PATH": _lt_os.environ.get("PATH", ""), "HOME": home}
+            _lt_sp.run(["git", "init", "-q", "--bare", str(bare)], env=env, check=True)
+            (root / "docs").mkdir(parents=True)
+            (root / "docs" / "LOOP_LOG.md").write_text("# log\n", encoding="utf-8")
+            # The history the loops already have: lines that lead their commit
+            # by hours. They are committed FIRST, so the push under test does
+            # not add them - which is the whole of case (b).
+            stale = "# board\n\n"
+            for n in range(old_lines):
+                far = (_bt_dt.datetime.now(_bt_dt.timezone.utc)
+                       + _bt_dt.timedelta(minutes=600 + n)).strftime("%Y-%m-%d %H:%M UTC")
+                stale += f"- [x] 完了 {far} ループB **C-{900 + n}: 古い行。**\n"
+            (root / "docs" / "BACKLOG.md").write_text(stale, encoding="utf-8")
+            _lt_sp.run(["git", "init", "-q", "-b", "main"], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "remote", "add", "origin", str(bare)], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "add", "-A"], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "commit", "-q", "-m", "base"], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "push", "-q", "origin", "main"], cwd=root, env=env, check=True)
+            when = (_bt_dt.datetime.now(_bt_dt.timezone.utc)
+                    + _bt_dt.timedelta(minutes=minutes_ahead))
+            stamp = when.strftime("%Y-%m-%d %H:4x UTC" if hide_minute
+                                  else "%Y-%m-%d %H:%M UTC")
+            with (root / "docs" / "BACKLOG.md").open("a", encoding="utf-8") as handle:
+                handle.write(f"- [~] 作業中 {stamp} ループA **C-0999: 試験の項目。**\n")
+            _lt_sp.run(["git", "add", "-A"], cwd=root, env=env, check=True)
+            _lt_sp.run(["git", "commit", "-q", "-m", "claim"], cwd=root, env=env, check=True)
+            done = _lt_sp.run(["python", _LT_SCRIPT], cwd=root, env=env,
+                              capture_output=True, text=True, timeout=120)
+            return done.returncode, done.stdout
+
+    # (A) A claim line that leads its commit is refused, and named.
+    _bt_rc, _bt_out = _bt_run(279)
+    if _bt_rc == 0 or "REFUSED" not in _bt_out:
+        _bt_notes.append(f"板の未来を名乗る行を見逃す（rc={_bt_rc}）")
+    elif "BACKLOG" not in _bt_out:
+        _bt_notes.append("どのファイルの行かを名指ししない")
+    # ...and the honest lag still passes, or this is just a closed gate.
+    for _bt_label, _bt_ahead in (("同時刻", 0), ("正直な遅れ +21", 21)):
+        _bt_rc, _bt_out = _bt_run(_bt_ahead)
+        if _bt_rc != 0:
+            _bt_notes.append(f"板の{_bt_label}で赤くなる: {_bt_out.strip()[:60]}")
+
+    # (B) The 73 lines already on the board must not turn it red - only what a
+    # push adds is judged.
+    _bt_rc, _bt_out = _bt_run(0, old_lines=73)
+    if _bt_rc != 0:
+        _bt_notes.append(f"既に在る古い行で赤くなる（門が塞がる）: {_bt_out.strip()[:60]}")
+
+    # (C) 「13:4x」 - the commonest spelling on the board - is judged, not
+    # skipped. Read as the earliest minute it can mean, so the lead reported
+    # is a lower bound.
+    _bt_rc, _bt_out = _bt_run(279, hide_minute=True)
+    if _bt_rc == 0:
+        _bt_notes.append("分を伏せた `13:4x` 形を素通りする（板で一番多い書き方）")
+    _bt_rc, _bt_out = _bt_run(0, hide_minute=True)
+    if _bt_rc != 0:
+        _bt_notes.append("分を伏せた正常な行で赤くなる")
+    c.add(
+        "board_times_match_the_commit",
+        "板の行の時刻が commit と整合する",
+        0.0 if _bt_notes else 3.0,
+        detail=(
+            "; ".join(_bt_notes)
+            if _bt_notes
+            else "**実 git リポジトリで実走行**して測る。**(A)** 板に "
+            "**+30 分超**先を名乗る行を足す push を**拒否し、どのファイルの行かを名指しする**"
+            "——同時刻と実測の正直な遅れ（+21 分）は通る（通さなければ「何でも拒む門」で満点が取れる）。"
+            "**(B)** **既に板に在る 73 行では赤くならない**（**追加行だけを見ている証拠**）"
+            "——これが無いと全ループが初回から赤になり、C-1728 が踏んだ「直せない過去で門を塞ぐ」罠に戻る。"
+            "**(C)** 分を伏せた **`13:4x` 形**——**板で一番多い書き方**——も判定する。"
+            "`x` は**最も早い分**として読むので、報告する乖離は**下限**であり、"
+            "丸めが検査に有利に働くことはない。"
+            "**なぜ要るか（census・2026-09-14・標本ではない）**: 時刻を持つ板の行 **687** のうち "
+            "**73 行（10.6%）**が自分の commit より **+30 分超**先を名乗る"
+            "（中央値 +83・最大 +719＝約 12 時間・10 日に分散）。"
+            "**害は停滞点検**: `[~]` 行の時刻から経過を数えると、"
+            "**数時間先を名乗る確保はまだ始まっていないように見え、停滞しても鳴らない**。"
+            "**過去 73 行は直していない**——対象外であり、直すとしたら別の判断である"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- 板の検査が取り残された確保行を見る (C-1728) ---------------------
     #
     # When a claim's number is reassigned the completion is written under the
