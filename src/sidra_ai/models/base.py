@@ -38,6 +38,14 @@ class GenerationRequest:
     data_context: str = ""
     max_output_tokens: int = 512
     temperature: float = 0.2
+    #: The query retrieval actually used to fetch ``data_context``. On a follow-up
+    #: that carried the previous question (「もっと詳しく」→ ``searched_query``) the
+    #: bare ``user_message`` names no subject, so a backend that opens its answer
+    #: on the query-relevant passage (C-1827) must use this to reach the carried
+    #: subject (C-1828). Empty on a single turn, where it equals ``user_message``,
+    #: so a backend falls back to ``user_message`` and ordinary answers are
+    #: unchanged. It is a hint for excerpt selection only, never an instruction.
+    retrieval_query: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

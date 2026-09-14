@@ -75,6 +75,28 @@ def _answer(result) -> str:
     return str(d.get("answer") or "")
 
 
+def _direct_body(user_message: str) -> str:
+    """The echo backend's answer when only ``user_message`` is set - no
+    ``retrieval_query``. A direct caller (test, other backend) that names a
+    subject in the turn must still get a query-relevant body: ``_lead`` falls
+    back to ``user_message`` when ``retrieval_query`` is empty (C-1827/C-1828).
+    """
+    from sidra_ai.models.base import GenerationRequest
+    from sidra_ai.models.echo import EchoModelAdapter
+
+    block = (
+        "<<<SIDRA_DATA_BLOCK S1>>>\n"
+        f"source: {_REPO}@cccccccc:docs/ops.md\n"
+        "trust: retrieved-data\n"
+        f"content:\n{_CONTENT}\n"
+        "<<<END_SIDRA_DATA_BLOCK S1>>>"
+    )
+    request = GenerationRequest(
+        system_prompt="", user_message=user_message, data_context=block,
+    )
+    return EchoModelAdapter().generate(request).text
+
+
 def evaluate_answer_body_follows_carried_subject() -> AnswerBodyCarriesSubjectResult:
     checks = 0
     failures: list[str] = []
@@ -104,8 +126,14 @@ def evaluate_answer_body_follows_carried_subject() -> AnswerBodyCarriesSubjectRe
     # (D) the follow-up body opens on the subject sentence, not the filler.
     add("デプロイは" in followup,
         f"D: 「もっと詳しく」body did not open on the subject: {followup[:80]!r}")
+    # (E) a direct caller that names a subject in the turn but sets no
+    # retrieval_query still gets a query-relevant body (the user_message
+    # fallback). Distinguishes the fallback from a bare retrieval_query read.
+    direct_only = _direct_body("デプロイの所要時間は")
+    add(_ANSWER_MARK in direct_only,
+        f"E: direct body without retrieval_query lost the subject: {direct_only[:80]!r}")
 
-    total = 4
+    total = 5
     return AnswerBodyCarriesSubjectResult(
         passed=not failures,
         checks_passed=checks,

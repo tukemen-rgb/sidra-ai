@@ -24,7 +24,7 @@ def _answer(result) -> str:
 def test_answer_body_follows_carried_subject_eval_passes():
     result = evaluate_answer_body_follows_carried_subject()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 4
+    assert result.checks_passed == result.checks_total == 5
 
 
 def test_followup_body_shows_the_carried_subject():

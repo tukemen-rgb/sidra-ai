@@ -1051,6 +1051,12 @@ class SidraService:
             user_message=query,
             data_context=data_context,
             max_output_tokens=self.settings.model_max_output_tokens,
+            # C-1828: the query retrieval actually used - equal to `query` on a
+            # single turn, but the carried previous question on a subject-less
+            # follow-up (「もっと詳しく」→ searched_query). A backend that opens its
+            # answer on the query-relevant passage (C-1827) needs it to reach the
+            # carried subject, the same query the excerpt already follows (C-1782).
+            retrieval_query=searched_query,
         )
 
         try:

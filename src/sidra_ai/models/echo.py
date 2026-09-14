@@ -148,11 +148,17 @@ class EchoModelAdapter(LocalModelAdapter):
         # (「抜粋が同じ」 / "same excerpt as"). The full text of each source is in
         # its citation, where any difference is visible.
         same_note = "（{} と抜粋が同じ）" if _reply_in_japanese(request.user_message) else "(same excerpt as {})"
+        # C-1828: open each block on the passage matching the query retrieval
+        # actually used. On a subject-less follow-up (「もっと詳しく」) that is the
+        # carried previous question (retrieval_query), not the bare turn; on a
+        # single turn retrieval_query is empty and this falls back to the turn,
+        # so ordinary answers are unchanged (C-1827).
+        lead_query = request.retrieval_query or request.user_message
         lines = [preamble, ""]
         shown: dict[str, str] = {}
         for match in blocks:
             label = match.group("label")
-            excerpt = self._lead(match.group("content"), request.user_message)
+            excerpt = self._lead(match.group("content"), lead_query)
             lines.append(f"[{label}] {match.group('citation')}")
             prior = shown.get(excerpt) if excerpt else None
             if prior is not None:
