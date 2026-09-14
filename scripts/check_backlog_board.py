@@ -350,18 +350,146 @@ def _previous_board(board: Path) -> str | None:
     return None
 
 
+def _claim_commit_times(board: Path, lines: list[int]) -> dict[int, int | None]:
+    """Committer time (epoch seconds) of the commit each line came in on.
+
+    Read from git, never from the timestamp written on the line. C-1813
+    censused the board's own stamps: 73 of 687 lead their own commit by more
+    than 30 minutes, median +83 and worst +719. A watch that reads the line to
+    decide how long a claim has been sitting is reading the one number the
+    claimer chose, which is why the stall watch already gave up on it.
+
+    ``None`` for a line git cannot place - not yet committed, or no git at
+    all. The caller prints that as unknown rather than guessing zero: an
+    unknown age must not read as a fresh claim.
+    """
+
+    import subprocess
+
+    out: dict[int, int | None] = {}
+    for line in lines:
+        blamed = subprocess.run(
+            ["git", "blame", "--line-porcelain", "-L", f"{line},{line}", "--", board.name],
+            cwd=board.parent, capture_output=True, text=True,
+        )
+        when: int | None = None
+        if blamed.returncode == 0:
+            rows = blamed.stdout.split("\n")
+            # A line that is written but not committed is blamed on the
+            # all-zero sha, and git stamps that pseudo-commit with *now*. Taken
+            # at face value it reads 「確保から 0 分」 forever: a claim written
+            # three hours ago and never pushed would stay permanently fresh and
+            # never come up for the 30-minute takeover. Unknown is the honest
+            # answer, so the zero sha is read before the time.
+            committed = not (rows and rows[0].split(" ")[0].strip("0") == "")
+            if committed:
+                for row in rows:
+                    if row.startswith("committer-time "):
+                        try:
+                            when = int(row.split()[1])
+                        except (IndexError, ValueError):
+                            when = None
+                        break
+        out[line] = when
+    return out
+
+
+def _age(seconds: int | None) -> str:
+    if seconds is None:
+        return "経過不明（commit 未確定）"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"確保から {minutes} 分"
+    return f"確保から {minutes // 60} 時間 {minutes % 60} 分"
+
+
+def claims_report(text: str, board: Path, now: int | None = None) -> list[str]:
+    """What the check already knows about 「~」, said out loud.
+
+    Nothing here is new knowledge. ``_stranded_claims`` has been able to name
+    the leftover claims since C-1728, and ``ACKNOWLEDGED`` has been able to say
+    which of them somebody has already explained. The output printed one line -
+    the item count - so every loop re-derived the same answer from prose
+    instead: 22 lines of ``docs/LOOP_LOG.md`` mention C-1694 or C-1699, 19 of
+    them inside a no-op explanation, over about 59 hours.
+
+    Three rules decide what a reader may trust here (C-1819 A/B/C):
+
+    * every 「~」 on the board appears, live or not - a claim must not be able
+      to leave this list by being judged, only by being folded;
+    * **a claim with no written reason is live**, however old it is. Leftover
+      status is the written 「この行は取り残しです」, never the age (C-1728);
+      a structurally-stranded claim nobody has explained stays on the live
+      side, where ``_stranded_unacknowledged`` is already complaining about it;
+    * a claim judged a leftover is still printed, named as such. Dropping it
+      would let "solved by becoming invisible" score the same as solved.
+    """
+
+    import time
+
+    claims = [item for item in read_items(text) if item["box"] == "~"]
+    if not claims:
+        return ["生きている確保 0 件・取り残し 0 件（「~」は 1 件も無い）"]
+
+    stranded = _stranded_claims(text)
+
+    # Classify first, blame second. A leftover prints no age, and asking git
+    # for one is what made this slow: blaming the two real leftovers cost 3.5
+    # and 3.8 seconds against 0.04 for a claim made this hour, because they are
+    # two days old and blame walks that much more history. This check runs on
+    # every push, so the lines whose age is never printed are never looked up -
+    # 7.7s to 0.15s, and nothing in the output changes.
+    live_items: list[tuple[dict, str, bool]] = []
+    left: list[str] = []
+    for item in claims:
+        key = item["id"] or f"L{item['line']}"
+        body = "\n".join(line for _, line in item["body"])
+        # Written reason, not age. Both must hold to call it a leftover.
+        explained = bool(ACKNOWLEDGED.search(body))
+        if key in stranded and explained:
+            left.append(f"    L{item['line']} {key}: 取り残し（`{stranded[key][1]}` は完了行で新設済み・理由が書かれている）")
+        else:
+            live_items.append((item, key, key in stranded))
+
+    times = _claim_commit_times(board, [item["line"] for item, _, _ in live_items])
+    when = int(time.time()) if now is None else now
+
+    live: list[str] = []
+    for item, key, unexplained in live_items:
+        made = times.get(item["line"])
+        age = _age(None if made is None else when - made)
+        note = "・**理由が書かれていないので生きている扱い**" if unexplained else ""
+        live.append(f"    L{item['line']} {key}: {age}{note}")
+
+    report = [f"確保「~」{len(claims)} 件: 生きている {len(live)} 件・取り残し {len(left)} 件"]
+    if live:
+        report.append("  生きている:")
+        report.extend(live)
+    if left:
+        report.append("  取り残し（作業ではない。行は持ち主が畳む）:")
+        report.extend(left)
+    return report
+
+
 def main(argv: list[str]) -> int:
     board = Path(argv[1]) if len(argv) > 1 else BOARD
     text = board.read_text(encoding="utf-8")
     problems = check(text, _previous_board(board))
     items = read_items(text)
     numbered = sum(1 for item in items if item["id"])
+    # The claim report prints either way: it is what the board says, not a
+    # verdict on it, and a reader chasing an inconsistency wants it most.
+    claims = claims_report(text, board)
     if problems:
         print(f"{board}: {len(problems)} 件の不整合")
         for problem in problems:
             print(f"  - {problem}")
+        for line in claims:
+            print(line)
         return 1
     print(f"{board}: {len(items)} 項目（うち採番 {numbered}）・不整合なし")
+    for line in claims:
+        print(line)
     return 0
 
 

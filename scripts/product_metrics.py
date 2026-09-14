@@ -25210,6 +25210,42 @@ def measure_creation(c: Collector) -> None:
     _bt_rc, _bt_out = _bt_run(0, hide_minute=True)
     if _bt_rc != 0:
         _bt_notes.append("分を伏せた正常な行で赤くなる")
+    # C-1819: the board checker could name the leftover claims since C-1728 and
+    # printed none of it - its whole output was the item count. Three loops
+    # re-derived the same sentence from prose for about 59 hours (22 lines of
+    # LOOP_LOG mention C-1694/C-1699, 19 inside a no-op explanation). Measured
+    # by running the script over throwaway git checkouts, through both of its
+    # exits, because the defect was precisely that the knowledge never reached
+    # stdout.
+    from sidra_ai.evals.board_says_which_claims_are_live import (
+        evaluate_board_says_which_claims_are_live,
+    )
+
+    _claims = evaluate_board_says_which_claims_are_live()
+    c.add(
+        "board_says_which_claims_are_live",
+        "板の検査器が「どの確保が生きているか」を印字する",
+        3.0 * _claims.checks_passed / _claims.checks_total,
+        detail=(
+            f"{_claims.checks_passed}/{_claims.checks_total} checks; "
+            "src/sidra_ai/evals/board_says_which_claims_are_live.py"
+            + ("" if _claims.passed else "; " + "; ".join(_claims.failures[:3]))
+            + "。**実 git checkout で script を実走行**して測る（関数を直接呼ぶと"
+            "「知っているのに言わない」という欠陥そのものが見えない——実際、"
+            "print を消しても満点のままだった）。**A** 件数と内訳を印字する／"
+            "**B** **理由が書かれていない確保は必ず「生きている」側に出る**"
+            "（取り残しの認定は書かれた理由であって古さではない・C-1728 の核心。"
+            "機械が判定だけで確保を畳めないようにする条項）／"
+            "**C** 取り残しと判定した行も印字に残る（消せば「見えないことで解決」が満点を取る）／"
+            "**D** 生きている確保の経過は**板の時刻ではなく commit の時刻**"
+            "（C-1813 の census: 687 行中 73 行が +30 分超ずれる）／"
+            "**E** commit されていない確保は「経過不明」——git は未 commit 行に**現在時刻**を"
+            "付けるので、そのまま読むと 3 時間前に書かれた確保が永遠に「0 分」になり"
+            "**30 分規則で奪えなくなる**／**F** 印字は**成功・拒否の両方の出口**から出る。"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "board_times_match_the_commit",
         "板の行の時刻が commit と整合する",
