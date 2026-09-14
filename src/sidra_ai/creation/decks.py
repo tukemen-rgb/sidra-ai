@@ -393,6 +393,7 @@ def _render(
     theme: Theme,
     omitted: bool = False,
     fallback: str = "",
+    title_number_unsourced: bool = False,
 ) -> str:
     t = theme.tokens
     # C-1478: a fact whose text matched no section's cue was left out of every
@@ -411,6 +412,17 @@ def _render(
     # substituted genre (C-1788) - a forwarded deck must not read as the shape
     # that was asked for. Empty for a buildable request, so no false caveat.
     fallback_note = f"⚠️ {escape(fallback)} " if fallback else ""
+    # C-1799: the cover title comes from the request, so a figure in it
+    # (「解約率30%の改善」) is not sourced by the corpus - yet the footer promised
+    # every number was. Scope that promise to the body and name the gap, the way
+    # the report does for the same case (C-1772). A clean title keeps the
+    # original blanket assurance.
+    number_scope = "本文の数字は" if title_number_unsourced else "数字は"
+    title_caveat = (
+        "タイトルの数値は索引した根拠では確認できていません。"
+        if title_number_unsourced
+        else ""
+    )
     blocks = []
     for index, slide in enumerate(slides, start=1):
         bullets = "".join(f"<li>{escape(b)}</li>" for b in slide.bullets)
@@ -453,8 +465,8 @@ footer{{margin-top:24px;border-top:1px solid {t["border"]};padding-top:14px;
 <body><main>
 <h1>{escape(title)}</h1>
 {"".join(blocks)}
-<footer>{fallback_note}SIDRA AI が生成。数字は索引した文書から引いたものだけを載せ、
-根拠が無い欄は {escape(BLANK)} のまま残しています（推測で埋めません）。{omitted_note}</footer>
+<footer>{fallback_note}SIDRA AI が生成。{number_scope}索引した文書から引いたものだけを載せ、
+根拠が無い欄は {escape(BLANK)} のまま残しています（推測で埋めません）。{title_caveat}{omitted_note}</footer>
 </main></body></html>
 """
 
@@ -480,7 +492,18 @@ def generate_deck(
     omitted = any(fact not in used for fact in provided)
     title = _title_from(request, spec.default_title)
     fallback = outline_fallback_note(request, key)
-    html = _render(title, slides, select_theme(request), omitted=omitted, fallback=fallback)
+    # C-1799: a figure in the cover title that no retrieved fact carries is an
+    # unsourced number, exactly as the report checks its own title (C-1772). The
+    # same source label + text is the evidence a slide could have cited.
+    evidence_text = " ".join(f"{fact.text} {fact.source}" for fact in provided)
+    title_number_unsourced = any(
+        token and token not in evidence_text
+        for token in (number.strip() for number in _NUMBER.findall(title))
+    )
+    html = _render(
+        title, slides, select_theme(request), omitted=omitted, fallback=fallback,
+        title_number_unsourced=title_number_unsourced,
+    )
     unfilled = tuple(slide.title for slide in slides if slide.blanks)
     return GeneratedDeck(key, title, slides, html, unfilled)
 
