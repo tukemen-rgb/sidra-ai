@@ -16,7 +16,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from sidra_ai.creation.copy_writer import CopyWriter, copy_metadata
-from sidra_ai.creation.decks import Fact, generate_deck, save_deck, save_pptx, validate_deck
+from sidra_ai.creation.decks import (
+    Fact,
+    generate_deck,
+    outline_fallback_note,
+    save_deck,
+    save_pptx,
+    validate_deck,
+)
 from sidra_ai.creation.empty import empty_notice
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
@@ -115,6 +122,13 @@ def build_deck_generator(
                 "なお PowerPoint（.pptx）は作れなかったので HTML のみ保存しています。"
                 "PowerPoint 出力の有効化は管理者にご相談ください。"
             )
+        # C-1793: the request named a structure the deck cannot build, so it
+        # fell back to a standard outline. Said here from the same source as the
+        # deck's own footer, so the summary a person reads and the artifact they
+        # forward cannot disagree. Empty for a buildable shape.
+        outline_note = outline_fallback_note(message, deck.outline)
+        if outline_note:
+            summary += "なお、" + outline_note
         return CreationOutcome(
             kind=intent.kind,
             handled=True,

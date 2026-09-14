@@ -122,6 +122,67 @@ def choose_outline(request: str) -> str:
     return "pitch"
 
 
+#: Named slide structures the deck cannot build. Like ``detect_genre``'s table
+#: (C-1788) this names the promise, not the inventory: a structure that lands
+#: as a real outline later drops out of the list. Kept deliberately tight -
+#: only unambiguous structure names - so a pitch that merely mentions one of
+#: these words in passing is not caveated. Residual (stated, not hidden): a
+#: structure not on this list is substituted silently, the same bounded gap
+#: ``detect_genre`` carries for an unlisted genre.
+_UNBUILDABLE_STRUCTURES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("SWOT", ("swot",)),
+    ("タイムライン", ("タイムライン", "timeline")),
+    ("ロードマップ", ("ロードマップ", "roadmap")),
+    ("ガントチャート", ("ガントチャート", "ガント", "gantt")),
+    ("フローチャート", ("フローチャート", "フロー図", "flowchart")),
+    ("組織図", ("組織図",)),
+    ("マトリクス", ("マトリクス", "matrix")),
+    ("相関図", ("相関図",)),
+    ("年表", ("年表",)),
+)
+
+#: How each built outline reads in the substitution note.
+_OUTLINE_LABELS: dict[str, str] = {
+    "pitch": "ピッチ（課題→解決→根拠→次の一歩）",
+    "status": "進捗報告",
+}
+
+
+def detect_structure(request: str) -> str:
+    """Name a slide structure the request asked for that the deck cannot build.
+
+    Returns "" when the request named none we recognise as unbuildable - a bare
+    「スライドを作って」, or a shape the deck does build (pitch/status). Mirrors
+    ``detect_genre`` (C-1788): only a request that says an unsupported structure
+    out loud can be answered with the wrong one.
+    """
+
+    lowered = request.casefold()
+    for label, words in _UNBUILDABLE_STRUCTURES:
+        if any(word.casefold() in lowered for word in words):
+            return label
+    return ""
+
+
+def outline_fallback_note(request: str, outline: str) -> str:
+    """The admission that the deck fell back to a standard outline, or "".
+
+    One source of truth for the deck page (the artifact that is forwarded and
+    reopened) and the chat summary (``deck_job``), so both say the same thing -
+    the same reason ``genre_fallback_note`` (C-1788) is shared by the game page
+    and its summary. A request that named a buildable shape draws no note.
+    """
+
+    named = detect_structure(request)
+    if not named:
+        return ""
+    label = _OUTLINE_LABELS.get(outline, outline)
+    return (
+        f"「{named}」の構成はまだ作れないため、代わりに標準の"
+        f"「{label}」構成で作りました。"
+    )
+
+
 #: Slide-deck-kind nouns a cover title should not end with, since the artifact
 #: already is one: 「GAMEYARD の強みのスライド」→「GAMEYARD の強み」 (C-1249, the
 #: deck twin of the document C-1246). Longer forms are listed first so the
@@ -327,7 +388,11 @@ def _no_external_assets(html: str) -> bool:
 
 
 def _render(
-    title: str, slides: tuple[Slide, ...], theme: Theme, omitted: bool = False
+    title: str,
+    slides: tuple[Slide, ...],
+    theme: Theme,
+    omitted: bool = False,
+    fallback: str = "",
 ) -> str:
     t = theme.tokens
     # C-1478: a fact whose text matched no section's cue was left out of every
@@ -340,6 +405,12 @@ def _render(
         if omitted
         else ""
     )
+    # C-1793: when the request named a structure the deck cannot build (SWOT,
+    # タイムライン…) it fell back to a standard outline under the asked-for
+    # title. Disclosed on the artifact itself the way the game page discloses a
+    # substituted genre (C-1788) - a forwarded deck must not read as the shape
+    # that was asked for. Empty for a buildable request, so no false caveat.
+    fallback_note = f"⚠️ {escape(fallback)} " if fallback else ""
     blocks = []
     for index, slide in enumerate(slides, start=1):
         bullets = "".join(f"<li>{escape(b)}</li>" for b in slide.bullets)
@@ -382,7 +453,7 @@ footer{{margin-top:24px;border-top:1px solid {t["border"]};padding-top:14px;
 <body><main>
 <h1>{escape(title)}</h1>
 {"".join(blocks)}
-<footer>SIDRA AI が生成。数字は索引した文書から引いたものだけを載せ、
+<footer>{fallback_note}SIDRA AI が生成。数字は索引した文書から引いたものだけを載せ、
 根拠が無い欄は {escape(BLANK)} のまま残しています（推測で埋めません）。{omitted_note}</footer>
 </main></body></html>
 """
@@ -408,7 +479,8 @@ def generate_deck(
     slides, used = build_slides(spec, provided)
     omitted = any(fact not in used for fact in provided)
     title = _title_from(request, spec.default_title)
-    html = _render(title, slides, select_theme(request), omitted=omitted)
+    fallback = outline_fallback_note(request, key)
+    html = _render(title, slides, select_theme(request), omitted=omitted, fallback=fallback)
     unfilled = tuple(slide.title for slide in slides if slide.blanks)
     return GeneratedDeck(key, title, slides, html, unfilled)
 
