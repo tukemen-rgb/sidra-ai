@@ -2678,6 +2678,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1874: every "not a question" input gets a next step except the most basic
+    # one - the submit handler returned on an empty/whitespace box before any
+    # feedback, though the page carries refusalMsg["empty"] (C-1515). The empty
+    # guard now writes that same sentence to the live status region from one
+    # source. Structural: UI JS cannot run in the judge.
+    from sidra_ai.evals.ui_empty_submit_is_answered_not_silent import (
+        evaluate_ui_empty_submit_is_answered_not_silent,
+    )
+
+    ui_empty = evaluate_ui_empty_submit_is_answered_not_silent()
+    c.add(
+        "ui_empty_submit_is_answered_not_silent",
+        "会話 UI が空欄送信に沈黙せず案内を出す（単一出所を再利用）",
+        10.0 * ui_empty.checks_passed / ui_empty.checks_total,
+        detail=f"{ui_empty.checks_passed}/{ui_empty.checks_total} checks; "
+               "src/sidra_ai/evals/ui_empty_submit_is_answered_not_silent.py"
+               + ("" if ui_empty.passed else "; " + "; ".join(ui_empty.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1703: the excerpt cap could cut a [REDACTED:...] placeholder in half,
     # showing a meaningless [REDACT fragment - visible to users since C-1689/1691
     # put the excerpt on screen. The excerpt now drops a placeholder whole rather
