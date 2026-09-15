@@ -245,8 +245,22 @@ def _print_citations(
 #: down". A closed set keyed on the stable ``refusal`` code (the same code the
 #: page reads), not the reason text. These are the non-safety members of the
 #: service's refusal vocabulary.
+#:
+#: C-1872: the set had drifted behind the service. Six conversational codes were
+#: added to ``SidraService.chat`` after C-1811 - a delete request it does not
+#: perform, the "what have you made" listing, a question about a feature of the
+#: made page, a per-viewer page setting, and a revision whose content or kind it
+#: could not carry out - and each is the same "recognized non-corpus input and
+#: answered" case as the originals. Absent from this set, all six fell back to
+#: exit 1, so a monitor read every one as a backend outage. The eval that guards
+#: this now drives the real service, not a synthetic payload list, so a
+#: conversational code added next cannot slip the exit-code contract unseen.
 _CONVERSATIONAL_REFUSALS = frozenset(
-    {"empty", "ambiguous", "unnamed", "greeting", "revision_target", "help"}
+    {
+        "empty", "ambiguous", "unnamed", "greeting", "revision_target", "help",
+        "delete_unsupported", "artifact_list", "artifact_feature_question",
+        "panel_setting", "revision_change", "revision_kind",
+    }
 )
 
 
