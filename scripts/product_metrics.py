@@ -1798,6 +1798,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1849: the citation-excerpt sibling of C-1217. The tail cut at the budget
+    # landed mid-digit, so a figure straddling the boundary showed 「1,234,567,890」
+    # as 「…1,2…」 - a partial number reading as a small whole value. The excerpt now
+    # drops a split figure back to its start (the 「…」 still marks the clip).
+    from sidra_ai.evals.citation_excerpt_not_cut_mid_number import (
+        evaluate_citation_excerpt_not_cut_mid_number,
+    )
+
+    excerpt_num = evaluate_citation_excerpt_not_cut_mid_number()
+    c.add(
+        "citation_excerpt_not_cut_mid_number",
+        "引用抜粋の末尾が数字を桁の途中で切らない（部分数字を見せない）",
+        10.0 * excerpt_num.checks_passed / excerpt_num.checks_total,
+        detail=f"{excerpt_num.checks_passed}/{excerpt_num.checks_total} checks; "
+               "src/sidra_ai/evals/citation_excerpt_not_cut_mid_number.py"
+               + ("" if excerpt_num.passed else "; " + "; ".join(excerpt_num.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1782: a subjectless follow-up (「もっと詳しく」) retrieves on searched_query
     # (prev + query) but attached the excerpt with the bare query, which scored
     # every window zero and fell back to the chunk opening - so the excerpt shown
