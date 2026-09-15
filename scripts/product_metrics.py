@@ -8192,7 +8192,7 @@ def measure_creation(c: Collector) -> None:
         ("racing", "レースゲームを作って"),
     )
     # The twenty node runs are independent, so they go out together: the
-    # whole collector runs inside a 300s hang-guard that it already sits
+    # whole collector runs inside a hang-guard that it already sits
     # 2s under (C-1613), and a sequential block here would spend that
     # margin on waiting rather than on measuring.
     #
@@ -27720,12 +27720,15 @@ def measure_creation(c: Collector) -> None:
 
     # --- 走った時間を、走りながら申告する (C-1521) -----------------------
     #
-    # ``test_script_runs_and_prints_a_table`` allows this script 300 seconds
-    # and the script takes 200-300 of them, so on a loaded machine (three
-    # loops share one here) the same tree is green or red depending on the
-    # weather. The timeout itself says nothing about which, so a loop that
-    # sees one has to go and measure - this one spent most of a cycle doing
+    # The script takes 200-300 seconds and three loops share this machine,
+    # so a run that goes long has to say where the time went rather than
+    # leave a loop to go and measure - this one spent most of a cycle doing
     # exactly that, and twice reached the wrong answer before instrumenting.
+    #
+    # Corrected C-1859: this comment said the test "allows this script 300
+    # seconds". It allows 900 (``timeout=900``, raised by C-1613 as "a
+    # hang-guard, not a performance contract"). The 300 is an advisory line
+    # and nothing fails when it is crossed - measured, a 327s run passed.
     #
     # This does not make the script faster. It makes the script *say* where
     # its time went, every run, so the next loop reads it instead of
@@ -27756,9 +27759,18 @@ def measure_creation(c: Collector) -> None:
         )
         # The report itself, rendered exactly as a run prints it.
         _clock_text = _runtime_report(c, _clock_wall)
-        for _needed in ("a run is allowed", "Slowest sections:"):
+        # "a run is allowed" was one of these until C-1859: the report said
+        # it of a line nothing enforces, and this check held the false
+        # sentence in place. What the report has to carry is the advisory
+        # line, the enforced limit, and the breakdown.
+        for _needed in ("advisory", "Slowest sections:"):
             if _needed not in _clock_text:
                 _clock_bad.append(f"報告に「{_needed}」が無い")
+        _clock_enforced = enforced_timeout_seconds()
+        if _clock_enforced is None:
+            _clock_bad.append(f"強制されている上限を {_ENFORCED_IN} から読めない")
+        elif f"{_clock_enforced:.0f}s" not in _clock_text:
+            _clock_bad.append("報告が、実際に落とす上限を名指ししていない")
         if f"{SUBPROCESS_BUDGET_SECONDS:.0f}s" not in _clock_text:
             _clock_bad.append("報告が予算の秒数を言わない")
         if _clock_slowest[0] not in _clock_text:
@@ -28443,9 +28455,12 @@ def measure_creation(c: Collector) -> None:
             "; ".join(_clock_bad)
             if _clock_bad
             else "**この走行そのものを測って報告する**。" + "・".join(_clock_note) + "。"
-            f"予算は **{SUBPROCESS_BUDGET_SECONDS:.0f} 秒**"
-            "（`test_script_runs_and_prints_a_table` が subprocess を切る値）で、"
-            "報告は**残り秒数と高い節 5 つ**を毎回出す——`--json` と `--compare` "
+            f"**助言線は {SUBPROCESS_BUDGET_SECONDS:.0f} 秒・実際に落とす上限は "
+            f"{enforced_timeout_seconds() or 0:.0f} 秒**"
+            f"（`{_ENFORCED_IN}` の `timeout=` を毎回読む）で、**両方を毎回並べて出す**"
+            "——ここは長く「予算は 300 秒（テストが subprocess を切る値）」と書いていたが"
+            "**テストが切る値は 900 秒**であり、**3 つのループが「赤まで 23 秒」と読んだ**（C-1859）。"
+                        "報告は**残り秒数と高い節 5 つ**を毎回出す——`--json` と `--compare` "
             "でも stderr に出るので、驚いた走行がどのモードでも読める。"
             "**両方向**: 報告が在るだけでは足りないので、"
             "**節の合計が実時間を超えないこと**と"
@@ -32001,6 +32016,49 @@ def measure_runtime(c: Collector) -> None:
     adding a bundled probe leaves this number where it was.
     """
 
+    # Whether a run that goes long can say what it spent the time on
+    # (C-1859). Three loops read the line above this one as "seconds from a
+    # red test" - it said 「N of the 300s a run is allowed」 while the only
+    # enforced limit is the suite's timeout=900, and a run deliberately
+    # taken to 327s passed. The two halves measured here are the two ways
+    # that goes wrong: naming a limit nothing enforces, and being unable to
+    # reach the numbers in the one case they exist for - a run that is
+    # killed, where the report is never assembled at all.
+    #
+    # Measured first, before the spawn counters: this sat after their
+    # early return, so on a run that saw no node spawn at all the
+    # number would have gone missing rather than gone to zero - and a
+    # judge that disappears under an unrelated condition is the exact
+    # failure C-1491 named. Found by running the section, not by
+    # reading the diff.
+    from sidra_ai.evals.overrun_says_why import evaluate_overrun_says_why
+
+    _overrun = evaluate_overrun_says_why()
+    c.add(
+        "metrics_overrun_says_why",
+        "予算を超えた走行が、何に使ったかを言えているか",
+        float(_overrun.checks_passed),
+        unit="/3",
+        detail=(
+            "; ".join(_overrun.failures)
+            if _overrun.failures
+            else "**実測で確かめた 3 点**——(A) **強制されている上限は読み取りであって書き写しではない**"
+            f"（`{_ENFORCED_IN}` の `timeout=` を読む。書き写しがまさに壊れ方だった:"
+            "**定数は 300 と言い、テストは 900 と言ったまま並んでいた**）、"
+            "(B) **走行時間の行が助言線と強制上限の両方を名指しし、どちらが落とすのかを言う**"
+            "（旧版は 1 つだけ名指して「a run is allowed」と呼び、**3 つのループが「赤まで 23 秒」と読んだ**）、"
+            "(C) **実際に殺した子プロセスが、終わった節を既に言っている**"
+            "——`collect()` が節ごとに stderr へ 1 行流すようにしたので、"
+            "**殺された走行には終わった節が残り、死んだ節だけが列から欠ける**。"
+            "**(C) は本当に走らせて本当に殺している**（「印字されるはずだ」は、この項目が止めようとしている当の主張）。"
+            "**300 秒は助言線であって予算ではない**: `sleep(60)` で **327s** まで伸ばした走行で"
+            "`test_script_runs_and_prints_a_table` は**通った**。数字は消さない"
+            "——2 週間で倍になった走行は誰かが見るべきなので、**名前だけを正した**。"
+        ),
+        direction="up",
+        kind=OUTCOME,
+    )
+
     bundled = _SPAWN_THREADS["bundled"]
     alone = _SPAWN_THREADS["alone"]
     total = bundled + alone
@@ -32026,6 +32084,7 @@ def measure_runtime(c: Collector) -> None:
         # not a site being bundled.
         min_move=1.0,
     )
+
 
 
 COLLECTORS = (
@@ -32073,10 +32132,50 @@ def in_parallel(jobs, workers: int = 4):
         return [future.result() for future in [pool.submit(job) for job in jobs]]
 
 
-#: What ``tests/test_product_metrics.py`` allows this script per run. Named
-#: here so the report can say how close it came instead of leaving a loop to
-#: rediscover the number from a traceback (C-1521).
+#: The line past which this run is worth looking at. **Advisory** - nothing
+#: fails when it is crossed, and the comment that used to sit here ("what
+#: ``tests/test_product_metrics.py`` allows this script per run") was simply
+#: untrue: that test passes ``timeout=900``, and has since C-1613 raised it
+#: with the note "a hang-guard, not a performance contract" (C-1859).
+#:
+#: The cost of the untrue version was three loops reading "+23.2s of
+#: headroom" as "23 seconds from a red test": C-1521's own docstring says a
+#: loop "saw a timeout" at this line, C-1856 was filed as 「予算 300 秒に
+#: 迫った」 and escalated on 105s->27s of it, and the item that led to this
+#: fix repeated the claim a third time. Measured rather than argued: a
+#: deliberate ``sleep(60)`` took a run to **327s**, 27s past this line, and
+#: ``test_script_runs_and_prints_a_table`` **passed**.
+#:
+#: So the number stays - a run that crosses it has roughly doubled in a
+#: fortnight and somebody should look - but it is named for what it is, and
+#: the report prints the enforced limit beside it.
 SUBPROCESS_BUDGET_SECONDS = 300.0
+
+#: Where the enforced limit is written down. Read off the test rather than
+#: restated here, because restating it is exactly how the last one came to be
+#: wrong: the constant said 300 and the test said 900 for two months with
+#: nothing to notice. Same shape as C-1824 - the document quotes the gate
+#: that actually runs.
+_ENFORCED_IN = "tests/test_product_metrics.py"
+_ENFORCED_RE = r"timeout=(\d+)"
+
+
+def enforced_timeout_seconds() -> float | None:
+    """The largest timeout the suite actually gives a whole-collector run.
+
+    ``None`` when it cannot be read - a missing or rewritten test file must
+    read as "unknown", never as a number, or this goes back to being a
+    constant that agrees with nothing.
+    """
+
+    import re as _enf_re
+
+    try:
+        text = (ROOT / _ENFORCED_IN).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    found = [float(n) for n in _enf_re.findall(_ENFORCED_RE, text)]
+    return max(found) if found else None
 
 
 def _runtime_report(collector: "Collector", elapsed: float) -> str:
@@ -32085,15 +32184,28 @@ def _runtime_report(collector: "Collector", elapsed: float) -> str:
     ranked = sorted(collector.timings, key=lambda pair: pair[1], reverse=True)
     accounted = sum(seconds for _, seconds in collector.timings)
     headroom = SUBPROCESS_BUDGET_SECONDS - elapsed
+    enforced = enforced_timeout_seconds()
+    # Both lines, always, and labelled (C-1859). This said "of the 300s a
+    # run is allowed" while the suite allowed 900, so "+23.2s of headroom"
+    # read as "23 seconds from a red test" - and was read that way three
+    # times, once into an escalation. Measured: a run taken to 327s by a
+    # deliberate sleep passed.
     lines = [
-        f"{elapsed:.1f}s of the {SUBPROCESS_BUDGET_SECONDS:.0f}s a run is "
-        f"allowed ({headroom:+.1f}s of headroom; "
-        f"{accounted:.1f}s accounted for by sections)."
+        f"{elapsed:.1f}s against a {SUBPROCESS_BUDGET_SECONDS:.0f}s advisory "
+        f"line ({headroom:+.1f}s to the advisory line; {accounted:.1f}s "
+        "accounted for by sections). "
+        + (
+            f"Nothing fails here - the enforced limit is {enforced:.0f}s "
+            f"({_ENFORCED_IN}), {enforced - elapsed:+.0f}s away."
+            if enforced is not None
+            else f"The enforced limit could not be read from {_ENFORCED_IN}, "
+            "so how much room is left is unknown."
+        )
     ]
     if headroom < 60:
         lines.append(
-            "  Close to the budget: a loaded machine can push this run over, "
-            "and the timeout will not say why. Slowest sections:"
+            "  Past the advisory line, or nearly: worth looking at, not a "
+            "failure. Slowest sections:"
         )
     else:
         lines.append("  Slowest sections:")
@@ -32299,14 +32411,18 @@ _START = time.monotonic()
 def collect() -> Collector:
     """Run every section, and remember what each one cost.
 
-    C-1521: ``test_script_runs_and_prints_a_table`` gives this script 300
-    seconds, and the script takes 200-300 of them - so on a loaded machine
-    (three loops share one here) the same tree is green or red depending on
-    what else is running. That would be tolerable if the failure said so.
-    It does not: a loop that pushed a change and saw a timeout has no way to
-    tell its own cost from the weather, and the only honest response is to
-    go and measure, which cost this loop most of a cycle. The section times
-    are that measurement, taken every run and reported without being asked.
+    C-1521: the script takes 200-300 seconds and three loops share this
+    machine, so a run that goes long leaves a loop unable to tell its own
+    cost from the weather. The only honest response was to go and measure,
+    which cost this loop most of a cycle. The section times are that
+    measurement, taken every run and reported without being asked - and
+    since C-1859 each one is announced as it finishes, so a run that is
+    killed still leaves the trail behind it.
+
+    What this docstring used to say - that
+    ``test_script_runs_and_prints_a_table`` "gives this script 300 seconds"
+    - was not true. That test passes ``timeout=900``. The sentence sat in
+    four places and was read as "seconds from a red test" three times.
 
     A section that raises is still timed - a probe that hangs and then fails
     is exactly the thing this is for.
@@ -32320,8 +32436,30 @@ def collect() -> Collector:
         except Exception as exc:  # noqa: BLE001 - one broken probe is not a crash
             c.unmeasurable(f"{name}_probe", f"{name} probe", f"{type(exc).__name__}: {exc}")
         finally:
-            c.timings.append((name, time.monotonic() - started))
+            spent = time.monotonic() - started
+            c.timings.append((name, spent))
+            _say_section_finished(name, spent)
     return c
+
+
+def _say_section_finished(name: str, spent: float) -> None:
+    """Announce a finished section while the run is still going (C-1859).
+
+    The report below is assembled after every section returns, so a run that
+    is killed - by the suite's enforced timeout, by a hang inside a probe,
+    by an operator who gave up - prints **nothing at all** about where the
+    time went. That is the state the item was filed against: the numbers
+    exist and the one case that needs them cannot reach them.
+
+    One line per section, to stderr, flushed. A killed run then leaves the
+    sections that did finish, and the one it died in is the one missing from
+    the trail - which is the question anybody asks first.
+
+    Deliberately not a progress bar: nine lines a run, on the stream the
+    report already uses, and the table on stdout is untouched.
+    """
+
+    print(f"  ... {name} {spent:.1f}s", file=sys.stderr, flush=True)
 
 
 @dataclass(frozen=True)

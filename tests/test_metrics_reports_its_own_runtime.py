@@ -1,11 +1,17 @@
 """C-1521: the judge script says where its time went.
 
-``test_script_runs_and_prints_a_table`` gives ``product_metrics.py`` 300
-seconds and the script takes 200-300 of them, so on a loaded machine -
-three loops share one here - the same tree is green or red depending on
-what else is running. That would be tolerable if the failure said so. It
-does not, so a loop that pushed a change and saw a timeout has no way to
-separate its own cost from the weather.
+The script takes 200-300 seconds and this machine is shared by three loops,
+so a run that goes long has to be able to say where the time went rather
+than leave the next loop to separate its own cost from the weather.
+
+**Corrected 2026-09-15 (C-1859)**: this docstring used to open with
+"``test_script_runs_and_prints_a_table`` gives ``product_metrics.py`` 300
+seconds", and that was not true - the test passes ``timeout=900``, raised
+by C-1613 with the note "a hang-guard, not a performance contract". The
+same sentence sat in three places and was read as "seconds from a red
+test" three times, once into an escalation. Measured rather than argued: a
+deliberate ``sleep(60)`` took a run to 327s and that test passed. The 300
+is an advisory line worth looking at, and the report now says so.
 
 This loop spent most of a cycle on exactly that, and reached the wrong
 answer twice before instrumenting: first blaming ``create_app`` (rewriting
@@ -19,6 +25,7 @@ next loop reads the answer instead of rediscovering it.
 from __future__ import annotations
 
 import contextlib
+import re
 import sys
 from pathlib import Path
 
@@ -36,14 +43,75 @@ def _collector(**timings: float) -> pm.Collector:
     return collector
 
 
+def _only(collector, key):
+    """The one metric with this key, or a failure that names what is there."""
+
+    found = [m for m in collector.metrics if m.key == key]
+    assert len(found) == 1, f"{key}: {[m.key for m in collector.metrics]}"
+    return found[0]
+
+
 def test_the_report_names_the_budget_it_is_measured_against() -> None:
-    """A loop reading a timeout should not have to find the 300 in a
-    traceback."""
+    """A loop reading a timeout should not have to find the number in a
+    traceback - and it should not be told the wrong one.
+
+    This used to assert the report said "a run is allowed" next to the 300.
+    Nothing allowed 300: the suite passes ``timeout=900``, raised there by
+    C-1613 as "a hang-guard, not a performance contract". Measured before
+    the wording changed - a deliberate ``sleep(60)`` took a run to 327s and
+    ``test_script_runs_and_prints_a_table`` passed - so the old assertion
+    was pinning a false sentence in place (C-1859).
+    """
 
     report = pm._runtime_report(_collector(answers=40.0), 250.0)
+    head = report.splitlines()[0]
 
-    assert f"{pm.SUBPROCESS_BUDGET_SECONDS:.0f}s" in report
-    assert "a run is allowed" in report
+    assert f"{pm.SUBPROCESS_BUDGET_SECONDS:.0f}s" in head
+    assert "advisory" in head, "the 300 has to be named as what it is"
+    assert "a run is allowed" not in report, (
+        "nothing allows 300 seconds; that phrasing is what three loops read "
+        "as 'this tree is seconds from a red test'"
+    )
+    enforced = pm.enforced_timeout_seconds()
+    assert enforced is not None and f"{enforced:.0f}s" in head, (
+        "the limit that actually fails has to be on the same line as the "
+        "one that does not"
+    )
+
+
+def test_the_enforced_limit_is_read_from_the_test_that_holds_it() -> None:
+    """Not restated here, because restating it is how it went wrong.
+
+    The constant said 300 and the test said 900, side by side, with nothing
+    to notice the gap. Reading it means a change to the test moves the
+    report with it.
+    """
+
+    from pathlib import Path
+
+    written = re.findall(
+        r"timeout=(\d+)",
+        (Path(pm.ROOT) / pm._ENFORCED_IN).read_text(encoding="utf-8"),
+    )
+    assert written, "the test names no timeout for the report to read"
+    assert pm.enforced_timeout_seconds() == max(float(n) for n in written)
+
+
+def test_a_killed_run_has_already_said_which_sections_finished() -> None:
+    """The case the section times exist for, run as it actually happens.
+
+    The report is assembled after the last section returns, so before this
+    a run killed by the suite's timeout printed nothing at all about where
+    the time had gone - the numbers existed and the one case needing them
+    could not reach them.
+    """
+
+    from sidra_ai.evals.overrun_says_why import evaluate_overrun_says_why
+
+    result = evaluate_overrun_says_why()
+
+    assert result.passed, result.failures
+    assert result.checks_passed == result.checks_total
 
 
 def test_the_report_ranks_the_sections_worst_first() -> None:
@@ -56,21 +124,45 @@ def test_the_report_ranks_the_sections_worst_first() -> None:
 
 
 def test_the_report_says_how_much_room_is_left() -> None:
+    """The distance is still signed and still labelled - to what, changed.
+
+    It used to read "of headroom", against a line nothing enforced, and the
+    warning beside it said a loaded machine could "push this run over".
+    Nothing was over: measured, a 327s run passed (C-1859). The number and
+    its sign are the part worth keeping, so they are still pinned here.
+    """
+
     tight = pm._runtime_report(_collector(answers=40.0), 290.0)
     roomy = pm._runtime_report(_collector(answers=40.0), 100.0)
 
-    assert "+10.0s of headroom" in tight
-    assert "Close to the budget" in tight, "a run one bad minute from red says nothing"
-    assert "+200.0s of headroom" in roomy
-    assert "Close to the budget" not in roomy
+    assert "+10.0s to the advisory line" in tight
+    assert "Past the advisory line, or nearly" in tight, (
+        "a run near the line still has to say so - quietly, but it says so"
+    )
+    assert "+200.0s to the advisory line" in roomy
+    assert "Past the advisory line" not in roomy
+    for report in (tight, roomy):
+        assert "Close to the budget" not in report, (
+            "'budget' is the word that made three loops read an advisory "
+            "line as a failing test"
+        )
 
 
-def test_a_run_over_the_budget_reports_negative_headroom() -> None:
-    """The case a loop is actually staring at when the test failed."""
+def test_a_run_past_the_advisory_line_reports_a_negative_distance() -> None:
+    """The case a loop is actually staring at - and it is not a failure.
+
+    A run at 330s is 30s past the advisory line and 570s short of the only
+    limit that fails anything, and the report has to say both so the next
+    loop does not escalate on the first.
+    """
 
     report = pm._runtime_report(_collector(answers=40.0), 330.0)
+    head = report.splitlines()[0]
 
-    assert "-30.0s of headroom" in report
+    assert "-30.0s to the advisory line" in head
+    assert "Nothing fails here" in head
+    enforced = pm.enforced_timeout_seconds()
+    assert enforced is not None and f"{enforced - 330.0:+.0f}s away" in head
 
 
 def test_every_section_is_timed_even_when_it_raises() -> None:
@@ -284,8 +376,11 @@ def test_the_share_is_reported_as_an_outcome_with_both_counts() -> None:
     finally:
         pm._SPAWN_THREADS.update(kept)
 
-    metric = collector.metrics[0]
-    assert metric.key == "metrics_node_work_is_bundled"
+    # By key, not by position: measure_runtime reports more than one number
+    # and the order is not a contract - asserting metrics[0] broke the day
+    # another metric was added ahead of it (C-1859), which is a fact about
+    # the test, not about the number.
+    metric = _only(collector, "metrics_node_work_is_bundled")
     assert metric.value == 75.0
     assert metric.kind == pm.OUTCOME
     assert metric.direction == "up"
@@ -306,7 +401,7 @@ def test_a_run_that_spawned_no_node_says_so_instead_of_reporting_zero() -> None:
     finally:
         pm._SPAWN_THREADS.update(kept)
 
-    metric = collector.metrics[0]
+    metric = _only(collector, "metrics_node_work_is_bundled")
     assert metric.value is None
     assert metric.kind == pm.OUTCOME
     assert "no node spawn" in metric.detail
