@@ -275,6 +275,30 @@ def select_theme(message: str) -> Theme:
     return DEFAULT_THEME if best is None else best[1]
 
 
+def named_theme(message: str) -> Theme | None:
+    """The theme this message asks for by name, or ``None`` if it names none.
+
+    :func:`select_theme` collapses 「named nothing」 into the default, which is
+    right for picking a palette and hides the one fact a reviser needs: whether
+    a theme was ASKED FOR. C-1873 measured the cost - the advice offers
+    「gameyard / paper / terminal / dusk」 and 「gameyard のテーマにして」 came back
+    with the same advice, because choosing the default and choosing nothing
+    were the same answer. Same shape as ``named_motif`` and ``named_shape``.
+    """
+
+    text = unicodedata.normalize("NFKC", message).casefold()
+    if not any(cue in text for cue in _THEME_CUES):
+        return None
+
+    best: tuple[int, Theme] | None = None
+    for theme in THEMES.values():
+        for word in theme.words:
+            index = text.rfind(word.casefold())
+            if index >= 0 and (best is None or index > best[0]):
+                best = (index, theme)
+    return None if best is None else best[1]
+
+
 def readable_themes() -> tuple[str, ...]:
     """Keys of the themes that clear :data:`CONTRAST_FLOORS`."""
 
@@ -283,6 +307,7 @@ def readable_themes() -> tuple[str, ...]:
 
 __all__ = [
     "ACCENT_FLOOR",
+    "named_theme",
     "CVD_FLOOR",
     "CVD_MATRICES",
     "cvd_collisions",

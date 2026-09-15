@@ -13570,6 +13570,30 @@ def measure_creation(c: Collector) -> None:
     # on paper. The dual ring (surface outside, ink inside, full alpha)
     # must clear 3:1 through its better half on every theme's every act,
     # and the ink glyph must clear 3:1 on the blended plate.
+    # C-1873, §33 事実 3/7: the refusal printed 「難易度は easy / normal / hard の
+    # 3 段です」 and refused all three - a reader doing exactly what they were
+    # told went in a circle - and there was no phrasing for 「set it to normal」
+    # at all, only relative steps. The theme advice had the same hole:
+    # 「gameyard」 is offered and was indistinguishable from naming nothing.
+    # The values here are lifted out of the sentence the product prints, not
+    # listed, because C-1868's own "the advice works" check ran a phrase the
+    # advice does not print.
+    from sidra_ai.evals.printed_advice_actually_works import (
+        evaluate_printed_advice_actually_works,
+    )
+
+    printed_advice = evaluate_printed_advice_actually_works()
+    c.add(
+        "printed_advice_actually_works",
+        "案内した言い方をそのまま送り返すと、本当に通る（§33 事実 3）",
+        10.0 * printed_advice.checks_passed / printed_advice.checks_total,
+        detail=f"{printed_advice.checks_passed}/{printed_advice.checks_total} checks; "
+               "src/sidra_ai/evals/printed_advice_actually_works.py"
+               + ("" if printed_advice.passed
+                  else "; " + "; ".join(printed_advice.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1871, §33 事実 5: a good message answers what happened, WHAT IS TRUE
     # NOW, and what to do. The refusals answered the first and third. Only
     # revision_change needed it - the artifact is identified, the message was

@@ -49,6 +49,7 @@ from sidra_ai.creation.intent import (
 from sidra_ai.creation.router import CreationOutcome
 from sidra_ai.creation.intent import CreationKind
 from sidra_ai.creation.themes import (
+    named_theme,
     ACCENT_FLOOR,
     DEFAULT_THEME,
     THEMES,
@@ -112,6 +113,22 @@ _HARDER: tuple[str, ...] = (
     "難しく", "むずかしく", "ハードに", "速く", "はやく", "歯ごたえ",
     "難易度を上げ", "難易度をあげ", "難易度を高く",
 )
+#: Naming a rung outright, which the relative words above cannot do (C-1873).
+#: 「難易度は easy / normal / hard の 3 段です」 is printed as advice, and all three
+#: words came back with the same advice - a reader doing exactly what they were
+#: told went round in a circle. Worse, there was no phrasing at all for
+#: 「set it to normal」: the ladder could only be stepped, so returning from hard
+#: meant counting rungs.
+#:
+#: Keyed by the rung, and the rungs come from ``_LADDER`` rather than being
+#: written again. The Japanese words are the ordinary ones a person reaches for
+#: next to the English the panel and the advice both use.
+_RUNG_WORDS: dict[str, tuple[str, ...]] = {
+    "easy": ("easy", "やさしい", "やさしめ", "イージー"),
+    "normal": ("normal", "ふつう", "普通", "ノーマル", "標準"),
+    "hard": ("hard", "むずかしい", "ハード"),
+}
+
 _EASIER: tuple[str, ...] = (
     "簡単に", "かんたんに", "やさしく", "易しく", "遅く", "おそく", "ゆっくりに",
     "難易度を下げ", "難易度をさげ", "難易度を低く",
@@ -576,17 +593,37 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     body = _targeting_text(message)
     body_text = fold_kana(body.casefold())
 
-    if any(fold_kana(word) in body_text for word in _HARDER):
+    # The named rung wins over the relative step: 「難易度を normal にして」 says
+    # where to land, and stepping from wherever we are would land somewhere
+    # else. Checked first for the same reason - 「むずかしい」 shares its stem
+    # with 「難しく」, so the relative rule would swallow it (C-1873).
+    named_rung = next(
+        (
+            rung
+            for rung in _LADDER
+            for word in _RUNG_WORDS[rung]
+            if fold_kana(word.casefold()) in body_text
+        ),
+        "",
+    )
+    if named_rung:
+        adjustments["difficulty"] = f"={named_rung}"
+        evidence.append(f"difficulty={named_rung}")
+    elif any(fold_kana(word) in body_text for word in _HARDER):
         adjustments["difficulty"] = "+1"
         evidence.append("difficulty+1")
     elif any(fold_kana(word) in body_text for word in _EASIER):
         adjustments["difficulty"] = "-1"
         evidence.append("difficulty-1")
 
-    theme = select_theme(message)
-    if theme is not DEFAULT_THEME:
-        adjustments["theme"] = theme.key
-        evidence.append(f"theme:{theme.key}")
+    # C-1873: asked for BY NAME, not 「whatever select_theme settled on」. The
+    # old test compared against DEFAULT_THEME, so naming the default and naming
+    # nothing were the same answer - and the advice offers 「gameyard」 as one of
+    # the four, so a reader who chose it was told again to choose one.
+    asked_theme = named_theme(message)
+    if asked_theme is not None:
+        adjustments["theme"] = asked_theme.key
+        evidence.append(f"theme:{asked_theme.key}")
 
     # The panel's own axes (C-1117). Difficulty is applied first and these
     # land on top, which is the order the words arrive in: 「難しくして、
@@ -1217,6 +1254,15 @@ def find_target_meta(
 
 
 def _step_difficulty(current: str, delta: str) -> str:
+    """Move one rung, or land on the one that was named (C-1873).
+
+    ``=<rung>`` is an absolute: the reader said where to end up, and stepping
+    from wherever the page happens to be would end up somewhere else.
+    """
+
+    if delta.startswith("="):
+        wanted = delta[1:]
+        return wanted if wanted in _LADDER else current
     index = _LADDER.index(current) if current in _LADDER else 1
     index += 1 if delta == "+1" else -1
     return _LADDER[max(0, min(index, len(_LADDER) - 1))]
