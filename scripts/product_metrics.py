@@ -25882,6 +25882,40 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1854: the board checker had the sections, the boxes and the 「→ 動かす
+    # 数字:」 lines in one file and printed only an item count, so 手順 2's own
+    # rule for what a loop may take lived outside the tool. Cost, counted over
+    # LOOP_LOG: 139 「ループA no-op」 lines, 19 of them consecutive, each
+    # re-deriving the same sentence from a 2.7 MB board.
+    from sidra_ai.evals.board_names_takeable_count import (
+        evaluate_board_names_takeable_count,
+    )
+
+    _takeable = evaluate_board_names_takeable_count()
+    c.add(
+        "board_names_takeable_count",
+        "板の検査器が「いま取れる項目は何件か」を印字する",
+        3.0 * _takeable.checks_passed / _takeable.checks_total,
+        detail=(
+            f"{_takeable.checks_passed}/{_takeable.checks_total} checks; "
+            "src/sidra_ai/evals/board_names_takeable_count.py"
+            + ("" if _takeable.passed else "; " + "; ".join(_takeable.failures[:3]))
+            + "。**実 script を throwaway の板に対して実走行**して測る。"
+            "**A** 取れる物が無い板で **0 を名指しする**／"
+            "**B** 1 件ある板で **1 と数え番号も出す**（いつも 0 を刷る実装を落とす）／"
+            "**C** **E 節・F 節は数に入れない**（`- [ ]` を数えるだけの実装を落とす）／"
+            "**D** **0 は push を拒否しない**——起票の禁じ手 ② で、"
+            "**空のキューは板の正しい状態でありうる**（厳守事項 7）。"
+            "**0 を赤にしたら「キューを埋めるための作業」を制度が要求することになる**。"
+            "**これを作ったのは 19 巡 no-op を出していた当のループ**なので、"
+            "**自分に都合のよい実装を落とす条項として D を最初に破壊試験した**。"
+            "**「取れる」の定義は手順 2 から動かしていない**"
+            "（`→ 動かす数字:` があり E/F 節でない）。**前提が未決かどうかは機械が判定しない**"
+            "——誤ると生きた項目を隠すので、**過小申告より過大申告を選ぶ**（禁じ手 ④）。"
+        ),
+        kind=OUTCOME,
+    )
+
     c.add(
         "board_says_which_claims_are_live",
         "板の検査器が「どの確保が生きているか」を印字する",

@@ -158,10 +158,21 @@ def _stranded_unacknowledged(text: str, previous: str) -> list[str]:
     return problems
 
 
+#: The section heading an item sits under. C-1854: ``read_items`` recorded
+#: line/box/id/text/body and never this, so the check could not say whether an
+#: item was in a section a loop may take from - and 手順 2's exclusions (E and
+#: F) lived entirely outside the tool.
+SECTION = re.compile(r"^#{3,}\s+(.*)$")
+
+
 def read_items(text: str) -> list[dict]:
-    """Every item on the board, with its box, its number and its body."""
+    """Every item on the board, with its box, its number, its body and its section."""
     items: list[dict] = []
+    section = ""
     for number, line in enumerate(text.split("\n"), start=1):
+        heading = SECTION.match(line)
+        if heading:
+            section = heading.group(1).strip()
         head = HEADING.match(line)
         if head:
             number_match = HEADS.search(line)
@@ -172,6 +183,7 @@ def read_items(text: str) -> list[dict]:
                     "id": number_match.group(1) if number_match else None,
                     "text": line,
                     "body": [],
+                    "section": section,
                 }
             )
         elif items:
@@ -350,6 +362,65 @@ def _previous_board(board: Path) -> str | None:
     return None
 
 
+#: Sections a loop may not take from, by 手順 2. Matched on the heading text
+#: rather than on a line number, so moving a section does not silently widen
+#: what counts as takeable.
+NOT_TAKEABLE = ("判断が要る", "積み残し")
+
+
+def takeable(items: list[dict]) -> list[dict]:
+    """Open items a loop may claim, by 手順 2's rule and nothing else.
+
+    Two conditions, both already written down elsewhere: the item names the
+    number it will move, and it is not in E or F. Deliberately *not* included:
+
+    * whether a prerequisite named in the body is met. C-1624 cannot start
+      until an E-section decision lands, and its body says so - but reading
+      that is a judgement, and a machine that gets it wrong hides a live item.
+      It counts as takeable. Over-reporting is the safe direction here
+      (C-1854 禁じ手 ④);
+    * whether the named metric exists yet. A claim names a brand-new number
+      between its claim push and its completion push (C-1332), so requiring
+      the metric to exist would make every in-flight item vanish.
+
+    ``MOVES`` already refuses 「未定」 - it wants a lowercase identifier - so an
+    item that has not decided its number is not takeable without a special
+    case.
+    """
+
+    out: list[dict] = []
+    for item in items:
+        if item["box"] != " ":
+            continue
+        if any(word in item["section"] for word in NOT_TAKEABLE):
+            continue
+        if MOVES.search(_flat([line for _, line in item["body"]])):
+            out.append(item)
+    return out
+
+
+def takeable_report(items: list[dict]) -> list[str]:
+    """Say how many items a loop could take, and which.
+
+    C-1854: the checker had every input it needed - the sections, the boxes and
+    the 「→ 動かす数字:」 lines are all in the same file - and printed only the
+    item count. So each loop re-read a 2.7 MB board to reach the same sentence:
+    ``ループA no-op`` appears 139 times in ``docs/LOOP_LOG.md``, 19 of them
+    consecutive at the time this was filed.
+
+    **Zero is not an error.** An empty queue is a legitimate state of the board
+    (厳守事項 7 says to stop, not to invent work), so this prints and never
+    fails: a check that went red on zero would make the process demand that
+    somebody fill the queue.
+    """
+
+    found = takeable(items)
+    if not found:
+        return ["取れる項目 0 件（`→ 動かす数字:` があり E 節・F 節でない `- [ ]` は無い）"]
+    named = ", ".join(item["id"] or f"L{item['line']}" for item in found)
+    return [f"取れる項目 {len(found)} 件: {named}"]
+
+
 def _claim_commit_times(board: Path, lines: list[int]) -> dict[int, int | None]:
     """Committer time (epoch seconds) of the commit each line came in on.
 
@@ -479,7 +550,7 @@ def main(argv: list[str]) -> int:
     numbered = sum(1 for item in items if item["id"])
     # The claim report prints either way: it is what the board says, not a
     # verdict on it, and a reader chasing an inconsistency wants it most.
-    claims = claims_report(text, board)
+    claims = claims_report(text, board) + takeable_report(items)
     if problems:
         print(f"{board}: {len(problems)} 件の不整合")
         for problem in problems:
