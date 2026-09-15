@@ -63,6 +63,11 @@ def _reply_in_japanese(text: str) -> bool:
 #: fragment (「D-CY4.」「A.」), not content a reader can act on.
 _MIN_INFORMATIVE = 12
 
+#: Digits (half- and full-width) and in-number separators, for the 400-char cap's
+#: mid-number guard (C-1852): a figure the cap split is dropped back over these.
+_DIGITS = frozenset("0123456789０１２３４５６７８９")
+_NUMBER_TAIL = "0123456789０１２３４５６７８９,，.．"
+
 _BLOCK = re.compile(
     r"<<<SIDRA_DATA_BLOCK (?P<label>S\d+)>>>\n"
     r"source: (?P<citation>[^\n]*)\n"
@@ -241,7 +246,19 @@ class EchoModelAdapter(LocalModelAdapter):
         # nothing is added.
         if heading and head > 0 and not lead.startswith(heading):
             lead = f"{heading} {lead}".strip() if lead else heading
-        return (lead[:400] + "...") if len(lead) > 400 else lead or "(empty)"
+        if len(lead) > 400:
+            body = lead[:400]
+            # C-1852: the cap cut at 400 mid-character, and for a figure that means
+            # mid-digit - 「1,234,567,890」 shown as 「1,23...」 reads as a small whole
+            # value, the misreading a shown figure exists to prevent and every
+            # sibling surface refuses (citation C-1849, deck bullet C-1851, report
+            # body C-1217). When the cut splits a figure - the next dropped character
+            # is a digit - drop the partial back to its start; the 「...」 still marks
+            # the overflow. A figure that merely ends at the cap is whole and kept.
+            if body[-1] in _NUMBER_TAIL and lead[400:401] in _DIGITS:
+                body = body.rstrip(_NUMBER_TAIL) or body
+            return body + "..."
+        return lead or "(empty)"
 
     def _result(
         self, request: GenerationRequest, text: str, finish_reason: str = "stop"
