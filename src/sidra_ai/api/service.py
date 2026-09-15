@@ -18,6 +18,7 @@ from sidra_ai.creation.evidence import Fact, plain_text, whole_sentences
 from sidra_ai.creation.intent import CreationKind, detect_creation_intent
 from sidra_ai.creation.revise import (
     CHANGEABLE,
+    asks_to_delete,
     build_game_reviser,
     detect_revision_intent,
 )
@@ -768,6 +769,32 @@ class SidraService:
         # content, and a preview in something that reads as metadata is how it
         # ends up in a screenshot nobody screened), and that rule does not stop
         # at the HTTP boundary.
+        # C-1847: a request to delete the artifact itself. Deletion is not
+        # implemented - a destructive operation needs the owner's decision, so
+        # it sits in the E section - and until now nothing said so: the same
+        # request got the list of changeable settings, the kind refusal, or the
+        # no-evidence boilerplate, depending on how it was phrased. Say what is
+        # true: nothing was deleted, the files are where they are, and removing
+        # them is the operator's to do.
+        if asks_to_delete(message):
+            return {
+                "answer": (
+                    "削除は用意していません。何も消していません。"
+                    # The folder, not the absolute path: this sentence ends up
+                    # in chat logs and screenshots, and the reader already
+                    # knows where their own data directory is (the CLI prints
+                    # each generated file's path when it writes one, C-1610).
+                    "作ったファイルはデータ保存先の artifacts/ にあるので、"
+                    "不要なものはそこで削除してください。"
+                    "作り直したいときは、作ったときの依頼をもう一度送ってください。"
+                ),
+                "refused": True,
+                "refusal": "delete_unsupported",
+                "reason": "deletion is not offered; nothing was removed",
+                "citations": [],
+                "creation": {"revision": {}},
+            }
+
         if _is_artifact_list_query(message):
             from sidra_ai.api.artifacts import list_artifacts
 

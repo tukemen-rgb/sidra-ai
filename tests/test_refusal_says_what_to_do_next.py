@@ -101,6 +101,11 @@ CODES = (
     # "empty" and "greeting" are: the message was not a corpus query, and the
     # fallback advice (wait, or ingest a repository) is wrong for it.
     "artifact_list",
+    # C-1847. Asking for the artifact to be deleted. Deletion is not offered -
+    # it is destructive and belongs to the owner's decision - and the three
+    # replies this used to get (the changeable-settings list, the kind refusal,
+    # the no-evidence boilerplate) all talked about something else.
+    "delete_unsupported",
     # C-1802. The sixth: a meta question about the product (「使い方を教えて」) is
     # not a corpus query; the next step is to say what SIDRA does, not to wait or
     # to ingest a repository.

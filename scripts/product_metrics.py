@@ -1468,6 +1468,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1847: 「さっきのゲームを消して」 got the list of things that can be changed,
+    # 「捨てて」 the no-evidence boilerplate, 「スライドを消して」 the kind refusal -
+    # three wrong answers for one request, none saying deletion is not offered.
+    # Deletion stays unimplemented (destructive, owner's call); the answer now
+    # says so. The eval counts files before and after, because an apology that
+    # deletes would be worse than the silence it replaces.
+    from sidra_ai.evals.delete_says_it_cannot import evaluate_delete_says_it_cannot
+
+    delete_refusal = evaluate_delete_says_it_cannot()
+    c.add(
+        "chat_delete_says_it_cannot",
+        "削除を頼まれたら「削除は用意していない・何も消していない」と言う",
+        10.0 * delete_refusal.checks_passed / delete_refusal.checks_total,
+        detail=f"{delete_refusal.checks_passed}/{delete_refusal.checks_total} checks; "
+               "src/sidra_ai/evals/delete_says_it_cannot.py"
+               + ("" if delete_refusal.passed
+                  else "; " + "; ".join(delete_refusal.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

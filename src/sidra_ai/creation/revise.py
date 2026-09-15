@@ -236,6 +236,49 @@ CHANGEABLE: tuple[tuple[str, str], ...] = (
 #: adverb 「all at once」 that C-1829 removes from titles, and a word with two
 #: jobs does not belong in a veto list until something measures which one it is
 #: doing.
+#: C-1847: asking for the artifact to be deleted. Deletion is not implemented -
+#: it is a destructive operation and needs an owner's decision, which is why it
+#: sits in the E section rather than in a loop cycle - and until now nothing
+#: said so: 「さっきのゲームを消して」 was answered with the list of things that
+#: CAN be changed (difficulty, theme, accent colour), 「捨てて」 fell to the
+#: no-evidence boilerplate, and 「さっきのスライドを消して」 got the kind refusal.
+#: Three different wrong answers for one request.
+_DELETE_VERBS: tuple[str, ...] = (
+    "消して", "けして", "削除して", "消去して", "捨てて", "破棄して", "消してください",
+)
+
+#: What a delete verb has to be acting ON for this to be a deletion.
+#:
+#: 「さっきのゲームの音を消して」 is C-1814's own example - turning a feature off -
+#: and it must keep landing where it lands. The difference is the object: the
+#: artifact itself, or something inside it. A closed table, so a word nobody
+#: thought of is a request that keeps its old answer rather than a file the
+#: operator did not mean to name.
+_DELETABLE_OBJECTS: tuple[str, ...] = (
+    "ゲーム", "げーむ", "スライド", "デッキ", "資料", "レポート", "報告書", "文書",
+    "gif", "アニメ", "アート", "絵", "イラスト", "モデル", "3d", "制作一式",
+    "やつ", "もの", "ファイル", "それ", "これ", "あれ", "全部", "すべて", "全て",
+)
+
+#: Built from the folded forms, because the text this is matched against has
+#: been through ``fold_kana`` like every other rule in this file - and a
+#: pattern written in the unfolded spelling matches nothing at all. Measured:
+#: every one of the six requests came back False until the table was folded
+#: too.
+_DELETE_REQUEST = re.compile(
+    r"(?:" + "|".join(re.escape(fold_kana(word)) for word in _DELETABLE_OBJECTS) + r")"
+    + r"[" + "".join(fold_kana(particle) for particle in "をはも") + r"]?\s*"
+    + r"(?:" + "|".join(re.escape(fold_kana(verb)) for verb in _DELETE_VERBS) + r")",
+    re.IGNORECASE,
+)
+
+
+def asks_to_delete(message: str) -> bool:
+    """True when the message asks for an artifact itself to be deleted."""
+
+    return bool(_DELETE_REQUEST.search(fold_kana(message.casefold())))
+
+
 _ASK_VERBS: tuple[str, ...] = (
     "探して", "さがして", "調べて", "しらべて", "検索して",
     "確認して", "教えて", "説明して", "要約して", "比較して", "分析して",
@@ -1372,6 +1415,7 @@ def build_game_reviser(data_dir: str | Path):
 
 
 __all__ = [
+    "asks_to_delete",
     "RevisionIntent",
     "build_game_reviser",
     "detect_revision_intent",
