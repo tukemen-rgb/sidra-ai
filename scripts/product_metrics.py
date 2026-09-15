@@ -2198,6 +2198,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1872: the guardian above checks synthetic payloads for a fixed code list,
+    # so six conversational refusals the service added after C-1811 (delete /
+    # list / feature-question / panel-setting / revision content and kind) fell to
+    # exit 1 unnoticed. This drives the real SidraService so a conversational
+    # refusal is measured message->code->exit, with a real gate block (3) and a
+    # real model outage (1) pinned on the same path.
+    from sidra_ai.evals.cli_conversational_refusal_exit_code import (
+        evaluate_cli_conversational_refusal_exit_code,
+    )
+
+    cli_conv = evaluate_cli_conversational_refusal_exit_code()
+    c.add(
+        "cli_conversational_refusal_exit_code",
+        "sidra-ask が会話的な断り（実サービス実走）に終了コード 4 を返す",
+        10.0 * cli_conv.checks_passed / cli_conv.checks_total,
+        detail=f"{cli_conv.checks_passed}/{cli_conv.checks_total} checks; "
+               "src/sidra_ai/evals/cli_conversational_refusal_exit_code.py"
+               + ("" if cli_conv.passed else "; " + "; ".join(cli_conv.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1627: --json outputs raw JSON, and json.dumps only escapes U+0000-U+001F.
     # The C1 controls, bidi overrides and zero-width characters the rendered path
     # strips survive raw into the terminal; --json stays byte-faithful but now
