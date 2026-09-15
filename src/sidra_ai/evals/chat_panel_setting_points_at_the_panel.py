@@ -49,6 +49,12 @@ PANEL_REQUESTS: tuple[str, ...] = (
 NOT_PANEL: dict[str, str] = {
     "さっきのゲームの音を消して": "revision_change",
     "さっきのゲームを消して": "delete_unsupported",
+    # C-1802's own check caught this one while this item was being written:
+    # the panel's music row is a VOLUME dial, so 「BGMを変えて」 - change the
+    # tune - is not something it can do, and pointing at the panel would be
+    # the same false 「yes」 this item exists to stop being a false 「no」.
+    # 「BGMの音量を下げて」 still reaches the panel, through 音量.
+    "それのBGMを変えて": "revision_change",
 }
 
 

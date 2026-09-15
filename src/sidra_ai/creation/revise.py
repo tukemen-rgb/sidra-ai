@@ -296,7 +296,12 @@ _DELETE_REQUEST = re.compile(
 #: feature request and keeps its answer. This table is about the DIALS.
 _PANEL_WORDS: tuple[str, ...] = (
     "音量", "ボリューム", "volume",
-    "音楽", "bgm",
+    # 「音楽」 and 「BGM」 alone are deliberately NOT here. The panel's music row
+    # is a VOLUME dial, so 「BGMを変えて」 - change the tune - is not something it
+    # can do, and answering 「use the panel」 would be the same false 「yes」 this
+    # item exists to stop being a false 「no」. C-1802's own check caught it:
+    # that request must keep reaching the list of what can be changed.
+    # 「BGMの音量を下げて」 still lands here, through 音量.
     "振動", "バイブ", "haptic",
     "動き", "モーション", "motion", "揺れ", "エフェクト",
 )
