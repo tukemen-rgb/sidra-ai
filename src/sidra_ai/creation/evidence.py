@@ -124,6 +124,14 @@ _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
 #: A bare 「[1]」 reference has no following 「(」 and is left alone.
 _MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 _MD_LINK_OPEN = re.compile(r"\[([^\]]+)\]\([^)\n]*")
+#: A Markdown image 「![alt](url)」. The link rule above matches only the
+#: 「[alt](url)」 tail and leaves the leading 「!」 (「![logo](…)」→「!logo」);
+#: a bare badge 「![](url)」 (empty alt, the common README shape) matches no
+#: rule and survives whole, leaking its URL into a forwarded artifact - the
+#: image sibling of the C-1227 link leak. Collapse an image to its alt text
+#: (empty for a badge) *before* the link rule runs (C-1840). Empty alt is
+#: allowed here (the whole marker goes), unlike a link, which needs its text.
+_MD_IMAGE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
 #: A list marker at the start of a line: a bullet (with or without a task
 #: checkbox) or an ordered-list number (「2.」「3)」). Only line-anchored, so a
 #: mid-sentence dash (「令和 - 平成」) and an inline decimal (「3.5 倍」, whose
@@ -222,6 +230,7 @@ def plain_text(text: str) -> str:
     text = _MD_EMPHASIS.sub(r"\1", text)
     text = _MD_CODE.sub(r"\1", text)
     text = _MD_QUOTE.sub("", text)
+    text = _MD_IMAGE.sub(r"\1", text)
     text = _MD_LINK.sub(r"\1", text)
     text = _MD_LINK_OPEN.sub(r"\1", text)
     return " ".join(text.split())
