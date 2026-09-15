@@ -1529,6 +1529,36 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1535 (filed 重大, unclaimed until now): the generated pages wire
+    # pointer events but had no touch-action anywhere, and pointer events do
+    # not stop the browser's gestures. On a phone a double tap zoomed the page
+    # - and tapping IS the input in fishing, duel and kaiju - while a drag
+    # scrolled it, which is how racing, catch and marble steer. Invisible to
+    # the node harness every other game judge uses, which is why ten review
+    # rounds missed it. The filing named the bar: resolved computed values off
+    # the real elements, because a grep passes a rule written where it does
+    # not apply. This drives Chromium and reads getComputedStyle.
+    from sidra_ai.evals.creation_touch_gestures_guarded import (
+        evaluate_creation_touch_gestures_guarded,
+    )
+
+    touch_guard = evaluate_creation_touch_gestures_guarded()
+    c.add(
+        "creation_touch_gestures_guarded",
+        "スマホの指が、ページではなくゲームに届く（canvas が既定ジェスチャを止める）",
+        None if touch_guard.unmeasurable
+        else 10.0 * touch_guard.checks_passed / touch_guard.checks_total,
+        detail=(
+            "no browser on this machine; resolved style unreadable"
+            if touch_guard.unmeasurable
+            else f"{touch_guard.checks_passed}/{touch_guard.checks_total} checks; "
+                 "src/sidra_ai/evals/creation_touch_gestures_guarded.py"
+                 + ("" if touch_guard.passed
+                    else "; " + "; ".join(touch_guard.failures[:4]))
+        ),
+        kind=OUTCOME,
+    )
+
     # C-1855: ADVENTURE_WORDS held nine names for the genre and nothing the
     # page contains, so 「洞窟を探検するゲームを作って」 built a fishing game under
     # 「『洞窟』の題材を描く型はまだ無いため」 - false, since the rooms are called

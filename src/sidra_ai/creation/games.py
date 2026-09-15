@@ -1840,8 +1840,27 @@ body{{margin:0;background:{t["bg"]};color:{t["text"]};
 main{{max-width:760px;margin:0 auto;padding:32px 20px 48px}}
 h1{{font-size:22px;margin:0 0 6px;letter-spacing:.01em}}
 p.tag{{margin:0 0 20px;color:{t["subtle"]}}}
+/* C-1535: pointer events do not stop the browser's own gestures, and this
+ * sheet had no touch-action anywhere. On a phone that made the play surface
+ * fight the page: a quick double tap - which IS the input in fishing, duel
+ * and kaiju - zoomed instead, and a drag - which IS the input in racing,
+ * catch and marble, through padMove - scrolled the page. touch-action:none
+ * on the canvas hands every gesture over the canvas to the game.
+ * The canvas only, never body: the page must still scroll, and the viewport
+ * deliberately allows pinch zoom (no user-scalable=no), which this does not
+ * take away - it scopes the surrender to the surface that is being played.
+ * The virtual pad needs no rule of its own because C-1019 draws it INSIDE
+ * this canvas; a second element to carry the same rule is a second thing to
+ * keep in step. user-select stops the long-press selection and magnifier
+ * that a held finger raises over the same surface. */
 canvas{{display:block;width:100%;height:auto;background:{t["surface"]};
+ touch-action:none;-webkit-user-select:none;user-select:none;
  border:1px solid {t["border"]};border-radius:{t["radius"]}}}
+/* The panel's buttons are taps, never gestures: manipulation keeps the page
+ * scrollable from them while dropping the double-tap zoom and the delay it
+ * costs. Not none - a finger that starts a scroll on a button should still
+ * scroll the page. */
+button{{touch-action:manipulation}}
 .how{{margin:18px 0 0;padding:14px 16px;background:{t["raised"]};
  border-radius:{t["radius_tight"]};font-family:ui-monospace,SFMono-Regular,monospace;
  font-size:13px;color:{t["code"]}}}
