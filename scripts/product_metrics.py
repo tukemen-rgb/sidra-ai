@@ -810,6 +810,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1844: the word-order re-opening of C-1834. requested_format matched the
+    # format word only at the tail, so a length after it (「…をWordで3ページで」)
+    # hid it and the 「Word 形式では作れない」 disclosure never fired - a reader who
+    # asked for Word got Markdown silently. Drops the length first, then searches.
+    from sidra_ai.evals.document_format_disclosed_despite_length import (
+        evaluate_document_format_disclosed_despite_length,
+    )
+
+    fmt_len = evaluate_document_format_disclosed_despite_length()
+    c.add(
+        "document_format_disclosed_despite_length",
+        "書式語の後ろに長さ指定が来ても requested_format が書式を検出し代替を開示する",
+        10.0 * fmt_len.checks_passed / fmt_len.checks_total,
+        detail=f"{fmt_len.checks_passed}/{fmt_len.checks_total} checks; "
+               "src/sidra_ai/evals/document_format_disclosed_despite_length.py"
+               + ("" if fmt_len.passed else "; " + "; ".join(fmt_len.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1803: C-1772 stopped the cover promising a title number was sourced, but
     # only for a title that HAD a number. When the index returns nothing and the
     # title has no number, the empty draft's cover still read 「数字はすべて下の出典
