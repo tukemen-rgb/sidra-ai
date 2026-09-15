@@ -4815,6 +4815,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1852: the answer-body member of the truncation-honesty family (C-1849
+    # citation, C-1851 deck bullet, C-1217 report body). The echo lead's 400-char
+    # cap cut mid-digit, so a long answer whose figure straddles it showed 「…1,23...」
+    # - a partial number reading as a small whole value. The lead now drops a split
+    # figure back to its start; the 「...」 still marks the overflow.
+    from sidra_ai.evals.answer_lead_not_cut_mid_number import (
+        evaluate_answer_lead_not_cut_mid_number,
+    )
+
+    lead_num = evaluate_answer_lead_not_cut_mid_number()
+    c.add(
+        "answer_lead_not_cut_mid_number",
+        "回答本文の 400 字上限が数字を桁の途中で切らない（部分数字を見せない）",
+        10.0 * lead_num.checks_passed / lead_num.checks_total,
+        detail=f"{lead_num.checks_passed}/{lead_num.checks_total} checks; "
+               "src/sidra_ai/evals/answer_lead_not_cut_mid_number.py"
+               + ("" if lead_num.passed else "; " + "; ".join(lead_num.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1840: the image sibling of C-1227. plain_text flattened a link but not a
     # Markdown image, so 「![logo](url)」 left a stray 「!」 and 「![](url)」 (a bare
     # badge) leaked its raw URL into forwarded artifacts. Images now collapse to
