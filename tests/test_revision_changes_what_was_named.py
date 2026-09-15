@@ -20,7 +20,7 @@ from sidra_ai.evals.revision_changes_what_was_named import (
 def test_revision_changes_what_was_named_eval_passes():
     result = evaluate_revision_changes_what_was_named()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 19
+    assert result.checks_passed == result.checks_total == 20
 
 
 @pytest.mark.parametrize("template", sorted(AXIS_LABELS))

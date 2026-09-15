@@ -621,9 +621,23 @@ def band_owner(template: str) -> str:
     return (head if sep else label).strip()
 
 
-def names_the_band(template: str, message: str) -> bool:
-    """Does ``message`` name the thing this template's band axis moves?"""
+#: The axis's own name, for a message that names the axis rather than what it
+#: counts (C-1853). This file already calls it 「帯」 - see ``CHANGEABLE``, which
+#: says the row is 「per-template, so it is named by what it does rather than by
+#: a label that would be wrong for nine of the ten pages」 - and that is exactly
+#: the case a generic word exists for: 「帯を広くして」 works on all ten, where
+#: 「盤を広くして」 is a puzzle sentence. Found by C-1710's sentinel, which is
+#: written template-agnostically for this reason and went red when the first
+#: version of this rule read 「帯」 as a thing the puzzle board is not.
+_BAND_ITSELF: tuple[str, ...] = ("帯", "バンド", "band")
 
+
+def names_the_band(template: str, message: str) -> bool:
+    """Does ``message`` name this template's band axis, or what it counts?"""
+
+    if any(fold_kana(word) in fold_kana(message.casefold())
+           for word in _BAND_ITSELF):
+        return True
     owner = band_owner(template)
     if not owner:
         return False

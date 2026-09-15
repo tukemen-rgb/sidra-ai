@@ -171,6 +171,17 @@ def evaluate_revision_changes_what_was_named() -> RevisionNamedResult:
     add("難易度" in mixed and "「宝石」" in mixed,
         f"H: the mixed request reported only one half: {mixed[:100]}")
 
+    # --- (H2) naming the AXIS rather than what it counts still moves it ---
+    #     「帯」 is this product's own generic word for the row, and the only
+    #     one that works on all ten templates. C-1710's sentinel is written
+    #     with it for that reason, and it is what went red when the first
+    #     version of this rule read 「帯」 as a thing the board is not.
+    svc_b, _ = _service("c1853-band-")
+    svc_b.chat("パズルゲームを作って")
+    generic = svc_b.chat("そのゲームの帯を広くして").get("answer") or ""
+    add(_REFUSED not in generic and AXIS_LABELS["puzzle"][1] in generic,
+        f"H2: the axis's own name was refused: {generic[:90]}")
+
     # --- (I) every template has an axis owner to name ---------------------
     #     Read from AXIS_LABELS: a template added without a label would
     #     otherwise refuse every request while naming nothing.
