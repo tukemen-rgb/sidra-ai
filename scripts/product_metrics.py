@@ -4594,6 +4594,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1840: the image sibling of C-1227. plain_text flattened a link but not a
+    # Markdown image, so 「![logo](url)」 left a stray 「!」 and 「![](url)」 (a bare
+    # badge) leaked its raw URL into forwarded artifacts. Images now collapse to
+    # alt text before the link rule runs.
+    from sidra_ai.evals.plain_text_flattens_image import (
+        evaluate_plain_text_flattens_image,
+    )
+
+    img_flat = evaluate_plain_text_flattens_image()
+    c.add(
+        "plain_text_flattens_image",
+        "Markdown 画像が alt だけになる（! も括弧も URL も出ない）",
+        10.0 * img_flat.checks_passed / img_flat.checks_total,
+        detail=f"{img_flat.checks_passed}/{img_flat.checks_total} checks; "
+               "src/sidra_ai/evals/plain_text_flattens_image.py"
+               + ("" if img_flat.passed else "; " + "; ".join(img_flat.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1231: 「OutputGuard？」 (a Japanese user's question - Latin keyword,
     # fullwidth 「？」, no kana/kanji) matched no evidence and got the *English*
     # no-evidence reply, breaking SYSTEM_PROMPT rule 6. The language gate now
