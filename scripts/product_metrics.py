@@ -1426,6 +1426,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1844: 「作ったものを一覧で見せて」 was answered with the no-evidence
+    # abstention that asks for a repository to be ingested - about files this
+    # product had just written. Answered from the directory now, names and
+    # times only. The same eval holds the regression found while writing it:
+    # C-1837 had turned six of nine ordinary corpus questions into revision
+    # refusals, because 「して」 is a change verb and 探して ends in one.
+    from sidra_ai.evals.artifact_list_is_answered import (
+        evaluate_artifact_list_is_answered,
+    )
+
+    artifact_list = evaluate_artifact_list_is_answered()
+    c.add(
+        "chat_artifact_list_is_answered",
+        "「作ったものを見せて」に、索引の話ではなく実際の一覧で答える",
+        10.0 * artifact_list.checks_passed / artifact_list.checks_total,
+        detail=f"{artifact_list.checks_passed}/{artifact_list.checks_total} checks; "
+               "src/sidra_ai/evals/artifact_list_is_answered.py"
+               + ("" if artifact_list.passed
+                  else "; " + "; ".join(artifact_list.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

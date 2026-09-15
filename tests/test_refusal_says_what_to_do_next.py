@@ -96,6 +96,11 @@ CODES = (
     # so the wrong advice here is not "wait" but any advice about games at
     # all - the answer says what can be revised and how to remake the rest.
     "revision_kind",
+    # C-1844. Not a failure at all - the operator asked what this product has
+    # made and the answer is the list itself. It is a code for the same reason
+    # "empty" and "greeting" are: the message was not a corpus query, and the
+    # fallback advice (wait, or ingest a repository) is wrong for it.
+    "artifact_list",
     # C-1802. The sixth: a meta question about the product (「使い方を教えて」) is
     # not a corpus query; the next step is to say what SIDRA does, not to wait or
     # to ingest a repository.

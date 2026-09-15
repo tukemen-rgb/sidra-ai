@@ -181,6 +181,33 @@ _HELP_QUERIES = frozenset({
 })
 
 
+#: C-1844: asking to see what has been made. A question about this product's
+#: own output, not about the corpus - and it used to reach the no-evidence
+#: abstention that asks for a repository to be ingested, which is the reply
+#: C-1796, C-1802, C-1797, C-1814, C-1835 and C-1837 each removed from one
+#: other kind of message. This is the sixth.
+#:
+#: Whole-message match, for the same reason ``_HELP_QUERIES`` is: 「作ったものの
+#: 一覧をドキュメントから探して」 is a real corpus query that contains these
+#: words, and a substring rule would swallow it.
+_ARTIFACT_LIST_QUERIES = frozenset({
+    "作ったものを見せて", "作ったものを一覧で見せて", "作ったもの一覧",
+    "作ったものは", "作ったものは?", "作ったファイルを見せて",
+    "成果物を見せて", "成果物一覧", "成果物の一覧",
+    "何を作った", "何を作ったの", "何を作りましたか", "なにを作った",
+    "これまで作ったものは", "作成したものを見せて", "作ったものの一覧",
+    "一覧を見せて", "ファイル一覧", "作ったやつを見せて",
+})
+
+
+def _is_artifact_list_query(message: str) -> bool:
+    """True when the whole message asks to see what this product has made."""
+
+    text = " ".join(message.strip().casefold().split())
+    text = text.rstrip(_GREETING_TRAILING)
+    return text in _ARTIFACT_LIST_QUERIES
+
+
 def _is_help_query(message: str) -> bool:
     """True when the whole message asks what the product is or how to use it."""
 
@@ -732,6 +759,47 @@ class SidraService:
                 "reason": "the message asked what the product is or how to use it",
                 "citations": [],
                 "creation": {"offered": offered},
+            }
+
+        # C-1844: 「作ったものを一覧で見せて」 is about this product's own output.
+        # Answered from the directory rather than from the index, because that
+        # is where the answer is - and with names, times and a count only: the
+        # listing endpoint carries no preview (a deck's body is retrieved
+        # content, and a preview in something that reads as metadata is how it
+        # ends up in a screenshot nobody screened), and that rule does not stop
+        # at the HTTP boundary.
+        if _is_artifact_list_query(message):
+            from sidra_ai.api.artifacts import list_artifacts
+
+            made = list_artifacts(self.settings.data_dir)
+            shown = made[:5]
+            if not made:
+                offered = [
+                    _KIND_LABELS.get(kind, kind)
+                    for kind in self.creation_router.registered_kinds()
+                ]
+                answer = (
+                    "まだ何も作っていません。"
+                    + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
+                )
+            else:
+                lines = "、".join(
+                    f"{artifact.name}（{artifact.modified}）" for artifact in shown
+                )
+                answer = (
+                    f"これまでに作ったのは全 {len(made)} 件です。"
+                    + (f"新しい順に {len(shown)} 件: " if len(made) > len(shown)
+                       else "新しい順に: ")
+                    + lines
+                    + "。ファイルは /v1/artifacts から取得できます。"
+                )
+            return {
+                "answer": answer,
+                "refused": True,
+                "refusal": "artifact_list",
+                "reason": "the message asked what this product has made",
+                "citations": [],
+                "creation": {"artifacts": len(made)},
             }
 
         gate_result = self.gate.inspect(message, source="operator", repository="")

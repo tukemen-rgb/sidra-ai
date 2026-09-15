@@ -229,6 +229,19 @@ CHANGEABLE: tuple[tuple[str, str], ...] = (
 )
 
 
+#: Verbs that ask about a thing rather than change it. Every one of these ends
+#: in 「して」, which is a change verb on its own, so without this list a corpus
+#: question that mentions an artifact kind reads as a revision request
+#: (C-1844). 「まとめて」 is deliberately absent: it is a summarising verb AND the
+#: adverb 「all at once」 that C-1829 removes from titles, and a word with two
+#: jobs does not belong in a veto list until something measures which one it is
+#: doing.
+_ASK_VERBS: tuple[str, ...] = (
+    "探して", "さがして", "調べて", "しらべて", "検索して",
+    "確認して", "教えて", "説明して", "要約して", "比較して", "分析して",
+)
+
+
 _CHANGE_VERBS: tuple[str, ...] = (
     "して",
     "にして",
@@ -347,6 +360,18 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     has_referent = bare_undo or any(
         fold_kana(word.casefold()) in text for word in _BACK_REFERENCES
     )
+    # C-1844: and a verb that ASKS about something is not a change verb, even
+    # though 「して」 - a _CHANGE_VERBS entry matched by substring - sits inside
+    # every one of them. Measured after C-1837 widened the kind check to
+    # messages with no referent: 6 of 9 ordinary corpus questions
+    # (「使い方のドキュメントを探して」「スライドの内容を要約して」) were answered
+    # 「いま修正できるのはゲームだけ」. The kind word was theirs, and the 「して」
+    # was the tail of 探して - so the product's main function was refused as a
+    # revision. This veto runs before the gate below, because a question that
+    # happens to contain a change verb is a question.
+    if any(fold_kana(verb) in text for verb in _ASK_VERBS):
+        return RevisionIntent(is_revision=False)
+
     if not any(fold_kana(verb) in text for verb in _CHANGE_VERBS):
         return RevisionIntent(is_revision=False)
 
