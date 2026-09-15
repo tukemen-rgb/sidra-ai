@@ -13513,6 +13513,28 @@ def measure_creation(c: Collector) -> None:
     # on paper. The dual ring (surface outside, ink inside, full alpha)
     # must clear 3:1 through its better half on every theme's every act,
     # and the ink glyph must clear 3:1 on the blended plate.
+    # C-1866: one turn after making a game, six questions about that page -
+    # sharing the score, the daily board, skins, the personal best - all six
+    # reached the no-evidence abstention that asks for a repository to be
+    # ingested. Every feature is shipped; the answer was missing. The reply
+    # is assembled from what the template actually has, so a page without the
+    # ghost is not told it has one.
+    from sidra_ai.evals.chat_answers_about_what_it_made import (
+        evaluate_chat_answers_about_what_it_made,
+    )
+
+    answers_about = evaluate_chat_answers_about_what_it_made()
+    c.add(
+        "chat_answers_about_what_it_made",
+        "作ったページについての質問に、そのページの機能で答える（索引の壁へ送らない）",
+        10.0 * answers_about.checks_passed / answers_about.checks_total,
+        detail=f"{answers_about.checks_passed}/{answers_about.checks_total} checks; "
+               "src/sidra_ai/evals/chat_answers_about_what_it_made.py"
+               + ("" if answers_about.passed
+                  else "; " + "; ".join(answers_about.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1861: the page ships a tuning panel - volume, music, haptic,
     # reduce-motion - and asking for any of those got one of three wrong
     # answers: 「『動き』は増減できません」 (false), the list of revisable

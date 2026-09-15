@@ -107,6 +107,7 @@ CODES = (
     # the no-evidence boilerplate) all talked about something else.
     "delete_unsupported",
     "panel_setting",
+    "artifact_feature_question",
     # C-1802. The sixth: a meta question about the product (「使い方を教えて」) is
     # not a corpus query; the next step is to say what SIDRA does, not to wait or
     # to ingest a repository.

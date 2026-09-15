@@ -6,6 +6,7 @@ pipeline is testable without an HTTP client.
 
 from __future__ import annotations
 
+import unicodedata
 import dataclasses
 import threading
 from pathlib import Path
@@ -208,6 +209,52 @@ def _is_artifact_list_query(message: str) -> bool:
     text = " ".join(message.strip().casefold().split())
     text = text.rstrip(_GREETING_TRAILING)
     return text in _ARTIFACT_LIST_QUERIES
+
+
+#: C-1866: what a person asks ABOUT the page that was just made. The features
+#: are all shipped - result copy (C-1110), the daily board (C-1107), skins
+#: (C-1109), the personal best and its ghost (C-1401) - and every one of these
+#: questions reached the no-evidence abstention that asks for a repository to
+#: be ingested. The same reply C-1796, C-1802, C-1797, C-1814, C-1835, C-1837
+#: and C-1861 each removed from one place; this is the next place.
+#:
+#: Substrings, not whole messages, because these are questions people phrase
+#: freely - and safe as substrings only because the branch also requires that
+#: this conversation HAS a made artifact. 「共有」 and 「記録」 appear in ordinary
+#: corpus questions too, which is exactly what C-1844 kept out by matching
+#: whole messages; the artifact test is what lets this be looser.
+_FEATURE_TOPICS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("share", ("自慢", "コピーし", "共有", "シェア", "友達に見せ", "見せたい")),
+    ("daily", ("今日の挑戦", "日替わり", "デイリー")),
+    ("skin", ("見た目", "スキン", "着せ替え")),
+    ("record", ("自己ベスト", "ハイスコア", "記録は残", "ゴースト")),
+)
+
+
+#: A question that names where to look is a question about the corpus, whatever
+#: else it contains. Measured: 「共有ポリシーについてドキュメントから探して」 was
+#: swallowed by the 「共有」 cue - the exact confusion C-1844 avoided by matching
+#: whole messages, and the price of matching substrings here.
+#:
+#: Narrower than C-1844's _ASK_VERBS on purpose: 「教えて」 is how somebody asks
+#: about their own page too （「共有のやり方を教えて」）, so vetoing the verb would
+#: close the door this item exists to open. Naming a SOURCE is the thing that
+#: makes it a corpus question.
+_CORPUS_SOURCES: tuple[str, ...] = (
+    "ドキュメント", "資料", "リポジトリ", "readme", "索引", "コードベース",
+    "仕様書", "マニュアル", "document", "repository",
+)
+
+
+def _feature_topics(message: str) -> tuple[str, ...]:
+    """Which of the page's own features this question is about."""
+
+    text = unicodedata.normalize("NFKC", message).casefold()
+    if any(source in text for source in _CORPUS_SOURCES):
+        return ()
+    return tuple(
+        key for key, cues in _FEATURE_TOPICS if any(cue in text for cue in cues)
+    )
 
 
 def _is_help_query(message: str) -> bool:
@@ -873,6 +920,67 @@ class SidraService:
         # vetoes itself on any creation verb - so creation keeps priority on
         # 「難しいゲームを作って」 by construction, not by ordering luck.
         revision = detect_revision_intent(query)
+        # C-1866: a question ABOUT the page this conversation just made. Every
+        # feature named here is already on that page; what was missing was an
+        # answer, so all six phrasings measured reached the corpus wall and
+        # asked for a repository to be ingested.
+        #
+        # Gated on there BEING a made game: telling somebody about "the share
+        # button on your page" when they have not made one would be the same
+        # kind of lie pointing the other way, and the gate is also what makes
+        # substring cues safe here (「共有」 and 「記録」 are ordinary words).
+        if topics := _feature_topics(message):
+            from sidra_ai.creation.ghost import GHOST_TEMPLATES
+            from sidra_ai.creation.revise import find_target_meta
+            from sidra_ai.creation.share import share_spec
+
+            made = find_target_meta(self.settings.data_dir, "さっきのゲーム", screened_history)
+            if made is not None:
+                _path, meta = made
+                template = str(meta.get("template") or "")
+                title = str(meta.get("title") or "ゲーム")
+                # Assembled from what THIS template ships, not from a list
+                # here: the ghost is three templates' feature, and saying
+                # every page has one would be a new false sentence.
+                lines: list[str] = []
+                if "share" in topics:
+                    spec = share_spec(template)
+                    lines.append(
+                        f"結果のコピー: 遊び終わった画面の「結果をコピー」で"
+                        f"「{spec['name']} {spec['emoji']}… スコア」が写ります"
+                        "（点数の絵文字だけで、答えも URL も入りません）"
+                    )
+                if "daily" in topics:
+                    lines.append(
+                        "今日の挑戦: その日は誰が開いても同じ盤で、"
+                        "コピーした結果に日付の印が付きます"
+                        "（調整パネルで切り替えられます）"
+                    )
+                if "skin" in topics:
+                    lines.append(
+                        "見た目: 画面の下のパネルに配色の選択があります"
+                        "（見た目だけで、難しさは変わりません）"
+                    )
+                if "record" in topics:
+                    lines.append(
+                        "自己ベスト: その端末に憶えられ、更新すると結果に出ます"
+                        + ("。走った跡が次の走行に並びます（ゴースト）"
+                           if template in GHOST_TEMPLATES else "")
+                    )
+                if lines:
+                    return {
+                        "answer": (
+                            f"「{title}」のページにあります。"
+                            + "。".join(lines).replace("。。", "。")
+                            + "。"
+                        ),
+                        "refused": True,
+                        "refusal": "artifact_feature_question",
+                        "reason": "the question is about a feature of the artifact this conversation made",
+                        "citations": [],
+                        "creation": {"revision": {}},
+                    }
+
         # C-1861: the page ships a tuning panel - volume, music, haptic,
         # reduce-motion - and asking for any of those got one of three wrong
         # answers: 「『動き』は増減できません」 (false, the switch is right there),
