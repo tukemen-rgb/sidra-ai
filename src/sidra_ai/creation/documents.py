@@ -132,6 +132,22 @@ def requested_format(request: str) -> str:
 #: leading digit), 5枚組の写真集 (枚 is followed by 組, not の/end), 300万円の予算 (万).
 _DOC_LENGTH_PREFIX = re.compile(r"^[0-9０-９]+(?:ページ|頁|字|文字|枚)(?:の|$)")
 
+#: The same length, sitting *behind* the subject instead of in front of it:
+#: 「レポートを3ページで作って」「ドキュメントを3ページ」「売上のレポートを2000字で」.
+#: C-1842: C-1822 stripped a leading length, but the tail-anchored kind/format/
+#: about peels never reach a length in this position, so 「3ページ」 rode onto the
+#: cover as the title - and, being a number with no evidence behind it, then failed
+#: the body number-check 「numbers not present in the evidence: 3」 (the title's
+#: subject is copied into the 概要 and the subject-unmatched disclosure line). This
+#: is the exact failure C-1822 was created to prevent, on the more natural
+#: phrasing. Stripped once, right after the leading strip, so both ends fall away
+#: before the peel loop and the empty-title guard keeps a bare kind word. Gated to
+#: a preceding を/の (where the instrumental length phrase attaches) and a real
+#: length unit closed by the tail, so a subject number survives: 第3四半期 (四半期
+#: is not a unit), 5枚組の写真集 (枚 is not at the tail), 3年計画 (年), and a genuine
+#: headline statistic 「解約率30%」 (% is not a length unit) stays to fail validation.
+_DOC_LENGTH_SUFFIX = re.compile(r"(?:を|の)[0-9０-９]+(?:ページ|頁|字|文字|枚)$")
+
 
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
@@ -148,6 +164,8 @@ def _title_from(request: str) -> str:
     stripped = drop_request_adverbs(stripped)
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     stripped = _DOC_LENGTH_PREFIX.sub("", stripped).strip()
+    # ...and the same length when it trails the subject (C-1842).
+    stripped = _DOC_LENGTH_SUFFIX.sub("", stripped).strip()
     # The subject alone: a report titled 「競合分析のレポート」 says 「レポート」
     # in its heading, its 概要 and its confirmation, all beside a file that is a
     # report (C-1246). Then the 「について/に関する」 the request pointed with, so
