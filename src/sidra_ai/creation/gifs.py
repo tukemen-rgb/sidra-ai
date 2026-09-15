@@ -34,7 +34,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
-from sidra_ai.creation.vocabulary import drop_request_adverbs, drop_size_phrases
+from sidra_ai.creation.vocabulary import (
+    drop_english_frame,
+    drop_request_adverbs,
+    drop_size_phrases,
+)
 
 WIDTH = 120
 HEIGHT = 90
@@ -370,6 +374,8 @@ def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって|出力して)", request)[0]
     # C-1829: without this 「魚のGIFを急いで作って」 titled itself 「魚のGIFを急い」 -
     # cut inside the okurigana - and kept the GIF the title must not echo.
+    # C-1841: 「make a gif of a fish」 was the whole sentence until now.
+    stripped = drop_english_frame(stripped)
     stripped = drop_request_adverbs(stripped)
     # C-1833: 「30フレームのGIFを作って」 was titled 「30フレーム」. The length note
     # (C-1823) reads the request, not the title, so it still says 10 フレーム.

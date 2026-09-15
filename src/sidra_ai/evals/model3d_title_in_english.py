@@ -22,12 +22,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sidra_ai.creation.models3d import (
-    _EN_HEAD,
-    _EN_SUBJECT,
-    _EN_TAIL,
     _strip_kind_words,
     generate_model3d,
 )
+from sidra_ai.creation.vocabulary import drop_english_frame
 
 #: Japanese titles that must come out of this byte-identical.
 JAPANESE: dict[str, str] = {
@@ -101,12 +99,12 @@ def evaluate_model3d_title_in_english() -> Model3DEnglishTitleResult:
     #     word a Japanese sentence does not contain. The property is held here
     #     rather than by a guard, since a guard that decides nothing is dead
     #     code (the same measurement that deleted one in C-1821).
+    #     C-1841 moved the three patterns into ``vocabulary`` so five
+    #     generators share them; the property is the same and is now asked of
+    #     the shared function rather than of this module's own copies.
     add(_strip_kind_words("魚の3Dモデルを作って").strip() == "魚"
-        and all(
-            pattern.sub("", "魚の3Dモデル") == "魚の3Dモデル"
-            for pattern in (_EN_HEAD, _EN_SUBJECT, _EN_TAIL)
-        ),
-        "H: an English pattern matched a Japanese request")
+        and drop_english_frame("魚の3Dモデル") == "魚の3Dモデル",
+        "H: the English frame rule matched a Japanese request")
 
     return Model3DEnglishTitleResult(
         passed=not failures,

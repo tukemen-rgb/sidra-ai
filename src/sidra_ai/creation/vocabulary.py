@@ -211,10 +211,33 @@ SIZE_UNITS: tuple[str, ...] = (
     "フレーム", "コマ", "秒", "分",
     "個", "つ", "体", "匹", "台", "点",
     "ステージ", "面", "レベル", "ラウンド",
+    # C-1841: the English units, measured rather than guessed. After the
+    # English frame came off, the only titles still carrying request grammar
+    # were 「30 frame」, 「5」 and 「3 page」 - all of them this one cause, because
+    # C-1833's table was Japanese-only. A digit has to come first, so 「page 3」
+    # in a subject is untouched; only 「3 page」 is a size.
+    "page", "pages", "slide", "slides", "frame", "frames",
+    "second", "seconds", "minute", "minutes", "model", "models",
+    "word", "words", "character", "characters",
 )
 
 _SIZE_PHRASE = re.compile(
-    r"\d{1,4}\s*(?:" + "|".join(re.escape(unit) for unit in SIZE_UNITS) + r")(?:の|で|を)?"
+    # The longest unit first, so 「slides」 is not left holding an 「s」 after
+    # 「slide」 matches; Python's alternation takes the first that fits.
+    r"\d{1,4}\s*(?:"
+    + "|".join(re.escape(unit) for unit in sorted(SIZE_UNITS, key=len, reverse=True))
+    + r")(?:(?:の|で|を)"
+    # C-1841: the phrase ends either in the particle that attached it - 「5枚の
+    # スライド」, 「スライドを5枚で」 - or at a real boundary. 「5枚組の写真集」 is a photo book
+    # of five prints - a subject - and cutting 「5枚」 out of it quotes the
+    # operator saying something they did not. The other loop's C-1822 avoided
+    # this by anchoring its rule to the start of the request; this keeps the
+    # freedom to match anywhere (「スライドを5枚で」 puts the size at the end) and
+    # pays for it by requiring a boundary: a particle, a space, or the end.
+    # Their test is what caught it - 「5枚組の写真集のレポート」 came back
+    # 「組の写真集」 - which is the case for tests that pin somebody else's rule.
+    r"|(?=$|[\s　]|[^\w\u3040-\u30ff\u4e00-\u9fff]))",
+    re.IGNORECASE,
 )
 
 
@@ -233,6 +256,54 @@ def drop_size_phrases(text: str) -> str:
 
     out = _SIZE_PHRASE.sub("", text)
     return " ".join(out.split()).strip("　 ・")
+
+
+#: C-1841: the frame an English request puts around what it wants. Japanese
+#: ends with the making verb, so every generator's split takes it off; English
+#: begins with it and only ``games`` had a rule (C-1516 onward). Measured
+#: across fifteen English requests: twelve titles carried the sentence - a deck
+#: called 「make a slide deck about the new product」, a report called 「write a
+#: report about monetisation」.
+#:
+#: Three pieces, and the third is the interesting one. English says outright
+#: which half is the subject: 「a model OF a fish」, 「a report ABOUT
+#: monetisation」. The head noun comes first, which is the mirror of the
+#: Japanese rule in C-1479, so the subject cannot be reached by trimming ends -
+#: it has to be lifted out from behind the preposition.
+_EN_HEAD = re.compile(
+    r"^(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
+    r"(?:(?:let\s*'?s\s+)?(?:make|create|build|generate|design|produce|draw|write|model)"
+    r"|give\s+me|gimme|(?:i|we)\s*(?:'?d\s*|\s+would\s+)like|(?:i|we)\s+(?:want|need))"
+    r"\s+(?:me\s+)?(?:a|an|the|some)?\s*",
+    re.IGNORECASE,
+)
+
+_EN_SUBJECT = re.compile(
+    r"^.*?\b(?:of|about|featuring|showing|starring)\s+(?:a|an|the|some)?\s*",
+    re.IGNORECASE,
+)
+
+_EN_TAIL = re.compile(r"\s*(?:please|thanks|thank you)\s*[.!?]*\s*$", re.IGNORECASE)
+
+
+def drop_english_frame(text: str) -> str:
+    """The subject of an English request, with the sentence around it removed.
+
+    Runs unconditionally, which is a measurement rather than a shortcut: every
+    pattern needs an English word (make/create…, of/about…, please) that a
+    Japanese sentence does not contain, and across ten Japanese requests this
+    changed no title. C-1839 wrote a guard for exactly this and deleted it
+    again for the same reason - a guard that decides nothing is dead code.
+
+    The kind word is left to each generator's own trailing-kind rule, which
+    already knows its own vocabulary: 「write a monetisation report」 leaves
+    「monetisation report」 here and 「monetisation」 there.
+    """
+
+    stripped = _EN_TAIL.sub("", text.strip())
+    without_head = _EN_HEAD.sub("", stripped, count=1)
+    lifted = _EN_SUBJECT.sub("", without_head, count=1)
+    return " ".join((lifted or without_head).split())
 
 
 def drop_request_adverbs(text: str) -> str:
@@ -289,6 +360,7 @@ __all__ = [
     "CATCH_WORDS",
     "REQUEST_ADVERBS",
     "SIZE_UNITS",
+    "drop_english_frame",
     "drop_request_adverbs",
     "drop_size_phrases",
     "FISHING_WORDS",

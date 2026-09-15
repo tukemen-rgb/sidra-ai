@@ -31,7 +31,10 @@ from html import escape
 from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
-from sidra_ai.creation.vocabulary import drop_request_adverbs
+from sidra_ai.creation.vocabulary import (
+    drop_english_frame,
+    drop_request_adverbs,
+)
 from sidra_ai.creation.games import _javascript_parses, _no_external_assets, _script_of
 
 #: The DESIGN.md tokens, written once so the page and the tests agree.
@@ -150,6 +153,9 @@ def _title_from(request: str) -> str:
     # C-1829: 「海のアートを今すぐ作って」 left 今すぐ sitting where the verb had
     # been, which also stopped the kind strip below - that one is anchored to
     # the end, so one word after アート turns it off.
+    # C-1841: 「make art of the sea」 and 「draw a picture of a cat」 were
+    # their own titles; the subject sits behind the preposition.
+    stripped = drop_english_frame(stripped)
     stripped = drop_request_adverbs(stripped)
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     # The subject alone: a page titled 「螺旋のアート」 says アート in its title and

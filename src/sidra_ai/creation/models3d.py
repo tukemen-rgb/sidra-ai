@@ -26,6 +26,7 @@ from random import Random
 from sidra_ai.creation.art import names_color
 from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.vocabulary import (
+    drop_english_frame,
     drop_request_adverbs,
     drop_size_phrases,
 )
@@ -63,31 +64,6 @@ def _strip_kind_words(request: str) -> str:
     """``_STRIP`` applied so that an empty match removes nothing (C-1839)."""
 
     return _STRIP.sub(lambda m: "" if m.group(0).strip() else m.group(0), request)
-
-
-#: The English frame: the verb the request opens with and the article after it.
-#: Japanese puts the making verb last and ``_STRIP`` takes it off there; English
-#: puts it first and nothing took it off here, so the whole sentence was the
-#: title. games.py has carried this rule since C-1516 - written again rather
-#: than lifted, because that file's version is built from the game vocabulary
-#: and is under test as part of it. The duplication is recorded on the board.
-_EN_HEAD = re.compile(
-    r"^(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
-    r"(?:make|create|build|generate|design|produce|model|give\s+me)\s+"
-    r"(?:me\s+)?(?:a|an|the|some)?\s*",
-    re.IGNORECASE,
-)
-
-#: 「a model OF a fish」 - English says outright which half is the subject, and
-#: the head noun comes first, so trimming the ends can never reach it (the
-#: mirror of the Japanese rule in C-1479).
-_EN_SUBJECT = re.compile(
-    r"^.*?\b(?:of|about|featuring|showing)\s+(?:a|an|the|some)?\s*",
-    re.IGNORECASE,
-)
-
-#: What English puts at the end and never means as a subject.
-_EN_TAIL = re.compile(r"\s*(?:please|thanks|thank you)\s*[.!?]*\s*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -141,21 +117,17 @@ def choose_shape(request: str) -> str:
 
 
 def _title_from(request: str, fallback: str) -> str:
-    stripped = _strip_kind_words(request.strip()).strip("「」\"' 　")
-    # C-1839: the English frame, once the kind words are out.
-    #
-    # Unconditional, and that is a measurement rather than a shortcut. The
-    # first version ran this only when a Latin letter survived, to keep
-    # Japanese away from it - and a destruction that removed that guard scored
-    # a perfect run, so it was measured across ten Japanese requests and
-    # changed the title of none. It could not: all three patterns need an
-    # English word (make/create…, of/about…, please) that a Japanese sentence
-    # does not contain. A guard that decides nothing is the same dead code
-    # C-1821 deleted one module over, and it is not kept here either.
-    stripped = _EN_TAIL.sub("", stripped)
-    without_head = _EN_HEAD.sub("", stripped, count=1)
-    lifted = _EN_SUBJECT.sub("", without_head, count=1)
-    stripped = " ".join((lifted or without_head).split())
+    # C-1841: the count comes off before the kind words as well as after,
+    # because _STRIP eats the 「の」 that joins them: 「3つの船の3Dモデル」 arrives
+    # here as 「3つ船」, where the size rule now refuses to cut - 「3つ」 followed
+    # by a kanji is 「5枚組」's shape, a number inside a subject. Removing it
+    # first keeps both readings honest, and the pass after this one still
+    # catches a size that trails (「魚3つ」).
+    stripped = _strip_kind_words(drop_size_phrases(request.strip())).strip("「」\"' 　")
+    # C-1839 wrote this generator its own English frame rule; C-1841 moved it
+    # to `vocabulary` where the other four call it, so there is one copy rather
+    # than two. Unconditional, for the reason recorded there.
+    stripped = drop_english_frame(stripped)
     # C-1829 widened six generators and MISSED THIS ONE, so 「魚の3Dモデルを今すぐ
     # 作って」 was titled 「魚今すぐ」 - the defect that cycle was about, left in the
     # seventh generator by the cycle that fixed it. C-1833 adds it here with the

@@ -25,7 +25,11 @@ from html import escape
 from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
-from sidra_ai.creation.vocabulary import drop_request_adverbs
+from sidra_ai.creation.vocabulary import (
+    drop_english_frame,
+    drop_request_adverbs,
+    drop_size_phrases,
+)
 from sidra_ai.creation.evidence import NUMBER, Fact, plain_text
 
 #: Same constant as the deck's, same reason: the renderer and the validator
@@ -132,6 +136,15 @@ _DOC_LENGTH_PREFIX = re.compile(r"^[0-9０-９]+(?:ページ|頁|字|文字|枚)
 def _title_from(request: str) -> str:
     stripped = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
     # C-1829: the words about when to write it, not what to write.
+    # C-1841: 「write a report about monetisation」 was the whole sentence.
+    stripped = drop_english_frame(stripped)
+    # And the size, which _DOC_LENGTH_PREFIX below only catches at the start
+    # and only in Japanese: 「write a 3 page report」 was titled 「3 page」, and
+    # 「収益化のレポートを3ページで作って」 - the size behind the kind word rather
+    # than in front of it - was titled 「収益化のレポートを3ページ」, keeping the
+    # kind word too because the strip that removes it is anchored to the end.
+    # Both are the shape C-1833 fixed for the deck.
+    stripped = drop_size_phrases(stripped)
     stripped = drop_request_adverbs(stripped)
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     stripped = _DOC_LENGTH_PREFIX.sub("", stripped).strip()

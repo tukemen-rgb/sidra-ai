@@ -1349,6 +1349,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1841: Japanese ends with the making verb and every generator's split
+    # takes it off; English begins with it and only games had a rule. Twelve of
+    # fifteen English titles were the request's own sentence. drop_english_frame
+    # is shared now - and models3d's own copy from C-1839 folded into it.
+    from sidra_ai.evals.title_in_english import evaluate_title_in_english
+
+    title_english = evaluate_title_in_english()
+    c.add(
+        "creation_title_in_english",
+        "英語の依頼でも、題が依頼の文ではなく主題になる",
+        10.0 * title_english.checks_passed / title_english.checks_total,
+        detail=f"{title_english.checks_passed}/{title_english.checks_total} checks; "
+               "src/sidra_ai/evals/title_in_english.py"
+               + ("" if title_english.passed
+                  else "; " + "; ".join(title_english.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck
