@@ -115,6 +115,13 @@ def requested_format(request: str) -> str:
     """
 
     head = re.split(r"を?(?:作って|作成して|書いて|生成して|つくって|まとめて)", request)[0]
+    # C-1845: the gate below is tail-anchored, but a length after the format word
+    # (「…をWordで3ページで」) pushes it off the tail and the format goes undetected -
+    # so the 「Word 形式では作れない」 disclosure silently vanishes and a reader who
+    # asked for Word is handed Markdown. Drop the length/size phrase first (the same
+    # shared helper the titles use, C-1833), so the format word reaches the tail.
+    # The gate itself is unchanged, so 「Wordの使い方」/「パスワード」 still return "".
+    head = drop_size_phrases(head)
     head = re.sub(r"[をのはがにで]+$", "", head.strip()).strip()
     match = _DOC_FORMAT_SUFFIX.search(head)
     return _FORMAT_LABEL.get(match.group(0).lower(), "") if match else ""

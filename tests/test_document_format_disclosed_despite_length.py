@@ -1,4 +1,4 @@
-"""C-1844: a length after the format word must not hide the format.
+"""C-1845: a length after the format word must not hide the format.
 
 The word-order re-opening of C-1834. 「サイトのレポートをWordで3ページで作って」 made
 requested_format return "", so the 「Word 形式では作れない」 disclosure never fired and

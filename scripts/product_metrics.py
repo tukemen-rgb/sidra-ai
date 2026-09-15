@@ -810,7 +810,7 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # C-1844: the word-order re-opening of C-1834. requested_format matched the
+    # C-1845: the word-order re-opening of C-1834. requested_format matched the
     # format word only at the tail, so a length after it (「…をWordで3ページで」)
     # hid it and the 「Word 形式では作れない」 disclosure never fired - a reader who
     # asked for Word got Markdown silently. Drops the length first, then searches.

@@ -1,7 +1,7 @@
 """Does the report still say it could not make the requested format when a
 length spec trails the format word?
 
-C-1844, the word-order re-opening of C-1834. The document generator only writes
+C-1845, the word-order re-opening of C-1834. The document generator only writes
 Markdown, so when a request names a format it cannot produce (Word/PDF/Excel),
 `requested_format` detects it and the job appends 「なお Word 形式では作れないため
 Markdown で保存しています」 - the honesty that a reader who wanted Word is not
