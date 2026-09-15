@@ -1529,6 +1529,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1853: 「さっきのゲームの宝石をもっと増やして」 wrote a new version of the
+    # page with 「敵の数 4」 and reported that as the change that was asked for.
+    # The band words fired on the verb and nothing read the object, so any
+    # noun moved the one axis the template happens to have. The template is
+    # only known in the reviser, which is where the judging now happens; the
+    # axis's owner is read off AXIS_LABELS rather than written down again.
+    from sidra_ai.evals.revision_changes_what_was_named import (
+        evaluate_revision_changes_what_was_named,
+    )
+
+    revision_named = evaluate_revision_changes_what_was_named()
+    c.add(
+        "revision_changes_what_was_named",
+        "増やす・減らすと言われたら、名指された物だけを動かす（別の軸を黙って動かさない）",
+        10.0 * revision_named.checks_passed / revision_named.checks_total,
+        detail=f"{revision_named.checks_passed}/{revision_named.checks_total} checks; "
+               "src/sidra_ai/evals/revision_changes_what_was_named.py"
+               + ("" if revision_named.passed
+                  else "; " + "; ".join(revision_named.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1850: the GIF generator draws two motifs and only the fish could be
     # asked for by name. 「パルスのGIFを作って」 matched nothing, fell through to
     # the default - the very motif that was named - and was announced with

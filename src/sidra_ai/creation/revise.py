@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -124,6 +124,18 @@ _EASIER: tuple[str, ...] = (
 #: the page says what the number is for.
 _BAND_UP: tuple[str, ...] = ("広く", "ひろく", "増やして", "ふやして", "多く", "おおく")
 _BAND_DOWN: tuple[str, ...] = ("狭く", "せまく", "減らして", "へらして", "少なく", "すくなく")
+
+#: The 「Xを」 in front of one of those verbs (C-1853). Only an explicit object
+#: is captured: 「もっと増やして」 names none and is a request for the axis
+#: itself, which is why this asks for the を rather than guessing a subject.
+#: の is excluded from the word so 「さっきのゲームの宝石を」 yields 「宝石」 and not
+#: the whole back-reference; up to four kana of adverb (「もっと」「すこし」) may
+#: sit between the object and its verb.
+_BAND_OBJECT = re.compile(
+    r"([^\s、。「」をはがのにでへとも]{1,12})を[ぁ-んァ-ヶー]{0,4}"
+    r"(?:増やして|ふやして|減らして|へらして|多く|おおく|少なく|すくなく"
+    r"|広く|ひろく|狭く|せまく)"
+)
 
 #: The accent, in words. Eight colours people actually ask for, and no
 #: more: a colour vocabulary that guesses is a colour vocabulary that gets
@@ -360,6 +372,16 @@ class RevisionIntent:
     #: name one that is not there, and the honest answer is to say so rather
     #: than resolve to whatever is nearest.
     names_other_kind: str = ""
+    #: The thing the message said to increase or reduce, when it said one.
+    #: C-1853: the band words fired on the verb alone, so 「宝石をもっと増やして」
+    #: moved the enemy count and reported 「敵の数 4」 as the change that was
+    #: asked for - a file written for a request nobody made. The comment over
+    #: ``_BAND_UP`` already said what the axis means differs per template, so
+    #: only the reviser (which knows the template) can judge this; the parse
+    #: records WHAT was named and leaves the judging to it. Empty means no
+    #: object was named - 「もっと増やして」 - which is a request for the axis
+    #: itself and still applies.
+    band_object: str = ""
 
 
 def detect_revision_intent(message: str) -> RevisionIntent:
@@ -420,6 +442,7 @@ def detect_revision_intent(message: str) -> RevisionIntent:
 
     adjustments: dict[str, str] = {}
     evidence: list[str] = []
+    band_object = ""
 
     # What to change is read from the message with the *new* title removed. A
     # colour kanji inside 「赤い彗星」 is part of the name being set, not a
@@ -454,6 +477,22 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     elif any(fold_kana(word) in body_text for word in _BAND_DOWN):
         adjustments["band"] = "-1"
         evidence.append("band-1")
+    if "band" in adjustments:
+        # What they said to make more or fewer of (C-1853). Read off the
+        # unfolded body: this word is quoted back to the operator, and
+        # 「宝石」 folded is not a word anyone typed.
+        named = _BAND_OBJECT.search(body)
+        candidate = named.group(1).strip() if named else ""
+        # 「ゲームをもっと増やして」 points at the artifact, not at anything
+        # inside it, so it names no object - the axis itself is what is being
+        # asked for. The words for 「the thing we made」 are the ones C-1847
+        # already collected for the delete rule; a second list of them here
+        # is the copy that goes stale (C-1848, C-1850).
+        band_object = (
+            "" if fold_kana(candidate.casefold())
+            in {fold_kana(word.casefold()) for word in _DELETABLE_OBJECTS}
+            else candidate
+        )
 
     for word, colour in _ACCENT_WORDS.items():
         if word in body:
@@ -555,10 +594,40 @@ def detect_revision_intent(message: str) -> RevisionIntent:
             wants_referent=True,
         )
 
-    return RevisionIntent(is_revision=True, adjustments=adjustments, evidence=tuple(evidence))
+    return RevisionIntent(
+        is_revision=True,
+        adjustments=adjustments,
+        evidence=tuple(evidence),
+        band_object=band_object,
+    )
 
 
 # ------------------------------------------------------------- metadata
+
+
+def band_owner(template: str) -> str:
+    """The thing this template's second axis is an amount OF (C-1853).
+
+    Read off ``AXIS_LABELS`` rather than written down again: the labels
+    already say what the axis means per template, which is the fact the band
+    words were firing without. The head noun is what sits before the last
+    「の」 - 「敵の数」 is an amount of enemies, 「障害物の最小間隔」 a spacing of
+    obstacles - and a label with no 「の」 (「基本ペース」) is its own head.
+    """
+
+    labels = AXIS_LABELS.get(template)
+    label = labels[1] if labels else ""
+    head, sep, _tail = label.rpartition("の")
+    return (head if sep else label).strip()
+
+
+def names_the_band(template: str, message: str) -> bool:
+    """Does ``message`` name the thing this template's band axis moves?"""
+
+    owner = band_owner(template)
+    if not owner:
+        return False
+    return fold_kana(owner.casefold()) in fold_kana(message.casefold())
 
 
 def meta_path_for(artifact: Path) -> Path:
@@ -1206,6 +1275,47 @@ def build_game_reviser(data_dir: str | Path):
             )
         target_path, meta = found
 
+        # C-1853: the band words fire on the verb, and until now nothing
+        # asked what was being increased. Measured on a real adventure:
+        # 「宝石をもっと増やして」 wrote a new version with 「敵の数 4」 and
+        # reported that as the change - a file for a request nobody made,
+        # which is worse than declining. The template is only known here, and
+        # the comment over ``_BAND_UP`` says why it has to be: what the axis
+        # means differs per template.
+        #
+        # Named nothing (「もっと増やして」) still moves the axis: that is a
+        # request for the axis itself.
+        adjustments = dict(intent.adjustments)
+        refused_object = ""
+        if (
+            "band" in adjustments
+            and intent.band_object
+            and not names_the_band(meta["template"], message)
+        ):
+            refused_object = intent.band_object
+            adjustments.pop("band")
+            if not adjustments:
+                # Nothing else was asked for, so there is nothing to write.
+                # Not 「変更なし（すでにその設定です）」 - that sentence would be
+                # false about a setting the message never reached - and not a
+                # new refusal code either: the honest fact is that this word
+                # is not something this page can change, and the axis has a
+                # name worth learning.
+                return CreationOutcome(
+                    kind=CreationKind.GAME,
+                    handled=True,
+                    summary=(
+                        f"「{meta.get('title') or 'ゲーム'}」の「{refused_object}」は"
+                        "増減できません。何も変えていません。"
+                        f"この型で増減できるのは「{band_owner(meta['template'])}」"
+                        f"（{AXIS_LABELS.get(meta['template'], ('', ''))[1]}）です。"
+                        "ほかに 難易度・テーマ（配色）・差し色・題名 を変えられます。"
+                    ),
+                    artifact_path=str(target_path).replace(".meta.json", ".html"),
+                    details={"revision": intent.adjustments, "changed": []},
+                )
+        intent = replace(intent, adjustments=adjustments)
+
         # C-1513: 「元に戻して」. Every revision signs off with 「旧版のファイル
         # もそのまま残っています」 - and until now there was no sentence that
         # reached them, so the product promised a history nobody could walk.
@@ -1321,6 +1431,14 @@ def build_game_reviser(data_dir: str | Path):
         for flag, name in (("daily", "今日の挑戦"), ("brief", "ブリーフィング")):
             if flag in panel and panel.get(flag) != before_panel.get(flag, False):
                 changed.append(f"{name} {'入' if panel[flag] else '切'}")
+        if refused_object:
+            # 「宝石を増やして、ついでに難しくして」: the difficulty moved and the
+            # gems did not. Saying only what changed is how C-1710's silence
+            # reads from the other side - the operator asked for two things,
+            # got one, and nothing said which. Listed with the changes rather
+            # than after them, because it is one of the answers to 「what did
+            # you do with what I said」.
+            changed.append(f"「{refused_object}」は増減できないのでそのまま")
         if not changed and undone_from is None:
             # C-1817: recognised adjustments that all landed on their current
             # values (already at max difficulty, same theme). This already
