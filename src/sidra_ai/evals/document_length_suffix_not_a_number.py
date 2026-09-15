@@ -1,6 +1,6 @@
 """Does a report keep a page-count out of its title - from either side?
 
-C-1842, the suffix half of C-1822. A request names how long the report should
+C-1843, the suffix half of C-1822. A request names how long the report should
 run, and that length is not the subject: 「3ページのレポートを作って」 titles
 「レポート」, not 「3ページ」 (C-1822). But C-1822 stripped the length only when
 it *led* the request. The more natural phrasing puts it behind the subject -

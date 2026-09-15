@@ -134,7 +134,7 @@ _DOC_LENGTH_PREFIX = re.compile(r"^[0-9０-９]+(?:ページ|頁|字|文字|枚)
 
 #: The same length, sitting *behind* the subject instead of in front of it:
 #: 「レポートを3ページで作って」「ドキュメントを3ページ」「売上のレポートを2000字で」.
-#: C-1842: C-1822 stripped a leading length, but the tail-anchored kind/format/
+#: C-1843: C-1822 stripped a leading length, but the tail-anchored kind/format/
 #: about peels never reach a length in this position, so 「3ページ」 rode onto the
 #: cover as the title - and, being a number with no evidence behind it, then failed
 #: the body number-check 「numbers not present in the evidence: 3」 (the title's
@@ -164,7 +164,7 @@ def _title_from(request: str) -> str:
     stripped = drop_request_adverbs(stripped)
     stripped = re.sub(r"[をのはがにで]+$", "", stripped.strip()).strip()
     stripped = _DOC_LENGTH_PREFIX.sub("", stripped).strip()
-    # ...and the same length when it trails the subject (C-1842).
+    # ...and the same length when it trails the subject (C-1843).
     stripped = _DOC_LENGTH_SUFFIX.sub("", stripped).strip()
     # The subject alone: a report titled 「競合分析のレポート」 says 「レポート」
     # in its heading, its 概要 and its confirmation, all beside a file that is a

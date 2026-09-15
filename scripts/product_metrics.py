@@ -791,7 +791,7 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
-    # C-1842: the suffix half of C-1822. A length behind the subject
+    # C-1843: the suffix half of C-1822. A length behind the subject
     # (「…を3ページで作って」) escaped C-1822's leading-only strip, rode onto the
     # title, and its page count then failed the body number-check - the report the
     # reader asked to be 3 pages was told it 「検証に落ちています」 over that 3.

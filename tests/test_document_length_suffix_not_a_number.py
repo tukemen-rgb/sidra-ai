@@ -1,4 +1,4 @@
-"""C-1842: a page count behind the subject is a length, not a title or a figure.
+"""C-1843: a page count behind the subject is a length, not a title or a figure.
 
 The suffix half of C-1822. 「サイトについてのドキュメントを3ページで作って」 titled
 「…を3ページ」, and the 「3」 - a page count with no evidence - then failed the
