@@ -416,7 +416,7 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         evidence.append("revert")
 
     other_kind = named_artifact_kind(message)
-    if has_referent and other_kind is not None and other_kind is not CreationKind.GAME:
+    if other_kind is not None and other_kind is not CreationKind.GAME:
         # C-1835. They pointed at something and called it a slide, a GIF, a
         # report. Revision is game-only - this module reads game-*.meta.json -
         # and nothing here used to ask what they called it, so 「さっきの」
@@ -428,6 +428,19 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         # cannot read (「さっきのスライドを短くして」) otherwise answered with the
         # list of things a *game* can change, which never mentions that a
         # slide cannot be changed at all.
+        #
+        # C-1837: and without asking whether they pointed at anything. The
+        # first version required a referent, so 「GIFを難しくして」 was answered
+        # 「「さっきの」を付けて」 - and following that advice exactly then
+        # produced 「修正できるのはゲームだけ」, which was knowable one step
+        # earlier. That is C-1814's own complaint, recreated by the cycle that
+        # cited it. The change-verb gate above has already run, so everything
+        # arriving here is change-shaped; a question or a creation request
+        # never reaches this line.
+        #
+        # C-1797 keeps its case: a message that names no kind (「もっと難しく
+        # して」) still asks which artifact is meant, because there the missing
+        # piece really is the target.
         #
         # The subject rules next door already argue this: a word that can
         # point at a page can also name one that is not there (C-1511b,

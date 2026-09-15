@@ -121,15 +121,62 @@ def evaluate_revision_refuses_another_kind() -> RevisionKindResult:
         and detect_revision_intent("さっきの資料のゲームを難しくして").is_revision,
         "H: the latest-match reading was lost")
 
-    # --- (I) naming a kind is not the same as pointing at something -------
-    #     「GIFを難しくして」 points at nothing, and C-1797 answers it by asking
-    #     which artifact is meant. That contract is older than this one and
-    #     must survive it: a version that skipped the referent test answered
-    #     「修正できるのはゲームだけ」 to a message that had not pointed at
-    #     anything at all, and every check above still passed.
-    no_referent = service.chat("GIFを難しくして")
-    add(no_referent.get("refusal") == "revision_target",
-        f"I: a change with no referent was answered as {no_referent.get('refusal')!r}")
+    # --- (I) the answer arrives in one step -------------------------------
+    #     C-1837 rewrote this check, and the reason is worth keeping. It used
+    #     to pin the opposite: that 「GIFを難しくして」 should ask for 「さっきの」
+    #     first, because C-1797 owns a change with no referent. Driving it
+    #     showed what that costs - the reader follows the advice, sends
+    #     「さっきのGIFを難しくして」, and only then hears that GIFs cannot be
+    #     revised at all. C-1814 named exactly that failure ("the product's
+    #     own advice did not work on the product"), and the cycle citing it
+    #     rebuilt it. The check had measured the implementation, not the
+    #     behaviour.
+    #
+    #     What is pinned is the step count: the first answer already says
+    #     revision is game-only. The sentence may still mention 「さっきのゲーム
+    #     を難しくして」 - that is the example of what *can* be revised, not an
+    #     instruction to come back with the same request reworded.
+    one_step = service.chat("GIFを難しくして")
+    add(one_step.get("refusal") == "revision_kind"
+        and "ゲームだけ" in (one_step.get("answer") or ""),
+        f"I: the first answer does not say revision is game-only: "
+        f"{one_step.get('refusal')!r}")
+    # --- (J) a change that is neither pointed at nor readable --------------
+    #     The fourth corner of this family. C-1797 covers "change known,
+    #     target missing", C-1814 "target known, change unreadable", C-1835
+    #     "target known, wrong kind" - and 「スライドを短くして」 has none of
+    #     them, so it fell to the no-evidence boilerplate that asks for a
+    #     repository to be ingested.
+    fourth = service.chat("スライドを短くして")
+    add(fourth.get("refusal") == "revision_kind",
+        f"J: 「スライドを短くして」 was answered as {fourth.get('refusal')!r}")
+    # --- (K) and C-1797 still owns the case that is really about a target --
+    add(service.chat("もっと難しくして").get("refusal") == "revision_target",
+        "K: a change naming no kind stopped asking which artifact is meant")
+
+    # --- (L) only a change instruction reaches this at all ----------------
+    #     Widening the kind check to messages with no referent leaves the
+    #     change-verb gate as the only thing that keeps a plain mention of a
+    #     kind out of it. The first version of this check drove
+    #     「スライドの作り方を教えて」 and 「スライドを作って」, and a sabotage that
+    #     removed the gate still scored full marks - those two are held by the
+    #     question and creation vetoes further up, not by the gate.
+    #
+    #     Measured which messages the gate actually decides: 「レポートの内容」,
+    #     「スライドについて」, 「GIFのループ」, 「スライドの枚数」 - a kind named with
+    #     no change verb anywhere. Without the gate every one of them is
+    #     answered 「修正できるのはゲームだけ」, which for 「レポートの内容」 is a
+    #     refusal to a question nobody asked as a change.
+    mention = service.chat("レポートの内容")
+    asked = service.chat("スライドの作り方を教えて")
+    built = service.chat("スライドを作って")
+    add(mention.get("refusal") != "revision_kind"
+        and asked.get("refusal") != "revision_kind"
+        and built.get("refusal") != "revision_kind"
+        and (built.get("creation") or {}).get("outcome", {}).get("handled") is True,
+        f"L: a mention, a question or a creation request was answered as a "
+        f"revision: {mention.get('refusal')!r} / {asked.get('refusal')!r} / "
+        f"{built.get('refusal')!r}")
 
     return RevisionKindResult(
         passed=not failures,

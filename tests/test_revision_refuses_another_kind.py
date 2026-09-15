@@ -43,7 +43,7 @@ def _difficulties(root: Path) -> dict[str, str]:
 def test_revision_kind_eval_passes():
     result = evaluate_revision_refuses_another_kind()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 9
+    assert result.checks_passed == result.checks_total == 12
 
 
 def test_a_gif_request_does_not_edit_the_game(service, tmp_path):
@@ -91,9 +91,49 @@ def test_the_head_noun_decides_which_kind_was_named():
     assert detect_revision_intent("さっきの資料のゲームを難しくして").is_revision
 
 
-def test_naming_a_kind_is_not_pointing_at_something(service):
-    """C-1797 still owns 「GIFを難しくして」 - it asks which artifact is meant."""
+def test_the_answer_arrives_in_one_step(service):
+    """C-1837: 「GIFを難しくして」 hears 「ゲームだけ」 without a round trip.
+
+    This test asserted the opposite until C-1837. The two-step path - ask for
+    「さっきの」, then refuse the kind - is the failure C-1814 named, and the
+    cycle that cited C-1814 built it again.
+    """
 
     result = service.chat("GIFを難しくして")
 
+    assert result["refusal"] == "revision_kind"
+    assert "ゲームだけ" in result["answer"]
+
+
+def test_a_change_that_is_neither_pointed_at_nor_readable(service):
+    """The fourth corner: it used to ask for a repository to be ingested."""
+
+    result = service.chat("スライドを短くして")
+
+    assert result["refusal"] == "revision_kind"
+
+
+def test_a_change_naming_no_kind_still_asks_which_one(service):
+    """C-1797 keeps its case - there the missing piece really is the target."""
+
+    result = service.chat("もっと難しくして")
+
     assert result["refusal"] == "revision_target"
+
+
+def test_naming_a_kind_without_asking_for_a_change_is_not_a_revision(service):
+    """What the change-verb gate actually decides, measured.
+
+    「レポートの内容」 names a kind and asks for no change; without the gate it
+    is answered 「修正できるのはゲームだけ」. The question and creation cases below
+    are held further up, by their own vetoes.
+    """
+
+    mention = service.chat("レポートの内容")
+    asked = service.chat("スライドの作り方を教えて")
+    built = service.chat("スライドを作って")
+
+    assert mention["refusal"] != "revision_kind"
+    assert asked["refusal"] != "revision_kind"
+    assert built["refusal"] != "revision_kind"
+    assert built["creation"]["outcome"]["handled"] is True
