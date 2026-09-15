@@ -204,8 +204,14 @@ _TABLE_ROW_END = "；"
 
 def _flatten_table_row(match: "re.Match[str]") -> str:
     cells = [cell.strip() for cell in match.group("cells").split("|")]
-    joined = " / ".join(cell for cell in cells if cell)
-    return joined + _TABLE_ROW_END if joined else joined
+    # Keep every cell, empty ones included. Dropping a blank interior cell (the
+    # old `if cell` filter) shifted every cell after it one column left, so a
+    # value lined up under the wrong header (C-1865); the blank must hold its
+    # slot. The row rule captures only between the outer pipes, so an empty here
+    # is always a real cell, never an artifact of the bounding 「|」. An all-empty
+    # row carries nothing, so it still collapses to the empty string.
+    joined = " / ".join(cells)
+    return joined + _TABLE_ROW_END if any(cells) else ""
 
 
 def plain_text(text: str) -> str:

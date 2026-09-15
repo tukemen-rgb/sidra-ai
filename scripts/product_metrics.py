@@ -4967,6 +4967,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1865: a Markdown table row with a blank interior cell lost it, shifting
+    # every cell after it one column left so a value lined up under the wrong
+    # header. _flatten_table_row now keeps empty cells in place.
+    from sidra_ai.evals.table_row_keeps_empty_cells import (
+        evaluate_table_row_keeps_empty_cells,
+    )
+
+    tbl_empty = evaluate_table_row_keeps_empty_cells()
+    c.add(
+        "table_row_keeps_empty_cells",
+        "表フラット化で空セルが位置を保つ（列が見出しとずれない）",
+        10.0 * tbl_empty.checks_passed / tbl_empty.checks_total,
+        detail=f"{tbl_empty.checks_passed}/{tbl_empty.checks_total} checks; "
+               "src/sidra_ai/evals/table_row_keeps_empty_cells.py"
+               + ("" if tbl_empty.passed else "; " + "; ".join(tbl_empty.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1231: 「OutputGuard？」 (a Japanese user's question - Latin keyword,
     # fullwidth 「？」, no kana/kanji) matched no evidence and got the *English*
     # no-evidence reply, breaking SYSTEM_PROMPT rule 6. The language gate now
