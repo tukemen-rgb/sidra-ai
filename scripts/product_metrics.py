@@ -4927,6 +4927,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1860: an HTML comment <!-- ... --> is invisible in rendered Markdown, but
+    # plain_text left its content in place, so a PR template instruction or a
+    # hidden author note surfaced as prose in a forwarded excerpt. plain_text now
+    # drops the comment (the security gate's hidden-channel detection is separate
+    # and unchanged).
+    from sidra_ai.evals.plain_text_drops_html_comment import (
+        evaluate_plain_text_drops_html_comment,
+    )
+
+    comment_flat = evaluate_plain_text_drops_html_comment()
+    c.add(
+        "plain_text_drops_html_comment",
+        "HTML コメントが平文化で消える（不可視の隠しメモを抜粋に出さない）",
+        10.0 * comment_flat.checks_passed / comment_flat.checks_total,
+        detail=f"{comment_flat.checks_passed}/{comment_flat.checks_total} checks; "
+               "src/sidra_ai/evals/plain_text_drops_html_comment.py"
+               + ("" if comment_flat.passed else "; " + "; ".join(comment_flat.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1231: 「OutputGuard？」 (a Japanese user's question - Latin keyword,
     # fullwidth 「？」, no kana/kanji) matched no evidence and got the *English*
     # no-evidence reply, breaking SYSTEM_PROMPT rule 6. The language gate now

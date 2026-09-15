@@ -124,6 +124,18 @@ _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
 #: A bare 「[1]」 reference has no following 「(」 and is left alone.
 _MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 _MD_LINK_OPEN = re.compile(r"\[([^\]]+)\]\([^)\n]*")
+#: An HTML comment 「<!-- ... -->」 is invisible in rendered Markdown - a PR
+#: template's 「<!-- Describe your changes -->」, a hidden author note or TODO -
+#: so its content is not prose the reader was meant to see. Left in place it
+#: surfaced verbatim in a forwarded excerpt, the same invisible-decoration leak
+#: C-1227 (link URL) and C-1840 (image) already close. Drop it whole, delimiters
+#: and content (C-1860). ``DOTALL`` so a comment spanning lines goes in one match;
+#: non-greedy so two comments on a line do not swallow the text between them. A
+#: complete 「<!--…-->」 only: a chunk-split half with no close is left alone, the
+#: same "do not over-strip" caution the link/bold rules keep. The security gate
+#: separately detects a secret or instruction hidden in a comment (a "hidden
+#: channel") on the raw content; this display strip does not touch that.
+_MD_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 #: A Markdown image 「![alt](url)」. The link rule above matches only the
 #: 「[alt](url)」 tail and leaves the leading 「!」 (「![logo](…)」→「!logo」);
 #: a bare badge 「![](url)」 (empty alt, the common README shape) matches no
@@ -210,6 +222,11 @@ def plain_text(text: str) -> str:
     """
 
     text = _TRAILER.sub("", text)
+    # HTML comments first, while line boundaries still exist (a comment may span
+    # lines) and before any other rule can act on markup hidden inside one: the
+    # comment is invisible in rendered Markdown, so its content never reaches the
+    # reader (C-1860).
+    text = _MD_COMMENT.sub("", text)
     # Tables before the list strip, so a separator row is gone before its
     # dashes could read as a bullet, and while line boundaries still exist.
     text = _MD_TABLE_SEP.sub("", text)
