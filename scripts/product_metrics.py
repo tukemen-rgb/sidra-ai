@@ -8666,40 +8666,57 @@ def measure_creation(c: Collector) -> None:
         # hull downed.
         "shooter": (("シューティングゲームを作って", "難しいシューティングゲームを作って"), _shooter_sky_probe, "kill"),
     }
-    for _rs_key, (_rs_requests, _rs_probe_builder, _rs_hit) in sorted(_rs_table.items()):
-        for _rs_request in _rs_requests:
-            _rs_page = generate_game(_rs_request).html
-            _rs_script = _scene_re.search(r"<script>(.*?)</script>", _rs_page, _scene_re.S)
-            if _rs_script is None:
-                round_scene_gaps.append(f"{_rs_request}: no script")
-                continue
-            try:
-                _rs_run = _scene_sp.run(
-                    ["node", "-"],
-                    input=_rs_probe_builder(_rs_script.group(1)),
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                )
-                if _rs_run.returncode != 0:
-                    round_scene_gaps.append(f"{_rs_request}: {_rs_run.stderr.strip()[:80]}")
-                    continue
-                _rs = json.loads(_rs_run.stdout.strip().splitlines()[-1])
-            except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-                round_scene_gaps.append(f"{_rs_request}: probe unavailable ({type(exc).__name__})")
-                continue
-            acts = (_rs.get("sceneEarly"), _rs.get("sceneMid"), _rs.get("sceneLate"))
-            if acts != (0, 1, 2):
-                round_scene_gaps.append(f"{_rs_request}: the sky ignores the clock {acts}")
-            _rs_scenes = _rs.get("scenes") or []
-            if len(_rs_scenes) < 3 or max(
-                range(len(_rs_scenes)), key=lambda i: _rs_scenes[i]["lum"]
-            ) != len(_rs_scenes) - 1:
-                round_scene_gaps.append(f"{_rs_request}: the last sky is not the brightest")
-            if _rs.get(_rs_hit + "Early") != 1 or _rs.get(_rs_hit + "Late") != 1:
-                round_scene_gaps.append(f"{_rs_request}: a play under the sky no longer lands")
-            if not _rs.get("done") or _rs.get("reason") != "time":
-                round_scene_gaps.append(f"{_rs_request}: the round no longer reaches its break")
+    # Four templates times two difficulties, read together (C-1856). The
+    # pairs are flattened in the order the two nested loops visited them, so
+    # the gaps below still come out in that order.
+    _rs_pairs = [
+        (_rs_request, _rs_probe_builder, _rs_hit)
+        for _rs_key, (_rs_requests, _rs_probe_builder, _rs_hit)
+        in sorted(_rs_table.items())
+        for _rs_request in _rs_requests
+    ]
+
+    def _rs_read(_rs_request, _rs_probe_builder):
+        _rs_page = generate_game(_rs_request).html
+        _rs_script = _scene_re.search(r"<script>(.*?)</script>", _rs_page, _scene_re.S)
+        if _rs_script is None:
+            return None, f"{_rs_request}: no script"
+        try:
+            _rs_run = _scene_sp.run(
+                ["node", "-"],
+                input=_rs_probe_builder(_rs_script.group(1)),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if _rs_run.returncode != 0:
+                return None, f"{_rs_request}: {_rs_run.stderr.strip()[:80]}"
+            return json.loads(_rs_run.stdout.strip().splitlines()[-1]), None
+        except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
+            return None, f"{_rs_request}: probe unavailable ({type(exc).__name__})"
+
+    for (_rs_request, _, _rs_hit), (_rs, _rs_why) in zip(
+        _rs_pairs,
+        in_parallel([
+            (lambda r=req, b=builder: _rs_read(r, b))
+            for req, builder, _ in _rs_pairs
+        ]),
+    ):
+        if _rs_why:
+            round_scene_gaps.append(_rs_why)
+            continue
+        acts = (_rs.get("sceneEarly"), _rs.get("sceneMid"), _rs.get("sceneLate"))
+        if acts != (0, 1, 2):
+            round_scene_gaps.append(f"{_rs_request}: the sky ignores the clock {acts}")
+        _rs_scenes = _rs.get("scenes") or []
+        if len(_rs_scenes) < 3 or max(
+            range(len(_rs_scenes)), key=lambda i: _rs_scenes[i]["lum"]
+        ) != len(_rs_scenes) - 1:
+            round_scene_gaps.append(f"{_rs_request}: the last sky is not the brightest")
+        if _rs.get(_rs_hit + "Early") != 1 or _rs.get(_rs_hit + "Late") != 1:
+            round_scene_gaps.append(f"{_rs_request}: a play under the sky no longer lands")
+        if not _rs.get("done") or _rs.get("reason") != "time":
+            round_scene_gaps.append(f"{_rs_request}: the round no longer reaches its break")
     # C-1795: and the table has to be able to say it is complete.
     #
     # This judge named fishing, catch and puzzle and said nothing about the
@@ -10781,14 +10798,16 @@ def measure_creation(c: Collector) -> None:
         # never spends a hammer (C-1427).
         "puzzle": ("パズルゲームを作って", {"route": _pz_route()}),
     }
-    for key in sorted(LOSS_WIRED):
+    # Only the read is bundled (C-1856); everything the reading is then
+    # checked against stays where it was, in one serial pass in key order,
+    # so the gaps come out in the order they always did.
+    def _recap_read(key):
         request, drive = _recap_asks[key]
         found = _scene_re.search(
             r"<script>(.*?)</script>", generate_game(request).html, _scene_re.S
         )
         if found is None:
-            recap_gaps.append(f"{key}: no script on the page")
-            continue
+            return None, f"{key}: no script on the page"
         try:
             run = _scene_sp.run(
                 ["node", "-"],
@@ -10799,9 +10818,17 @@ def measure_creation(c: Collector) -> None:
             )
             if run.returncode != 0:
                 raise ValueError(run.stderr.strip()[:60])
-            seen = json.loads(run.stdout.strip().splitlines()[-1])
+            return json.loads(run.stdout.strip().splitlines()[-1]), None
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            recap_gaps.append(f"{key}: probe unavailable ({exc})")
+            return None, f"{key}: probe unavailable ({exc})"
+
+    _recap_keys = sorted(LOSS_WIRED)
+    for key, (seen, _recap_why) in zip(
+        _recap_keys,
+        in_parallel([(lambda k=key: _recap_read(k)) for key in _recap_keys]),
+    ):
+        if _recap_why:
+            recap_gaps.append(_recap_why)
             continue
         end = seen["atEnd"]
         if seen.get("verdictWhileLive"):
@@ -20997,10 +21024,17 @@ def measure_creation(c: Collector) -> None:
                 "sidra.best.racing": str(sg_first["score"]),
                 "sidra.tune.racing": {"speed": sg_slow},
             }
-            sg_second = _sg_run(dict(sg_carry))
-            sg_off = _sg_run(
-                {**sg_carry, "sidra.tune.racing": {"speed": sg_slow, "ghost": False}}
-            )
+            # The first run has to finish - the two below are started from
+            # what it stored - but those two only differ by the switch, so
+            # they are independent of each other and were queueing for
+            # nothing (C-1856). `in_parallel` returns in order, so a failure
+            # in the second still surfaces before one in the third.
+            sg_second, sg_off = in_parallel([
+                lambda: _sg_run(dict(sg_carry)),
+                lambda: _sg_run(
+                    {**sg_carry, "sidra.tune.racing": {"speed": sg_slow, "ghost": False}}
+                ),
+            ])
         except (OSError, _scene_sp.SubprocessError, ValueError, KeyError, TypeError) as exc:
             sg_gaps.append(f"probe unavailable ({exc})")
             sg_first = sg_second = sg_off = None
@@ -21278,11 +21312,28 @@ def measure_creation(c: Collector) -> None:
     _adapt_ladder = [pair[0] for pair in _tune_ladder[_adapt_loser].values()]
     _adapt_base = {f"sidra.seen.{_adapt_loser}": "1"}
     runs = {}
-    for label, streak in (("fresh", None), ("two", 2), ("three", 3)):
+
+    def _adapt_stored(streak):
         stored = dict(_adapt_base)
         if streak is not None:
             stored[f"sidra.streak.{_adapt_loser}"] = str(streak)
-        seen, problem = _adapt_run(_adapt_loser, "シューティングゲームを作って", stored)
+        return stored
+
+    # The three streak states are independent reads of the same page, so
+    # they queue for no reason (C-1856). They all run now rather than
+    # stopping at the first problem - the only case that costs anything is
+    # a run that was already going to fail, and the fold below still keeps
+    # the first problem and only it.
+    _adapt_streaks = (("fresh", None), ("two", 2), ("three", 3))
+    for (label, _), (seen, problem) in zip(
+        _adapt_streaks,
+        in_parallel([
+            (lambda st=streak: _adapt_run(
+                _adapt_loser, "シューティングゲームを作って", _adapt_stored(st)
+            ))
+            for _, streak in _adapt_streaks
+        ]),
+    ):
         if problem:
             adapt_gaps.append(problem)
             break
@@ -21689,9 +21740,17 @@ def measure_creation(c: Collector) -> None:
                 f">「{_play['shake']}/{_play['hold']}/{_play['parts']}」"
             )
 
-    # (a) every template, met by an ignorant pilot
-    for _bp_key in sorted(_BP_REQS):
-        _bp_seen, _bp_why = _bp_read(_bp_key)
+    # (a) every template, met by an ignorant pilot - and (b) below in the
+    # same batch, because the staged run is another independent reading and
+    # a job kept back to run after the others is a job that waited alone
+    # (C-1856). The reads happen together; the checks below still happen in
+    # the order they were written, since `in_parallel` returns in order.
+    _bp_keys = sorted(_BP_REQS)
+    _bp_batch = in_parallel(
+        [(lambda k=key: _bp_read(k)) for key in _bp_keys]
+        + [lambda: _bp_read("adventure", _bp_stage)]
+    )
+    for _bp_key, (_bp_seen, _bp_why) in zip(_bp_keys, _bp_batch):
         if _bp_why:
             _bp_gaps.append(_bp_why)
             continue
@@ -21702,7 +21761,7 @@ def measure_creation(c: Collector) -> None:
     # collected. A contract that misses the largest one is not a contract,
     # and the first version of this judge proved the point by missing the
     # charm: restoring its 20 slipped past until it was staged too.
-    _bp_seen, _bp_why = _bp_read("adventure", _bp_stage)
+    _bp_seen, _bp_why = _bp_batch[-1]
     if _bp_why:
         _bp_gaps.append(_bp_why)
     else:
@@ -25194,14 +25253,14 @@ def measure_creation(c: Collector) -> None:
 
     mash_rows: list[dict] = []
     mash_gaps: list[str] = []
-    for _mash_key in sorted(k for k, v in _mash_ladder.items() if "hard" in v):
+
+    def _mash_one(_mash_key):
         _mash_page = _tune_generate("難しいゲームを作って", template=_mash_key).html
         _mash_script = _scene_re.search(
             r"<script>(.*?)</script>", _mash_page, _scene_re.S
         )
         if _mash_script is None:
-            mash_gaps.append(f"{_mash_key}: ページに script が無い")
-            continue
+            return None, f"{_mash_key}: ページに script が無い"
         try:
             _mash_run = _scene_sp.run(
                 ["node", "-"],
@@ -25211,18 +25270,24 @@ def measure_creation(c: Collector) -> None:
                 timeout=300,
             )
             if _mash_run.returncode != 0:
-                mash_gaps.append(f"{_mash_key}: {_mash_run.stderr.strip()[:60]}")
-                continue
+                return None, f"{_mash_key}: {_mash_run.stderr.strip()[:60]}"
             _mash_out = json.loads(_mash_run.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            mash_gaps.append(f"{_mash_key}: 走らせられない（{type(exc).__name__}）")
-            continue
+            return None, f"{_mash_key}: 走らせられない（{type(exc).__name__}）"
         # Both counters, because the run reports two different things and
         # only one of them is the verdict (C-1623).
         if _mash_out.get("selfCheck") != 1 or _mash_out.get("failCheck") != 1:
-            mash_gaps.append(f"{_mash_key}: 計器が自分の負けを数えられていない")
-            continue
-        mash_rows.append({"template": _mash_key, **_mash_out})
+            return None, f"{_mash_key}: 計器が自分の負けを数えられていない"
+        return {"template": _mash_key, **_mash_out}, None
+
+    for _mash_row, _mash_gap in in_parallel([
+        (lambda k=key: _mash_one(k))
+        for key in sorted(k for k, v in _mash_ladder.items() if "hard" in v)
+    ]):
+        if _mash_gap is not None:
+            mash_gaps.append(_mash_gap)
+        else:
+            mash_rows.append(_mash_row)
 
     punished = [r["template"] for r in mash_rows if r["beaten"] > 0]
     spared = [r["template"] for r in mash_rows if r["beaten"] == 0]
@@ -25285,14 +25350,19 @@ def measure_creation(c: Collector) -> None:
 
     best_rows: list[dict] = []
     best_gaps: list[str] = []
-    for _best_key in sorted(_tune_templates):
+
+    # One template's reading, so the ten can run beside each other (C-1856).
+    # Returns the row or the gap rather than appending: `in_parallel` hands
+    # results back in the order the jobs were given, so folding them here
+    # keeps `best_rows` and `best_gaps` in exactly the order the serial loop
+    # built them - which is what makes this safe to do to a judge.
+    def _best_one(_best_key):
         _best_page = _tune_generate("ゲームを作って", template=_best_key).html
         _best_script = _scene_re.search(
             r"<script>(.*?)</script>", _best_page, _scene_re.S
         )
         if _best_script is None:
-            best_gaps.append(f"{_best_key}: ページに script が無い")
-            continue
+            return None, f"{_best_key}: ページに script が無い"
         try:
             _best_run = _scene_sp.run(
                 ["node", "-"],
@@ -25302,19 +25372,25 @@ def measure_creation(c: Collector) -> None:
                 timeout=300,
             )
             if _best_run.returncode != 0:
-                best_gaps.append(f"{_best_key}: {_best_run.stderr.strip()[:60]}")
-                continue
+                return None, f"{_best_key}: {_best_run.stderr.strip()[:60]}"
             _best_out = json.loads(_best_run.stdout.strip().splitlines()[-1])
         except (OSError, _scene_sp.SubprocessError, ValueError) as exc:
-            best_gaps.append(f"{_best_key}: 走らせられない（{type(exc).__name__}）")
-            continue
+            return None, f"{_best_key}: 走らせられない（{type(exc).__name__}）"
         _best_said = any("自己ベスト更新" in line for line in _best_out.get("strip", []))
-        best_rows.append({
+        return {
             "template": _best_key,
             "score": _best_out.get("score"),
             "record": bool(_best_out.get("record")),
             "said": _best_said,
-        })
+        }, None
+
+    for _best_row, _best_gap in in_parallel(
+        [(lambda k=key: _best_one(k)) for key in sorted(_tune_templates)]
+    ):
+        if _best_gap is not None:
+            best_gaps.append(_best_gap)
+        else:
+            best_rows.append(_best_row)
 
     # Only rounds that actually banked a record exercise this at all.
     banked = [r for r in best_rows if r["record"] and r["score"] is not None]
@@ -32056,28 +32132,55 @@ def _runtime_report(collector: "Collector", elapsed: float) -> str:
             f"  {spawns} subprocess spawns cost {spent:.1f}s of process "
             "time (this counts every spawn, not only node - 1469 against "
             "1392 node ones when C-1736 measured both). Heaviest sites - "
-            "`wall` is what the run actually waited, so wall << sum means "
-            "the site is already bundled:"
+            "`wall` is the span from the site's first spawn to its last, so "
+            "wall << sum means the site's spawns overlapped, while wall >> "
+            "sum means they were scattered across the run rather than "
+            "queued. `alone` is the part that waited on the main thread, "
+            "and that is the part bundling can win:"
         )
         # What is left to win by bundling, next to what the run already has
         # to spare (C-1760). Printed so the question "is another round of
         # this worth it?" is answered by the run itself rather than by a
         # loop spending a cycle measuring it again - which is how this line
-        # came to exist. A site counts as alone when nothing overlapped it:
-        # its wall clock is its own process time.
-        alone = [(w, r) for w, r in sites if (r[3] - r[2]) > r[1] * 0.75]
-        left = sum(r[1] for _, r in alone)
+        # came to exist.
+        #
+        # A site counts as alone by the thread its spawns ran on, not by its
+        # wall-clock span (C-1856). The span was a guess at the same thing
+        # and it read scattered sites backwards: a memoised checker called
+        # by probes at both ends of the section has a span the width of the
+        # run and no queue in it at all. The guess said 947 spawns and
+        # 112.7s were waiting; the threads said 617. A loop sent to bundle
+        # the difference would have found nothing there to bundle, so the
+        # prize below is now the one `metrics_node_work_is_bundled` would
+        # move.
+        alone = [(w, r) for w, r in sites if r[4]]
+        left = sum(r[5] for _, r in alone)
         lines.append(
-            f"  {sum(r[0] for _, r in alone)} of them, at {len(alone)} of "
-            f"{len(sites)} sites, waited alone and cost {left:.1f}s of that. "
-            f"Bundling every one would win at most ~{left * 0.75:.0f}s "
-            f"against {headroom:+.1f}s of headroom."
+            f"  {sum(r[4] for _, r in alone)} of them, at {len(alone)} of "
+            f"{len(sites)} sites, waited alone on the main thread and cost "
+            f"{left:.1f}s of that. Bundling every one would win at most "
+            f"~{left * 0.75:.0f}s against {headroom:+.1f}s of headroom."
         )
-        for where, (count, seconds, first, last) in sites[:12]:
+        for where, (count, seconds, first, last, acount, aseconds) in sites[:12]:
             wall = last - first
             lines.append(
-                f"    {where:<28s} sum {seconds:6.1f}s  wall {wall:6.1f}s  x{count}"
+                f"    {where:<28s} sum {seconds:6.1f}s  wall {wall:6.1f}s  "
+                f"x{count}  alone {aseconds:5.1f}s x{acount}"
             )
+        # The heaviest sites are not the ones with work left in them - on
+        # the run that added this line all twelve above were already bundled
+        # (C-1856). A loop reading only that list sees `alone 0.0s` twelve
+        # times and concludes there is nothing to do, while 89s of serial
+        # node work sits below the cut. So the prize gets its own ranking:
+        # this is the work list, worst first.
+        if alone:
+            ranked_alone = sorted(alone, key=lambda pair: pair[1][5], reverse=True)
+            lines.append("  Where that serial time is, worst first:")
+            for where, row in ranked_alone[:8]:
+                lines.append(
+                    f"    {where:<28s} alone {row[5]:6.1f}s x{row[4]}"
+                    f"  (of {row[1]:.1f}s x{row[0]})"
+                )
     return "\n".join(lines)
 
 
@@ -32115,6 +32218,42 @@ def _is_node(args, kwargs) -> bool:
     return isinstance(cmd, str) and cmd.rsplit("/", 1)[-1] == "node"
 
 
+#: How many frames up the wrapper will look for a line in this script.
+#: Four covers a helper calling a helper; past that the walk would cost
+#: more than the spawn it is describing.
+_SITE_HOPS = 4
+
+
+def _site(frame) -> str:
+    """The line in this script that asked for a spawn, if there is one.
+
+    The immediate caller of ``subprocess.run`` is the honest answer for a
+    probe that spawns for itself, and the useless one for a shared helper:
+    every ``node --check`` in the run came back as ``games.py:2348``
+    whoever asked, because that is where ``_script_is_valid`` lives. It was
+    the heaviest site by count (212 spawns) and the only one with alone
+    work left in it, so the map's one actionable row named a line in the
+    product that no amount of bundling here can move (C-1856).
+
+    Bundling happens in this script, so the site has to be a line in this
+    script - the probe that asked. Falls back to the immediate caller when
+    nothing in the walk is ours, so a spawn is never lost from the map.
+    ``f_back`` a few times is a pointer hop each; ``inspect.stack()`` reads
+    source for every frame and would cost more than the spawn.
+    """
+
+    here = __file__.rsplit("/", 1)[-1]
+    walk = frame
+    for _ in range(_SITE_HOPS):
+        if walk is None:
+            break
+        if walk.f_code.co_filename.rsplit("/", 1)[-1] == here:
+            frame = walk
+            break
+        walk = walk.f_back
+    return f"{frame.f_code.co_filename.rsplit('/', 1)[-1]}:{frame.f_lineno}"
+
+
 def _spawn_timing(depth: int = 2):
     """Wrap ``subprocess.run`` so each caller's cost is remembered.
 
@@ -32129,10 +32268,10 @@ def _spawn_timing(depth: int = 2):
     original = _sp.run
 
     def timed(*args, **kwargs):
-        frame = sys._getframe(1)
-        where = f"{frame.f_code.co_filename.rsplit('/', 1)[-1]}:{frame.f_lineno}"
-        if _is_node(args, kwargs):
-            alone = threading.current_thread() is threading.main_thread()
+        where = _site(sys._getframe(1))
+        node = _is_node(args, kwargs)
+        alone = node and threading.current_thread() is threading.main_thread()
+        if node:
             with _SPAWN_LOCK:
                 _SPAWN_THREADS["alone" if alone else "bundled"] += 1
         started = time.monotonic()
@@ -32140,16 +32279,32 @@ def _spawn_timing(depth: int = 2):
             return original(*args, **kwargs)
         finally:
             ended = time.monotonic()
-            # count, summed seconds, first start, last end. The last two
-            # give the wall-clock span, and the span is what says whether a
-            # site is already bundled: a queue spends its sum, four threads
-            # spend a quarter of it (C-1638 - without this the report would
-            # send the next loop to optimise C-1522's work again).
-            row = _SPAWNS.setdefault(where, [0, 0.0, started, ended])
-            row[0] += 1
-            row[1] += ended - started
-            row[2] = min(row[2], started)
-            row[3] = max(row[3], ended)
+            # count, summed seconds, first start, last end, and how much of
+            # the site was node work that waited on the main thread. The
+            # span alone said whether a site was bundled: a queue spends its
+            # sum, four threads spend a quarter of it (C-1638). For a site
+            # whose calls are scattered across the run it said the opposite
+            # of the truth (C-1856) - games.py's memoised `node --check`
+            # spent 12.6s of process time inside a 263.5s span, because the
+            # probes that ask it run from one end of the section to the
+            # other, and the span read that as "waited alone". The thread is
+            # what `metrics_node_work_is_bundled` counts, so the map counts
+            # it too and the two now answer with the same number.
+            #
+            # Under the lock for the same reason the counters above are
+            # (C-1736): `row[0] += 1` is three bytecodes, so a row written
+            # from four workers runs low exactly at the sites this is meant
+            # to find. The lock is held for six integer updates around a
+            # call that took milliseconds.
+            with _SPAWN_LOCK:
+                row = _SPAWNS.setdefault(where, [0, 0.0, started, ended, 0, 0.0])
+                row[0] += 1
+                row[1] += ended - started
+                row[2] = min(row[2], started)
+                row[3] = max(row[3], ended)
+                if alone:
+                    row[4] += 1
+                    row[5] += ended - started
 
     _sp.run = timed
     return original

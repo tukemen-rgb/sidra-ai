@@ -446,10 +446,15 @@ def test_the_report_says_what_is_left_to_win_by_bundling() -> None:
     kept = dict(pm._SPAWNS)
     pm._SPAWNS.clear()
     pm._SPAWNS.update({
-        # 40 spawns overlapping four ways: 80s of process in 21s of wall.
-        "bundled.py:2": [40, 80.0, 0.0, 21.0],
-        # 10 that waited alone: the wall clock is its own process time.
-        "alone.py:1": [10, 20.0, 0.0, 20.0],
+        # 40 spawns overlapping four ways: 80s of process in 21s of wall,
+        # none of them on the main thread.
+        "bundled.py:2": [40, 80.0, 0.0, 21.0, 0, 0.0],
+        # 10 that waited alone on the main thread.
+        "alone.py:1": [10, 20.0, 0.0, 20.0, 10, 20.0],
+        # A site the span used to read backwards (C-1856): 200 spawns worth
+        # 4s of process time, scattered over a 150s stretch of the run and
+        # every one of them on a worker. wall >> sum, and nothing to win.
+        "scattered.py:3": [200, 4.0, 10.0, 160.0, 0, 0.0],
     })
     try:
         report = pm._runtime_report(collector, 185.0)
@@ -462,7 +467,10 @@ def test_the_report_says_what_is_left_to_win_by_bundling() -> None:
     # a deliberate break - dropping the comparison from this line - pass.
     line = next(ln for ln in report.splitlines() if "waited alone" in ln)
 
-    assert "10 of them, at 1 of 2 sites, waited alone" in line
+    assert "10 of them, at 1 of 3 sites, waited alone" in line, (
+        "the scattered site never queued behind anything - counting it "
+        "sends the next loop to bundle work that is already beside another"
+    )
     assert "cost 20.0s" in line, "the prize is the serial process time"
     assert "~15s" in line, "four-wide recovers about three quarters of it"
     assert "+115.0s of headroom" in line, (
