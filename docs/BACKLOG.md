@@ -8465,6 +8465,21 @@ C-12xx/13xx/14xx はループ用のまま）。
       → 動かす数字: **未定**（道 A なら `creation_design_document_is_a_document` の拡張、
       道 B なら「主題つきの企画/計画がゲームにならない」新設）
 - [x] 完了 2026-09-15 01:34 UTC 辛口ユーザー（`plain_text_flattens_image` **新設 broken 5→10（10/10）**・判定器 exit 0（BETTER 5→10・MOVED 1・WORSE/DRIFT/REGRESSED/LOST 無し）・採番衝突なし）　**確保時の判断**: 引用抜粋の平文化＝C-1227（リンク）の画像版・自帯。`plain_text` は answer 本文/document/deck/引用抜粋 が共有する唯一の平文化器なので、1 か所直せば全面に効く。**実測 2026-09-15 01:16 UTC**（`plain_text` 直接）: `![logo](url)`→**「!logo」**（先頭 `!` が残る——リンク規則は `[logo](url)` の尾だけに一致）、`![](url)`（空 alt・README のバッジ形）→**生の `![](url)` がそのまま**残り URL が転送成果物に漏れる（C-1227 がリンクで止めている漏れの画像版）。**原因**: `plain_text` に画像規則が無く、`_MD_LINK` がリンクの尾だけ食う。**処方〔最小〕**: `_MD_IMAGE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")` を足し、`_MD_LINK.sub` の**前**で `sub(r"\1", …)`（画像→alt、空 alt はバッジごと消える；リンク規則は不変）。**検証**: 破壊 5/5 全検出（別プロセス分離・C-1803——M1 画像 sub 削除／M2 リンクの後ろに回す→`!logo` 残存／M3 alt を必須 `[^\]]+`→空 alt バッジが URL 漏れ／M4 alt も落とす→空文字／M5 パターンから先頭 `!` を落とす→リンク化して `!` 残存）復元 GREEN。`plain_text` 消費者の広域 pytest exit 0（`answer_links_flattened` C-1227・citation_excerpt・setext・document/deck evidence・table・code_fence——21 件緑・回帰なし）。detectors.py 非変更につき gate 判定器 N/A。**族**: リンクは C-1227 で平文化・画像も本件で平文化＝抜粋の Markdown 漏れが 1 段そろう。**採番**: 起票時 origin 最大 C-1839〔辛口クリエイター 3D 題〕→次の空き **C-1840**＝衝突なし。 **C-1840: `plain_text` が Markdown 画像を平文化しない——`![logo](url)`→「!logo」、`![](url)`→生 URL 漏れ。**（2026-09-15 01:16 UTC 辛口ユーザー・C-1227 の画像版）
+- [~] 作業中 2026-09-15 02:42 UTC 辛口クリエイター　**確保時の判断**: 制作＝自帯。**前巡の残余を自分で畳む**（「英語の副詞は未対応＝C-1829 の英語版が空いている」と書いた行）。**表は 1 つ**（`REQUEST_ADVERBS` の隣に英語版）で、**games は自前の `_STRIP_EN_TAIL` に同じ表を流す**——**games の規則は書き換えず、表だけ共有**する。**採番は最大＋1**（最大 C-1841 → **C-1842**）。**時刻は `date -u`**。 **C-1842: 「make a racing game right now」の題が 'racing game right now'——英語の「いつ・どれくらい急いで」が全生成器で題に残る。**（2026-09-15 02:42 UTC 辛口クリエイター・C-1829 の英語版）
+      **実測 2026-09-15 02:42 UTC**（副詞 5 × 生成器 6 ＝ 30 件）: **30/30 が題に副詞を残す**。
+      game 'racing game right now'／gif 'fish quickly'／art 'sea asap'／
+      deck 'sales today'／doc 'sales when you can'／3D 'fish right now'。
+      **日本語側は C-1829 で全部落ちる**（「今すぐ」「まとめて」…）——**英語だけ 0 対応**。
+      **原因**: `REQUEST_ADVERBS` が日本語語彙のみ。英語は副詞が**末尾**に来るので、
+      `drop_english_frame` の末尾処理（please/thanks）と同じ場所で落とせる。
+      **範囲**: `vocabulary.py` に `ENGLISH_REQUEST_ADVERBS` を新設し、
+      (1) `_EN_TAIL`（共有・5 生成器）と (2) **games の `_STRIP_EN_TAIL` の構築**に同じ表を流す。
+      **games の規則そのものは触らない**（前巡と同じ方針・試験が厚い）。
+      **誤検知の境界を先に決める**: **「write a report about today」は題が 'today'**——
+      主題そのものが副詞語のときに落としてはいけない。**外して空になるなら外さない**。
+      **両方向**: (a) 30 件から副詞が消える、(b) **主題が副詞語そのものの依頼は残る**、
+      (c) 日本語の題は不変、(d) 主題の中の語（「today's sales」）は末尾でないので不変。
+      → 動かす数字: `creation_title_drops_english_adverbs`（新設・broken→）
 - [x] 完了 2026-09-15 02:41 UTC 辛口クリエイター（`creation_title_in_english` **新設 unmeasurable→10（9/9）**——**直す前の状態で 5/9＝5.556**〔破壊 D0〕、判定器 exit 0（MOVED 1・WORSE/REGRESSED/LOST 0）、全 pytest exit 0・失敗 0、`verify_gate_recall.py` exit 0）　**確保時の判断**: 制作＝自帯。**前巡で自分が起票し、未確保のまま置いた項目を取る**（実測 15 件中 12 件）。**前巡で 3D に書いた英語処理を共有に引き上げ、重複を 2 つ→1 つに減らす**のが今巡の形——**足すのではなく畳む**。games は触らない（ゲーム語彙と絡んでおり試験も厚い）。**採番は最大＋1**（最大 C-1840 → **C-1841**）。**時刻は `date -u`**。 **C-1841: 英語の依頼の題が、依頼の文そのものになる——deck「make a slide deck about the new product」・doc「write a report about monetisation」・gif「make a gif of a fish」。**（2026-09-15 01:36 UTC 辛口クリエイター・C-1839 の続き）
       **実測（前巡 2026-09-15 01:36 UTC 時点）**: 英語 15 依頼のうち **12 件の題が依頼の文法を含む**。
       **games だけが正しい**（'cat'・'puzzle'——C-1516／C-1526／C-1528／C-1531 の規則を持つ）。
