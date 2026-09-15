@@ -3939,6 +3939,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1838: the deck-summary twin of C-1834. A deck asked for in a document
+    # format (「スライドをPDFで」) still got the fixed PowerPoint notice, naming a
+    # format the operator never asked for. The summary now names the requested
+    # format and keeps the .pptx notice only when no document format was named.
+    from sidra_ai.evals.deck_names_requested_format import (
+        evaluate_deck_names_requested_format,
+    )
+
+    deck_fmt = evaluate_deck_names_requested_format()
+    c.add(
+        "deck_names_requested_format",
+        "Word/PDF 等で頼まれた deck が、その形式は作れず HTML にした旨を名指す",
+        10.0 * deck_fmt.checks_passed / deck_fmt.checks_total,
+        detail=f"{deck_fmt.checks_passed}/{deck_fmt.checks_total} checks; "
+               "src/sidra_ai/evals/deck_names_requested_format.py"
+               + ("" if deck_fmt.passed else "; " + "; ".join(deck_fmt.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1834: the document twin of C-1465. 「レポートをWordで作って」 produced Markdown
     # and named only Markdown, never that the requested Word/PDF/Excel could not be
     # made (the document generator only ever writes Markdown). The summary now
