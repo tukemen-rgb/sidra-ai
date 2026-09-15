@@ -13549,6 +13549,29 @@ def measure_creation(c: Collector) -> None:
     # on paper. The dual ring (surface outside, ink inside, full alpha)
     # must clear 3:1 through its better half on every theme's every act,
     # and the ink glyph must clear 3:1 on the blended plate.
+    # C-1870, from §33 (written the same day): nine knowledge-base sections
+    # were compared against the product and all nine held, while every defect
+    # found that day was in the wording of a refusal and no section covered
+    # writing one. Two rules are guarded here - a separate message per cause,
+    # and never calling the reader's input wrong - both of which the product
+    # was already keeping by hand when this was written. It repairs no defect;
+    # it repairs the absence of a guard.
+    from sidra_ai.evals.refusal_writing_follows_the_rules import (
+        evaluate_refusal_writing_follows_the_rules,
+    )
+
+    refusal_writing = evaluate_refusal_writing_follows_the_rules()
+    c.add(
+        "refusal_writing_follows_the_rules",
+        "断り文が、原因ごとに別の文で、利用者を咎めない（§33）",
+        10.0 * refusal_writing.checks_passed / refusal_writing.checks_total,
+        detail=f"{refusal_writing.checks_passed}/{refusal_writing.checks_total} checks; "
+               "src/sidra_ai/evals/refusal_writing_follows_the_rules.py"
+               + ("" if refusal_writing.passed
+                  else "; " + "; ".join(refusal_writing.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1868: naming a field without a value - 「配色を変えて」 - matched no value
     # table, so the reply said 「何をどう変えるかが読み取れませんでした。いま変えら
     # れるのは 難易度・テーマ（配色）…」: the refusal listed the field it was
