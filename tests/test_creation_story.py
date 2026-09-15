@@ -88,12 +88,28 @@ def test_structure_names_the_input_rather_than_saying_operate() -> None:
 
 
 def test_structure_admits_the_screens_that_do_not_exist_yet() -> None:
-    """game.html is one screen. A flow claiming three would be a wish."""
+    """The document describes the page that shipped, in both directions.
+
+    This test used to assert the opposite of its first line - that the document
+    says 「単一画面」 - and it was right when it was written: the page was one
+    screen, and a flow claiming three would have been a wish.
+
+    C-1848 measured it again. Every template now has a briefing start gate
+    (C-1033), a result strip and an attract demo, so the sentence this test was
+    protecting had become the mirror of the failure it guarded against: a
+    document denying screens that exist, which costs a reader the same way -
+    they plan to build what is already built.
+
+    What the test defends is unchanged. The document must match the page, and
+    「まだ無いもの」 must still name what is genuinely absent.
+    """
 
     text = story.structure("題", (), story.plan_for("釣りゲームを作って"))
 
-    assert "単一画面" in text
+    assert "単一画面" not in text
+    assert "開始（ブリーフィング）" in text
     assert "まだ無いもの" in text
+    assert "難易度選択" in text
 
 
 def test_the_scenario_quotes_the_rules_from_the_generator() -> None:

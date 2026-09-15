@@ -132,13 +132,52 @@ def screens(plan: "ProductionPlan") -> tuple[tuple[str, str, str], ...]:
     A screen list naming screens the page does not have would be the same lie
     in a different file, and one that said "操作する" without saying which key
     would be a heading pretending to be a specification.
+
+    C-1848: and the same lie in reverse. This listed two rows - play and the
+    score strip - and the prose below called the page single-screen with no
+    title and no result screen, which stopped being true when C-1033 gave every
+    template a briefing gate, recap gave it a result strip, and attract gave it
+    a demo. Measured across all ten: every one has all three. A reader planning
+    from this document would have built a start screen that was already there.
+    #
+    The rows are assembled from the modules that own those features rather than
+    from a list here, because a list here is exactly what went stale.
     """
 
+    from sidra_ai.creation import attract, recap, startscreen
+
     keys = " / ".join(key for key, _ in CONTROLS.get(plan.template, ())) or "（未定義）"
-    return (
-        ("プレイ", "canvas と現在のスコア表示、操作の説明行", f"ページを開いた時点で開始。入力は {keys}"),
-        ("結果表示", "スコアと失敗数がプレイ中の画面に出続ける", "リロードでやり直し"),
+    rows: list[tuple[str, str, str]] = []
+
+    briefing = startscreen.BRIEFINGS.get(plan.template, ())
+    if briefing:
+        rows.append((
+            "開始（ブリーフィング）",
+            "狙いと操作を書いた " + str(len(briefing)) + " 行と、開始待ちの案内",
+            "キー入力かタップで開始（この操作で音も有効になる）",
+        ))
+    rows.append(
+        ("プレイ", "canvas と現在のスコア表示、操作の説明行", f"入力は {keys}")
     )
+    if plan.template in recap.LOSS_WIRED:
+        rows.append((
+            "結果表示（負け）",
+            "スコアと、負けた原因を数えた帯（0 回の原因は出さない）",
+            "R / タップでもう一度",
+        ))
+    else:
+        rows.append((
+            "結果表示",
+            "スコアと失敗数がプレイ中の画面に出続ける（負けで終わる状態はこの型には無い）",
+            "リロードでやり直し",
+        ))
+    if plan.template in attract.ATTRACT_TEMPLATES:
+        rows.append((
+            "アトラクト（放置デモ）",
+            "誰も触っていない間、ページが自分で動いて見せる",
+            "入力があれば開始画面に戻る",
+        ))
+    return tuple(rows)
 
 BLANK = "〔運用者が埋める〕"
 
@@ -252,11 +291,12 @@ def structure(
     return _header(title, "構成", evidence, fallback) + f"""
 ## 画面フロー
 
-プレイ → 結果表示（同一画面）→ リロードでプレイ
+{" → ".join(name for name, _shows, _advance in screens(plan))}
 
-**現状の game.html は単一画面です。**タイトル画面もリザルト画面も無く、
-開いた瞬間に始まります。実装に無い画面をここに書けば、この文書は仕様では
-なく願望になるので、増やすときは game.html と一緒に増やしてください。
+実装に無い画面をここに書けば、この文書は仕様ではなく願望になります。
+**逆も同じで、ある画面を無いと書けば、読んだ人は既にある物を作り直します。**
+上の並びと下の表は、画面を実装している側の表から組み立てています——
+画面が増えればここも増え、減ればここからも消えます。
 
 ## 各画面
 
@@ -266,8 +306,8 @@ def structure(
 
 ## まだ無いもの（増やすなら実装と同時に）
 
-- タイトル画面（開始ボタン・難易度選択）
-- リザルト画面（最終スコア・もう一度）
+- 開始画面での難易度選択（難易度は依頼の言葉で決まり、画面からは選べません）
+- 通しの進行（面の連なり・セーブ）
 """
 
 

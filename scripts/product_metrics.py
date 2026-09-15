@@ -1488,6 +1488,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1848: structure.md said 「現状の game.html は単一画面です。タイトル画面も
+    # リザルト画面も無く」 and listed both under 「まだ無いもの」, while all ten
+    # templates have a briefing gate (C-1033), a result strip and an attract
+    # demo. The rows come from the modules that own those features now, so the
+    # document follows the page instead of a second list that goes stale.
+    from sidra_ai.evals.project_structure_matches_the_page import (
+        evaluate_project_structure_matches_the_page,
+    )
+
+    project_structure = evaluate_project_structure_matches_the_page()
+    c.add(
+        "project_structure_matches_the_page",
+        "制作一式の構成文書が、実際のページにある画面を書く（無いとは書かない）",
+        10.0 * project_structure.checks_passed / project_structure.checks_total,
+        detail=f"{project_structure.checks_passed}/{project_structure.checks_total} checks; "
+               "src/sidra_ai/evals/project_structure_matches_the_page.py"
+               + ("" if project_structure.passed
+                  else "; " + "; ".join(project_structure.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck
