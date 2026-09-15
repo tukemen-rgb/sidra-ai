@@ -1328,6 +1328,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1839: models3d._STRIP is all-optional, so it matched the empty string
+    # everywhere and its \s* ate every space - 「make a 3D model of a fish」 was
+    # titled 'makeaofafish', and 'a fish' became 'afish'. Japanese has no spaces
+    # and never showed it. The substitution now drops only non-empty matches,
+    # and the English frame comes off the way games.py has done since C-1516.
+    from sidra_ai.evals.model3d_title_in_english import (
+        evaluate_model3d_title_in_english,
+    )
+
+    model3d_english = evaluate_model3d_title_in_english()
+    c.add(
+        "creation_model3d_title_in_english",
+        "英語の 3D 依頼の題が、依頼の文字列や潰れた文字列にならない",
+        10.0 * model3d_english.checks_passed / model3d_english.checks_total,
+        detail=f"{model3d_english.checks_passed}/{model3d_english.checks_total} checks; "
+               "src/sidra_ai/evals/model3d_title_in_english.py"
+               + ("" if model3d_english.passed
+                  else "; " + "; ".join(model3d_english.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

@@ -43,10 +43,51 @@ _FISH_WORDS = ("魚", "さかな", "フィッシュ", "fish", "釣り")
 _BOAT_WORDS = ("舟", "船", "ボート", "boat", "ship")
 _TERRAIN_WORDS = ("地形", "島", "山", "terrain", "island", "ステージ")
 
+#: C-1839: every group here is optional, so this pattern matches the EMPTY
+#: STRING at every position - and its ``\s*`` then matches every space on its
+#: own. Japanese has no spaces, so for four months it looked correct; English
+#: came back with its spaces removed and 「make a 3D model of a fish」 was titled
+#: 'makeaofafish', a string nobody wrote, in the <title>, the <h1>, the summary
+#: and the record. The smallest reproduction contains neither 3D nor model:
+#: 'a fish' -> 'afish'.
+#:
+#: The pattern is left as it is - it says what the Japanese path means - and
+#: the substitution below drops only matches that actually matched something.
 _STRIP = re.compile(
     r"(の)?(3d|３d)?\s*(モデル|model|obj)?(を|で)?(作って|作成して|生成して|つくって|ください|下さい)?",
     re.IGNORECASE,
 )
+
+
+def _strip_kind_words(request: str) -> str:
+    """``_STRIP`` applied so that an empty match removes nothing (C-1839)."""
+
+    return _STRIP.sub(lambda m: "" if m.group(0).strip() else m.group(0), request)
+
+
+#: The English frame: the verb the request opens with and the article after it.
+#: Japanese puts the making verb last and ``_STRIP`` takes it off there; English
+#: puts it first and nothing took it off here, so the whole sentence was the
+#: title. games.py has carried this rule since C-1516 - written again rather
+#: than lifted, because that file's version is built from the game vocabulary
+#: and is under test as part of it. The duplication is recorded on the board.
+_EN_HEAD = re.compile(
+    r"^(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
+    r"(?:make|create|build|generate|design|produce|model|give\s+me)\s+"
+    r"(?:me\s+)?(?:a|an|the|some)?\s*",
+    re.IGNORECASE,
+)
+
+#: 「a model OF a fish」 - English says outright which half is the subject, and
+#: the head noun comes first, so trimming the ends can never reach it (the
+#: mirror of the Japanese rule in C-1479).
+_EN_SUBJECT = re.compile(
+    r"^.*?\b(?:of|about|featuring|showing)\s+(?:a|an|the|some)?\s*",
+    re.IGNORECASE,
+)
+
+#: What English puts at the end and never means as a subject.
+_EN_TAIL = re.compile(r"\s*(?:please|thanks|thank you)\s*[.!?]*\s*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -100,7 +141,21 @@ def choose_shape(request: str) -> str:
 
 
 def _title_from(request: str, fallback: str) -> str:
-    stripped = _STRIP.sub("", request.strip()).strip("「」\"' 　")
+    stripped = _strip_kind_words(request.strip()).strip("「」\"' 　")
+    # C-1839: the English frame, once the kind words are out.
+    #
+    # Unconditional, and that is a measurement rather than a shortcut. The
+    # first version ran this only when a Latin letter survived, to keep
+    # Japanese away from it - and a destruction that removed that guard scored
+    # a perfect run, so it was measured across ten Japanese requests and
+    # changed the title of none. It could not: all three patterns need an
+    # English word (make/create…, of/about…, please) that a Japanese sentence
+    # does not contain. A guard that decides nothing is the same dead code
+    # C-1821 deleted one module over, and it is not kept here either.
+    stripped = _EN_TAIL.sub("", stripped)
+    without_head = _EN_HEAD.sub("", stripped, count=1)
+    lifted = _EN_SUBJECT.sub("", without_head, count=1)
+    stripped = " ".join((lifted or without_head).split())
     # C-1829 widened six generators and MISSED THIS ONE, so 「魚の3Dモデルを今すぐ
     # 作って」 was titled 「魚今すぐ」 - the defect that cycle was about, left in the
     # seventh generator by the cycle that fixed it. C-1833 adds it here with the
