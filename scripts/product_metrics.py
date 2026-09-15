@@ -1199,6 +1199,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1846: the deck twin of C-1532. A fact matching a slide's section cue is
+    # placed on that slide even when it does not mention the deck's subject, so a
+    # 「量子コンピュータ」 deck read as backed by a 定着率 fact. The deck now carries
+    # the same subject-mismatch caveat the report does, when facts were placed.
+    from sidra_ai.evals.deck_discloses_subject_unmatched import (
+        evaluate_deck_discloses_subject_unmatched,
+    )
+
+    deck_subject = evaluate_deck_discloses_subject_unmatched()
+    c.add(
+        "deck_discloses_subject_unmatched",
+        "スライドが、載せた根拠は主題に触れていない旨を開示する（C-1532 の deck 版）",
+        10.0 * deck_subject.checks_passed / deck_subject.checks_total,
+        detail=f"{deck_subject.checks_passed}/{deck_subject.checks_total} checks; "
+               "src/sidra_ai/evals/deck_discloses_subject_unmatched.py"
+               + ("" if deck_subject.passed
+                  else "; " + "; ".join(deck_subject.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1821: 「5枚のスライドを作って」 built the fixed four sections and said
     # nothing - the number in the request was read by nobody, on the page or in
     # the summary. slide_count_note now rides both from one source; a request
