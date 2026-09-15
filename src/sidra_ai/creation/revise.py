@@ -306,6 +306,61 @@ _PANEL_WORDS: tuple[str, ...] = (
     "動き", "モーション", "motion", "揺れ", "エフェクト",
 )
 
+#: The words a person uses for each changeable field, and where its values
+#: live. C-1868: naming the FIELD without a VALUE - 「配色を変えて」 - matched no
+#: value table, so `adjustments` came out empty and the reply said 「何をどう変え
+#: るかが読み取れませんでした。いま変えられるのは 難易度・テーマ（配色）…」. The
+#: answer was printed in the same sentence as the refusal, five fields out of
+#: five. What the reader needed was not the list again but that field's values.
+#:
+#: Keyed by the ``CHANGEABLE`` key so the two cannot drift: a field offered
+#: there and unlisted here is caught by the eval.
+_FIELD_WORDS: dict[str, tuple[str, ...]] = {
+    "theme": ("配色", "テーマ", "色合い"),
+    "accent": ("差し色", "アクセント"),
+    "difficulty": ("難易度", "難しさ"),
+    "title": ("題名", "タイトル", "名前"),
+}
+
+
+def names_a_field(message: str) -> str:
+    """The changeable field this message names, or "" - value or not."""
+
+    text = fold_kana(message.casefold())
+    for key, words in _FIELD_WORDS.items():
+        if any(fold_kana(word.casefold()) in text for word in words):
+            return key
+    return ""
+
+
+def field_values(key: str, template: str) -> str:
+    """How to say what this field can be set to, read off the owning table.
+
+    Never written out here: the accents are the colour table's own keys and
+    the themes the catalogue's own names, so a colour or a theme added
+    upstream joins this sentence by existing (C-1848, C-1850, C-1861).
+    """
+
+    if key == "theme":
+        from sidra_ai.creation.themes import THEMES
+
+        return " / ".join(THEMES) + " の 4 つから選べます"
+    if key == "accent":
+        return " / ".join(_ACCENT_WORDS) + " から選べます"
+    if key == "difficulty":
+        from sidra_ai.creation.games import _DIFFICULTY
+
+        rungs = _DIFFICULTY.get(template) or {}
+        return (
+            " / ".join(rungs) + " の 3 段です"
+            if rungs
+            else "「難しくして」「簡単にして」で動かせます"
+        )
+    if key == "title":
+        return "「さっきのゲームのタイトルを「〇〇」にして」のように指定してください"
+    return ""
+
+
 def asks_about_panel(message: str) -> str:
     """The panel dial this message names, or "" if it names none.
 

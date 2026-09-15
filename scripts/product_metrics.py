@@ -13549,6 +13549,27 @@ def measure_creation(c: Collector) -> None:
     # on paper. The dual ring (surface outside, ink inside, full alpha)
     # must clear 3:1 through its better half on every theme's every act,
     # and the ink glyph must clear 3:1 on the blended plate.
+    # C-1868: naming a field without a value - 「配色を変えて」 - matched no value
+    # table, so the reply said 「何をどう変えるかが読み取れませんでした。いま変えら
+    # れるのは 難易度・テーマ（配色）…」: the refusal listed the field it was
+    # refusing, five fields out of five. The values now come from the owning
+    # tables, and the eval RUNS the advice rather than reading it.
+    from sidra_ai.evals.revision_names_the_values_of_the_field import (
+        evaluate_revision_names_the_values_of_the_field,
+    )
+
+    field_values_named = evaluate_revision_names_the_values_of_the_field()
+    c.add(
+        "revision_names_the_values_of_the_field",
+        "変える項目だけ言われたら、その項目に何を指定できるかを答える",
+        10.0 * field_values_named.checks_passed / field_values_named.checks_total,
+        detail=f"{field_values_named.checks_passed}/{field_values_named.checks_total} checks; "
+               "src/sidra_ai/evals/revision_names_the_values_of_the_field.py"
+               + ("" if field_values_named.passed
+                  else "; " + "; ".join(field_values_named.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1866: one turn after making a game, six questions about that page -
     # sharing the score, the daily board, skins, the personal best - all six
     # reached the no-evidence abstention that asks for a repository to be

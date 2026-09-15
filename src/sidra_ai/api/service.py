@@ -21,6 +21,8 @@ from sidra_ai.creation.revise import (
     CHANGEABLE,
     asks_about_panel,
     asks_to_delete,
+    field_values,
+    names_a_field,
     build_game_reviser,
     detect_revision_intent,
 )
@@ -1058,13 +1060,47 @@ class SidraService:
             # What it can change is read from the detector's own table rather
             # than repeated here, the way the help reply reads the generator
             # registry (C-1802).
+            # C-1868: which of those two it is, said out loud. The note above
+            # had already seen it - 「題名 IS in the list; what was missing was
+            # the value」 - and chose wording true of both, which is honest and
+            # stops one step short: the detector knows WHICH field was named,
+            # so a reader who named one can be told what it takes instead of
+            # being handed the same list their field is already in. Measured
+            # before this: five fields out of five got a refusal that listed
+            # the field it was refusing.
+            named_field = names_a_field(query)
+            values = ""
+            if named_field:
+                from sidra_ai.creation.revise import find_target_meta
+
+                found = find_target_meta(self.settings.data_dir, query, screened_history)
+                template = ""
+                if found is not None:
+                    _p, _meta = found
+                    template = str(_meta.get("template") or "")
+                values = field_values(named_field, template)
+            if values:
+                label = dict(CHANGEABLE).get(named_field, named_field)
+                return {
+                    "answer": (
+                        f"{label}は変えられます——{values}。"
+                        "その言い方で、もう一度送ってください。"
+                    ),
+                    "refused": True,
+                    "refusal": "revision_change",
+                    "reason": "the field was named without a value",
+                    "citations": [],
+                    "security": gate_result.to_dict(),
+                    "creation": {"revision": {}},
+                }
             return {
                 # Says what was and was not understood, and not more. The
                 # first draft said 「その変更は今できることの中にありません」,
                 # which is false for 「タイトルを変えて」 - 題名 IS in the list;
                 # what was missing was the value. This wording is true of both
                 # an unsupported field and a supported one with nothing to set
-                # it to, which are the two ways to arrive here.
+                # it to; C-1868 now splits the second case off above, so what
+                # reaches here is a field this product does not have.
                 "answer": (
                     "どれを変えるかは分かりましたが、何をどう変えるかが読み取れません"
                     "でした。いま変えられるのは "
