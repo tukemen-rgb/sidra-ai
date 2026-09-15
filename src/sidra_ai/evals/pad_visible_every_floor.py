@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from sidra_ai.creation.games import TEMPLATES, generate_game
@@ -99,12 +100,42 @@ def _blend(alpha: float, over: str, under: str) -> str:
     return "#" + "".join(out)
 
 
+def _probe_one(job: tuple[str, str, str]) -> tuple[str, dict | None, str]:
+    """Run one page's pad probe. Pure so it can be handed to a worker."""
+
+    label, script, floor_token = job
+    try:
+        run = subprocess.run(
+            ["node", "-"],
+            input=pad_probe(script, floor_token=floor_token),
+            capture_output=True,
+            text=True,
+            timeout=240,
+        )
+        if run.returncode != 0:
+            return label, None, run.stderr.strip()[:60]
+        return label, json.loads(run.stdout.strip().splitlines()[-1]), ""
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        return label, None, f"{type(exc).__name__}"
+
+
 def evaluate_pad_visible_every_floor() -> PadVisibleResult:
     checks = 0
     failures: list[str] = []
     cells = 0
     worst = (99.0, "")
 
+    # Every page is read first, then every probe is spawned together.
+    #
+    # C-1857, second half: widening the sweep from 4 spawns to 40 inside a
+    # plain `for` loop made each one queue behind the last, and
+    # `metrics_node_work_is_bundled` fell 61.2% -> 59.8%. The judge refused
+    # the merge, correctly - that metric exists because "probes have been
+    # added straight into for loops" is exactly how this section got slow
+    # (C-1522). Covering ten times as much of the rule is not a licence to
+    # spend ten times the machine; the work is subprocess.run waiting on a
+    # child, which holds no GIL, so threads are all it takes.
+    jobs: list[tuple[str, str, str]] = []
     for template in sorted(TEMPLATES):
         for suffix in THEME_SUFFIXES:
             label = f"{template}/{suffix or 'default'}"
@@ -121,48 +152,41 @@ def evaluate_pad_visible_every_floor() -> PadVisibleResult:
                 # read as a cell that passed.
                 failures.append(f"{label}: no scene floor token")
                 continue
-            try:
-                run = subprocess.run(
-                    ["node", "-"],
-                    input=pad_probe(
-                        script.group(1), floor_token=floor_token.group(1)
-                    ),
-                    capture_output=True,
-                    text=True,
-                    timeout=240,
-                )
-                if run.returncode != 0:
-                    raise ValueError(run.stderr.strip()[:60])
-                probed = json.loads(run.stdout.strip().splitlines()[-1])
-            except (OSError, subprocess.SubprocessError, ValueError) as exc:
-                failures.append(f"{label}: probe unavailable ({exc})")
+            jobs.append((label, script.group(1), floor_token.group(1)))
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        probed_all = list(pool.map(_probe_one, jobs))
+
+    for label, probed, why in probed_all:
+        if probed is None:
+            failures.append(f"{label}: probe unavailable ({why})")
+            continue
+        facts = probed.get("facts") or {}
+        for act, under in enumerate(probed.get("floors") or []):
+            if not under:
+                failures.append(f"{label}: act {act} floor unread")
                 continue
-            facts = probed.get("facts") or {}
-            for act, under in enumerate(probed.get("floors") or []):
-                if not under:
-                    failures.append(f"{label}: act {act} floor unread")
-                    continue
-                cells += 1
-                ring = max(
-                    _ratio(facts["ringIn"], under), _ratio(facts["ringOut"], under)
+            cells += 1
+            ring = max(
+                _ratio(facts["ringIn"], under), _ratio(facts["ringOut"], under)
+            )
+            if ring < worst[0]:
+                worst = (ring, f"{label}/act{act}")
+            if ring < FLOOR_RATIO:
+                failures.append(
+                    f"{label}: act {act} the boundary melts ({ring:.2f})"
                 )
-                if ring < worst[0]:
-                    worst = (ring, f"{label}/act{act}")
-                if ring < FLOOR_RATIO:
-                    failures.append(
-                        f"{label}: act {act} the boundary melts ({ring:.2f})"
-                    )
-                else:
-                    checks += 1
-                glyph = _ratio(
-                    facts["glyph"], _blend(facts["alpha"], facts["plate"], under)
+            else:
+                checks += 1
+            glyph = _ratio(
+                facts["glyph"], _blend(facts["alpha"], facts["plate"], under)
+            )
+            if glyph < FLOOR_RATIO:
+                failures.append(
+                    f"{label}: act {act} the glyph sinks ({glyph:.2f})"
                 )
-                if glyph < FLOOR_RATIO:
-                    failures.append(
-                        f"{label}: act {act} the glyph sinks ({glyph:.2f})"
-                    )
-                else:
-                    checks += 1
+            else:
+                checks += 1
 
     want = len(TEMPLATES) * len(THEME_SUFFIXES) * ACTS
     if cells == want:
