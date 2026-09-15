@@ -4985,6 +4985,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1867: a pipe inside an inline-code table cell (a CLI-reference table) or
+    # an escaped \| was split as a cell break, shifting the row's columns.
+    # _flatten_table_row now splits with a backtick/escape-aware splitter.
+    from sidra_ai.evals.table_cell_pipe_in_code import (
+        evaluate_table_cell_pipe_in_code,
+    )
+
+    tbl_pipe = evaluate_table_cell_pipe_in_code()
+    c.add(
+        "table_cell_pipe_in_code",
+        "表フラット化がセル内コード/エスケープの | を区切りにしない（列がずれない）",
+        10.0 * tbl_pipe.checks_passed / tbl_pipe.checks_total,
+        detail=f"{tbl_pipe.checks_passed}/{tbl_pipe.checks_total} checks; "
+               "src/sidra_ai/evals/table_cell_pipe_in_code.py"
+               + ("" if tbl_pipe.passed else "; " + "; ".join(tbl_pipe.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1231: 「OutputGuard？」 (a Japanese user's question - Latin keyword,
     # fullwidth 「？」, no kana/kanji) matched no evidence and got the *English*
     # no-evidence reply, breaking SYSTEM_PROMPT rule 6. The language gate now

@@ -202,8 +202,42 @@ _MD_TABLE_ROW = re.compile(r"(?m)^[ \t]*\|(?P<cells>.+)\|[ \t]*$")
 _TABLE_ROW_END = "；"
 
 
+def _split_table_cells(cells: str) -> list[str]:
+    """Split a table row into cells on 「|」, the way a Markdown renderer does.
+
+    A plain ``str.split("|")`` splits on every pipe, including the ones a reader
+    never sees as a column break (C-1867): a pipe inside an inline-code span
+    (「`ps aux | grep x`」, common in a CLI-reference table) and an escaped 「\\|」
+    are literal content, not delimiters, so splitting on them cuts one cell into
+    several and shifts every cell after it under the wrong header. Walk the row
+    instead, tracking backtick spans, and split only on a bare pipe.
+    """
+
+    parts: list[str] = []
+    buf: list[str] = []
+    in_code = False
+    i = 0
+    while i < len(cells):
+        char = cells[i]
+        if char == "\\" and i + 1 < len(cells) and cells[i + 1] == "|":
+            buf.append("|")  # an escaped pipe is literal content, not a break
+            i += 2
+            continue
+        if char == "`":
+            in_code = not in_code
+            buf.append(char)
+        elif char == "|" and not in_code:
+            parts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(char)
+        i += 1
+    parts.append("".join(buf))
+    return parts
+
+
 def _flatten_table_row(match: "re.Match[str]") -> str:
-    cells = [cell.strip() for cell in match.group("cells").split("|")]
+    cells = [cell.strip() for cell in _split_table_cells(match.group("cells"))]
     # Keep every cell, empty ones included. Dropping a blank interior cell (the
     # old `if cell` filter) shifted every cell after it one column left, so a
     # value lined up under the wrong header (C-1865); the blank must hold its
