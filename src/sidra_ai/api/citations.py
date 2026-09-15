@@ -104,6 +104,12 @@ def select_excerpt_span(
 #: so without sentence boundaries the window has a single candidate - the head -
 #: and cannot move to the answering sentence (C-1270).
 _SENTENCE_ENDERS = "。！？．"
+#: Digits (half- and full-width) for the mid-number tail guard (C-1849), and the
+#: run a partial number is trimmed back over - digits plus the in-number group
+#: separators. A trailing 「,」/「.」 left after the digits go is part of the number
+#: and comes off too; a sentence-ending 「。」 (not in the set) never does.
+_DIGITS = frozenset("0123456789０１２３４５６７８９")
+_NUMBER_TAIL = "0123456789０１２３４５６７８９,，.．"
 #: Whitespace after a boundary is skipped so the window opens on the first real
 #: character of the next line or sentence, not on the break itself.
 _BOUNDARY_SKIP = " \t\n　"
@@ -337,4 +343,15 @@ def citation_excerpt(
             tail_frag = body[open_bracket:]
             if "[REDACTED".startswith(tail_frag) or tail_frag.startswith("[REDACTED"):
                 body = body[:open_bracket].rstrip()
+    # C-1849: don't end inside a number either. When the budget splits a figure -
+    # the next dropped character is a digit, so the number continues past the cut -
+    # 「1,234,567,890」 shows as 「1,2…」, and a partial number reads as a small whole
+    # value, the fidelity a cited figure exists to give (the report body already
+    # refuses this, C-1217). Drop the partial back to its start; the 「…」 still says
+    # it was clipped. A figure that merely *ends* at the budget (the next character
+    # is not another digit) is whole and kept, so no real figure is lost.
+    if len(guarded.content) > budget and guarded.content[len(body)] in _DIGITS:
+        trimmed = body.rstrip(_NUMBER_TAIL)
+        if trimmed:
+            body = trimmed
     return lead + body + trail, False
