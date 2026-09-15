@@ -1085,6 +1085,18 @@ class SidraService:
                     "answer": (
                         f"{label}は変えられます——{values}。"
                         "その言い方で、もう一度送ってください。"
+                        # C-1802's guarantee, kept: a refusal names what CAN
+                        # be changed. Its sentinel caught the first version of
+                        # this, which answered the named field and dropped the
+                        # list - more useful for the field they asked about,
+                        # and less than the reader was promised. Both fit in
+                        # one sentence, so there was never a trade to make.
+                        "ほかに変えられるのは "
+                        + "・".join(
+                            other for key, other in CHANGEABLE
+                            if key != named_field
+                        )
+                        + " です。"
                     ),
                     "refused": True,
                     "refusal": "revision_change",

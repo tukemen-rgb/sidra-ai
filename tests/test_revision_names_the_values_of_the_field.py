@@ -21,7 +21,7 @@ from sidra_ai.evals.revision_names_the_values_of_the_field import (
 def test_field_values_eval_passes():
     result = evaluate_revision_names_the_values_of_the_field()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 20
+    assert result.checks_passed == result.checks_total == 28
 
 
 @pytest.mark.parametrize("key,request_text", sorted(FIELD_REQUESTS.items()))

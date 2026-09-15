@@ -96,6 +96,14 @@ def evaluate_revision_names_the_values_of_the_field() -> FieldValuesResult:
             f"A: {key}: the answer does not say the field can be changed: {answer[:70]}")
         add("いま変えられるのは" not in answer,
             f"A: {key}: still handed the list its own field is in")
+        # ...and C-1802's guarantee survives: a refusal still names what CAN
+        # be changed. Its sentinel caught the first version of this, which
+        # answered the named field and dropped the list - so the case lives
+        # here too now, not only in the item that caught it.
+        add("ほかに変えられるのは" in answer,
+            f"A: {key}: the rest of what can be changed is no longer named")
+        add(labels[key] not in answer.split("ほかに変えられるのは", 1)[-1],
+            f"A: {key}: the field they asked about is repeated in the rest")
 
     # --- (B) and it says what that field takes, from the owning table -----
     add(all(name in answers["theme"] for name in THEMES),
