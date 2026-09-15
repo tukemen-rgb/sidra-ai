@@ -69,7 +69,17 @@ def _repo(home: Path, minutes_ahead: int, hide_minute: bool = False,
     git("add", "-A"); git("commit", "-q", "-m", "base"); git("push", "-q", "origin", "main")
 
     when = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes_ahead)
-    stamp = when.strftime("%Y-%m-%d %H:4x UTC" if hide_minute else "%Y-%m-%d %H:%M UTC")
+    # A hidden minute keeps its tens digit: `10:4x` means 10:40-10:49, and the
+    # checker reads it as the earliest it can mean. The stamp therefore has to
+    # hide the minute the line actually has, not a fixed "4x" - written as a
+    # constant, this test failed for the first ten minutes of every hour,
+    # because "HH:4x" read as HH:40 is then 31-40 minutes ahead of a commit
+    # made at HH:00-HH:09 (measured 2026-09-15 10:06 UTC: "+34 分先").
+    stamp = (
+        f"{when:%Y-%m-%d %H}:{when.minute // 10}x UTC"
+        if hide_minute
+        else when.strftime("%Y-%m-%d %H:%M UTC")
+    )
     if into_log:
         with (root / "docs" / "LOOP_LOG.md").open("a", encoding="utf-8") as fh:
             fh.write(f"{stamp} ループA started\n")

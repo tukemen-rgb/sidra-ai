@@ -65,7 +65,10 @@ ASK_PAGE = """<!doctype html>
      opens on their phone to grab a generated file (C-1224). No button sets a
      height, so one rule scoped to a coarse pointer lifts them all; the desktop
      keeps its compact controls. Same fix the game shell already carries. */
-  @media (pointer: coarse) { button { min-height: 48px; } }
+  /* The token field measured 44px on iPhone 14 and Pixel 7 descriptors
+     (2026-09-15) - the one control the rule above left out, and the one a
+     phone user with a token has to hit before anything else works. */
+  @media (pointer: coarse) { button, input { min-height: 48px; } }
   /* overflow-wrap on the answer and status for the same reason .path has
      it: citation labels and error text carry long unbroken tokens, and on
      a phone one such token widens the document past the viewport - the

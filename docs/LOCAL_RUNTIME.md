@@ -368,6 +368,49 @@ After successful non-echo startup, verify `/health` over loopback and perform a
 small local generation before considering the machine real-model ready. The
 model server itself must also remain loopback-only.
 
+## 6b. スマホから使う（同じ Wi-Fi の中だけ）
+
+既定の待ち受けは `127.0.0.1` で、**その PC の中からしか開けない**。スマホで
+開くには、PC が LAN 上で待ち受ける必要がある。設計上それは**明示の許可と
+トークンの両方**が無いと起動しない（`docs/SECURITY.md` 不変条件 4）。
+
+1. PC の LAN 上のアドレスを調べる（PowerShell で `ipconfig`、`IPv4 アドレス`
+   の行。例 `192.168.1.23`）。
+2. **同じウィンドウで**、以下を設定してから起動する（環境変数はウィンドウごとに
+   別。別の窓で起動すると設定を失って `echo` に落ちる——手順 6 の注意と同じ）:
+
+```powershell
+$env:SIDRA_HOST = "192.168.1.23"          # 手順 1 で調べた PC のアドレス
+$env:SIDRA_ALLOW_PUBLIC_BIND = "true"
+$env:SIDRA_API_TOKEN = "<24 文字以上のランダムな英数字>"
+sidra-api --check
+sidra-api
+```
+
+   トークンが 24 文字未満、または `SIDRA_ALLOW_PUBLIC_BIND` が無いと、
+   `sidra-api` は**待ち受ける前に止まる**。それは設計どおりの拒否であって、
+   緩めて通すものではない。
+3. スマホを**同じ Wi-Fi** に繋ぎ、ブラウザで `http://192.168.1.23:8787/` を開く。
+   画面の「アクセストークン」欄に手順 2 のトークンを入れて質問する。
+   ボタンと入力欄は指で押せる高さ（48px）になっている。
+
+**PC を点けずに持ち歩く（検索だけ）**: 索引を 1 枚の HTML にして、スマホに
+送っておく手もある。サーバーも Wi-Fi も要らず、開くだけで製品と同じ BM25 で
+根拠の断片を探せる（回答文の生成・安全関門・出力ガードは入っていない）:
+
+```powershell
+python scripts\build_pocket_page.py --out C:\sidra\pocket.html
+```
+
+できたファイルは**索引の中身そのもの**なので、`index.jsonl` と同じ扱いにする
+（公開の場所へ置かない・人に渡さない）。
+
+**やってはいけないこと**: ルーターのポート開放（ポートフォワード）で外から
+届くようにすること。この API は自宅の LAN までを想定して作られており、
+インターネットに向けて開く設計にはなっていない。外出先から使いたい場合は、
+自宅 LAN へ入るための VPN を**別途**用意する判断になる（このリポジトリの
+範囲外）。
+
 ## 7. GitHub RAG verification（手順 7: GitHub の取り込みを確かめる）
 
 Public repositories require no token. If an optional read-only GitHub token is

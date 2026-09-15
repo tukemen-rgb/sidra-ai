@@ -1,0 +1,239 @@
+<title>SIDRA ポケット検索</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700&family=Noto+Sans+JP:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F2F5F4; --panel: #FFFFFF; --ink: #17211E; --muted: #5C6B66;
+    --line: #C9D2CE; --accent: #0E7C66; --accent-ink: #FFFFFF;
+    --hit: #FBE8B0; --hit-ink: #4A3600; --chip: #E4EAE8; --absent: #B7C2BE;
+    --score: #0E7C66;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10171A; --panel: #172023; --ink: #E6ECEA; --muted: #93A39D;
+      --line: #2A3835; --accent: #3FC8A8; --accent-ink: #0B1513;
+      --hit: #4A3D12; --hit-ink: #F6DE8E; --chip: #223030; --absent: #4B5A56;
+      --score: #3FC8A8;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10171A; --panel: #172023; --ink: #E6ECEA; --muted: #93A39D;
+    --line: #2A3835; --accent: #3FC8A8; --accent-ink: #0B1513;
+    --hit: #4A3D12; --hit-ink: #F6DE8E; --chip: #223030; --absent: #4B5A56;
+    --score: #3FC8A8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.7; -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 42rem; margin: 0 auto; padding: 0 16px 3rem; }
+  header { padding-block: 1.25rem .5rem; }
+  h1 {
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", sans-serif; font-weight: 700;
+    font-size: 1.5rem; letter-spacing: .02em; margin: 0; text-wrap: balance;
+  }
+  h1 small { font-weight: 500; font-size: .8rem; color: var(--muted); margin-left: .5rem; letter-spacing: .12em; text-transform: uppercase; }
+  .lede { margin: .25rem 0 0; color: var(--muted); font-size: .9rem; max-width: 34rem; }
+
+  .bar {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2;
+    background: var(--bg); padding-block: .75rem;
+    border-bottom: 1px solid var(--line);
+  }
+  form { display: flex; gap: .5rem; }
+  #q {
+    flex: 1; min-width: 0; min-height: 48px; padding: .6rem .8rem;
+    font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: .375rem;
+  }
+  #q:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button {
+    font: inherit; font-weight: 500; min-height: 48px; padding: 0 1.1rem;
+    border: 0; border-radius: .375rem; background: var(--accent); color: var(--accent-ink);
+    cursor: pointer; white-space: nowrap;
+  }
+  .samples { display: flex; gap: .5rem; overflow-x: auto; padding: .6rem 0 .1rem; scrollbar-width: none; }
+  .samples::-webkit-scrollbar { display: none; }
+  .samples button {
+    background: var(--chip); color: var(--ink); font-weight: 400; font-size: .85rem;
+    min-height: 40px; padding: 0 .8rem; border-radius: 999px; flex: 0 0 auto;
+  }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: .9rem 0 .25rem;
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .75rem; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .terms { display: flex; flex-wrap: wrap; gap: .35rem; margin: .5rem 0 1rem; }
+  .terms .k { font-size: .75rem; color: var(--muted); align-self: center; margin-right: .2rem; }
+  .term {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .78rem;
+    padding: .1rem .45rem; border-radius: .25rem; background: var(--chip); color: var(--ink);
+  }
+  .term.absent { color: var(--absent); text-decoration: line-through; background: transparent; border: 1px dashed var(--absent); }
+
+  ol.results { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
+  .hit {
+    background: var(--panel); border: 1px solid var(--line); border-radius: .5rem;
+    padding: .8rem .9rem; display: grid; gap: .35rem;
+  }
+  .hit .top { display: flex; align-items: baseline; gap: .6rem; }
+  .label {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 500;
+    color: var(--accent); font-size: .85rem; flex: 0 0 auto;
+  }
+  .path {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .78rem; color: var(--muted);
+    overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0;
+  }
+  .score {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .78rem; color: var(--score);
+    font-variant-numeric: tabular-nums; margin-left: auto; flex: 0 0 auto;
+  }
+  .excerpt { margin: 0; font-size: .92rem; overflow-wrap: anywhere; }
+  .excerpt mark { background: var(--hit); color: var(--hit-ink); border-radius: .15rem; padding: 0 .05em; }
+  .empty { color: var(--muted); padding: 1rem 0; }
+
+  .note {
+    margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line);
+    font-size: .82rem; color: var(--muted);
+  }
+  .note strong { color: var(--ink); font-weight: 500; }
+  .note ul { margin: .4rem 0 0; padding-left: 1.2rem; }
+  @media (prefers-reduced-motion: no-preference) { .hit { animation: in .18s ease-out both; } }
+  @keyframes in { from { opacity: .4; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>SIDRA <small>pocket</small></h1>
+    <p class="lede">製品と同じ字句解析・同じ BM25（k1 1.2 / b 0.75）で、公開リポジトリ <span class="term">tukemen-rgb/sidra-ai</span> の文書を検索します。計算は全部この端末の中で終わり、どこにも通信しません。</p>
+  </header>
+
+  <div class="bar">
+    <form id="f">
+      <input id="q" name="q" type="search" autocomplete="off" enterkeyhint="search"
+             placeholder="日本語で質問" aria-label="質問">
+      <button type="submit" id="go">検索</button>
+    </form>
+    <div class="samples" id="samples" aria-label="例の質問"></div>
+  </div>
+
+  <div class="meta" id="meta"></div>
+  <div class="terms" id="terms"></div>
+  <ol class="results" id="results"></ol>
+
+  <div class="note">
+    <strong>これは製品の「根拠を探す半分」だけです。</strong>
+    <ul>
+      <li>索引にあるのは公開リポジトリ <code>sidra-ai</code> の文書だけ（非公開の 4 リポジトリは入っていません）。</li>
+      <li>局所モデルによる回答文の生成、安全関門、出力ガードは動いていません。返るのは「どの文書のどの断片が根拠になるか」までです。</li>
+      <li>順位は製品の BM25 と同じ計算です（同点のときの並びだけ、製品は断片 ID で決めます）。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const DATA = /*__CORPUS__*/null;
+
+// --- tokenizer: the product's, ported line for line ---------------------
+const STOP = new Set(["the","a","an","and","or","of","to","in","is","are","for","on","with","as","by","at","from","this","that","it","be","した","する","して","です","ます","こと","ため","この","その"]);
+const KANA_ONLY = /^[぀-ゟ]+$/;
+const LATIN = /[a-z0-9_]+/g;
+const GLUED = /^[0-9]+([a-z_]{2,6})$/;
+const CJK = /[぀-ゟ゠-ヿ一-鿿]+/g;
+function keep(t){ if (STOP.has(t) || KANA_ONLY.test(t) || t.includes("何") || t.includes("誰")) return null; return t; }
+function tokenize(text){
+  const n = text.normalize("NFKC").toLowerCase(); const out = [];
+  for (const w of n.match(LATIN) || []) { const k = keep(w); if (k) out.push(k); const g = GLUED.exec(w); if (g) { const u = keep(g[1]); if (u) out.push(u); } }
+  for (const run of n.match(CJK) || []) {
+    if (run.length === 1) { const k = keep(run); if (k) out.push(k); continue; }
+    for (let i = 0; i < run.length - 1; i++) { const k = keep(run.slice(i, i + 2)); if (k) out.push(k); }
+  }
+  return out;
+}
+
+// --- index --------------------------------------------------------------
+const K1 = 1.2, B = 0.75, TOP_K = 5, MAX_TERMS = 128, MAX_PER_DOC = 2;
+const chunks = DATA.chunks;
+const tf = [], len = [], df = new Map();
+for (const c of chunks) {
+  const counts = new Map();
+  const toks = tokenize(c.t);
+  for (const t of toks) counts.set(t, (counts.get(t) || 0) + 1);
+  tf.push(counts); len.push(toks.length);
+  for (const t of counts.keys()) df.set(t, (df.get(t) || 0) + 1);
+}
+const N = chunks.length, AVG = len.reduce((a, b) => a + b, 0) / N;
+const idf = t => { const d = df.get(t) || 0; return d ? Math.log(1 + (N - d + 0.5) / (d + 0.5)) : 0; };
+
+function search(query) {
+  const asked = [...new Set(tokenize(query))];
+  let terms = asked.filter(t => df.get(t));
+  if (terms.length > MAX_TERMS) {
+    terms = terms.map((t, i) => [df.get(t), i, t]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, MAX_TERMS).sort((a, b) => a[1] - b[1]).map(x => x[2]);
+  }
+  const scored = [];
+  for (let i = 0; i < N; i++) {
+    let s = 0; const counts = tf[i]; const L = len[i] || 1;
+    for (const t of terms) {
+      const f = counts.get(t); if (!f) continue;
+      s += idf(t) * f * (K1 + 1) / (f + K1 * (1 - B + B * L / AVG));
+    }
+    if (s > 0) scored.push({ i, s });
+  }
+  scored.sort((a, b) => b.s - a.s || chunks[a.i].p.localeCompare(chunks[b.i].p) || chunks[a.i].i - chunks[b.i].i);
+  // diversify: one per document, then up to two, then backfill
+  const picked = [], seen = new Set(), per = new Map();
+  const take = r => { picked.push(r); seen.add(r.i); per.set(chunks[r.i].p, (per.get(chunks[r.i].p) || 0) + 1); };
+  for (const r of scored) { if (picked.length >= TOP_K) break; if (per.get(chunks[r.i].p)) continue; take(r); }
+  for (const r of scored) { if (picked.length >= TOP_K) break; if (seen.has(r.i) || (per.get(chunks[r.i].p) || 0) >= MAX_PER_DOC) continue; take(r); }
+  for (const r of scored) { if (picked.length >= TOP_K) break; if (seen.has(r.i)) continue; take(r); }
+  return { asked, terms, picked };
+}
+
+// --- rendering ----------------------------------------------------------
+const SAMPLES = ["SIDRA のセキュリティ方針は","ローカルで動かす手順を教えて","プロンプト注入への対策は","全体の構成はどうなっていますか","差分取り込みの仕組みは","VRAM はどれくらい必要ですか","AI 同士の共同作業の決まりは","main へ昇格させる条件は"];
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+function excerpt(text, terms) {
+  const low = text.normalize("NFKC").toLowerCase();
+  let first = -1;
+  for (const t of terms) { const k = low.indexOf(t); if (k >= 0 && (first < 0 || k < first)) first = k; }
+  const start = Math.max(0, (first < 0 ? 0 : first) - 90);
+  // The corpus is Markdown; on a phone the heading hashes and bold stars are
+  // noise around the sentence, not information.
+  let piece = text.slice(start, start + 280).replace(/^#{1,6}\s*/gm, "").replace(/\*\*|`/g, "").replace(/\s+/g, " ").trim();
+  let html = esc(piece);
+  for (const t of [...terms].sort((a, b) => b.length - a.length)) {
+    if (t.length < 2) continue;
+    html = html.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), m => `<mark>${m}</mark>`);
+  }
+  return (start > 0 ? "…" : "") + html + (start + 280 < text.length ? "…" : "");
+}
+
+function run(query) {
+  query = query.trim(); if (!query) return;
+  $("q").value = query;
+  const { asked, terms, picked } = search(query);
+  const docs = new Set(picked.map(r => chunks[r.i].p)).size;
+  $("meta").innerHTML = `<span>${picked.length} 件</span><span>${docs} 文書</span><span>${DATA.chunks.length} 断片を走査</span><span>commit ${DATA.sha}</span>`;
+  $("terms").innerHTML = `<span class="k">索引が見た語</span>` + asked.map(t => `<span class="term${df.get(t) ? "" : " absent"}" title="${df.get(t) ? `${df.get(t)} 断片に出現` : "索引に無い語"}">${esc(t)}</span>`).join("");
+  $("results").innerHTML = picked.length ? picked.map((r, n) => `
+    <li class="hit">
+      <div class="top"><span class="label">[S${n + 1}]</span><span class="path">${esc(chunks[r.i].p)}#${chunks[r.i].i}</span><span class="score">${r.s.toFixed(2)}</span></div>
+      <p class="excerpt">${excerpt(chunks[r.i].t, terms)}</p>
+    </li>`).join("") : `<li class="empty">索引に根拠が見つかりません。製品もこの場合は「十分な根拠がありません」と答えて、作り話をしません。</li>`;
+  try { localStorage.setItem("sidra-pocket-q", query); } catch (e) {}
+}
+
+$("samples").innerHTML = SAMPLES.map(s => `<button type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("");
+$("samples").addEventListener("click", e => { const b = e.target.closest("button"); if (b) run(b.dataset.q); });
+$("f").addEventListener("submit", e => { e.preventDefault(); run($("q").value); });
+let initial = SAMPLES[0];
+try { initial = localStorage.getItem("sidra-pocket-q") || initial; } catch (e) {}
+run(initial);
+</script>

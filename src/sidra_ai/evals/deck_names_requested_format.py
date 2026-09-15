@@ -15,6 +15,7 @@ Measured through the real chat path, both directions.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -88,12 +89,23 @@ def evaluate_deck_names_requested_format() -> DeckNamesFormatResult:
         add(_DOC_NOTE in s and label in s, f"{request!r}: summary omits the {label} note: {s[:110]!r}")
         add(_PPTX_NOTE not in s, f"{request!r}: summary still names PowerPoint the operator did not ask for: {s[:110]!r}")
 
-    # No document format named (a plain deck, or パワポ/pptx): the .pptx fallback
-    # notice stands (C-1274), and no document-format note appears.
+    # No document format named (a plain deck, or パワポ/pptx): no document-format
+    # note appears, and the .pptx fallback notice (C-1274) stands exactly when
+    # the .pptx could not be written. That is a property of the machine, not of
+    # the request: `python-pptx` is an optional extra, the notice exists to say
+    # it is missing, and a machine that has it writes the deck and correctly
+    # says nothing. Written as "notice always present", this eval went red on
+    # any install with the `creation` extra (2026-09-15) - a release gate that
+    # fails because the optional feature works.
+    pptx_missing = importlib.util.find_spec("pptx") is None
     for request in ("売上のスライドを作って", "売上のスライドをパワポで作って"):
         s = _summary(svc, request)
-        add(_PPTX_NOTE in s and _DOC_NOTE not in s,
-            f"{request!r}: expected the .pptx notice and no doc-format note: {s[:110]!r}")
+        if pptx_missing:
+            add(_PPTX_NOTE in s and _DOC_NOTE not in s,
+                f"{request!r}: expected the .pptx notice and no doc-format note: {s[:110]!r}")
+        else:
+            add(_PPTX_NOTE not in s and _DOC_NOTE not in s,
+                f"{request!r}: python-pptx is installed, so no notice belongs here: {s[:110]!r}")
 
     total = 8
     return DeckNamesFormatResult(

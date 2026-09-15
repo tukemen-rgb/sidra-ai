@@ -44,6 +44,14 @@ def test_named_format_replaces_powerpoint_notice(request_text, label):
     ["売上のスライドを作って", "売上のスライドをパワポで作って"],
 )
 def test_plain_or_pptx_deck_keeps_powerpoint_notice(request_text):
+    """The notice says python-pptx is missing; with it installed there is
+    nothing to say, and the deck is simply written as .pptx as well."""
+
+    import importlib.util
+
     s = _summary(_service(), request_text)
-    assert _PPTX_NOTE in s
+    if importlib.util.find_spec("pptx") is None:
+        assert _PPTX_NOTE in s
+    else:
+        assert _PPTX_NOTE not in s, "the deck was written as .pptx; the notice would be false"
     assert _DOC_NOTE not in s
