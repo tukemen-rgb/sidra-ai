@@ -13495,6 +13495,29 @@ def measure_creation(c: Collector) -> None:
     # on paper. The dual ring (surface outside, ink inside, full alpha)
     # must clear 3:1 through its better half on every theme's every act,
     # and the ink glyph must clear 3:1 on the blended plate.
+    # C-1861: the page ships a tuning panel - volume, music, haptic,
+    # reduce-motion - and asking for any of those got one of three wrong
+    # answers: 「『動き』は増減できません」 (false), the list of revisable
+    # parameters (which does not include them), or the no-evidence wall
+    # telling someone asking about a setting to ingest a repository. Nothing
+    # new was built and nothing is written: the panel exists, and a panel
+    # value belongs to the viewer, not to the file.
+    from sidra_ai.evals.chat_panel_setting_points_at_the_panel import (
+        evaluate_chat_panel_setting_points_at_the_panel,
+    )
+
+    panel_points = evaluate_chat_panel_setting_points_at_the_panel()
+    c.add(
+        "chat_panel_setting_points_at_the_panel",
+        "ページにある調整（音量・振動・動き）を頼まれたら、その在り処を答える",
+        10.0 * panel_points.checks_passed / panel_points.checks_total,
+        detail=f"{panel_points.checks_passed}/{panel_points.checks_total} checks; "
+               "src/sidra_ai/evals/chat_panel_setting_points_at_the_panel.py"
+               + ("" if panel_points.passed
+                  else "; " + "; ".join(panel_points.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1857: this ran on template="catch" alone - 12 of the 120 cells the
     # rule covers - and found its floor by the SPELLING 「sky:scenePaint」.
     # adventure and puzzle fill their canvas with a bare 「fillStyle =

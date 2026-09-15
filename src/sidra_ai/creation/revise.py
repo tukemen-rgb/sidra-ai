@@ -285,6 +285,66 @@ _DELETE_REQUEST = re.compile(
 )
 
 
+#: What a person calls the page's own dials (C-1861). The generated page ships
+#: a tuning panel - volume, music, haptic, reduce-motion - and asking for any
+#: of them got one of three wrong answers: 「『動き』は増減できません」 (false),
+#: the list of revisable parameters (which does not include them), or, for
+#: 「振動を切って」, the no-evidence wall telling the reader to ingest a
+#: repository. The panel is already built; only the sentence was missing.
+#:
+#: 「音」 alone is deliberately absent: 「音を消して」 is C-1814's own example of a
+#: feature request and keeps its answer. This table is about the DIALS.
+_PANEL_WORDS: tuple[str, ...] = (
+    "音量", "ボリューム", "volume",
+    "音楽", "bgm",
+    "振動", "バイブ", "haptic",
+    "動き", "モーション", "motion", "揺れ", "エフェクト",
+)
+
+def asks_about_panel(message: str) -> str:
+    """The panel dial this message names, or "" if it names none.
+
+    Matched on the folded text, like every other rule in this file - a table
+    written in the unfolded spelling matches nothing (the hole C-1847 fell
+    into and measured) - but what comes back is the TABLE's spelling, not the
+    folded one. The answer quotes this word, and 「動キ」 is not a word anyone
+    typed.
+    """
+
+    text = fold_kana(message.casefold())
+    for word in _PANEL_WORDS:
+        if fold_kana(word.casefold()) in text:
+            return word
+    return ""
+
+
+def panel_setting_labels(template: str, difficulty: str) -> tuple[str, ...]:
+    """The panel's own words for the viewer's dials, read off a real schema.
+
+    Built rather than listed, so a dial added to the panel joins this sentence
+    by existing - the lesson C-1848 and C-1850 both cost.
+    """
+
+    from sidra_ai.creation.games import _DIFFICULTY
+    from sidra_ai.creation.tuning import VIEWER_SETTING_KEYS, panel_schema
+
+    ladder = _DIFFICULTY.get(template)
+    if not ladder:
+        return ()
+    schema = panel_schema(
+        template, ladder, difficulty=difficulty, accent="#2ee6ff"
+    )
+    rows = schema.get("fields") or schema.get("rows") or []
+    by_key = {
+        row.get("key"): row.get("label")
+        for row in rows
+        if isinstance(row, dict)
+    }
+    return tuple(
+        by_key[key] for key in VIEWER_SETTING_KEYS if by_key.get(key)
+    )
+
+
 def asks_to_delete(message: str) -> bool:
     """True when the message asks for an artifact itself to be deleted."""
 

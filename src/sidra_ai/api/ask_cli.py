@@ -356,6 +356,7 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             # the next step is to point at something, here it is to ask for one
             # of the changes that exist (C-1814).
             "delete_unsupported": "削除は用意していない。何も消していない。不要なファイルは保存先のフォルダーで消す。",
+            "panel_setting": "ページ側の設定。ゲームのページを開き、画面下の調整パネルで切り替える。",
             "artifact_list": "作ったものの一覧を返した。ファイル本体は `sidra-ask --artifacts` か /v1/artifacts から取得する。",
             "revision_kind": "いま修正できるのはゲームだけ。スライド・GIF・アート・レポート・3D モデルは、作ったときの依頼をもう一度送って作り直す。",
             "revision_change": "どれを変えるかは分かったが、何をどう変えるかが"

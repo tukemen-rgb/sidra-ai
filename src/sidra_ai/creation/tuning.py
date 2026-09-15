@@ -91,6 +91,19 @@ def _clamp_axis(value: float, values: tuple[float, ...]) -> float:
     return int(round(inside)) if all(float(v).is_integer() for v in values) else inside
 
 
+#: The rows that belong to the PERSON LOOKING at the page rather than to the
+#: artifact: how loud it is, whether it buzzes, whether it moves. C-1861 named
+#: them because the chat had to point at them - somebody who asks 「動きを減らして」
+#: is asking for one of these, and the answer used to be that it could not be
+#: done. Keys, not labels: the label is read back out of a real schema so the
+#: sentence and the panel cannot drift (the panel is built below).
+#:
+#: They are deliberately NOT revisable from chat. A panel value is this
+#: viewer's setting, stored in their own browser; writing it into the file
+#: would change what everyone else sees when they open the same page.
+VIEWER_SETTING_KEYS: tuple[str, ...] = ("volume", "music", "haptic", "motion")
+
+
 def panel_schema(
     template: str,
     ladder: dict[str, tuple[float, float]],
@@ -728,6 +741,7 @@ def panel_probe(script: str) -> str:
 
 
 __all__ = [
+    "VIEWER_SETTING_KEYS",
     "PANEL_PROBE",
     "panel_probe",
     "AXIS_LABELS",

@@ -18,6 +18,7 @@ from sidra_ai.creation.evidence import Fact, plain_text, whole_sentences
 from sidra_ai.creation.intent import CreationKind, detect_creation_intent
 from sidra_ai.creation.revise import (
     CHANGEABLE,
+    asks_about_panel,
     asks_to_delete,
     build_game_reviser,
     detect_revision_intent,
@@ -872,6 +873,47 @@ class SidraService:
         # vetoes itself on any creation verb - so creation keeps priority on
         # 「難しいゲームを作って」 by construction, not by ordering luck.
         revision = detect_revision_intent(query)
+        # C-1861: the page ships a tuning panel - volume, music, haptic,
+        # reduce-motion - and asking for any of those got one of three wrong
+        # answers: 「『動き』は増減できません」 (false, the switch is right there),
+        # the list of revisable parameters (which does not include them), or,
+        # for 「振動を切って」, the no-evidence wall that sends a reader asking
+        # about a setting off to ingest a repository - C-1261 and C-1814's
+        # hole, reopened by the panel's own vocabulary.
+        #
+        # Nothing is written. A panel value is THIS viewer's setting, kept in
+        # their own browser; editing the file would change what everyone else
+        # sees when they open the same page. So the honest answer is where the
+        # control is, and the dials are read off the page's real schema rather
+        # than listed here, so one added to the panel joins this sentence.
+        if panel_word := asks_about_panel(query):
+            from sidra_ai.creation.revise import find_target_meta, panel_setting_labels
+
+            found = find_target_meta(self.settings.data_dir, query, screened_history)
+            dials = ()
+            title = "ゲーム"
+            if found is not None:
+                _target, _meta = found
+                title = str(_meta.get("title") or "ゲーム")
+                dials = panel_setting_labels(
+                    str(_meta.get("template") or ""),
+                    str(_meta.get("difficulty") or "normal"),
+                )
+            if dials:
+                return {
+                    "answer": (
+                        f"「{panel_word}」はページ側の設定なので、ここでは変えていません。"
+                        f"「{title}」のページを開いて、画面の下の調整パネルで"
+                        f" {'・'.join(dials)} をその場で切り替えられます。"
+                        "設定はその端末に憶えられ、ファイルは書き換わりません。"
+                    ),
+                    "refused": True,
+                    "refusal": "panel_setting",
+                    "reason": "the request names a per-viewer page setting, not an artifact parameter",
+                    "citations": [],
+                    "creation": {"revision": {}},
+                }
+
         if revision.wants_referent:
             # C-1797: a change instruction that names no artifact (「もっと難しく
             # して」). detect_revision_intent declines to edit an unpointed
