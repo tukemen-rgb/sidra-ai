@@ -1529,6 +1529,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1855: ADVENTURE_WORDS held nine names for the genre and nothing the
+    # page contains, so 「洞窟を探検するゲームを作って」 built a fishing game under
+    # 「『洞窟』の題材を描く型はまだ無いため」 - false, since the rooms are called
+    # 「森のはずれ / ひかり苔の洞窟 / 風の祭壇」. The words added are the page's own;
+    # the genres this product does not build are still not claimed.
+    from sidra_ai.evals.game_words_match_the_page import (
+        evaluate_game_words_match_the_page,
+    )
+
+    game_words = evaluate_game_words_match_the_page()
+    c.add(
+        "game_words_match_the_page",
+        "ページが描く物の名前で、その型を頼める（描けないと嘘を言わない）",
+        10.0 * game_words.checks_passed / game_words.checks_total,
+        detail=f"{game_words.checks_passed}/{game_words.checks_total} checks; "
+               "src/sidra_ai/evals/game_words_match_the_page.py"
+               + ("" if game_words.passed
+                  else "; " + "; ".join(game_words.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1853: 「さっきのゲームの宝石をもっと増やして」 wrote a new version of the
     # page with 「敵の数 4」 and reported that as the change that was asked for.
     # The band words fired on the verb and nothing read the object, so any

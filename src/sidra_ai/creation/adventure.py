@@ -41,6 +41,25 @@ ADVENTURE_WORDS: tuple[str, ...] = (
     "見下ろし",
     "adventure",
     "zelda",
+    # C-1855: the nine above are all names for the GENRE, and none of them is
+    # a thing on the page. So 「洞窟を探検するゲームを作って」 came out a fishing
+    # game under 「『洞窟』の題材を描く型はまだ無いため」 - a false sentence about
+    # this product's own capability, since the rooms are named
+    # 「森のはずれ / ひかり苔の洞窟 / 風の祭壇」 and the tablet reads 「東の洞窟の敵が
+    # 鍵を守っている。祭壇の宝を頼む」. These are taken from that text rather
+    # than invented: what the page calls its own places and things is what a
+    # person asking for it will say.
+    "迷宮",
+    "洞窟",
+    "宝探し",
+    "宝箱",
+    "祭壇",
+    # The lock and the key are what §3 is about, and the page has both. As a
+    # phrase, not as a bare 「鍵」: 「鍵盤のゲーム」 is an instrument, and a
+    # single kanji that also starts another word is how a routing table
+    # starts answering requests it was never asked.
+    "鍵と扉",
+    "鍵を探",
 )
 
 #: (enemy speed px/frame, enemies per room). The numbers a request's 難しく

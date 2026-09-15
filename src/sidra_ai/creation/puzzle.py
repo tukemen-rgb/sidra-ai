@@ -38,6 +38,11 @@ PUZZLE_WORDS: tuple[str, ...] = (
     "puzzle",
     "match",
     "samegame",
+    # C-1855: the most ordinary Japanese for 「a puzzle game」 was missing, so
+    # 「謎解きのゲームを作って」 was answered with a fishing game and 「『謎解き』の
+    # 題材を描く型はまだ無い」. Whole word: a bare 「謎」 is a noun in 「謎の生き物」,
+    # which names a subject and not a genre.
+    "謎解き",
 )
 
 #: (colours in play, board width in cells).
