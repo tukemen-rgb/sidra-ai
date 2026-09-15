@@ -48,17 +48,25 @@ def build_gif_generator(data_dir: str | Path):
                 "ブラウザや画像ビューアーで開けます。"
             )
             # The request named no motif, so the default was used. Say so and
-            # name the motif that can be asked for - a reader who asked for
+            # name the motifs that can be asked for - a reader who asked for
             # 「猫」 got concentric rings and would otherwise never learn the
             # subject was not drawn or what they could pick (C-1258). Not a
             # claim the subject can't be drawn: the motifs are abstract, so the
             # honest fact is just "you didn't name one, here is what you got
-            # and the one you can pick".
+            # and the ones you can pick".
             if not gif.motif_named:
+                # C-1850: built from MOTIF_LABELS, not written out. This
+                # sentence said 「指定できるのは「魚」です」 as a literal, so the
+                # pulse - half the catalogue - was missing from the list of
+                # what a reader could ask for, and stayed missing when it
+                # gained its own words. art_job has always assembled its
+                # choices from PATTERN_LABELS; this is that same rule, and a
+                # third motif now joins the sentence by existing.
+                choices = " / ".join(MOTIF_LABELS.values())
                 summary += (
                     f"依頼に合う絵柄が無かったので、既定の"
                     f"「{MOTIF_LABELS[DEFAULT_MOTIF]}」にしました。"
-                    "いま絵柄を指定できるのは「魚」です。"
+                    f"いま絵柄を指定できるのは {choices} です。"
                 )
             # The request named a colour, but the palette is fixed, so 「青い」 was
             # drawn in the same colours as every other GIF. Say the colour was

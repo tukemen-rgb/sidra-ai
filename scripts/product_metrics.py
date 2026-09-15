@@ -1529,6 +1529,28 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1850: the GIF generator draws two motifs and only the fish could be
+    # asked for by name. 「パルスのGIFを作って」 matched nothing, fell through to
+    # the default - the very motif that was named - and was announced with
+    # 「依頼に合う絵柄が無かった」 plus an offer of 「魚」. The picture was right
+    # and the sentence was a lie. The offer is now built from MOTIF_LABELS,
+    # the way art_job has always built its own.
+    from sidra_ai.evals.gif_motif_named_is_heard import (
+        evaluate_gif_motif_named_is_heard,
+    )
+
+    gif_motif_named = evaluate_gif_motif_named_is_heard()
+    c.add(
+        "gif_motif_named_is_heard",
+        "GIF の絵柄を名前で頼んだら、名指しとして聞き取る（全絵柄が頼める）",
+        10.0 * gif_motif_named.checks_passed / gif_motif_named.checks_total,
+        detail=f"{gif_motif_named.checks_passed}/{gif_motif_named.checks_total} checks; "
+               "src/sidra_ai/evals/gif_motif_named_is_heard.py"
+               + ("" if gif_motif_named.passed
+                  else "; " + "; ".join(gif_motif_named.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

@@ -245,6 +245,19 @@ def _pulse_frame(step: int, rng: _Lcg, stars: list[tuple[int, int]]) -> bytearra
 
 _MOTIF_WORDS: dict[str, tuple[str, ...]] = {
     "fish": ("魚", "釣り", "さかな", "fish"),
+    # C-1850: the pulse had no words of its own. It is the default AND one of
+    # the two motifs, so 「パルスのGIFを作って」 matched nothing, came out as the
+    # default - the very thing that was asked for - and was announced as
+    # 「依頼に合う絵柄が無かった」. The picture was right and the sentence was a
+    # lie. The words are the ones a person reaches for when naming this
+    # picture: its label, the rings it draws, and the English the CLI shows.
+    #
+    # 「波」 is deliberately absent. 「波のGIF」 names a subject this generator
+    # does not draw, and the honest note (C-1258) is the right answer there;
+    # reading it as the pattern would claim the wave was drawn. 「脈打つ」 is
+    # kept whole for the same class of reason - a bare 「脈」 would turn
+    # 「山脈のGIF」 into a request for concentric rings.
+    "pulse": ("パルス", "同心円", "波紋", "脈打つ", "pulse", "ripple"),
 }
 
 #: The motif used when a request names none. Named here so the honest note and
