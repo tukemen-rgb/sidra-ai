@@ -1219,6 +1219,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1851: the deck-bullet member of the truncation-honesty family. A single
+    # long clause with no 。 in the 120-char cap comes back as the raw cut, so the
+    # bullet ends mid-clause - 「…2024年度には 1,23」 - reading as whole and cutting a
+    # figure mid-digit, with no 「…」. It is now marked (and a split figure dropped).
+    from sidra_ai.evals.deck_bullet_marks_truncation import (
+        evaluate_deck_bullet_marks_truncation,
+    )
+
+    deck_bullet = evaluate_deck_bullet_marks_truncation()
+    c.add(
+        "deck_bullet_marks_truncation",
+        "スライドの箇条書きが 120 字で切れたら「…」を付け数字を桁の途中で見せない",
+        10.0 * deck_bullet.checks_passed / deck_bullet.checks_total,
+        detail=f"{deck_bullet.checks_passed}/{deck_bullet.checks_total} checks; "
+               "src/sidra_ai/evals/deck_bullet_marks_truncation.py"
+               + ("" if deck_bullet.passed
+                  else "; " + "; ".join(deck_bullet.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1821: 「5枚のスライドを作って」 built the fixed four sections and said
     # nothing - the number in the request was read by nobody, on the page or in
     # the summary. slide_count_note now rides both from one source; a request
