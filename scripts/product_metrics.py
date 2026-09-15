@@ -791,6 +791,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1842: the suffix half of C-1822. A length behind the subject
+    # (「…を3ページで作って」) escaped C-1822's leading-only strip, rode onto the
+    # title, and its page count then failed the body number-check - the report the
+    # reader asked to be 3 pages was told it 「検証に落ちています」 over that 3.
+    from sidra_ai.evals.document_length_suffix_not_a_number import (
+        evaluate_document_length_suffix_not_a_number,
+    )
+
+    doc_len = evaluate_document_length_suffix_not_a_number()
+    c.add(
+        "document_length_suffix_not_a_number",
+        "接尾の長さ指定（…を3ページ）が題に残らず、ページ数が検証で誤検出されない",
+        10.0 * doc_len.checks_passed / doc_len.checks_total,
+        detail=f"{doc_len.checks_passed}/{doc_len.checks_total} checks; "
+               "src/sidra_ai/evals/document_length_suffix_not_a_number.py"
+               + ("" if doc_len.passed else "; " + "; ".join(doc_len.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1803: C-1772 stopped the cover promising a title number was sourced, but
     # only for a title that HAD a number. When the index returns nothing and the
     # title has no number, the empty draft's cover still read 「数字はすべて下の出典
