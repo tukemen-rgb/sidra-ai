@@ -13549,6 +13549,29 @@ def measure_creation(c: Collector) -> None:
     # on paper. The dual ring (surface outside, ink inside, full alpha)
     # must clear 3:1 through its better half on every theme's every act,
     # and the ink glyph must clear 3:1 on the blended plate.
+    # C-1871, §33 事実 5: a good message answers what happened, WHAT IS TRUE
+    # NOW, and what to do. The refusals answered the first and third. Only
+    # revision_change needed it - the artifact is identified, the message was
+    # read as a change, and the change was declined - and the exclusions are
+    # the substance: a question, an artifact that does not exist and an
+    # unresolved target have nothing to report the state of, and a line every
+    # refusal carries goes stale (§33 事実 4).
+    from sidra_ai.evals.refusal_says_what_is_now_true import (
+        evaluate_refusal_says_what_is_now_true,
+    )
+
+    now_true = evaluate_refusal_says_what_is_now_true()
+    c.add(
+        "refusal_says_what_is_now_true",
+        "変更を断るとき、その成果物が変わっていないことを言う（§33 事実 5）",
+        10.0 * now_true.checks_passed / now_true.checks_total,
+        detail=f"{now_true.checks_passed}/{now_true.checks_total} checks; "
+               "src/sidra_ai/evals/refusal_says_what_is_now_true.py"
+               + ("" if now_true.passed
+                  else "; " + "; ".join(now_true.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1870, from §33 (written the same day): nine knowledge-base sections
     # were compared against the product and all nine held, while every defect
     # found that day was in the wording of a refusal and no section covered

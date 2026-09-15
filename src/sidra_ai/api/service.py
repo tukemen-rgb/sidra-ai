@@ -1084,6 +1084,16 @@ class SidraService:
                 return {
                     "answer": (
                         f"{label}は変えられます——{values}。"
+                        # C-1871 (§33 事実 5): a good message answers what
+                        # happened, WHAT IS TRUE NOW, and what to do. This
+                        # answered the first and third. The artifact is
+                        # identified, the message was read as a change, and the
+                        # change was declined - so whether it half-happened is
+                        # a real question, and only here: a question, an
+                        # artifact that does not exist, and a target nobody
+                        # could resolve each have nothing to report the state
+                        # OF.
+                        "いまのゲームはそのままです。"
                         "その言い方で、もう一度送ってください。"
                         # C-1802's guarantee, kept: a refusal names what CAN
                         # be changed. Its sentinel caught the first version of
@@ -1115,7 +1125,7 @@ class SidraService:
                 # reaches here is a field this product does not have.
                 "answer": (
                     "どれを変えるかは分かりましたが、何をどう変えるかが読み取れません"
-                    "でした。いま変えられるのは "
+                    "でした。いまのゲームはそのままです。いま変えられるのは "
                     + "・".join(label for _key, label in CHANGEABLE)
                     + " です。例えば「さっきのゲームを難しくして」"
                     "「さっきのゲームのタイトルを「〇〇」にして」のように送ってください。"
