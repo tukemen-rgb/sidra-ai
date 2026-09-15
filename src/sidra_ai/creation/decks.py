@@ -38,7 +38,13 @@ from sidra_ai.creation.vocabulary import (
 #: Shared with the game generator so a deck and a game made by the same tool
 #: look like they came from the same place.
 from sidra_ai.creation.documents import _DOC_FORMAT_SUFFIX
-from sidra_ai.creation.evidence import NUMBER, Fact, plain_text, whole_sentences
+from sidra_ai.creation.evidence import (
+    NUMBER,
+    Fact,
+    plain_text,
+    subject_unmatched,
+    whole_sentences,
+)
 from sidra_ai.creation.themes import Theme, select_theme
 
 #: What an unfilled slot says. Kept as one constant because both the renderer
@@ -469,6 +475,7 @@ def _render(
     # C-1821: the size admission, alongside the structure one.
     count_caveat: str = "",
     title_number_unsourced: bool = False,
+    subject_missing: bool = False,
 ) -> str:
     t = theme.tokens
     # C-1478: a fact whose text matched no section's cue was left out of every
@@ -502,6 +509,21 @@ def _render(
     title_caveat = (
         "タイトルの数値は索引した根拠では確認できていません。"
         if title_number_unsourced
+        else ""
+    )
+    # C-1846: a fact matching a slide's section cue is placed on that slide even
+    # when it does not mention the deck's subject, so the deck reads as backed by
+    # its subject when it is not - the deck twin of the report's C-1532. Say it
+    # where the slides are read, at the top, not only in the footer: a skim to the
+    # slides must meet the caveat first, the same reason the report puts it in the
+    # 概要. The facts are still shown below (C-1403); this is the sentence beside
+    # them. Empty when a placed fact does mention the subject, or none was placed.
+    subject_banner = (
+        f"<p class='subject-miss'>⚠️ 索引した資料に「{escape(title)}」に触れているものは"
+        "ありませんでした。各スライドの内容は検索が返した資料そのままで、"
+        "主題との重なりは確認できていません。"
+        "主題についての根拠として読まないでください。</p>"
+        if subject_missing
         else ""
     )
     blocks = []
@@ -540,11 +562,14 @@ h1{{font-size:24px;margin:0 0 24px;letter-spacing:.01em}}
 .slide ul{{margin:0;padding-left:20px;line-height:1.75}}
 .slide .src{{margin:14px 0 0;font-size:12px;color:{t["muted"]}}}
 .slide .blank{{color:{t["alert"]}}}
+.subject-miss{{margin:0 0 18px;padding:12px 16px;border:1px solid {t["alert"]};
+ border-radius:{t["radius"]};color:{t["alert"]};font-size:13px;line-height:1.7}}
 footer{{margin-top:24px;border-top:1px solid {t["border"]};padding-top:14px;
  font-size:12px;color:{t["muted"]}}}
 </style></head>
 <body><main>
 <h1>{escape(title)}</h1>
+{subject_banner}
 {"".join(blocks)}
 <footer>{fallback_note}{count_note}SIDRA AI が生成。{number_scope}索引した文書から引いたものだけを載せ、
 根拠が無い欄は {escape(BLANK)} のまま残しています（推測で埋めません）。{title_caveat}{omitted_note}</footer>
@@ -584,10 +609,16 @@ def generate_deck(
         token and token not in evidence_text
         for token in (number.strip() for number in _NUMBER.findall(title))
     )
+    # C-1846: the report's C-1532 admission, here. Only when facts were provided -
+    # an empty deck is honestly blank and needs no caveat - and the request names
+    # a subject no provided fact carries. `subject_unmatched` is the same judge the
+    # report uses, so the two artifacts agree on when to disclose.
+    subject_missing = bool(provided) and subject_unmatched(request, provided)
     html = _render(
         title, slides, select_theme(request), omitted=omitted, fallback=fallback,
         count_caveat=count_caveat,
         title_number_unsourced=title_number_unsourced,
+        subject_missing=subject_missing,
     )
     unfilled = tuple(slide.title for slide in slides if slide.blanks)
     return GeneratedDeck(key, title, slides, html, unfilled)
