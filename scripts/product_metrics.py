@@ -4947,6 +4947,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1863: a Markdown reference link 「[text][label]」 left its brackets in the
+    # reader's view, and its 「[label]: url」 definition line - invisible in
+    # rendered Markdown - leaked its URL into a flattened excerpt. plain_text now
+    # flattens the reference to its text and drops a URL/mailto definition line
+    # (scoped so prose like 「[INFO]: started」 is never removed).
+    from sidra_ai.evals.plain_text_flattens_reference_link import (
+        evaluate_plain_text_flattens_reference_link,
+    )
+
+    ref_flat = evaluate_plain_text_flattens_reference_link()
+    c.add(
+        "plain_text_flattens_reference_link",
+        "参照リンクが平文化される（括弧も定義行の URL も出ない・散文は残す）",
+        10.0 * ref_flat.checks_passed / ref_flat.checks_total,
+        detail=f"{ref_flat.checks_passed}/{ref_flat.checks_total} checks; "
+               "src/sidra_ai/evals/plain_text_flattens_reference_link.py"
+               + ("" if ref_flat.passed else "; " + "; ".join(ref_flat.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1231: 「OutputGuard？」 (a Japanese user's question - Latin keyword,
     # fullwidth 「？」, no kana/kanji) matched no evidence and got the *English*
     # no-evidence reply, breaking SYSTEM_PROMPT rule 6. The language gate now

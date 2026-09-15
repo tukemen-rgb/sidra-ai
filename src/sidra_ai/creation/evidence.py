@@ -136,6 +136,19 @@ _MD_LINK_OPEN = re.compile(r"\[([^\]]+)\]\([^)\n]*")
 #: separately detects a secret or instruction hidden in a comment (a "hidden
 #: channel") on the raw content; this display strip does not touch that.
 _MD_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+#: A Markdown *reference* link definition line 「[label]: https://…」 is invisible
+#: in rendered Markdown - it only tells the renderer where 「[label]」 points - yet
+#: its URL surfaced verbatim in a flattened excerpt, the URL leak C-1227 closes
+#: for inline links (C-1863). Dropped whole, but only when the destination is a
+#: real link target (a 「http(s)://」 or 「mailto:」 URL): a prose line that merely
+#: looks like a definition (「[INFO]: started the server」, 「[注記]: 重要」) has no
+#: such scheme and is left alone, keeping the "do not drop real content" rule.
+_MD_REF_DEF = re.compile(r"(?m)^[ \t]*\[[^\]]+\]:[ \t]+<?(?:https?://|mailto:)\S.*$")
+#: The inline use of a reference link 「[text][label]」 (or collapsed 「[text][]」).
+#: The inline-link rule needs 「(url)」 and never matched it, so the reader saw raw
+#: brackets. Keep the text, drop the 「[label]」 join. A bare 「[1]」 shortcut ref
+#: has no second 「[…]」 and is left alone, as before (C-1863).
+_MD_REF_LINK = re.compile(r"\[([^\]]+)\]\[[^\]]*\]")
 #: A Markdown image 「![alt](url)」. The link rule above matches only the
 #: 「[alt](url)」 tail and leaves the leading 「!」 (「![logo](…)」→「!logo」);
 #: a bare badge 「![](url)」 (empty alt, the common README shape) matches no
@@ -227,6 +240,10 @@ def plain_text(text: str) -> str:
     # comment is invisible in rendered Markdown, so its content never reaches the
     # reader (C-1860).
     text = _MD_COMMENT.sub("", text)
+    # Reference-link definition lines next, while line boundaries still exist: a
+    # 「[label]: url」 line is invisible in rendered Markdown, so its URL never
+    # reaches the reader (C-1863). Scoped to a real URL target, so prose is safe.
+    text = _MD_REF_DEF.sub("", text)
     # Tables before the list strip, so a separator row is gone before its
     # dashes could read as a bullet, and while line boundaries still exist.
     text = _MD_TABLE_SEP.sub("", text)
@@ -250,6 +267,10 @@ def plain_text(text: str) -> str:
     text = _MD_IMAGE.sub(r"\1", text)
     text = _MD_LINK.sub(r"\1", text)
     text = _MD_LINK_OPEN.sub(r"\1", text)
+    # After the inline-link rules (which leave 「[text][label]」 untouched, having
+    # no 「(url)」): flatten a reference link to its text (C-1863). A bare 「[1]」
+    # shortcut ref has no second 「[…]」 and is not matched.
+    text = _MD_REF_LINK.sub(r"\1", text)
     return " ".join(text.split())
 
 
