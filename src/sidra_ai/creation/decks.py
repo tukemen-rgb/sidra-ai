@@ -402,6 +402,41 @@ def _matches(section: str, fact: Fact) -> bool:
     return any(_cue_present(cue.casefold(), text) for cue in SECTION_CUES.get(section, ()))
 
 
+#: The bullet display cap, and the pieces of a mid-clause tail guard.
+_BULLET_CAP = 120
+#: Sentence terminators, ASCII 「.」 included, for the rare slice that ends exactly
+#: at a boundary (``whole_sentences`` returns it unchanged, so it is not a cut).
+_SENTENCE_ENDERS = frozenset("。．！？!?.")
+_DIGITS = frozenset("0123456789０１２３４５６７８９")
+_NUMBER_TAIL = "0123456789０１２３４５６７８９,，.．"
+
+
+def _cap_bullet(text: str) -> str:
+    """One bullet: the fact flattened, capped, and marked if the cap cut it.
+
+    ``whole_sentences`` trims a multi-sentence slice back to a clean sentence end.
+    It returns the slice *unchanged* only when it cannot trim - no usable sentence
+    end in the cap - so ``body == sliced`` is exactly the case where the bullet
+    ends mid-clause (its docstring: "a terminator-free fragment passes whole").
+    That bullet reads as the whole fact - the C-1217 case the cap comment names as
+    uncovered, and the deck-bullet twin of the citation excerpt's 「…」 (C-1264). Mark
+    it clipped (C-1264/C-1680); and if the cap split a figure mid-digit - the
+    character after the cut is another digit - drop the partial first so it is not
+    shown as a small whole value (C-1217/C-1849). A slice that happens to end at a
+    boundary (its last character is a terminator) is a clean end, not a cut.
+    """
+
+    full = plain_text(text)
+    sliced = full[:_BULLET_CAP]
+    body = whole_sentences(sliced)
+    if len(full) > _BULLET_CAP and body == sliced and body:
+        if body[-1] in _NUMBER_TAIL and full[len(body) : len(body) + 1] in _DIGITS:
+            body = body.rstrip(_NUMBER_TAIL) or body
+        if body and body[-1] not in _SENTENCE_ENDERS:
+            body += "…"
+    return body
+
+
 def _bullets_for(
     section: str, facts: list[Fact]
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[Fact, ...]]:
@@ -414,18 +449,10 @@ def _bullets_for(
     hits = [fact for fact in facts if _matches(section, fact)][:3]
     if not hits:
         return (f"{BLANK}",), (), ()
-    # The 120-character budget is a display cap, not a place a sentence may
-    # end: a bullet cut there reads 「…（components/UploadForm.ts」 (C-1217).
-    # whole_sentences only trims - a terminator-free fragment passes whole.
-    # C-1289: flatten first, like the answer and the report (C-1288). The corpus
-    # is Markdown, and whole_sentences only trims, so a fact carrying 「## 概況」
-    # or a table put raw 「##」/「| --- |」 on an HTML slide as literal characters.
-    # plain_text turns decoration into prose and a table into 「セル / セル；」,
-    # keeping every word and figure, and runs before the cap so the 120 counts
-    # display characters, not markup.
-    bullets = tuple(
-        whole_sentences(plain_text(fact.text)[:120]) for fact in hits
-    )
+    # The 120-character budget is a display cap, not a place a sentence may end
+    # (C-1217); `_cap_bullet` flattens (C-1289, like the answer/report C-1288),
+    # trims to a whole sentence, and marks a single long clause the cap cut.
+    bullets = tuple(_cap_bullet(fact.text) for fact in hits)
     sources = tuple(dict.fromkeys(fact.labelled_source for fact in hits))
     return bullets, sources, tuple(hits)
 
