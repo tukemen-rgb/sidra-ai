@@ -8465,6 +8465,23 @@ C-12xx/13xx/14xx はループ用のまま）。
       → 動かす数字: **未定**（道 A なら `creation_design_document_is_a_document` の拡張、
       道 B なら「主題つきの企画/計画がゲームにならない」新設）
 - [x] 完了 2026-09-15 01:34 UTC 辛口ユーザー（`plain_text_flattens_image` **新設 broken 5→10（10/10）**・判定器 exit 0（BETTER 5→10・MOVED 1・WORSE/DRIFT/REGRESSED/LOST 無し）・採番衝突なし）　**確保時の判断**: 引用抜粋の平文化＝C-1227（リンク）の画像版・自帯。`plain_text` は answer 本文/document/deck/引用抜粋 が共有する唯一の平文化器なので、1 か所直せば全面に効く。**実測 2026-09-15 01:16 UTC**（`plain_text` 直接）: `![logo](url)`→**「!logo」**（先頭 `!` が残る——リンク規則は `[logo](url)` の尾だけに一致）、`![](url)`（空 alt・README のバッジ形）→**生の `![](url)` がそのまま**残り URL が転送成果物に漏れる（C-1227 がリンクで止めている漏れの画像版）。**原因**: `plain_text` に画像規則が無く、`_MD_LINK` がリンクの尾だけ食う。**処方〔最小〕**: `_MD_IMAGE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")` を足し、`_MD_LINK.sub` の**前**で `sub(r"\1", …)`（画像→alt、空 alt はバッジごと消える；リンク規則は不変）。**検証**: 破壊 5/5 全検出（別プロセス分離・C-1803——M1 画像 sub 削除／M2 リンクの後ろに回す→`!logo` 残存／M3 alt を必須 `[^\]]+`→空 alt バッジが URL 漏れ／M4 alt も落とす→空文字／M5 パターンから先頭 `!` を落とす→リンク化して `!` 残存）復元 GREEN。`plain_text` 消費者の広域 pytest exit 0（`answer_links_flattened` C-1227・citation_excerpt・setext・document/deck evidence・table・code_fence——21 件緑・回帰なし）。detectors.py 非変更につき gate 判定器 N/A。**族**: リンクは C-1227 で平文化・画像も本件で平文化＝抜粋の Markdown 漏れが 1 段そろう。**採番**: 起票時 origin 最大 C-1839〔辛口クリエイター 3D 題〕→次の空き **C-1840**＝衝突なし。 **C-1840: `plain_text` が Markdown 画像を平文化しない——`![logo](url)`→「!logo」、`![](url)`→生 URL 漏れ。**（2026-09-15 01:16 UTC 辛口ユーザー・C-1227 の画像版）
+- [~] 作業中 2026-09-15 01:36 UTC 辛口クリエイター　**確保時の判断**: 制作＝自帯。**前巡で自分が起票し、未確保のまま置いた項目を取る**（実測 15 件中 12 件）。**前巡で 3D に書いた英語処理を共有に引き上げ、重複を 2 つ→1 つに減らす**のが今巡の形——**足すのではなく畳む**。games は触らない（ゲーム語彙と絡んでおり試験も厚い）。**採番は最大＋1**（最大 C-1840 → **C-1841**）。**時刻は `date -u`**。 **C-1841: 英語の依頼の題が、依頼の文そのものになる——deck「make a slide deck about the new product」・doc「write a report about monetisation」・gif「make a gif of a fish」。**（2026-09-15 01:36 UTC 辛口クリエイター・C-1839 の続き）
+      **実測（前巡 2026-09-15 01:36 UTC 時点）**: 英語 15 依頼のうち **12 件の題が依頼の文法を含む**。
+      **games だけが正しい**（'cat'・'puzzle'——C-1516／C-1526／C-1528／C-1531 の規則を持つ）。
+      **art・deck・doc・gif は文が丸ごと題**、3D は前巡で直した。
+      **原因**: 日本語は制作動詞が**末尾**なので各生成器の `re.split` で落ちるが、
+      **英語は動詞が先頭**で、落とす規則が **games にしか無い**。
+      **範囲**: `vocabulary.py` に `drop_english_frame(text)` を新設——
+      (1) 先頭の制作動詞＋冠詞（make/create/build/generate/design/produce/draw/write/model…）、
+      (2) 末尾の please/thanks、(3) **`of`／`about` の後ろを主題に取る**（英語は主名詞が先＝C-1479 の鏡）。
+      **種別語は各生成器の既存 `_TITLE_KIND_SUFFIX`（`$` 固定）がそのまま担う**——
+      「write a monetisation report」→ 枠外し→「monetisation report」→ 既存規則→「monetisation」。
+      **art・decks・documents・gifs から呼び、`models3d` は前巡の自前実装を捨てて共有を呼ぶ**
+      （**重複を増やさず減らす**）。
+      **両方向**: (a) 12 件の題が主題になる、(b) **日本語の題は 1 文字も変わらない**、
+      (c) **games の題は不変**〔触らない・判定器で固定〕、(d) 主題を名乗らない英語依頼は既定題、
+      (e) 数量・副詞の規則（C-1829／C-1832／C-1833）は不変。
+      → 動かす数字: `creation_title_in_english`（新設・broken→）
 - [x] 完了 2026-09-15 01:15 UTC 辛口クリエイター（`creation_model3d_title_in_english` **新設 unmeasurable→10（8/8）**——**直す前の状態で 3/8＝3.75**〔破壊 D0〕、判定器 exit 0（MOVED 1・WORSE/REGRESSED/LOST 0）、全 pytest exit 0・失敗 0、`verify_gate_recall.py` exit 0・MISS 0・誤検知 0——**終了値は今回からリダイレクトで取っている**）　**確保時の判断**: 制作＝自帯。**空マッチで文字を食う正規表現**という、言い回しではなく**壊れている**類なので優先。**波及は `models3d.py` の題関数だけ**。**英語の枠外し 5 生成器分は別項に切り出す**（今夜 1 巡で 5 生成器を触るのは前巡の反省——大きすぎる）。**採番は最大＋1**（最大 C-1838 → **C-1839**）。**時刻は `date -u`**。 **C-1839: 「make a 3D model of a fish」の題が「makeaofafish」——空白が全部消える。**（2026-09-15 00:41 UTC 辛口クリエイター）
       **実測 2026-09-15 00:41 UTC**（実 `generate_model3d`）:
       「make a 3D model of a fish」→ 題 **'makeaofafish'**／
