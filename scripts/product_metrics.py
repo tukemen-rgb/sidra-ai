@@ -1386,6 +1386,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1842: the English half of C-1829. 「make a racing game right now」 was
+    # titled 「racing game right now」 - 30 of 30 across five adverbs and six
+    # generators. One table, read by drop_english_frame and by games' own tail
+    # rule; a subject that IS one of these words (「a report about today」) is
+    # left alone.
+    from sidra_ai.evals.title_drops_english_adverbs import (
+        evaluate_title_drops_english_adverbs,
+    )
+
+    english_adverbs = evaluate_title_drops_english_adverbs()
+    c.add(
+        "creation_title_drops_english_adverbs",
+        "英語の依頼の「いつ・どれくらい急いで」が題に残らない",
+        10.0 * english_adverbs.checks_passed / english_adverbs.checks_total,
+        detail=f"{english_adverbs.checks_passed}/{english_adverbs.checks_total} checks; "
+               "src/sidra_ai/evals/title_drops_english_adverbs.py"
+               + ("" if english_adverbs.passed
+                  else "; " + "; ".join(english_adverbs.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1799: a deck titled 「解約率30%の改善」 puts an unsourced 30% on the cover
     # while the footer promises every number is sourced. The report already
     # scopes its promise and caveats an unsourced title number (C-1772); the deck

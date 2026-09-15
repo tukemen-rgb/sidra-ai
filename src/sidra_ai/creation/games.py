@@ -56,6 +56,7 @@ from sidra_ai.creation.recap import preamble_for as recap_preamble_for
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.vocabulary import (
     ARTIFACT_NOUNS,
+    ENGLISH_REQUEST_ADVERBS,
     REQUEST_ADVERBS,
     CATCH_WORDS,
     FISHING_WORDS,
@@ -1326,6 +1327,15 @@ _STRIP_EN_TAIL = re.compile(
     r"\s*(?:"
     + "|".join(re.escape(w) for w in ARTIFACT_NOUNS if w.isascii())
     + r"|please|thanks|thank you"
+    # C-1842: and the words about when to make it, from the shared table the
+    # other five generators read. 「make a racing game right now」 was titled
+    # 「racing game right now」 - the Japanese equivalents have come off since
+    # C-1829. The table is shared; this file's own rules are not rewritten.
+    + "|"
+    + "|".join(
+        re.escape(word)
+        for word in sorted(ENGLISH_REQUEST_ADVERBS, key=len, reverse=True)
+    )
     # C-1528: 「for my kid」 is who the game is for, not what is in it, and
     # 「Make a racing game for my kid」 quoted it as the subject the page fails
     # to draw. Only 「for」 - 「about a dog」 names the subject outright and is

@@ -283,7 +283,27 @@ _EN_SUBJECT = re.compile(
     re.IGNORECASE,
 )
 
-_EN_TAIL = re.compile(r"\s*(?:please|thanks|thank you)\s*[.!?]*\s*$", re.IGNORECASE)
+#: C-1842: the English half of ``REQUEST_ADVERBS``. English puts these at the
+#: end - 「make a racing game right now」 - which is where the tail rule already
+#: takes off please and thanks. Measured across five of them and six
+#: generators before this: 30 titles out of 30 kept the adverb, while the
+#: Japanese equivalents had all come off since C-1829.
+#:
+#: Same admission test as the Japanese table: a row belongs here only if
+#: deleting it from the request changes nothing about what gets made.
+ENGLISH_REQUEST_ADVERBS: tuple[str, ...] = (
+    "right now", "right away", "as soon as possible", "asap",
+    "when you can", "whenever you can", "at some point",
+    "quickly", "fast", "soon", "now", "today", "tonight",
+    "first", "already", "finally", "just",
+)
+
+_EN_TAIL = re.compile(
+    r"\s*(?:please|thanks|thank you|"
+    + "|".join(re.escape(word) for word in sorted(ENGLISH_REQUEST_ADVERBS, key=len, reverse=True))
+    + r")\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
 
 
 def drop_english_frame(text: str) -> str:
@@ -300,10 +320,23 @@ def drop_english_frame(text: str) -> str:
     「monetisation report」 here and 「monetisation」 there.
     """
 
-    stripped = _EN_TAIL.sub("", text.strip())
+    stripped = text.strip()
     without_head = _EN_HEAD.sub("", stripped, count=1)
     lifted = _EN_SUBJECT.sub("", without_head, count=1)
-    return " ".join((lifted or without_head).split())
+    subject = " ".join((lifted or without_head).split())
+    # C-1842: the tail comes off LAST, and never down to nothing.
+    #
+    # Both halves of that were measured. Taking it off first turned 「write a
+    # report about today」 into 「report about」 - the tail rule had eaten the
+    # word the 「about」 was pointing at, before the lift could read it. And
+    # with the order fixed, that same request lifts to 「today」, where a rule
+    # that removes it has stopped reading the request and started deleting it.
+    # Repeatedly, because 「quickly right now」 stacks two.
+    while True:
+        shorter = _EN_TAIL.sub("", subject).strip()
+        if not shorter or shorter == subject:
+            return subject
+        subject = shorter
 
 
 def drop_request_adverbs(text: str) -> str:
@@ -357,6 +390,7 @@ def labels_for(templates) -> tuple[str, ...]:
 
 
 __all__ = [
+    "ENGLISH_REQUEST_ADVERBS",
     "CATCH_WORDS",
     "REQUEST_ADVERBS",
     "SIZE_UNITS",
