@@ -23517,6 +23517,52 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # ...and whether it is still there when two people ask at once (C-1862).
+    # The metric above writes one record from one thread, which is the case
+    # that always worked. Both appenders read the whole log, splice a line
+    # in and write it back with nothing holding the halves together, so a
+    # second writer read the log before the first record was in it and then
+    # wrote it away. Measured on the broken version, twelve threads writing
+    # eight records each kept **11, 4, 7, 3 and 15 of 96** across five runs
+    # - the `UnicodeDecodeError` that got this filed showed up in 3 of the
+    # 5, and the silent loss of nine records in ten in 5 of 5.
+    from sidra_ai.evals.records_survive_concurrency import (
+        evaluate_records_survive_concurrency,
+    )
+
+    _rc = evaluate_records_survive_concurrency()
+    c.add(
+        "creation_records_survive_concurrency",
+        "同時に書かれても、生成の記録が 1 件も落ちない",
+        float(_rc.checks_passed),
+        unit="/3",
+        detail=(
+            "; ".join(_rc.failures)
+            if _rc.failures
+            else "**3 点を実走行で測る**——(A) 標準の記録簿へ 8 スレッド×6 件を同時に書いて"
+            "**48 件が 48 件とも残る**、(B) **企画の記録簿も同じ**（同じ形の競合なので、"
+            "捕まったほうだけ直すのは半分の修正）、(C) **書いている最中に読んでいる者が、"
+            "記録簿が縮むのを一度も見ない**。"
+            "**(C) は錠ではなく差し替えを測っている**——読む側は錠を取らないので、"
+            "書き手を完全に直列化しても**その場で切り詰める**実装なら読者には見える。"
+            "**この規則は最初 `UnicodeDecodeError` を待つ形で書いて、"
+            "錠を残したまま その場書き に戻した版を捕まえられなかった**"
+            "（切り詰めの窓がマイクロ秒で、読者がまず入らない）。"
+            "**縮んだかどうか**を見る形に替えて、代役の書き手で**その場書き 3/3 検出・差し替え 0/3 誤検出**を確かめてから入れた。"
+            "**破壊 5 通りのうち 4 通りを検出**〔D1 標準側の錠を外す／D2 企画側の錠を外す／"
+            "D3 錠は残して その場書き へ戻す／D4 読みを錠の外へ出す〕、復元 CLEAN。"
+            "**D5「ヘッダ作成だけを錠の外へ出す」は捕まえられていない**——"
+            "窓が「file が無い」と判定してから錠を取るまでの間だけで、"
+            "**この判定器では安定して踏めない。残る穴としてここに書く**"
+            "（製品側はその判定を錠の中に置いてあるので窓そのものが無い）。"
+            "**各破壊は毎回新しいプロセスで測った**——同一プロセスで再読み込みすると、"
+            "**前の破壊で書き換えた関数が既存 module に束縛されたまま残り、"
+            "一つ前の破壊の理由を借りた失敗が出た**。"
+        ),
+        direction="up",
+        kind=OUTCOME,
+    )
+
     # --- and does a real request actually reach the index? ------------
     grounded, detail = _measure_deck_grounding()
     c.add(

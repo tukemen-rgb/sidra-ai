@@ -22,11 +22,60 @@ check is a log whose regressions only a human can notice.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import re
+import threading
 from dataclasses import dataclass
 from html import escape
 from datetime import datetime, timezone
 from pathlib import Path
+
+#: Serialises the read-modify-write both appenders do (C-1862).
+#:
+#: Both of them read the whole log, splice one line in, and write the whole
+#: log back. With nothing holding that together, two threads read the same
+#: text and the second write throws the first record away - and measured,
+#: that is not a rare interleaving but the normal case: twelve threads
+#: appending eight records each landed **11, 4, 7, 3 and 15 of 96** across
+#: five runs. The visible symptom was a ``UnicodeDecodeError`` in 3 of those
+#: 5 runs; the silent loss of ~90% of the records happened in 5 of 5. A
+#: chat asking 「この game.html はいつ・何から作られたか」 is the whole point
+#: of this module, and concurrently it was mostly answering "no record".
+#:
+#: One lock for the module rather than one per path: the critical section is
+#: a small file read and write, two productions contending is not a real
+#: workload, and a per-path table needs its own lock to be safe - complexity
+#: bought with nothing.
+#:
+#: What it does **not** cover: another process. That is what the atomic
+#: replace below is for - a reader in any process sees either the old file
+#: or the new one, never a half-written one. Two *processes* appending at
+#: once can still lose a record, and nothing here claims otherwise; v0.1
+#: serves from one process.
+_APPEND_LOCK = threading.Lock()
+
+
+def _write_whole_file(path: Path, text: str) -> None:
+    """Replace ``path`` with ``text`` in one step, or not at all.
+
+    ``Path.write_text`` opens for writing, which truncates, and only then
+    writes - so a reader arriving in that window gets a prefix, and a prefix
+    that lands mid-character is the ``UnicodeDecodeError`` this was filed
+    for (0x8f at position 185, and 0xa0/0x81 when reproduced). Writing a
+    neighbouring temp file and renaming it over the target closes that: the
+    rename is atomic, so no reader ever opens a partial log.
+    """
+
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        # A failed write must not leave litter beside the log a person reads.
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
 
 LOG_NAME = "production-log.md"
 
@@ -140,26 +189,32 @@ def append_record(
             f"{log_path} does not exist; records are appended to the LOG stage, never created beside it"
         )
 
-    text = log_path.read_text(encoding="utf-8")
     line = format_record(made=made, evidence=evidence, parameters=parameters, now=now)
 
-    if RECORDS_HEADING in text:
-        # Insert at the end of the existing section - directly before the
-        # next heading, or at end of file when the section is last - so
-        # records stay chronological even if an operator wrote notes below.
-        head, _, tail = text.partition(RECORDS_HEADING)
-        next_heading = re.search(r"^#{1,6} ", tail, flags=re.M)
-        if next_heading:
-            cut = next_heading.start()
-            section, rest = tail[:cut], tail[cut:]
-        else:
-            section, rest = tail, ""
-        section = section.rstrip("\n") + "\n" + line + "\n\n"
-        text = head + RECORDS_HEADING + section + rest
-    else:
-        text = text.rstrip("\n") + f"\n\n{RECORDS_HEADING}\n\n{line}\n"
+    # Read and write under one lock (C-1862): the read decides what the
+    # write contains, so a second thread reading between them writes the
+    # first record away. Measured before the lock existed, that lost about
+    # nine records in ten.
+    with _APPEND_LOCK:
+        text = log_path.read_text(encoding="utf-8")
 
-    log_path.write_text(text, encoding="utf-8")
+        if RECORDS_HEADING in text:
+            # Insert at the end of the existing section - directly before the
+            # next heading, or at end of file when the section is last - so
+            # records stay chronological even if an operator wrote notes below.
+            head, _, tail = text.partition(RECORDS_HEADING)
+            next_heading = re.search(r"^#{1,6} ", tail, flags=re.M)
+            if next_heading:
+                cut = next_heading.start()
+                section, rest = tail[:cut], tail[cut:]
+            else:
+                section, rest = tail, ""
+            section = section.rstrip("\n") + "\n" + line + "\n\n"
+            text = head + RECORDS_HEADING + section + rest
+        else:
+            text = text.rstrip("\n") + f"\n\n{RECORDS_HEADING}\n\n{line}\n"
+
+        _write_whole_file(log_path, text)
     return log_path
 
 
@@ -203,16 +258,21 @@ def append_standalone_record(
 
     log_path = Path(data_dir) / STANDALONE_LOG_NAME
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    if not log_path.is_file():
-        log_path.write_text(_STANDALONE_HEADER, encoding="utf-8")
-
-    text = log_path.read_text(encoding="utf-8")
     line = format_record(made=made, evidence=evidence, parameters=parameters, now=now)
-    if RECORDS_HEADING in text:
-        text = text.rstrip("\n") + "\n" + line + "\n"
-    else:
-        text = text.rstrip("\n") + f"\n\n{RECORDS_HEADING}\n\n{line}\n"
-    log_path.write_text(text, encoding="utf-8")
+
+    # Creating the file is inside the lock too (C-1862): two threads finding
+    # it missing at once both wrote the header, and the second one wrote it
+    # over whatever the first had already recorded.
+    with _APPEND_LOCK:
+        if not log_path.is_file():
+            _write_whole_file(log_path, _STANDALONE_HEADER)
+
+        text = log_path.read_text(encoding="utf-8")
+        if RECORDS_HEADING in text:
+            text = text.rstrip("\n") + "\n" + line + "\n"
+        else:
+            text = text.rstrip("\n") + f"\n\n{RECORDS_HEADING}\n\n{line}\n"
+        _write_whole_file(log_path, text)
     return log_path
 
 
