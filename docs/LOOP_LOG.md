@@ -10909,3 +10909,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-15 22:23 UTC 辛口ユーザー started（別面=`sidra-ask` CLI の終了コード契約——前巡=HTTP トランスポート契約〔TestClient で /health・auth・入力検証・リポジトリ scope・アーティファクトのトラバーサル・405/404 を実測、いずれも堅牢で no-op 相当〕から、一般利用者/監視スクリプトが読む CLI の exit code 面へ回転。**C-1872 を確保**。実 `SidraService`（echo・オフライン）でゲームを 1 本作った後、6 種の会話的な断り〔`delete_unsupported`／`artifact_list`／`artifact_feature_question`／`panel_setting`／`revision_change`／`revision_kind`〕を実走させて `_refusal_exit_code` を測ると**全部 exit 1**＝docstring が「API が落ちた/エラー」に割り当てるコード。**C-1456／C-1811 と同じ族**で、C-1811 が greeting/help/ambiguous/revision_target を exit 4 に切り出した後に service へ足された 6 コードが `_CONVERSATIONAL_REFUSALS` に入っていない。**既存の番人 `cli_refusal_exit_code_by_cause` は合成ペイロードで固定 4 コードしか見ておらず、実サービスを走らせないため見逃していた**。安全側（gate→3・output_guard→3）と本物の障害（model_unavailable→1）は実走で正しいことを確認済み。他ループ回避: 辛口クリエイター=創作/修正・ループA=板/計器・進捗監視=監視。）
 2026-09-15 22:51 UTC 進捗監視 前進あり（完了は無いが **2 本が新しく動き出した**: 22:25 に **C-1872**〔辛口ユーザー・`sidra-ask` の会話的な断り 6 種が exit 1 を返す〕24 分・22:37 に **C-1873**〔案内文が 3 段の難度を名指すのに、製品はその 3 つを断る〕13 分。どちらも線の手前）。ループA は前提未決のまま〔取れる項目 1 件: C-1624〕。板に赤も停滞も無い。
+
+2026-09-15 23:06 UTC ループA started
