@@ -555,7 +555,16 @@ ASK_PAGE = """<!doctype html>
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var question = document.getElementById("q").value.trim();
-    if (!question) { return; }
+    if (!question) {
+      // C-1874: an empty or whitespace-only submit was the one non-question the
+      // page met with silence - it returned before any feedback, though the
+      // service has a considered empty reply (C-1515) and this page carries its
+      // wording. Show that same next step in the live status region, from the one
+      // source (not a second copy), so a blank or whitespace click is answered
+      // like every other non-question and a screen reader hears it.
+      statusLine.textContent = refusalMessage({ refusal: "empty" });
+      return;
+    }
     var token = document.getElementById("token").value;
 
     send.disabled = true;

@@ -59,8 +59,12 @@ def evaluate_ui_empty_submit_is_answered_not_silent() -> UiEmptySubmitResult:
     guard = handler[guard_start:disable_at] if (guard_start != -1 and disable_at != -1) else ""
 
     # --- (A) the guard exists and still short-circuits with a return ---
+    #     Match the statement `return;`, not the bare word: the guard's own
+    #     comment contains "returned", so a loose substring would report a
+    #     return even after the statement itself was deleted.
     add(guard != "", "A: the empty-question guard could not be located")
-    add("return" in guard, "A: the empty guard no longer returns before sending a request")
+    add(re.search(r"\breturn\s*;", guard) is not None,
+        "A: the empty guard no longer returns before sending a request")
 
     # --- (B) the guard now writes the status region (feedback, not silence) ---
     add("statusLine.textContent" in guard,
