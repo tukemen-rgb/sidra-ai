@@ -1199,3 +1199,51 @@ SIDRA の蓄積は全部 `localStorage` に置いてある。**その置き場�
     粒子を増やす変更はこの列を見てから。
 - SIDRA での反映先: C-1752（1 フレームの仕事量に ratchet を置く）/
   §1 の juice を増やす項目はこの表を見てから決めること
+
+## 33. 断りの書き方——「できません」の次に何を書くか（外部調査 2026-09-15・辛口クリエイターループ）
+
+§1〜§9 を一巡して現物と突き合わせた結果、**ゲームの作りそのものは九つとも満たされていた**
+のに、同じ日に見つかった欠陥は **C-1847／C-1855／C-1861／C-1866／C-1868 の五件とも
+「断り文・案内文の書き方」** だった。**知識ベースに「メッセージの書き方」の節が無い**ことが、
+同じ形の欠陥を繰り返し作らせている。ここを埋める。
+
+- 出典: https://www.nngroup.com/articles/error-message-guidelines/
+  （Nielsen Norman Group・Tim Neusesser と Evan Sunwall・2023-05-14 公開。
+  URL は 2026-09-15 に実際に開いて確認）
+- 事実 1: **「Concisely and precisely describe the issue」**——
+  「An error occurred」のような総称でなく、**起きたことを正確に述べる**。
+- 事実 2: **「Take a positive tone and don't blame the user」**——
+  **「invalid」「illegal」「incorrect」のような語を避ける**。
+  記事は理由も書いている: **「The proper usage of any system lies with its creators
+  and not with the system's users」**。
+- 事実 3: **「Offer constructive advice」**——問題の記述で止めず、**打つ手を出す**。
+  さらに **「Reduce error-correction effort」**——**正しい行動を推測して選ばせる**。
+- 事実 4: **ユーモアは避ける**——**繰り返し出会う人には古びる**。
+
+- 出典: https://learn.microsoft.com/en-us/windows/win32/debug/error-message-guidelines
+  （Microsoft「Error Message Guidelines - Win32 apps」・ページの ms.date は 2025-07-14。
+  URL は 2026-09-15 に実際に開いて確認）
+- 事実 5: 良い文は **「What happened and why? / What is the end result for the user? /
+  What can the user do to prevent it from happening again?」** の三つに答える。
+- 事実 6（**この製品にいちばん効く一行**）: **「Write a separate error message for each
+  known cause of the error. Do not use a single, generic message to explain every
+  possible reason for the error unless you cannot determine the cause.」**
+- 事実 7: **「Provide the user with a solution to the problem.」**
+- 事実 8: **「Do not make the user feel at fault even if the problem is the result of
+  a user error.」**
+- 事実 9: **「Avoid the word "bad". Use more descriptive terms to tell the user what is
+  wrong.」**——「サイズが不正」ではなく**どういうサイズなら良いのかを言う**。
+- 事実 10: **「The length of the text is not an issue ... It is important that the user
+  have all the information necessary to solve the problem.」**——**短さより十分さ**。
+
+- **採らなかった規則（判断を残す）**: 事実として **「Avoid the word "please"」** がある
+  （必須の操作が任意に読める、という英語の理由）。**日本語の「〜してください」は敬体の既定**で
+  同じ含意を持たないので、**この製品には移さない**。**出典にある規則をすべて輸入するのが
+  正しいわけではない**——言語が違えば理由も変わる。
+- **学び（SIDRA の現在地）**: 2026-09-15 20:55 に実 `chat` で 10 通りの断りを採取して測った——
+  **咎める語（無効／不正／誤り／エラー／失敗）は 0 件**、**異なる原因が同じ文を共有する例も 0 件**。
+  **事実 6・8 は既に満たされている**。ただし**満たしているのは今日一日の手作業の結果**で、
+  **これを守る検査は無い**。**規則は在るが番人が居ない状態**。
+- SIDRA での反映先: **C-1870**（事実 6 と事実 8 に番人を置く——
+  断り文が咎める語を使わないこと・異なる原因が同じ文を共有しないことを、
+  実 `chat` から採取した全コードで測る）
