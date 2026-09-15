@@ -79,3 +79,42 @@ def test_the_eval_passes() -> None:
     result = evaluate_board_names_takeable_count()
     assert result.passed, result.failures
     assert result.checks_passed == result.checks_total
+
+
+def test_a_number_declared_on_the_item_own_line_is_counted() -> None:
+    """C-1864: the form that was invisible.
+
+    ``read_items`` puts an item's own line in ``text`` and only the
+    continuation lines in ``body``, and ``takeable`` searched ``body``. On
+    the real board 382 items declare their number on a continuation line and
+    7 on the headline; the one open item among those seven, C-1624, was
+    reported as not-takeable for about thirty cycles while the loop wrote
+    「no-op キューが空」.
+    """
+
+    inline = (
+        "# 盤\n\n### C. 試験用\n\n"
+        "- [ ] **C-9007: 見出し行で数字を名乗る項目。** 本文が続く。"
+        "→ 動かす数字: `metric_inline` unmeasurable→1。\n"
+    )
+
+    assert "C-9007" in _ids(inline), (
+        "an item is not less takeable for declaring its number on its own "
+        "line - under-reporting hides a live item, which is the direction "
+        "takeable()'s own docstring refuses"
+    )
+
+
+def test_the_two_places_a_number_can_be_written_agree() -> None:
+    """The same item, the number moved to a continuation line, reads alike."""
+
+    head = "# 盤\n\n### C. 試験用\n\n"
+    on_line = head + (
+        "- [ ] **C-9008: 題。** → 動かす数字: `metric_same` unmeasurable→1。\n"
+    )
+    on_body = head + (
+        "- [ ] **C-9008: 題。**\n"
+        "      → 動かす数字: `metric_same` unmeasurable→1。\n"
+    )
+
+    assert _ids(on_line) == _ids(on_body) == ["C-9008"]

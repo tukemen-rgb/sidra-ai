@@ -394,7 +394,15 @@ def takeable(items: list[dict]) -> list[dict]:
             continue
         if any(word in item["section"] for word in NOT_TAKEABLE):
             continue
-        if MOVES.search(_flat([line for _, line in item["body"]])):
+        # The headline counts too (C-1864). `read_items` puts the item's own
+        # line in `text` and only the continuation lines in `body`, and this
+        # searched `body` alone - so an item declaring its number on its own
+        # line was invisible. On the real board that is 7 items of 389, and
+        # the one open one, C-1624, read as not-takeable for about thirty
+        # cycles while the loop wrote 「no-op キューが空」. Under-reporting is
+        # the direction this function's own docstring says to avoid: it hides
+        # a live item.
+        if MOVES.search(_flat([item["text"]] + [line for _, line in item["body"]])):
             out.append(item)
     return out
 
