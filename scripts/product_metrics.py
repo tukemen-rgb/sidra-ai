@@ -5003,6 +5003,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1869: the secret detector missed modern issuer-prefixed tokens (Stripe
+    # sk_live_/rk_live_, GitLab glpat-, npm npm_, SendGrid SG.), so a bare one in
+    # an indexed doc could surface in an answer. Added as provider patterns.
+    from sidra_ai.evals.secret_detector_modern_tokens import (
+        evaluate_secret_detector_modern_tokens,
+    )
+
+    sec_modern = evaluate_secret_detector_modern_tokens()
+    c.add(
+        "secret_detector_modern_tokens",
+        "秘密検出器が現代的トークン（Stripe/GitLab/npm/SendGrid）を捕捉し良性は誤検出しない",
+        10.0 * sec_modern.checks_passed / sec_modern.checks_total,
+        detail=f"{sec_modern.checks_passed}/{sec_modern.checks_total} checks; "
+               "src/sidra_ai/evals/secret_detector_modern_tokens.py"
+               + ("" if sec_modern.passed else "; " + "; ".join(sec_modern.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1231: 「OutputGuard？」 (a Japanese user's question - Latin keyword,
     # fullwidth 「？」, no kana/kanji) matched no evidence and got the *English*
     # no-evidence reply, breaking SYSTEM_PROMPT rule 6. The language gate now

@@ -82,6 +82,30 @@ _SECRET_PATTERNS: tuple[_Pattern, ...] = (
         re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}\b"),
         "Slack token shape",
     ),
+    # C-1869: modern issuer-prefixed tokens, the same "reserved prefix" family as
+    # the shapes above. A bare one in an indexed doc was neither quarantined at
+    # ingestion nor redacted in output. The prefixes are specific, so a benign
+    # 「npm_config_cache」 or a prose 「SG. Holmes」 does not match.
+    _Pattern(
+        "stripe_secret_key",
+        re.compile(r"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}\b"),
+        "Stripe secret/restricted key shape",
+    ),
+    _Pattern(
+        "gitlab_token",
+        re.compile(r"\bglpat-[A-Za-z0-9_\-]{20,}\b"),
+        "GitLab personal access token shape",
+    ),
+    _Pattern(
+        "npm_token",
+        re.compile(r"\bnpm_[A-Za-z0-9]{36}\b"),
+        "npm automation token shape",
+    ),
+    _Pattern(
+        "sendgrid_api_key",
+        re.compile(r"\bSG\.[A-Za-z0-9_\-]{22}\.[A-Za-z0-9_\-]{43}\b"),
+        "SendGrid API key shape",
+    ),
     _Pattern(
         "google_api_key",
         re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"),
