@@ -25,6 +25,7 @@ from sidra_ai.creation.decks import (
     save_pptx,
     validate_deck,
 )
+from sidra_ai.creation.documents import requested_format
 from sidra_ai.creation.empty import empty_notice
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.router import CreationOutcome
@@ -118,7 +119,17 @@ def build_deck_generator(
         # tell. Say it, without the raw reason (that stays in the detail), and
         # frame the fix as the administrator's, since a reader cannot install
         # the package themselves (same framing as C-1269).
-        if not wrote_pptx:
+        # C-1838: when the request named a document format the deck cannot make
+        # (「スライドをPDFで」/Word/Excel), name THAT format - the deck twin of the
+        # document's C-1834 - instead of the PowerPoint notice, which would name a
+        # format the operator never asked for and read as a misread request. The
+        # .pptx notice stands only when no document format was named (a plain deck,
+        # or one asked for in パワポ/pptx, still surfaces the .pptx fallback,
+        # C-1274 - requested_format returns "" for those).
+        requested = requested_format(message)
+        if requested:
+            summary += f"なお {requested} 形式では作れないため、HTML で保存しています。"
+        elif not wrote_pptx:
             summary += (
                 "なお PowerPoint（.pptx）は作れなかったので HTML のみ保存しています。"
                 "PowerPoint 出力の有効化は管理者にご相談ください。"
