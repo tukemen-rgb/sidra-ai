@@ -41,6 +41,7 @@ from sidra_ai.models.base import (
     LocalModelAdapter,
     ModelUnavailableError,
 )
+from sidra_ai.models.echo import _reply_in_japanese
 from sidra_ai.models.manifest import MODEL_MANIFEST_FILENAME
 from sidra_ai.models.usage import MeteredAdapter, UsageLedger
 from sidra_ai.retrieval.embedding import build_retriever
@@ -150,15 +151,22 @@ def _own_content_subject(query: str) -> tuple[str, ...]:
 
 #: Social openers that are not questions. Matched against the whole message so
 #: 「こんにちは、売上を教えて」 - a question that opens with a greeting - is not
-#: caught; only a greeting on its own is. Kept a tight, closed set (the readers
-#: are Japanese, echo.py:53), so a real query is never swallowed. Residual: an
-#: English-only greeting still takes the English no-evidence reply.
+#: caught; only a greeting on its own is. Kept a tight, closed set, so a real
+#: query is never swallowed. C-1902: English greetings join the set, and the
+#: greeting branch answers in the message's language (rule 6) - a Japanese
+#: greeting keeps the Japanese reply, an English one now gets an English reply
+#: instead of the English no-evidence wall (the English twin of C-1796).
 _GREETINGS = frozenset({
     "こんにちは", "こんにちわ", "こんばんは", "こんばんわ", "おはよう", "おはようございます",
     "はじめまして", "やあ", "どうも", "よろしく", "よろしくおねがいします",
     "よろしくお願いします", "ありがとう", "ありがとうございます", "ありがとうございました",
     "どうもありがとう", "おつかれ", "おつかれさま", "お疲れ", "お疲れさま", "お疲れ様",
     "お疲れ様です", "おつかれさまです",
+    # C-1902: English greetings and thanks (whole-message, casefolded).
+    "hello", "hi", "hey", "hey there", "hello there", "hiya", "howdy",
+    "good morning", "good afternoon", "good evening",
+    "thanks", "thank you", "thankyou", "thx", "thank you very much",
+    "many thanks", "cheers", "greetings",
 })
 
 #: Trailing marks a greeting may carry (「こんにちは！」「ありがとう。」).
@@ -952,12 +960,24 @@ class SidraService:
         # for a question, not to report a search that never had one. A greeting
         # that opens a real question is not matched, so it still gets answered.
         if _is_greeting(message):
-            return {
-                "answer": (
+            # Rule 6: reply in the message's language (C-1902). A Japanese
+            # greeting keeps the Japanese reply; an English one gets an English
+            # reply rather than the English no-evidence wall.
+            if _reply_in_japanese(message):
+                greeting_answer = (
                     "ご挨拶ありがとうございます。何について調べますか。"
                     "索引済みリポジトリについてお答えでき、"
                     "制作（「レースゲームを作って」など）もできます。"
-                ),
+                )
+            else:
+                greeting_answer = (
+                    "Hello - what would you like to look into? I answer "
+                    "questions grounded in indexed repositories, and I can also "
+                    "create things (for example, \"make a racing game\"). "
+                    "Send what you'd like to find or make."
+                )
+            return {
+                "answer": greeting_answer,
                 "refused": True,
                 "refusal": "greeting",
                 "reason": "the message was a greeting with no question",

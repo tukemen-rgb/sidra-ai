@@ -1548,6 +1548,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1902: an English greeting ("hello"/"thanks") fell to the no-evidence
+    # wall because the greeting set was Japanese-only. Now recognised and
+    # answered in English (rule 6). The English twin of C-1796.
+    from sidra_ai.evals.chat_english_greeting_is_answered import (
+        evaluate_chat_english_greeting_is_answered,
+    )
+
+    en_greeting = evaluate_chat_english_greeting_is_answered()
+    c.add(
+        "chat_english_greeting_is_answered",
+        "英語の挨拶（hello / thanks）に英語の挨拶応答で答える",
+        10.0 * en_greeting.checks_passed / en_greeting.checks_total,
+        detail=f"{en_greeting.checks_passed}/{en_greeting.checks_total} checks; "
+               "src/sidra_ai/evals/chat_english_greeting_is_answered.py"
+               + ("" if en_greeting.passed
+                  else "; " + "; ".join(en_greeting.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1847: 「さっきのゲームを消して」 got the list of things that can be changed,
     # 「捨てて」 the no-evidence boilerplate, 「スライドを消して」 the kind refusal -
     # three wrong answers for one request, none saying deletion is not offered.

@@ -323,9 +323,12 @@ def test_output_guard_still_applies_with_history(
 
     monkeypatch.setattr(service.model, "generate", generate)
 
+    # A non-greeting message, so it reaches the model rather than the greeting
+    # short-circuit (C-1902 made "hi" a greeting) - this test is about the
+    # output guard, which only runs once the model has produced text.
     response = api.post(
         "/v1/chat",
-        json={"message": "hi", "history": [{"question": "q", "answer": "a"}]},
+        json={"message": "what does the plan say", "history": [{"question": "q", "answer": "a"}]},
     )
 
     assert response.status_code == 200
