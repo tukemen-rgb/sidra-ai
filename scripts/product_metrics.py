@@ -14268,6 +14268,57 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and which of the two the foe is wearing ------------------------
+    #
+    # `creation_cvd_info_pair` separates accent from alert through three
+    # colour-vision matrices; C-1891 added the half that asks whether the
+    # two are painted at all, and then said in its own docstring what it
+    # still could not say - that the FOE is the alert one. Its evidence was
+    # blunt: recolouring all three of shooter's MAGENTA_TOKEN calls moved
+    # no number, because the HUD, the result band and the juice preambles
+    # paint alert too. That same sabotage turns this red.
+    #
+    # Measuring it means attributing paint to entities, which a recorder
+    # watching only fillRect and arc cannot do - these sprites are paths.
+    # This one follows the pen and books a mark at fill()/stroke() with the
+    # colour and the box the path covered, then asks the page where the
+    # hero and the foe stand.
+    #
+    # Three tables, not two: a page with no foe is excused, and a page with
+    # a foe this probe cannot yet reach is named as unreached. adventure
+    # draws its roamers with MAGENTA_TOKEN but keeps them in the rooms past
+    # the entrance, so calling it foe-less to keep the sheet clean would be
+    # the false excuse C-1896 added a check to catch.
+    from sidra_ai.evals.cvd_foe_wears_the_alert import (
+        NOT_YET_REACHED as _FOE_LATER,
+        NO_FOE as _FOE_NONE,
+        evaluate_cvd_foe_wears_the_alert,
+    )
+
+    _foe = evaluate_cvd_foe_wears_the_alert()
+    c.add(
+        "creation_cvd_foe_wears_the_alert",
+        "敵が alert の側で、主役はそうでない（§4 事実 1）",
+        float(_foe.checks_passed) if _foe.passed else 0.0,
+        detail=(
+            "**path を組み立てながら追う記録器**で、`fill()`/`stroke()` の瞬間に"
+            "**その path が覆った箱と色**を印として記録し、"
+            "**ページ自身が持つ主役と敵の座標**に重ねて読んだ——"
+            + "、".join(_foe.readings)
+            + "。**両方向**: 敵に alert が乗っていること、**主役には乗っていないこと**"
+            "（全部を alert で塗る実装は後者で落ちる）。"
+            f"**敵の居ない {len(_FOE_NONE)} 型は理由つきで除外**。"
+            f"**敵は居るがまだ立てていない {len(_FOE_LATER)} 型は「除外」ではなく「未到達」として別表**に置く"
+            "——`sprite('enemy',…,'MAGENTA_TOKEN')` で描かれている頁を"
+            "「敵が居ない」と書けば、それは C-1896 で塞いだ嘘の言い訳になる。"
+            "**C-1891 が動かせなかった破壊（shooter の `MAGENTA_TOKEN` を 3 か所とも主役の色に）が、"
+            "ここでは赤くなる**"
+            if _foe.passed
+            else "; ".join(_foe.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- how long a flash stays bright, not how often one starts ----------
     #
     # §6 定量 measured the owner's episode and found a flash at half
