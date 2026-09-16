@@ -183,6 +183,19 @@ _HELP_QUERIES = frozenset({
     "なにができるの", "できること", "できることは", "何ができるの?",
     "ヘルプ", "help", "このアプリは何", "このアプリについて", "何のアプリ",
     "何ができますか?", "使い方教えて",
+    # C-1901: how people actually ask who this is, for help, or how to use it -
+    # each reached the no-evidence abstention that asks for a repository to be
+    # ingested (C-1796/C-1802 family). Whole-message entries, so a real corpus
+    # query that merely contains 「使い方」/「何」 (「認証の使い方を教えて」) is untouched.
+    # Identity:
+    "あなたは誰", "あなたは何", "あなたは何者", "君は誰", "きみは誰",
+    "君は何", "きみは何", "君は何ができる", "きみは何ができる",
+    "これは何のツール", "これは何のアプリ", "何のツール",
+    # Help / how to use:
+    "助けて", "助けてください", "たすけて",
+    "使い方がわからない", "使い方が分からない", "使い方がわかりません",
+    "どう使う", "どう使うの", "どうやって使う", "どうやって使うの",
+    "何をしてくれる", "何をしてくれるの", "何が得意", "何が得意なの",
 })
 
 

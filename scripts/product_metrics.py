@@ -1528,6 +1528,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1901: 「あなたは誰？」「助けて」「どう使うの？」 (identity/help questions about
+    # the product) reached the no-evidence abstention that asks for a repository
+    # to be ingested. The C-1796/C-1802 conversational-input family. Both
+    # directions: identity/help phrasings are answered, corpus queries are not.
+    from sidra_ai.evals.chat_identity_and_help_questions_are_answered import (
+        evaluate_chat_identity_and_help_questions_are_answered,
+    )
+
+    identity_help = evaluate_chat_identity_and_help_questions_are_answered()
+    c.add(
+        "chat_identity_and_help_questions_are_answered",
+        "「あなたは誰？」「助けて」など正体・使い方の質問に案内で答える",
+        10.0 * identity_help.checks_passed / identity_help.checks_total,
+        detail=f"{identity_help.checks_passed}/{identity_help.checks_total} checks; "
+               "src/sidra_ai/evals/chat_identity_and_help_questions_are_answered.py"
+               + ("" if identity_help.passed
+                  else "; " + "; ".join(identity_help.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1847: 「さっきのゲームを消して」 got the list of things that can be changed,
     # 「捨てて」 the no-evidence boilerplate, 「スライドを消して」 the kind refusal -
     # three wrong answers for one request, none saying deletion is not offered.
