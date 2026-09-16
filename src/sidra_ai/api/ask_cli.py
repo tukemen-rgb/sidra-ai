@@ -311,6 +311,25 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
     clean = _Stripped()
 
     if payload.get("refused"):
+        # C-1879: artifact_list is a listing, not a refusal. Its content is the
+        # answer body the service composed (the made files, or 「まだ何も作って
+        # いません」, plus the working /v1/artifacts reference). The refusal path
+        # below dropped that body and printed a canned pointer naming a
+        # --artifacts flag this CLI has no parser entry for (running it exits 2).
+        # Show the body, and do not print 「回答を拒否した」 for an answered listing.
+        if payload.get("refusal") == "artifact_list":
+            listing = clean(payload.get("answer", "")).strip()
+            if not listing:
+                # The service always composes a list body; only a hand-built
+                # payload reaches here empty. Still name a working next step -
+                # never the dead --artifacts flag - so every code has one.
+                listing = (
+                    "作ったものの一覧は Web の入口ページで見られます。"
+                    "ファイルは /v1/artifacts から取得できます。"
+                )
+            print(listing)
+            _report_stripped(clean)
+            return _refusal_exit_code(payload)
         print("回答を拒否した。")
         # The API reason is the gate's English audit text ("prompt-injection
         # patterns detected; …"); a terminal user reads Japanese and needs a
@@ -372,7 +391,6 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             "delete_unsupported": "削除は用意していない。何も消していない。不要なファイルは保存先のフォルダーで消す。",
             "panel_setting": "ページ側の設定。ゲームのページを開き、画面下の調整パネルで切り替える。",
             "artifact_feature_question": "作ったページにある機能。ページを開いて確かめる。",
-            "artifact_list": "作ったものの一覧を返した。ファイル本体は `sidra-ask --artifacts` か /v1/artifacts から取得する。",
             "revision_kind": "いま修正できるのはゲームだけ。スライド・GIF・アート・レポート・3D モデルは、作ったときの依頼をもう一度送って作り直す。",
             "revision_change": "どれを変えるかは分かったが、何をどう変えるかが"
                                "読み取れなかった。難易度・テーマ・差し色・題名"
