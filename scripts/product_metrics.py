@@ -14063,6 +14063,49 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- does the game need the thing it tells you to press? -------------
+    #
+    # §34 事実 1 (arXiv:1807.06734, Green et al. 2018): a level teaches a
+    # mechanic when an agent that cannot perform it cannot beat the level.
+    # SIDRA teaches its verb with three lines of text on the title screen
+    # (C-1111) and guarantees a success in the first ten seconds (C-1108) -
+    # and nothing asked whether the verb was needed at all.
+    #
+    # The number is a COVERAGE number, not a product score: four of the ten
+    # templates are shown to require their own action, and the other six are
+    # named with the reason they cannot be decided by this agent. §34 事実 2
+    # is why - the paper's crippled agent was a perfect solver, and a
+    # wanderer's failure proves nothing. Calling those six 「does not require
+    # its verb」 would be the bigger number and a false one.
+    from sidra_ai.evals.requires_its_own_verb import (
+        VERB_TEMPLATES,
+        VERB_UNDECIDABLE,
+        evaluate_requires_its_own_verb,
+    )
+
+    _verb = evaluate_requires_its_own_verb()
+    from sidra_ai.creation.games import TEMPLATES as _VERB_TEMPLATES_ALL
+
+    c.add(
+        "creation_requires_its_own_verb",
+        "自分の動詞を使わないと勝てないことを示せた型（§34 事実 1）",
+        float(_verb.shown),
+        detail=(
+            f"**{_verb.shown}/{len(_VERB_TEMPLATES_ALL)} 型**で、同じエージェントから"
+            "**動詞のキーだけを抜くと成績が落ちる**ことを実測"
+            f"（{', '.join(_verb.decided)}・各 {2} 本ずつ・ゲート通過後の同一入力）。"
+            "**両方向**: 動詞ありは前進し、動詞なしは前進しない"
+            "（片方向なら「誰も遊べないゲーム」が満点を取る）。"
+            f"**残り {len(VERB_UNDECIDABLE)} 型は「要求していない」ではなく「この方法では判定できない」**"
+            "——§34 事実 2（制限するエージェントはそれ以外は有能でなければならない）"
+            f"。理由は型ごとに `VERB_UNDECIDABLE` に書いてある"
+            f"（{', '.join(sorted(VERB_UNDECIDABLE))}）"
+            if _verb.passed
+            else "; ".join(_verb.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the floors under the pages, not only under the palettes ---------
     #
     # C-1877. §4's quantified rule is WCAG 1.4.3, and the product has carried
