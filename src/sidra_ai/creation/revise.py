@@ -228,6 +228,31 @@ _BARE_UNDO = re.compile(
 
 #: 「タイトルを「◯◯」にして」/「名前を◯◯に変えて」. The quoted form wins#: 「タイトルを「◯◯」にして」/「名前を◯◯に変えて」. The quoted form wins
 #: when both appear; the unquoted form stops at the particle.
+#: What may follow a quoted new title and still make the message an
+#: instruction rather than a remark (C-1881). Deliberately not empty-matching:
+#: 「さっきのゲームのタイトル「レース」」 could as easily be somebody stating the
+#: title as asking for it, and the conservative half of an ambiguity is the
+#: half this module has always taken (see the 「元に戻して」 note below).
+_TITLE_INSTRUCTION_TAIL = re.compile(
+    r"^\s*(?:に|へ|と)\s*[。、.!！]?\s*$"
+    r"|^\s*(?:に|へ|で)?\s*(?:お願い|おねがい|よろしく)\S*\s*[。、.!！]?\s*$"
+)
+
+
+def _names_a_new_title(message: str) -> bool:
+    """Whether the message hands over a new title with no change verb.
+
+    The title has to be quoted: an unquoted one cannot be told from the rest
+    of the sentence without a verb to end it, and guessing would rename a page
+    nobody asked to rename.
+    """
+
+    match = _TITLE_QUOTED.search(message)
+    if not match:
+        return False
+    return bool(_TITLE_INSTRUCTION_TAIL.match(message[match.end():]))
+
+
 _TITLE_QUOTED = re.compile(r"(?:タイトル|名前|題名)を?[「『\"']([^」』\"']{1,24})[」』\"']")
 _TITLE_PLAIN = re.compile(r"(?:タイトル|名前|題名)を([^\s「『にへと]{1,24})に")
 
@@ -610,8 +635,21 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     if any(fold_kana(verb) in text for verb in _ASK_VERBS):
         return RevisionIntent(is_revision=False)
 
+    # C-1881: a new title, given the way people give one. 「タイトルを「共有の
+    # 記録」にして」 works because 「して」 is a change verb; 「…「共有の記録」に」,
+    # 「…「今日の挑戦」へ」 and 「…「自己ベストの道」でお願いします」 carry no verb
+    # at all and were not revisions - so they fell through to the branch that
+    # answers questions about the page, and **the words of the title being
+    # asked for chose which feature got explained**: 「共有の記録」 drew the
+    # share paragraph, 「今日の挑戦」 the daily one, 「自己ベストの道」 the record
+    # one. Naming a page 「今日の挑戦」 got a lecture about 今日の挑戦.
+    #
+    # Only the instruction shapes count, and only after every veto above has
+    # already run: a question marker, an asking verb or a creation verb has
+    # returned by now, so 「タイトルは「X」ですか」 cannot reach this.
     if not any(fold_kana(verb) in text for verb in _CHANGE_VERBS):
-        return RevisionIntent(is_revision=False)
+        if not _names_a_new_title(message):
+            return RevisionIntent(is_revision=False)
 
     adjustments: dict[str, str] = {}
     evidence: list[str] = []

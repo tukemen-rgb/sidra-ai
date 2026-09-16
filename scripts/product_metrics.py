@@ -13904,6 +13904,44 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1881: the page's own words, typed back. 「結果をコピー」 is what the
+    # button says and 「結果のコピーってどうやるの」 reached the index wall; a new
+    # title given as 「…「共有の記録」に」 carried no change verb, so it was not a
+    # revision and fell to the page-question branch - where the words of the
+    # requested title chose the answer.
+    from sidra_ai.evals.product_words_work_as_input import (
+        evaluate_product_words_work_as_input,
+    )
+
+    _words = evaluate_product_words_work_as_input()
+    c.add(
+        "product_words_work_as_input",
+        "頁が自分で印字している言い方が、入力としても通る",
+        10.0 * _words.checks_passed / _words.checks_total,
+        detail=(
+            f"{_words.checks_passed}/{_words.checks_total} checks; "
+            "src/sidra_ai/evals/product_words_work_as_input.py"
+            + ("" if _words.passed else "; " + "; ".join(_words.failures[:4]))
+            + "。**2 族を実測**——(1) **ボタンの文字の名詞形**"
+            "（頁は「結果をコピー」と印字するのに手がかりは動詞語幹「コピーし」だけで、"
+            "**「結果のコピーってどうやるの」が索引の壁**・「共有ってできるの」は通っていた）、"
+            "(2) **動詞の無い改名**（「…「共有の記録」に」「…「今日の挑戦」へ」「…「自己ベストの道」でお願いします」）。"
+            "**(2) は行き先も悪かった**——修正と読まれないので頁についての質問分岐へ落ち、"
+            "**求められた題名の語が答えを選んでいた**（「今日の挑戦」と名付けてくれと頼むと**今日の挑戦の説明**が返る）。"
+            "**重いのは断る側**: 検出器を広げる代償は別の場所に出る（C-1878 は分岐が修正指示を掴んだ話、"
+            "C-1844 は部分一致がコーパス質問を飲んだ話）ので、**題名の質問・制作依頼・題名を引用したコーパス質問**を"
+            "**同じ重さで測る**。**動くべき側にも対照**（既に通っていた「共有ってできるの」と「…にして」）を入れてある"
+            "——**通っていた側を壊す修正が満点を取らないように**。"
+            "**破壊 6 通り全検出**・対照 14/14・1 破壊 1 プロセス。"
+            "**検査を 1 度直した**: コーパス質問の例が「…を**ドキュメント**から探して」で、"
+            "**`_CORPUS_SOURCES` veto が手がかりより先に効く**ため、"
+            "**手がかりを裸の「コピー」へ広げる破壊が満点を取った**。"
+            "**出典語を含まないコーパス質問**（「コピーライトの方針を教えて」）に替えて成立した"
+            "——**危ないのは「どこを見ろ」と言っていない質問のほう**で、そこでは手がかりだけが頁分岐との境になる。"
+        ),
+        kind=OUTCOME,
+    )
+
     _how_to = evaluate_chat_answers_how_to_make()
     c.add(
         "chat_answers_how_to_make",

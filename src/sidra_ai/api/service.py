@@ -226,7 +226,17 @@ def _is_artifact_list_query(message: str) -> bool:
 #: corpus questions too, which is exactly what C-1844 kept out by matching
 #: whole messages; the artifact test is what lets this be looser.
 _FEATURE_TOPICS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("share", ("自慢", "コピーし", "共有", "シェア", "友達に見せ", "見せたい")),
+    # C-1881: 「結果をコピー」 is what the button says, and the noun form of the
+    # page's own words did not reach this branch - 「結果のコピーってどうやるの」
+    # got the abstention that asks for a repository to be ingested, while
+    # 「共有ってできるの」 was answered. The cue was the verb stem 「コピーし」,
+    # which a noun phrase never contains. The two noun forms are listed rather
+    # than a bare 「コピー」: that word turns up in corpus questions that have
+    # nothing to do with this page.
+    ("share", (
+        "自慢", "コピーし", "結果をコピー", "結果のコピー",
+        "共有", "シェア", "友達に見せ", "見せたい",
+    )),
     ("daily", ("今日の挑戦", "日替わり", "デイリー")),
     ("skin", ("見た目", "スキン", "着せ替え")),
     ("record", ("自己ベスト", "ハイスコア", "記録は残", "ゴースト")),
