@@ -21375,6 +21375,52 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the shared juice, timed in seconds rather than callbacks -------
+    #
+    # C-1892 put the flash on the clock in two templates' own code. This is
+    # the same defect one layer down, in the juice every template goes
+    # through: `SHAKE*=0.78`, `p.life-=0.045` and `p.life-=1/POP_LIFE` all
+    # sat inside the module's rAF wrapper and spent one frame's worth per
+    # callback, whatever the callback meant. A 9px camera kick was half
+    # gone after 50ms at 60Hz, 25ms at 120 and 20.8ms at 144.
+    #
+    # `creation_shake_settles_fast` could not see it: it counts frames and
+    # divides by 60 to print seconds, so it reports the same number at
+    # every refresh rate by construction. It is kept as it is - at 60Hz its
+    # numbers are true and its other directions (not a flicker, comes to
+    # rest) still hold - and this supplies the axis it cannot have.
+    #
+    # Held time is not counted. A held callback runs no stepper at all, so
+    # that time was never offered to the fade, and charging it would put
+    # the refresh rate back into the answer (C-1435's line for the attract
+    # demo's motion bar, drawn again here).
+    from sidra_ai.evals.juice_fades_in_real_time import (
+        TOLERANCE as _JF_TOL,
+        evaluate_juice_fades_in_real_time,
+    )
+
+    _jf = evaluate_juice_fades_in_real_time()
+    c.add(
+        "creation_juice_fades_in_real_time",
+        "揺れと粒子の寿命が画面の速さで変わらない（§1／§26 事実 1）",
+        float(_jf.checks_passed) if _jf.passed else 0.0,
+        detail=(
+            "**60/120/144Hz** で走らせ、**押さえられていない時間だけ**を数えて"
+            "カメラの一撃の半減と粒子の寿命を測った——"
+            + "、".join(_jf.readings)
+            + f"（許容 {_JF_TOL:.0%}）。"
+            "**対になっている 2 つを両方読む**——揺れは掛け算・粒子は引き算で減るので、"
+            "**片方だけ直した実装は通れない**。"
+            "**直す前の実測**: 揺れ 120Hz **-50%**・144Hz **-58%**、"
+            "粒子 120Hz **-82%**・144Hz **-85%**。"
+            "**`creation_shake_settles_fast` はこの欠陥を原理的に見られない**"
+            "（フレーム数を `/60` して「秒」と書くので、どの画面でも同じ数字になる）"
+            if _jf.passed
+            else "; ".join(_jf.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the end screen's headline, measured by the font ----------------
     #
     # §35 (added with C-1896): `measureText` returns the font's own advance

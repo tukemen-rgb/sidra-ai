@@ -229,14 +229,31 @@ function haptic(pattern){
   return true}
 function hapticFacts(){return {on:hapticOn(),fired:HAPTIC_N,
   window:HAPTIC_TIMES.length,max:%(hapticMax)d,sent:HAPTIC_SENT.slice()}}
-function stepShake(){if(!JCV)return;
-  if(SHAKE>0.05){SHAKE*=0.78;
+/* How many 60Hz frames' worth of time this callback covers (C-1898).
+   Every effect below used to spend exactly one frame per callback, so the
+   whole juice ran at the display's speed: a camera kick measured 50ms to
+   half on a 60Hz screen, 25ms at 120 and 20.8ms at 144 - the same 2.4x
+   C-1892 found in the flash, but here in the shared path all ten
+   templates go through. At 60Hz this returns exactly 1, so every page
+   behaves to the byte as it did. A page whose clock never moves (a
+   probe's stub) also gets 1: no timestamp is not the same as no time.
+   The ceiling is three frames, because a backgrounded tab comes back with
+   a gap that is not a frame and one callback must not swallow the whole
+   effect. */
+let JCLOCK=null;
+function juiceStep(t){
+  const stamp=(typeof t==='number'&&isFinite(t))?t:null;
+  if(stamp===null||JCLOCK===null||stamp<=JCLOCK){JCLOCK=stamp;return 1}
+  const frames=(stamp-JCLOCK)*0.06;JCLOCK=stamp;
+  return Math.min(Math.max(frames,0.01),3)}
+function stepShake(k){if(!JCV)return;
+  if(SHAKE>0.05){SHAKE*=Math.pow(0.78,k);
     const dx=(Math.random()*2-1)*SHAKE,dy=(Math.random()*2-1)*SHAKE;
     JCV.style.transform='translate('+dx.toFixed(2)+'px,'+dy.toFixed(2)+'px)'}
   else if(SHAKE!==0){SHAKE=0;JCV.style.transform=''}}
-function stepParticles(){if(!PARTS.length||!JCV)return;
+function stepParticles(k){if(!PARTS.length||!JCV)return;
   const c=JCV.getContext('2d');c.save();
-  PARTS=PARTS.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.12;p.life-=0.045;
+  PARTS=PARTS.filter(p=>{p.x+=p.vx*k;p.y+=p.vy*k;p.vy+=0.12*k;p.life-=0.045*k;
     if(p.life<=0)return false;
     c.globalAlpha=Math.max(0,p.life);c.fillStyle=p.c;
     c.fillRect(p.x-1.5,p.y-1.5,3,3);return true});
@@ -266,11 +283,11 @@ function scorePop(x,y,n){
   if(POPS.length>=POP_MAX){POPS.shift();POP_DROPPED++}
   POPS.push({x:x,y:y,n:n,life:1});POP_SHOWN++;POP_TOTAL+=n;
   return n}
-function stepPops(){if(!POPS.length||!JCV)return;
+function stepPops(k){if(!POPS.length||!JCV)return;
   const c=JCV.getContext('2d');
   c.save();c.textAlign='center';c.font=hudPx(13)+'px ui-monospace,monospace';
   POPS=POPS.filter(function(p){
-    p.life-=1/POP_LIFE;p.y-=POP_RISE;
+    p.life-=k/POP_LIFE;p.y-=POP_RISE*k;
     if(p.life<=0)return false;
     c.globalAlpha=Math.max(0,Math.min(1,p.life));
     c.fillStyle='ACCENT_JUICE';c.fillText('+'+p.n,p.x,p.y);
@@ -338,7 +355,8 @@ requestAnimationFrame=function(fn){
       if(FLASH_CLOCK!==null&&stamp!==FLASH_CLOCK){FLASH_MOVED=true}
       FLASH_CLOCK=stamp}
     FLASH_FRAME++;HAPTIC_FRAME++;
-    fn(t);stepParticles();stepPops();stepShake()})};
+    const k=juiceStep(t);
+    fn(t);stepParticles(k);stepPops(k);stepShake(k)})};
 """ % {
     "shake": FAIL_SHAKE,
     "hitstop": FAIL_HITSTOP,

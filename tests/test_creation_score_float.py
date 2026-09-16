@@ -87,7 +87,11 @@ def test_a_template_with_no_score_wires_nothing() -> None:
 def test_the_float_reaches_every_page(template: str) -> None:
     body = _script(template)
     assert "function scorePop(" in body
-    assert "stepPops()" in body
+    # The call, not its spelling: C-1898 gave the steppers the elapsed time
+    # as an argument (`stepPops(k)`) so the juice fades on the clock rather
+    # than once per callback, and an assertion on the empty parentheses
+    # failed every template for a change that kept the wiring intact.
+    assert "stepPops(" in body
 
 
 # --- what a whole go looks like --------------------------------------------
