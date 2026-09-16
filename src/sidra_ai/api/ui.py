@@ -417,6 +417,23 @@ ASK_PAGE = """<!doctype html>
   // projects section grew the same phone long-scroll the artifact cap fixed.
   var PROJECT_LIMIT = 20;
 
+  function formatBytes(n) {
+    // A person reads "107 KB", not "109927 bytes". This listing is the only
+    // window a general user has onto what they made, and a raw byte count is
+    // not a size anyone parses at a glance (C-1895). Non-negative integers only
+    // (the server sends st_size); anything else falls back to the raw number so
+    // a size is never hidden or shown wrong.
+    if (typeof n !== "number" || !isFinite(n) || n < 0) { return String(n) + " B"; }
+    if (n < 1024) { return n + " B"; }
+    var units = ["KB", "MB", "GB", "TB"];
+    var value = n, unit = -1;
+    do { value /= 1024; unit++; } while (value >= 1024 && unit < units.length - 1);
+    // One decimal below 10 (2.3 MB), whole at or above it (107 KB): short and
+    // still telling two nearby sizes apart.
+    var shown = (value < 10) ? value.toFixed(1) : String(Math.round(value));
+    return shown + " " + units[unit];
+  }
+
   function authHeaders() {
     var token = document.getElementById("token").value;
     return token ? { "Authorization": "Bearer " + token } : {};
@@ -477,7 +494,7 @@ ASK_PAGE = """<!doctype html>
           item.appendChild(open);
           var meta = document.createElement("span");
           meta.className = "note";
-          meta.textContent = " " + a.bytes + " bytes / " + a.modified;
+          meta.textContent = " " + formatBytes(a.bytes) + " / " + a.modified;
           item.appendChild(meta);
           artifactList.appendChild(item);
         });
@@ -556,7 +573,7 @@ ASK_PAGE = """<!doctype html>
             row.appendChild(open);
             var size = document.createElement("span");
             size.className = "note";
-            size.textContent = " " + f.bytes + " bytes";
+            size.textContent = " " + formatBytes(f.bytes);
             row.appendChild(size);
             files.appendChild(row);
           });

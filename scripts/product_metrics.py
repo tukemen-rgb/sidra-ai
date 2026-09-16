@@ -2755,6 +2755,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1895: the generated-file listing showed sizes as a raw byte count
+    # ("109927 bytes"), the one surface where "how big is what I made" is the
+    # whole question. A formatBytes helper now renders B/KB/MB in both loops.
+    from sidra_ai.evals.ui_artifact_size_is_human_readable import (
+        evaluate_ui_artifact_size_is_human_readable,
+    )
+
+    ui_size = evaluate_ui_artifact_size_is_human_readable()
+    c.add(
+        "ui_artifact_size_is_human_readable",
+        "生成ファイル一覧がサイズを人間可読（B/KB/MB）で見せる",
+        10.0 * ui_size.checks_passed / ui_size.checks_total,
+        detail=f"{ui_size.checks_passed}/{ui_size.checks_total} checks; "
+               "src/sidra_ai/evals/ui_artifact_size_is_human_readable.py"
+               + ("" if ui_size.passed else "; " + "; ".join(ui_size.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1703: the excerpt cap could cut a [REDACTED:...] placeholder in half,
     # showing a meaningless [REDACT fragment - visible to users since C-1689/1691
     # put the excerpt on screen. The excerpt now drops a placeholder whole rather
