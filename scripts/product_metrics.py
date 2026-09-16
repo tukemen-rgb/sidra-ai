@@ -2219,6 +2219,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1879: 「作ったものを見せて」 printed 「回答を拒否した」 with no list and named
+    # `sidra-ask --artifacts`, a flag the parser lacks (exit 2 if run). The CLI now
+    # shows the service's own list body; a structural guard also checks no refusal
+    # advice names a sidra-ask flag the parser does not define.
+    from sidra_ai.evals.cli_artifact_list_shows_the_list import (
+        evaluate_cli_artifact_list_shows_the_list,
+    )
+
+    cli_artlist = evaluate_cli_artifact_list_shows_the_list()
+    c.add(
+        "cli_artifact_list_shows_the_list",
+        "sidra-ask が作った物の一覧本文を出す（存在しないコマンドを案内しない）",
+        10.0 * cli_artlist.checks_passed / cli_artlist.checks_total,
+        detail=f"{cli_artlist.checks_passed}/{cli_artlist.checks_total} checks; "
+               "src/sidra_ai/evals/cli_artifact_list_shows_the_list.py"
+               + ("" if cli_artlist.passed else "; " + "; ".join(cli_artlist.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1627: --json outputs raw JSON, and json.dumps only escapes U+0000-U+001F.
     # The C1 controls, bidi overrides and zero-width characters the rendered path
     # strips survive raw into the terminal; --json stays byte-faithful but now
