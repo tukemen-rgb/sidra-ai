@@ -13703,6 +13703,42 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1875: and the question one step earlier - not about the page that was
+    # made, but about making one at all. 「使い方を教えて」 is answered from the
+    # generator registry (C-1802); 「レポートの作り方を教えて」 was not, because
+    # `_HELP_QUERIES` matches whole messages, so it reached the abstention that
+    # asks an administrator to ingest a repository. Measured before the fix:
+    # 「レポートの/ゲームの/スライドの作り方を教えて」 and 「どうやってレポートを
+    # 作るの」 all hit that wall.
+    from sidra_ai.evals.chat_answers_how_to_make import (
+        evaluate_chat_answers_how_to_make,
+    )
+
+    _how_to = evaluate_chat_answers_how_to_make()
+    c.add(
+        "chat_answers_how_to_make",
+        "「〜の作り方を教えて」に、作れるものと送る文を返す（索引の壁へ送らない）",
+        10.0 * _how_to.checks_passed / _how_to.checks_total,
+        detail=(
+            f"{_how_to.checks_passed}/{_how_to.checks_total} checks; "
+            "src/sidra_ai/evals/chat_answers_how_to_make.py"
+            + ("" if _how_to.passed else "; " + "; ".join(_how_to.failures[:4]))
+            + "。**4 つの言い方が答えられる**ことと、**3 つが答えられないままである**ことを"
+            "**同じ判定器**で測る——**menu を全部に返す実装は後半で落ちる**。"
+            "**壊れない側のほうが重い**: 出典語を含む質問（「…をドキュメントから探して」）は"
+            "**コーパス質問のまま**（C-1866 の veto を再利用）、**製品が作らない主題**"
+            "（「カレーの作り方」）も**コーパス質問のまま**、そして"
+            "**「レースゲームを作って」は依然として作る**（分岐を 1 行早く置くと制作が助言に化ける）。"
+            "**成果物の有無は条件にしていない**——**作る前に訊く人が本来の読者**（起票の指示）。"
+            "**語彙は `registered_kinds`→`_KIND_LABELS` から引く**ので、生成器を足し引きすれば追随する。"
+            "**判定器を 1 度強くした**: 最初は「訊かれた種別名が答えに在るか」だけを見ていたが、"
+            "**それは末尾の「ほかに作れるのは …」（全種別を並べる）で満たされてしまい**、"
+            "**冒頭から種別名を落とす破壊を捕まえられなかった**。"
+            "**menu には出せないもの＝訊かれた種別の実例文**を条件に加えた。"
+        ),
+        kind=OUTCOME,
+    )
+
     # C-1861: the page ships a tuning panel - volume, music, haptic,
     # reduce-motion - and asking for any of those got one of three wrong
     # answers: 「『動き』は増減できません」 (false), the list of revisable

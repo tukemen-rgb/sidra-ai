@@ -267,6 +267,88 @@ def _is_help_query(message: str) -> bool:
     return text in _HELP_QUERIES
 
 
+#: C-1875: how somebody asks the way to make one of the things this product
+#: makes. 「使い方を教えて」 is answered (C-1802) because it matches whole; 「レポート
+#: の作り方を教えて」 was not, and got the no-evidence abstention that asks for a
+#: repository to be ingested - a question about SIDRA's own creation feature,
+#: answered by telling the asker to go index something. Measured before this
+#: existed: 「レポートの作り方を教えて」「ゲームの作り方を教えて」「スライドの作り方
+#: を教えて」「どうやってレポートを作るの」 all reached that wall.
+#:
+#: The same family as C-1866 - asked about something the product has, sent to
+#: the index - except C-1866 is about the page that was made and this is about
+#: making one at all. So it deliberately does **not** require an artifact to
+#: exist: somebody asking how before making anything is the reader this is for.
+#: One worked phrasing per kind, so the reply hands over the sentence that
+#: works instead of a menu. Keyed by the router's kind values like
+#: ``_KIND_LABELS``; a kind with no example still gets an answer, it just gets
+#: a shorter one (C-1875).
+_HOW_TO_EXAMPLES: dict[str, str] = {
+    "document": "犬のレポートを作って",
+    "game": "レースゲームを作って",
+    "deck": "新製品のスライドを作って",
+    "art": "夜の海のアートを作って",
+    "gif": "猫が跳ねる GIF を作って",
+    "model3d": "コップの 3D モデルを作って",
+    "project": "忍者のゲーム制作一式を作って",
+}
+
+
+_HOW_TO_MAKE_CUES: tuple[str, ...] = (
+    "作り方", "つくりかた", "作るには", "つくるには",
+    "どう作", "どうつく", "作れますか", "作るのか",
+)
+
+#: ...and the phrasings where the question word and the verb are not adjacent,
+#: because the thing being asked about sits between them: 「どうやって**レポート
+#: を**作るの」. Measured - the contiguous cue 「どうやって作」 missed exactly that
+#: sentence, which is the most natural way to ask (C-1875).
+_HOW_TO_MAKE_PAIRS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("どうやって", ("作", "つく")),
+    ("どのように", ("作", "つく")),
+    ("どうすれば", ("作", "つく")),
+)
+
+
+def _how_to_make_kinds(message: str, kinds: "tuple[str, ...]") -> tuple[str, ...]:
+    """Which registered kinds a "how do I make one" question names.
+
+    Empty when the message is not that question, so an ordinary corpus query
+    is untouched. Two conditions, and both are load-bearing:
+
+    * a cue that the question is about *how to make*, and
+    * the name of something this product actually makes, taken from
+      ``registered_kinds`` through ``_KIND_LABELS`` rather than a second list
+      here - a generator added or dropped moves this with no edit.
+
+    Requiring the kind is what keeps 「カレーの作り方を教えて」 out. A bare
+    「作り方を教えて」 names nothing either and is deliberately left alone: it
+    could be about anything in the corpus, and answering it with the product's
+    menu would be the same mistake in the other direction.
+
+    ``_CORPUS_SOURCES`` vetoes, exactly as in ``_feature_topics`` (C-1866):
+    「レポートの書き方をドキュメントから探して」 names where to look, so it is a
+    corpus question whatever else it contains.
+    """
+
+    text = unicodedata.normalize("NFKC", message).casefold()
+    if any(source in text for source in _CORPUS_SOURCES):
+        return ()
+    asked = any(cue in text for cue in _HOW_TO_MAKE_CUES) or any(
+        head in text and any(verb in text.split(head, 1)[1] for verb in verbs)
+        for head, verbs in _HOW_TO_MAKE_PAIRS
+    )
+    if not asked:
+        return ()
+    named = tuple(
+        kind
+        for kind in kinds
+        if (label := _KIND_LABELS.get(kind, kind))
+        and unicodedata.normalize("NFKC", label).casefold() in text
+    )
+    return named
+
+
 class SidraService:
     """The application, assembled."""
 
@@ -810,6 +892,37 @@ class SidraService:
                 "reason": "the message asked what the product is or how to use it",
                 "citations": [],
                 "creation": {"offered": offered},
+            }
+
+        # C-1875: 「レポートの作り方を教えて」 - the same question about the same
+        # product, one phrasing away from the branch above, and it reached the
+        # abstention that asks for a repository to be ingested. Answered here
+        # rather than by widening _HELP_QUERIES, because this one names a thing
+        # and the reply should use it: the asker gets the phrasing that works
+        # for the kind they asked about, not a menu they have to translate.
+        _how_to_kinds = _how_to_make_kinds(
+            message, self.creation_router.registered_kinds()
+        )
+        if _how_to_kinds:
+            named = [_KIND_LABELS.get(kind, kind) for kind in _how_to_kinds]
+            offered = [
+                _KIND_LABELS.get(kind, kind)
+                for kind in self.creation_router.registered_kinds()
+            ]
+            example = _HOW_TO_EXAMPLES.get(_how_to_kinds[0])
+            answer = (
+                f"{'・'.join(named)}はこの場で作れます。"
+                + (f"作りたいものを主題つきで送ってください（例:「{example}」）。"
+                   if example else "作りたいものを主題つきで送ってください。")
+                + (f"ほかに作れるのは {'・'.join(offered)} です。" if offered else "")
+            )
+            return {
+                "answer": answer,
+                "refused": True,
+                "refusal": "how_to_make",
+                "reason": "the message asked how to make something this product makes",
+                "citations": [],
+                "creation": {"offered": offered, "asked": named},
             }
 
         # C-1844: 「作ったものを一覧で見せて」 is about this product's own output.

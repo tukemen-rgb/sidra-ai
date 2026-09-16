@@ -60,6 +60,10 @@ _REPO = "owner/alpha"
 #: Kept here rather than imported so that adding a code to the service without
 #: giving the page words for it fails this file.
 CODES = (
+    # C-1875. Asked how to make one of the things this product makes. Like
+    # "help" this is not a failure and the no-evidence advice is wrong for it:
+    # nothing needs ingesting, the asker just needs the sentence that works.
+    "how_to_make",
     "gate",
     "history",
     "model_unavailable",
