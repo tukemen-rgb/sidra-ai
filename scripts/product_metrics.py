@@ -2794,6 +2794,24 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1886: the *** / ___ horizontal-rule case of the C-1695/C-1709 family. The
+    # dash rule was removed by _MD_TABLE_SEP; *** left a lone * and ___ survived
+    # whole. plain_text now removes an all-*/all-_ rule line too, keeping the text.
+    from sidra_ai.evals.plain_text_strips_horizontal_rule import (
+        evaluate_plain_text_strips_horizontal_rule,
+    )
+
+    hrule = evaluate_plain_text_strips_horizontal_rule()
+    c.add(
+        "plain_text_strips_horizontal_rule",
+        "plain_text が ***/___ の水平線を除去する（本文は残す）",
+        10.0 * hrule.checks_passed / hrule.checks_total,
+        detail=f"{hrule.checks_passed}/{hrule.checks_total} checks; "
+               "src/sidra_ai/evals/plain_text_strips_horizontal_rule.py"
+               + ("" if hrule.passed else "; " + "; ".join(hrule.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1711: /v1/chat attaches an excerpt to each citation and C-1689/1691 show
     # it to the reader, but while the answer text and generator facts flatten
     # Markdown, the citation excerpt was left raw - a wall of ##/**/table pipes/
