@@ -43,6 +43,15 @@ from sidra_ai.creation.probekit import seed_store
 
 import json
 
+
+#: What the panel calls this row, in one place (C-1880). The revision
+#: vocabulary calls the same field by this name, imported rather than
+#: retyped: they said 「ブリーフィング」 and the panel said 「毎回ブリーフィングを
+#: 見る」, which are different promises - the first sounds like an on/off for
+#: the screen, and the screen shows on a first visit whatever this flag says.
+BRIEF_LABEL = "毎回ブリーフィングを見る"
+
+
 #: The one difficulty ladder, in climbing order - the same three names
 #: ``_DIFFICULTY`` in games.py is keyed by and ``revise.py`` walks. Named
 #: here rather than imported so this module stays importable from games.py.
@@ -173,7 +182,7 @@ def panel_schema(
             # visit whatever this says, and after that it is the thing
             # standing between a returning player and the game. On, for
             # somebody who wants to re-read the three lines every time.
-            {"key": "brief", "label": "毎回ブリーフィングを見る", "type": "flag", "default": brief_default},
+            {"key": "brief", "label": BRIEF_LABEL, "type": "flag", "default": brief_default},
             # C-1408. Full by default, and a whole number of percent: the
             # page has always opened at the loudness its author chose, and
             # M stays the instant off. This is the dial between the two -

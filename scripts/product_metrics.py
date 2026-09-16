@@ -13866,6 +13866,44 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1880: the panel's row is 「毎回ブリーフィングを見る」 and the revision
+    # answer called it 「ブリーフィング」 - different promises. The flag is not an
+    # on/off for the screen: the page shows the briefing on a first visit
+    # whatever it says, so somebody who had just read it asked to turn it off
+    # and was told 「すでにその設定です」.
+    from sidra_ai.evals.revision_calls_the_panel_field_what_the_panel_calls_it import (
+        evaluate_revision_calls_the_panel_field_what_the_panel_calls_it,
+    )
+
+    _panel_name = evaluate_revision_calls_the_panel_field_what_the_panel_calls_it()
+    c.add(
+        "revision_calls_the_panel_field_what_the_panel_calls_it",
+        "修正の受け答えが、調整パネルの欄をパネル自身の呼び名で呼ぶ",
+        10.0 * _panel_name.checks_passed / _panel_name.checks_total,
+        detail=(
+            f"{_panel_name.checks_passed}/{_panel_name.checks_total} checks; "
+            "src/sidra_ai/evals/revision_calls_the_panel_field_what_the_panel_calls_it.py"
+            + ("" if _panel_name.passed else "; " + "; ".join(_panel_name.failures[:4]))
+            + "。**2 つの欠陥があり、重いのは名前ではない**——"
+            "(1) **呼び名の食い違い**（パネル「毎回ブリーフィングを見る」↔ 受け答え「ブリーフィング」）、"
+            "(2) **主張の嘘**: `brief=False` は「出さない」ではなく**「毎回は出さない」**で、"
+            "**初回は必ず表示される**（`startscreen.py` の skip は `gateSeen()` も要る・"
+            "`tuning.py` 自身のコメントにも書いてある）。**新品の頁でオフを頼むと「すでにその設定です」**と返り、"
+            "**ブリーフィングを読んだ直後の人が「消した」と信じて次の初回で裏切られる**。"
+            "**名前だけ直しても (2) は残る**ので、両方を同じ数字に入れた。"
+            "**呼び名は `tuning.py` の `BRIEF_LABEL` を輸入**して持ち、**判定器は生きたパネル schema から読む**"
+            "ので、**二重定義に戻すと落ちる**（破壊 D5 で確認）。"
+            "**破壊 6 通り全検出**・対照 6/6・1 破壊 1 プロセス。"
+            "**条項 F だけは単体呼び出しで測っている**——「オンの頁にオフを頼む」状態は"
+            "**サービス経由では到達不能**（オンからオフは実際に変更なので、注記が住む「変更なし」分岐に入らない）で、"
+            "**守りの条件を外す破壊が 4 条項では満点を取った**。**実走行より弱い証拠であることを明記する**"
+            "——**落ちない条項を置くよりは弱い条項を正直に置く**。"
+            "**実装で 1 つ踏んだ**: 最初 `adjustments.get(\"brief\") is False` と書いて**一度も発火しなかった**"
+            "——intent は `\"off\"`/`\"on\"` を**文字列**で運ぶ。**走らせて分かった**（読んでは分からなかった）。"
+        ),
+        kind=OUTCOME,
+    )
+
     _how_to = evaluate_chat_answers_how_to_make()
     c.add(
         "chat_answers_how_to_make",

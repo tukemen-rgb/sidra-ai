@@ -47,6 +47,7 @@ from sidra_ai.creation.intent import (
     named_artifact_kind,
 )
 from sidra_ai.creation.router import CreationOutcome
+from sidra_ai.creation.tuning import BRIEF_LABEL
 from sidra_ai.creation.intent import CreationKind
 from sidra_ai.creation.themes import (
     named_theme,
@@ -246,13 +247,48 @@ _TITLE_PLAIN = re.compile(r"(?:タイトル|名前|題名)を([^\s「『にへ�
 #:
 #: 「帯」 is per-template, so it is named by what it does rather than by a label
 #: that would be wrong for nine of the ten pages.
+def _flag_already_note(
+    adjustments: "dict[str, object]", before_panel: "dict[str, object]"
+) -> str:
+    """What 「already that setting」 leaves out, when it leaves something out.
+
+    C-1880. The briefing flag is the case: ``brief`` False does not mean the
+    briefing is off, it means it is not shown *every* time - the page shows
+    it on a first visit whatever the flag says. So a request to turn it off,
+    made by somebody looking at the briefing, lands on a value that is
+    already False and gets 「すでにその設定です」, which they will read as
+    「turned off」 and the next first visit will contradict.
+
+    Only this field, and only when the stored value is already False: turning
+    it *on* changes something, and 「on」 does mean every visit.
+    """
+
+    # The intent carries 「off」/「on」 as strings, not booleans - measured, by
+    # running it: the first version of this note tested `is False` and never
+    # fired once. The panel stores a real bool, so the two sides are compared
+    # in their own currencies.
+    if adjustments.get("brief") != "off":
+        return ""
+    if bool(before_panel.get("brief", False)):
+        return ""
+    return (
+        f"（`{BRIEF_LABEL}` は切のままです。"
+        "ブリーフィングは初回だけは表示されます——切は「毎回は出さない」という意味です。）"
+    )
+
+
 CHANGEABLE: tuple[tuple[str, str], ...] = (
     ("difficulty", "難易度"),
     ("theme", "テーマ（配色）"),
     ("band", "難度の軸（型ごとの呼び名）"),
     ("accent", "差し色"),
     ("daily", "今日の挑戦"),
-    ("brief", "ブリーフィング"),
+    # C-1880: the panel's own words, imported so the two cannot drift.
+    # 「ブリーフィング」 read as an on/off for the screen, and it is not one:
+    # the briefing shows on a first visit whatever this flag says, so the
+    # flag means 「毎回」 or not. Somebody who had just read the briefing
+    # asked to turn it off and was told it was already off.
+    ("brief", BRIEF_LABEL),
     ("title", "題名"),
     ("revert", "前の版へ戻す"),
 )
@@ -1608,7 +1644,7 @@ def build_game_reviser(data_dir: str | Path):
             # Python is the drift C-1342 is about. What this needs is one
             # comparison the product already has.
             changed.append("差し色" + _colour_caveat(panel.get("accent"), theme))
-        for flag, name in (("daily", "今日の挑戦"), ("brief", "ブリーフィング")):
+        for flag, name in (("daily", "今日の挑戦"), ("brief", BRIEF_LABEL)):
             if flag in panel and panel.get(flag) != before_panel.get(flag, False):
                 changed.append(f"{name} {'入' if panel[flag] else '切'}")
         if refused_object:
@@ -1633,12 +1669,22 @@ def build_game_reviser(data_dir: str | Path):
             #
             # Undo is excluded: it always restores something, and its own
             # sentence is written below.
+            # C-1880: 「すでにその設定です」 is true of the stored value and can
+            # still be false of what the person meant. Somebody who has just
+            # read the briefing asks to turn it off; the flag is already
+            # False, so nothing changes - and the briefing will appear again
+            # on the next first visit, because the page shows it on a first
+            # visit whatever this flag says (startscreen.py: the skip needs
+            # `gateSeen()` too). Saying only 「already」 sends them away
+            # believing they have turned off a screen they will see again.
+            _already = _flag_already_note(intent.adjustments, before_panel)
             return CreationOutcome(
                 kind=CreationKind.GAME,
                 handled=True,
                 summary=(
                     f"「{game.title}」は変更なし（すでにその設定です）。"
-                    "新しい版は作っていません。"
+                    + _already
+                    + "新しい版は作っていません。"
                 ),
                 artifact_path=str(target_path).replace(".meta.json", ".html"),
                 details={"revision": intent.adjustments, "changed": []},
