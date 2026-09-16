@@ -14081,6 +14081,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the puzzle's own rules, the ones it calls its honesty -------------
+    #
+    # puzzle.py states what keeps SameGame a puzzle rather than a clicker: a
+    # group is only poppable at two or more, the board collapses down and
+    # then left, the game ends when no group of two remains, and the end
+    # screen says whether the board was CLEARED - because 「no moves left」 and
+    # 「solved」 are different outcomes and a page congratulating both would be
+    # the same class of lie the summary guard exists to prevent.
+    #
+    # Five judges already watch this template and none watched those four.
+    # tween sees the fall, economy sees big clears buying survival, combo
+    # sees the run, jam_recap sees the sentence about being stuck, and
+    # hammer_endgame sees the comeback tool - all of them sit on top of the
+    # rules. §34 事実 1: a rule that does not refuse is not a rule. The board
+    # is a data structure, so this needs no player (C-1887's method).
+    from sidra_ai.evals.puzzle_rules_hold import (
+        RULES as _PUZZLE_RULES,
+        evaluate_puzzle_rules_hold,
+    )
+
+    _prules = evaluate_puzzle_rules_hold()
+    c.add(
+        "creation_puzzle_rules_hold",
+        "パズルが自分の規則を守らせている数（§3 × §34 事実 1）",
+        float(_prules.held),
+        detail=(
+            f"**{_prules.held}/{len(_PUZZLE_RULES)} の規則**を**両方向**で実測"
+            "（規則どおりなら通り、外れれば拒む）: "
+            + "・".join(name for _key, name in _PUZZLE_RULES)
+            + "。盤を直接置いて頁自身の `pop()` を呼ぶので**遊べるエージェントは要らない**。"
+            "**終幕の 2 文は判定器に書き写さない**——頁が言った文どうしが"
+            "**違うこと**と、全消しの側が本当に空だったことだけを見る。"
+            "ハンマーは別の道なので `creation_puzzle_hammer_endgame` に任せ、"
+            "ここは**ハンマー 0 の素の規則**"
+            if _prules.passed
+            else "; ".join(_prules.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- is the signposting true about the map? ---------------------------
     #
     # §3 draws progression as a mission graph and §30 says the player should
