@@ -84,8 +84,16 @@ def test_every_metric_the_backlog_names_exists(metrics) -> None:
             unowned = line.startswith("- [ ]")
         if in_progress:
             continue
-        for match in re.finditer(r"→ 動かす数字: `([a-z0-9_]+)`(（新設)?", line):
-            if unowned and match.group(2):
+        for match in re.finditer(r"→ 動かす数字: `([a-z0-9_]+)`(.*)$", line):
+            # 「新設」 anywhere in the same line, not only pressed against the
+            # closing backtick. C-1893 wrote 「`board_metric_names_resolve`
+            # **unmeasurable→3**（新設）」 - the promise is there and the item is
+            # open, but the old pattern only looked at the character right
+            # after the name and so read it as a reference to a number that
+            # was supposed to exist already. The exemption is unchanged in
+            # substance: the item must be OPEN and must say 新設 in the same
+            # breath; a finished or claimed item is still never excused.
+            if unowned and "新設" in match.group(2):
                 continue
             named.add(match.group(1))
     measured = _measured_keys(metrics)

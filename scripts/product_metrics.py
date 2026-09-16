@@ -21337,6 +21337,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and the other direction: what a sentence must NOT turn ---------
+    #
+    # §9 事実 2's market complaint (2) is 「修正が別箇所を壊す」, and unlike the
+    # other two complaints it has no structural defence - running locally
+    # does not stop a reviser repainting the palette while renaming the
+    # game. It has happened here: C-1779 found a title containing a colour
+    # word (「赤い彗星」) silently repainting the accent.
+    #
+    # `creation_revision_axes` just above asks all eight axes whether the
+    # named thing moved. That left 56 ordered pairs of "turn this, not
+    # that" with exactly one guarded (rename -> accent). This asks the
+    # second direction for every axis, reading the rebuilt page's own
+    # TUNE_SPEC rather than the reviser's report.
+    from sidra_ai.evals.revision_changes_only_what_it_owns import (
+        AXIS_CASES as _OWN_CASES,
+        evaluate_revision_changes_only_what_it_owns,
+    )
+
+    _own = evaluate_revision_changes_only_what_it_owns()
+    c.add(
+        "revision_changes_only_what_it_owns",
+        "修正が、頼まれていない軸を動かさない（§9 事実 2）",
+        float(_own.checks_passed) if _own.passed else 0.0,
+        detail=(
+            f"**{len(_OWN_CASES)} 軸すべて**を本物の検出器と修正器に通し、"
+            "**組み上がったページ自身の `TUNE_SPEC`** を読んで"
+            "「動いた欄」を持ち物と突き合わせた——"
+            + "、".join(_own.clean)
+            + "。**difficulty が band と speed も動かすのは設計どおり**"
+            "（難易度ラダーが 3 つを一緒に決める）ので持ち物に含め、"
+            "**名前より広い持ち物には理由を書かせる**"
+            "（理由の無い拡張は落第＝表を広げて漏れを消せない）。"
+            "**塞がっていたのは 56 組のうち 1 組**だけで、"
+            "しかもその 1 組は C-1779 で**実際に漏れていた**"
+            if _own.passed
+            else "; ".join(_own.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- a revision says what it took back (§9 事実 2, C-1710) ----------
     #
     # §9's second market complaint is "a fix breaks something else", and
