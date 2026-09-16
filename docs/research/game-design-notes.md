@@ -1333,3 +1333,40 @@ SIDRA の蓄積は全部 `localStorage` に置いてある。**その置き場�
   **頁が `group(x,y)` を公開している**と分かり、最大の組を取る貪欲な手が数行で書けた。
   実測: 貪欲 **score 469**／動詞を使わない **9**。**7→8**。**理由に「まだ無い」と書いてあれば、誰かが取り除ける**）**→ 反映済み 2026-09-16**
 
+## 35. 文字の幅は測るもので、数えるものではない（外部調査 2026-09-16・辛口クリエイターループ）
+
+§4 と §24 は文字の**大きさ**と**コントラスト**を決めたが、**幅**については
+何も言っていなかった。canvas は文字を自分で折り返さないので、中央寄せも
+枠に収めるのもページが自分で位置を計算する——その計算が当たっているかは、
+どの判定器も見ていなかった。URL は 2026-09-16 に実際に開いて確認。
+
+- 事実 1: **`measureText()` は実測値を返す**——「The read-only `width`
+  property of the `TextMetrics` interface contains the text's advance
+  width (the width of that inline box) in CSS pixels.」
+  つまり**フォントが実際に進める量**であって、文字数から導ける値ではない。
+  （出典: https://developer.mozilla.org/en-US/docs/Web/API/TextMetrics/width ・
+  https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/measureText）
+- 事実 2: **和文等幅フォントでは「全角 1em・半角 0.5em」が基本**——
+  「In East Asian fixed pitch fonts, wide characters occupy one full Em
+  while narrow characters occupy half an Em.」東アジアの字幅は
+  Wide / Fullwidth / Narrow / Halfwidth / Ambiguous / Neutral に分類され、
+  **同じ 1 文字でも進む量が 2 倍違う**。
+  （出典: https://www.unicode.org/reports/tr11/ UAX #11 East Asian Width）
+- 学び: **`文字数 × フォントサイズ` は「全部が全角」という仮定**で、
+  和文だけの文字列では正しく、**数字や空白が混じった瞬間に壊れる**。
+  しかも**壊れ方が内容に比例して増える**ので、短い見本では気づけない。
+  さらに事実 2 の 0.5em も**フォント依存**で、実測では半角が **約 0.6em**
+  だった——**規則を知っていても計算では出せない**。だから測る。
+- 実測（2026-09-16・本物の Chromium・`20px ui-monospace,monospace`。
+  `文字数×サイズ` を真の `measureText` と比べ、中央寄せのずれ＝差の半分）:
+
+  | 文字列 | 実測 | 文字数×サイズ | 中央のずれ |
+  |---|---|---|---|
+  | `巨獣、沈黙。`（全角のみ） | 120.0 | 120.0 | **0.0px** |
+  | `撃墜 3 機・得点 120。` | 224.3 | 280.0 | +27.9px |
+  | `撃墜 47 機・得点 98650。` | 260.4 | 340.0 | +39.8px |
+  | `撃墜 999 機・得点 1234567。` | 296.5 | 400.0 | **+51.7px** |
+
+  **全角だけの文字列でぴたりと一致する**のが、この仮定が長く生き延びた理由。
+- SIDRA での反映先: C-1896（終幕の 1 行を数えずに測る・判定器
+  `creation_end_text_is_centred`）
