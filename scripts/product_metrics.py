@@ -1567,6 +1567,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1904: English help/identity questions ("what can you do?"/"who are you?")
+    # returned unrelated corpus fragments because _HELP_QUERIES was Japanese-only.
+    # Now recognised and answered in English (rule 6). The English sibling of
+    # C-1901 (JP identity/help) and C-1902 (English greetings).
+    from sidra_ai.evals.chat_english_help_questions_are_answered import (
+        evaluate_chat_english_help_questions_are_answered,
+    )
+
+    en_help = evaluate_chat_english_help_questions_are_answered()
+    c.add(
+        "chat_english_help_questions_are_answered",
+        "英語の help/identity（What can you do? など）に英語の案内で答える",
+        10.0 * en_help.checks_passed / en_help.checks_total,
+        detail=f"{en_help.checks_passed}/{en_help.checks_total} checks; "
+               "src/sidra_ai/evals/chat_english_help_questions_are_answered.py"
+               + ("" if en_help.passed
+                  else "; " + "; ".join(en_help.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1847: 「さっきのゲームを消して」 got the list of things that can be changed,
     # 「捨てて」 the no-evidence boilerplate, 「スライドを消して」 the kind refusal -
     # three wrong answers for one request, none saying deletion is not offered.

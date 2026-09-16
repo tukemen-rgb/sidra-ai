@@ -204,6 +204,14 @@ _HELP_QUERIES = frozenset({
     "使い方がわからない", "使い方が分からない", "使い方がわかりません",
     "どう使う", "どう使うの", "どうやって使う", "どうやって使うの",
     "何をしてくれる", "何をしてくれるの", "何が得意", "何が得意なの",
+    # C-1904: English help/identity (whole-message, casefolded). The bare word
+    # "help" was already here; these are how people ask what this is / what it
+    # can do / how to use it. The help branch answers in English (rule 6).
+    "what can you do", "what do you do", "what can this do", "what can you help with",
+    "who are you", "what are you", "what is this", "what is this tool",
+    "what is sidra", "what's this",
+    "how do i use this", "how do i use it", "how to use this", "how do i use sidra",
+    "how does this work", "help me", "i need help", "can you help", "can you help me",
 })
 
 
@@ -995,11 +1003,23 @@ class SidraService:
                 _KIND_LABELS.get(kind, kind)
                 for kind in self.creation_router.registered_kinds()
             ]
-            answer = (
-                "SIDRA は索引済みリポジトリについてお答えします。"
-                + (f"制作もでき、いま作れるのは {'・'.join(offered)} です。" if offered else "")
-                + "調べたいことや作りたいものを送ってください。"
-            )
+            if _reply_in_japanese(message):
+                answer = (
+                    "SIDRA は索引済みリポジトリについてお答えします。"
+                    + (f"制作もでき、いま作れるのは {'・'.join(offered)} です。" if offered else "")
+                    + "調べたいことや作りたいものを送ってください。"
+                )
+            else:
+                # C-1904: an English help/identity question gets an English reply
+                # (rule 6). Examples rather than the kind list: they stay evergreen
+                # if a generator is added or removed, so this needs no English
+                # label table to keep in sync with the registry.
+                answer = (
+                    "SIDRA answers questions grounded in your indexed "
+                    "repositories, and can also create things for you - for "
+                    "example, \"make a racing game\" or \"write a report\". "
+                    "Tell me what you'd like to find or make."
+                )
             return {
                 "answer": answer,
                 "refused": True,
