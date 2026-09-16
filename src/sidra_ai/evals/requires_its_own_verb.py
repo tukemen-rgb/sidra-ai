@@ -73,19 +73,25 @@ VERB_TEMPLATES: dict[str, dict[str, str]] = {
     "racing": {"verb": "ハンドルを切る", "kind": "steer", "measure": "dist"},
     "catch": {"verb": "かごを動かす", "kind": "steer", "measure": "score"},
     "marble": {"verb": "舵を切る", "kind": "steer", "measure": "score"},
+    "puzzle": {"verb": "組を消す", "kind": "pop", "measure": "score"},
 }
 
 #: Why the rest cannot be decided by this agent. A limit of the measurement,
 #: not a finding about the template - §34 事実 2 is the whole reason this
 #: dictionary exists rather than three confident zeroes.
 #:
-#: All three need an agent that can finish something: a dungeon, a course, a
-#: board. The steering agents above are greedy one-liners over facts the page
-#: already publishes, and there is no equivalent for 「solve the puzzle」.
+#: Both need an agent that can finish something: a dungeon, a course. The
+#: agents above are greedy one-liners over facts the page already publishes,
+#: and there is no equivalent for 「walk the dungeon」 or 「cross the gaps」.
+#:
+#: C-1890 removed the third. ``puzzle`` sat here with the reason 「盤を解ける
+#: エージェントがまだ無い」 until C-1889's work on the board showed the page
+#: publishes ``group(x, y)`` - so a greedy agent that takes the largest group
+#: is a few lines, exactly as ``roadAt`` made racing decidable. A reason that
+#: names what is missing is a reason somebody can remove, and this one was.
 VERB_UNDECIDABLE: dict[str, str] = {
     "adventure": "鍵を取って宝箱まで辿り着けるエージェントがまだ無い——歩き回るだけでは、負けたのが動詞のせいか下手のせいか分けられない",
-    "platformer": "旗まで跳んで渡れるエージェントがまだ無い——歩き回るだけでは、負けたのが動詞のせいか下手のせいか分けられない",
-    "puzzle": "盤を解けるエージェントがまだ無い——触れているだけで点は並ぶので、歩き回るだけでは動詞の要不要を分けられない",
+    "platformer": "旗まで跳んで渡れるエージェントがまだ無い——足場の切れ目を見て跳ぶ走者でも実測 x202/1997・落下 46 回で、跳ばない走者の x204 と差が付かなかった（2026-09-16）",
 }
 
 _SCRIPT = re.compile(r"<script>(.*?)</script>", re.S)
@@ -158,6 +164,27 @@ for (let i = 0; i < FRAMES_TOKEN; i++) {
     if (i % 40 === 0) down(k);
     if (i % 40 === 39) up(k);
     if (USE_VERB && i % 12 === 0) tap(' ');
+  } else if (KIND === 'pop') {
+    /* The board's verb is taking a group. Competence comes from the page's
+       own group(x, y) - the same place racing's roadAt came from - so the
+       judge carries no idea of its own about what a good move is. The
+       crippled run walks the cursor instead, which is the closest thing to
+       「playing without the verb」 a board game has. */
+    if (USE_VERB) {
+      let best = null;
+      try {
+        for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+          if (grid[y][x] < 0) continue;
+          const g = group(x, y);
+          if (g.length >= 2 && (!best || g.length > best.n))
+            best = { x: x, y: y, n: g.length } }
+      } catch (e) {}
+      if (best) { cur.x = best.x; cur.y = best.y; tap(' ') }
+    } else {
+      const k = (Math.floor(i / 7) % 2) ? 'ArrowRight' : 'ArrowDown';
+      if (i % 7 === 0) down(k);
+      if (i % 7 === 6) up(k);
+    }
   } else {
     /* The arrows ARE the verb here, so the crippled run presses nothing. */
     const want = USE_VERB ? steerWant() : null;
@@ -228,7 +255,7 @@ def _reading(template: str, seen: dict) -> float:
         # Distance, not laps: a lap is a step function and two runs can sit
         # either side of one by luck. Distance separates every frame.
         return float(seen.get("dist") or 0)
-    if template in ("catch", "marble"):
+    if template in ("catch", "marble", "puzzle"):
         return float(seen.get("score") or 0)
     return 0.0
 

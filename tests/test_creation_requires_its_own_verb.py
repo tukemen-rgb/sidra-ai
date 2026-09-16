@@ -43,16 +43,17 @@ def test_the_undecidable_ones_say_why_in_words() -> None:
     for key, why in VERB_UNDECIDABLE.items():
         assert len(why.strip()) > 20, key
         assert "まだ無い" in why, key
-        assert "分けられない" in why, key
+        assert "分けられない" in why or "差が付かなかった" in why, key
 
 
-def test_the_judge_shows_seven_and_says_so() -> None:
+def test_the_judge_shows_eight_and_says_so() -> None:
     result = evaluate_requires_its_own_verb()
     assert result.failures == ()
     assert result.passed
-    assert result.shown == len(VERB_TEMPLATES) == 7
+    assert result.shown == len(VERB_TEMPLATES) == 8
     assert result.decided == (
-        "catch", "duel", "fishing", "kaiju", "marble", "racing", "shooter",
+        "catch", "duel", "fishing", "kaiju", "marble", "puzzle", "racing",
+        "shooter",
     )
     assert result.checks_total == result.checks_passed + len(result.failures)
 
@@ -66,8 +67,9 @@ def test_the_two_kinds_of_verb_are_crippled_differently() -> None:
     """
 
     kinds = {key: spec["kind"] for key, spec in VERB_TEMPLATES.items()}
-    assert set(kinds.values()) == {"space", "steer"}
+    assert set(kinds.values()) == {"space", "steer", "pop"}
     assert {k for k, v in kinds.items() if v == "steer"} == {"racing", "catch", "marble"}
+    assert {k for k, v in kinds.items() if v == "pop"} == {"puzzle"}
 
 
 def test_the_steering_agent_asks_the_page_where_to_go() -> None:
@@ -82,6 +84,9 @@ def test_the_steering_agent_asks_the_page_where_to_go() -> None:
 
     assert "roadAt(dist)" in _HARNESS
     assert "Math.sin" not in _HARNESS
+    # The board's verb gets its competence the same way: from the page's own
+    # group(), not from an idea the judge has about a good move.
+    assert "group(x, y)" in _HARNESS or "group(x,y)" in _HARNESS
 
 
 def test_the_number_is_coverage_and_not_a_score_out_of_four() -> None:
