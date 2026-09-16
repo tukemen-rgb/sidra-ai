@@ -64,15 +64,30 @@ def test_every_metric_the_backlog_names_exists(metrics) -> None:
     pushes the name legitimately has no measurement yet. Only an item
     that is not still marked ``[~]`` while naming a number nobody
     measures is the drift this guards against.
+
+    C-1877 found the same window open longer. An item filed ``[ ]`` with no
+    owner - a finding handed to whoever takes it - names the number its taker
+    will create, and it can sit there for days. That is the same legitimate
+    case as the claim, and it went red the moment two such items were filed
+    (2026-09-15 23:50). The exemption is narrow on purpose: an OPEN item is
+    excused only for a number it says in the same breath it will 「新設」.
+    An open item naming a number that is supposed to exist already is still
+    the drift this guards against, and a finished item is never excused.
     """
 
     named: set[str] = set()
     in_progress = False
+    unowned = False
     for line in BACKLOG.read_text(encoding="utf-8").splitlines():
         if line.startswith("- ["):
             in_progress = line.startswith("- [~]")
-        if not in_progress:
-            named.update(re.findall(r"→ 動かす数字: `([a-z0-9_]+)`", line))
+            unowned = line.startswith("- [ ]")
+        if in_progress:
+            continue
+        for match in re.finditer(r"→ 動かす数字: `([a-z0-9_]+)`(（新設)?", line):
+            if unowned and match.group(2):
+                continue
+            named.add(match.group(1))
     measured = _measured_keys(metrics)
     assert named, "the backlog no longer tags items with the number they move"
     assert named <= measured, sorted(named - measured)

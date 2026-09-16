@@ -13798,6 +13798,47 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the floors under the pages, not only under the palettes ---------
+    #
+    # C-1877. §4's quantified rule is WCAG 1.4.3, and the product has carried
+    # it since C-1329 - in exactly one place. themes.CONTRAST_FLOORS names
+    # seven token pairs and binds the four palettes; nothing looked at the
+    # pages. Measured: 21 rules that set color: across art.py, models3d.py,
+    # decks.py and games.py, 69 cells once the themed pages are taken across
+    # the catalogue, of which the token table reached 40 at the right floor.
+    # The 29 it missed include the honest notes on the art and 3D pages (a
+    # hard-coded #ffb84d, not a token at all), the deck's 「出典なし」 line
+    # (alert at 12px, whose only floor was the 3.0 meant for drawn shapes),
+    # and everything painted on bg - both footers, the subject banner, the
+    # game page's links - a background the token table has no pair for.
+    #
+    # Every cell passes today; the tightest is 5.14:1, the art caption at
+    # opacity .6. Nothing was broken - nothing was holding it, which is the
+    # same shape §4 found in creation_pad_visible on 2026-09-14 and the same
+    # remedy: point the instrument at the whole of its own rule.
+    from sidra_ai.evals.page_text_readable import evaluate_page_text_readable
+
+    _ptr = evaluate_page_text_readable()
+    c.add(
+        "creation_page_text_readable",
+        "出荷する頁の文字が WCAG の床を満たし、その床を誰かが持っている（1.4.3）",
+        10.0 * _ptr.checks_passed / _ptr.checks_total,
+        detail=(
+            f"{_ptr.checks_passed}/{_ptr.checks_total} checks; "
+            f"**4 面 21 規則 × テーマ＝{_ptr.cells} セル**を "
+            "`opacity` 合成後の実効色で実測"
+            f"（最悪 {_ptr.worst_ratio:.2f}・{_ptr.worst_cell}）。"
+            "床の表は頁の `<style>` と選択子・色・不透明度を突き合わせるので、"
+            "塗り替えて表を直し忘れれば赤——**片側だけなら表を空にする実装が満点を取る**。"
+            "`<style>` を持つのに床も理由も無い頁も赤（`api/ui.py` は"
+            "「色を宣言していない」理由つきで `UNFLOORED_PAGES` に在る）。"
+            "**旧規則 `CONTRAST_FLOORS` が正しい床で届いていたのは 40/69＝5.80**"
+            "; src/sidra_ai/evals/page_text_readable.py"
+            + ("" if _ptr.passed else "; " + "; ".join(_ptr.failures[:4]))
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the engine voice: speed made audible (§25, C-1378) -------------
     #
     # The earliest racing engines were nothing but the RPM driving a
