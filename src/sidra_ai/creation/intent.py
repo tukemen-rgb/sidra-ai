@@ -92,6 +92,21 @@ _MAKE_VERBS: tuple[str, ...] = (
     "出力して",
 )
 
+#: C-1899: the te-form 「書いて／描いて」 plus an existential/progressive auxiliary
+#: - 「書いてある」「書いている」「書いてる」「書いてます」「書いてた」 - means "is
+#: written/drawn", a statement about content that already exists. It is never an
+#: imperative to make something, but 「書いて」 matches inside it as a substring,
+#: so 「どこに書いてある？」 was read as a make request (C-1837/C-1533 family: a
+#: making cue hiding in a longer form). These occurrences are blanked before the
+#: make-verb scan. Deliberately narrow: it fires only on the te-form directly
+#: followed by ある／いる／る／た／ます, so a real 「レポートを書いて」 (the verb at the
+#: end) and 「書いてください／書いておいて／書いて欲しい」 are untouched.
+#:
+#: Written in katakana because it runs on the ``_normalise``-folded text, where
+#: ``fold_kana`` has already mapped every hiragana kana onto its katakana twin
+#: (「書いてある」 -> 「書イテアル」); a hiragana pattern would never match there.
+_STATIVE_WRITING = re.compile(r"[書描]イテ(?:ア[ルッリレ]|イ[ルタテマナク]|マ[スシ]|[ルタ])")
+
 #: Same idea in English, matched on word boundaries.
 _MAKE_VERBS_EN: tuple[str, ...] = (
     "make",
@@ -732,7 +747,12 @@ def detect_creation_intent(message: str) -> CreationIntent:
     question_hits = [
         marker for marker in _QUESTION_MARKERS if fold_kana(marker.casefold()) in text
     ]
-    verb_hits = [verb for verb in _MAKE_VERBS if fold_kana(verb.casefold()) in text]
+    # C-1899: neutralise the stative 「書いてある／書いている」 ("is written") before
+    # the make-verb scan, so 「書いて」 no longer matches inside it. A genuine
+    # 「…を書いて」 elsewhere in the message survives, keeping this from vetoing a
+    # real request that also mentions existing content.
+    verb_scan = _STATIVE_WRITING.sub("", text)
+    verb_hits = [verb for verb in _MAKE_VERBS if fold_kana(verb.casefold()) in verb_scan]
     verb_hits.extend(match.group(1).casefold() for match in _EN_VERB_PATTERN.finditer(text))
 
     # A polite request ("作ってもらえますか") is a making-verb too, and one the

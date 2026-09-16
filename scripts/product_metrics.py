@@ -1508,6 +1508,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1899: 「どこに書いてある？」 (stative "is written") matched 「書いて」 as a
+    # substring and was misrouted to creation - a question about existing content
+    # answered "cannot make that format". Both directions: stative phrases are
+    # questions, genuine 「…を書いて」 stays creation.
+    from sidra_ai.evals.chat_stative_written_is_a_question_not_creation import (
+        evaluate_chat_stative_written_is_a_question_not_creation,
+    )
+
+    stative_written = evaluate_chat_stative_written_is_a_question_not_creation()
+    c.add(
+        "chat_stative_written_is_a_question_not_creation",
+        "「どこに書いてある？」など状態表現の質問を制作と誤分類しない",
+        10.0 * stative_written.checks_passed / stative_written.checks_total,
+        detail=f"{stative_written.checks_passed}/{stative_written.checks_total} checks; "
+               "src/sidra_ai/evals/chat_stative_written_is_a_question_not_creation.py"
+               + ("" if stative_written.passed
+                  else "; " + "; ".join(stative_written.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1847: 「さっきのゲームを消して」 got the list of things that can be changed,
     # 「捨てて」 the no-evidence boilerplate, 「スライドを消して」 the kind refusal -
     # three wrong answers for one request, none saying deletion is not offered.
