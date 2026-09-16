@@ -90,6 +90,25 @@ else
   echo "$numbers" | tail -1
 fi
 
+# C-1893: and a completion must name a number somebody can still measure.
+# The item said six completions quote a vanished metric; measured, none do -
+# all five attract records name `creation_attract_demo`, the metric they were
+# merged into. What is stale is the brief, which is a plan, not a claim. So
+# this refuses only what is both true and unguarded: a completion line THIS
+# push adds whose receipt names a metric that is nowhere in the tree. Holds in
+# 57 of the last 57 completions and nothing enforced it. Stale plan lines are
+# printed, never refused (禁じ手 ②), because a brief naming a not-yet-built
+# number is how every new metric is proposed.
+names=$(python scripts/check_metric_names.py 2>&1)
+if [ "$?" -ne 0 ]; then
+  echo "$names"
+  fail=1
+else
+  # Shown on the way through as well: the stale-plan count is a report that
+  # only works if somebody reads it (C-1723's lesson, same as the check above).
+  echo "$names" | tail -2
+fi
+
 board=$(python scripts/check_backlog_board.py 2>&1)
 echo "$board" | tail -3
 if echo "$board" | grep -q '不整合なし'; then

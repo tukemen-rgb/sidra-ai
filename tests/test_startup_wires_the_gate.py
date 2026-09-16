@@ -58,7 +58,7 @@ def _copy(home: Path, wire: bool) -> tuple[int, str]:
     (root / "src" / "sidra_ai" / "evals").mkdir(parents=True)
     for name in ("check_before_push.sh", "check_log_times.py",
                  "check_eval_scratch.py", "check_backlog_board.py",
-                 "check_numbers_upstream.py"):
+                 "check_numbers_upstream.py", "check_metric_names.py"):
         shutil.copy2(ROOT / "scripts" / name, root / "scripts" / name)
     shutil.copy2(ROOT / ".githooks" / "pre-push", root / ".githooks" / "pre-push")
     (root / ".githooks" / "pre-push").chmod(0o755)

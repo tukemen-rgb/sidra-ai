@@ -77,7 +77,7 @@ def _repo(home: Path, board: str, wire: bool = True) -> tuple[Path, dict]:
     # catches (it did, when C-1800 added a fourth check).
     for name in ("check_before_push.sh", "check_log_times.py",
                  "check_eval_scratch.py", "check_backlog_board.py",
-                 "check_numbers_upstream.py"):
+                 "check_numbers_upstream.py", "check_metric_names.py"):
         shutil.copy2(ROOT / "scripts" / name, root / "scripts" / name)
     shutil.copy2(HOOK, root / ".githooks" / "pre-push")
     (root / ".githooks" / "pre-push").chmod(0o755)

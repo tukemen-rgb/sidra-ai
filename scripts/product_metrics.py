@@ -27320,7 +27320,7 @@ def measure_creation(c: Collector) -> None:
             # caught exactly that when C-1800 added a fourth check.
             for name in ("check_before_push.sh", "check_log_times.py",
                          "check_eval_scratch.py", "check_backlog_board.py",
-                         "check_numbers_upstream.py"):
+                         "check_numbers_upstream.py", "check_metric_names.py"):
                 _gw_sh.copy2(_GW_ROOT / "scripts" / name, root / "scripts" / name)
             hook = root / ".githooks" / "pre-push"
             _gw_sh.copy2(_GW_ROOT / ".githooks" / "pre-push", hook)
@@ -27513,7 +27513,7 @@ def measure_creation(c: Collector) -> None:
             (root / "src" / "sidra_ai" / "evals").mkdir(parents=True)
             for name in ("check_before_push.sh", "check_log_times.py",
                          "check_eval_scratch.py", "check_backlog_board.py",
-                         "check_numbers_upstream.py"):
+                         "check_numbers_upstream.py", "check_metric_names.py"):
                 _sw_sh.copy2(_SW_ROOT / "scripts" / name, root / "scripts" / name)
             _sw_sh.copy2(_SW_ROOT / ".githooks" / "pre-push",
                          root / ".githooks" / "pre-push")
@@ -27632,7 +27632,7 @@ def measure_creation(c: Collector) -> None:
             # moved no number until this was driven end to end.
             for name in ("check_before_push.sh", "check_log_times.py",
                          "check_eval_scratch.py", "check_backlog_board.py",
-                         "check_numbers_upstream.py"):
+                         "check_numbers_upstream.py", "check_metric_names.py"):
                 _nu_sh.copy2(_NU_ROOT / "scripts" / name, root / "scripts" / name)
             (root / ".githooks").mkdir()
             _nu_sh.copy2(_NU_ROOT / ".githooks" / "pre-push", root / ".githooks" / "pre-push")
@@ -33036,6 +33036,66 @@ def measure_runtime(c: Collector) -> None:
     # judge that disappears under an unrelated condition is the exact
     # failure C-1491 named. Found by running the section, not by
     # reading the diff.
+    # C-1893, and the item's premise was measured before it was built.
+    # It said six completions quote a metric the repository no longer has
+    # and so cannot be re-measured; read the six lines and all five attract
+    # records name `creation_attract_demo`, the metric the five were merged
+    # into, and the sixth names `creation_draw_request_makes_art`. Both
+    # exist. NO completion on this board is unfalsifiable. The stale names
+    # are in the *briefs*, which are plans, not claims.
+    #
+    # It also proposed extracting with check_backlog_board.MOVES; over the
+    # last forty commits that ticked a box, MOVES matches zero added lines
+    # on a completion push, so that check could never fire. Both of those
+    # designs are run as destruction probes - D1 and D2 below - and each
+    # drops a case.
+    from sidra_ai.evals.board_metric_names_resolve import (
+        evaluate_board_metric_names_resolve,
+    )
+
+    _names = evaluate_board_metric_names_resolve()
+    c.add(
+        "board_metric_names_resolve",
+        "完了が名乗る数字を、あとから誰かが測り直せるか",
+        float(_names.checks_passed),
+        unit="/3",
+        detail=(
+            "; ".join(_names.failures)
+            if _names.failures
+            else "**実測で確かめた 3 点**——(A) **この push が足す完了行が、repo に無い指標名で"
+            "「数字が動いた」と主張したら拒否する**（名前と行を印字する）、"
+            "(B) **既に在る計画行・新設の起票・`[記録]` は止めない**"
+            "——**数えて印字するだけ**（禁じ手 ②。**新設の名前を拒むと、新しい数字の起票そのものが通らなくなる**:"
+            "09-16 に起票された 2 件はどちらもその形で、この項目を確保した push 自身が拒まれていた）、"
+            "(C) **`product_metrics.py` に無くても、別の判定器に在る名前は通る**"
+            "（起票者はここで一度間違えて「13 件無い」と数えた。**判定器は 1 本ではない**）。"
+            "**起票の前提は 2 つとも実測で外れた**: ①「再測できない完了が 6 件」——**0 件**。"
+            "5 件の attract 完了は統合先の `creation_attract_demo` を、6 件目は "
+            "`creation_draw_request_makes_art` を名乗っており、**どれも実在する**。"
+            "古いのは**受領証ではなく起票時の計画行**（`→ 動かす数字:`）で、計画は主張ではない。"
+            "②「`MOVES` がそのまま使える」——**完了 push の追加行に `MOVES` は 1 件も当たらない**"
+            "（計画行は box を閉じるときに再追加されないため）。**当たらない検査は検査ではない**ので、"
+            "**受領証の先頭のバッククォート識別子**を読む（直近 120 commit の完了行 **57/57** で"
+            "それが主張された指標であり、テスト名だったことは一度も無く、**57 本すべて今も解決する**）。"
+            "**破壊 3 方向で、3 つとも起票が指定した設計そのもの**: "
+            "D1〔起票どおり `MOVES` で抽出〕**1/3**〔(A) が一度も発火しない〕・"
+            "D2〔起票の (A) を字義どおり全追加行に適用〕**2/3**〔新設の起票を拒む〕・"
+            "D3〔`product_metrics.py` だけを見る〕**2/3**〔(C) を誤って叩く〕・無変異 **3/3**。"
+        ),
+        direction="up",
+        # 最初 GUARD で登録して判定器が NO MOVEMENT を返し、そのあとで種別の
+        # 慣例を確かめた。この板で門・板・計器そのものを測る数字は
+        # `gate_is_wired_not_remembered`・`startup_wires_the_gate`・
+        # `gate_sees_a_number_taken_upstream`・`board_names_takeable_count`・
+        # `metrics_overrun_says_why`・`metrics_runtime_attributed` の 6 本が
+        # あり、**6 本とも OUTCOME**。とくに `board_names_takeable_count` は
+        # 同じ板の門を測る数字で、これと同じ形。GUARD は「守られているのが
+        # 前提の線」であって新設の対象ではないので、最初の登録が誤りだった。
+        # 判定が気に入らなかったから変えたのではない、とは言い切れない位置に
+        # あるので、経緯をここに書いて記録にも残す。
+        kind=OUTCOME,
+    )
+
     from sidra_ai.evals.overrun_says_why import evaluate_overrun_says_why
 
     _overrun = evaluate_overrun_says_why()
