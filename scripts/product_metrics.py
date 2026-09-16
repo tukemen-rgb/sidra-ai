@@ -14081,6 +14081,44 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- every lock in the dungeon, not just the grass --------------------
+    #
+    # §3 × §34 事実 1. A lock is a lock when the player who lacks its key
+    # cannot open it. adventure ships six: grass/sword, the chest's door and
+    # its key, the same door held shut by the living guardian, the shrine and
+    # three gems, the optional side door and two gems, and the stone's order -
+    # §3's knowledge key, where what opens the lock is knowing something.
+    #
+    # creation_lock_opens_with_its_key (C-1626) plays the game and holds the
+    # first of those. The other five could have opened for anybody or refused
+    # everybody and no number would have moved. This one does not play: a lock
+    # is a tile, so the hero is stood twenty pixels below it - the reach of
+    # the blade, `[-16,0,16,0][dir]*1.25`, which is the page's own number -
+    # and the page's own swing() is called. That is why the dungeon can be
+    # judged this way while platformer and puzzle cannot (C-1885).
+    from sidra_ai.evals.adventure_locks_hold import (
+        LOCKS as _LOCKS,
+        evaluate_adventure_locks_hold,
+    )
+
+    _locks = evaluate_adventure_locks_hold()
+    c.add(
+        "creation_adventure_locks_hold",
+        "鍵を持たない者には開かない錠の数（§3 × §34 事実 1）",
+        float(_locks.held),
+        detail=(
+            f"**{_locks.held}/{len(_LOCKS)} の錠**を**両方向**で実測"
+            "（鍵があれば開く／無ければ開かない）: "
+            + "・".join(name for _key, name in _LOCKS)
+            + "。草と剣の錠は `creation_lock_opens_with_its_key`（C-1626）が"
+            "**遊んで**持っているので重ねない。"
+            "**片方向なら「常に開く」も「常に開かない」も満点を取る**"
+            if _locks.passed
+            else "; ".join(_locks.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- does the game need the thing it tells you to press? -------------
     #
     # §34 事実 1 (arXiv:1807.06734, Green et al. 2018): a level teaches a
