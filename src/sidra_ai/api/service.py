@@ -259,6 +259,49 @@ def _feature_topics(message: str) -> tuple[str, ...]:
     )
 
 
+#: C-1876: the verbs that make a message a request to make something, used to
+#: find the request a person actually sent so the reply can quote it back.
+_MADE_IT_CUES: tuple[str, ...] = ("作って", "作成", "つくって", "生成して")
+
+#: Longer than any real creation request, and the point at which quoting stops
+#: being useful. A truncated quote is worse than none: sending half a request
+#: is not sending the request, which is the whole defect this fixes.
+_QUOTE_LIMIT = 60
+
+
+def last_creation_request(
+    history: "list[tuple[str, str]]", label: str
+) -> str | None:
+    """The message this person sent to make the thing they are now pointing at.
+
+    C-1876. Revision is game-only, so 「さっきのレポートを直して」 is answered with
+    "send the request again" - and the example beside it was generic
+    （「レポートを作って」）, so somebody following the instruction literally got a
+    *different* report: the subject was dropped. Measured: 「犬のレポートを作って」
+    followed by the advice's own example produced a second, subject-less file.
+
+    Their own words are the only place to get this. Documents and decks write
+    no ``.meta.json`` - measured, the directory holds the ``.md`` and nothing
+    beside it - so the sidecar route that revision uses for games does not
+    exist here, and the conversation is all there is.
+
+    ``None`` rather than a guess when no such turn is in view: the reply drops
+    the example instead of printing one that does not work. The history is
+    already screened by ``_history_gate`` before it reaches here, so quoting it
+    back carries nothing the rest of the answer would not.
+    """
+
+    for question, _answer in reversed(history or ()):
+        text = (question or "").strip()
+        if not text or len(text) > _QUOTE_LIMIT:
+            continue
+        if label not in text:
+            continue
+        if any(cue in text for cue in _MADE_IT_CUES):
+            return " ".join(text.split())
+    return None
+
+
 def _is_help_query(message: str) -> bool:
     """True when the whole message asks what the product is or how to use it."""
 
@@ -1259,12 +1302,17 @@ class SidraService:
             # changing the wrong thing, and name the kind they asked about so
             # the sentence is about their request rather than about games.
             named = _KIND_LABELS.get(revision.names_other_kind, revision.names_other_kind)
+            # Their own request, not a generic stand-in (C-1876). 「同じ内容で」
+            # is the promise the sentence makes, and 「レポートを作って」 does not
+            # keep it: the subject is gone, so the second file is a different
+            # file. Quote what they sent, or say nothing in its place.
+            _theirs = last_creation_request(screened_history, named)
             return {
                 "answer": (
                     f"いま修正できるのはゲームだけで、{named}は作り直しになります。"
                     "同じ内容で作り直すには、作ったときの依頼をもう一度送ってください"
-                    f"（例:「{named}を作って」）。"
-                    "ゲームなら「さっきのゲームを難しくして」のように変更できます。"
+                    + (f"（さきほどの依頼:「{_theirs}」）。" if _theirs else "。")
+                    + "ゲームなら「さっきのゲームを難しくして」のように変更できます。"
                 ),
                 "refused": True,
                 "refusal": "revision_kind",

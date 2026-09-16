@@ -13714,6 +13714,43 @@ def measure_creation(c: Collector) -> None:
         evaluate_chat_answers_how_to_make,
     )
 
+    # C-1876: and when the answer tells somebody to send their request again,
+    # it has to be *their* request. The advice was right and the example
+    # beside it was generic 「レポートを作って」, so following it literally
+    # produced a different report - the subject was gone. Documents and decks
+    # write no `.meta.json` (measured: the directory holds the `.md` and
+    # nothing beside it), so the conversation is the only source.
+    from sidra_ai.evals.revision_kind_quotes_the_real_request import (
+        evaluate_revision_kind_quotes_the_real_request,
+    )
+
+    _quotes = evaluate_revision_kind_quotes_the_real_request()
+    c.add(
+        "revision_kind_quotes_the_real_request",
+        "「もう一度送って」と言うとき、その人が実際に送った依頼を引用する",
+        10.0 * _quotes.checks_passed / _quotes.checks_total,
+        detail=(
+            f"{_quotes.checks_passed}/{_quotes.checks_total} checks; "
+            "src/sidra_ai/evals/revision_kind_quotes_the_real_request.py"
+            + ("" if _quotes.passed else "; " + "; ".join(_quotes.failures[:4]))
+            + "。**実測した欠陥**: 「犬のレポートを作って」→「さっきのレポートを直して」で"
+            "**「同じ内容で作り直すには…（例:「レポートを作って」）」**と返り、"
+            "**その例をそのまま送ると主題の無い別の資料が出る**——**指示は正しく、例が指示と矛盾していた**。"
+            "**引用元は会話だけ**: 文書・スライドは `.meta.json` を書かない（実測——資料を作った後の"
+            "ディレクトリに `.md` しか無い）ので、ゲームが使う sidecar 経路はここに無い。"
+            "**6 点のうち後半 4 点が本体**——(C) **引用できるものが無いときは例を出さない**"
+            "（**捏造した引用は、置き換えた総称例より悪い**）、(D) **引用は実際に送られた turn そのもの**、"
+            "(E) **別種別の依頼を流用しない**、(F) **長すぎる依頼は切り詰めずに引用しない**"
+            "（**半分の依頼を送ることは依頼を送ることではない**＝同じ欠陥が別の扉から来る）。"
+            "**破壊 6 通り全検出**・対照 6/6・1 破壊 1 プロセス。"
+            "**(E)(F) は最初の判定器では捕まらなかった**——会話に**正しい種別の短い依頼が 1 件しか無く**、"
+            "**取り違える相手も切り詰める対象も存在しなかった**ので、両方の破壊が満点を取った。"
+            "**検査の穴であって、悪い破壊ではない**。**その後 (F) の破壊のほうも作り直した**——"
+            "**種別語が末尾に在ると切り詰めで語ごと落ちて「引用なし」になり、欠陥を実装していなかった**。"
+        ),
+        kind=OUTCOME,
+    )
+
     _how_to = evaluate_chat_answers_how_to_make()
     c.add(
         "chat_answers_how_to_make",
