@@ -82,6 +82,42 @@ COMBAT_GAIN = 2.0
 #: synthetic ceiling-reaching gain precisely because no real one exists.
 MAX_GAIN = 0.9
 
+#: Which templates turn the fight's loudness step on, and why the rest leave
+#: it alone. Every sibling feature keeps this pair next to the feature -
+#: ``GHOST_TEMPLATES``/``GHOST_UNWIRED``, ``GRAZE_UNWIRED``,
+#: ``COMBO_UNWIRED``, ``ATTRACT_UNWIRED``, ``LOSS_UNWIRED`` - and each of
+#: them writes a reason per template, because 「not yet」 and 「not applicable」
+#: are different answers and a silent absence says neither.
+#:
+#: C-1882: the loudness step was the one that did not. Its classification sat
+#: inside ``product_metrics.py`` as three literal sets covering eight of the
+#: ten templates; ``marble`` and ``racing`` were in none of them, so either
+#: could have claimed a fight or quietly dropped the step with nothing going
+#: red - while ``creation_combat_verified`` printed ten and said it had read
+#: 「the template's own use of it」 for all of them.
+COMBAT_FIGHTS: tuple[str, ...] = ("duel", "kaiju", "shooter")
+
+#: Raises the step only in the moment, which is the better design: the quiet
+#: stretches are what make the loud ones read as loud. Kept apart from
+#: ``COMBAT_FIGHTS`` because a template here reports the step OFF while it is
+#: merely being played, and that is indistinguishable from a clause that can
+#: never fire - so its judge has to create the condition and ask again
+#: (C-1035). The value is the condition, in words.
+COMBAT_CONDITIONAL: dict[str, str] = {
+    "adventure": "an enemy is close enough to the hero to be a fight",
+}
+
+#: Why the rest never call it. Not an oversight in any of the six: a template
+#: with nothing to fight has no fight to raise.
+COMBAT_QUIET: dict[str, str] = {
+    "fishing": "the cast is a timing act against a sweep; nothing opposes it",
+    "catch": "things fall and are caught or missed; none of them fights back",
+    "puzzle": "the board is the opponent, and it is not loud",
+    "platformer": "the course is the opposition - gaps and ledges, not enemies",
+    "marble": "a marble rolls down a corridor; what it hits is a block, not a foe",
+    "racing": "a race has no fight, and the quiet templates are what make the loud ones read as loud",
+}
+
 #: Each effect is (wave, start Hz, end Hz, duration s, gain). The numbers
 #: follow the sfxr preset shapes described in the knowledge base: pickups
 #: rise, lasers fall fast, hurt is a low square drop, explosions are noise.
@@ -667,6 +703,9 @@ def volume_probe_source(script: str, *, volume: int) -> str:
 
 
 __all__ = [
+    "COMBAT_CONDITIONAL",
+    "COMBAT_FIGHTS",
+    "COMBAT_QUIET",
     "COMBAT_GAIN",
     "MAX_GAIN",
     "PREAMBLE_NAMES",

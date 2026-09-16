@@ -7387,19 +7387,30 @@ def measure_creation(c: Collector) -> None:
     import re as _loud_re
     import subprocess as _loud_sp
 
-    from sidra_ai.creation.audio import COMBAT_GAIN, MAX_GAIN
+    from sidra_ai.creation.audio import (
+        COMBAT_CONDITIONAL,
+        COMBAT_FIGHTS,
+        COMBAT_GAIN,
+        COMBAT_QUIET,
+        MAX_GAIN,
+    )
     from sidra_ai.creation.audio import probe_source as _loud_probe
 
-    #: Templates whose play state *is* a fight, so the step has to be on
-    #: while they are simply being played.
-    fights = {"duel", "kaiju", "shooter"}
+    # C-1882: these three used to be literal sets written here, and they
+    # covered eight of the ten templates - marble and racing were in none of
+    # them, so either could have claimed a fight or quietly dropped the step
+    # and this judge would have said nothing, while the count below printed
+    # ten. They live next to `combat()` now, with a reason per template, the
+    # way every sibling feature already keeps its own (GHOST_UNWIRED,
+    # GRAZE_UNWIRED, COMBO_UNWIRED, ATTRACT_UNWIRED, LOSS_UNWIRED).
+    fights = set(COMBAT_FIGHTS)
     #: The adventure raises the step only while an enemy is near - the better
     #: design, because the quiet stretches are what make the loud ones read as
     #: loud. It therefore reports "off" when merely played, which is
     #: indistinguishable from a clause that can never fire, so the probe puts
     #: an enemy on the hero and asks again (C-1035).
-    conditional = {"adventure"}
-    quiet = {"fishing", "catch", "puzzle", "platformer"}
+    conditional = set(COMBAT_CONDITIONAL)
+    quiet = set(COMBAT_QUIET)
     loud_reasons = []
     loud_verified = []
     for key in sorted(_GATE_TEMPLATES):
@@ -7449,6 +7460,59 @@ def measure_creation(c: Collector) -> None:
             )
         if not any(key in reason for reason in loud_reasons):
             loud_verified.append(key)
+
+    # The classification itself is part of the verdict. Without it the count
+    # below is blind to its own sample: a template in none of the three sets
+    # is measured for the mechanical properties - the step comes back down,
+    # the ceiling holds, mute wins - and NOTHING is asserted about whether it
+    # should be raising the step at all, which is the half this judge is for.
+    classified = sorted((fights | conditional | quiet) & set(_GATE_TEMPLATES))
+    unclassified = sorted(set(_GATE_TEMPLATES) - set(classified))
+    stray = sorted((fights | conditional | quiet) - set(_GATE_TEMPLATES))
+    overlap = sorted(
+        key
+        for key in fights | conditional | quiet
+        if (key in fights) + (key in conditional) + (key in quiet) > 1
+    )
+    # An incomplete table and a self-contradicting one are different
+    # failures, and the number has to be able to say so. Coverage is what the
+    # score counts, because that is the thing C-1882 found short (8 of 10);
+    # a table that names a template twice, names something that is not a
+    # template, or leaves a template out with no reason is not 「less covered」,
+    # it is not a table - so it scores zero however much it covers.
+    #
+    # Written first with `class_gaps` feeding only the detail, and the
+    # destruction run caught it: three of the five sabotages left the value
+    # at a clean 10 while the text underneath said what was wrong. A judge
+    # whose prose disagrees with its own number is read by the number.
+    structural_gaps = (
+        [f"{key}: classed but not a template" for key in stray]
+        + [f"{key}: in more than one combat class" for key in overlap]
+        + [
+            f"{key}: quiet with no reason written"
+            for key in sorted(COMBAT_QUIET)
+            if not COMBAT_QUIET[key].strip()
+        ]
+    )
+    class_gaps = [f"{key}: in no combat class" for key in unclassified] + structural_gaps
+    c.add(
+        "creation_combat_every_template_is_classified",
+        "戦闘の音圧段について、どの型にも「付く／条件つき／付かない理由」がある",
+        0.0
+        if structural_gaps
+        else 10.0 * len(classified) / max(1, len(_GATE_TEMPLATES)),
+        detail=(
+            f"{len(classified)}/{len(_GATE_TEMPLATES)} 型が "
+            "`audio.COMBAT_FIGHTS` / `COMBAT_CONDITIONAL` / `COMBAT_QUIET` の"
+            "**ちょうど 1 つ**に入り、静かな 6 型は**型ごとに理由を書いている**"
+            f"（{', '.join(sorted(COMBAT_QUIET))}）。"
+            "**C-1882 まで分類は判定器の中の直書き 3 集合で 8/10・"
+            "marble と racing はどこにも無かった**"
+            if not class_gaps
+            else "; ".join(class_gaps)
+        ),
+        kind=OUTCOME,
+    )
     c.add(
         "creation_combat_loudness",
         "戦闘だけ音が大きい",
@@ -7467,10 +7531,23 @@ def measure_creation(c: Collector) -> None:
     c.add(
         "creation_combat_verified",
         "戦闘の音量規則を実測できた型",
-        float(len(loud_verified)),
+        # Only the templates the rule actually says something about. C-1882:
+        # this counted every template that raised no complaint, which included
+        # the two nobody had classified - so a template could be counted as
+        # 「その型自身の使い方まで読んだ」 while no rule existed to read it against.
+        float(len([key for key in loud_verified if key in classified])),
         detail=(
             f"{', '.join(loud_verified)}: gain step, mute, ceiling and the "
             "template's own use of it, all read off the running page"
+            + (
+                # C-1882: this line used to name every template while the rule
+                # said something about only eight of them. A judge that cannot
+                # notice it stopped looking is the same defect as a page that
+                # cannot notice it stopped drawing.
+                ""
+                if not unclassified
+                else f"; unclassified, so nothing was asserted about their own use: {', '.join(unclassified)}"
+            )
         ),
         kind=OUTCOME,
     )
