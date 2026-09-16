@@ -245,6 +245,48 @@ var canvas = document.getElementById("c");
 var ctx = canvas.getContext("2d");
 var reduced = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/* How many 60Hz frames' worth of time a callback covers (C-1900). Both
+   patterns used to take one step per callback, so the picture advanced at
+   whatever speed the screen ran: over two real seconds the orbit phase
+   reached 121 at 60Hz and 289 at 144Hz, and flow - which is built by
+   accumulating trails - laid down 31,320 strokes against 75,168. For flow
+   that is not a matter of speed: the same seed made a different artwork
+   depending on the monitor it was opened on.
+   At 60Hz this returns 1, so every page already made looks as it did. A
+   missing or frozen timestamp returns 1 too - the reduced-motion branch
+   runs the whole piece at once with no clock at all.
+   The callers name it `artK`, not `k`: `draw` already runs
+   `for (var k = 0; ...)` over a ring's points, and `var` is scoped to the
+   function, so an inner loop overwrote the argument before it was spent.
+   The first attempt at this fix read 7 - the ring's point count - and the
+   clamp below was never the thing holding it back. */
+var _artClock = null;
+/* How much time the piece has actually been given, in 60Hz frames. Read
+   back rather than inferred: flow draws its path as many short segments
+   on a fast screen and fewer long ones on a slow screen, so counting
+   strokes says the two differ when the picture is the same. This is the
+   quantity both patterns advance by, so it is the one to compare. */
+var artAdvanced = 0;
+/* How much time the piece has been given, in 60Hz frames. Reported for
+   readers, but NOT the thing to judge the picture by: a body that took
+   the argument and ignored it would book this perfectly while still
+   running at the screen's speed. The picture is judged from the picture
+   (C-1640, learned again here). */
+function artFacts() {{ return {{ advanced: artAdvanced }}; }}
+function artStep(now) {{
+  var stamp = (typeof now === "number" && isFinite(now)) ? now : null;
+  if (stamp === null || _artClock === null || stamp <= _artClock) {{
+    _artClock = stamp; artAdvanced += 1; return 1;
+  }}
+  var frames = (stamp - _artClock) * 60 / 1000;
+  _artClock = stamp;
+  frames = Math.min(Math.max(frames, 0.01), 3);
+  artAdvanced += frames;
+  return frames;
+}}
+/* A veil laid artK times does not cover artK times as much: what is left
+   after n coats of alpha a is (1-a)^n, so this is the one coat matching. */
+function artVeil(a, artK) {{ return 1 - Math.pow(1 - a, artK); }}
 {body}
 </script>
 </body>
@@ -274,14 +316,15 @@ for (var p = 0; p < 260; p++) {
 }
 ctx.fillStyle = "%BG%";
 ctx.fillRect(0, 0, canvas.width, canvas.height);
-function step() {
-  ctx.fillStyle = "rgba(5, 7, 15, 0.04)";
+function step(artK) {
+  artK = artK || 1;
+  ctx.fillStyle = "rgba(5, 7, 15, " + artVeil(0.04, artK).toFixed(4) + ")";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   for (var i = 0; i < particles.length; i++) {
     var pt = particles[i];
     var a = angleAt(pt.x, pt.y);
-    var nx = pt.x + Math.cos(a) * 1.6;
-    var ny = pt.y + Math.sin(a) * 1.6;
+    var nx = pt.x + Math.cos(a) * 1.6 * artK;
+    var ny = pt.y + Math.sin(a) * 1.6 * artK;
     // Magenta stays rare: DESIGN.md calls it an accent, not a colour way.
     ctx.strokeStyle = pt.tint < 0.9 ? "%CYAN%" : "%MAGENTA%";
     ctx.globalAlpha = 0.35;
@@ -299,7 +342,7 @@ if (reduced) {
   // than leaving a viewer who asked for less motion a nearly-empty frame.
   for (var s = 0; s < 420; s++) { step(); }
 } else {
-  (function loop() { step(); requestAnimationFrame(loop); })();
+  (function loop(now) { step(artStep(now)); requestAnimationFrame(loop); })();
 }
 """
 
@@ -314,8 +357,9 @@ for (var r = 0; r < 7; r++) {
                tint: random() });
 }
 var t = 0;
-function draw() {
-  ctx.fillStyle = "rgba(5, 7, 15, 0.12)";
+function draw(artK) {
+  artK = artK || 1;
+  ctx.fillStyle = "rgba(5, 7, 15, " + artVeil(0.12, artK).toFixed(4) + ")";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   var cx = canvas.width / 2, cy = canvas.height / 2;
   for (var i = 0; i < rings.length; i++) {
@@ -331,14 +375,14 @@ function draw() {
       ctx.fill();
     }
   }
-  t += 1;
+  t += artK;
 }
 ctx.fillStyle = "%BG%";
 ctx.fillRect(0, 0, canvas.width, canvas.height);
 if (reduced) {
   for (var s = 0; s < 600; s++) { draw(); }
 } else {
-  (function loop() { draw(); requestAnimationFrame(loop); })();
+  (function loop(now) { draw(artStep(now)); requestAnimationFrame(loop); })();
 }
 """
 

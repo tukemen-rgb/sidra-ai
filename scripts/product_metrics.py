@@ -21415,6 +21415,57 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the picture advances by time, not by refresh rate --------------
+    #
+    # The third surface after C-1892 (the flash) and C-1898 (the shared
+    # juice), and the one where the consequence is not speed. Both art
+    # patterns took one step per callback: over two real seconds the orbit
+    # phase reached 121 at 60Hz and 289 at 144, and flow - which draws by
+    # accumulating trails - laid down 31,320 strokes against 75,168. flow's
+    # picture IS its history, so the same seed made a different artwork
+    # depending on the monitor it was opened on.
+    #
+    # Two measures were written and thrown away before this one, and both
+    # were the same mistake. Counting strokes says a fast screen differs
+    # from a slow one when the path is identical. Reading the page's own
+    # tally of time handed out passes a body that takes the argument and
+    # ignores it - a sabotage doing exactly that scored full marks. What
+    # settles it is the drawn geometry, so the probe records every
+    # coordinate painted. orbits is compared frame to frame; flow is an
+    # Euler walk through a noise field, where a finer step traces the same
+    # curve more accurately and the two rates SHOULD end up at different
+    # points, so what must match there is how far the pen travelled.
+    from sidra_ai.evals.art_advances_in_real_time import (
+        MEASURE_WHY as _AA_WHY,
+        TOLERANCE as _AA_TOL,
+        WINDOW_MS as _AA_WINDOW,
+        evaluate_art_advances_in_real_time,
+    )
+
+    _aa = evaluate_art_advances_in_real_time()
+    c.add(
+        "creation_art_advances_in_real_time",
+        "生成した絵が、画面の速さで変わらない（§26 事実 1）",
+        float(_aa.checks_passed) if _aa.passed else 0.0,
+        detail=(
+            f"**60/120/144Hz** で実時間 {_AA_WINDOW / 1000:g} 秒ぶん走らせ、"
+            "**塗った座標そのもの**を記録して突き合わせた——"
+            + "、".join(_aa.readings)
+            + f"（許容 {_AA_TOL:.0%}）。"
+            "**絵柄ごとに測るものが違い、理由を書いてある**: "
+            + "・".join(f"{k}＝{v}" for k, v in sorted(_AA_WHY.items()))
+            + "。**直す前の実測**: orbits の位相が 121／241／289、"
+            "flow の線が 31,320／62,640／75,168 本——"
+            "**flow は軌跡を積む絵なので、同じ種の同じ絵が画面によって違う絵になっていた**。"
+            "**捨てた測り方が 2 つある**: 線の本数は「同じ道を細かく刻んだだけ」を差と読み、"
+            "**ページ自身の「配った時間」の帳簿は、引数を受け取って無視する実装を素通しした**"
+            "（C-1640 をこの巡でもう一度踏んだ記録）"
+            if _aa.passed
+            else "; ".join(_aa.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the shared juice, timed in seconds rather than callbacks -------
     #
     # C-1892 put the flash on the clock in two templates' own code. This is
