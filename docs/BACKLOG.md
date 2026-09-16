@@ -3057,7 +3057,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
 私は `SidraService` を Python から直接呼んでいただけで、社長が実際に
 触る入口を一度も通していなかった）。出たのは 1 件だけ。
 
-- [~] 着手 2026-09-16 11:14 UTC 辛口ユーザー（外部批評「辛口コメンテーター第11回」の起票を確保。**方針は起票どおり**: chat の schema から `message` の `min_length` を外し空の扱いをサービス層 C-1515 へ一本化・`max_length` は残す。**実測（RED）**: `POST /v1/chat {"message":""}`→**422**、一方 `service.chat("")`→「質問が空のようです。何について調べますか」（refusal=empty）・空白/改行/全角空白は HTTP でも 200 で聞き返す＝差は空文字だけ。RED→実装→GREEN→pytest→5 破壊→判定器 exit 0→`verify_gate_recall.py`→gate。他ループ回避: 制作=辛口クリエイター・板=ループA・監視=進捗監視。） **C-1536: 空文字だけが HTTP の入口で弾かれ、C-1515 の聞き返しに
+- [x] 完了 2026-09-16 12:20 UTC 辛口ユーザー（外部批評「辛口コメンテーター第11回」の起票を実装。`empty_message_reaches_the_ask_back` **新設 unmeasurable→10（7/7）**——**直す前 4/7＝5.714**、判定器 BETTER 5.714→10・MOVED 1・exit 0（WORSE/REGRESSED/LOST/DRIFT なし）、全 pytest exit 0・失敗 0、5 破壊すべて赤→復元で緑、`verify_gate_recall.py` exit 0、採番衝突なし）　**方針は起票どおり**: `ChatRequest.message` の `min_length` を外し空はサービス層 C-1515 へ一本化・`max_length` は残す（20万字 422 は正しい）。**動かした数字**: 空入力が聞き返しに届く経路 1→2（サービス層・HTTP 両方）。**判定器でなく full pytest が既存テストの前提逆転を捕まえた**——`test_chat_empty_question_asks_back` が「空文字は今も schema で 422」を pin していたが、それこそ C-1536 が正す旧挙動なので、空文字を空白の parametrize に畳み込み、旧テストを「空→200 聞き返し・過大→422」の C-1536 保証に差し替えた（**番人の意図＝空入力は綺麗に聞き返す、を保ったまま**）。**波及**: schema 1 属性＋eval/test。**時刻は `date -u`**。 **C-1536: 空文字だけが HTTP の入口で弾かれ、C-1515 の聞き返しに
       届かない。**〔小〕
       再現: `POST /v1/chat {"message": ""}` → **422 `request validation
       failed`**。同じ入力をサービス層に渡すと
