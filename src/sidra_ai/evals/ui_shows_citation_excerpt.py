@@ -75,8 +75,11 @@ def evaluate_ui_shows_citation_excerpt() -> UiExcerptResult:
             failures.append(msg)
 
     # --- (A) render() sets the excerpt body as text content (a negative
-    #         lookahead so the c.excerpt_withheld flag does not count) ---
-    add(re.search(r"textContent\s*=\s*c\.excerpt(?!_withheld)", ASK_PAGE) is not None,
+    #         lookahead so the c.excerpt_withheld flag does not count). The
+    #         excerpt may be wrapped in clean() first (C-1883 strips terminal/
+    #         bidi characters on the way out); it is still drawn as textContent,
+    #         which is what this guard protects. ---
+    add(re.search(r"textContent\s*=\s*(?:clean\()?c\.excerpt(?!_withheld)", ASK_PAGE) is not None,
         "A: render() never sets textContent = c.excerpt to draw the excerpt body")
 
     # --- (B) drawn as text, not markup (no innerHTML introduced) ---
