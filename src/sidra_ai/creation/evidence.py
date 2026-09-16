@@ -114,6 +114,14 @@ _MD_FENCE = re.compile(r"(?m)^[ \t]*(?:`{3,}|~{3,})[^\n]*$")
 #: a ``=`` line had no case. Line-anchored, so a mid-line ``=`` (「key=value」, an
 #: equation) is never touched - only a line that is nothing but ``=``.
 _SETEXT_UNDERLINE = re.compile(r"(?m)^[ \t]*=+[ \t]*$")
+#: A thematic break (horizontal rule) has three spellings; the ``---`` form is
+#: already removed by ``_MD_TABLE_SEP`` (a ``-{2,}`` line), but ``***`` fell to
+#: the dangling-bold cleanup and left a lone ``*``, and ``___`` survived whole as
+#: a raw ``___`` artifact (C-1886) - the same class as the setext/fence leaks.
+#: A rule is a line of nothing but three-or-more ``*`` or ``_`` (spaced variants
+#: allowed); line-anchored and requiring three, so inline emphasis (「*語*」,
+#: 「__設定__」) and a two-mark ``**`` are never touched.
+_MD_HR = re.compile(r"(?m)^[ \t]*(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$")
 _MD_QUOTE = re.compile(r"(?:(?<=\s)|^)>\s?")
 #: A Markdown link. The corpus cross-references its own files, so an excerpt
 #: carries 「[SPEC.md](../SPEC.md)」 - and when the URL trips the output guard's
@@ -296,6 +304,10 @@ def plain_text(text: str) -> str:
     # and table-separator removals, while line boundaries still exist - otherwise
     # the ``=`` line survives whitespace collapse as a raw 「===」 artifact (C-1709).
     text = _SETEXT_UNDERLINE.sub("", text)
+    # A `***`/`___` horizontal rule (the `---` form is handled by the table
+    # separator) alongside the other line-level removals, before the list/bold
+    # rules can turn `***` into a stray `*` and while line boundaries exist (C-1886).
+    text = _MD_HR.sub("", text)
     text = _MD_LIST.sub("", text)
     text = _MD_HEADING.sub("", text)
     text = _MD_BOLD.sub(r"\1", text)
