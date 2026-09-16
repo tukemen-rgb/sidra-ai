@@ -40,16 +40,15 @@ class CliArtifactListResult:
 
 def _render_list_query(*, make_artifact: bool) -> tuple[str, int, str]:
     """Return (rendered_output, exit_code, service_answer_body)."""
-    import tempfile
-
     from sidra_ai.api.ask_cli import render
     from sidra_ai.api.service import SidraService
     from sidra_ai.config.settings import Settings
+    from sidra_ai.evals.scratch import scratch_dir
     from sidra_ai.models.echo import EchoModelAdapter
     from sidra_ai.retrieval.store import DocumentStore
     from sidra_ai.security.gate import GatePolicy, SecurityGate
 
-    data_dir = Path(tempfile.mkdtemp())
+    data_dir = Path(scratch_dir("c1879-"))
     if make_artifact:
         art = data_dir / "artifacts"
         art.mkdir(parents=True, exist_ok=True)
