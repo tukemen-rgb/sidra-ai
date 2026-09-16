@@ -1087,7 +1087,37 @@ class SidraService:
         # button on your page" when they have not made one would be the same
         # kind of lie pointing the other way, and the gate is also what makes
         # substring cues safe here (「共有」 and 「記録」 are ordinary words).
-        if topics := _feature_topics(message):
+        # C-1878, two holes that overlapped. The cues are substrings of an
+        # ordinary message and this branch read the whole of it, so
+        # 「今日の挑戦をオフにして」 - an INSTRUCTION, which `revision` two lines
+        # up had already parsed into {'daily': 'off'} - came back as a
+        # description of the daily challenge with no new version written, and
+        # 「タイトルを『共有の記録』にして」 was answered as a question about the
+        # share button. Five of six measured phrasings never reached the
+        # reviser. `CHANGEABLE` promises 今日の挑戦 can be changed, so the
+        # product was closing its own promise with its own branch.
+        #
+        # A message that names a change is an instruction, not a question.
+        # That one test covers both phrasings above: the rename parses to
+        # {'title': '共有の記録'} just as the flag parses to {'daily': 'off'}.
+        #
+        # C-1779's `without_new_title` was tried here as well - strip the new
+        # title, then look for cues - and MEASURED WORSE, so it is not in this
+        # fix. It only reaches messages the detector does not read as a
+        # revision at all （「タイトルを「共有の記録」に」, 「名前を「今日の挑戦」へ」,
+        # 「タイトル「自己ベストの道」でお願いします」 - all adjustments={}）, and
+        # for those three it turns a wrong-but-on-topic answer into
+        # 「対象リポジトリの取り込みを管理者に依頼してください」: a maker sent to
+        # repository ingestion, which is C-1261's defect and the one C-1797,
+        # C-1814, C-1835, C-1866 and C-1875 have each removed once. Those
+        # phrasings are a real gap - the detector should read them as renames -
+        # and they are filed rather than half-closed here.
+        #
+        # A real question still lands here: 「今日の挑戦ってなに」 parses to no
+        # adjustments, and C-1866's own judge holds that boundary.
+        if not (revision.is_revision and revision.adjustments) and (
+            topics := _feature_topics(message)
+        ):
             from sidra_ai.creation.ghost import GHOST_TEMPLATES
             from sidra_ai.creation.revise import find_target_meta
             from sidra_ai.creation.share import share_spec

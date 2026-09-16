@@ -13776,6 +13776,43 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- an instruction that names a feature is still an instruction -----
+    #
+    # C-1878. The branch above matches four feature cues - 共有 / 今日の挑戦 /
+    # 見た目 / 記録 - as substrings, sits 240 lines in front of the revision
+    # branch, and never asked whether the message was a question. Measured on
+    # 2026-09-16: five of six revision instructions carrying one of those
+    # words never reached the reviser and wrote no version.
+    # 「今日の挑戦をオフにして」 - already parsed into {'daily': 'off'} two lines
+    # earlier - came back as a description of the daily challenge, and
+    # 「タイトルを『共有の記録』にして」 as a description of the copy button, while
+    # CHANGEABLE went on promising 今日の挑戦 could be changed.
+    #
+    # Both directions, because each alone rewards the other's defect: only
+    # asking 「is the instruction carried out」 is passed by deleting the
+    # branch, and that branch is what stopped six phrasings being answered
+    # with 「対象リポジトリの取り込みを管理者に依頼してください」.
+    from sidra_ai.evals.revision_instruction_is_not_a_question import (
+        evaluate_revision_instruction_is_not_a_question,
+    )
+
+    _rinq = evaluate_revision_instruction_is_not_a_question()
+    c.add(
+        "revision_instruction_is_not_a_question",
+        "機能の名前が入った修正の指示が、説明ではなく修正になる",
+        10.0 * _rinq.checks_passed / _rinq.checks_total,
+        detail=(
+            f"{_rinq.checks_passed}/{_rinq.checks_total} checks; "
+            f"**指示 {_rinq.carried_out}/6 が修正器に届く**"
+            f"・**質問 {_rinq.answered}/4 は今までどおり機能の説明**"
+            "（実 `SidraService` で 1 通ずつ・題名は生成頁の `<title>` まで確認）。"
+            "**直す前は 8/14＝5.71・届いた指示は 0/6**"
+            "; src/sidra_ai/evals/revision_instruction_is_not_a_question.py"
+            + ("" if _rinq.passed else "; " + "; ".join(_rinq.failures[:4]))
+        ),
+        kind=OUTCOME,
+    )
+
     # C-1861: the page ships a tuning panel - volume, music, haptic,
     # reduce-motion - and asking for any of those got one of three wrong
     # answers: 「『動き』は増減できません」 (false), the list of revisable
