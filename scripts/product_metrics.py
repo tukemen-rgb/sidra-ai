@@ -14100,6 +14100,57 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- is the pair the CVD judge separates the pair the page paints? -----
+    #
+    # creation_cvd_info_pair takes a theme's accent and alert, simulates three
+    # kinds of colour vision and requires their Lab ΔE to clear a floor. The
+    # arithmetic is right and nothing here touches it. What it never did was
+    # look at a page: its input is theme.tokens, it calls no generator and
+    # runs no probe, and its label says 「主役と敵が別の色」 while nobody had
+    # checked that those two tokens are the two a player must tell apart.
+    # C-1640's ledger problem, in a judge that predates this loop.
+    #
+    # Measured over 900 frames of real drawing: eight of ten paint both.
+    # marble paints neither (every surface goes through shade() so depth reads
+    # as brightness) and platformer paints no alert (its danger is the gap
+    # between ledges, not an object). Both are named with the reason.
+    #
+    # The window is part of the contract. At three frames the census said
+    # racing painted no alert - its obstacles are MAGENTA_TOKEN squares that
+    # spawn on an interval and had not appeared yet. A short sample looks
+    # exactly like a missing feature.
+    from sidra_ai.evals.cvd_pair_is_drawn import (
+        CVD_PAIR_UNDRAWN,
+        FRAMES as _CVD_FRAMES,
+        evaluate_cvd_pair_is_drawn,
+    )
+
+    _cvdd = evaluate_cvd_pair_is_drawn()
+    c.add(
+        "creation_cvd_pair_is_drawn",
+        "色覚判定器が分離している 2 色が、実際に画面に出ている型（§4 事実 1）",
+        float(_cvdd.accounted),
+        detail=(
+            f"**{len(_cvdd.painting)} 型が 2 色とも塗る**ことを"
+            f"**{_CVD_FRAMES} フレームの実描画**で確認"
+            f"（{', '.join(_cvdd.painting)}）。"
+            f"**残り {len(CVD_PAIR_UNDRAWN)} 型は理由つき**: "
+            + "・".join(f"{k}＝{v}" for k, v in sorted(CVD_PAIR_UNDRAWN.items()))
+            + "。**両方向**——理由の在る型は本当に塗らないことも見るので、"
+            "「全部に理由を書く」実装は満点を取れない。"
+            "**窓の長さは契約の一部**: 3 フレームでは racing が alert を塗らないと出た"
+            "（障害物は間隔を空けて湧く）——**標本の短さは、製品の欠落に見える**。"
+            "**この数字が言えることの範囲（正直に）**: 「2 色とも画面に出る」までで、"
+            "**「敵が alert の側だ」までは言えない**"
+            "——shooter の `MAGENTA_TOKEN` を 3 か所とも主役の色に変えても数字は動かない"
+            "（HUD・結果帯・juice の共有前置きも alert を塗るため）。"
+            "`creation_cvd_info_pair` の前提のうち**半分**を裏づける判定器"
+            if _cvdd.passed
+            else "; ".join(_cvdd.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the puzzle's own rules, the ones it calls its honesty -------------
     #
     # puzzle.py states what keeps SameGame a puzzle rather than a clicker: a
