@@ -14081,6 +14081,50 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- is the signposting true about the map? ---------------------------
+    #
+    # §3 draws progression as a mission graph and §30 says the player should
+    # not have to hold it in their head, so the dungeon tells them: an NPC
+    # says where the key is and where the treasure is, the locked door says
+    # it again, and a stone says which marks to strike and where.
+    #
+    # Those are claims about the map, and nothing checked them.
+    # game_words_match_the_page (C-1855) checks vocabulary, not geography;
+    # creation_adventure_locks_hold (C-1887) checks mechanism, not
+    # directions. A change to room generation could leave the stone pointing
+    # at the wrong room with every number still green.
+    #
+    # The sentences are read off the running page. A judge holding its own
+    # copy of 「東の洞窟…」 goes green against a page that says something else,
+    # which is C-1640's ledger problem. A place counts as named when the
+    # sentence carries a fragment of that room's name that belongs to no
+    # other room - derived from the page's own NAMES, so renaming a room
+    # keeps the judge right instead of breaking it.
+    from sidra_ai.evals.world_directions_are_true import (
+        CLAIMS as _DIRECTION_CLAIMS,
+        evaluate_world_directions_are_true,
+    )
+
+    _dirs = evaluate_world_directions_are_true()
+    c.add(
+        "creation_world_directions_are_true",
+        "世界が口にする道案内が、その世界と合っている数（§3 × §30）",
+        float(_dirs.true_claims),
+        detail=(
+            f"**{_dirs.true_claims}/{len(_DIRECTION_CLAIMS)} の道案内**を"
+            "**頁が実際に言った文**と**頁自身の地図**で突き合わせた: "
+            + "・".join(name for _key, name in _DIRECTION_CLAIMS)
+            + "。**文は判定器に書き写さない**（写せば、頁を書き換えても古い文に対して緑になる）。"
+            "**場所を名指したか**は、その部屋名のうち**他のどの部屋名にも無い断片**が"
+            "文に含まれるかで見るので、部屋の名が変わっても判定器は正しいまま。"
+            "**両方向**——言うこと／言っていることが当たっていること"
+            "（片方向なら「石碑を黙らせる」実装が満点を取る）"
+            if _dirs.passed
+            else "; ".join(_dirs.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- every lock in the dungeon, not just the grass --------------------
     #
     # §3 × §34 事実 1. A lock is a lock when the player who lacks its key
