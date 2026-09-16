@@ -6,9 +6,12 @@ Measured 2026-09-09 through the real API: ``chat("   ")`` returned
 after it. That sentence is a claim about a search - it tells the operator
 their topic is not in the corpus - and no search with a query ever happened.
 
-The empty string is a separate case and was already handled: the HTTP schema
-pins ``min_length=1``, so ``""`` is a 422 before any of this runs. Only
-whitespace reaches the service, which is why the check lives there.
+The empty string used to be a separate case - the HTTP schema pinned
+``min_length=1``, so ``""`` was a 422 before any of this ran while whitespace
+reached the ask-back. That split is exactly what C-1536 removed: an empty
+message is a question the service answers with the ask-back, not a validation
+error, so ``""`` now behaves like whitespace and is checked alongside it. The
+``max_length`` cap stays (an over-long post is a genuine 422).
 """
 
 from __future__ import annotations
@@ -31,11 +34,12 @@ def client() -> TestClient:
     return TestClient(create_app())
 
 
-@pytest.mark.parametrize("message", ["   ", "\t\n ", "　"])
+@pytest.mark.parametrize("message", ["", "   ", "\t\n ", "　"])
 def test_whitespace_is_asked_back_rather_than_answered(
     client: TestClient, message: str
 ) -> None:
-    """Including the ideographic space, which a Japanese keyboard produces."""
+    """Empty and whitespace alike, including the ideographic space a Japanese
+    keyboard produces (the empty string joined this set with C-1536)."""
 
     body = client.post("/v1/chat", json={"message": message}).json()
 
@@ -48,12 +52,16 @@ def test_whitespace_is_asked_back_rather_than_answered(
     assert "何について" in body["answer"], "the answer must ask for a question"
 
 
-def test_the_empty_string_is_still_rejected_by_the_schema(
+def test_the_empty_string_reaches_the_ask_back_not_a_bare_422(
     client: TestClient,
 ) -> None:
-    """The other half of the pair, pinned so the two cannot drift apart."""
+    """C-1536: an empty message is answered by the service (200), not rejected
+    at the schema (422); the length cap still rejects an over-long message."""
 
-    assert client.post("/v1/chat", json={"message": ""}).status_code == 422
+    resp = client.post("/v1/chat", json={"message": ""})
+    assert resp.status_code == 200
+    assert resp.json()["refusal"] == "empty"
+    assert client.post("/v1/chat", json={"message": "あ" * 32_001}).status_code == 422
 
 
 def test_a_real_question_is_untouched(client: TestClient) -> None:
