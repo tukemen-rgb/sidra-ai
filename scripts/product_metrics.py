@@ -2717,6 +2717,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1883: the browser twin of the CLI's C-1627. The page renders DATA with
+    # textContent (no markup) but a browser still acts on bidi/control chars; the
+    # gate lets isolates (U+2066-2069), C1 and ESC reach the excerpt. The page now
+    # strips the same set the CLI does on every DATA insertion, and reports it.
+    from sidra_ai.evals.ui_strips_terminal_controls_from_evidence import (
+        evaluate_ui_strips_terminal_controls_from_evidence,
+    )
+
+    ui_strip = evaluate_ui_strips_terminal_controls_from_evidence()
+    c.add(
+        "ui_strips_terminal_controls_from_evidence",
+        "会話 UI が回答・引用の DATA から端末制御/双方向文字を剥がす",
+        10.0 * ui_strip.checks_passed / ui_strip.checks_total,
+        detail=f"{ui_strip.checks_passed}/{ui_strip.checks_total} checks; "
+               "src/sidra_ai/evals/ui_strips_terminal_controls_from_evidence.py"
+               + ("" if ui_strip.passed else "; " + "; ".join(ui_strip.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1703: the excerpt cap could cut a [REDACTED:...] placeholder in half,
     # showing a meaningless [REDACT fragment - visible to users since C-1689/1691
     # put the excerpt on screen. The excerpt now drops a placeholder whole rather
