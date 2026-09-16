@@ -3057,7 +3057,7 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
 私は `SidraService` を Python から直接呼んでいただけで、社長が実際に
 触る入口を一度も通していなかった）。出たのは 1 件だけ。
 
-- [ ] **C-1536: 空文字だけが HTTP の入口で弾かれ、C-1515 の聞き返しに
+- [~] 着手 2026-09-16 11:14 UTC 辛口ユーザー（外部批評「辛口コメンテーター第11回」の起票を確保。**方針は起票どおり**: chat の schema から `message` の `min_length` を外し空の扱いをサービス層 C-1515 へ一本化・`max_length` は残す。**実測（RED）**: `POST /v1/chat {"message":""}`→**422**、一方 `service.chat("")`→「質問が空のようです。何について調べますか」（refusal=empty）・空白/改行/全角空白は HTTP でも 200 で聞き返す＝差は空文字だけ。RED→実装→GREEN→pytest→5 破壊→判定器 exit 0→`verify_gate_recall.py`→gate。他ループ回避: 制作=辛口クリエイター・板=ループA・監視=進捗監視。） **C-1536: 空文字だけが HTTP の入口で弾かれ、C-1515 の聞き返しに
       届かない。**〔小〕
       再現: `POST /v1/chat {"message": ""}` → **422 `request validation
       failed`**。同じ入力をサービス層に渡すと
