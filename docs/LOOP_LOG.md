@@ -11146,3 +11146,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 **1 回目の判定器は REGRESSED（exit 2）で、merge しなかった**。門に検査を 1 本足したので、使い捨てリポジトリへ「門が呼ぶ全スクリプト」を配る 3 か所と対応するテスト 2 本に `check_metric_names.py` を加えるまで、`gate_is_wired_not_remembered`／`startup_wires_the_gate`／`gate_sees_a_number_taken_upstream` が **3→0** になっていた。C-1800 が 4 本目を足したときと同じ形で、**その注記が原因を先に書いてくれていた**。
 
 **種別の訂正を隠さず書く**: 最初 `GUARD` で登録して判定器が **NO MOVEMENT（exit 1）** を返し、**そのあとで**慣例を確かめた。門・板・計器を測る既存 6 本は **6 本とも OUTCOME**（とくに `board_names_takeable_count` は同じ板の門を測る同型）で、`GUARD` は「守られているのが前提の線」＝新設の対象ではない。よって**最初の登録が誤り**と判断して直したが、**判定が出たあとの変更である**という事実は `product_metrics.py` のコメントにも残した。
+
+2026-09-16 17:26 UTC ループA started
