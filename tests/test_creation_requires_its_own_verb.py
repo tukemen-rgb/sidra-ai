@@ -24,28 +24,64 @@ def test_every_template_is_either_decided_or_explained() -> None:
     assert decided | explained == set(TEMPLATES)
 
 
-def test_the_undecidable_six_say_why_in_words() -> None:
+def test_the_undecidable_ones_say_why_in_words() -> None:
     """And the reason has to be about the measurement.
 
-    A template listed here is NOT being called badly designed. Three of them
-    use the arrow keys as the verb, so there is nothing to withhold; the rest
-    are not finished by a wanderer inside a round. If a reason ever starts
-    describing the template as lacking something, this list has quietly turned
-    into an accusation the measurement cannot support.
+    A template listed here is NOT being called badly designed. Each one needs
+    an agent that can finish something - a dungeon, a course, a board - and
+    none exists yet. If a reason ever starts describing the template as
+    lacking something, this list has quietly turned into an accusation the
+    measurement cannot support.
+
+    C-1885 is why the wording matters. Three templates sat here with the
+    reason 「矢印そのものが動詞なので抜く相手が無い」, which sounded like a fact
+    about them and was a fact about the agent: there was plenty to withhold,
+    and the missing piece was competence on the other side. A reason phrased
+    as 「まだ無い」 is a reason somebody can remove.
     """
 
     for key, why in VERB_UNDECIDABLE.items():
         assert len(why.strip()) > 20, key
-        assert "分けられない" in why or "抜く相手が無い" in why or "抜いても" in why, key
+        assert "まだ無い" in why, key
+        assert "分けられない" in why, key
 
 
-def test_the_judge_shows_four_and_says_so() -> None:
+def test_the_judge_shows_seven_and_says_so() -> None:
     result = evaluate_requires_its_own_verb()
     assert result.failures == ()
     assert result.passed
-    assert result.shown == len(VERB_TEMPLATES) == 4
-    assert result.decided == ("duel", "fishing", "kaiju", "shooter")
+    assert result.shown == len(VERB_TEMPLATES) == 7
+    assert result.decided == (
+        "catch", "duel", "fishing", "kaiju", "marble", "racing", "shooter",
+    )
     assert result.checks_total == result.checks_passed + len(result.failures)
+
+
+def test_the_two_kinds_of_verb_are_crippled_differently() -> None:
+    """A space template loses its action key; a steer template loses the arrows.
+
+    Withholding space from a game whose verb IS the arrows takes nothing away,
+    which is exactly the mistake the old ``VERB_UNDECIDABLE`` entry recorded as
+    a property of the template.
+    """
+
+    kinds = {key: spec["kind"] for key, spec in VERB_TEMPLATES.items()}
+    assert set(kinds.values()) == {"space", "steer"}
+    assert {k for k, v in kinds.items() if v == "steer"} == {"racing", "catch", "marble"}
+
+
+def test_the_steering_agent_asks_the_page_where_to_go() -> None:
+    """racing publishes ``roadAt(d)``; the judge must not carry a second copy.
+
+    The course is two seeded sines. Re-deriving them inside the probe is the
+    drift C-1640 stopped when it made the palette judge read the running page
+    instead of the table, and racing's own notes say the probe may ask.
+    """
+
+    from sidra_ai.evals.requires_its_own_verb import _HARNESS
+
+    assert "roadAt(dist)" in _HARNESS
+    assert "Math.sin" not in _HARNESS
 
 
 def test_the_number_is_coverage_and_not_a_score_out_of_four() -> None:

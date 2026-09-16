@@ -52,26 +52,40 @@ from sidra_ai.creation.probekeys import KEY_EVENT_JS
 #: inside the collector's budget.
 FRAMES = 1800
 
-#: The templates whose own action is a key that can be withheld, and what
-#: 「got somewhere」 means for each. ``measure`` is read off the page after the
-#: run; ``progress`` is what the agent WITH the verb must beat.
+#: The templates whose own action can be withheld, and how.
+#:
+#: ``kind`` says what the verb IS, because that decides what crippling the
+#: agent means. ``"space"`` templates are paced left and right in both runs
+#: and only the action key is taken away. ``"steer"`` templates have no
+#: separate action - the arrow keys ARE the verb - so the crippled run
+#: presses nothing at all while the able run steers.
+#:
+#: C-1885: the three ``"steer"`` templates were in ``VERB_UNDECIDABLE`` until
+#: an agent existed that could actually drive them. That entry said 「矢印
+#: そのものが動詞なので抜く相手が無い」, which was the wrong half of the truth:
+#: there was plenty to withhold, and what was missing was competence on the
+#: other side.
 VERB_TEMPLATES: dict[str, dict[str, str]] = {
-    "fishing": {"verb": "キャストする", "measure": "score"},
-    "kaiju": {"verb": "撃つ", "measure": "cycles"},
-    "shooter": {"verb": "撃つ", "measure": "best"},
-    "duel": {"verb": "斬る", "measure": "alive"},
+    "fishing": {"verb": "キャストする", "kind": "space", "measure": "score"},
+    "kaiju": {"verb": "撃つ", "kind": "space", "measure": "cycles"},
+    "shooter": {"verb": "撃つ", "kind": "space", "measure": "best"},
+    "duel": {"verb": "斬る", "kind": "space", "measure": "alive"},
+    "racing": {"verb": "ハンドルを切る", "kind": "steer", "measure": "dist"},
+    "catch": {"verb": "かごを動かす", "kind": "steer", "measure": "score"},
+    "marble": {"verb": "舵を切る", "kind": "steer", "measure": "score"},
 }
 
 #: Why the rest cannot be decided by this agent. A limit of the measurement,
 #: not a finding about the template - §34 事実 2 is the whole reason this
-#: dictionary exists rather than six confident zeroes.
+#: dictionary exists rather than three confident zeroes.
+#:
+#: All three need an agent that can finish something: a dungeon, a course, a
+#: board. The steering agents above are greedy one-liners over facts the page
+#: already publishes, and there is no equivalent for 「solve the puzzle」.
 VERB_UNDECIDABLE: dict[str, str] = {
-    "racing": "矢印そのものが動詞（ハンドル）なので、SPACE を抜いても何も抜けていない",
-    "catch": "矢印そのものが動詞（かごを動かす）なので、抜く相手が無い",
-    "marble": "矢印そのものが動詞（舵）なので、抜く相手が無い",
-    "adventure": "歩き回るだけでは 1 ラウンドで宝箱に届かない——負けたのが動詞のせいか下手のせいか分けられない",
-    "platformer": "歩き回るだけでは旗に届かない——負けたのが動詞のせいか下手のせいか分けられない",
-    "puzzle": "動詞ありと無しで点が並ぶが、盤を解いているのではなく触れているだけで、歩き回るだけのエージェントには分けられない",
+    "adventure": "鍵を取って宝箱まで辿り着けるエージェントがまだ無い——歩き回るだけでは、負けたのが動詞のせいか下手のせいか分けられない",
+    "platformer": "旗まで跳んで渡れるエージェントがまだ無い——歩き回るだけでは、負けたのが動詞のせいか下手のせいか分けられない",
+    "puzzle": "盤を解けるエージェントがまだ無い——触れているだけで点は並ぶので、歩き回るだけでは動詞の要不要を分けられない",
 }
 
 _SCRIPT = re.compile(r"<script>(.*?)</script>", re.S)
@@ -99,17 +113,59 @@ function down(k){ (handlers.keydown || []).forEach(fn => fn(probeKey(k))) }
 function up(k){ (handlers.keyup || []).forEach(fn => fn(probeKey(k))) }
 function tap(k){ down(k); up(k) }
 const USE_VERB = USE_VERB_TOKEN;
+const KIND = KIND_TOKEN;
 tap(' ');
+let held = null;
+/* Where a competent driver would be heading this frame, asked of the page
+   rather than worked out here. racing publishes `roadAt(d)` and its own
+   notes say the probe may ask it, so the course's two sines are not copied
+   into this file (C-1342's shared-constant rule, C-1640's 「do not read the
+   ledger」). catch has `items` and the basket's own `shown`; marble has
+   `things` and `ball`. Greedy, not perfect - §34 事実 2 asks for competent,
+   and competent is what separates the two runs. */
+function steerWant(){
+  try {
+    if (typeof items !== 'undefined' && typeof shown !== 'undefined') {
+      let low = null;
+      for (const it of items) { if (!low || it.y > low.y) low = it }
+      if (!low) return null;
+      return (low.x > shown + 0.01) ? 'ArrowRight'
+           : (low.x < shown - 0.01) ? 'ArrowLeft' : null;
+    }
+    if (typeof roadAt === 'function' && typeof car !== 'undefined') {
+      const mid = roadAt(dist);
+      return (car.x < mid - 4) ? 'ArrowRight'
+           : (car.x > mid + 4) ? 'ArrowLeft' : null;
+    }
+    if (typeof things !== 'undefined' && typeof ball !== 'undefined') {
+      let next = null;
+      for (const o of things) {
+        if (o.kind !== 'gate' || o.z <= ball.z) continue;
+        if (!next || o.z < next.z) next = o }
+      if (!next) return null;
+      return (next.x > ball.x + 3) ? 'ArrowRight'
+           : (next.x < ball.x - 3) ? 'ArrowLeft' : null;
+    }
+  } catch (e) {}
+  return null;
+}
 for (let i = 0; i < FRAMES_TOKEN; i++) {
-  /* The SAME agent in both runs, so the only difference is the verb. It
-     paces left and right rather than parking, because a parked agent is a
-     different (and worse) agent, not a crippled one. */
-  const k = (Math.floor(i / 40) % 2) ? 'ArrowRight' : 'ArrowLeft';
-  if (i % 40 === 0) down(k);
-  if (i % 40 === 39) up(k);
-  if (USE_VERB && i % 12 === 0) tap(' ');
+  if (KIND === 'space') {
+    /* The SAME agent in both runs, so the only difference is the action
+       key. It paces left and right rather than parking, because a parked
+       agent is a different (and worse) agent, not a crippled one. */
+    const k = (Math.floor(i / 40) % 2) ? 'ArrowRight' : 'ArrowLeft';
+    if (i % 40 === 0) down(k);
+    if (i % 40 === 39) up(k);
+    if (USE_VERB && i % 12 === 0) tap(' ');
+  } else {
+    /* The arrows ARE the verb here, so the crippled run presses nothing. */
+    const want = USE_VERB ? steerWant() : null;
+    if (want !== held) { if (held) up(held); if (want) down(want); held = want }
+  }
   frame();
 }
+if (held) up(held);
 /* Underscored, because the page declares `score` and `state` itself with
    `let` at the top level and a second declaration in the same scope is a
    SyntaxError - which the probe reports as 「unavailable」, i.e. as the
@@ -119,8 +175,10 @@ try { _vScore = (typeof score !== 'undefined') ? score : null } catch (e) {}
 try { _vState = (typeof state !== 'undefined') ? state : null } catch (e) {}
 try { if (typeof bossFacts === 'function') _vCycles = bossFacts().cycles } catch (e) {}
 try { if (typeof roundFacts === 'function') _vBest = roundFacts().best } catch (e) {}
-console.log(JSON.stringify({ score: _vScore, state: _vState,
-                             cycles: _vCycles, best: _vBest }));
+let _vDist = null;
+try { if (typeof raceFacts === 'function') _vDist = raceFacts().dist } catch (e) {}
+console.log(JSON.stringify({ score: _vScore, state: _vState, cycles: _vCycles,
+                             best: _vBest, dist: _vDist }));
 """
 
 
@@ -139,6 +197,7 @@ def _run(job: tuple[str, str, bool]) -> tuple[str, bool, dict | None, str]:
     source = (
         _HARNESS.replace("SCRIPT_PLACEHOLDER", script)
         .replace("USE_VERB_TOKEN", "true" if use_verb else "false")
+        .replace("KIND_TOKEN", json.dumps(VERB_TEMPLATES[template]["kind"]))
         .replace("FRAMES_TOKEN", str(FRAMES))
     )
     try:
@@ -165,6 +224,12 @@ def _reading(template: str, seen: dict) -> float:
         # The duel ends when somebody goes down; a player who never swings is
         # the one who goes down, so still being in play IS the progress.
         return 1.0 if seen.get("state") == "play" else 0.0
+    if template == "racing":
+        # Distance, not laps: a lap is a step function and two runs can sit
+        # either side of one by luck. Distance separates every frame.
+        return float(seen.get("dist") or 0)
+    if template in ("catch", "marble"):
+        return float(seen.get("score") or 0)
     return 0.0
 
 
