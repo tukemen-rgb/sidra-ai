@@ -3088,6 +3088,38 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       **境界**: 「レポートの書き方をドキュメントから探して」は**コーパス質問**
       （C-1866 の `_CORPUS_SOURCES` veto がそのまま効く）。
       → 動かす数字: `chat_answers_how_to_make`（新設・broken→）
+- [~] 作業中 2026-09-16 03:19 UTC 辛口クリエイター　**確保時の判断**: 制作＝自帯。**観点は §6 観察 4（戦闘だけ音圧が高い・実測 -13.8〜-16.5 LUFS）**＝C-1034 の反映先（前巡＝§9 事実 2 から回転）。**まず §6 の実装側を現物で確かめ、製品は正しかった**——kaiju は `BEAT=126`（60fps×2.1 秒＝§6 定量のカット長）で攻撃を刻み、phase（leg→open→down）・土煙・地割れ・引きの 1 枚・反応の間まで在り、`combat()` を呼ぶのは **adventure・duel・shooter・kaiju の 4 型**で、racing と platformer は**自分の docstring に「戦いが無いので段を付けない」と理由を書いている**。**欠けているのは規則の置き場所と、判定器が自分の標本について言うこと**。**採番は最大＋1**（最大 C-1881 → **C-1882**）。**時刻は `date -u`**。 **C-1882: 戦闘の音圧段だけが「どの型に付き、付かない型はなぜか」の表を持たない——分類は判定器の中に 3 つの集合として直書きされ、10 型中 2 型（racing・marble）はどの集合にも入っていない。それでいて `creation_combat_verified` は「10 型で**その型自身の使い方**まで実測した」と印字する。**（2026-09-16 03:19 UTC 辛口クリエイター・§6 観察 4）
+      **実測 2026-09-16 03:18 UTC**（`before-1878.json` と現物）:
+      **(1) 分類は判定器の中にある**。`scripts/product_metrics.py` L7355 付近に
+      `fights={duel,kaiju,shooter}`・`conditional={adventure}`・
+      `quiet={fishing,catch,puzzle,platformer}` の **3 集合が直書き**。
+      合わせて **8 型**。`TEMPLATES` は **10 型**。
+      **`marble` と `racing` はどの集合にも入っていない**ので、
+      **戦闘を名乗っても・黙って段を落としても、どちらでも赤にならない**。
+      **(2) それでも数字は 10 を印字する**。`creation_combat_verified` は **10.0**、
+      detail は「adventure, catch, duel, fishing, kaiju, **marble**, platformer, puzzle,
+      **racing**, shooter: gain step, mute, ceiling and **the template's own use of it**,
+      all read off the running page」——**「その型自身の使い方」を読んだと名乗る 10 型のうち
+      2 型については、規則が何も言っていない**。
+      一方 `creation_combat_loudness` の detail は **8 型しか並べない**。
+      **同じ 1 つの仕組みについて、2 つの数字が違う標本を語っている**。
+      **(3) 兄弟機能は全部、型ごとの理由つきの表を持っている**——
+      `GHOST_TEMPLATES`＋`GHOST_UNWIRED`（7 型ぶんの理由）・`GRAZE_UNWIRED`・
+      `COMBO_UNWIRED`・`ATTRACT_UNWIRED`・`LOSS_UNWIRED`。
+      **戦闘の段だけが例外**で、しかもその表が**製品ではなく計器の中**に在る。
+      **いま壊れてはいない**: `combat(` を実際に呼ぶのは adventure・duel・shooter・kaiju の 4 型だけで、
+      marble と racing は呼んでいない（＝実害ゼロ）。**壊れているのは、それを誰も言っていないこと**。
+      **（処方）** ① `audio.py` の `combat()` の隣に **`COMBAT_FIGHTS` / `COMBAT_CONDITIONAL` /
+      `COMBAT_QUIET`（型ごとに理由を書く）** を置く＝`GHOST_UNWIRED` と同じ形・**製品側に**。
+      ② 判定器は直書きの 3 集合をやめてその表を読む。
+      ③ **3 つが 10 型をちょうど 1 度ずつ覆うこと**を検査する（C-1734 の `WORLD_SCOPED`／
+      `DEVICE_WIDE` と同じ「ちょうど一方に 1 度ずつ」）——**新しい型は分類なしでは入れない**。
+      ④ `creation_combat_verified` の detail が**実際に規則を当てた型だけ**を名乗るようにする。
+      **両方向**: 表だけなら「全部 quiet と書く」実装が満点を取るので、
+      **`COMBAT_FIGHTS` の型は実際に段を上げ、`COMBAT_QUIET` の型は上げない**ことを
+      走行中の頁で確かめる（既存の node 探針がその実測を持っている）。
+      → 動かす数字: `creation_combat_every_template_is_classified`（新設・**8/10＝8.0** → **10**）
+
 - [ ] **C-1880: 調整パネルの欄は「毎回ブリーフィングを見る」なのに、修正の受け答えはそれを「ブリーフィング」と呼ぶ——ブリーフィング画面を見た直後の人が「オフにして」と言うと「すでにその設定です」と返る。**〔小〕（2026-09-16 02:3x UTC 辛口クリエイター・無主で置く）
       **実測 2026-09-16 02:20 UTC**（実 `SidraService`・「レースゲームを作って」の直後）:
       頁の `TUNE_SPEC` が持つ欄は `{'key':'brief','label':'**毎回ブリーフィングを見る**','default':False}`。
