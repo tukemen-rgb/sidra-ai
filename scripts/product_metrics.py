@@ -2717,6 +2717,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1536: an empty /v1/chat message was rejected at the schema (min_length=1)
+    # with a bare 422, never reaching the service's C-1515 ask-back that whitespace
+    # already reached. Dropping min_length unifies empty in the service layer; the
+    # max_length cap stays. Metric: empty reaches the ask-back over both paths (2).
+    from sidra_ai.evals.empty_message_reaches_the_ask_back import (
+        evaluate_empty_message_reaches_the_ask_back,
+    )
+
+    empty_ask = evaluate_empty_message_reaches_the_ask_back()
+    c.add(
+        "empty_message_reaches_the_ask_back",
+        "空の /v1/chat が C-1515 の聞き返しに届く（サービス層と HTTP の両経路）",
+        10.0 * empty_ask.checks_passed / empty_ask.checks_total,
+        detail=f"{empty_ask.checks_passed}/{empty_ask.checks_total} checks; "
+               "src/sidra_ai/evals/empty_message_reaches_the_ask_back.py"
+               + ("" if empty_ask.passed else "; " + "; ".join(empty_ask.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1883: the browser twin of the CLI's C-1627. The page renders DATA with
     # textContent (no markup) but a browser still acts on bidi/control chars; the
     # gate lets isolates (U+2066-2069), C1 and ESC reach the excerpt. The page now
