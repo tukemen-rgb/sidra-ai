@@ -122,6 +122,13 @@ function duelAct(){if(!p||!e)return 0;
   return low<=1?2:(p.hp<3||e.hp<3)?1:0}
 function tempo(){return TENSE[duelAct()]}
 let p,e,state,winner,flash,spark,mash;
+/* The veil fades on the clock, not on the frame count (C-1892).
+   §6 定量 measured a flash at half brightness by ~0.20s, and the old
+   `flash-=0.05` only meant that on a 60Hz screen: at 144Hz the same
+   subtraction ran 2.4x as often and the flash was 2.4x shorter (§26
+   事実 1 calls 120/144Hz ordinary). 3.0 per second IS 0.05 per frame
+   at 60Hz, so the screen the value was chosen on is unchanged. */
+const FLASH_FADE=3.0;let flashClock=0;
 /* The two ways a heart is lost, counted apart (C-1422). They are different
    mistakes: a beam that lands was fired into the lane the player was
    standing in, and a lost clash was a shove that did not push hard enough.
@@ -164,7 +171,7 @@ function overload(f){f.stun=STUN_FRAMES;f.hold=false;f.charge=0;f.over=0;
   if(!REDUCED){f.sq=0.7}
   /* heard at the fighter it happens to (§2 増築, C-1398) */
   sfx('hurt',1,f.x/cv.width);shake(9);hitstop(4);burst(f.x,LANES[f.lane],16,'ALERT_JUICE')}
-function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;spark=0;mash=0;
+function reset(){p=fighter(PX);e=fighter(EX);state='play';winner='';flash=0;flashClock=0;spark=0;mash=0;
   lostBeam=0;lostClash=0;
   rs=(SEED>>>0)||1}
 /* Holding is the authored feel, and for some hands it is the whole wall
@@ -307,7 +314,14 @@ function beamDraw(f,from,dir,c,now){
   if(clash){const j=REDUCED?0:FRAME(3,3,now)*3;
     cx.fillStyle='INK_TOKEN';cx.beginPath();
     cx.arc(cv.width/2+spark*3,y,10+j,0,6.28318);cx.fill()}}
+/* Seconds since the previous callback, clamped. The first frame and a
+   returning tab both hand `draw` a gap that is not a frame, so the
+   fallback is one 60Hz frame and the ceiling is 50ms. */
+function flashStep(now){
+  const gap=flashClock?(now-flashClock)/1000:1/60;flashClock=now;
+  return gap>0?Math.min(gap,0.05):1/60}
 function draw(now){
+  const fstep=flashStep(now);
   cx.fillStyle=scenePaint('SURFACE_TOKEN');cx.fillRect(0,0,cv.width,cv.height);
   /* The ruined skyline, one haze-step off the sky (観察 7). */
   cx.globalAlpha=FAR_A;cx.fillStyle=scenePaint('BORDER_TOKEN');
@@ -317,7 +331,8 @@ function draw(now){
   cx.globalAlpha=1;
   cx.fillStyle=scenePaint('RAISED_TOKEN');cx.fillRect(0,cv.height-24,cv.width,24);
   if(flash>0){cx.globalAlpha=0.5*ease(flash);cx.fillStyle='INK_TOKEN';
-    cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1;flash-=0.05}
+    cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1;
+    flash-=FLASH_FADE*fstep}
   aura(PX,LANES[p.lane],26+p.charge*0.2,'CYAN_TOKEN',now);
   aura(EX,LANES[e.lane],26+e.charge*0.2,'MAGENTA_TOKEN',now);
   /* The locked sightline (C-1309): once the opponent has chosen its lane,

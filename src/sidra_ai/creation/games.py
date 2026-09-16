@@ -267,6 +267,11 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
 const SPOT=0.25+rand()*0.5;
 let pos=0,dir=1,score=0,hits=0,crits=0,casts=0,flash=0,
   msg='SPACE / クリックで合わせる';
+/* The catch flash fades on the clock, not on the frame count (C-1892).
+   `flash-=0.04` was 0.20s of veil on a 60Hz screen and 0.08s on a
+   144Hz one, because the subtraction lived in draw() and draw() runs
+   once per refresh. 2.4 per second IS 0.04 per frame at 60Hz. */
+const FLASH_FADE=2.4;let flashClock=0;
 /* The optional danger (§13 事実 1, C-1331): the middle 35% of the band is
    the 会心 zone - waiting for it risks the marker leaving the band, and
    a cautious edge press still pays its 1. Points and fish are counted
@@ -320,7 +325,12 @@ function step(rt){
   CAST_ARMED=true;
   draw();
   requestAnimationFrame(step)}
-function draw(){const w=cv.width,h=cv.height,now=performance.now();
+/* Seconds since the previous callback, clamped: the first frame and a
+   returning tab both hand draw() a gap that is not a frame. */
+function flashStep(now){
+  const gap=flashClock?(now-flashClock)/1000:1/60;flashClock=now;
+  return gap>0?Math.min(gap,0.05):1/60}
+function draw(){const w=cv.width,h=cv.height,now=performance.now();const fstep=flashStep(now);
   cx.fillStyle=scenePaint('SURFACE_TOKEN');
   cx.fillRect(0,0,w,h);
   /* Clouds first, so the band and the fish sit in front (§7, C-1379). */
@@ -342,7 +352,7 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();
   const bob=[0,-3,0,3][FRAME(4,6,now)];
   /* the catch flash eases out; ease() is the identity when reduced */
   if(flash>0){cx.globalAlpha=0.35*ease(flash);cx.fillStyle='CYAN_TOKEN';
-    cx.fillRect(0,0,w,h);cx.globalAlpha=1;flash-=0.04}
+    cx.fillRect(0,0,w,h);cx.globalAlpha=1;flash-=FLASH_FADE*fstep}
   sprite('marker',40+(w-80)*pos-8,h/2-34,16,68,'MAGENTA_TOKEN');
   /* The fish itself: body, tail, eye (C-1206). Every other empty-fallback
      sprite slot sits over a procedural body; this one had none, so the

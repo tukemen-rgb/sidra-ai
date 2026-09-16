@@ -14151,6 +14151,51 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- how long a flash stays bright, not how often one starts ----------
+    #
+    # §6 定量 measured the owner's episode and found a flash at half
+    # brightness by ~0.20s, checked SIDRA's value once on 2026-08-31, wrote
+    # 「既存値とほぼ一致（変更不要）」and left. `creation_flash_cap` above runs
+    # the real page at 60/120/144Hz, but it counts onsets - how OFTEN the
+    # screen flashes - so the length of a flash had never been measured.
+    #
+    # What that hid was not a drifted constant but where it was spent:
+    # `flash-=0.05` sat inside `draw()`, and `draw()` runs once per refresh
+    # even on the frames the fixed-step `TICK` skips. The simulation was on
+    # the clock and the juice was on the frame count, so the flash got
+    # shorter as the screen got faster - measured at 267/133/111ms for
+    # 60/120/144Hz, the rates §26 事実 1 calls ordinary. C-1892 moved both
+    # veils onto the clock (3.0 and 2.4 per second ARE 0.05 and 0.04 per
+    # frame at 60Hz, so the screen each value was chosen on is unchanged).
+    from sidra_ai.evals.flash_fades_in_real_time import (
+        RATES as _FF_RATES,
+        TOLERANCE as _FF_TOL,
+        evaluate_flash_fades_in_real_time,
+    )
+
+    _ff = evaluate_flash_fades_in_real_time()
+    c.add(
+        "creation_flash_fades_in_real_time",
+        "閃光の長さが画面の速さで変わらない（§6 定量／§26 事実 1）",
+        float(_ff.checks_passed) if _ff.passed else 0.0,
+        detail=(
+            "**描かれた幕の alpha** を録り、山から半分になるまでを"
+            "**実ミリ秒**で測った——"
+            + "、".join(_ff.halves)
+            + f"（許容 {_FF_TOL:.0%}）。"
+            "**3 方向**: (a) どの画面も 60Hz の読みと一致、"
+            "(b) その 60Hz 自身が幕ではなく閃光の帯に居る、"
+            "(c) 幕が実際に塗られている（効果を消して通るのは別の欠陥）。"
+            "**直す前の実測**: duel 60Hz 267ms→144Hz 111ms・"
+            "fishing 60Hz 333ms→144Hz 139ms——**速い画面ほど演出が短い**。"
+            "**変数ではなく画面を読む**（C-1640）: ページが塗るのは"
+            "`k*ease(flash)` なので、`flash` の半減と画面の半減は別の数字"
+            if _ff.passed
+            else "; ".join(_ff.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the puzzle's own rules, the ones it calls its honesty -------------
     #
     # puzzle.py states what keeps SameGame a puzzle rather than a clicker: a
