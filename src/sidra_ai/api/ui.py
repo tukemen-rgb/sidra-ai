@@ -251,10 +251,51 @@ ASK_PAGE = """<!doctype html>
     return refusalMsg;
   }
 
+  // Retrieved content is DATA from outside. textContent keeps it from being
+  // parsed as markup, but a browser still ACTS on direction-changing and
+  // invisible characters the way a terminal does: a bidi override (U+202E) or
+  // isolate (U+2066-2069) reorders what the reader sees, so a citation can
+  // display in an order it was not written in. The CLI removes these on output
+  // for exactly this reason (ask_cli._STRIPPED_CODEPOINTS, C-1627: "the gate can
+  // be widened and a terminal cannot"); a browser is no different (C-1883). The
+  // ingestion gate quarantines RLO/zero-width/BOM but lets the isolates
+  // (U+2066-2069), the C1 controls (U+0080-009F) and ESC through, so they reach
+  // here. Removed on the way out; the count is reported, never done silently.
+  var _stripped = 0;
+  function clean(value) {
+    var text = (value === undefined || value === null) ? "" : String(value);
+    var kept = "";
+    for (var i = 0; i < text.length; i++) {
+      var code = text.charCodeAt(i);
+      var drop = (code < 0x20 && code !== 0x09 && code !== 0x0a)
+        || code === 0x7f
+        || (code >= 0x80 && code <= 0x9f)
+        || (code >= 0x200b && code <= 0x200f)
+        || (code >= 0x202a && code <= 0x202e)
+        || (code >= 0x2066 && code <= 0x2069)
+        || code === 0xfeff;
+      if (drop) { _stripped += 1; } else { kept += text.charAt(i); }
+    }
+    return kept;
+  }
+
+  function reportStripped() {
+    // The CLI's "reported rather than done silently" promise (C-1627), on the
+    // sources region so it rides beside the evidence it is about.
+    if (_stripped > 0) {
+      var note = document.createElement("p");
+      note.className = "note";
+      note.textContent = "注意: 表示できない制御文字 "
+        + _stripped + " 個を取り除いて表示した。";
+      sources.appendChild(note);
+    }
+  }
+
   function render(result) {
-    // Text nodes only. Retrieved content is DATA, so it is never parsed as
-    // markup here, whatever a document happens to contain.
-    answer.textContent = result.answer || "";
+    // Text nodes only, and cleaned: retrieved content is DATA, never parsed as
+    // markup here and never carrying control/bidi characters into the page.
+    _stripped = 0;
+    answer.textContent = clean(result.answer || "");
     if (result.refused) {
       statusLine.textContent = refusalMessage(result);
     } else if ((result.model || {}).finish_reason === "length"
@@ -285,6 +326,7 @@ ASK_PAGE = """<!doctype html>
         note.textContent = "\u5f15\u7528\u306a\u3057\u3002\u7d22\u5f15\u306b\u6839\u62e0\u304c\u7121\u3044\u304b\u3001\u53d6\u308a\u8fbc\u307f\u304c\u307e\u3060\u8d70\u3063\u3066\u3044\u306a\u3044\u3002";
         sources.appendChild(note);
       }
+      reportStripped();
       return;
     }
     var heading = document.createElement("p");
@@ -295,11 +337,11 @@ ASK_PAGE = """<!doctype html>
     citations.forEach(function (c) {
       var item = document.createElement("li");
       var label = document.createElement("strong");
-      label.textContent = (c.label || "") + " ";
+      label.textContent = clean(c.label || "") + " ";
       item.appendChild(label);
       var where = document.createElement("span");
       where.className = "path";
-      where.textContent = (c.repository || "") + " " + (c.path || "");
+      where.textContent = clean((c.repository || "") + " " + (c.path || ""));
       item.appendChild(where);
       if (c.redacted) {
         var flag = document.createElement("span");
@@ -338,7 +380,7 @@ ASK_PAGE = """<!doctype html>
       if (c.excerpt) {
         var evidence = document.createElement("p");
         evidence.className = "excerpt";
-        evidence.textContent = c.excerpt;
+        evidence.textContent = clean(c.excerpt);
         item.appendChild(evidence);
       }
       // A link to the source this citation points at (C-1735). The page showed
@@ -354,7 +396,7 @@ ASK_PAGE = """<!doctype html>
         srcLine.className = "note";
         var srcLink = document.createElement("a");
         srcLink.href = href;
-        srcLink.textContent = href;
+        srcLink.textContent = clean(href);
         srcLink.target = "_blank";
         srcLink.rel = "noopener noreferrer";
         srcLine.appendChild(srcLink);
@@ -363,6 +405,7 @@ ASK_PAGE = """<!doctype html>
       list.appendChild(item);
     });
     sources.appendChild(list);
+    reportStripped();
   }
 
   var artifactList = document.getElementById("artifact-list");
