@@ -64,7 +64,13 @@ class ChatTurn(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=32_000)
+    # No min_length: an empty message is not a validation error but a question
+    # the service answers with a friendly ask-back (C-1515). Rejecting it at the
+    # schema returned a bare 422 to a direct API caller while whitespace, which
+    # passes min_length, reached the ask-back - the one input it was written for
+    # never did (C-1536). The max_length cap stays: an over-long post is a
+    # genuine 422. Empty-handling now lives in one place, the service layer.
+    message: str = Field(max_length=32_000)
     top_k: int = Field(default=5, ge=TOP_K_MIN, le=TOP_K_MAX)
     history: list[ChatTurn] | None = Field(
         default=None,
