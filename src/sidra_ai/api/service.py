@@ -202,7 +202,27 @@ _ARTIFACT_LIST_QUERIES = frozenset({
     "何を作った", "何を作ったの", "何を作りましたか", "なにを作った",
     "これまで作ったものは", "作成したものを見せて", "作ったものの一覧",
     "一覧を見せて", "ファイル一覧", "作ったやつを見せて",
+    # C-1897: kanji and file variants of the noun phrases above, so the
+    # suffix-strip below reduces 「作った物の一覧を見せて」/「作ったファイルの一覧を
+    # 見せて」 to a base the set knows.
+    "作った物の一覧", "作ったファイルの一覧",
 })
+
+
+#: C-1897: request verbs a list phrase ends with. Stripped before the
+#: whole-message match so a natural composition - a made-things noun phrase this
+#: set already knows, plus an ordinary 「見せて/教えて/…」 - reduces to that base.
+#: The same shape as the greeting-suffix strip above, and deliberately NOT a
+#: substring rule: the strip only turns a message into a list request when what
+#: remains is EXACTLY one of the known phrases, so 「作ったものの一覧をドキュメント
+#: から探して」 (a real corpus query, no such suffix) is left alone - the case
+#: C-1844 chose whole-message matching to protect. Longest first, so a shorter
+#: suffix never shadows the polite 「…ください」 form.
+_LIST_REQUEST_SUFFIXES: tuple[str, ...] = (
+    "を見せてください", "を見せてくれ", "を表示してください", "を出してください",
+    "を教えてください", "を確認したい", "を表示して", "を見せて", "を教えて",
+    "を出して", "が見たい", "を見たい", "が知りたい",
+)
 
 
 def _is_artifact_list_query(message: str) -> bool:
@@ -210,7 +230,16 @@ def _is_artifact_list_query(message: str) -> bool:
 
     text = " ".join(message.strip().casefold().split())
     text = text.rstrip(_GREETING_TRAILING)
-    return text in _ARTIFACT_LIST_QUERIES
+    if text in _ARTIFACT_LIST_QUERIES:
+        return True
+    # C-1897: a known noun phrase followed by an ordinary request verb. Strip
+    # the verb and re-check; a match only when the remainder is exactly a known
+    # phrase, so this never widens into a substring rule.
+    for suffix in _LIST_REQUEST_SUFFIXES:
+        if text.endswith(suffix):
+            base = text[: -len(suffix)].rstrip(_GREETING_TRAILING)
+            return base in _ARTIFACT_LIST_QUERIES
+    return False
 
 
 #: C-1866: what a person asks ABOUT the page that was just made. The features

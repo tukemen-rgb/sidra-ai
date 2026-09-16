@@ -1488,6 +1488,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1897: the whole-message match missed natural composition -
+    # 「作ったものの一覧を見せて」 (a base the set knows + an ordinary request verb)
+    # fell through to corpus retrieval. Both directions: natural phrasings are
+    # recognised, real corpus queries are not.
+    from sidra_ai.evals.chat_lists_made_things_for_natural_phrasing import (
+        evaluate_chat_lists_made_things_for_natural_phrasing,
+    )
+
+    made_list_natural = evaluate_chat_lists_made_things_for_natural_phrasing()
+    c.add(
+        "chat_lists_made_things_for_natural_phrasing",
+        "「作ったものの一覧を見せて」など自然な言い方でも一覧で答える",
+        10.0 * made_list_natural.checks_passed / made_list_natural.checks_total,
+        detail=f"{made_list_natural.checks_passed}/{made_list_natural.checks_total} checks; "
+               "src/sidra_ai/evals/chat_lists_made_things_for_natural_phrasing.py"
+               + ("" if made_list_natural.passed
+                  else "; " + "; ".join(made_list_natural.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1847: 「さっきのゲームを消して」 got the list of things that can be changed,
     # 「捨てて」 the no-evidence boilerplate, 「スライドを消して」 the kind refusal -
     # three wrong answers for one request, none saying deletion is not offered.
