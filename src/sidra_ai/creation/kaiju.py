@@ -400,11 +400,12 @@ function draw(){const now=performance.now();
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('周期 '+cycles+'/3  脚 '+Math.max(0,boss.legHp),W-190,5+hudBand(13,1));
   if(state!=='fight'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
-    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.textAlign='center';
+    cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a=state==='won'?'巨獣、沈黙。':'部隊は退いた。';
-    cx.fillText(a,W/2-a.length*10,H/2-8);
+    cx.fillText(a,W/2,H/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
-    if((typeof roundAskReady!=='function'||roundAskReady())){const b='R でもう一度';cx.fillText(b,W/2-b.length*6.5,H/2+18)}}}
+    if((typeof roundAskReady!=='function'||roundAskReady())){const b='R でもう一度';cx.fillText(b,W/2,H/2+18)}cx.textAlign='left'}}
 /* One tap from the result goes again (§8 事実 3). The keyboard restart
    above is the only one this template had, which on a phone meant the
    result screen was a dead end. */

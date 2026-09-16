@@ -438,12 +438,13 @@ function draw(now){
   if(msgT>0){msgT--;cx.fillStyle='SCRIM_TOKEN'+'d9';cx.fillRect(20,H-34,W-40,26);
     cx.fillStyle='INK_TOKEN';cx.fillText(msg,30,H-16)}
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
-    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.textAlign='center';
+    cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a='灯りは旗までとどいた。';
-    cx.fillText(a,W/2-a.length*10,H/2-8);
+    cx.fillText(a,W/2,H/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     const b='宝石 '+me.gems+' 個 / 落下 '+respawns+' 回'+(((typeof roundAskReady!=='function'||roundAskReady()))?' / R かタップでもう一度':'');
-    cx.fillText(b,W/2-b.length*6.5,H/2+18)}}
+    cx.fillText(b,W/2,H/2+18);cx.textAlign='left'}}
 function platFacts(){return{x:me.x,y:me.y,vy:me.vy,ground:me.ground,
   squash:me.sq,
   trail:TRAIL.map(s=>s.x),trailY:TRAIL.map(s=>s.y),

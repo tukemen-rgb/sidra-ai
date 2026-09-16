@@ -258,12 +258,13 @@ function draw(now){
   cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,10+hudBand(13,3));
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';
     cx.fillRect(0,0,cv.width,cv.height);
-    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
+    cx.fillStyle='INK_TOKEN';cx.textAlign='center';
+    cx.font=hudPx(20)+'px ui-monospace,monospace';
     const a=cleared?'全部消えた。':'もう消せる手がない。';
-    cx.fillText(a,cv.width/2-a.length*10,cv.height/2-8);
+    cx.fillText(a,cv.width/2,cv.height/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     const b='得点 '+score+(((typeof roundAskReady!=='function'||roundAskReady()))?' / SPACE か R でもう一度':'');
-    cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}}
+    cx.fillText(b,cv.width/2,cv.height/2+18);cx.textAlign='left'}}
 /* Only the settling is the world here (§26, C-1608); the picture is
    drawn every callback either way. */
 function step(rt){if(TICK(rt)){worldStep();settle()}

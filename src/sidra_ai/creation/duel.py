@@ -402,10 +402,11 @@ function draw(now){
     if(at>=0){cx.fillRect(gx+gw/2,gy,at*gw/2,8)}
     else{cx.fillRect(gx+gw/2+at*gw/2,gy,-at*gw/2,8)}}
   if(state==='end'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
-    cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
-    cx.fillText(winner,cv.width/2-winner.length*10,cv.height/2-6);
+    cx.fillStyle='INK_TOKEN';cx.textAlign='center';
+    cx.font=hudPx(20)+'px ui-monospace,monospace';
+    cx.fillText(winner,cv.width/2,cv.height/2-6);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
-    if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('SPACE / タップでもう一度',cv.width/2-78,cv.height/2+20)}}}
+    if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('SPACE / タップでもう一度',cv.width/2,cv.height/2+20)}cx.textAlign='left'}}
 reset();step();
 """
 

@@ -21355,6 +21355,57 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the end screen's headline, measured by the font ----------------
+    #
+    # §35 (added with C-1896): `measureText` returns the font's own advance
+    # width, and UAX #11 gives a wide character one Em against a narrow
+    # one's half - so 「文字数 × サイズ」 is the assumption that every
+    # character is full-width. Seven templates centred their result line
+    # that way. The assumption is EXACT for a line with no digits in it,
+    # which is why it survived: 「巨獣、沈黙。」 measured 120.0 either way,
+    # while shooter's 「撃墜 999 機・得点 1234567。」 sat 51.7px off centre
+    # and drifted further with every digit the score gained.
+    #
+    # No Python could see this - a string's width is a fact about the font.
+    # So the real page is opened in the real Chromium, `fillText` is wrapped
+    # to record what was drawn and where, each template's own end state is
+    # set, and the browser is asked for the true width. Both idioms read the
+    # same way (textAlign centre means x is the middle), so what is checked
+    # is where the ink lands rather than which idiom put it there.
+    from sidra_ai.evals.end_text_is_centred import (
+        END_STATES as _ET_STATES,
+        NO_END_SCREEN as _ET_NONE,
+        TOLERANCE_PX as _ET_TOL,
+        evaluate_end_text_is_centred,
+    )
+
+    _et = evaluate_end_text_is_centred()
+    c.add(
+        "creation_end_text_is_centred",
+        "終幕の見出しが、フォントの実測どおり中央にある（§35）",
+        float(_et.checks_passed) if _et.passed else 0.0,
+        detail=(
+            f"**{len(_ET_STATES)} 型**の生成ページを**本物の Chromium で開き**、"
+            "`fillText` の描画位置を記録して**その場で `measureText`** に真の幅を聞き、"
+            f"中央との差を測った（許容 {_ET_TOL}px）——"
+            + "、".join(_et.centred)
+            + f"。**残り {len(_ET_NONE)} 型は理由つき**: "
+            + "・".join(f"{k}＝{v}" for k, v in sorted(_ET_NONE.items()))
+            + "。**直す前の実測**: shooter 「撃墜 999 機・得点 1234567。」が **-51.7px**、"
+            "platformer +1.9px、puzzle +1.6px。"
+            "**adventure・duel・kaiju・racing は直す前から中央にあった**"
+            "——見出しが全角だけで、`文字数 × サイズ` がたまたま正解だったため"
+            "（§35 事実 2）。**数字が 1 つ混じった行だけが壊れる**。"
+            "**HUD より大きい行が無ければ「終幕が出ていない」と報告する**"
+            "（marble を得点帯で測って -192.9px と出しかけた穴を塞いだ）"
+            if _et.passed
+            else ("Chromium がこの機械に無いので問いを立てられなかった"
+                  if not _et.ran
+                  else "; ".join(_et.failures[:4]))
+        ),
+        kind=OUTCOME,
+    )
+
     # --- and the other direction: what a sentence must NOT turn ---------
     #
     # §9 事実 2's market complaint (2) is 「修正が別箇所を壊す」, and unlike the

@@ -616,10 +616,11 @@ function glow(x,y,r,now){const g=cx.createRadialGradient(x,y,4,x,y,r);
   g.addColorStop(0,'#f5d89a55');g.addColorStop(1,'#00000000');
   cx.fillStyle=g;cx.fillRect(x-r,y-r,r*2,r*2)}
 function shade(a,b){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
-  cx.fillStyle='INK_TOKEN';cx.font=hudPx(20)+'px ui-monospace,monospace';
-  cx.fillText(a,cv.width/2-a.length*10,cv.height/2-8);
+  cx.fillStyle='INK_TOKEN';cx.textAlign='center';
+  cx.font=hudPx(20)+'px ui-monospace,monospace';
+  cx.fillText(a,cv.width/2,cv.height/2-8);
   cx.font=hudPx(13)+'px ui-monospace,monospace';
-  cx.fillText(b,cv.width/2-b.length*6.5,cv.height/2+18)}
+  cx.fillText(b,cv.width/2,cv.height/2+18);cx.textAlign='left'}
 function step(rt){const now=performance.now();
   /* The world advances on real time, not on this display's refresh
      rate (§26, C-1608 — the gate C-1607 built and racing proved).
