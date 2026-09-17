@@ -2136,6 +2136,29 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1911: "How are deployments done?" answered with the rollback command,
+    # not the deployment description - the answer-opening score let a low-value
+    # word ("done") on a distractor sentence outweigh the salient word that
+    # missed its own sentence over a bare plural ("deployments" vs
+    # "deployment"). The opening score now folds a trailing plural s on both
+    # sides (retrieval untouched), so the topical sentence ties and, on the tie,
+    # the earlier - here topical - sentence wins.
+    from sidra_ai.evals.answer_body_opens_on_the_topical_sentence import (
+        evaluate_answer_body_opens_on_the_topical_sentence,
+    )
+
+    answer_topical = evaluate_answer_body_opens_on_the_topical_sentence()
+    c.add(
+        "answer_body_opens_on_the_topical_sentence",
+        "抽出回答の本文が、低情報語で当たった文でなく話題の文で開く（複数形も単数の話題文に当たる）",
+        10.0 * answer_topical.checks_passed / answer_topical.checks_total,
+        detail=f"{answer_topical.checks_passed}/{answer_topical.checks_total} checks; "
+               "src/sidra_ai/evals/answer_body_opens_on_the_topical_sentence.py"
+               + ("" if answer_topical.passed
+                  else "; " + "; ".join(answer_topical.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1828: the multi-turn sibling of C-1827. A subject-less follow-up
     # (「もっと詳しく」) carries the previous question into searched_query, and the
     # excerpt follows it (C-1782) - but the answer body was fed the bare turn, so

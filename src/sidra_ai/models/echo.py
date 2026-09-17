@@ -59,6 +59,23 @@ def _reply_in_japanese(text: str) -> bool:
     return _is_japanese(text) or not _LATIN.search(text)
 
 
+def _fold_plural(token: str) -> str:
+    """Fold a trailing plural ``s`` so 「deployments」 matches 「deployment」.
+
+    Used only to score which sentence opens the answer body (C-1911), never for
+    retrieval - BM25 tokenization is measured separately and left untouched. A
+    query's one salient word missing its own sentence over a bare plural handed
+    the opening to a distractor that shared a low-value word ("done"), so the
+    answer box quoted the wrong sentence. The fold is applied to both the query
+    and the sentence tokens, so the comparison stays symmetric. Guarded: tokens
+    of three characters or fewer, and an ``ss`` ending ("process", "access"),
+    are left alone.
+    """
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
 #: Below this many characters a "sentence" is a label or list-marker
 #: fragment (「D-CY4.」「A.」), not content a reader can act on.
 _MIN_INFORMATIVE = 12
@@ -206,14 +223,17 @@ class EchoModelAdapter(LocalModelAdapter):
         # behaviour, so ordinary answers are unchanged. A tie keeps the earliest
         # sentence, so a topic discussed from the start still opens at the start.
         head = 0
-        terms = set(tokenize(query))
+        terms = {_fold_plural(t) for t in tokenize(query)}
         if terms:
             best = 0
             span_start = 0
             for cut in [m.end() for m in boundary.finditer(collapsed)] + [len(collapsed)]:
                 if cut <= span_start:
                     continue
-                score = len(terms & set(tokenize(collapsed[span_start:cut])))
+                sentence_terms = {
+                    _fold_plural(t) for t in tokenize(collapsed[span_start:cut])
+                }
+                score = len(terms & sentence_terms)
                 if score > best:
                     best, head = score, span_start
                 span_start = cut
