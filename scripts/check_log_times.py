@@ -127,7 +127,19 @@ CENSUS_NEEDS_COMMITS = 50
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=True)
+    # errors="replace" because git's own output is not always valid UTF-8.
+    # A combined diff (``git show`` of a merge) puts the enclosing line in the
+    # ``@@@ ... @@@`` hunk header and **truncates it by bytes**, so a Japanese
+    # log line is cut mid-character: the byte 0xef arrives with no
+    # continuation and strict decoding raises. Measured on the merge that
+    # brought three other lanes' LOOP_LOG entries in (C-1941) - this script
+    # crashed with a traceback instead of checking anything, which means the
+    # gate was refusing every push that followed a concurrent merge. Nothing
+    # is weakened by replacing: the header is context this script never
+    # reads, and the added lines it does read arrive whole.
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, errors="replace"
+    )
 
 
 def _added_lines(diff: str) -> list[str]:
