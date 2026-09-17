@@ -1370,3 +1370,39 @@ SIDRA の蓄積は全部 `localStorage` に置いてある。**その置き場�
   **全角だけの文字列でぴたりと一致する**のが、この仮定が長く生き延びた理由。
 - SIDRA での反映先: C-1896（終幕の 1 行を数えずに測る・判定器
   `creation_end_text_is_centred`）
+
+## 36. canvas は、中身を書かなければ読み上げに何も渡さない（外部調査 2026-09-17・辛口クリエイターループ）
+
+§28 は耳・§29 は手・§30 は記憶のアクセシビリティを決めたが、**目の代わりに
+読み上げる人**のことは §1〜§35 のどこにも書いていなかった。SIDRA の生成物は
+**canvas 1 枚が中身のすべて**なので、ここは他のどの型よりも効く。
+URL は 2026-09-17 に実際に開いて確認。
+
+- 事実 1: **`<canvas>` の中に書いた内容が、読み上げに渡る代替内容**——
+  「The `<canvas>` element, like the `<img>`, `<video>`, `<audio>`, and
+  `<picture>` elements, must be made accessible by providing fallback text
+  ... just insert the alternate content inside the `<canvas>` element to be
+  accessed by screen readers, spiders, and other automated bots.」
+  **canvas を描ける browser はその中身を無視して描く**ので、**見える人には
+  1 ピクセルも変わらない**。「別の browser を使え」と書くのは助けにならない、
+  とも明記されている。
+  （出典: https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Basic_usage）
+- 事実 2: **WCAG 1.1.1**——「All non-text content that is presented to the
+  user has a text alternative that serves the equivalent purpose」。
+  ただしゲームのように**そのままでは文章にできないもの**には逃げ道があり、
+  「If non-text content is a test or exercise that would be invalid if
+  presented in text ... then text alternatives at least provide
+  **descriptive identification**」。
+  **全部を説明しろとは言っていない。「これが何か」は名乗れ、と言っている。**
+  （出典: https://www.w3.org/WAI/WCAG22/Understanding/non-text-content.html）
+- 学び: SIDRA の canvas は **3 か所とも空**
+  （`<canvas id="stage" …></canvas>` / 絵 / 3D プレビュー）。
+  周りに操作説明の `<p>` はあるが、**canvas 自身は何も名乗らない**。
+  **最小で正しい直しは「descriptive identification」**——
+  何のページで、何が描かれていて、どう遊ぶのかを canvas の中に 1〜2 文。
+  **見える人の画面は変わらない**のに、**読み上げには 0 から何かが渡る**。
+  生成物ごとに中身が違うので、**固定文ではなく、そのページが既に知っている
+  題名・型・操作説明から組む**のが筋。
+- SIDRA での反映先: C-1907（canvas の代替内容・判定器
+  `creation_canvas_names_itself`）
+
