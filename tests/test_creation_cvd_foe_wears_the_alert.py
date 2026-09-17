@@ -34,8 +34,16 @@ def test_every_template_sits_in_exactly_one_table():
 
 
 def test_a_page_with_a_foe_is_not_excused_as_having_none():
-    # adventure draws its roamers with MAGENTA_TOKEN, so calling it
-    # foe-less would be a false excuse; it is named as unreached instead.
-    assert "adventure" in NOT_YET_REACHED
+    # adventure draws its roamers with MAGENTA_TOKEN. C-1903 named it
+    # unreached rather than foe-less; C-1905 reached it, so it belongs in
+    # the measured table and in neither excuse table.
+    assert "adventure" in FOE_PAGES
     assert "adventure" not in NO_FOE
-    assert NOT_YET_REACHED["adventure"].strip()
+    assert "adventure" not in NOT_YET_REACHED
+
+
+def test_every_unreached_entry_carries_a_reason():
+    # The table may be empty; an entry without a reason is a page dropped
+    # without saying why.
+    for template, why in NOT_YET_REACHED.items():
+        assert why.strip(), template

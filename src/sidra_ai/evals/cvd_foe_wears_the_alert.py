@@ -54,6 +54,27 @@ FOE_PAGES: dict[str, dict[str, str]] = {
         "hero": "[ship.x, ship.y]",
         "foe": "[foes[0].x, foes[0].y]",
     },
+    "adventure": {
+        "request": "冒険ゲームを作って",
+        # The roamers live past the entrance, and walking there with arrow
+        # keys did not arrive (C-1903). The board already had the simpler
+        # way: `world_directions_are_true` stands the hero where it wants
+        # by setting the page's own `room` and `hero.x/y` - the licence
+        # C-1891 wrote for placing state a probe is allowed to place. The
+        # colours are still the page's own; only the standing is arranged.
+        "drive": "press(' '); lift(' ');"
+                 " (function(){ for (var r = 1; r < enemies.length; r++) {"
+                 "   if (enemies[r] && enemies[r].some(function(x){return x.alive})) {"
+                 "     room = r; state = 'play';"
+                 "     var a = enemies[r].filter(function(x){return x.alive})[0];"
+                 "     hero.x = a.x - 40; hero.y = a.y; hero.inv = 0; hero.swing = 0;"
+                 "     break } } })();",
+        "each": "",
+        "ready": "typeof enemies !== 'undefined' && typeof room !== 'undefined'"
+                 " && enemies[room] && enemies[room].some(x=>x.alive)",
+        "hero": "[hero.x, hero.y]",
+        "foe": "(function(){var a=enemies[room].filter(x=>x.alive);return [a[0].x, a[0].y]})()",
+    },
     "duel": {
         "request": "ビームで撃ち合うゲームを作って",
         "drive": "press(' '); lift(' ');",
@@ -84,12 +105,7 @@ NO_FOE: dict[str, str] = {
 #: precisely to stop a page being excused for something it does not have.
 #: A gap named as a gap can be taken; a gap dressed as a design decision
 #: cannot.
-NOT_YET_REACHED: dict[str, str] = {
-    "adventure": "roamer は部屋ごとに居て、入口の部屋には居ない——"
-                 "主役を歩かせて同じ部屋に立たせる探針が要る（矢印を押す程度では届かなかった）。"
-                 "**敵は `sprite('enemy',…,'MAGENTA_TOKEN')` で描かれている**ので、"
-                 "「敵が居ない」ではなく「まだ測れていない」",
-}
+NOT_YET_REACHED: dict[str, str] = {}
 
 #: How close a mark's box has to come to the entity's own coordinates to
 #: count as covering it.

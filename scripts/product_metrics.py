@@ -14285,10 +14285,10 @@ def measure_creation(c: Collector) -> None:
     # hero and the foe stand.
     #
     # Three tables, not two: a page with no foe is excused, and a page with
-    # a foe this probe cannot yet reach is named as unreached. adventure
-    # draws its roamers with MAGENTA_TOKEN but keeps them in the rooms past
-    # the entrance, so calling it foe-less to keep the sheet clean would be
-    # the false excuse C-1896 added a check to catch.
+    # a foe this probe cannot yet reach is named as unreached rather than
+    # dressed up as foe-less (the false excuse C-1896 added a check to
+    # catch). C-1903 put adventure in that middle table; C-1905 emptied it
+    # by standing the hero beside a roamer instead of walking there.
     from sidra_ai.evals.cvd_foe_wears_the_alert import (
         NOT_YET_REACHED as _FOE_LATER,
         NO_FOE as _FOE_NONE,
@@ -14308,9 +14308,12 @@ def measure_creation(c: Collector) -> None:
             + "。**両方向**: 敵に alert が乗っていること、**主役には乗っていないこと**"
             "（全部を alert で塗る実装は後者で落ちる）。"
             f"**敵の居ない {len(_FOE_NONE)} 型は理由つきで除外**。"
-            f"**敵は居るがまだ立てていない {len(_FOE_LATER)} 型は「除外」ではなく「未到達」として別表**に置く"
-            "——`sprite('enemy',…,'MAGENTA_TOKEN')` で描かれている頁を"
-            "「敵が居ない」と書けば、それは C-1896 で塞いだ嘘の言い訳になる。"
+            f"**「敵は居るがまだ立てていない」表はいま {len(_FOE_LATER)} 件**"
+            "——C-1903 ではここに adventure が居たが、"
+            "**歩かせる代わりに `room` と `hero.x/y` を置く**（`world_directions_are_true` と同じ作法・"
+            "C-1891 の licence）ことで C-1905 が測れるようにした。"
+            "**表を空にできたのは、穴を穴として名前をつけて残したから**"
+            "——「敵が居ない」に混ぜていれば誰も取りに来なかった。"
             "**C-1891 が動かせなかった破壊（shooter の `MAGENTA_TOKEN` を 3 か所とも主役の色に）が、"
             "ここでは赤くなる**"
             if _foe.passed
