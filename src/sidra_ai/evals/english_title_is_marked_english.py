@@ -13,8 +13,11 @@ while C-1908 put page text into a live region, which is exactly where a
 screen reader picks it up. So a Japanese page was handing a Japanese voice
 an unmarked English word, three or four times over.
 
-What this reads is the **finished page**, not the helper: `generate_art`
-and `generate_game` are driven and their HTML parsed (C-1640).
+What this reads is the **finished page**, not the helper: all four
+surfaces that build one - games, art, decks and the 3D preview - are
+driven and their HTML parsed (C-1640). Documents produce markdown and
+gifs produce image bytes, so neither has a `lang` to get wrong; that was
+measured rather than assumed (C-1920).
 
 Four things, because each of the plausible wrong fixes passes the others:
 
@@ -30,6 +33,14 @@ Four things, because each of the plausible wrong fixes passes the others:
       whole line is the obvious wrong fix - and it satisfies (a).
   (d) the page still declares `lang="ja"`. (a) is trivially satisfiable by
       flipping the document to English and breaking 3.1.1 instead.
+  (e) and where a surface lets a model overlay the wording afterwards
+      (`with_copy`), the heading still follows the new title. Marking the
+      heading makes that overlay's anchor fragile - it has to be built in
+      the marked form or it matches nothing and the page silently keeps the
+      old wording while `<title>` moves on. That is the regression
+      `test_game_copy_overlay` caught for C-1907; the deck had no such test
+      because its own only uses a Japanese title, which is never marked, so
+      sabotage D3 of C-1920 went green until this check existed.
 """
 
 from __future__ import annotations
@@ -46,6 +57,14 @@ ENGLISH_CASES: tuple[tuple[str, str, str, int], ...] = (
     ("game", "make a racing game with an alien", "alien", 2),
     ("art", "make art of an owl", "owl", 2),
     ("art", "make art of abstract shapes", "abstract shapes", 2),
+    # C-1920: the other two surfaces that build an HTML page. The deck shows
+    # its title once (the cover heading); the 3D preview shows it twice, and
+    # the second is the canvas's fallback content - the only string a reader
+    # who cannot see the spinning solid is handed at all (§36).
+    ("deck", "make a deck about an owl", "owl", 1),
+    ("deck", "make a deck about abstract shapes", "abstract shapes", 1),
+    ("model3d", "make a model of an owl", "owl", 2),
+    ("model3d", "make a model of an octopus", "octopus", 2),
 )
 
 #: The same two surfaces asked in Japanese. Nothing here may be marked.
@@ -54,12 +73,15 @@ JAPANESE_CASES: tuple[tuple[str, str], ...] = (
     ("game", "釣りゲームを作って"),
     ("art", "海のアートを作って"),
     ("art", "螺旋のアートを作って"),
+    ("deck", "事業計画のスライドを作って"),
+    ("model3d", "魚の3Dモデルを作って"),
 )
 
 _JAPANESE_SCRIPT = re.compile(r"[぀-ゟ゠-ヿ一-鿿々ー]")
 _SPAN_EN = re.compile(r'<span lang="en">(.*?)</span>', re.S)
 _SCRIPTISH = re.compile(r"<script.*?</script>|<style.*?</style>", re.S)
 _TITLE_EL = re.compile(r"<title>.*?</title>", re.S)
+_H1 = re.compile(r"<h1>(.*?)</h1>", re.S)
 _HTML_TAG = re.compile(r"<html[^>]*>")
 
 
@@ -73,10 +95,29 @@ class MarkedEnglishResult:
 
 
 def _render(surface: str, request: str) -> str:
-    from sidra_ai.creation.art import generate_art
-    from sidra_ai.creation.games import generate_game
+    """The finished page for one surface, however that surface hands it over.
 
-    return (generate_game if surface == "game" else generate_art)(request).html
+    The four do not agree on the field: games and art carry `.html`, decks
+    carry `.html` too, and the 3D model carries `.preview_html` beside the
+    .obj/.mtl it exists to produce. Documents (markdown) and gifs (image
+    bytes) build no HTML page at all, so they are not here - measured, not
+    assumed (C-1920).
+    """
+
+    from sidra_ai.creation.art import generate_art
+    from sidra_ai.creation.decks import generate_deck
+    from sidra_ai.creation.games import generate_game
+    from sidra_ai.creation.models3d import generate_model3d
+
+    if surface == "game":
+        return generate_game(request).html
+    if surface == "art":
+        return generate_art(request).html
+    if surface == "deck":
+        return generate_deck(request).html
+    if surface == "model3d":
+        return generate_model3d(request).preview_html
+    raise ValueError(f"no renderer for surface {surface!r}")
 
 
 def _displayed(html: str) -> str:
@@ -93,7 +134,7 @@ def evaluate_english_title_is_marked_english() -> MarkedEnglishResult:
     # The table first: a sheet that only asks English requests cannot catch a
     # marker that marks everything, and one that only asks Japanese cannot
     # catch a marker that marks nothing. Both surfaces need both.
-    for surface in ("game", "art"):
+    for surface in ("game", "art", "deck", "model3d"):
         has_en = any(s == surface for s, _r, _t, _n in ENGLISH_CASES)
         has_ja = any(s == surface for s, _r in JAPANESE_CASES)
         if has_en and has_ja:
@@ -152,6 +193,34 @@ def evaluate_english_title_is_marked_english() -> MarkedEnglishResult:
             checks += 1
 
         readings.append(f"{surface}「{request}」→ 「{title}」×{len(mine)}")
+
+    # (e) the overlay path, for the surfaces that have one
+    for surface, was, now in (
+        ("game", "make a game about an octopus", "giant squid"),
+        ("deck", "make a deck about an owl", "barn owl"),
+    ):
+        from sidra_ai.creation.decks import generate_deck
+        from sidra_ai.creation.games import generate_game
+
+        built = (generate_game if surface == "game" else generate_deck)(was)
+        after = built.with_copy(title=now)
+        head = _H1.search(after.html)
+        # The HEADING, not the whole page. A game's honesty note quotes the
+        # subject the operator actually asked for and explains why it was not
+        # depicted - rewriting that to a model's later title would make the
+        # note lie, so `with_copy` leaves it alone by design (C-1431). This
+        # check went red on exactly that before it was narrowed, which is the
+        # judge being wrong rather than the page.
+        inside = head.group(1) if head else ""
+        if inside != f'<span lang="en">{now}</span>':
+            failures.append(
+                f"{surface}: after with_copy(「{now}」) the heading reads "
+                f"「{inside}」 - the overlay's anchor no longer matches the "
+                "marked heading, so the page keeps the old wording"
+            )
+        else:
+            checks += 1
+            readings.append(f"{surface} with_copy →「{now}」")
 
     # (b) a Japanese page carries no mark at all
     for surface, request in JAPANESE_CASES:

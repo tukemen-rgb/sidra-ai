@@ -14547,6 +14547,11 @@ def measure_creation(c: Collector) -> None:
     # Read off the finished page (C-1640). `<title>` is excluded because it
     # is text-only and cannot carry an inner mark; §37 records that as the
     # specification's limit rather than something to work around.
+    #
+    # C-1920 widened it from two surfaces to all four that build an HTML
+    # page - games, art, decks, the 3D preview. One metric rather than four,
+    # because per-surface numbers let one green surface make the whole thing
+    # look green, and because it is the same question everywhere.
     from sidra_ai.evals.english_title_is_marked_english import (
         ENGLISH_CASES as _ETM_EN,
         JAPANESE_CASES as _ETM_JA,
@@ -14560,7 +14565,9 @@ def measure_creation(c: Collector) -> None:
         float(_etm.checks_passed) if _etm.passed else 0.0,
         detail=(
             f"**英語の依頼 {len(_ETM_EN)} 件・日本語の依頼 {len(_ETM_JA)} 件**を"
-            "**実際に生成してページを読んだ**——"
+            "**実際に生成してページを読んだ**（**HTML のページを作る 4 面すべて**"
+            "——games・art・decks・3D プレビュー。documents は markdown、"
+            "gifs は画像データで `lang` を持たないことを**測って確かめた**・C-1920）——"
             + "、".join(_etm.readings[:4])
             + "。"
             "**4 つ訊く**: (a) 題名が**表示される場所すべて**で `lang=\"en\"` を持つ"
@@ -14574,7 +14581,9 @@ def measure_creation(c: Collector) -> None:
             "——文書ごと英語にすれば (a) は通るが、今度は 3.1.1 を壊す。"
             "**直す前**: 「make a game about an octopus」のページに `octopus` が"
             "**印無しで 4 か所**（`<title>`・`<h1>`・正直note・canvas 代替内容）、"
-            "「make art of an owl」に `owl` が **2 か所**"
+            "「make art of an owl」に `owl` が **2 か所**、"
+            "**C-1920 の時点で deck に 1 か所・model3d に 2 か所**"
+            "（うち 1 つは **canvas 代替内容**＝回る立体を見られない読み手に渡る唯一の文字列）"
             if _etm.passed
             else "; ".join(_etm.failures[:4])
         ),

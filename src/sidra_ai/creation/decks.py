@@ -30,6 +30,7 @@ from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.vocabulary import (
+    marked_english,
     drop_english_frame,
     drop_request_adverbs,
     drop_size_phrases,
@@ -120,7 +121,14 @@ class GeneratedDeck:
         clean = " ".join(title.split())[:80]
         html = self.html.replace(
             f"<title>{escape(self.title)}</title>", f"<title>{escape(clean)}</title>"
-        ).replace(f"<h1>{escape(self.title)}</h1>", f"<h1>{escape(clean)}</h1>")
+        ).replace(
+            # C-1920: the cover heading carries the title in its MARKED form
+            # (C-1918), so the anchor has to be built that way too - `escape`
+            # alone matches nothing and the overlay silently keeps the old
+            # wording. `<title>` is text-only and stays plain.
+            f"<h1>{marked_english(self.title)}</h1>",
+            f"<h1>{marked_english(clean)}</h1>",
+        )
         return replace(self, title=clean, html=html)
 
 
@@ -595,7 +603,7 @@ footer{{margin-top:24px;border-top:1px solid {t["border"]};padding-top:14px;
  font-size:12px;color:{t["muted"]}}}
 </style></head>
 <body><main>
-<h1>{escape(title)}</h1>
+<h1>{marked_english(title)}</h1>
 {subject_banner}
 {"".join(blocks)}
 <footer>{fallback_note}{count_note}SIDRA AI が生成。{number_scope}索引した文書から引いたものだけを載せ、

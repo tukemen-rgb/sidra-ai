@@ -26,6 +26,7 @@ from random import Random
 from sidra_ai.creation.art import names_color
 from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.vocabulary import (
+    marked_english,
     drop_english_frame,
     drop_request_adverbs,
     drop_size_phrases,
@@ -427,11 +428,11 @@ h1{{font-size:1.1rem;margin:0}}
 small,li{{color:#8fb3c7}}
 ul{{margin:0;padding-left:1.2em}}
 </style></head><body>
-<h1>{escape(title)}</h1>
+<h1>{marked_english(title)}</h1>
 {note_html}
 {color_html}
 {count_html}
-<canvas id="c" width="640" height="480">{escape(title)}の 3D プレビュー——自動で回る立体の絵。</canvas>
+<canvas id="c" width="640" height="480">{marked_english(title)}の 3D プレビュー——自動で回る立体の絵。</canvas>
 <small id="note">ドラッグ不要・自動回転（reduced-motion 設定では静止します）。
 .obj は Windows の 3D ビューアーで開けます（色は隣に保存された .mtl から付くので、.obj と .mtl を一緒に置いてください）。</small>
 <ul>{sources}</ul>
