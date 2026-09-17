@@ -483,10 +483,34 @@ def panel_setting_labels(template: str, difficulty: str) -> tuple[str, ...]:
     )
 
 
+#: C-1915: the English twin of _DELETE_REQUEST. English word order is
+#: verb-then-object ("delete the game"), so it needs its own shape. Kept as
+#: tight as the Japanese one: an imperative delete verb - at the start, or after
+#: a courtesy lead ("please", "can you") - acting on an artifact word or a bare
+#: pronoun. This deliberately does NOT match a corpus question about deletion
+#: ("how do I delete a user account", "what does the DELETE endpoint do": the
+#: verb is not in request position) nor a feature request ("delete the accent
+#: color": "color" is not an artifact object), so those keep their old answers.
+_DELETE_REQUEST_EN = re.compile(
+    r"^\s*(?:please\s+|pls\s+|kindly\s+|can\s+you\s+|could\s+you\s+|"
+    r"would\s+you\s+|i\s+want\s+to\s+|i'?d\s+like\s+to\s+|i\s+need\s+to\s+)*"
+    r"(?:delete|remove|erase|discard|trash|wipe|get\s+rid\s+of|throw\s+away)\s+"
+    r"(?:the\s+|my\s+|this\s+|that\s+|these\s+|those\s+|a\s+|all\s+|last\s+|"
+    r"your\s+)*"
+    r"(?:games?|slides?|decks?|reports?|documents?|docs?|gifs?|animations?|"
+    r"arts?|artworks?|images?|pictures?|illustrations?|models?|files?|"
+    r"it|this|that|them|these|those|everything|all)\b",
+    re.IGNORECASE,
+)
+
+
 def asks_to_delete(message: str) -> bool:
     """True when the message asks for an artifact itself to be deleted."""
 
-    return bool(_DELETE_REQUEST.search(fold_kana(message.casefold())))
+    folded = fold_kana(message.casefold())
+    return bool(_DELETE_REQUEST.search(folded)) or bool(
+        _DELETE_REQUEST_EN.search(message.strip())
+    )
 
 
 _ASK_VERBS: tuple[str, ...] = (
