@@ -375,6 +375,10 @@ _FEATURE_TOPICS: tuple[tuple[str, tuple[str, ...]], ...] = (
 _CORPUS_SOURCES: tuple[str, ...] = (
     "ドキュメント", "資料", "リポジトリ", "readme", "索引", "コードベース",
     "仕様書", "マニュアル", "document", "repository",
+    # C-1921: "docs"/"codebase" name where to look, so a question that points
+    # at them stays a corpus question ("how do I make a report from the docs").
+    # The English twin of ドキュメント; "document" above does not cover "docs".
+    "docs", "codebase",
 )
 
 
@@ -482,6 +486,44 @@ _HOW_TO_MAKE_PAIRS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("どうすれば", ("作", "つく")),
 )
 
+#: C-1921: English how-to-make phrasings, the twin of ``_HOW_TO_MAKE_CUES``.
+#: Explicit phrases rather than a bare "how"+verb test, so "show me…" (which
+#: contains "how") and "however" cannot trip it. Matched against the casefolded
+#: text; a kind name is still required below, so a cue with no kind is ignored.
+_HOW_TO_MAKE_CUES_EN: tuple[str, ...] = (
+    "how do i make", "how do i create", "how do i build", "how do i generate",
+    "how do i produce", "how can i make", "how can i create", "how could i make",
+    "how do you make", "how do you create", "how would i make", "how should i make",
+    "how to make", "how to create", "how to build", "how to generate",
+)
+
+#: C-1921: English words a person uses for each kind, for matching a how-to-make
+#: question (the twin of matching ``_KIND_LABELS`` on the Japanese side).
+#: "document" is deliberately absent - it is a ``_CORPUS_SOURCES`` word, so
+#: "report" is the document keyword; a bare "model" is absent because it reads
+#: as an ML model in a code corpus, so "3d model" carries that kind.
+_KIND_KEYWORDS_EN: dict[str, tuple[str, ...]] = {
+    "game": ("game",),
+    "deck": ("deck", "slides", "slide deck", "presentation"),
+    "document": ("report",),
+    "model3d": ("3d model", "3d-model", "3-d model"),
+    "gif": ("gif", "animation", "animated gif"),
+    "art": ("art", "artwork", "illustration", "drawing", "picture", "image"),
+    "project": ("game production bundle", "production bundle", "game-production bundle"),
+}
+
+#: C-1921: English examples of a real make request, the twin of
+#: ``_HOW_TO_EXAMPLES`` - shown so the reply teaches the phrasing that works.
+_HOW_TO_EXAMPLES_EN: dict[str, str] = {
+    "document": "make a report about dogs",
+    "game": "make a racing game",
+    "deck": "make slides for a new product",
+    "art": "make art of the sea at night",
+    "gif": "make a gif of a cat jumping",
+    "model3d": "make a 3D model of a cup",
+    "project": "make a game-production bundle for a ninja",
+}
+
 
 def _how_to_make_kinds(message: str, kinds: "tuple[str, ...]") -> tuple[str, ...]:
     """Which registered kinds a "how do I make one" question names.
@@ -507,17 +549,26 @@ def _how_to_make_kinds(message: str, kinds: "tuple[str, ...]") -> tuple[str, ...
     text = unicodedata.normalize("NFKC", message).casefold()
     if any(source in text for source in _CORPUS_SOURCES):
         return ()
-    asked = any(cue in text for cue in _HOW_TO_MAKE_CUES) or any(
-        head in text and any(verb in text.split(head, 1)[1] for verb in verbs)
-        for head, verbs in _HOW_TO_MAKE_PAIRS
+    asked = (
+        any(cue in text for cue in _HOW_TO_MAKE_CUES)
+        or any(cue in text for cue in _HOW_TO_MAKE_CUES_EN)  # C-1921
+        or any(
+            head in text and any(verb in text.split(head, 1)[1] for verb in verbs)
+            for head, verbs in _HOW_TO_MAKE_PAIRS
+        )
     )
     if not asked:
         return ()
+    # A kind is named by its Japanese label or - C-1921 - by an English keyword,
+    # so both 「レポートの作り方」 and "how do I make a report" name `document`.
     named = tuple(
         kind
         for kind in kinds
-        if (label := _KIND_LABELS.get(kind, kind))
-        and unicodedata.normalize("NFKC", label).casefold() in text
+        if (
+            (label := _KIND_LABELS.get(kind, kind))
+            and unicodedata.normalize("NFKC", label).casefold() in text
+        )
+        or any(keyword in text for keyword in _KIND_KEYWORDS_EN.get(kind, ()))
     )
     return named
 
@@ -1101,18 +1152,32 @@ class SidraService:
             message, self.creation_router.registered_kinds()
         )
         if _how_to_kinds:
+            registered_kinds = self.creation_router.registered_kinds()
             named = [_KIND_LABELS.get(kind, kind) for kind in _how_to_kinds]
-            offered = [
-                _KIND_LABELS.get(kind, kind)
-                for kind in self.creation_router.registered_kinds()
-            ]
-            example = _HOW_TO_EXAMPLES.get(_how_to_kinds[0])
-            answer = (
-                f"{'・'.join(named)}はこの場で作れます。"
-                + (f"作りたいものを主題つきで送ってください（例:「{example}」）。"
-                   if example else "作りたいものを主題つきで送ってください。")
-                + (f"ほかに作れるのは {'・'.join(offered)} です。" if offered else "")
-            )
+            offered = [_KIND_LABELS.get(kind, kind) for kind in registered_kinds]
+            # C-1921: answer in the request's language (rule 6). The Japanese
+            # answer is unchanged; an English how-to-make question now gets an
+            # English reply with English labels and an English example. The
+            # `creation` metadata below stays the Japanese labels, unchanged.
+            if _reply_in_japanese(message):
+                example = _HOW_TO_EXAMPLES.get(_how_to_kinds[0])
+                answer = (
+                    f"{'・'.join(named)}はこの場で作れます。"
+                    + (f"作りたいものを主題つきで送ってください（例:「{example}」）。"
+                       if example else "作りたいものを主題つきで送ってください。")
+                    + (f"ほかに作れるのは {'・'.join(offered)} です。" if offered else "")
+                )
+            else:
+                named_en = [_KIND_LABELS_EN.get(kind, kind) for kind in _how_to_kinds]
+                offered_en = [_KIND_LABELS_EN.get(kind, kind) for kind in registered_kinds]
+                example_en = _HOW_TO_EXAMPLES_EN.get(_how_to_kinds[0])
+                answer = (
+                    f"I can make {', '.join(named_en)} here. "
+                    + (f"Send what you'd like, with a subject (for example, "
+                       f"\"{example_en}\"). " if example_en
+                       else "Send what you'd like, with a subject. ")
+                    + (f"I can also make: {', '.join(offered_en)}." if offered_en else "")
+                ).strip()
             return {
                 "answer": answer,
                 "refused": True,
