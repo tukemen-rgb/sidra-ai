@@ -584,6 +584,24 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
     try:
         settings = get_settings()
         url = base_url(settings, args.url)
+        # A --url without a scheme (a pasted host:port, or one with the http://
+        # dropped) is bad usage, not a transport failure. base_url passes it
+        # through unchanged and httpx then raises UnsupportedProtocol at request
+        # time, which fell into the generic HTTPError branch below and printed
+        # 「通信に失敗した」 at exit 1 - the outage code a monitor pages on, with a
+        # message about a dropped connection when nothing was sent, and the fix
+        # never named. Catch it here with exit 2 and the scheme to add, the same
+        # before-the-request treatment --top-k/--timeout/--repository already get
+        # (C-1661/1669/1673). Only --url can be schemeless; the settings path
+        # always builds http://. casefold so an upper-case scheme httpx accepts
+        # is not falsely rejected. This also keeps a schemeless target out of
+        # authorization_header, whose host check urlparse cannot key on (C-1936).
+        if args.url and not url.lower().startswith(("http://", "https://")):
+            print(
+                f"--url は http:// か https:// で始める（指定値: {args.url!r}）。",
+                file=sys.stderr,
+            )
+            return 2
         headers = authorization_header(url, settings)
     except UnsafeConfigurationError as exc:
         # The CLI's other failures speak Japanese (C-1223/C-1233/C-1238); this
@@ -671,11 +689,13 @@ def main(argv: list[str] | None = None, client: httpx.Client | None = None) -> i
             return 1
         except httpx.HTTPError as exc:
             # Every other transport failure: a peer that closed mid-answer
-            # (RemoteProtocolError), a bad --url scheme (UnsupportedProtocol),
-            # a lower-level protocol error. A bare English class name told a
-            # terminal user nothing to do (C-1233), so the guidance is
-            # Japanese and the class stays in parentheses for debugging - the
-            # same shape the HTTP-status branches use with their code.
+            # (RemoteProtocolError) or a lower-level protocol error. A schemeless
+            # --url (the other UnsupportedProtocol source) is now caught before
+            # the request as bad usage (C-1936), so this branch is left to
+            # genuine transport faults. A bare English class name told a terminal
+            # user nothing to do (C-1233), so the guidance is Japanese and the
+            # class stays in parentheses for debugging - the same shape the
+            # HTTP-status branches use with their code.
             print(
                 "通信に失敗した。接続が途中で切れていないか、"
                 "--url の指定が正しいか確認する。"
