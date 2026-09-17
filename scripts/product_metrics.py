@@ -2484,6 +2484,25 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1933: the exit-code guardians above prove how_to_make exits 4, but the CLI
+    # printed the outage "wait and retry" line for it - the messages dict had no
+    # how_to_make entry. This checks the rendered text invites creation (not the
+    # outage line), with safety/outage/unknown-code controls held.
+    from sidra_ai.evals.cli_how_to_make_message_invites_creation import (
+        evaluate_cli_how_to_make_message_invites_creation,
+    )
+
+    cli_howto = evaluate_cli_how_to_make_message_invites_creation()
+    c.add(
+        "cli_how_to_make_message_invites_creation",
+        "「作り方を教えて」に CLI が障害の「待って再試行」でなく制作を促す本文を出す",
+        10.0 * cli_howto.checks_passed / cli_howto.checks_total,
+        detail=f"{cli_howto.checks_passed}/{cli_howto.checks_total} checks; "
+               "src/sidra_ai/evals/cli_how_to_make_message_invites_creation.py"
+               + ("" if cli_howto.passed else "; " + "; ".join(cli_howto.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1872: the guardian above checks synthetic payloads for a fixed code list,
     # so six conversational refusals the service added after C-1811 (delete /
     # list / feature-question / panel-setting / revision content and kind) fell to
