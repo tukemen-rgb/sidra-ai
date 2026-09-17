@@ -615,7 +615,12 @@ function draw(now){
 function glow(x,y,r,now){const g=cx.createRadialGradient(x,y,4,x,y,r);
   g.addColorStop(0,'#f5d89a55');g.addColorStop(1,'#00000000');
   cx.fillStyle=g;cx.fillRect(x-r,y-r,r*2,r*2)}
-function shade(a,b){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
+function shade(a,b){
+  /* The result, not the prompt (C-1908). `b` carries the 「もう一度」
+     line, which appears a moment after the win, so announcing both
+     said the same outcome twice - the judge's write count caught it. */
+  announce(a);
+  cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
   cx.fillStyle='INK_TOKEN';cx.textAlign='center';
   cx.font=hudPx(20)+'px ui-monospace,monospace';
   cx.fillText(a,cv.width/2,cv.height/2-8);

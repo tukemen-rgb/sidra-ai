@@ -14288,6 +14288,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and whether the result is ever said out loud -------------------
+    #
+    # C-1907 gave the canvas a sentence naming what it is. The result was
+    # still drawn on the canvas and nowhere else, so a screen reader had no
+    # way to learn that the run had even finished. WCAG 4.1.3: status
+    # messages must be 「programmatically determined through role or
+    # properties such that they can be presented ... without receiving
+    # focus」, and the criterion's own examples are results of actions.
+    # The pages carried no `aria-live` and no `role="status"` at all.
+    #
+    # The end states are imported from `end_text_is_centred`, so the judge
+    # that checks the words are centred and the one that checks they are
+    # said cannot disagree about how a page reaches its result.
+    from sidra_ai.evals.result_is_announced import (
+        FRAMES_AFTER_END as _SAY_FRAMES,
+        evaluate_result_is_announced,
+    )
+
+    _say = evaluate_result_is_announced()
+    c.add(
+        "creation_result_is_announced",
+        "遊びの結果が、読み上げに届く（WCAG 4.1.3）",
+        float(_say.checks_passed) if _say.passed else 0.0,
+        detail=(
+            "**終幕まで走らせ、ページが書いた live region を読み返した**——"
+            + "、".join(_say.readings)
+            + "。**4 方向**: 丁寧な live region が在る／終わったら中身が在る／"
+            "**canvas に描く言葉と同じ**／**一度だけ書く**。"
+            f"最後のひとつが効く: `draw()` は毎フレーム回るので、"
+            f"**{_SAY_FRAMES} フレーム走らせて書き込み回数を数える**"
+            "——「空でない」だけを見る判定器は、毎フレーム書き直す実装を満点にしてしまう。"
+            "**実際この検査が自分の配線の穴を捕まえた**: adventure だけ 2 回書いていた"
+            "（2 行目に「もう一度」の誘いが入っており、それが遅れて現れるため）。"
+            "**結果を言う。誘いは言わない**"
+            if _say.passed
+            else "; ".join(_say.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had

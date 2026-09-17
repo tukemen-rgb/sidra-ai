@@ -1919,6 +1919,13 @@ a{{color:{t["accent"]}}}
  * This line names the pad, shown only for a coarse pointer so the desktop
  * keyboard hint stays the whole story there. */
 .touchhint{{display:none;margin:8px 0 0;font-size:13px;color:{t["subtle"]}}}
+/* Off-screen but still announced (C-1908). display:none and
+   visibility:hidden would take it out of the accessibility tree too, so
+   the usual clip rectangle is what keeps it readable to a screen reader
+   while showing a sighted viewer nothing. */
+.saidonly{{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+ overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;
+ border:0}}
 @media (pointer:coarse){{.touchhint{{display:block}}}}
 /* §18: the canvas keeps its 720:320 ratio at any width, so a phone held
  * upright plays at about half the size on each side that the same phone
@@ -1953,6 +1960,7 @@ a{{color:{t["accent"]}}}
 <p class="rotatehint" id="{ROTATE_ID}">{escape(ROTATE_TEXT)}</p>
 <p class="how">{escape(how)}</p>
 <p class="touchhint">{_touch_hint(script)}</p>
+<p class="saidonly" id="said" role="status" aria-live="polite"></p>
 <footer>SIDRA AI が生成。配色と禁止事項の出典:
 <ul>{sources}</ul></footer>
 </main>

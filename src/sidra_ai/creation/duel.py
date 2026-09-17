@@ -404,7 +404,7 @@ function draw(now){
   if(state==='end'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,cv.width,cv.height);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    cx.fillText(winner,cv.width/2,cv.height/2-6);
+    announce(winner);cx.fillText(winner,cv.width/2,cv.height/2-6);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('SPACE / タップでもう一度',cv.width/2,cv.height/2+20)}cx.textAlign='left'}}
 reset();step();

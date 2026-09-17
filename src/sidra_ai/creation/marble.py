@@ -332,7 +332,7 @@ function step(rt){
     +'  距離 '+Math.round(ball.z),40,12+hudBand(13,5));
   if(state!=='roll'){cx.fillStyle='SCRIM_TOKEN'+'cc';cx.fillRect(0,H/2-40,W,80);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
-    cx.font=hudPx(20)+'px ui-monospace,monospace';cx.fillText(over,W/2,H/2-6);
+    cx.font=hudPx(20)+'px ui-monospace,monospace';announce(over);cx.fillText(over,W/2,H/2-6);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('R / タップでもう一度',W/2,H/2+24)}cx.textAlign='left'}
   requestAnimationFrame(step)}

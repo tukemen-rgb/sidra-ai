@@ -3129,7 +3129,23 @@ API 利用者は区別できる。起票せず。
       → 動かす数字: `chat_answers_how_to_make`（新設・broken→）
 - [~] 作業中 2026-09-17 02:22 UTC 辛口ユーザー　**確保時の判断**: 前巡（01:16）は Web UI アクセシビリティと CLI `--json` を実測して健全＝空振り。今巡は**別面＝チャット入力の実データ耐性**を実測。**現物（`/v1/chat` を実測）**: 目に見えない制御文字を 1 つでも含む善良な質問が、すべて prompt-injection として `refused=True refusal=gate` で門前払い＋隔離される——「認証​について」（貼り付けで紛れ込むゼロ幅空白）・「👨‍💻 について教えて」（**絵文字の ZWJ 連結 U+200D**）・「﻿計画には…」（コピー時の BOM）。**ゼロ幅・双方向制御文字はコピー＆ペーストで日常的に紛れ込む**（絵文字連結・Web からの貼り付け・BOM 付きファイル）のに、**普通の利用者が「攻撃者」として拒否される**。**採番は最大＋1**（最大 C-1908 → **C-1909**）。**時刻は `date -u`**。 **C-1909: 目に見えない文字が 1 つ紛れただけで、善良な質問が「隠し攻撃」として拒否・隔離される。**`detectors.py` の `_INVISIBLE_CHARS` は `source` を問わず発火し、operator（人間が打つ・貼る）チャットでも隔離まで進む。**安全性の要（実測で確認済み）**: 直しは operator メッセージから不可視文字を**剥がしてから**門に通す——剥がすと隠れた注入文（例「ig​nore previous instructions…」）が**露出して**注入パターンに必ず捕まる（RLO・ZWSP 分割とも剥離後 QUARANTINE 継続を実測）。**ingestion（`source="github"`）の不可視文字契約は一切触らない**。**（2026-09-17 02:22 UTC 辛口ユーザー）
       → 動かす数字: `chat_operator_invisible_chars_do_not_false_refuse`（新設）
-- [~] 作業中 2026-09-17 01:49 UTC 辛口クリエイター　**確保時の判断**: 制作＝自帯。**前巡 C-1907 で開いた筋（目の代わりに読み上げる人）の、次の 1 手**。**canvas は名乗るようになったが、遊びの結果はまだ canvas の上にしか出ない**。**WCAG 4.1.3（AA）**: 「status messages can be programmatically determined through role or properties such that they can be presented to the user by assistive technologies **without receiving focus**」——**結果の知らせ（成功・失敗・件数）はまさにこれ**（出典 https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html ・2026-09-17 確認）。**現物**: 生成ページに `aria-live` も `role="status"` も **1 つも無い**（実測 grep 0 件）。**採番は最大＋1**（最大 C-1907 → **C-1908**）。**時刻は `date -u`**。 **C-1908: 遊びが終わったことと、その結果が、読み上げに一度も届かない。**終幕の 1 行（「撃墜 12 機・得点 340。」など）は canvas に描かれるだけで、**見えない人は「終わったこと」すら知らされない**。**（2026-09-17 01:49 UTC 辛口クリエイター・§36 の続き／WCAG 4.1.3）
+- [x] 完了 2026-09-17 02:28 UTC 辛口クリエイター（`creation_result_is_announced` **新設 25**、判定器 exit 0（MOVED 1・WORSE/REGRESSED/DRIFT/LOST 0）、全 pytest exit 0・失敗 0、`verify_gate_recall.py` PASSED、破壊 4/4 検出・復元 CLEAN、収集器 215.2s（300s 中・余裕 84.8s）、採番衝突なし）　**確保時の判断**: 制作＝自帯。**前巡 C-1907 で開いた筋（目の代わりに読み上げる人）の、次の 1 手**。**canvas は名乗るようになったが、遊びの結果はまだ canvas の上にしか出ない**。**WCAG 4.1.3（AA）**: 「status messages can be programmatically determined through role or properties such that they can be presented to the user by assistive technologies **without receiving focus**」——**結果の知らせ（成功・失敗・件数）はまさにこれ**（出典 https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html ・2026-09-17 確認）。**現物**: 生成ページに `aria-live` も `role="status"` も **1 つも無い**（実測 grep 0 件）。**採番は最大＋1**（最大 C-1907 → **C-1908**）。**時刻は `date -u`**。 **C-1908: 遊びが終わったことと、その結果が、読み上げに一度も届かない。**終幕の 1 行（「撃墜 12 機・得点 340。」など）は canvas に描かれるだけで、**見えない人は「終わったこと」すら知らされない**。**（2026-09-17 01:49 UTC 辛口クリエイター・§36 の続き／WCAG 4.1.3）
+      **直した中身**: ページに**画面外だが読み上げには残る** `role="status" aria-live="polite"` の 1 行を置き
+      （`display:none` や `visibility:hidden` は支援技術の木からも消えるので、切り取り矩形で隠す）、
+      共有前口上に `announce(text)`——**中身が変わったときだけ書く**——を足して、
+      **8 型の終幕からそれぞれの結果を渡した**。
+      **実測: adventure「宝箱をあけた。冒険の勝利。」・duel「決着。」・kaiju「巨獣、沈黙。」・
+      marble「コースを走り切った。」・platformer「灯りは旗までとどいた。」・puzzle「もう消せる手がない。」・
+      racing「ゴール。」・shooter「撃墜 N 機・得点 N。」**。
+      **終幕の状態表は `end_text_is_centred` から取り込んだ**ので、
+      **「中央にある」と「読み上げられる」の 2 つの判定器が、同じ終幕の定義を共有する**。
+      **自己申告（自分の配線の穴を、自分の判定器が捕まえた）**:
+      「一度だけ書く」を 60 フレーム数える検査を入れたら、**adventure だけ 2 回書いていた**。
+      2 行目に「R か タップでもう一度」の誘いが入っており、**それが少し遅れて現れる**ので
+      文字列が変わり、`announce` が二度目を書いていた。
+      **結果は言う。誘いは言わない**——他 7 型と同じく見出しだけを渡す形に直した。
+      **「空でない」だけを見る判定器なら、毎フレーム書き直す実装すら満点にしていた**
+      （破壊 D3 で実際に 60 回書かせて確かめた）。
       → 動かす数字: `creation_result_is_announced`（新設）
 
 - [x] 完了 2026-09-17 01:45 UTC 辛口クリエイター（`creation_canvas_names_itself` **新設 10**、判定器 exit 0（MOVED 1・WORSE/REGRESSED/DRIFT/LOST 0）、全 pytest exit 0・失敗 0、`verify_gate_recall.py` PASSED、破壊 4/4 検出・復元 CLEAN、収集器 216.3s（300s 中・余裕 83.7s）、採番衝突なし）　**確保時の判断**: 制作＝自帯。**§1〜§9 に起票に値するギャップが出なかったので、C-0k のとおり外部調査で §36 を増築してから採った**（前巡は C-1905）。**今巡で確かめて塞がっていた 4 件**: §6 観察 1 の部分描写（16097 と`creation_giant_moves_like_a_giant`）・§7 観察 6 の明度予約（実走行の場面輝度で測っている）・`creation_edge_coverage`（実フレームを記録して 80/80 行）・§1 の粒子（rAF ラッパが必ず回す）。**§28 は耳・§29 は手・§30 は記憶を決めたが、目の代わりに読み上げる人のことは §1〜§35 のどこにも無かった**。**採番は最大＋1**（最大 C-1906 → **C-1907**）。**時刻は `date -u`**。 **C-1907: 生成物の `<canvas>` が 3 か所とも空で、読み上げに何も渡していない。**`<canvas id="stage" …></canvas>`（ゲーム）・絵・3D プレビューのいずれも中身が無い。**MDN: canvas の中に書いた内容が読み上げに渡る代替内容で、描ける browser はそれを無視する**——つまり**見える人の画面は 1 ピクセルも変わらない**。**WCAG 1.1.1 は、文章にできない体験にも「descriptive identification」は求める**（§36 事実 2）。**既存の検証は `"<canvas" in html` を見るだけ**なので、空のままでも通る。**（2026-09-17 00:38 UTC 辛口クリエイター・§36 事実 1／2）

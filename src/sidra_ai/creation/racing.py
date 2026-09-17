@@ -358,7 +358,7 @@ function draw(){
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    const a='ゴール。';cx.fillText(a,W/2,H/2-52);cx.textAlign='left';
+    const a='ゴール。';announce(a);cx.fillText(a,W/2,H/2-52);cx.textAlign='left';
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     let y=H/2-24,total=0;
     times.forEach((f,i)=>{total+=f;

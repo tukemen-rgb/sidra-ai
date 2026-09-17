@@ -107,6 +107,17 @@ function hudPx(px){return Math.max(px,TEXT_FLOOR*padScale())}
    minus its font, so on a desk (where hudPx(13) is 13) each call returns
    exactly the number that was there before. */
 function hudBand(px,pad){return hudPx(px)+pad}
+/* Say it once, to whoever is listening (C-1908, WCAG 4.1.3). The result of
+   a run is drawn on the canvas, which a screen reader cannot read, and a
+   status message has to reach assistive technology "without receiving
+   focus" - so the page writes it into a polite live region as well.
+   Only on change: draw() runs every frame, and a live region rewritten
+   sixty times a second would be announced as sixty messages. */
+let SAID='';
+function announce(text){
+  const said=document.getElementById('said');
+  if(!said||typeof text!=='string'||!text||text===SAID)return;
+  SAID=text;said.textContent=text}
 /* Laid out in canvas pixels from a CSS-pixel size, so the buttons stay
    thumb-sized however the page is scaled down on a small screen. Only the
    buttons this template actually reads are kept: a dead button does nothing

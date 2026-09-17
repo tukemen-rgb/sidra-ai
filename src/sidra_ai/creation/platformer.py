@@ -440,7 +440,7 @@ function draw(now){
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    const a='灯りは旗までとどいた。';
+    const a='灯りは旗までとどいた。';announce(a);
     cx.fillText(a,W/2,H/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     const b='宝石 '+me.gems+' 個 / 落下 '+respawns+' 回'+(((typeof roundAskReady!=='function'||roundAskReady()))?' / R かタップでもう一度':'');

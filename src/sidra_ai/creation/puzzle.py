@@ -260,7 +260,7 @@ function draw(now){
     cx.fillRect(0,0,cv.width,cv.height);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    const a=cleared?'全部消えた。':'もう消せる手がない。';
+    const a=cleared?'全部消えた。':'もう消せる手がない。';announce(a);
     cx.fillText(a,cv.width/2,cv.height/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     const b='得点 '+score+(((typeof roundAskReady!=='function'||roundAskReady()))?' / SPACE か R でもう一度':'');

@@ -284,7 +284,7 @@ function draw(now){
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    const a='撃墜 '+kills+' 機・得点 '+score+'。';cx.fillText(a,W/2,H/2-8);
+    const a='撃墜 '+kills+' 機・得点 '+score+'。';announce(a);cx.fillText(a,W/2,H/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     if((typeof roundAskReady!=='function'||roundAskReady())){const b='SPACE か R、タップでもう一度';cx.fillText(b,W/2,H/2+18)}cx.textAlign='left'}}
 /* Read back off the running page rather than grepped for: the act the sky
