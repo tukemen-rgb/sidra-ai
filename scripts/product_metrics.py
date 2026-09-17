@@ -2503,6 +2503,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1936: a schemeless --url (http:// left off) fell to the transport-failure
+    # branch (exit 1, "connection cut" message) instead of being caught as bad
+    # usage before the request, like the other client-visible knobs. This checks
+    # it exits 2 and names the scheme fix, while a well-formed --url and the
+    # default host:port path proceed untouched.
+    from sidra_ai.evals.cli_url_without_scheme_is_caught import (
+        evaluate_cli_url_without_scheme_is_caught,
+    )
+
+    cli_url = evaluate_cli_url_without_scheme_is_caught()
+    c.add(
+        "cli_url_without_scheme_is_caught",
+        "scheme 無しの --url が転送失敗でなく使い方の誤り（exit 2・http:// を付けよ）として捕まる",
+        10.0 * cli_url.checks_passed / cli_url.checks_total,
+        detail=f"{cli_url.checks_passed}/{cli_url.checks_total} checks; "
+               "src/sidra_ai/evals/cli_url_without_scheme_is_caught.py"
+               + ("" if cli_url.passed else "; " + "; ".join(cli_url.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1872: the guardian above checks synthetic payloads for a fixed code list,
     # so six conversational refusals the service added after C-1811 (delete /
     # list / feature-question / panel-setting / revision content and kind) fell to
