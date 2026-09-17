@@ -431,7 +431,7 @@ ul{{margin:0;padding-left:1.2em}}
 {note_html}
 {color_html}
 {count_html}
-<canvas id="c" width="640" height="480"></canvas>
+<canvas id="c" width="640" height="480">{escape(title)}の 3D プレビュー——自動で回る立体の絵。</canvas>
 <small id="note">ドラッグ不要・自動回転（reduced-motion 設定では静止します）。
 .obj は Windows の 3D ビューアーで開けます（色は隣に保存された .mtl から付くので、.obj と .mtl を一緒に置いてください）。</small>
 <ul>{sources}</ul>

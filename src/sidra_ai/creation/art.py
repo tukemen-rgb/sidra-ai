@@ -223,7 +223,7 @@ _PAGE = """<!doctype html>
 </style>
 </head>
 <body>
-<canvas id="c" width="640" height="400"></canvas>
+<canvas id="c" width="640" height="400">{title}——{shape}がゆっくり動く抽象画（seed {seed}）。</canvas>
 <p>{title} — seed {seed}</p>
 {note}
 <script>
@@ -388,6 +388,10 @@ if (reduced) {
 
 _BODIES = {"flow": _FLOW_BODY, "orbits": _ORBITS_BODY}
 
+#: One word for what each pattern draws, used in the canvas's fallback
+#: content so a reader who cannot see it is told what is there.
+_SHAPE_WORDS = {"flow": "流れる線", "orbits": "回る粒"}
+
 
 def generate_art(
     request: str,
@@ -462,6 +466,10 @@ def generate_art(
         seed=actual_seed,
         body=body,
         note=note,
+        # What the picture is, in a word, for the canvas's fallback content
+        # (§36 事実 2's "descriptive identification"). Named per pattern so
+        # the sentence describes THIS page rather than art in general.
+        shape=_SHAPE_WORDS[chosen],
     )
     return GeneratedArt(
         title=title,

@@ -249,6 +249,17 @@ class GeneratedGame:
             (f"<title>{was_title}</title>", f"<title>{now_title}</title>"),
             (f"<h1>{was_title}</h1>", f"<h1>{now_title}</h1>"),
             (f'<p class="tag">{was_tag}</p>', f'<p class="tag">{now_tag}</p>'),
+            # The canvas's fallback content is a fourth place the copy is
+            # carried - not shown, but read aloud (C-1907). Leaving it
+            # behind ships a page whose heading says one thing and whose
+            # screen reader says another; `test_game_copy_overlay` caught
+            # exactly that. Anchored on the canvas tag and the 「——」 that
+            # joins the two fields, so like the three above it cannot reach
+            # into loose text.
+            (
+                f'height="320">{was_title}——{was_tag} ',
+                f'height="320">{now_title}——{now_tag} ',
+            ),
         ):
             html = html.replace(before, after)
         return replace(self, title=new_title, tagline=new_tagline, html=html)
@@ -1936,7 +1947,7 @@ a{{color:{t["accent"]}}}
 <p class="tag">{escape(tagline)}</p>
 {f'<p class="tag">{escape(note)}</p>' if note else ""}
 <div class="stagewrap" id="{FULL_WRAP_ID}">
-<canvas id="stage" width="720" height="320"></canvas>
+<canvas id="stage" width="720" height="320">{escape(title)}——{escape(tagline)} 遊び方: {escape(how)}</canvas>
 <button class="fullbtn" id="{FULL_BUTTON_ID}" type="button">{escape(FULL_LABEL)}</button>
 </div>
 <p class="rotatehint" id="{ROTATE_ID}">{escape(ROTATE_TEXT)}</p>

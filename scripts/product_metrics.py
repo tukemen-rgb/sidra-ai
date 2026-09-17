@@ -14288,6 +14288,44 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- what the canvas tells a reader who cannot see it ----------------
+    #
+    # §28, §29 and §30 settled hearing, movement and memory; nobody had
+    # written down the reader who cannot see the screen, and every SIDRA
+    # artifact is one canvas with everything inside it.
+    #
+    # §36 事実 1 (MDN): content inside the canvas element is its fallback
+    # for assistive technology, and a browser that can draw canvas ignores
+    # it - so a sighted viewer sees no difference at all. §36 事実 2
+    # (WCAG 1.1.1): where the content is a test or a sensory experience
+    # that cannot honestly become prose, the alternative must still
+    # 「provide descriptive identification」.
+    #
+    # All three canvases shipped empty, and the validators asked only
+    # whether the string 「<canvas」 appeared, so empty passed. C-1907 gave
+    # each one a sentence built from what the page already knows.
+    from sidra_ai.evals.canvas_names_itself import evaluate_canvas_names_itself
+
+    _cn = evaluate_canvas_names_itself()
+    c.add(
+        "creation_canvas_names_itself",
+        "canvas が、見えない人に何が在るかを名乗る（§36）",
+        float(_cn.checks_passed) if _cn.passed else 0.0,
+        detail=(
+            "**3 種の生成物**（ゲーム・絵・3D プレビュー）の canvas の中身を読んだ——"
+            + "、".join(_cn.readings)
+            + "。**4 方向**: (a) 中身が在る、(b) **そのページを名乗る**"
+            "（題名を含むので「ゲームです」のような定型文では通らない）、"
+            "(c) 題名の先に中身がある、(d) **canvas を積むモジュールが全部この表に在る**。"
+            "**見える人の画面は 1 ピクセルも変わらない**"
+            "——描ける browser は canvas の中身を無視するため。"
+            "**直す前は 3 か所とも空**で、既存の検証は `\"<canvas\" in html` しか見ていなかった"
+            if _cn.passed
+            else "; ".join(_cn.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- and which of the two the foe is wearing ------------------------
     #
     # `creation_cvd_info_pair` separates accent from alert through three
