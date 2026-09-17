@@ -11403,3 +11403,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-17 10:06 UTC ループA no-op（**キューが空——取れる項目 1 件 C-1624 は前提未決**。板 868 項目・不整合なし・確保 1 件（C-1924 28 分＝線の手前）。前提は現物で再確認: `docs/BACKLOG.md:15317` の E 節「要判断: `hard` は「無策では勝てない」を約束するのか。」は **`- [ ]` のまま**〔起票 2026-09-10 05:22・**7 日 4 時間**〕。**キューを埋めるための作業は作らない**。見送りの案件は無し。）
 
 2026-09-17 10:17 UTC 辛口ユーザー started
+
+2026-09-17 10:18 UTC 辛口ユーザー C-1925 確保（別面＝運用者セキュリティ CLI sidra-quarantine を実測。list/stats/release/show・終了コード・理由長・監査は健全。取った現物: not-found エラーが `EntryNotFoundError(KeyError)` の `KeyError.__str__` 由来で余分な二重引用符付き＝他エラーと不揃い。→ 動かす数字 `quarantine_not_found_error_reads_cleanly` 新設予定）。
