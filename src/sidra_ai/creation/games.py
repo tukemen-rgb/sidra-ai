@@ -1379,7 +1379,15 @@ _STRIP_EN_TAIL = re.compile(
 _STRIP_EN_ABOUT = re.compile(
     r"^(?:[\w'-]+\s+){0,2}?(?:"
     + "|".join(re.escape(w) for w in ARTIFACT_NOUNS if w.isascii())
-    + r")\s+(?:about|of|with|featuring|starring)\s+(?:a|an|the)?\s*",
+    #: C-1916: the article is a whole word. `(?:a|an|the)?` with `\s*` behind
+    #: it is optional and unbounded, so it took the shortest branch that fit
+    #: and let `\s*` match nothing: 「make a game about an octopus」 titled
+    #: itself 「n octopus」, 「with an alien」 → 「n alien」, and a subject
+    #: merely starting with an article lost a letter - 「about anime robots」
+    #: → 「nime robots」. Same shape as C-1913 (`_EN_HEAD`) and the sibling
+    #: line in `vocabulary._EN_SUBJECT`; 「about a robot」 still gives 「robot」.
+    + r")\s+(?:about|of|with|featuring|starring)"
+    + r"\s+(?:(?:an|a|the)(?:\s+|$))?\s*",
     re.IGNORECASE,
 )
 

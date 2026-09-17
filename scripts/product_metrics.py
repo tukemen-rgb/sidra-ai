@@ -14442,6 +14442,54 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and whether the SUBJECT survives the same way (C-1916) ----------
+    #
+    # C-1913 fixed the line the verb runs through. The defect was a shape,
+    # not a line: `(?:a|an|the|some)?` is optional and unbounded, so 「an」
+    # takes the `a` branch and leaves its 「n」. Two more lines carried that
+    # shape, on two different surfaces, and both were live afterwards -
+    # `vocabulary._EN_SUBJECT` (the lift from behind 「of」/「about」, used by
+    # art, decks, documents, gifs, models3d) and `games._STRIP_EN_ABOUT`.
+    # 「make art of an owl」 was titled 「n owl」, 「make a game about an
+    # octopus」 was titled 「n octopus」, and 「of abstract shapes」 came out
+    # 「bstract shapes」.
+    #
+    # This one reads the <title> the finished page carries rather than the
+    # helper that computes it: the helper is one refactor away from not
+    # being what is on screen, and C-1907/C-1908 put this string into the
+    # canvas fallback and the live region, where it is read aloud.
+    from sidra_ai.evals.english_subject_keeps_whole_words import (
+        ART_CASES as _ESW_ART,
+        GAME_CASES as _ESW_GAME,
+        evaluate_english_subject_keeps_whole_words,
+    )
+
+    _esw = evaluate_english_subject_keeps_whole_words()
+    c.add(
+        "creation_english_subject_keeps_whole_words",
+        "英語依頼の主語が、語の途中から始まらない（C-1916）",
+        float(_esw.checks_passed) if _esw.passed else 0.0,
+        detail=(
+            f"**アート {len(_ESW_ART)} 通り・ゲーム {len(_ESW_GAME)} 通り**の英語依頼を"
+            "**実際に生成し、出来たページの `<title>` を読んだ**"
+            "（補助関数ではなく現物——C-1640）——"
+            + "、".join(_esw.readings[:4])
+            + " ほか。"
+            "**両方向**: 語を切らないこと、**そして枠（動詞・冠詞・作るものの名前）は落ちること**"
+            "——何もしない実装は前者を完璧に満たす。"
+            "**表そのものも先に検査する**: 各面が「an」の形と"
+            "**冠詞の綴りで始まるだけの主語**の両方を持つこと"
+            "——壊れる例を落とすのが白紙の一番安い道だから。"
+            "**直す前**: 「make art of an owl」→**「n owl」**、"
+            "「make a game about an octopus」→**「n octopus」**、"
+            "「make art of abstract shapes」→**「bstract shapes」**、"
+            "「make a game about anime robots」→**「nime robots」**"
+            if _esw.passed
+            else "; ".join(_esw.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had

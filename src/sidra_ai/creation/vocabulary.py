@@ -291,8 +291,18 @@ _EN_HEAD = re.compile(
     re.IGNORECASE,
 )
 
+#: C-1916: the same whole-word rule the head above got in C-1913, on the line
+#: C-1913 did not reach. `(?:a|an|the|some)?\s*` is optional AND unbounded, so
+#: it took the shortest branch that fit and let `\s*` match nothing: 「make art
+#: of an owl」 lifted 「n owl」, and a subject that merely BEGINS with an article
+#: lost its first letter - 「of abstract shapes」 → 「bstract shapes」, 「of anime
+#: clouds」 → 「nime clouds」, 「about somebody」 → 「body」. Requiring whitespace
+#: (or the end of the string, as the head does, for callers that strip their own
+#: kind word first) after the article fixes both: 「of a cat」 still lifts 「cat」
+#: because the space is there to take.
 _EN_SUBJECT = re.compile(
-    r"^.*?\b(?:of|about|featuring|showing|starring)\s+(?:a|an|the|some)?\s*",
+    r"^.*?\b(?:of|about|featuring|showing|starring)"
+    r"\s+(?:(?:an|a|the|some)(?:\s+|$))?\s*",
     re.IGNORECASE,
 )
 
