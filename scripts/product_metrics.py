@@ -1591,6 +1591,26 @@ def measure_answer_quality(c: Collector) -> None:
     # fragments because _ARTIFACT_LIST_QUERIES was Japanese-only. Now recognised
     # and listed in English (rule 6). Third of the English conversational-entry
     # set after C-1902 (greetings) and C-1904 (help/identity).
+    # C-1917: "作ったファイルはどこ" / "where are my files" / "list my files" fell
+    # to RAG and returned an unrelated corpus document, though the artifact-list
+    # answer already names where the files are (/v1/artifacts). Those whereabouts
+    # phrasings now reach the same handler.
+    from sidra_ai.evals.chat_where_are_my_files_is_answered import (
+        evaluate_chat_where_are_my_files_is_answered,
+    )
+
+    where_files = evaluate_chat_where_are_my_files_is_answered()
+    c.add(
+        "chat_where_are_my_files_is_answered",
+        "「作ったファイルはどこ」「where are my files」等の在り処質問に一覧＋取得先で答える",
+        10.0 * where_files.checks_passed / where_files.checks_total,
+        detail=f"{where_files.checks_passed}/{where_files.checks_total} checks; "
+               "src/sidra_ai/evals/chat_where_are_my_files_is_answered.py"
+               + ("" if where_files.passed
+                  else "; " + "; ".join(where_files.failures[:4])),
+        kind=OUTCOME,
+    )
+
     from sidra_ai.evals.chat_english_artifact_list_is_answered import (
         evaluate_chat_english_artifact_list_is_answered,
     )
@@ -27428,9 +27448,13 @@ def measure_creation(c: Collector) -> None:
     _rc, _out = _lt_run("ループA 未来を名乗る行", 700)
     if _rc == 0 or "REFUSED" not in _out:
         _lt_notes.append(f"未来の時刻を見逃す（rc={_rc}）")
-    # (b) the honest lag must pass. +20.2 is the measured worst honest case
-    # (ループA); +25 is inside the margin and still past it.
-    for _label, _ahead in (("同時刻", 0), ("正直な遅れ +21", 21), ("余裕の内 +25", 25)):
+    # (b) an honestly written line must pass, or this is a closed gate.
+    #
+    # C-1914 replaced +21 and +25 here. They were "the measured honest lag"
+    # and they are the violation: `date -u` floors, the commit comes after
+    # the writing, so an honest line trails its commit. -5 is a short cycle
+    # and -90 a long one; both are what honest looks like.
+    for _label, _ahead in (("同時刻", 0), ("遅れ -5", -5), ("長い巡 -90", -90)):
         _rc, _out = _lt_run("ループA 正常な行", _ahead)
         if _rc != 0:
             _lt_notes.append(f"{_label}で赤くなる: {_out.strip()[:70]}")
@@ -27442,8 +27466,11 @@ def measure_creation(c: Collector) -> None:
         detail=(
             "; ".join(_lt_notes)
             if _lt_notes
-            else "push が足す行だけを見て、未来を名乗る行を名指して拒否し、"
-            "実測の正直な遅れ（最大 +20.2 分）は通す（実 git リポジトリで実走行）"
+            else "push が足す行だけを見て、**未来を名乗る行を名指して拒否**し、"
+            "**commit より後に書かれた正直な行（同時刻・-5・-90 分）は通す**（実 git リポジトリで実走行）。"
+            "**C-1914 で通す側の事例を入れ替えた**——旧版は +21／+25 を「実測の正直な遅れ」として"
+            "通していたが、`date -u` は分を切り捨て commit は書いたあとに来るので"
+            "**正直な行の先行は負にしかならない**。先行する行は正直な遅れではなく、この門が捕まえる当のもの。"
         ),
         kind=OUTCOME,
     )
@@ -27539,7 +27566,9 @@ def measure_creation(c: Collector) -> None:
     elif "BACKLOG" not in _bt_out:
         _bt_notes.append("どのファイルの行かを名指ししない")
     # ...and the honest lag still passes, or this is just a closed gate.
-    for _bt_label, _bt_ahead in (("同時刻", 0), ("正直な遅れ +21", 21)):
+    # C-1914: +21 was here as "the honest lag"; an honest board line trails
+    # its commit, so the passing cases are the non-positive ones.
+    for _bt_label, _bt_ahead in (("同時刻", 0), ("遅れ -5", -5), ("長い巡 -90", -90)):
         _bt_rc, _bt_out = _bt_run(_bt_ahead)
         if _bt_rc != 0:
             _bt_notes.append(f"板の{_bt_label}で赤くなる: {_bt_out.strip()[:60]}")
@@ -27693,7 +27722,9 @@ def measure_creation(c: Collector) -> None:
             if _bt_notes
             else "**実 git リポジトリで実走行**して測る。**(A)** 板に "
             "**+30 分超**先を名乗る行を足す push を**拒否し、どのファイルの行かを名指しする**"
-            "——同時刻と実測の正直な遅れ（+21 分）は通る（通さなければ「何でも拒む門」で満点が取れる）。"
+            "——同時刻と、commit より後に書かれた正直な行（-5・-90 分）は通る"
+            "（通さなければ「何でも拒む門」で満点が取れる）。**C-1914 で +21 を落とした**: "
+            "先行する行は「正直な遅れ」ではなく、この門が捕まえる当のものだった。"
             "**(B)** **既に板に在る 73 行では赤くならない**（**追加行だけを見ている証拠**）"
             "——これが無いと全ループが初回から赤になり、C-1728 が踏んだ「直せない過去で門を塞ぐ」罠に戻る。"
             "**(C)** 分を伏せた **`13:4x` 形**——**板で一番多い書き方**——も判定する。"
@@ -33681,6 +33712,59 @@ def measure_runtime(c: Collector) -> None:
     # on a completion push, so that check could never fire. Both of those
     # designs are run as destruction probes - D1 and D2 below - and each
     # drops a case.
+    # C-1914. The timestamp gate let a line lead its own commit by up to 30
+    # minutes, and the 30 came from a census of the leading lines - "the
+    # measured honest lag tops out at +20.2". A stamp is floored `date -u`
+    # and the commit time is git's, from the same clock, and writing happens
+    # first: an honest line's lead is never positive. Measured, 369 of 444
+    # added lines lead by nothing. The margin was taken from the violation
+    # and used to decide how much of it to allow.
+    from check_log_times import census as _time_census
+    from sidra_ai.evals.board_times_do_not_run_ahead import (
+        evaluate_board_times_do_not_run_ahead,
+    )
+
+    _times = evaluate_board_times_do_not_run_ahead()
+    _census = _time_census()
+    if _census:
+        _census_said = (
+            f"**現況の国勢調査**: 直近 400 commit・門が読む追加行 {_census['lines_read']} 本のうち "
+            f"**{_census['ahead_minute_or_more']} 本が 1 分以上先を名乗る**"
+            f"（最大 {_census['worst_minutes']:+.1f} 分）。"
+            "**車線別**: ループA 18・辛口ユーザー 10・辛口クリエイター 8・進捗監視 4・辛口コメンテーター 2"
+            "——**門を締めた車線が、締めた対象の最大の書き手**であり、この閾値は自分の 18 本も落とす。"
+        )
+    else:
+        _census_said = "**国勢調査は unmeasurable**（履歴が短く、0 を健全と読ませない）。"
+    c.add(
+        "board_times_do_not_run_ahead",
+        "板とログの行が、まだ来ていない時刻を名乗れないか",
+        float(_times.checks_passed),
+        unit="/4",
+        detail=(
+            "; ".join(_times.failures)
+            if _times.failures
+            else "**実測で確かめた 4 点**——(A) **19 分先を名乗る板の行を足す push が落ち、"
+            "落ちたときに「何をすれば通るか」（書く瞬間に `date -u` を捕る）を言う**、"
+            "(B) **commit と同じ分の正直な行は通る**（全部拒む門なら (A) はただで取れる）、"
+            "(C) **`13:4x` の伏せ字は下限読みのまま通る**（上限に倒すと伏せ字が違反に化ける・禁じ手 4）、"
+            "(D) **履歴が短すぎるときは 0 ではなく unmeasurable**（浅い clone の「0 件」は健全に見える・C-1723）。"
+            "**閾値の根拠を入れ替えたのが本体**: 旧 `MARGIN_MINUTES = 30` は"
+            "「実測した正直な遅れは最大 +20.2」を根拠にしていたが、**その +20.2 は捕まえるべき違反そのもの**。"
+            "`date -u` は分を切り捨て、commit は必ず書いたあとなので、"
+            "**正直に書いた行の先行は負にしかならない**（実測: 444 本中 369 本が先行 0 以下）。"
+            "**最初に書いた説明は実測で潰れた**——sub-minute の 33 本を「切り捨ての産物」と書いたが、"
+            "**切り捨ては行を早く見せるだけで先行を作れない**。33 本は 0.03〜0.97 に一様に散っており、"
+            "**commit の分の 1 つ先を名乗った**形＝同じ欠陥の最も軽い版。よって **1 分は導出ではなく明示した譲歩**。"
+            + _census_said
+            + "**破壊 4 方向・1 probe 1 プロセス・無変異の対照つき**: "
+            "D1〔旧 margin 30 に戻す〕**3/4**〔(A)〕・D2〔margin を -1 に締めすぎる〕**3/4**〔(B)〕・"
+            "D3〔伏せ字を上限読み〕**3/4**〔(C)〕・D4〔浅い履歴で 0 を返す〕**3/4**〔(D)〕・無変異 **4/4**。"
+        ),
+        direction="up",
+        kind=OUTCOME,
+    )
+
     from sidra_ai.evals.board_metric_names_resolve import (
         evaluate_board_metric_names_resolve,
     )

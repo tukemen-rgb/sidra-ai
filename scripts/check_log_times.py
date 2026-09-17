@@ -78,9 +78,52 @@ BOARD_STAMP = re.compile(
     r"^- \[(?: |x|~|記録)\]\s*\S{0,6}\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:[\dx]{2})\s*UTC"
 )
 
-#: Minutes a line may lead the commit that carries it. See the docstring:
-#: measured honest lag tops out at +20.2, p98 of the whole file is +37.7.
-MARGIN_MINUTES = 30
+#: Minutes a line may lead the commit that carries it.
+#:
+#: C-1914 replaced this number and, more importantly, the reasoning behind
+#: it. It was 30, chosen because "the measured honest lag tops out at +20.2"
+#: - but **that +20.2 is not honest lag, it is the violation**. A line's
+#: stamp comes from `date -u` and the commit time comes from git, and those
+#: are the same clock on the same machine; writing always happens before
+#: committing. So a line written by reading the clock can only ever be
+#: *behind* its commit. The only way to be ahead is to have typed a time
+#: instead of read one. The old margin was measured off the liars and then
+#: used to decide how much lying to allow.
+#:
+#: Strictly, the mechanism says this number should be 0. `date -u` floors
+#: to the minute, so the stamp is never later than the moment of writing,
+#: and the commit is always later still: an honestly written line's lead is
+#: **always negative**. Checked rather than assumed - 369 of the 444 lines
+#: measured below do lead by nothing at all.
+#:
+#: That check also killed the first explanation written here, which called
+#: sub-minute leads a truncation artefact. Truncation cannot produce one:
+#: flooring only ever makes a line look *earlier*. The 33 sub-minute leads
+#: in the census spread evenly across 0.03..0.97, which is the signature of
+#: a stamp written one minute past its commit's minute - the same defect,
+#: mildest form.
+#:
+#: So 1 is a deliberate concession, not a derivation: the smallest value
+#: that cannot be tripped by a stamp rounded up by one minute, while still
+#: refusing every lead of a minute or more. 0 would be defensible; 1 is the
+#: conservative first step for a check that stands in front of three loops'
+#: pushes.
+#:
+#: Re-measured 2026-09-17 over the last 400 commits, 444 added lines the
+#: gate reads: 75 (16.9%) lead their commit at all, and **42 (9.5%) lead by
+#: a full minute or more** - max +19.3, median +2.1 - with **not one of
+#: them failing** under the old margin. By lane those 42 are: ループA 18,
+#: 辛口ユーザー 10, 辛口クリエイター 8 (worst single line, +19.3),
+#: 進捗監視 4, 辛口コメンテーター 2. The lane that wrote this change is the
+#: largest single contributor to what it now refuses, and this margin still
+#: catches all 18 of its own - which is the point of stating the census by
+#: lane instead of summarising it.
+MARGIN_MINUTES = 1
+
+#: Below this many commits, history is too short to say anything - a shallow
+#: clone would otherwise report a clean census, and "0 lines run ahead" reads
+#: as health when it means nothing was read (C-1723's rule).
+CENSUS_NEEDS_COMMITS = 50
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
@@ -173,6 +216,53 @@ def check() -> tuple[list[str], list[str]]:
     return problems, notes
 
 
+def census(limit: int = 400) -> dict | None:
+    """How far the lines in recent history lead their own commits.
+
+    Returns None when the history is too short to say - a shallow clone
+    must not report a clean census, because "0 lines run ahead" reads as
+    health when it means nothing was read. That is C-1723's rule and it is
+    the reason this returns None rather than zeroes.
+
+    ``ahead_minute_or_more`` is the count that matters: a line may lead by
+    up to a minute purely because the stamp carries 「HH:MM」 while the
+    commit carries seconds, and that is not a claim about anything.
+    """
+
+    counted = _git("rev-list", "--count", "HEAD")
+    if counted.returncode != 0 or int(counted.stdout.strip() or 0) < CENSUS_NEEDS_COMMITS:
+        return None
+    listed = _git("log", "--format=%H %ct", f"-{limit}")
+    if listed.returncode != 0:
+        return None
+    leads: list[float] = []
+    read = 0
+    for entry in listed.stdout.split("\n"):
+        if not entry.strip():
+            continue
+        sha, made_at = entry.split()
+        made = dt.datetime.fromtimestamp(int(made_at), dt.timezone.utc)
+        for path in FILES:
+            shown = _git("show", "--format=", "--unified=0", sha, "--", str(path))
+            if shown.returncode != 0:
+                continue
+            for line in _added_lines(shown.stdout):
+                claimed = _claimed(line, board=path == BOARD)
+                if claimed is None:
+                    continue
+                read += 1
+                leads.append((claimed - made).total_seconds() / 60)
+    if not read:
+        return None
+    ahead = [a for a in leads if a >= 1.0]
+    return {
+        "lines_read": read,
+        "ahead_minute_or_more": len(ahead),
+        "worst_minutes": max(leads) if leads else 0.0,
+        "would_fail_now": sum(1 for a in leads if a > MARGIN_MINUTES),
+    }
+
+
 def main() -> int:
     problems, notes = check()
     for note in notes:
@@ -181,6 +271,13 @@ def main() -> int:
         print("REFUSED: ログ行が自分の時刻について嘘をついている")
         for problem in problems:
             print(f"  - {problem}")
+        # A refusal that does not say what would pass is a wall, not a gate.
+        # The fix is one line: read the clock at the moment of writing and
+        # put that exact string in the line, rather than typing a time.
+        print("  直し方: 行を書く瞬間に時刻を捕って、その文字列をそのまま使う——")
+        print("    T=$(date -u '+%Y-%m-%d %H:%M UTC')")
+        print("    printf '%s ループA started\\n' \"$T\" >> docs/LOOP_LOG.md")
+        print("  時刻を見積もって書かないこと。書く時刻は commit より後にはならない。")
         return 1
     print("ログ行の時刻は commit と整合（追加行のみを見ている）")
     return 0
