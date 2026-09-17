@@ -2464,6 +2464,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1931: the eval above tested only four conversational codes and missed
+    # that how_to_make (C-1875) was never added to _CONVERSATIONAL_REFUSALS, so
+    # it fell to exit 1 (outage) a monitor reads as an API failure. This eval
+    # checks EVERY conversational code exits 4 (both render and --json), with
+    # the safety/outage/answered controls kept.
+    from sidra_ai.evals.cli_conversational_refusals_exit_4 import (
+        evaluate_cli_conversational_refusals_exit_4,
+    )
+
+    cli_conv = evaluate_cli_conversational_refusals_exit_4()
+    c.add(
+        "cli_conversational_refusals_exit_4",
+        "会話的拒否（挨拶・help・作り方・一覧…）がすべて終了コード 4 で、障害の 1 と混ざらない",
+        10.0 * cli_conv.checks_passed / cli_conv.checks_total,
+        detail=f"{cli_conv.checks_passed}/{cli_conv.checks_total} checks; "
+               "src/sidra_ai/evals/cli_conversational_refusals_exit_4.py"
+               + ("" if cli_conv.passed else "; " + "; ".join(cli_conv.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1872: the guardian above checks synthetic payloads for a fixed code list,
     # so six conversational refusals the service added after C-1811 (delete /
     # list / feature-question / panel-setting / revision content and kind) fell to
