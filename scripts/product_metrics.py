@@ -15044,6 +15044,56 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and whether an amount asked for in English is heard (C-1934) ----
+    #
+    # The product is honest about amounts it cannot honour: C-1823 for a
+    # GIF's length, C-1832 for a model count, C-1821 for a deck's slides.
+    # None of it reached an English request, because all four parsers read
+    # Japanese units only - English 0 of 11, Japanese 4 of 4.
+    #
+    # This is not the wrong-language family (C-1929/1930/1932). 「make a 5
+    # second gif」 was handed a 0.8 second loop and told NOTHING: a different
+    # artifact than the one asked for, silently. It also means the caveats
+    # C-1932 translated could not be reached in English until now.
+    #
+    # Read off the generator's reply, not the parser: a parser that returns
+    # a number while the caveat stays silent changes nothing for the
+    # operator. Silence is checked too - a caveat that fires with nothing to
+    # report is what C-1823 says stops being read, so 「a 3d model」 and 「a
+    # gif of the 90s」 must stay quiet.
+    from sidra_ai.evals.english_amount_is_heard import (
+        AMOUNTS as _AMOUNT_ROWS,
+        evaluate_english_amount_is_heard,
+    )
+
+    _amount = evaluate_english_amount_is_heard()
+    c.add(
+        "creation_english_amount_is_heard",
+        "英語で数を頼んだら、その数が聞かれている（C-1934）",
+        float(_amount.checks_passed) if _amount.passed else 0.0,
+        detail=(
+            f"**{len(_AMOUNT_ROWS)} 種の単位＋スライド枚数**を日英で"
+            "**実際に生成して返事を読んだ**（parser ではなく現物——"
+            "**数を読めても注記が黙っていれば操作者には何も変わらない**）——"
+            + "、".join(_amount.readings[:3])
+            + "。"
+            "**4 方向**: (a) 英語で数を頼めば注記が出る、"
+            "(b) **日本語の注記が止まっていない**、"
+            "(c) **数を頼んでいない依頼には何も言わない**"
+            "——C-1823 が「報告することが無いのに出る注意書きは読まれなくなる」と書いた当のもの、"
+            "(d) **数に見えて数でない形は黙ったまま**"
+            "——**「make a 3d model」は 3 個ではない**し、"
+            "**「make a gif of the 90s」は 90 秒ではない**"
+            "（だから **bare の「5s」形はわざと入れていない**）。"
+            "**直す前**: **英語 0/11・日本語 4/4**。"
+            "**「make a 5 second gif」は 0.8 秒のループを渡されて一言も言われず**、"
+            "**「5秒のGIF」は「長さは指定できません」と言われていた**"
+            if _amount.passed
+            else "; ".join(_amount.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had

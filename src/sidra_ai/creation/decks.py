@@ -211,14 +211,21 @@ def outline_fallback_note(request: str, outline: str) -> str:
 #: it was written for - and changed the answer in none of them, so it is not
 #: here. Three digits rather than two: 「100枚のスライドを作って」 is exactly the
 #: request this note exists for, and the two-digit bound let it through silent.
-_SLIDE_COUNT = re.compile(r"(\d{1,3})\s*(?:枚|ページ|スライド)")
+#: C-1934: and the English forms - 「make a 5 slide deck」, 「a deck with 5
+#: slides」, 「a 5-page deck」. Read by nobody until now, so C-1821's caveat
+#: never fired for an English request.
+_SLIDE_COUNT = re.compile(
+    r"(\d{1,3})\s*(?:枚|ページ|スライド)"
+    r"|(?<![A-Za-z0-9])(\d{1,3})[\s-]*(?:slides?|pages?)\b",
+    re.IGNORECASE,
+)
 
 
 def requested_slide_count(request: str) -> int | None:
     """How many slides the request asked for, or None when it named no size."""
 
     for match in _SLIDE_COUNT.finditer(request):
-        found = int(match.group(1))
+        found = int(next(group for group in match.groups() if group))
         if found > 0:
             return found
     return None

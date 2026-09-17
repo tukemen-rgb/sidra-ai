@@ -368,7 +368,16 @@ def _mtl_text() -> str:
 #: what makes the number a count, so 「2026年の3Dモデル」 never matches and no
 #: list of not-a-count words is needed (measured in decks.py, C-1821, where
 #: such a list changed the answer in none of twelve requests).
-_MODEL_COUNT = re.compile(r"(\d{1,3})\s*(?:個|つ|体|匹|台|点)")
+#: C-1934: and the English forms. 「make 3 models」 named a count nobody
+#: read, so C-1832's caveat never fired for it. The noun has to be there -
+#: a bare 「make 3」 names no unit, and 「make a 3d model」 must not be read
+#: as three of anything (the digit is glued to the 「d」, which the
+#: boundaries below keep out).
+_MODEL_COUNT = re.compile(
+    r"(\d{1,3})\s*(?:個|つ|体|匹|台|点)"
+    r"|(?<![A-Za-z0-9])(\d{1,3})[\s-]*(?:models?|meshes|mesh)\b",
+    re.IGNORECASE,
+)
 
 #: One request builds one mesh. Named rather than written into the sentence so
 #: a generator that ever builds more carries the note with it.
@@ -379,7 +388,7 @@ def requested_count(request: str) -> int | None:
     """How many models the request asked for, or None when it named no count."""
 
     for match in _MODEL_COUNT.finditer(request):
-        found = int(match.group(1))
+        found = int(next(group for group in match.groups() if group))
         if found > 0:
             return found
     return None

@@ -50,17 +50,34 @@ DELAY_CS = 8
 #: The unit word is what makes the number a length, which is why no list of
 #: not-a-length words is needed: 「2026年のGIF」 has no digits in front of one
 #: (the same measurement that deleted such a list in decks.py, C-1821).
-_FRAME_COUNT = re.compile(r"(\d{1,3})\s*(?:フレーム|コマ)")
+#: C-1934: and the English forms. 「make a 30 frame gif」, 「a 30-frame gif」,
+#: 「a gif with 30 frames」 were all read as naming no length, so the caveat
+#: C-1823 wrote never fired for them - an English request was given the
+#: fixed 10 frames and told nothing, while the Japanese twin is told.
+_FRAME_COUNT = re.compile(
+    r"(\d{1,3})\s*(?:フレーム|コマ)|(?<![A-Za-z0-9])(\d{1,3})[\s-]*frames?\b",
+    re.IGNORECASE,
+)
 
 #: 「5秒」「5 秒間」 - the same length asked for in time instead.
-_SECONDS = re.compile(r"(\d{1,3})\s*秒")
+#: C-1934: 「make a 5 second gif」, 「a 5 sec gif」. Deliberately NOT a bare
+#: 「5s」: 「make a gif of the 90s」 would then be read as asking for ninety
+#: seconds, and a caveat that fires with nothing to report is the thing
+#: C-1823 says stops being read. Whole seconds only, like the Japanese
+#: side - 「2.5 second」 is not read by either, which is a limit rather than
+#: a difference between the languages.
+_SECONDS = re.compile(
+    r"(\d{1,3})\s*秒|(?<![A-Za-z0-9])(\d{1,3})[\s-]*(?:seconds?|secs?)\b",
+    re.IGNORECASE,
+)
 
 
 def requested_frames(request: str) -> int | None:
     """How many frames the request asked for, or None when it named none."""
 
     for match in _FRAME_COUNT.finditer(request):
-        found = int(match.group(1))
+        # Whichever branch matched - the Japanese unit or the English one.
+        found = int(next(group for group in match.groups() if group))
         if found > 0:
             return found
     return None
@@ -70,7 +87,7 @@ def requested_seconds(request: str) -> int | None:
     """How many seconds the request asked for, or None when it named none."""
 
     for match in _SECONDS.finditer(request):
-        found = int(match.group(1))
+        found = int(next(group for group in match.groups() if group))
         if found > 0:
             return found
     return None
