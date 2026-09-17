@@ -14289,6 +14289,26 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1923: 「何が作れますか」「作れXXXものは」 - the most direct capability
+    # question - fell to the no-evidence wall, though the help answer already
+    # names what can be made. Those phrasings now reach the help branch, in the
+    # request's language; a real make request is untouched.
+    from sidra_ai.evals.chat_what_can_you_make_is_answered import (
+        evaluate_chat_what_can_you_make_is_answered,
+    )
+
+    _what_make = evaluate_chat_what_can_you_make_is_answered()
+    c.add(
+        "chat_what_can_you_make_is_answered",
+        "「何が作れますか」「作れるものは」等の能力質問に、作れるものを答える（索引の壁へ送らない）",
+        10.0 * _what_make.checks_passed / _what_make.checks_total,
+        detail=f"{_what_make.checks_passed}/{_what_make.checks_total} checks; "
+               "src/sidra_ai/evals/chat_what_can_you_make_is_answered.py"
+               + ("" if _what_make.passed
+                  else "; " + "; ".join(_what_make.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # --- an instruction that names a feature is still an instruction -----
     #
     # C-1878. The branch above matches four feature cues - 共有 / 今日の挑戦 /

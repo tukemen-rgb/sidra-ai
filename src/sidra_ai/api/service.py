@@ -241,6 +241,19 @@ _HELP_QUERIES = frozenset({
     "使い方がわからない", "使い方が分からない", "使い方がわかりません",
     "どう使う", "どう使うの", "どうやって使う", "どうやって使うの",
     "何をしてくれる", "何をしてくれるの", "何が得意", "何が得意なの",
+    # C-1923: what can you MAKE - a capability question the help answer already
+    # addresses (「制作もでき、いま作れるのは …です」), but which fell to the
+    # no-evidence wall because none of these phrasings were listed. Whole-message,
+    # so a specific make request (「レースゲームを作って」) is untouched.
+    "何が作れる", "何が作れるの", "何が作れますか", "何が作れるか",
+    "なにが作れる", "なにが作れるの", "なにが作れますか",
+    "何を作れる", "何を作れるの", "何を作れますか", "なにを作れる", "なにを作れますか",
+    "作れるもの", "作れるものは", "作れるものは何", "作れるものは何ですか",
+    "あなたは何が作れる", "あなたは何が作れますか", "君は何が作れる", "きみは何が作れる",
+    "どんなものが作れる", "どんなものが作れるの", "どんなものが作れますか",
+    "どんなものを作れる", "どんなものを作れますか", "どんなものが作れるか",
+    "what can you make", "what can you create", "what can you build",
+    "what can you generate", "what can this make", "what can i make here",
     # C-1904: English help/identity (whole-message, casefolded). The bare word
     # "help" was already here; these are how people ask what this is / what it
     # can do / how to use it. The help branch answers in English (rule 6).
