@@ -260,6 +260,11 @@ _CONVERSATIONAL_REFUSALS = frozenset(
         "empty", "ambiguous", "unnamed", "greeting", "revision_target", "help",
         "delete_unsupported", "artifact_list", "artifact_feature_question",
         "panel_setting", "revision_change", "revision_kind",
+        # C-1931: a "how do I make one" reply (C-1875) is conversational too - the
+        # system understood a question about its own making and answered. It was
+        # added to the service without being added here, so it fell to exit 1
+        # (outage) that a monitor reads as an API failure.
+        "how_to_make",
     }
 )
 
