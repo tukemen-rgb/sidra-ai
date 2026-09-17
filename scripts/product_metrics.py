@@ -1591,6 +1591,26 @@ def measure_answer_quality(c: Collector) -> None:
     # fragments because _ARTIFACT_LIST_QUERIES was Japanese-only. Now recognised
     # and listed in English (rule 6). Third of the English conversational-entry
     # set after C-1902 (greetings) and C-1904 (help/identity).
+    # C-1917: "作ったファイルはどこ" / "where are my files" / "list my files" fell
+    # to RAG and returned an unrelated corpus document, though the artifact-list
+    # answer already names where the files are (/v1/artifacts). Those whereabouts
+    # phrasings now reach the same handler.
+    from sidra_ai.evals.chat_where_are_my_files_is_answered import (
+        evaluate_chat_where_are_my_files_is_answered,
+    )
+
+    where_files = evaluate_chat_where_are_my_files_is_answered()
+    c.add(
+        "chat_where_are_my_files_is_answered",
+        "「作ったファイルはどこ」「where are my files」等の在り処質問に一覧＋取得先で答える",
+        10.0 * where_files.checks_passed / where_files.checks_total,
+        detail=f"{where_files.checks_passed}/{where_files.checks_total} checks; "
+               "src/sidra_ai/evals/chat_where_are_my_files_is_answered.py"
+               + ("" if where_files.passed
+                  else "; " + "; ".join(where_files.failures[:4])),
+        kind=OUTCOME,
+    )
+
     from sidra_ai.evals.chat_english_artifact_list_is_answered import (
         evaluate_chat_english_artifact_list_is_answered,
     )

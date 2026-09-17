@@ -268,6 +268,21 @@ _ARTIFACT_LIST_QUERIES = frozenset({
     "list what you made", "list what you've made", "list what you have made",
     "show my files", "show me my files", "show me the files you made",
     "what files have you made",
+    # C-1917: whereabouts questions about the user's OWN output. The artifact
+    # list answer already names where the files are (/v1/artifacts), so a
+    # "where are my files" question gets that same honest answer instead of
+    # falling to RAG and citing an unrelated corpus document. Scoped to the
+    # user's own artifacts (「作った」/"my"); a corpus question about where some
+    # files live, and the download-ambiguous "how do I download the game", are
+    # deliberately left to the corpus (the boundary C-1906 also kept).
+    "作ったファイルはどこ", "作ったファイルはどこですか", "作ったファイルはどこにありますか",
+    "作ったファイルはどこにある", "作ったものはどこ", "作ったものはどこですか",
+    "作ったものはどこにありますか", "作ったものはどこにある", "作った物はどこ",
+    "作った物はどこにありますか", "成果物はどこ", "成果物はどこにありますか",
+    "作ったファイルの場所", "作ったものの場所",
+    "where are my files", "where are my artifacts", "where are my creations",
+    "where are the files i made", "where can i find my files",
+    "where can i find my artifacts", "list my files", "list my artifacts",
 })
 
 
