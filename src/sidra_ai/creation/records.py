@@ -89,6 +89,14 @@ STANDALONE_LOG_NAME = "creation-log.md"
 #: machine's, the rest of the document stays the operator's.
 RECORDS_HEADING = "## 生成履歴"
 
+#: C-1940: the same heading for a log written in English. A production log is
+#: a file that is saved and forwarded, so it follows the same rule every reply
+#: surface follows (C-1918..C-1938): the language of the request. Two headings
+#: rather than one translated in place, because a log written last week under
+#: the Japanese heading has to keep receiving records - ``append_record``
+#: appends under whichever heading the file already carries.
+RECORDS_HEADING_EN = "## Generation history"
+
 #: One record. The separator is `` | `` (spaces included) and the sanitiser
 #: strips bare ``|`` from every value, so field boundaries cannot be forged
 #: by the text inside a field.
@@ -97,9 +105,27 @@ _LINE = re.compile(
     r" \| パラメータ: (?P<parameters>.*)$"
 )
 
+#: The same record written in English (C-1940). Same separator, same fields,
+#: same order - only the labels differ, so a reader of either file is reading
+#: the same record.
+_LINE_EN = re.compile(
+    r"^- (?P<when>\S+) \| made: (?P<made>.*?) \| sources: (?P<evidence>.*?)"
+    r" \| parameters: (?P<parameters>.*)$"
+)
+
 #: The empty-field marker. Written instead of an empty string so a record
 #: with no evidence is visibly "none" rather than ambiguously blank.
 _NONE = "なし"
+_NONE_EN = "none"
+
+#: Every record shape this module writes, as ``(pattern, empty-marker,
+#: joiner)``. ``read_records`` walks this table rather than naming the
+#: Japanese one and remembering to add the other: a second format that the
+#: parser does not know about is a log that silently reads back as empty.
+_RECORD_FORMATS = (
+    (_LINE, _NONE, "、"),
+    (_LINE_EN, _NONE_EN, ", "),
+)
 
 
 @dataclass(frozen=True)
@@ -147,6 +173,7 @@ def format_record(
     evidence: list[str],
     parameters: dict[str, object],
     now: datetime | None = None,
+    in_japanese: bool = True,
 ) -> str:
     """Render one record line.
 
@@ -154,16 +181,31 @@ def format_record(
     caller passing anything else gets its ``str()`` sanitised like everything
     else rather than an error, because a record that raises is a record that
     silently stops being written.
+
+    ``in_japanese=False`` writes the English form (C-1940). It defaults to
+    Japanese so every existing caller keeps writing the line it wrote before:
+    the language is the *request's*, and only the caller holding the request
+    knows it.
     """
 
     stamp = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    made_part = "、".join(_clean(name) for name in made) or _NONE
-    evidence_part = "、".join(_clean(source) for source in evidence) or _NONE
+    none = _NONE if in_japanese else _NONE_EN
+    joiner = "、" if in_japanese else ", "
+    made_part = joiner.join(_clean(name) for name in made) or none
+    evidence_part = joiner.join(_clean(source) for source in evidence) or none
     parameter_part = (
         " ".join(f"{_clean(key)}={_clean(value)}" for key, value in parameters.items())
-        or _NONE
+        or none
     )
-    return f"- {stamp} | 作った物: {made_part} | 根拠: {evidence_part} | パラメータ: {parameter_part}"
+    if in_japanese:
+        return (
+            f"- {stamp} | 作った物: {made_part} | 根拠: {evidence_part}"
+            f" | パラメータ: {parameter_part}"
+        )
+    return (
+        f"- {stamp} | made: {made_part} | sources: {evidence_part}"
+        f" | parameters: {parameter_part}"
+    )
 
 
 def append_record(
@@ -173,6 +215,7 @@ def append_record(
     evidence: list[str],
     parameters: dict[str, object],
     now: datetime | None = None,
+    in_japanese: bool = True,
 ) -> Path:
     """Add one generation record to the project's ``production-log.md``.
 
@@ -189,7 +232,13 @@ def append_record(
             f"{log_path} does not exist; records are appended to the LOG stage, never created beside it"
         )
 
-    line = format_record(made=made, evidence=evidence, parameters=parameters, now=now)
+    line = format_record(
+        made=made,
+        evidence=evidence,
+        parameters=parameters,
+        now=now,
+        in_japanese=in_japanese,
+    )
 
     # Read and write under one lock (C-1862): the read decides what the
     # write contains, so a second thread reading between them writes the
@@ -198,11 +247,24 @@ def append_record(
     with _APPEND_LOCK:
         text = log_path.read_text(encoding="utf-8")
 
-        if RECORDS_HEADING in text:
+        # C-1940: the heading the file *already carries* wins over the one
+        # this run's language would choose. A log is appended to for as long
+        # as the production lives, and a run in the other language must add
+        # its line to the existing section rather than open a second one
+        # further down - two 「生成履歴」 sections is a log nobody can read in
+        # order, and ``read_records`` would still parse both, so nothing
+        # would ever report it.
+        heading = RECORDS_HEADING if in_japanese else RECORDS_HEADING_EN
+        for candidate in (RECORDS_HEADING, RECORDS_HEADING_EN):
+            if candidate in text:
+                heading = candidate
+                break
+
+        if heading in text:
             # Insert at the end of the existing section - directly before the
             # next heading, or at end of file when the section is last - so
             # records stay chronological even if an operator wrote notes below.
-            head, _, tail = text.partition(RECORDS_HEADING)
+            head, _, tail = text.partition(heading)
             next_heading = re.search(r"^#{1,6} ", tail, flags=re.M)
             if next_heading:
                 cut = next_heading.start()
@@ -210,9 +272,9 @@ def append_record(
             else:
                 section, rest = tail, ""
             section = section.rstrip("\n") + "\n" + line + "\n\n"
-            text = head + RECORDS_HEADING + section + rest
+            text = head + heading + section + rest
         else:
-            text = text.rstrip("\n") + f"\n\n{RECORDS_HEADING}\n\n{line}\n"
+            text = text.rstrip("\n") + f"\n\n{heading}\n\n{line}\n"
 
         _write_whole_file(log_path, text)
     return log_path
@@ -292,15 +354,18 @@ def read_records(
 
     records: list[GenerationRecord] = []
     for raw in log_path.read_text(encoding="utf-8").splitlines():
-        match = _LINE.match(raw.strip())
+        for pattern, none, joiner in _RECORD_FORMATS:
+            match = pattern.match(raw.strip())
+            if match:
+                break
         if not match:
             continue
-        made = tuple(p for p in match.group("made").split("、") if p and p != _NONE)
+        made = tuple(p for p in match.group("made").split(joiner) if p and p != none)
         evidence = tuple(
-            p for p in match.group("evidence").split("、") if p and p != _NONE
+            p for p in match.group("evidence").split(joiner) if p and p != none
         )
         parameters: dict[str, str] = {}
-        if match.group("parameters") != _NONE:
+        if match.group("parameters") != none:
             # C-1830: split before a key, not on every space. A value with a
             # space in it (an English title) used to drop everything after the
             # first word, silently and only on read-back - the line a person
@@ -324,6 +389,7 @@ __all__ = [
     "GenerationRecord",
     "LOG_NAME",
     "RECORDS_HEADING",
+    "RECORDS_HEADING_EN",
     "STANDALONE_LOG_NAME",
     "append_record",
     "append_standalone_record",
