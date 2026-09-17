@@ -14994,8 +14994,15 @@ def measure_creation(c: Collector) -> None:
     # the template it was listed for. The names are derived from the routing
     # table rather than written into a second one, which is what makes that
     # check passable at all.
+    # C-1932 widened this from the game to the four kinds whose reply is
+    # assembled the same way - game, art, gif, 3D model. One number rather
+    # than four: per-kind numbers let one green kind make the whole thing
+    # look green (the judgement C-1920 made for the same reason). The name
+    # still says `game` because renaming a metric throws away the history of
+    # the number; what it covers is the table in the eval.
     from sidra_ai.evals.game_reply_matches_the_language_asked import (
         CASES as _GLANG_CASES,
+        OTHER_KINDS as _GLANG_KINDS,
         evaluate_game_reply_matches_the_language_asked,
     )
 
@@ -15005,7 +15012,8 @@ def measure_creation(c: Collector) -> None:
         "ゲームを作った返事が、訊かれた言語で返る（C-1930）",
         float(_glang.checks_passed) if _glang.passed else 0.0,
         detail=(
-            f"**{len(_GLANG_CASES)} 通りを日英で実際に生成して返事を読んだ**——"
+            f"**ゲーム {len(_GLANG_CASES)} 通り＋ほか {len(_GLANG_KINDS)} 種"
+            "（art・gif・3D モデル）を日英で実際に生成して返事を読んだ**——"
             + "、".join(_glang.readings[:3])
             + "。"
             "**4 方向**: (a) 英語には英語で返る"
@@ -15020,8 +15028,16 @@ def measure_creation(c: Collector) -> None:
             "**読めない一覧は無意味、router が答えない英単語の一覧はもっと悪い**"
             "（通らない依頼を誘う）。**名前は GENRES の routing 語から導く**"
             "ので、**打ち返せば必ず通る**（表を 2 つ持たない・C-1848／C-1850）。"
+            "**ほかの 3 種は「枠のあと」の注記に届く依頼で測る**"
+            "——既定への落ち込み・使えなかった色。"
+            "**枠だけ訳して注記を残すのが半端仕事**で、"
+            "**成功の枠だけ見る依頼からは見えない**（C-1932）。"
+            "**指標名が `game` のままなのは、改名すると数字の履歴が切れるから**"
+            "——実際に見ている面は判定器の表のほう。"
             "**直す前**: 「make a racing game」→"
-            "**「「racing」を作りました（難易度 normal）。ブラウザで開けばそのまま遊べます。」**"
+            "**「「racing」を作りました（難易度 normal）。ブラウザで開けばそのまま遊べます。」**、"
+            "art「「owl」のジェネラティブアートを作りました…」、"
+            "gif「「owl」のアニメ GIF を作りました…」、model3d「「owl」の 3D モデルを作りました…」"
             if _glang.passed
             else "; ".join(_glang.failures[:4])
         ),

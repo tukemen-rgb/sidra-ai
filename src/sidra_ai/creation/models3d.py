@@ -385,7 +385,7 @@ def requested_count(request: str) -> int | None:
     return None
 
 
-def count_note(request: str, made: int = MADE_PER_REQUEST) -> str:
+def count_note(request: str, made: int = MADE_PER_REQUEST, *, in_japanese: bool = True) -> str:
     """The admission that this is not the number that was asked for, or "".
 
     C-1832. One request builds one mesh and there is no count to set, so
@@ -405,9 +405,20 @@ def count_note(request: str, made: int = MADE_PER_REQUEST) -> str:
     asked = requested_count(request)
     if asked is None or asked == made:
         return ""
+    # C-1932: said in the language the reply takes. The caller decides that
+    # with the product's own rule and passes the answer in, so this helper
+    # does not grow a language test of its own.
     return (
-        f"依頼は {asked} つでしたが、いまは 1 回の依頼につき {made} 体だけ作ります。"
-        "個数は指定できません。"
+        (
+            f"依頼は {asked} つでしたが、"
+            f"いまは 1 回の依頼につき {made} 体だけ作ります。"
+            "個数は指定できません。"
+        )
+        if in_japanese
+        else (
+            f" The request asked for {asked}, but one request makes {made}. "
+            "The count cannot be set."
+        )
     )
 
 

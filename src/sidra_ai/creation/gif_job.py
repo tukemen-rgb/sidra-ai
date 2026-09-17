@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.models.echo import _reply_in_japanese
+
 from sidra_ai.creation.art import names_color
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.gifs import (
@@ -34,61 +36,81 @@ def build_gif_generator(data_dir: str | Path):
         gif = generate_gif(message, evidence=evidence or None)
         verdict = validate_gif(gif)
         path = save_gif(gif, data_dir)
+        # C-1932: the product's own rule for which language the reply
+        # takes (C-1929, C-1930). One call, no third copy of the test.
+        in_japanese = _reply_in_japanese(message)
         if verdict["valid"]:
-            motif_label = MOTIF_LABELS.get(gif.motif, gif.motif)
-            summary = (
-                f"「{gif.title}」のアニメ GIF を作りました"
-                f"（絵柄: {motif_label}・{verdict['frames']} フレーム・"
-                f"{verdict['width']}×{verdict['height']}・ループ再生）。"
-                # Channel-neutral, like every other generator's summary (art,
-                # game, 3D): say how to open the file, and let each channel
-                # surface where it is (the web file list, or sidra-ask's
-                # 「生成ファイル:」 line). Naming 「生成ファイル一覧」 sent a CLI
-                # reader to a list a terminal does not have (C-1610).
-                "ブラウザや画像ビューアーで開けます。"
+            # C-1932: in an English reply a motif's own key IS its English
+            # name (fish / pulse), so no second table is written.
+            motif_label = (
+                MOTIF_LABELS.get(gif.motif, gif.motif) if in_japanese else gif.motif
             )
-            # The request named no motif, so the default was used. Say so and
-            # name the motifs that can be asked for - a reader who asked for
-            # 「猫」 got concentric rings and would otherwise never learn the
-            # subject was not drawn or what they could pick (C-1258). Not a
-            # claim the subject can't be drawn: the motifs are abstract, so the
-            # honest fact is just "you didn't name one, here is what you got
-            # and the ones you can pick".
-            if not gif.motif_named:
-                # C-1850: built from MOTIF_LABELS, not written out. This
-                # sentence said 「指定できるのは「魚」です」 as a literal, so the
-                # pulse - half the catalogue - was missing from the list of
-                # what a reader could ask for, and stayed missing when it
-                # gained its own words. art_job has always assembled its
-                # choices from PATTERN_LABELS; this is that same rule, and a
-                # third motif now joins the sentence by existing.
-                choices = " / ".join(MOTIF_LABELS.values())
-                summary += (
-                    f"依頼に合う絵柄が無かったので、既定の"
-                    f"「{MOTIF_LABELS[DEFAULT_MOTIF]}」にしました。"
-                    f"いま絵柄を指定できるのは {choices} です。"
+            summary = (
+                (
+                    f"「{gif.title}」のアニメ GIF を作りました"
+                    f"（絵柄: {motif_label}・{verdict['frames']} フレーム・"
+                    f"{verdict['width']}×{verdict['height']}・ループ再生）。"
+                    "ブラウザや画像ビューアーで開けます。"
                 )
-            # The request named a colour, but the palette is fixed, so 「青い」 was
-            # drawn in the same colours as every other GIF. Say the colour was
-            # not applied rather than let the title imply it was - the same
-            # honesty art got (C-1272, extending C-1271 to the GIF generator).
+                if in_japanese
+                else (
+                    f"Made an animated GIF for \u201c{gif.title}\u201d "
+                    f"(motif: {motif_label}, {verdict['frames']} frames, "
+                    f"{verdict['width']}x{verdict['height']}, loops). "
+                    "Open it in a browser or an image viewer."
+                )
+            )
+            # The request named no motif, so the default was used (C-1258).
+            if not gif.motif_named:
+                # C-1850: built from MOTIF_LABELS, not written out, so a third
+                # motif joins the sentence by existing.
+                choices = (
+                    " / ".join(MOTIF_LABELS.values())
+                    if in_japanese
+                    else " / ".join(MOTIF_LABELS)
+                )
+                summary += (
+                    (
+                        f"依頼に合う絵柄が無かったので、既定の"
+                        f"「{MOTIF_LABELS[DEFAULT_MOTIF]}」にしました。"
+                        f"いま絵柄を指定できるのは {choices} です。"
+                    )
+                    if in_japanese
+                    else (
+                        " No motif in the request matched one that can be drawn, "
+                        f"so the default \u201c{DEFAULT_MOTIF}\u201d was used. "
+                        f"The motifs you can ask for are {choices}."
+                    )
+                )
+            # The colour was not applied (C-1272).
             if names_color(message):
                 summary += (
-                    "依頼にあった色は今の配色に反映していません。"
-                    "GIF は固定の配色で描いています。"
+                    (
+                        "依頼にあった色は今の配色に反映していません。"
+                        "GIF は固定の配色で描いています。"
+                    )
+                    if in_japanese
+                    else (
+                        " The colour in the request is not applied. The GIF is "
+                        "drawn in a fixed palette."
+                    )
                 )
-            # C-1823: and the length. Until now 「30フレームのGIFを作って」 put the
-            # asked-for 30 in the title and the true 10 in the parenthesis of
-            # the same sentence, and 「5秒のGIF」 never heard the real 0.8 second
-            # loop at all. The count comes from the validated bytes, not from
-            # FRAMES, so the sentence reports the file that was actually
-            # written. Empty when no length was asked for, or when the length
-            # asked for is the one made.
-            summary += length_note(message, verdict["frames"])
+            # C-1823: and the length, from the validated bytes.
+            summary += length_note(
+                message, verdict["frames"], in_japanese=in_japanese
+            )
         else:
             summary = (
-                f"「{gif.title}」の GIF を作りましたが、検証に落ちています: "
-                + "、".join(str(f) for f in verdict["failures"])
+                (
+                    f"「{gif.title}」の GIF を作りましたが、検証に落ちています: "
+                    + "、".join(str(f) for f in verdict["failures"])
+                )
+                if in_japanese
+                else (
+                    f"Made a GIF for \u201c{gif.title}\u201d, but it fails "
+                    "validation: "
+                    + ", ".join(str(f) for f in verdict["failures"])
+                )
             )
         return CreationOutcome(
             kind=intent.kind,

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.models.echo import _reply_in_japanese
+
 from sidra_ai.creation.art import names_color
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
@@ -38,53 +40,87 @@ def build_model3d_generator(data_dir: str | Path):
         model = generate_model3d(message)
         verdict = validate_model3d(model)
         paths = save_model3d(model, data_dir)
+        # C-1932: the product's own rule for which language the reply
+        # takes (C-1929, C-1930). One call, no fourth copy of the test.
+        in_japanese = _reply_in_japanese(message)
         if verdict["valid"]:
-            shape_label = SHAPE_LABELS.get(model.shape, model.shape)
-            summary = (
-                f"「{model.title}」の 3D モデルを作りました"
-                f"（形状: {shape_label}、low-poly、頂点 {verdict['vertices']}・"
-                f"面 {verdict['faces']}）。"
-                ".obj は Windows の 3D ビューアーでそのまま開けます。"
-                "プレビュー HTML はブラウザで回転表示できます。"
-                # C-1617: the .obj's colours (the palette) resolve only from the
-                # companion .mtl via mtllib; without it beside the .obj a viewer
-                # shows a grey model. 「そのまま開けます」 reads as self-sufficient,
-                # so a non-expert opens the .obj alone and loses every colour -
-                # the same "tell the truth about the artifact" honesty the deck
-                # (C-1274) and colour note (C-1272) already carry.
-                "色（配色）は隣に保存された .mtl から付くので、.obj と一緒に置いてください。"
+            # C-1932: in an English reply a shape's own key IS its English
+            # name (fish / boat / terrain), so no second table is written.
+            shape_label = (
+                SHAPE_LABELS.get(model.shape, model.shape)
+                if in_japanese
+                else model.shape
             )
-            # The request named no shape, so the fish default was used. Say so
-            # and list the shapes that can be asked for - a reader who asked for
-            # 「猫」 got a fish mesh and would otherwise never learn the subject
-            # was not modelled or what they could pick (C-1267). Not a claim the
-            # subject can't be modelled: the three shapes are abstract, so the
-            # honest fact is just "you didn't name one, here is what you got and
-            # what you can pick".
-            if not model.shape_named:
-                choices = " / ".join(SHAPE_LABELS.values())
-                summary += (
-                    f"依頼に合う形状が無かったので、既定の"
-                    f"「{SHAPE_LABELS[DEFAULT_SHAPE]}」にしました。"
-                    f"いま作れる形状は {choices} です。"
+            summary = (
+                (
+                    f"「{model.title}」の 3D モデルを作りました"
+                    f"（形状: {shape_label}、low-poly、頂点 {verdict['vertices']}・"
+                    f"面 {verdict['faces']}）。"
+                    ".obj は Windows の 3D ビューアーでそのまま開けます。"
+                    "プレビュー HTML はブラウザで回転表示できます。"
+                    # C-1617: the .obj's colours resolve only from the
+                    # companion .mtl, so say to keep them together.
+                    "色（配色）は隣に保存された .mtl から付くので、"
+                    ".obj と一緒に置いてください。"
                 )
-            # The request named a colour, but the palette is fixed, so 「青い」 was
-            # painted the same as every other model. Say the colour was not
-            # applied rather than let the title imply it was - the same honesty
-            # art got (C-1272, extending C-1271 to the 3D generator).
+                if in_japanese
+                else (
+                    f"Made a 3D model for \u201c{model.title}\u201d "
+                    f"(shape: {shape_label}, low-poly, {verdict['vertices']} "
+                    f"vertices, {verdict['faces']} faces). "
+                    "The .obj opens directly in the Windows 3D viewer, and the "
+                    "preview HTML turns it in a browser. "
+                    "The colours come from the .mtl saved beside it, so keep "
+                    "the .obj and the .mtl together."
+                )
+            )
+            # The request named no shape, so the default was used (C-1267).
+            if not model.shape_named:
+                choices = (
+                    " / ".join(SHAPE_LABELS.values())
+                    if in_japanese
+                    else " / ".join(SHAPE_LABELS)
+                )
+                summary += (
+                    (
+                        f"依頼に合う形状が無かったので、既定の"
+                        f"「{SHAPE_LABELS[DEFAULT_SHAPE]}」にしました。"
+                        f"いま作れる形状は {choices} です。"
+                    )
+                    if in_japanese
+                    else (
+                        " No shape in the request matched one that can be made, "
+                        f"so the default \u201c{DEFAULT_SHAPE}\u201d was used. "
+                        f"The shapes you can ask for are {choices}."
+                    )
+                )
+            # The colour was not applied (C-1272).
             if names_color(message):
                 summary += (
-                    "依頼にあった色は今の配色に反映していません。"
-                    "3D モデルは固定の配色で描いています。"
+                    (
+                        "依頼にあった色は今の配色に反映していません。"
+                        "3D モデルは固定の配色で描いています。"
+                    )
+                    if in_japanese
+                    else (
+                        " The colour in the request is not applied. The model is "
+                        "painted in a fixed palette."
+                    )
                 )
-            # C-1832: and the count. 「3つ作って」 built one and said nothing,
-            # with the title 「魚3つ」 claiming otherwise. Same source as the
-            # preview page's note, so the artifact and the summary agree.
-            summary += count_note(message)
+            # C-1832: and the count, from the same source as the preview's note.
+            summary += count_note(message, in_japanese=in_japanese)
         else:
             summary = (
-                f"「{model.title}」の 3D モデルを作りましたが、検証に落ちています: "
-                + "、".join(str(f) for f in verdict["failures"])
+                (
+                    f"「{model.title}」の 3D モデルを作りましたが、検証に落ちています: "
+                    + "、".join(str(f) for f in verdict["failures"])
+                )
+                if in_japanese
+                else (
+                    f"Made a 3D model for \u201c{model.title}\u201d, but it "
+                    "fails validation: "
+                    + ", ".join(str(f) for f in verdict["failures"])
+                )
             )
         return CreationOutcome(
             kind=intent.kind,

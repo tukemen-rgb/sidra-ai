@@ -82,7 +82,7 @@ def loop_seconds(frames: int) -> float:
     return frames * DELAY_CS / 100
 
 
-def length_note(request: str, made_frames: int) -> str:
+def length_note(request: str, made_frames: int, *, in_japanese: bool = True) -> str:
     """The admission that the animation is not the length asked for, or "".
 
     C-1823. ``FRAMES`` and ``DELAY_CS`` are constants and there is no length
@@ -108,22 +108,40 @@ def length_note(request: str, made_frames: int) -> str:
     report stops being read.
     """
 
+    # C-1932: said in the language the reply takes. The caller decides that
+    # with the product's own rule and passes the answer in, rather than this
+    # helper growing a second language test of its own.
     said: list[str] = []
     frames = requested_frames(request)
     if frames is not None and frames != made_frames:
         said.append(
-            f"依頼は {frames} フレームでしたが、"
-            f"いまは決まった {made_frames} フレームで作ります。"
-            "フレーム数は指定できません。"
+            (
+                f"依頼は {frames} フレームでしたが、"
+                f"いまは決まった {made_frames} フレームで作ります。"
+                "フレーム数は指定できません。"
+            )
+            if in_japanese
+            else (
+                f" The request asked for {frames} frames, but this is made at a "
+                f"fixed {made_frames} frames. The frame count cannot be set."
+            )
         )
     seconds = requested_seconds(request)
     actual = loop_seconds(made_frames)
     if seconds is not None and seconds != actual:
         said.append(
-            f"依頼は {seconds} 秒でしたが、"
-            f"いまは 1 周 {actual:g} 秒"
-            f"（{made_frames} フレーム × {DELAY_CS / 100:g} 秒）のループで作ります。"
-            "長さは指定できません。"
+            (
+                f"依頼は {seconds} 秒でしたが、"
+                f"いまは 1 周 {actual:g} 秒"
+                f"（{made_frames} フレーム × {DELAY_CS / 100:g} 秒）のループで作ります。"
+                "長さは指定できません。"
+            )
+            if in_japanese
+            else (
+                f" The request asked for {seconds} seconds, but this is made as "
+                f"a {actual:g} second loop ({made_frames} frames x "
+                f"{DELAY_CS / 100:g} s). The length cannot be set."
+            )
         )
     return "".join(said)
 
