@@ -15159,6 +15159,63 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and the files a production set leaves behind (C-1939) -----------
+    #
+    # C-1938 put the project's reply and title into the language of the
+    # request; the FILES were not touched, and the files are the artifact.
+    #
+    # This number is deliberately NOT gated on "no failures". It counts the
+    # files that follow the rule - 4 of 8 today, the Japanese request's four
+    # and none of the English request's - so the gap is a number that has to
+    # rise rather than a red light that would make the whole board unusable
+    # or, worse, a green one that blessed the defect.
+    #
+    # Why it is not fixed in the same breath: the frame of each document can
+    # be branched like every other surface in C-1929..C-1938, but the CONTENT
+    # cannot - `TEMPLATES[...].how_to_play`, the control labels, the screen
+    # names and the parameter labels are Japanese product data. Branching
+    # only the frame ships English headings over Japanese rows, which is the
+    # half-translated artifact C-1929's D4 and C-1932's D3/D4 exist to
+    # punish. Doing it properly means English in the template registry, and
+    # that is its own item.
+    from sidra_ai.evals.project_files_match_the_language_asked import (
+        EXPECTED_FILES as _PFILES,
+        evaluate_project_files_match_the_language_asked,
+    )
+
+    _pfiles = evaluate_project_files_match_the_language_asked()
+    c.add(
+        "creation_project_files_match_the_language_asked",
+        "制作一式の中の .md が、訊かれた言語で書かれている（C-1939）",
+        float(_pfiles.files_in_the_right_language),
+        detail=(
+            f"**日英それぞれで制作一式を実際に作り、書かれた {len(_PFILES)} ファイルの"
+            f"中身を読んだ**——**英語の依頼の {_pfiles.files_in_the_right_language}/"
+            f"{_pfiles.files_total} が英語で書かれている**"
+            f"（日本語側は{'保たれている' if _pfiles.japanese_held else '**動いた**'}）。"
+            + ("**残りの内訳**: " + "; ".join(_pfiles.failures[:4])
+               if _pfiles.failures
+               else "**全ファイルが依頼の言語に従っている**")
+            + "。**これは合否ではなく数**——"
+            "**「緑」にすると欠陥を祝福することになり、「赤」にすると板が使えなくなる**ので、"
+            "**上がるべき数**として置いた。"
+            "**日本語側は数ではなく門**——**一つの合計にしたら退化していた**"
+            "（**3 つの破壊がどれも合計 4/8 を動かさなかった**: "
+            "片側の損が反対側の得で払われる）。"
+            "**いま 0 なので、壊しても数は下がらない**"
+            "——**床に張り付いた数の限界**で、**壊れたことは上の文面に出る**。"
+            "**枠だけ英語にする破壊では 95%→78% までしか下がらず 0 のまま**で、"
+            "**これがこの巡で枠だけ訳さなかった理由の実測**"
+            "**なぜ同じ巡で直さないか**: 枠（見出し・前書き・説明文）は"
+            "C-1929〜C-1938 と同じに分岐できるが、**中身は分岐できない**"
+            "——`how_to_play`・操作名・画面名・パラメータ名は**日本語の製品データ**で、"
+            "**枠だけ英語にすれば見出しが英語で表が日本語の文書**になる"
+            "＝**私が C-1929 D4・C-1932 D3/D4 で罰した「半分英語」そのもの**。"
+            "**まっとうに直すにはテンプレート台帳が英語を持つ必要があり、それは別項目**"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had
