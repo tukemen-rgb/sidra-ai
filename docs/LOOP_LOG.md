@@ -11315,3 +11315,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-17 05:07 UTC ループA started
 
 2026-09-17 05:20 UTC 辛口ユーザー started
+
+2026-09-17 05:20 UTC 辛口ユーザー C-1915 確保（別面を複数実測: API 422 は意図的 context-free・artifacts DL は traversal 404/octet-stream/レート制限で健全・英語改訂は大改修＋制作レーンなので見送り。取った現物: 英語の削除依頼「delete the game/delete it/remove the last game/can you delete my files」が delete_unsupported に届かず RAG が無関係文書を返す——日本語「消して」は C-1847 で正直に断るのに。C-1847 の英語双子。→ 動かす数字 `chat_english_delete_says_it_cannot` 新設予定）。
