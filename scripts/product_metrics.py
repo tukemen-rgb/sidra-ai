@@ -2284,6 +2284,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1912: the English twin of C-1828. 「もっと詳しく」 carried the previous
+    # subject, but "Tell me more" did not - _own_content_subject read tell/me/
+    # more as topic terms, so the carry was skipped and the follow-up abstained
+    # ("No indexed evidence"). An English elaboration set (twin of
+    # _JP_ELABORATIONS) makes the pure-elaboration follow-up carry the topic.
+    from sidra_ai.evals.chat_english_followup_carries_the_subject import (
+        evaluate_chat_english_followup_carries_the_subject,
+    )
+
+    en_followup = evaluate_chat_english_followup_carries_the_subject()
+    c.add(
+        "chat_english_followup_carries_the_subject",
+        "英語の主語なし追加質問（Tell me more 等）が話題の文書に接地する（もっと詳しくの英語双子）",
+        10.0 * en_followup.checks_passed / en_followup.checks_total,
+        detail=f"{en_followup.checks_passed}/{en_followup.checks_total} checks; "
+               "src/sidra_ai/evals/chat_english_followup_carries_the_subject.py"
+               + ("" if en_followup.passed
+                  else "; " + "; ".join(en_followup.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1481: the history-carry (C-1453) fired for a follow-up naming a NEW
     # subject the corpus does not cover, so a mid-conversation topic switch got
     # the previous topic's documents as its answer. The floor now abstains when

@@ -136,17 +136,39 @@ _INTERROGATIVES = frozenset(
 #: topic; the set can grow.
 _JP_ELABORATIONS = frozenset({"詳細", "理由", "内訳", "背景", "根拠"})
 
+#: C-1912. English elaboration fillers - the twin of ``_JP_ELABORATIONS``. As a
+#: follow-up's only surviving terms they name no new topic: "tell me more",
+#: "more detail", "explain", "can you elaborate" all elaborate the previous
+#: turn. ``_INTERROGATIVES`` above already covers the wh-words; these are the
+#: imperative verbs, elaboration nouns, quantifiers and modal/pronoun fillers a
+#: subject-less follow-up is built from, so the carry (SidraService.chat) fires
+#: and the follow-up grounds on the topic under discussion instead of searching
+#: literally and abstaining - the English twin of C-1828. Each is filtered only
+#: when it is the *sole* content of the follow-up, so a real subject beside one
+#: ("tell me about billing" -> billing) keeps its topic. Deliberately omitted
+#: because they can be a genuine subject: "go"/"on" (Go the language), "set",
+#: "run", "show" (a show/command). Residual: a rarer filler outside this set
+#: still reads as a topic; the set can grow, like the Japanese one.
+_EN_ELABORATIONS = frozenset({
+    "tell", "explain", "elaborate", "describe", "expand", "clarify",
+    "me", "us", "you", "more", "further", "again", "detail", "details",
+    "about", "please", "can", "could", "would",
+})
+
 
 def _own_content_subject(query: str) -> tuple[str, ...]:
-    """The follow-up's own subject terms, minus bare interrogatives.
+    """The follow-up's own subject terms, minus bare interrogatives and fillers.
 
-    Empty for a pure elaboration (「もっと詳しく」「why is that?」「その詳細は？」);
-    non-empty when the follow-up names a topic of its own (「料金プランは？」).
+    Empty for a pure elaboration (「もっと詳しく」「why is that?」「その詳細は？」
+    "tell me more"); non-empty when the follow-up names a topic of its own
+    (「料金プランは？」 "tell me about billing").
     """
 
     return tuple(
         term for term in subject_terms(query)
-        if term.casefold() not in _INTERROGATIVES and term not in _JP_ELABORATIONS
+        if term.casefold() not in _INTERROGATIVES
+        and term not in _JP_ELABORATIONS
+        and term.casefold() not in _EN_ELABORATIONS
     )
 
 
