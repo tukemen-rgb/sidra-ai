@@ -407,6 +407,16 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             "help": "SIDRA は索引済みリポジトリについて答え、制作もできる。"
                     "調べたいことを文にして送るか、「レースゲームを作って」の"
                     "ように作りたいものを頼む。",
+            # A "how do I make one" question (「レポートの作り方を教えて」・C-1875).
+            # The service already answered it - the reply invites creation - but
+            # this dict had no entry, so it fell to the decision-based fallback
+            # and printed the outage "wait and retry" line for a reply that never
+            # changes on retry. C-1931 fixed its exit code (→4, conversational);
+            # this fills the message, the third downstream place a new refusal
+            # code needs (web UI refusalMsg / exit-code set / here).
+            "how_to_make": "作り方を訊かれたものは、この場で作れる。主題を添えて"
+                           "「犬のレポートを作って」のように頼む。索引の資料から"
+                           "探したいときは「ドキュメントから探して」と添える。",
         }
         message = messages.get(payload.get("refusal"))
         if message is None:
