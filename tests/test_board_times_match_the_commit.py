@@ -103,10 +103,17 @@ def test_a_board_line_from_the_future_is_refused(tmp_path: Path) -> None:
     assert 270 <= lead <= 280, said
 
 
-@pytest.mark.parametrize("ahead", [0, 21], ids=["same-minute", "honest-lag"])
+@pytest.mark.parametrize("ahead", [0, -5, -90], ids=["same-minute", "behind", "long-cycle"])
 def test_an_honest_board_line_passes(tmp_path: Path, ahead: int) -> None:
     """Without this, a check that refused everything would score full marks.
-    +21 is inside the measured honest lag (worst case +20.2, C-1733)."""
+
+    C-1914 replaced the +21 case. It was here as "inside the measured
+    honest lag (worst case +20.2)", but a +20.2 line is one that claimed a
+    time before it existed - the violation, not the baseline. An honest
+    board line is written with `date -u` and committed afterwards, so it
+    trails its commit: that is what -5 and -90 are, the second standing for
+    a claim written at the head of a long cycle.
+    """
 
     rc, said = _repo(tmp_path, minutes_ahead=ahead)
 

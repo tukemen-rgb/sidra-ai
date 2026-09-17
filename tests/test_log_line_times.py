@@ -74,7 +74,7 @@ def _run(work: pathlib.Path, env: dict) -> subprocess.CompletedProcess:
     )
 
 
-@pytest.mark.parametrize("ahead", [31, 120, 700])
+@pytest.mark.parametrize("ahead", [2, 19, 31, 120, 700])
 def test_a_line_claiming_a_time_it_has_not_reached_is_refused(
     ahead: int, tmp_path: pathlib.Path
 ) -> None:
@@ -88,11 +88,20 @@ def test_a_line_claiming_a_time_it_has_not_reached_is_refused(
     assert "分先" in done.stdout
 
 
-@pytest.mark.parametrize("ahead", [-60, -5, 0, 18, 21, 29])
-def test_the_measured_honest_lag_still_passes(ahead: int, tmp_path: pathlib.Path) -> None:
+@pytest.mark.parametrize("ahead", [-60, -5, 0])
+def test_an_honestly_written_line_still_passes(ahead: int, tmp_path: pathlib.Path) -> None:
     """The other direction. A check that refused every lead would score full
-    marks on the first half alone, and the honest lag is real: a loop writes
-    its line at the head of a cycle and commits after doing the work."""
+    marks on the first half alone.
+
+    C-1914 removed +18, +21 and +29 from this list. They were here as "the
+    measured honest lag", and they are not honest: a loop that writes its
+    line at the head of a cycle and commits after the work produces a
+    *negative* lead, which is what -60 and -5 are. `date -u` floors, so a
+    stamp is never later than the moment of writing and the commit is later
+    still - an honestly written line cannot lead at all. Measured over 444
+    added lines in the last 400 commits, 369 lead by nothing; every
+    positive lead is a typed time rather than a read one.
+    """
 
     work, env = _repo(tmp_path)
     _commit_line(work, env, ahead)
@@ -144,10 +153,21 @@ def test_the_real_log_is_not_read_as_a_whole(tmp_path: pathlib.Path) -> None:
     )
 
 
-def test_the_margin_is_above_the_measured_honest_lag() -> None:
-    """A number chosen against a census, not a guess: the worst honest lag
-    measured across every loop is ループA's +20.2 minutes."""
+def test_the_margin_does_not_come_from_the_lines_it_judges() -> None:
+    """C-1914. This used to assert ``MARGIN_MINUTES > 20.2`` because "the
+    worst honest lag measured across every loop is ループA's +20.2" - but
+    that +20.2 was a leading line, which is the thing the check exists to
+    refuse. The margin was measured off the violation and then used to
+    decide how much of it to allow.
 
-    assert log_times.MARGIN_MINUTES > 20.2
-    # And not so wide that it stops catching the tail it exists for (p98).
-    assert log_times.MARGIN_MINUTES < 37.7
+    What replaces it is the mechanism. A stamp comes from `date -u`, which
+    floors to the minute, and the commit time comes from git; writing
+    happens before committing, so an honest line's lead is never positive.
+    The margin is therefore a small concession for a stamp rounded up by a
+    minute, not a percentile of the leading lines.
+    """
+
+    assert log_times.MARGIN_MINUTES <= 1, (
+        "anything wider re-admits the leads this check exists to refuse"
+    )
+    assert log_times.MARGIN_MINUTES >= 0, "a negative margin refuses honest lines"
