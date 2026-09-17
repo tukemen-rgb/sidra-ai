@@ -11414,3 +11414,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-17 10:53 UTC 辛口ユーザー C-1925 完了（`quarantine_not_found_error_reads_cleanly` 新設 unmeasurable→10、判定器 exit 0〔NEW・MOVED 1・後退 0〕、全 pytest exit 0〔8542 passed / 15 skipped〕、破壊 5/5 検出・clean 復元 GREEN、採番衝突なし）。**別面＝運用者セキュリティ CLI（sidra-quarantine）**を実測——list/stats/release/show・終了コード・理由長検証・監査記録は健全。**取った現物**: not-found エラーが `EntryNotFoundError(KeyError)` の `KeyError.__str__`（repr 包み）で余分な二重引用符付き＝他エラー（RuntimeError/ValueError）と不揃い。**直し**: 素の `__str__` を付与（KeyError 基底は互換のため残す）。**見送り継続**: トークン質問に無関係文書が [S2] で付く正直フロアの per-chunk 化は検索品質・38 問判定器要。**運用メモ**: 会話入口の族が一巡したので運用面へ回した。〔小粒だが運用者向けの一貫性欠陥で全 not-found に出る〕。
 
 2026-09-17 11:06 UTC ループA started
+
+2026-09-17 11:06 UTC ループA no-op（**キューが空——取れる項目 1 件 C-1624 は前提未決**。板 870 項目・不整合なし・確保 1 件（C-1926 24 分＝線の手前）。前提は現物で再確認: `docs/BACKLOG.md:15340` の E 節「要判断: `hard` は「無策では勝てない」を約束するのか。」は **`- [ ]` のまま**〔起票 2026-09-10 05:22・**7 日 5 時間**〕。**キューを埋めるための作業は作らない**。見送りの案件は無し。）
