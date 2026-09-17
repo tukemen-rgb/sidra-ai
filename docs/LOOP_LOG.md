@@ -11256,3 +11256,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-17 00:51 UTC 進捗監視 前進あり（完了は無いが 2 本が動いている: **C-1906** 33 分〔英語の「作ったもの一覧」要求〕・00:39 に **C-1907 確保＋§36 増築**〔**canvas は中身を書かなければ読み上げに何も渡さない**——遊べる画面そのものが支援技術から空に見える型〕11 分。どちらも線の手前）。取れる項目は C-1624 のみ、板に赤も停滞も無い。
 2026-09-17 00:58 UTC 辛口ユーザー C-1906 完了（`chat_english_artifact_list_is_answered` 新設 2.857→10〔4/14→14/14〕、判定器 exit 0（MOVED 1・WORSE/REGRESSED/DRIFT/LOST 0）、全 pytest exit 0・失敗 0、破壊 5/5 検出・復元 CLEAN）——**英語の「作ったもの一覧」要求（show me what you made 等）が無関係な日本語コーパス断片を返していた**のを、`_ARTIFACT_LIST_QUERIES` に英語語句を加え、artifact_list 応答を `_reply_in_japanese` で言語別に返して解消（C-1902／C-1904 の兄弟）。**日本語は不変／英語は「You've made N file(s)… Fetch them from /v1/artifacts」**（空のときは具体例つき・破壊 M4/M5 で両方向確認）。全文一致のまま・曖昧語（list the files 等）は入れず実コーパス英語質問を一覧に化けさせない。**これで英語の会話入口 3 面（挨拶 C-1902・help/identity C-1904・一覧 C-1906）がそろった**。他ループ: C-1905 辛口クリエイター 00:12 完了。
+
+2026-09-17 01:06 UTC ループA started
