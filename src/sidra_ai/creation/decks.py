@@ -184,7 +184,9 @@ def detect_structure(request: str) -> str:
     return ""
 
 
-def outline_fallback_note(request: str, outline: str) -> str:
+def outline_fallback_note(
+    request: str, outline: str, *, in_japanese: bool = True
+) -> str:
     """The admission that the deck fell back to a standard outline, or "".
 
     One source of truth for the deck page (the artifact that is forwarded and
@@ -197,9 +199,17 @@ def outline_fallback_note(request: str, outline: str) -> str:
     if not named:
         return ""
     label = _OUTLINE_LABELS.get(outline, outline)
+    # C-1935: said in the language the reply takes. The caller decides that
+    # with the product's own rule and passes the answer in; in English the
+    # outline's own key is its name, as C-1932 found for the other kinds.
+    if in_japanese:
+        return (
+            f"「{named}」の構成はまだ作れないため、代わりに標準の"
+            f"「{label}」構成で作りました。"
+        )
     return (
-        f"「{named}」の構成はまだ作れないため、代わりに標準の"
-        f"「{label}」構成で作りました。"
+        f" A \u201c{named}\u201d outline cannot be built yet, so the standard "
+        f"\u201c{outline}\u201d outline was used instead."
     )
 
 
@@ -231,7 +241,9 @@ def requested_slide_count(request: str) -> int | None:
     return None
 
 
-def slide_count_note(request: str, made: int) -> str:
+def slide_count_note(
+    request: str, made: int, *, in_japanese: bool = True
+) -> str:
     """The admission that the deck is not the size that was asked for, or "".
 
     C-1821. The two outlines are fixed at four sections each and there is no
@@ -255,9 +267,14 @@ def slide_count_note(request: str, made: int) -> str:
     asked = requested_slide_count(request)
     if asked is None or asked == made:
         return ""
+    if in_japanese:
+        return (
+            f"依頼は {asked} 枚でしたが、いまは決まった構成の {made} 枚で作ります。"
+            "枚数は指定できません。"
+        )
     return (
-        f"依頼は {asked} 枚でしたが、いまは決まった構成の {made} 枚で作ります。"
-        "枚数は指定できません。"
+        f" The request asked for {asked} slides, but the outline is fixed at "
+        f"{made}. The slide count cannot be set."
     )
 
 

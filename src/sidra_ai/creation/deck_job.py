@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.models.echo import _reply_in_japanese
+
 from sidra_ai.creation.copy_writer import CopyWriter, copy_metadata
 from sidra_ai.creation.decks import (
     Fact,
@@ -100,16 +102,35 @@ def build_deck_generator(
         # A slide is wholly blank or wholly filled - `_bullets_for` returns
         # either real bullets or exactly one BLANK - so the count is the
         # whole story and no partial slide is being written off here.
+        # C-1935: which language this reply takes, from the product's own
+        # rule (C-1929 through C-1934). Fifth caller, same one call.
+        in_japanese = _reply_in_japanese(message)
         notice = empty_notice(
-            blank=blanks, total=len(deck.slides), facts_available=len(available)
+            blank=blanks,
+            total=len(deck.slides),
+            facts_available=len(available),
+            in_japanese=in_japanese,
         )
         summary = notice or (
-            f"「{deck.title}」を {len(deck.slides)} 枚で作りました。"
-            + (
-                f"根拠が見つからなかった {blanks} 枚は空欄のままです"
-                f"（{'、'.join(deck.unfilled)}）。数字は推測で埋めません。"
-                if blanks
-                else "全ての欄に出典があります。"
+            (
+                f"「{deck.title}」を {len(deck.slides)} 枚で作りました。"
+                + (
+                    f"根拠が見つからなかった {blanks} 枚は空欄のままです"
+                    f"（{'、'.join(deck.unfilled)}）。数字は推測で埋めません。"
+                    if blanks
+                    else "全ての欄に出典があります。"
+                )
+            )
+            if in_japanese
+            else (
+                f"Made \u201c{deck.title}\u201d as {len(deck.slides)} slides."
+                + (
+                    f" The {blanks} slides with no grounds are left blank "
+                    f"({', '.join(deck.unfilled)}). Numbers are not filled in "
+                    "by guesswork."
+                    if blanks
+                    else " Every field has a source."
+                )
             )
         )
         # C-1274: the deck fell back to HTML because python-pptx was not
@@ -128,23 +149,38 @@ def build_deck_generator(
         # C-1274 - requested_format returns "" for those).
         requested = requested_format(message)
         if requested:
-            summary += f"なお {requested} 形式では作れないため、HTML で保存しています。"
+            summary += (
+                f"なお {requested} 形式では作れないため、HTML で保存しています。"
+                if in_japanese
+                else f" {requested} cannot be produced, so this is saved as HTML."
+            )
         elif not wrote_pptx:
             summary += (
-                "なお PowerPoint（.pptx）は作れなかったので HTML のみ保存しています。"
-                "PowerPoint 出力の有効化は管理者にご相談ください。"
+                (
+                    "なお PowerPoint（.pptx）は作れなかったので HTML のみ保存しています。"
+                    "PowerPoint 出力の有効化は管理者にご相談ください。"
+                )
+                if in_japanese
+                else (
+                    " PowerPoint (.pptx) could not be produced, so only HTML is "
+                    "saved. Ask an administrator to enable PowerPoint output."
+                )
             )
         # C-1793: the request named a structure the deck cannot build, so it
         # fell back to a standard outline. Said here from the same source as the
         # deck's own footer, so the summary a person reads and the artifact they
         # forward cannot disagree. Empty for a buildable shape.
-        outline_note = outline_fallback_note(message, deck.outline)
+        outline_note = outline_fallback_note(
+            message, deck.outline, in_japanese=in_japanese
+        )
         if outline_note:
-            summary += "なお、" + outline_note
+            summary += ("なお、" + outline_note) if in_japanese else outline_note
         # C-1821: and the size, from the same single source as the page. The
         # request's number was read by nobody before this; a deck asked for in
         # five slides came back in four with no word of it.
-        count_note = slide_count_note(message, len(deck.slides))
+        count_note = slide_count_note(
+            message, len(deck.slides), in_japanese=in_japanese
+        )
         if count_note:
             summary += count_note
         return CreationOutcome(

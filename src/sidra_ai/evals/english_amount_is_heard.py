@@ -59,12 +59,18 @@ AMOUNTS: tuple[tuple[str, str, str, str, str], ...] = (
     ),
 )
 
-#: The deck says the same kind of thing, but its reply is still Japanese in
-#: both languages (C-1932 stopped at art/gif/model3d and named deck and
-#: document as the remainder). So the caveat is checked for, in Japanese,
-#: from an English request: the amount being HEARD is this item, the
-#: language it is said in is the other one.
-DECK_CASE = ("make a 5 slide deck about an owl", "枚数は指定できません")
+#: The deck says the same kind of thing. When C-1934 wrote this row the
+#: deck's reply was still Japanese in both languages, so the phrase looked
+#: for was 「枚数は指定できません」; C-1935 then translated that lane, which is
+#: the change C-1934's own entry said would come. The amount being HEARD is
+#: what this item measures, and it still is - only the language it is said
+#: in moved, so the expectation moves with it rather than being dropped.
+#: Both languages are listed, so the row keeps meaning what it meant.
+DECK_CASE = (
+    "make a 5 slide deck about an owl",
+    "The slide count cannot be set",
+)
+DECK_CASE_JA = ("5枚のスライドを作って", "枚数は指定できません")
 
 #: Requests that name no amount. Nothing may be said about one.
 NO_AMOUNT: tuple[tuple[str, str], ...] = (
@@ -159,16 +165,16 @@ def evaluate_english_amount_is_heard() -> EnglishAmountResult:
             checks += 1
         readings.append(f"{label}「{english}」→ 注記あり")
 
-    # the deck, whose caveat is still Japanese in both languages
-    deck_ask, deck_want = DECK_CASE
-    said_deck = _say("deck", deck_ask)
-    if deck_want not in said_deck:
-        failures.append(
-            f"deck「{deck_ask}」: no caveat - wanted 「{deck_want}」 in: "
-            f"...{said_deck[-90:]}"
-        )
-    else:
-        checks += 1
+    # the deck, in both languages
+    for deck_ask, deck_want in (DECK_CASE, DECK_CASE_JA):
+        said_deck = _say("deck", deck_ask)
+        if deck_want not in said_deck:
+            failures.append(
+                f"deck「{deck_ask}」: no caveat - wanted 「{deck_want}」 in: "
+                f"...{said_deck[-90:]}"
+            )
+        else:
+            checks += 1
 
     # (c) and (d): silence where there is nothing to report
     for kind, request in NO_AMOUNT + NOT_AMOUNTS:

@@ -25,9 +25,14 @@ Four directions:
       thing look green (the judgement C-1920 made for the same reason).
       The name still says `game` because renaming a metric throws away the
       history of the number; the table below is what it actually covers.
-      Deck and document build a different refusal and are not here yet -
-      named, measured, and left for their own item rather than quietly
-      included in a table that would then pass without them.
+      C-1935 added the last two, deck and document. They were the pair
+      left because the refusal they share lives in `creation/empty.py`
+      rather than in either of them, so neither could be finished alone.
+      What is reachable here is that refusal: with no corpus ingested,
+      both fall to "the index holds no grounds", and the success branch
+      cannot be driven. That is said rather than papered over - a row for
+      a branch the run cannot reach would be coverage that measures
+      nothing (the judgement C-1932 made about the length caveats).
 
   (d) and the list of what CAN be built, in an English reply, is made of
       words the detector actually accepts. That list exists to tell a
@@ -112,6 +117,25 @@ OTHER_KINDS: tuple[tuple[str, str, str, str, str], ...] = (
         "の 3D モデルを作りました",
         "No shape in the request matched",
     ),
+    # C-1935. The reachable branch for these two is the shared refusal in
+    # `creation/empty.py` - with no corpus ingested there are no grounds for
+    # anything, so the success branch cannot be driven here and is not
+    # claimed. The note column is the deck's own pptx fallback, which does
+    # fire, so this row reaches past the shared sentence into deck_job's own.
+    (
+        "deck",
+        "make a 5 slide deck about an owl",
+        "5枚のスライドを作って",
+        "中身のある資料を作れませんでした",
+        "PowerPoint (.pptx) could not be produced",
+    ),
+    (
+        "document",
+        "write a report about an owl",
+        "レポートを作って",
+        "中身のある資料を作れませんでした",
+        "The empty frame has been saved as a draft",
+    ),
 )
 
 
@@ -184,11 +208,11 @@ def evaluate_game_reply_matches_the_language_asked() -> GameLanguageResult:
     # rather than a count, so adding a fifth kind is a failure until it is
     # measured (C-1887, C-1891, C-1894).
     covered = {kind for kind, *_rest in OTHER_KINDS}
-    if covered != {"art", "gif", "model3d"}:
+    if covered != {"art", "gif", "model3d", "deck", "document"}:
         failures.append(
-            f"the other-kind rows cover {sorted(covered)} - art, gif and "
-            "model3d are the three whose reply is built the same way as the "
-            "game's, and all three were changed together"
+            f"the other-kind rows cover {sorted(covered)} - art, gif, model3d, "
+            "deck and document are every kind the creation lane replies about, "
+            "and this is the table that says so"
         )
     else:
         checks += 1
@@ -206,6 +230,8 @@ def evaluate_game_reply_matches_the_language_asked() -> GameLanguageResult:
         "art": ("sidra_ai.creation.art_job", "build_art_generator"),
         "gif": ("sidra_ai.creation.gif_job", "build_gif_generator"),
         "model3d": ("sidra_ai.creation.model3d_job", "build_model3d_generator"),
+        "deck": ("sidra_ai.creation.deck_job", "build_deck_generator"),
+        "document": ("sidra_ai.creation.document_job", "build_document_generator"),
     }
     import importlib
 
