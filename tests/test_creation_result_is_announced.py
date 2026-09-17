@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+from sidra_ai.creation.games import TEMPLATES
 from sidra_ai.evals.end_text_is_centred import END_STATES
 from sidra_ai.evals.result_is_announced import (
     FRAMES_AFTER_END,
+    ROUND_END_PAGES,
     evaluate_result_is_announced,
 )
 
@@ -21,8 +23,16 @@ def test_every_end_screen_says_its_result(result):
 
 
 def test_every_page_with_an_end_screen_was_driven(result):
-    assert len(result.readings) == len(END_STATES)
+    assert len(result.readings) == len(END_STATES) + len(ROUND_END_PAGES)
     assert result.checks_total == result.checks_passed
+
+
+def test_both_endings_are_covered():
+    # A template ends either by its own end screen or by the clock; the
+    # clock's ending is the only one catch and fishing have (C-1910).
+    assert set(END_STATES) | set(ROUND_END_PAGES) == set(TEMPLATES)
+    assert not set(END_STATES) & set(ROUND_END_PAGES)
+    assert {"catch", "fishing"} <= set(ROUND_END_PAGES)
 
 
 def test_the_window_is_long_enough_to_catch_a_repeat():

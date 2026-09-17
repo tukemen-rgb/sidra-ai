@@ -342,6 +342,13 @@ function roundTickSound(){
   try{sfx('tick')}catch(e){}}
 function roundTickFacts(){return {said:ROUND_TICK_SAID}}
 function drawRoundEnd(){if(!RCV)return;
+  /* The clock's ending is an ending too (C-1910). C-1908 wired the eight
+     endings each template draws for itself and missed this one, which is
+     the ONLY ending catch and fishing have, and the one every other
+     template gets when time runs out before the game concludes. Said, not
+     the 「もう一度」 below it - the invitation is chrome, and announcing it
+     would say the same outcome twice (the lesson adventure taught). */
+  try{announce('ここまで。')}catch(e){}
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
   c.save();c.fillStyle='SCRIM_TOKEN'+'cc';c.fillRect(0,H/2-52,W,104);
   c.fillStyle='INK_TOKEN';c.textAlign='center';

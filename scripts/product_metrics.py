@@ -14323,7 +14323,10 @@ def measure_creation(c: Collector) -> None:
     #
     # The end states are imported from `end_text_is_centred`, so the judge
     # that checks the words are centred and the one that checks they are
-    # said cannot disagree about how a page reaches its result.
+    # said cannot disagree about how a page reaches its result. The clock's
+    # ending is a second path, added by C-1910: `round.py` draws 「ここまで」
+    # when time runs out, the rAF wrapper returns before the template's own
+    # frame, and for catch and fishing it is the only ending there is.
     from sidra_ai.evals.result_is_announced import (
         FRAMES_AFTER_END as _SAY_FRAMES,
         evaluate_result_is_announced,
