@@ -56,6 +56,7 @@ from sidra_ai.creation.recap import preamble_for as recap_preamble_for
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.vocabulary import (
     ARTIFACT_NOUNS,
+    english_label_for,
     is_english_text,
     marked_english,
     ENGLISH_REQUEST_ADVERBS,
@@ -1678,7 +1679,7 @@ def template_depicts(template: str, word: str) -> bool:
     return any(word == also for also in _ALSO_DEPICTED.get(template, ()))
 
 
-def genre_fallback_note(message: str, template: str, title: str) -> str:
+def genre_fallback_note(message: str, template: str, title: str, *, in_japanese: bool = True) -> str:
     """The admission that ``game.html`` fell back to the default template, or ""
     when it did not. One source of truth for the project summary (C-1285) and
     the production log (C-1605), so both say the same thing. No leading 「なお」:
@@ -1693,17 +1694,33 @@ def genre_fallback_note(message: str, template: str, title: str) -> str:
         return ""
     default_title = TEMPLATES[template].default_title
     requested = detect_genre(message)
+    # C-1938: said in the language the reply takes. The caller decides that
+    # with the product's own rule and passes the answer in; in English the
+    # kind's own routing word is its name (C-1930's `english_label_for`).
+    english_kind = english_label_for(template)
     if requested is not None and not requested.supported:
+        if in_japanese:
+            return (
+                f"「{requested.genre}」型はまだ作れないため、game.html は"
+                f"代わりに既定の「{default_title}」型で作りました。"
+            )
         return (
-            f"「{requested.genre}」型はまだ作れないため、game.html は"
-            f"代わりに既定の「{default_title}」型で作りました。"
+            f" A {english_label_for(requested.template)} kind cannot be built "
+            f"yet, so game.html is the default \u201c{english_kind}\u201d kind "
+            "instead."
         )
     if requested is None:
         undepicted = undepicted_subject(message, template, title)
         if undepicted:
+            if in_japanese:
+                return (
+                    f"「{undepicted}」の題材を描く型はまだ無いため、game.html は"
+                    f"代わりに既定の「{default_title}」型で作りました。"
+                )
             return (
-                f"「{undepicted}」の題材を描く型はまだ無いため、game.html は"
-                f"代わりに既定の「{default_title}」型で作りました。"
+                f" There is no kind that draws \u201c{undepicted}\u201d yet, so "
+                f"game.html is the default \u201c{english_kind}\u201d kind "
+                "instead."
             )
     return ""
 

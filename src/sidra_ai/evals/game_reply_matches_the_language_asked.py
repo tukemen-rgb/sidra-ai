@@ -25,7 +25,17 @@ Four directions:
       thing look green (the judgement C-1920 made for the same reason).
       The name still says `game` because renaming a metric throws away the
       history of the number; the table below is what it actually covers.
-      C-1935 added the last two, deck and document. They were the pair
+      C-1938 added project, and corrected what this file claimed: the
+      check below said art, gif, model3d, deck and document were "every
+      kind the creation lane replies about", and `CreationKind` has seven.
+      PROJECT was missing, and driving it showed two defects at once - its
+      reply was Japanese only, and `projects._title_from` never called
+      `drop_english_frame`, so 「make a game project about an owl」 became
+      the title verbatim and the directory `make-a-game-project-about-an-
+      owl-...`. A coverage check that names a set is a claim, and this one
+      was wrong.
+
+      C-1935 added deck and document. They were the pair
       left because the refusal they share lives in `creation/empty.py`
       rather than in either of them, so neither could be finished alone.
       What is reachable here is that refusal: with no corpus ingested,
@@ -136,6 +146,29 @@ OTHER_KINDS: tuple[tuple[str, str, str, str, str], ...] = (
         "中身のある資料を作れませんでした",
         "The empty frame has been saved as a draft",
     ),
+    # C-1938. The note column is the genre fallback, which fires because no
+    # kind draws an owl - so this row reaches past the frame into the note,
+    # the same way the art/gif/model3d rows do.
+    (
+        "project",
+        "make a game project about an owl",
+        "猫のゲームを企画から作って",
+        "の制作一式を",
+        "There is no kind that draws",
+    ),
+    # C-1938: and the other branch of the same shared note. The row above
+    # reaches `genre_fallback_note` through "no kind draws this subject";
+    # this one reaches it through "that genre cannot be built", and sabotage
+    # D6 - the helper taking the language and ignoring it - was invisible
+    # until both were here. One branch of a two-branch helper is half a
+    # measurement.
+    (
+        "project",
+        "make a fighting game project",
+        "格闘ゲームを企画から作って",
+        "の制作一式を",
+        "kind cannot be built yet",
+    ),
 )
 
 
@@ -207,12 +240,26 @@ def evaluate_game_reply_matches_the_language_asked() -> GameLanguageResult:
     # the coverage with it quietly. Named against the generators that exist
     # rather than a count, so adding a fifth kind is a failure until it is
     # measured (C-1887, C-1891, C-1894).
+    # C-1938: asked of the product's own enum rather than written out, so a
+    # kind cannot be added to `CreationKind` and left unmeasured - which is
+    # exactly how PROJECT went missing from the hand-written set that used
+    # to be here.
+    from sidra_ai.creation.intent import CreationKind
+
+    replies_about = {
+        kind.value
+        for kind in CreationKind
+        if kind not in (CreationKind.UNKNOWN, CreationKind.GAME)
+    }
     covered = {kind for kind, *_rest in OTHER_KINDS}
-    if covered != {"art", "gif", "model3d", "deck", "document"}:
+    if covered != replies_about:
+        missing = sorted(replies_about - covered)
+        extra = sorted(covered - replies_about)
         failures.append(
-            f"the other-kind rows cover {sorted(covered)} - art, gif, model3d, "
-            "deck and document are every kind the creation lane replies about, "
-            "and this is the table that says so"
+            f"the other-kind rows cover {sorted(covered)} but CreationKind has "
+            f"{sorted(replies_about)} beside the game"
+            + (f" - missing {missing}" if missing else "")
+            + (f" - unknown {extra}" if extra else "")
         )
     else:
         checks += 1
@@ -232,6 +279,7 @@ def evaluate_game_reply_matches_the_language_asked() -> GameLanguageResult:
         "model3d": ("sidra_ai.creation.model3d_job", "build_model3d_generator"),
         "deck": ("sidra_ai.creation.deck_job", "build_deck_generator"),
         "document": ("sidra_ai.creation.document_job", "build_document_generator"),
+        "project": ("sidra_ai.creation.project_job", "build_project_generator"),
     }
     import importlib
 
@@ -273,6 +321,27 @@ def evaluate_game_reply_matches_the_language_asked() -> GameLanguageResult:
         else:
             checks += 1
         readings.append(f"{kind}「{english}」→「{said_en[:40]}」")
+
+    # C-1938: the project's title is also its directory name and the heading
+    # of six generated files, so an unstripped request does not just read
+    # badly - it becomes a folder. Read off the real outcome.
+    from sidra_ai.creation.intent import detect_creation_intent
+    from sidra_ai.creation.project_job import build_project_generator
+    from sidra_ai.evals.scratch import scratch_dir
+
+    project_ask = "make a game project about an owl"
+    built = build_project_generator(scratch_dir("sidra-project-title-"))(
+        project_ask, detect_creation_intent(project_ask)
+    )
+    slug = str((built.details or {}).get("slug") or built.artifact_path or "")
+    verbs_left = [word for word in ("make", "a-game", "about") if word in slug]
+    if verbs_left:
+        failures.append(
+            f"project「{project_ask}」: the request's own words are in the "
+            f"directory name ({'、'.join(verbs_left)}): {slug}"
+        )
+    else:
+        checks += 1
 
     # (d) the English list names things the router answers to
     from sidra_ai.creation.games import TEMPLATES, detect_genre

@@ -24,7 +24,10 @@ Two properties are load-bearing and easy to lose later:
 
 from __future__ import annotations
 
-from sidra_ai.creation.vocabulary import drop_request_adverbs
+from sidra_ai.creation.vocabulary import (
+    drop_english_frame,
+    drop_request_adverbs,
+)
 
 import hashlib
 import re
@@ -207,6 +210,14 @@ def _title_from(request: str) -> str:
     """The operator's own words, cut at the making-verb."""
 
     stripped = re.split(r"を?(?:作って|作成して|生成して|つくって)", request)[0]
+    # C-1938: the English frame, exactly as art / decks / documents / gifs /
+    # models3d all take it off at this same point. This generator was the one
+    # that never did, so 「make a game project about an owl」 became the title
+    # verbatim - and the title is the directory name and the heading of six
+    # generated files, so the operator's own sentence became a folder called
+    # `make-a-game-project-about-an-owl-...`. Same family as C-1913 and
+    # C-1916, on the surface those two did not reach.
+    stripped = drop_english_frame(stripped)
     # C-1829: the words about when to make it come off first, or 「猫のゲームを
     # 企画から今すぐ作って」 names the production 「猫のゲームを 今すぐ」.
     stripped = drop_request_adverbs(stripped)

@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sidra_ai.models.echo import _reply_in_japanese
+
 from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.games import genre_fallback_note
 from sidra_ai.creation.intent import CreationIntent
@@ -21,7 +23,7 @@ from sidra_ai.creation.projects import scaffold_project, validate_project
 from sidra_ai.creation.router import CreationOutcome
 
 
-def _genre_fallback_note(message: str, project) -> str:
+def _genre_fallback_note(message: str, project, *, in_japanese: bool = True) -> str:
     """Say the production's game fell back to the default template, when it did.
 
     C-1285: the standalone game path says 「代わりに既定の…型で作りました」 when a
@@ -37,9 +39,14 @@ def _genre_fallback_note(message: str, project) -> str:
     """
 
     note = genre_fallback_note(
-        message, getattr(project, "game_template", ""), project.title
+        message,
+        getattr(project, "game_template", ""),
+        project.title,
+        in_japanese=in_japanese,
     )
-    return f"なお{note}" if note else ""
+    if not note:
+        return ""
+    return f"なお{note}" if in_japanese else note
 
 
 def build_project_generator(data_dir: str | Path):
@@ -51,25 +58,48 @@ def build_project_generator(data_dir: str | Path):
         project = scaffold_project(message, data_dir, facts=list(retrieved or []))
         verdict = validate_project(project)
 
-        listing = "、".join(project.files)
+        # C-1938: which language this reply takes, from the product's own rule
+        # (C-1929 through C-1937). This is the seventh creation kind, and the
+        # one C-1935's coverage check wrongly said did not exist.
+        in_japanese = _reply_in_japanese(message)
+        listing = ("、" if in_japanese else ", ").join(project.files)
         notice = (
-            "依頼にあった作品名は使えないためオリジナル版として名付けました。"
+            (
+                "依頼にあった作品名は使えないためオリジナル版として名付けました。"
+                if in_japanese
+                else " The work named in the request cannot be used, so this is "
+                     "named as an original."
+            )
             if project.renamed
             else ""
         )
-        genre_note = _genre_fallback_note(message, project)
+        genre_note = _genre_fallback_note(message, project, in_japanese=in_japanese)
         if verdict["complete"]:
             summary = (
-                f"「{project.title}」の制作一式を {project.slug} に作りました: {listing}。"
-                + notice
-                + genre_note
-            )
+                (
+                    f"「{project.title}」の制作一式を {project.slug} に作りました: "
+                    f"{listing}。"
+                )
+                if in_japanese
+                else (
+                    f"Made a full production set for \u201c{project.title}\u201d "
+                    f"in {project.slug}: {listing}."
+                )
+            ) + notice + genre_note
         else:
             # Reported, not hidden: an operator told "six files" who finds
             # five has no way to know which promise was the false one.
             summary = (
-                f"「{project.title}」を {project.slug} に作りましたが、"
-                f"書けなかったものがあります: {'、'.join(verdict['missing'])}"
+                (
+                    f"「{project.title}」を {project.slug} に作りましたが、"
+                    f"書けなかったものがあります: {'、'.join(verdict['missing'])}"
+                )
+                if in_japanese
+                else (
+                    f"Made \u201c{project.title}\u201d in {project.slug}, but "
+                    "some files could not be written: "
+                    + ", ".join(verdict["missing"])
+                )
             )
 
         return CreationOutcome(

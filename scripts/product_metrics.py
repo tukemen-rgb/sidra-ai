@@ -15013,9 +15013,14 @@ def measure_creation(c: Collector) -> None:
     # the template it was listed for. The names are derived from the routing
     # table rather than written into a second one, which is what makes that
     # check passable at all.
-    # C-1932 widened this from the game to four kinds, and C-1935 to all six
-    # the creation lane replies about - game, art, gif, 3D model, deck,
-    # document. Deck and document were last because the refusal they share
+    # C-1932 widened this from the game to four kinds, C-1935 to six, and
+    # C-1938 to all seven `CreationKind` has - the coverage check used to
+    # name a hand-written set and said five kinds were "every kind the
+    # creation lane replies about", which was simply wrong: PROJECT was
+    # missing, its reply was Japanese only, and its title never had the
+    # English frame taken off, so 「make a game project about an owl」 became
+    # a directory called `make-a-game-project-about-an-owl-...`. The check
+    # is now asked of the enum, so a kind cannot be added and left unseen. Deck and document were last because the refusal they share
     # lives in `creation/empty.py` rather than in either of them, so neither
     # could be finished on its own. One number rather
     # than four: per-kind numbers let one green kind make the whole thing
@@ -15035,7 +15040,7 @@ def measure_creation(c: Collector) -> None:
         float(_glang.checks_passed) if _glang.passed else 0.0,
         detail=(
             f"**ゲーム {len(_GLANG_CASES)} 通り＋ほか {len(_GLANG_KINDS)} 種"
-            "（art・gif・3D モデル・deck・document）"
+            "（art・gif・3D モデル・deck・document・制作一式）"
             "＝**制作レーンが返事をする 6 種すべて**を日英で実際に生成して読んだ**——"
             + "、".join(_glang.readings[:3])
             + "。"
@@ -15057,6 +15062,8 @@ def measure_creation(c: Collector) -> None:
             "**成功の枠だけ見る依頼からは見えない**（C-1932）。"
             "**指標名が `game` のままなのは、改名すると数字の履歴が切れるから**"
             "——実際に見ている面は判定器の表のほう。"
+            "**制作一式は題名がそのままディレクトリ名**になるので、"
+            "**返事だけでなく保存先の名前も読む**（C-1938）。"
             "**deck／document で届く枝は「索引に根拠が無い」断りだけ**"
             "——索引が空の実行環境では成功の枝を駆動できないので、"
             "**測れない枝は表に入れず、そう書いてある**（C-1932 と同じ判断）。"
