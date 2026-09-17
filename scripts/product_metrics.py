@@ -14269,6 +14269,26 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1921: the English twin of C-1875. "how do I make a report" fell to the
+    # RAG wall because _how_to_make_kinds recognised only Japanese cues and
+    # Japanese kind labels. English cues + keywords + a language-branched reply
+    # close the gap; the boundary (corpus source words, kind required) is kept.
+    from sidra_ai.evals.chat_answers_how_to_make_in_english import (
+        evaluate_chat_answers_how_to_make_in_english,
+    )
+
+    _how_to_en = evaluate_chat_answers_how_to_make_in_english()
+    c.add(
+        "chat_answers_how_to_make_in_english",
+        "英語の「how do I make a report/game/deck」に、作れるものと送る文を英語で返す（索引の壁へ送らない）",
+        10.0 * _how_to_en.checks_passed / _how_to_en.checks_total,
+        detail=f"{_how_to_en.checks_passed}/{_how_to_en.checks_total} checks; "
+               "src/sidra_ai/evals/chat_answers_how_to_make_in_english.py"
+               + ("" if _how_to_en.passed
+                  else "; " + "; ".join(_how_to_en.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # --- an instruction that names a feature is still an instruction -----
     #
     # C-1878. The branch above matches four feature cues - 共有 / 今日の挑戦 /
