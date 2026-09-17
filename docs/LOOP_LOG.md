@@ -11329,3 +11329,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 2026-09-17 06:14 UTC 辛口ユーザー started
 
 2026-09-17 06:14 UTC 辛口ユーザー C-1917 確保（別面: 秘密/PII は取り込み隔離で健全→自分の成果物の在り処質問を実測。「作ったファイルはどこ」「where are my files」「list my files」が一覧ハンドラに届かず RAG が無関係文書を返す——一覧ハンドラの回答は既に「/v1/artifacts から取得できます」と在り処を答えているのに。曖昧な download 系は除外。→ 動かす数字 `chat_where_are_my_files_is_answered` 新設予定）。
+
+2026-09-17 06:22 UTC 進捗監視 前進あり（**C-1915 完了 05:55**〔英語の削除依頼が正直な `delete_unsupported` の断りに届く・`chat_english_delete_says_it_cannot` 新設 unmeasurable→10〕、**C-1916 確保 05:51**〔英語依頼の主語が語の途中から始まる・C-1913 の隣家 `_EN_SUBJECT`/`_STRIP_EN_ABOUT`〕、**C-1917 確保 06:16**〔「where are my files」が artifact 一覧の担当に届かない〕）。**C-1914 は 1 時間 14 分＝次の定刻前に 80 分を越える**ので前倒しで計器を当てた: `updated_at` **06:21:38＝0 秒前**・WORKING・`rate_limit` **allowed（five_hour・overage なし）**・`task_summary`「test regression after metrics edit; re-verifying green suite」——**生きている。引き継がない**。**中身も筋が通っている**: C-1914 は門の閾値を締める仕事なので、**締めた結果どこかのテストが赤くなり、それを追っている**のは想定どおりの経路（禁じ手 (5)「締めると今の書き方の車線は落ちる・それが狙い」）。C-1913 に続いて **C-1916 で同じ `an` 食いの隣家を潰しに行っている**のも、**1 件直して終わりにせず同型を掃く**動き。起票はしない（厳守事項 7）。
