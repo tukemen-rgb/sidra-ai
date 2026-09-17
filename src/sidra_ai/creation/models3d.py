@@ -478,8 +478,23 @@ function render(angle){{
 }}
 if(reduced){{render(0.7);}}
 else{{
-  var angle=0;
-  (function tick(){{angle+=0.012;render(angle);window.requestAnimationFrame(tick);}})();
+  /* C-1922: the turn is a rate, not a per-callback nudge. `angle+=0.012`
+     inside requestAnimationFrame runs once per refresh, so a 144Hz screen
+     spun this model 2.39x further than a 60Hz one in the same two real
+     seconds (measured: 1.452 rad against 3.468). §26 fact 1 calls 120 and
+     144 ordinary, so that is most screens, not an edge case.
+     Same shape as C-1892 (flash), C-1898 (juice) and C-1900 (art): work
+     out how many 60Hz frames' worth of time this callback covers, cap it
+     so a backgrounded tab does not jump on return, and multiply. At 60Hz
+     the factor is exactly 1, so the page looks as it always did. */
+  var angle=0,_spinClock=null;
+  function spinStep(now){{
+    if(typeof now!=="number"||!isFinite(now)){{return 1}}
+    var gap=_spinClock===null?1/60:(now-_spinClock)/1000;
+    _spinClock=now;
+    return gap>0?Math.min(gap,0.05)*60:1;
+  }}
+  (function tick(now){{angle+=0.012*spinStep(now);render(angle);window.requestAnimationFrame(tick);}})();
 }}
 </script></body></html>
 """

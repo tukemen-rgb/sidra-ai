@@ -14610,6 +14610,55 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and whether the 3D preview turns by the clock (C-1922) ----------
+    #
+    # C-1892 put the game flash on the clock, C-1898 the shared juice,
+    # C-1900 the art. The 3D preview is neither a game nor a picture, so
+    # none of those three looked at it, and its loop was still a raw
+    # per-callback nudge: `angle += 0.012` inside requestAnimationFrame.
+    # Over the same two real seconds the model reached 1.452 rad at 60Hz
+    # and 3.468 at 144 - 2.39x further, a different frame on screen at the
+    # same moment. §26 fact 1 calls 120 and 144 ordinary.
+    #
+    # Read off the drawn geometry, sampled at marks of REAL time (a
+    # callback count is the thing being measured), and compared as the
+    # painted shape's extent so that one face flipping across the culling
+    # boundary is not mistaken for a different pose.
+    from sidra_ai.evals.model3d_spins_in_real_time import (
+        EXPECTED_60HZ as _SPIN_EXPECTED,
+        RATES as _SPIN_RATES,
+        evaluate_model3d_spins_in_real_time,
+    )
+
+    _spin = evaluate_model3d_spins_in_real_time()
+    c.add(
+        "creation_model3d_spins_in_real_time",
+        "3D プレビューが、画面まかせではなく時計でまわる（C-1922）",
+        float(_spin.checks_passed) if _spin.passed else 0.0,
+        detail=(
+            f"**{'/'.join(str(r) for r in _SPIN_RATES)}Hz** で"
+            "**同じ 2 秒の実時間**を与え、**描かれた形**を実時間の目盛りで突き合わせた"
+            "（ページ自身の角度ではない——C-1900 が捨てた 2 つの安い測り方と同じ理由）——"
+            + "、".join(_spin.readings[:3])
+            + "。"
+            "**3 方向**: (a) どの画面でも同じ実時間で同じ絵、"
+            "(b) その間に**実際にまわっている**"
+            "——止まった絵は (a) を完璧に満たす、"
+            "(c) **60Hz の着地点が前と同じ**"
+            f"（{_SPIN_EXPECTED:.3f} rad）"
+            "——みんなが既に見ている速さを変える「修正」は修正ではない。"
+            "**比べるのは頂点の並びではなく描かれた形の外接矩形**"
+            "——1/1000 回転ちがうだけで裏面カリングの境目にある面が 1 枚入れ替わり、"
+            "**同じ姿勢を別の絵と呼んでしまう**。頂点数も併せて見るので、"
+            "**描くのをやめた形が矩形の不変さに隠れることはできない**。"
+            "**直す前**: 60Hz で 1.452 rad・120Hz で 2.892・**144Hz で 3.468**"
+            "＝**2.39 倍**。**表は製品自身の `_SHAPES` 台帳**から作る"
+            if _spin.passed
+            else "; ".join(_spin.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had
