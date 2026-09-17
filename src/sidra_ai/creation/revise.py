@@ -47,6 +47,7 @@ from sidra_ai.creation.intent import (
     named_artifact_kind,
 )
 from sidra_ai.creation.router import CreationOutcome
+from sidra_ai.models.echo import _reply_in_japanese
 from sidra_ai.creation.tuning import BRIEF_LABEL
 from sidra_ai.creation.intent import CreationKind
 from sidra_ai.creation.themes import (
@@ -1609,6 +1610,18 @@ def build_game_reviser(data_dir: str | Path):
         intent: RevisionIntent,
         history: Sequence[tuple[str, str]] | None = None,
     ) -> CreationOutcome:
+        # C-1929: which language this reply takes. The product already has
+        # the rule and writes it down - `_reply_in_japanese` is
+        # 「SYSTEM_PROMPT rule 6, the language a reply takes」 - and the Q&A
+        # lane follows it (`answer_language_matches_question`). The creation
+        # lane did not, which only became reachable when C-1928 made English
+        # revisions work at all: an operator could say 「make it harder」,
+        # have it done, and be told about it in Japanese.
+        #
+        # Deliberately not a second rule of my own: a copy of a language
+        # test is the copy that drifts, which is what C-1848 and C-1850 say
+        # about copied tables.
+        in_japanese = _reply_in_japanese(message)
         found = find_target_meta(data_dir, message, history)
         if found is None:
             # Honest and terminal: falling through to the question path
@@ -1631,14 +1644,31 @@ def build_game_reviser(data_dir: str | Path):
             remembered = titles_in_history(history)
             if remembered and not [name for name in remembered if name in here]:
                 summary = (
-                    f"この会話で作った{_names_phrase(remembered)}が見つかりません。"
-                    "もう一度作るか、今あるものを名前で指定してください。"
+                    (
+                        f"この会話で作った{_names_phrase(remembered)}が"
+                        "見つかりません。"
+                        "もう一度作るか、今あるものを名前で指定してください。"
+                    )
+                    if in_japanese
+                    else (
+                        f"The {_names_phrase(remembered)} made in this "
+                        "conversation cannot be found. Make one again, or name "
+                        "one of the ones that are here."
+                    )
                 )
             elif here:
                 summary = (
-                    "その名前のゲームは見つかりません。"
-                    f"あるのは{_names_phrase(remembered or here)}です。"
-                    "どれを修正するか、名前で指定してください。"
+                    (
+                        "その名前のゲームは見つかりません。"
+                        f"あるのは{_names_phrase(remembered or here)}です。"
+                        "どれを修正するか、名前で指定してください。"
+                    )
+                    if in_japanese
+                    else (
+                        "There is no game by that name. What is here is "
+                        f"{_names_phrase(remembered or here)}. Name the one to "
+                        "change."
+                    )
                 )
             elif (stranded := stranded_pages(data_dir)):
                 # C-1745: the page is here. Saying "make one first" would be
@@ -1662,8 +1692,17 @@ def build_game_reviser(data_dir: str | Path):
                 )
             else:
                 summary = (
-                    "修正の依頼と受け取りましたが、修正できる生成済みゲームが"
-                    "見つかりません。先に「◯◯ゲームを作って」で作成してください。"
+                    (
+                        "修正の依頼と受け取りましたが、修正できる生成済みゲームが"
+                        "見つかりません。"
+                        "先に「◯◯ゲームを作って」で作成してください。"
+                    )
+                    if in_japanese
+                    else (
+                        "This reads as a request to change something, but there "
+                        "is no generated game here to change. Make one first, "
+                        "with something like “make a racing game”."
+                    )
                 )
             return CreationOutcome(
                 kind=CreationKind.GAME,
@@ -1735,10 +1774,28 @@ def build_game_reviser(data_dir: str | Path):
                     kind=CreationKind.GAME,
                     handled=True,
                     summary=(
-                        f"「{meta.get('title') or 'ゲーム'}」は"
-                        + ("これ以上戻せる版がありません（最初の版です）。"
-                           if walked_back
-                           else "まだ一度も修正していないので、戻せる前の版がありません。")
+                        (
+                            f"「{meta.get('title') or 'ゲーム'}」は"
+                            + ("これ以上戻せる版がありません（最初の版です）。"
+                               if walked_back
+                               else "まだ一度も修正していないので、"
+                                    "戻せる前の版がありません。")
+                        )
+                        if in_japanese
+                        # C-1929: this refusal sits in the same flow as the
+                        # confirmation above it. Leaving it Japanese while the
+                        # success answered in English is worse than answering
+                        # everything in Japanese - it tells the operator the
+                        # product can speak their language and then does not,
+                        # exactly when it is declining to do what they asked.
+                        else (
+                            f"“{meta.get('title') or 'the game'}” "
+                            + ("cannot go back any further (this is the first "
+                               "version)."
+                               if walked_back
+                               else "has not been revised yet, so there is no "
+                                    "earlier version to go back to.")
+                        )
                     ),
                     details={"revision": intent.adjustments, "target": str(target_path)},
                 )
@@ -1793,11 +1850,17 @@ def build_game_reviser(data_dir: str | Path):
         )
         changed: list[str] = []
         if game.difficulty != was_difficulty:
-            changed.append(f"難易度 {was_difficulty}→{game.difficulty}")
+            changed.append(
+                f"難易度 {was_difficulty}→{game.difficulty}" if in_japanese
+                else f"difficulty {was_difficulty}→{game.difficulty}"
+            )
         if theme and theme != meta.get("theme", ""):
-            changed.append(f"配色 {theme}")
+            changed.append(f"配色 {theme}" if in_japanese else f"theme {theme}")
         if title and title != meta.get("title", ""):
-            changed.append(f"タイトル「{game.title}」")
+            changed.append(
+                f"タイトル「{game.title}」" if in_japanese
+                else f"title “{game.title}”"
+            )
         labels = dict(zip(("speed", "band"), AXIS_LABELS.get(game.template, ("速さ", "広さ"))))
         if panel.get("band") != before_panel.get("band"):
             changed.append(f"{labels['band']} {panel['band']}")
@@ -1808,8 +1871,16 @@ def build_game_reviser(data_dir: str | Path):
             now = _DIFFICULTY[game.template][game.difficulty][1]
             if now != dropped_band:
                 changed.append(
-                    f"{labels['band']}は難易度に合わせて {_axis_number(dropped_band)}"
-                    f"→{_axis_number(now)} に戻しました"
+                    (
+                        f"{labels['band']}は難易度に合わせて "
+                        f"{_axis_number(dropped_band)}→{_axis_number(now)} に戻しました"
+                    )
+                    if in_japanese
+                    else (
+                        f"{labels['band']} went back to "
+                        f"{_axis_number(dropped_band)}→{_axis_number(now)} "
+                        "to match the difficulty"
+                    )
                 )
         if panel.get("accent") != before_panel.get("accent") and "accent" in panel:
             # Said here, where it was asked, and not only in the panel's own
@@ -1825,10 +1896,16 @@ def build_game_reviser(data_dir: str | Path):
             # page owns that rule, and a second implementation of it in
             # Python is the drift C-1342 is about. What this needs is one
             # comparison the product already has.
-            changed.append("差し色" + _colour_caveat(panel.get("accent"), theme))
+            changed.append(
+                ("差し色" if in_japanese else "accent colour")
+                + _colour_caveat(panel.get("accent"), theme)
+            )
         for flag, name in (("daily", "今日の挑戦"), ("brief", BRIEF_LABEL)):
             if flag in panel and panel.get(flag) != before_panel.get(flag, False):
-                changed.append(f"{name} {'入' if panel[flag] else '切'}")
+                changed.append(
+                    f"{name} {'入' if panel[flag] else '切'}" if in_japanese
+                    else f"{name} {'on' if panel[flag] else 'off'}"
+                )
         if refused_object:
             # 「宝石を増やして、ついでに難しくして」: the difficulty moved and the
             # gems did not. Saying only what changed is how C-1710's silence
@@ -1836,7 +1913,10 @@ def build_game_reviser(data_dir: str | Path):
             # got one, and nothing said which. Listed with the changes rather
             # than after them, because it is one of the answers to 「what did
             # you do with what I said」.
-            changed.append(f"「{refused_object}」は増減できないのでそのまま")
+            changed.append(
+                f"「{refused_object}」は増減できないのでそのまま" if in_japanese
+                else f"“{refused_object}” cannot be increased or reduced, so it is unchanged"
+            )
         if not changed and undone_from is None:
             # C-1817: recognised adjustments that all landed on their current
             # values (already at max difficulty, same theme). This already
@@ -1872,7 +1952,10 @@ def build_game_reviser(data_dir: str | Path):
                 details={"revision": intent.adjustments, "changed": []},
             )
         if not changed:
-            changed.append("変更なし（すでにその設定です）")
+            changed.append(
+                "変更なし（すでにその設定です）" if in_japanese
+                else "no change (it is already set that way)"
+            )
 
         verdict = validate_game_html(game.html)
         path = save_game(game, data_dir)
@@ -1893,8 +1976,15 @@ def build_game_reviser(data_dir: str | Path):
         )
 
         summary = (
-            f"「{game.title}」を修正しました: " + "、".join(changed) + "。"
-            "旧版のファイルもそのまま残っています。"
+            (
+                f"「{game.title}」を修正しました: " + "、".join(changed) + "。"
+                "旧版のファイルもそのまま残っています。"
+            )
+            if in_japanese
+            else (
+                f"Revised “{game.title}”: " + ", ".join(changed) + ". "
+                "The previous files are still there."
+            )
         )
         if undone_from is not None:
             # Said against the state the operator is *leaving*, because that
@@ -1903,26 +1993,51 @@ def build_game_reviser(data_dir: str | Path):
             # and useless to the person who asked.
             undone: list[str] = []
             if game.difficulty != undone_from.get("difficulty"):
-                undone.append(f"難易度 {undone_from.get('difficulty')}→{game.difficulty}")
+                undone.append(
+                    f"難易度 {undone_from.get('difficulty')}→{game.difficulty}"
+                    if in_japanese
+                    else f"difficulty {undone_from.get('difficulty')}→{game.difficulty}"
+                )
             if theme != undone_from.get("theme", ""):
-                undone.append(f"配色 {theme or '既定'}")
+                undone.append(
+                    f"配色 {theme or '既定'}" if in_japanese
+                    else f"theme {theme or 'default'}"
+                )
             # C-1816: the accent was absent from this list, so an undo that
             # moved only the accent printed 「一つ前の版に戻しました」 and named
             # nothing - which is how the oscillation stayed invisible through
             # three rounds of it.
             if (panel or {}).get("accent") != (undone_from.get("panel") or {}).get("accent"):
-                undone.append("差し色")
+                undone.append("差し色" if in_japanese else "accent colour")
             if game.title != undone_from.get("title", ""):
-                undone.append(f"タイトル「{game.title}」")
+                undone.append(
+                    f"タイトル「{game.title}」" if in_japanese
+                    else f"title “{game.title}”"
+                )
             summary = (
-                f"「{game.title}」を一つ前の版に戻しました"
-                + (": " + "、".join(undone) + "。" if undone else "。")
-                + "戻す前のファイルもそのまま残っています。"
+                (
+                    f"「{game.title}」を一つ前の版に戻しました"
+                    + (": " + "、".join(undone) + "。" if undone else "。")
+                    + "戻す前のファイルもそのまま残っています。"
+                )
+                if in_japanese
+                else (
+                    f"Put “{game.title}” back to the previous version"
+                    + (": " + ", ".join(undone) + ". " if undone else ". ")
+                    + "The files from before the undo are still there."
+                )
             )
         if not verdict["playable"]:
             summary = (
-                f"「{game.title}」を修正しましたが、遊べる状態ではありません: "
-                + "、".join(str(f) for f in verdict["failures"])
+                (
+                    f"「{game.title}」を修正しましたが、遊べる状態ではありません: "
+                    + "、".join(str(f) for f in verdict["failures"])
+                )
+                if in_japanese
+                else (
+                    f"Revised “{game.title}”, but it is not in a playable "
+                    "state: " + ", ".join(str(f) for f in verdict["failures"])
+                )
             )
         return CreationOutcome(
             kind=CreationKind.GAME,

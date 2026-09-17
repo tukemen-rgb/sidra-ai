@@ -14892,6 +14892,56 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and whether it answers in the language it was asked in (C-1929) --
+    #
+    # The product already has this rule and writes it down: `_reply_in_japanese`
+    # is 「SYSTEM_PROMPT rule 6, the language a reply takes」, and the Q&A lane
+    # follows it (answer_language_matches_question). The creation lane did not.
+    #
+    # C-1928 is what made that reachable: before it an English revision was
+    # not understood at all, so there was no reply to get wrong. After it an
+    # operator could say 「make it harder」, have it done, and be told
+    # 「「冒険」を修正しました: 難易度 normal→hard。」
+    #
+    # Driven through the real reviser against a real saved game, because the
+    # reply is assembled from the change list and a frame translated without
+    # its contents is a half-English sentence. Refusals are in the table
+    # too: English on success and Japanese on refusal tells the operator the
+    # product can speak their language and then declines to, exactly when it
+    # is also declining to do what they asked.
+    from sidra_ai.evals.revision_reply_matches_the_language_asked import (
+        PAIRS as _RLANG_PAIRS,
+        evaluate_revision_reply_matches_the_language_asked,
+    )
+
+    _rlang = evaluate_revision_reply_matches_the_language_asked()
+    c.add(
+        "creation_revision_reply_matches_the_language_asked",
+        "改訂の返事が、訊かれた言語で返る（C-1929）",
+        float(_rlang.checks_passed) if _rlang.passed else 0.0,
+        detail=(
+            f"**{len(_RLANG_PAIRS)} 対＋取り消しの確認**を、"
+            "**実際に保存したゲームに対して本物の改訂器を走らせて読んだ**"
+            "（返事は変更一覧から組み立てられるので、"
+            "**枠だけ英語にすると半分英語の文になる**）——"
+            + "、".join(_rlang.readings[:3])
+            + "。"
+            "**両方向で、重いのは後者**: (a) 英語で訊けば英語で返る"
+            "——ただし**ゲームの題名は operator 自身が付けた名前**なので"
+            "**日本語のまま引用してよい**（判定器の初版はここで自分の題材を落とした）、"
+            "(b) **日本語の返事が一字も変わらない**"
+            "——失うものがあるのは既存の読者のほうで、"
+            "**「英語を足した」は文言が黙って動く一番ありふれた経路**。"
+            "**断りも表に入れてある**"
+            "——**成功だけ英語で断りは日本語**なら、"
+            "**「あなたの言語は話せる」と言っておいて、断るその瞬間に話さない**ことになる。"
+            "**規則は自前で作らず製品のものを使う**（写した言語判定は古びる・C-1848／C-1850）"
+            if _rlang.passed
+            else "; ".join(_rlang.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had
