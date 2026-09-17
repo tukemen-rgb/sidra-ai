@@ -1607,6 +1607,29 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1909: a benign question that merely CONTAINS an invisible character
+    # (a zero-width space from a web paste, the ZWJ that welds an emoji like
+    # 👨‍💻, a BOM off a file) was gate-refused as a prompt-injection - an
+    # ordinary user accused of hiding an attack. The fix strips invisible
+    # characters from the OPERATOR message before the gate sees it; because
+    # stripping only reveals hidden text, an obfuscated injection stays caught,
+    # and the ingestion (source="github") contract is untouched.
+    from sidra_ai.evals.chat_operator_invisible_chars_do_not_false_refuse import (
+        evaluate_chat_operator_invisible_chars_do_not_false_refuse,
+    )
+
+    inv_chars = evaluate_chat_operator_invisible_chars_do_not_false_refuse()
+    c.add(
+        "chat_operator_invisible_chars_do_not_false_refuse",
+        "不可視文字が紛れた善良な質問を注入扱いで拒否しない（隠れた注入は剥離後も捕捉／取込契約は不変）",
+        10.0 * inv_chars.checks_passed / inv_chars.checks_total,
+        detail=f"{inv_chars.checks_passed}/{inv_chars.checks_total} checks; "
+               "src/sidra_ai/evals/chat_operator_invisible_chars_do_not_false_refuse.py"
+               + ("" if inv_chars.passed
+                  else "; " + "; ".join(inv_chars.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1847: 「さっきのゲームを消して」 got the list of things that can be changed,
     # 「捨てて」 the no-evidence boilerplate, 「スライドを消して」 the kind refusal -
     # three wrong answers for one request, none saying deletion is not offered.

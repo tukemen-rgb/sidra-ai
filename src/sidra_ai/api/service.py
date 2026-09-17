@@ -53,6 +53,7 @@ from sidra_ai.retrieval.search import (
 from sidra_ai.retrieval.store import DocumentStore, LoadReport
 from sidra_ai.security.data_envelope import build_data_context, build_history_context
 from sidra_ai.security.decisions import Decision, GateResult
+from sidra_ai.security.detectors import _INVISIBLE_CHARS
 from sidra_ai.security.gate import QuarantineStore, SecurityGate
 from sidra_ai.security.quarantine_review import QuarantineReview
 from sidra_ai.security.output_guard import OutputGuard
@@ -1157,6 +1158,18 @@ class SidraService:
                 "citations": [],
                 "creation": {"artifacts": len(made)},
             }
+
+        # C-1909: zero-width/bidi control characters arrive on the operator
+        # path constantly by accident - a zero-width space copied off a web
+        # page, the ZWJ that welds an emoji (👨‍💻), a BOM prefixed by a file.
+        # The injection detector flags any of them, which is right for
+        # ingested repository text (source="github", where hiding instructions
+        # in invisible text IS the attack) but wrong here, where the "author"
+        # is the human typing. Strip them before the gate: stripping can only
+        # REVEAL hidden text, never conceal it, so an obfuscated injection that
+        # splits a keyword with a zero-width space is still caught on the
+        # revealed message. The github ingestion contract is untouched.
+        message = _INVISIBLE_CHARS.sub("", message)
 
         gate_result = self.gate.inspect(message, source="operator", repository="")
         if gate_result.decision is not Decision.ALLOW:
