@@ -606,6 +606,75 @@ class RevisionIntent:
     band_object: str = ""
 
 
+#: C-1928 (§9): the English half of the tables above. §9 records that the
+#: market's second-biggest complaint about AI game tools is weak intent
+#: understanding, and names 生成後の対話的修正 as the thing SIDRA has not
+#: won. Measured: Japanese revisions were read 6 out of 6 and English ones
+#: 0 out of 7 - 「make it harder」 came back with no adjustment at all and
+#: was picked up as a *weak creation* intent instead, so an operator asking
+#: to change their own game was asked what they would like made.
+#:
+#: Matched with word boundaries, never as substrings. 「it」 inside 「title」,
+#: 「edit」 and 「with」 would otherwise turn half the corpus into a
+#: back-reference - the same trap C-1913 and C-1916 hit in the title
+#: stripper, where a two-letter English word was matched without one.
+#: C-1928: 「make it blue」. The English names for the eight colours
+#: `_ACCENT_WORDS` already holds, pointing at the same values - one palette,
+#: named twice, not two palettes.
+_ACCENT_WORDS_EN: dict[str, str] = {
+    "red": _ACCENT_WORDS["赤"],
+    "blue": _ACCENT_WORDS["青"],
+    "green": _ACCENT_WORDS["緑"],
+    "yellow": _ACCENT_WORDS["黄"],
+    "purple": _ACCENT_WORDS["紫"],
+    "orange": _ACCENT_WORDS["橙"],
+    "pink": _ACCENT_WORDS["桃"],
+    "white": _ACCENT_WORDS["白"],
+}
+_BACK_REF_EN = re.compile(
+    r"(?<![A-Za-z0-9])(?:it|this|that|these|those|the\s+(?:game|page|one)|my\s+game)(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+#: English creation verbs. Not a veto on their own - 「make it harder」 has
+#: one - but a creation verb with NO definite back-reference belongs to the
+#: creation detector, which is the boundary 「make a harder game」 (creation)
+#: and 「make it harder」 (revision) sit on either side of. The Japanese half
+#: gets this from `_MAKE_VERBS`, whose entries are the verb itself; English
+#: puts the verb first and the article carries the distinction instead.
+_MAKE_VERBS_EN = re.compile(
+    r"(?<![A-Za-z0-9])(?:make|create|build|generate|design|produce|draw|write)(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+#: A verb that says "change this", so the gate that demands an instruction
+#: shape lets an English one through.
+_CHANGE_VERBS_EN = re.compile(
+    r"(?<![A-Za-z0-9])(?:make|change|set|turn|rename|call|undo|revert|put)(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+_HARDER_EN = re.compile(
+    r"(?<![A-Za-z0-9])(?:harder|tougher|faster|quicker|more\s+difficult|more\s+challenging)(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+_EASIER_EN = re.compile(
+    r"(?<![A-Za-z0-9])(?:easier|simpler|slower|gentler|less\s+difficult)(?![A-Za-z0-9])", re.IGNORECASE
+)
+#: 「undo that」, 「revert it」, 「put it back」 - the English 「元に戻して」.
+_REVERT_EN = re.compile(
+    r"(?<![A-Za-z0-9])(?:undo|revert|put\s+(?:it|that|this)\s+back|roll\s+back)(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+#: 「change the title to Sea」, 「rename it to Sea」, 「call it Sea」. The new
+#: title is whatever follows, trimmed of quotes and a trailing stop, and
+#: capped at the same 24 characters the Japanese patterns use.
+_TITLE_EN = re.compile(
+    r"(?:(?:change|set)\s+(?:the\s+)?(?:title|name)\s+(?:to|as)"
+    r"|rename\s+(?:it|this|that|the\s+game)\s+(?:to|as)"
+    r"|call\s+(?:it|this|that))"
+    r"\s+[\"'“「]?([^\"'”」.!?]{1,24})",
+    re.IGNORECASE,
+)
+
+
 def detect_revision_intent(message: str) -> RevisionIntent:
     """Decide whether a message asks to change an existing game.
 
@@ -626,6 +695,14 @@ def detect_revision_intent(message: str) -> RevisionIntent:
         return RevisionIntent(is_revision=False)
     if any(fold_kana(verb.casefold()) in text for verb in _MAKE_VERBS):
         return RevisionIntent(is_revision=False)
+    # C-1928: the English boundary between making and changing. A creation
+    # verb with no definite back-reference is a creation request - 「make a
+    # harder game」 belongs to the creation detector exactly as 「難しいゲーム
+    # を作って」 does. With one, it is a change: 「make it harder」, 「make the
+    # game easier」. Japanese settles this on the verb alone; English puts
+    # the verb first for both, so the article is what carries it.
+    if _MAKE_VERBS_EN.search(message) and not _BACK_REF_EN.search(message):
+        return RevisionIntent(is_revision=False)
     # A polite request ("難しくしてもらえますか") ends in 「ますか」, which the shared
     # question-marker veto would treat as a question; it is courtesy, not an
     # asking verb, so it is exempt unless it is also an explanation question
@@ -644,8 +721,12 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     # from a message that is not a change at all. It is still not a revision -
     # the guard is unchanged - but the caller can then ask which artifact.
     bare_undo = bool(_BARE_UNDO.fullmatch(message.strip()))
-    has_referent = bare_undo or any(
-        fold_kana(word.casefold()) in text for word in _BACK_REFERENCES
+    has_referent = (
+        bare_undo
+        or any(fold_kana(word.casefold()) in text for word in _BACK_REFERENCES)
+        # C-1928: 「it」, 「this」, 「the game」 - matched as whole words, never
+        # as substrings, or 「title」 and 「edit」 would each carry an 「it」.
+        or bool(_BACK_REF_EN.search(message))
     )
     # C-1844: and a verb that ASKS about something is not a change verb, even
     # though 「して」 - a _CHANGE_VERBS entry matched by substring - sits inside
@@ -672,7 +753,7 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     # already run: a question marker, an asking verb or a creation verb has
     # returned by now, so 「タイトルは「X」ですか」 cannot reach this.
     if not any(fold_kana(verb) in text for verb in _CHANGE_VERBS):
-        if not _names_a_new_title(message):
+        if not _CHANGE_VERBS_EN.search(message) and not _names_a_new_title(message):
             return RevisionIntent(is_revision=False)
 
     adjustments: dict[str, str] = {}
@@ -695,22 +776,36 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     # where to land, and stepping from wherever we are would land somewhere
     # else. Checked first for the same reason - 「むずかしい」 shares its stem
     # with 「難しく」, so the relative rule would swallow it (C-1873).
+    # C-1928: the ASCII rung names are matched as whole words. 「hard」 is a
+    # rung and 「harder」 is a step, and a substring test cannot tell them
+    # apart - 「make it harder」 was read as 「set difficulty to hard」, which
+    # lands somewhere fixed instead of one rung up from wherever the page
+    # is. This is C-1873's note (「むずかしい」 shares its stem with 「難しく」)
+    # arriving in the other language, where the shared stem is spelt out.
+    # Only the ASCII names need the boundary; kana and kanji entries have no
+    # comparative form that contains them.
+    def _rung_named(word: str) -> bool:
+        if word.isascii():
+            pattern = r"(?<![A-Za-z0-9])" + re.escape(word) + r"(?![A-Za-z0-9])"
+            return re.search(pattern, body, re.IGNORECASE) is not None
+        return fold_kana(word.casefold()) in body_text
+
     named_rung = next(
         (
             rung
             for rung in _LADDER
             for word in _RUNG_WORDS[rung]
-            if fold_kana(word.casefold()) in body_text
+            if _rung_named(word)
         ),
         "",
     )
     if named_rung:
         adjustments["difficulty"] = f"={named_rung}"
         evidence.append(f"difficulty={named_rung}")
-    elif any(fold_kana(word) in body_text for word in _HARDER):
+    elif any(fold_kana(word) in body_text for word in _HARDER) or _HARDER_EN.search(body):
         adjustments["difficulty"] = "+1"
         evidence.append("difficulty+1")
-    elif any(fold_kana(word) in body_text for word in _EASIER):
+    elif any(fold_kana(word) in body_text for word in _EASIER) or _EASIER_EN.search(body):
         adjustments["difficulty"] = "-1"
         evidence.append("difficulty-1")
 
@@ -754,6 +849,19 @@ def detect_revision_intent(message: str) -> RevisionIntent:
             adjustments["accent"] = colour
             evidence.append(f"accent:{word}")
             break
+    else:
+        # C-1928: the same eight colours, said in English. Whole words, so
+        # 「red」 inside 「shredder」 and 「white」 inside 「whitespace」 cannot
+        # repaint a page. Kept as the same values rather than a second
+        # palette - a copy of a colour table is the copy that goes stale
+        # (the reason C-1848 and C-1850 give for building sentences from the
+        # one table the product already has).
+        for word, colour in _ACCENT_WORDS_EN.items():
+            edged = r"(?<![A-Za-z0-9])" + word + r"(?![A-Za-z0-9])"
+            if re.search(edged, body, re.IGNORECASE):
+                adjustments["accent"] = colour
+                evidence.append(f"accent:{word}")
+                break
 
     turned_off = any(fold_kana(word.casefold()) in body_text for word in _OFF_WORDS)
     if any(fold_kana(word) in body_text for word in _DAILY_WORDS):
@@ -767,13 +875,25 @@ def detect_revision_intent(message: str) -> RevisionIntent:
     if match:
         adjustments["title"] = match.group(1)
         evidence.append("title")
+    elif (english_title := _TITLE_EN.search(message)) is not None:
+        # C-1928. Trimmed here rather than in the pattern so the pattern stays
+        # one readable alternation; a trailing 「please」 is courtesy, not part
+        # of the name anyone asked for.
+        named = english_title.group(1).strip().strip("\"'”」")
+        named = re.sub(r"[,\s]*\b(?:please|pls|plz)\b\s*$", "", named, flags=re.I)
+        if named:
+            adjustments["title"] = named.strip()
+            evidence.append("title")
 
     # C-1513, and last on purpose: 「元に戻して」 means *undo the last change*,
     # so it only speaks when the message named no change of its own. That
     # keeps 「タイトルを元に戻して」 a rename to 「元」 - the behaviour it has
     # today - instead of quietly turning it into a whole-page undo, and it
     # is the conservative half of an ambiguity rather than a guess at it.
-    if not adjustments and any(fold_kana(word) in text for word in _REVERT_WORDS):
+    if not adjustments and (
+        any(fold_kana(word) in text for word in _REVERT_WORDS)
+        or _REVERT_EN.search(message)
+    ):
         adjustments["revert"] = "1"
         evidence.append("revert")
 

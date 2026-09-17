@@ -14817,6 +14817,60 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and whether a revision asked in English is understood (C-1928) --
+    #
+    # §9 records the market's second complaint about AI game tools as weak
+    # intent understanding plus fixes with side effects, and names
+    # 生成後の対話的修正 as the first thing SIDRA has not won. The
+    # side-effect half is watched by revision_changes_only_what_it_owns.
+    # This is the understanding half, and it was measured in one language.
+    #
+    # Measured: Japanese 6 of 6, English 0 of 7. 「make it harder」 came back
+    # with no adjustment and was then picked up as a WEAK CREATION intent,
+    # so an operator asking to change their own game was asked what they
+    # would like made. The tables were Japanese-only - English was not
+    # refused, it matched nothing.
+    #
+    # Paired in one table so neither language can drift alone, and the
+    # English side must be ACTED ON rather than merely parsed: a detector
+    # that read the words and then asked which artifact passed the first
+    # version of this judge.
+    from sidra_ai.evals.english_revision_is_understood import (
+        PAIRS as _REV_PAIRS,
+        evaluate_english_revision_is_understood,
+    )
+
+    _rev_en = evaluate_english_revision_is_understood()
+    c.add(
+        "creation_english_revision_is_understood",
+        "英語の改訂依頼が、日本語と同じに読まれて実行される（C-1928・§9）",
+        float(_rev_en.checks_passed) if _rev_en.passed else 0.0,
+        detail=(
+            f"**日英を 1 行に組にした {len(_REV_PAIRS)} 対**を現物の検出器に通した——"
+            + "、".join(_rev_en.readings[:3])
+            + " ほか。"
+            "**4 方向**: (a) 英語が**日本語の双子と同じ調整**に読まれ、"
+            "**かつ実際に実行される**"
+            "——「it」と言っている以上、検出器は対象を持っているので"
+            "**「どのゲームですか」と訊き返してはいけない**"
+            "（**読めるが動かない実装が、この判定器の初版を素通りした**）、"
+            "(b) **英語の創作依頼を横取りしない**"
+            "——「make a harder game」は創作で「make it harder」は改訂、"
+            "その境目こそが要点、"
+            "(c) **日本語側が 1 つも動いていない**"
+            "——壊れていた言語を直して、動いていた言語を動かしては意味がない、"
+            "(d) **長い語の中の英単語は英単語ではない**"
+            "——「title」の中の「it」、「shredder」の中の「red」"
+            "（C-1913／C-1916 はどちらもこの欠陥だった）。"
+            "**直す前**: 日本語 6/6・**英語 0/7**——"
+            "`make it harder` は `adjustments={}` のうえ**創作意図の weak として拾われ**、"
+            "`undo that` は RAG に落ちていた"
+            if _rev_en.passed
+            else "; ".join(_rev_en.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had
