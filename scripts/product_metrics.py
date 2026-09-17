@@ -14748,6 +14748,56 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- why the one artifact that cannot be stilled is safe (C-1926) ----
+    #
+    # §38. The GIF moves forever and offers no way to stop it, and a GIF
+    # cannot read prefers-reduced-motion - every SIDRA page has a switch
+    # that reduces motion, this is the one artifact that does not.
+    #
+    # It is nonetheless safe, and this guards the reasons rather than the
+    # conclusion, because both are conditions a later change can break:
+    # 2.3.1 does not apply because 120x90 is 12.4% of the 10-degree
+    # rectangle against a 25% exemption, and 2.2.2 does not apply because
+    # its third condition - presented in parallel with other content - is
+    # not met, SIDRA embedding the GIF in none of its own pages.
+    #
+    # This is C-1892's lesson applied on purpose: "it matched, so nothing
+    # needs changing" is true only under the conditions it was measured
+    # in, and unless those are written down nobody can check them again.
+    from sidra_ai.evals.gif_motion_stays_within_the_exemption import (
+        AREA_LIMIT as _GIF_AREA_LIMIT,
+        evaluate_gif_motion_stays_within_the_exemption,
+    )
+
+    _gifmo = evaluate_gif_motion_stays_within_the_exemption()
+    c.add(
+        "creation_gif_motion_stays_within_the_exemption",
+        "止められない GIF を安全にしている条件が、まだ成り立っている（C-1926・§38）",
+        float(_gifmo.checks_passed) if _gifmo.passed else 0.0,
+        detail=(
+            "**生成した GIF のバイト列を直接読んだ**——"
+            + "、".join(_gifmo.readings[:2])
+            + "。"
+            "**結論ではなく条件を留める**"
+            "——GIF は**無限に動き、止める手段が無く、"
+            "`prefers-reduced-motion` を読めない**"
+            "（ページには動きを減らすスイッチがあるのに・`creation_motion_switch`）。"
+            "それでも安全なのは 2 つの条件が成り立っているからで、"
+            "**どちらも後の変更で壊せる**: "
+            f"(a) **面積が免除の中**（視野 10 度の矩形の {_GIF_AREA_LIMIT:.0%} まで）"
+            "——**画布を広げれば 2.3.1 の閃光制限が効き始める**、"
+            "(b) **1 周が 5 秒以下**（G152 が使う数字）、"
+            "(c) **SIDRA 自身のページに 1 つも埋め込んでいない**"
+            "——**一覧にプレビューを出した日に 2.2.2（Level A）が発火する**、"
+            "(d) **コマが実際に全部ちがう**（動くと仮定しない）。"
+            "**C-1892 が §6 に残した教訓を意図的に適用したもの**"
+            "——「実測と一致したので変更不要」は**測った条件でだけ正しい**"
+            if _gifmo.passed
+            else "; ".join(_gifmo.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had
