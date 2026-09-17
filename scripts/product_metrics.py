@@ -1691,6 +1691,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1919: an English request to make an unsupported kind ("make an excel
+    # spreadsheet") got the Japanese decline with Japanese kind labels. The
+    # decline now follows the request's language (rule 6); the Japanese decline
+    # and the creation metadata are unchanged.
+    from sidra_ai.evals.chat_english_unsupported_creation_declined_in_english import (
+        evaluate_chat_english_unsupported_creation_declined_in_english,
+    )
+
+    en_decline = evaluate_chat_english_unsupported_creation_declined_in_english()
+    c.add(
+        "chat_english_unsupported_creation_declined_in_english",
+        "英語の「作れない形式」制作依頼を英語で断り、英語の種別ラベルで作れるものを挙げる",
+        10.0 * en_decline.checks_passed / en_decline.checks_total,
+        detail=f"{en_decline.checks_passed}/{en_decline.checks_total} checks; "
+               "src/sidra_ai/evals/chat_english_unsupported_creation_declined_in_english.py"
+               + ("" if en_decline.passed
+                  else "; " + "; ".join(en_decline.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1848: structure.md said 「現状の game.html は単一画面です。タイトル画面も
     # リザルト画面も無く」 and listed both under 「まだ無いもの」, while all ten
     # templates have a briefing gate (C-1033), a result strip and an attract
