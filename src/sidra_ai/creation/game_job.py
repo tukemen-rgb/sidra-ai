@@ -31,6 +31,8 @@ from sidra_ai.creation.evidence import Fact
 from sidra_ai.creation.intent import CreationIntent
 from sidra_ai.creation.revise import save_meta
 from sidra_ai.creation.router import CreationOutcome
+from sidra_ai.models.echo import _reply_in_japanese
+from sidra_ai.creation.vocabulary import english_label_for
 from sidra_ai.creation.themes import select_theme
 
 
@@ -44,6 +46,16 @@ def build_game_generator(
         intent: CreationIntent,
         retrieved: list[Fact] | None = None,
     ) -> CreationOutcome:
+        # C-1930: which language this reply takes, from the product's own
+        # rule - `_reply_in_japanese` is 「SYSTEM_PROMPT rule 6, the language
+        # a reply takes」, which the Q&A lane follows and C-1929 brought to
+        # the revision lane. Making a game is the product's main function and
+        # English requests have worked since C-1516, so this path answered in
+        # the wrong language for far longer than the revision one did.
+        #
+        # One call, one variable, no second language test of my own: a copy
+        # of a language rule is the copy that drifts (C-1848, C-1850).
+        in_japanese = _reply_in_japanese(message)
         # Retrieved evidence becomes the page's citation line, not its
         # contents: a game's rules are the template's, and pulling text from
         # the corpus into a playable page would put DATA somewhere no guard
@@ -129,13 +141,32 @@ def build_game_generator(
             # nearest thing to a fighting game was a claim of a resemblance
             # the code never measured (C-1230). The buildable list is derived
             # from TEMPLATES so it cannot outlive the templates it names.
-            buildable = "・".join(labels_for(TEMPLATES))
+            buildable = (
+                "・".join(labels_for(TEMPLATES))
+                if in_japanese
+                # C-1930: the list's job is to tell the reader what they may
+                # ask for, so in an English reply it has to be words they can
+                # type. Derived from the routing table, so every name here is
+                # one the detector answers to.
+                else ", ".join(english_label_for(name) for name in TEMPLATES)
+            )
             summary = (
-                f"{requested.genre}型はまだ作れないため、代わりに既定の"
-                f"「{TEMPLATES[game.template].default_title}」型で作りました"
-                f"（難易度 {game.difficulty}）。"
-                f"いま作れるのは {buildable} です。"
-                "ブラウザで開けばそのまま遊べます。"
+                (
+                    f"{requested.genre}型はまだ作れないため、代わりに既定の"
+                    f"「{TEMPLATES[game.template].default_title}」型で作りました"
+                    f"（難易度 {game.difficulty}）。"
+                    f"いま作れるのは {buildable} です。"
+                    "ブラウザで開けばそのまま遊べます。"
+                )
+                if in_japanese
+                else (
+                    f"A {english_label_for(requested.template)} game is not buildable "
+                    "yet, so this is "
+                    f"the default \u201c{english_label_for(game.template)}\u201d kind "
+                    f"instead (difficulty {game.difficulty}). "
+                    f"What can be built right now: {buildable}. "
+                    "Open it in a browser and it plays."
+                )
             )
         elif verdict["playable"] and undepicted:
             # The subject-side twin of the genre caveat above (C-1205):
@@ -149,7 +180,12 @@ def build_game_generator(
             # It was only ever in the tagline, which is inside the artifact
             # - the operator reads this line.
             renamed = (
-                "依頼にあった作品名は使えないので題は変えています。"
+                (
+                    "依頼にあった作品名は使えないので題は変えています。"
+                    if in_japanese
+                    else "The work named in the request cannot be used, so the "
+                         "title has been changed. "
+                )
                 if game.renamed
                 else ""
             )
@@ -159,27 +195,56 @@ def build_game_generator(
                 # subject: 「魚の 3D ゲーム」 gets the 3D course it asked
                 # for, and there is no fish anywhere in it.
                 summary = (
-                    f"「{TEMPLATES[game.template].default_title}」型で作りました"
-                    f"（難易度 {game.difficulty}）。"
-                    f"ただし「{undepicted}」は絵として出てきません。"
-                    f"{renamed}"
-                    "ブラウザで開けばそのまま遊べます。"
+                    (
+                        f"「{TEMPLATES[game.template].default_title}」型で作りました"
+                        f"（難易度 {game.difficulty}）。"
+                        f"ただし「{undepicted}」は絵として出てきません。"
+                        f"{renamed}"
+                        "ブラウザで開けばそのまま遊べます。"
+                    )
+                    if in_japanese
+                    else (
+                        f"Made the \u201c{english_label_for(game.template)}\u201d kind "
+                        f"(difficulty {game.difficulty}). "
+                        f"\u201c{undepicted}\u201d does not appear in the "
+                        f"picture, though. {renamed}"
+                        "Open it in a browser and it plays."
+                    )
                 )
             else:
                 # 「題は…のまま」 is only true when the title survived. A
                 # renamed page saying its title is unchanged would be the
                 # same silent lie one layer along.
                 kept = (
-                    f"（難易度 {game.difficulty}）。"
-                    if game.renamed
-                    else f"（題は「{game.title}」のまま・難易度 {game.difficulty}）。"
+                    (
+                        f"（難易度 {game.difficulty}）。"
+                        if game.renamed
+                        else f"（題は「{game.title}」のまま・難易度 {game.difficulty}）。"
+                    )
+                    if in_japanese
+                    else (
+                        f"(difficulty {game.difficulty}). "
+                        if game.renamed
+                        else f"(the title stays \u201c{game.title}\u201d, "
+                             f"difficulty {game.difficulty}). "
+                    )
                 )
                 summary = (
-                    f"「{undepicted}」の題材を描く型はまだ無いため、代わりに既定の"
-                    f"「{TEMPLATES[game.template].default_title}」型で作りました"
-                    f"{kept}"
-                    f"{renamed}"
-                    "ブラウザで開けばそのまま遊べます。"
+                    (
+                        f"「{undepicted}」の題材を描く型はまだ無いため、代わりに既定の"
+                        f"「{TEMPLATES[game.template].default_title}」型で作りました"
+                        f"{kept}"
+                        f"{renamed}"
+                        "ブラウザで開けばそのまま遊べます。"
+                    )
+                    if in_japanese
+                    else (
+                        f"There is no kind that draws \u201c{undepicted}\u201d yet, "
+                        f"so this is the default "
+                        f"\u201c{english_label_for(game.template)}\u201d kind "
+                        f"{kept}{renamed}"
+                        "Open it in a browser and it plays."
+                    )
                 )
         elif verdict["playable"]:
             # A genre we could build, a subject the page does draw - and
@@ -188,21 +253,41 @@ def build_game_generator(
             # reading this line saw a title they never asked for and no
             # reason for it (C-1125).
             renamed = (
-                "依頼にあった作品名は使えないのでオリジナル版です。"
+                (
+                    "依頼にあった作品名は使えないのでオリジナル版です。"
+                    if in_japanese
+                    else "The work named in the request cannot be used, so this "
+                         "is an original. "
+                )
                 if game.renamed
                 else ""
             )
             summary = (
-                f"「{game.title}」を作りました（難易度 {game.difficulty}）。"
-                f"{renamed}"
-                "ブラウザで開けばそのまま遊べます。"
+                (
+                    f"「{game.title}」を作りました（難易度 {game.difficulty}）。"
+                    f"{renamed}"
+                    "ブラウザで開けばそのまま遊べます。"
+                )
+                if in_japanese
+                else (
+                    f"Made \u201c{game.title}\u201d (difficulty "
+                    f"{game.difficulty}). {renamed}"
+                    "Open it in a browser and it plays."
+                )
             )
         else:
             # Still saved: a broken artifact an operator can open and read is
             # more useful than a deletion they cannot inspect.
             summary = (
-                f"「{game.title}」を作りましたが、遊べる状態ではありません: "
-                + "、".join(str(f) for f in verdict["failures"])
+                (
+                    f"「{game.title}」を作りましたが、遊べる状態ではありません: "
+                    + "、".join(str(f) for f in verdict["failures"])
+                )
+                if in_japanese
+                else (
+                    f"Made \u201c{game.title}\u201d, but it is not in a playable "
+                    "state: " + ", ".join(str(f) for f in verdict["failures"])
+                )
             )
         return CreationOutcome(
             kind=intent.kind,

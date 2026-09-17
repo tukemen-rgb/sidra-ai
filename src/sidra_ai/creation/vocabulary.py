@@ -403,6 +403,36 @@ def _game_words() -> tuple[str, ...]:
 GAME_WORDS: tuple[str, ...] = _game_words()
 
 
+def english_label_for(template: str) -> str:
+    """The English name of a genre, taken from the words it already answers to.
+
+    C-1930. An English reply that names 「タイミング釣り」 and then lists
+    「3D コース・巨大ボス・…」 is the half-translated sentence C-1929's
+    sabotage D4 exists to punish - worse, the list's whole job is to tell a
+    reader what they may ask for, and a reader who cannot read it cannot
+    ask. Every genre in ``GENRES`` already carries English words, because
+    that is how 「make a racing game」 is routed at all, so the name is
+    derived from that table rather than written into a second one: a copied
+    table is the one that goes stale (C-1848, C-1850), and a name derived
+    from the routing words is a name the detector is guaranteed to accept
+    when it is typed back.
+
+    The first ASCII word wins, which is the plainest of them in every row
+    measured. Falls back to the Japanese label when a genre has no English
+    word at all, because a missing name is better said in the other
+    language than not said.
+    """
+
+    for label, name, words in GENRES:
+        if name != template:
+            continue
+        for word in words:
+            if word.isascii() and word.strip():
+                return word
+        return label
+    return template
+
+
 def labels_for(templates) -> tuple[str, ...]:
     """The human names of the genres we can actually build, in table order."""
 
@@ -463,6 +493,7 @@ __all__ = [
     "REQUEST_ADVERBS",
     "SIZE_UNITS",
     "drop_english_frame",
+    "english_label_for",
     "is_english_text",
     "marked_english",
     "drop_request_adverbs",

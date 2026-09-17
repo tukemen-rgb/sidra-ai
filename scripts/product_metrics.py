@@ -12092,6 +12092,25 @@ def measure_creation(c: Collector) -> None:
         said = _subject_say(plain)
         if "絵として出てきません" in said or "まだ無いため" in said or "作品名" in said:
             subject_gaps.append(f"{plain}: a satisfied request was apologised for")
+    # C-1930: the undepicted-subject note exists in two languages now. The
+    # product answers an English request in English (`_reply_in_japanese`,
+    # the rule the Q&A lane has always followed), so the Japanese wording
+    # these checks looked for is simply absent from an English reply - and
+    # every ask below that is written in English was checking for a string
+    # that can no longer appear. That is a stale expectation, not a lost
+    # disclosure: the note is still made, in the language it was asked in.
+    # Both spellings are listed here so the check means what it always
+    # meant, rather than meaning less.
+    _UNDEPICTED_MARKS = (
+        "まだ無いため",
+        "絵として出てきません",
+        "There is no kind that draws",
+        "does not appear in the picture",
+    )
+
+    def _says_undepicted(said: str) -> bool:
+        return any(mark in said for mark in _UNDEPICTED_MARKS)
+
     # C-1205's own case still holds.
     said = _subject_say("猫のゲームを作って")
     if "猫" not in said or "まだ無いため" not in said:
@@ -12123,7 +12142,7 @@ def measure_creation(c: Collector) -> None:
         said = _subject_say(_artifact_ask)
         if not said:
             subject_gaps.append(f"{_artifact_ask}: 制作経路に届いていない")
-        elif "絵として出てきません" in said or "まだ無いため" in said:
+        elif _says_undepicted(said):
             subject_gaps.append(
                 f"{_artifact_ask}: 作るものの名詞が題材として注釈された"
             )
@@ -12133,7 +12152,7 @@ def measure_creation(c: Collector) -> None:
         ("create a game about a dog", "dog"),
     ):
         said = _subject_say(_subject_ask)
-        if _named not in said or "まだ無いため" not in said:
+        if _named not in said or not _says_undepicted(said):
             subject_gaps.append(
                 f"{_subject_ask}: 描けない題材「{_named}」に注釈が出ない"
             )
@@ -14938,6 +14957,53 @@ def measure_creation(c: Collector) -> None:
             "**規則は自前で作らず製品のものを使う**（写した言語判定は古びる・C-1848／C-1850）"
             if _rlang.passed
             else "; ".join(_rlang.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- and the same question for making one (C-1930) -------------------
+    #
+    # C-1929 brought `_reply_in_japanese` to the revision lane. Making a game
+    # is the main function and English requests have routed since C-1516, so
+    # this path answered in the wrong language for far longer: 「make a
+    # racing game」 built the game and said 「「racing」を作りました…」.
+    #
+    # The list of what CAN be built is checked separately and strictly: its
+    # whole job is to tell a reader what to ask for, so in an English reply
+    # every name in it is fed back through the router and must come home to
+    # the template it was listed for. The names are derived from the routing
+    # table rather than written into a second one, which is what makes that
+    # check passable at all.
+    from sidra_ai.evals.game_reply_matches_the_language_asked import (
+        CASES as _GLANG_CASES,
+        evaluate_game_reply_matches_the_language_asked,
+    )
+
+    _glang = evaluate_game_reply_matches_the_language_asked()
+    c.add(
+        "creation_game_reply_matches_the_language_asked",
+        "ゲームを作った返事が、訊かれた言語で返る（C-1930）",
+        float(_glang.checks_passed) if _glang.passed else 0.0,
+        detail=(
+            f"**{len(_GLANG_CASES)} 通りを日英で実際に生成して返事を読んだ**——"
+            + "、".join(_glang.readings[:3])
+            + "。"
+            "**4 方向**: (a) 英語には英語で返る"
+            "——**operator 自身が付けた題名だけは日本語のまま引用してよい**、"
+            "(b) **日本語の返事が一字も変わらない**（重いのはこちら）、"
+            "(c) **表が返事の全部の枝に届く**"
+            "——成功・作れない種別・描けない題材。"
+            "**成功だけ訳して止めるのが一番ありふれた半端仕事**で、"
+            "**成功だけの表からは見えない**、"
+            "(d) **「いま作れるのは…」の英語名が、router が実際に答える語**であること"
+            "——この一覧は**読者が次に何と頼めばよいかを伝えるためのもの**なので、"
+            "**読めない一覧は無意味、router が答えない英単語の一覧はもっと悪い**"
+            "（通らない依頼を誘う）。**名前は GENRES の routing 語から導く**"
+            "ので、**打ち返せば必ず通る**（表を 2 つ持たない・C-1848／C-1850）。"
+            "**直す前**: 「make a racing game」→"
+            "**「「racing」を作りました（難易度 normal）。ブラウザで開けばそのまま遊べます。」**"
+            if _glang.passed
+            else "; ".join(_glang.failures[:4])
         ),
         kind=OUTCOME,
     )
