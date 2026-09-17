@@ -1587,6 +1587,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1906: English "show me what you made" returned unrelated corpus
+    # fragments because _ARTIFACT_LIST_QUERIES was Japanese-only. Now recognised
+    # and listed in English (rule 6). Third of the English conversational-entry
+    # set after C-1902 (greetings) and C-1904 (help/identity).
+    from sidra_ai.evals.chat_english_artifact_list_is_answered import (
+        evaluate_chat_english_artifact_list_is_answered,
+    )
+
+    en_list = evaluate_chat_english_artifact_list_is_answered()
+    c.add(
+        "chat_english_artifact_list_is_answered",
+        "英語の「作ったもの一覧」要求（show me what you made 等）に英語の一覧で答える",
+        10.0 * en_list.checks_passed / en_list.checks_total,
+        detail=f"{en_list.checks_passed}/{en_list.checks_total} checks; "
+               "src/sidra_ai/evals/chat_english_artifact_list_is_answered.py"
+               + ("" if en_list.passed
+                  else "; " + "; ".join(en_list.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1847: 「さっきのゲームを消して」 got the list of things that can be changed,
     # 「捨てて」 the no-evidence boilerplate, 「スライドを消して」 the kind refusal -
     # three wrong answers for one request, none saying deletion is not offered.

@@ -235,6 +235,16 @@ _ARTIFACT_LIST_QUERIES = frozenset({
     # suffix-strip below reduces 「作った物の一覧を見せて」/「作ったファイルの一覧を
     # 見せて」 to a base the set knows.
     "作った物の一覧", "作ったファイルの一覧",
+    # C-1906: English ways to ask what has been made (whole-message, casefolded).
+    # The artifact_list branch answers in the message's language (rule 6).
+    # Deliberately omits bare "list the files"/"show me the files" - those read
+    # as a corpus question about the repository, not this product's own output.
+    "show me what you made", "show me what you've made", "show me what you have made",
+    "what have you made", "what did you make", "what have you created",
+    "what did you create", "what have you built",
+    "list what you made", "list what you've made", "list what you have made",
+    "show my files", "show me my files", "show me the files you made",
+    "what files have you made",
 })
 
 
@@ -1098,16 +1108,25 @@ class SidraService:
 
             made = list_artifacts(self.settings.data_dir)
             shown = made[:5]
+            japanese = _reply_in_japanese(message)
             if not made:
-                offered = [
-                    _KIND_LABELS.get(kind, kind)
-                    for kind in self.creation_router.registered_kinds()
-                ]
-                answer = (
-                    "まだ何も作っていません。"
-                    + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
-                )
-            else:
+                if japanese:
+                    offered = [
+                        _KIND_LABELS.get(kind, kind)
+                        for kind in self.creation_router.registered_kinds()
+                    ]
+                    answer = (
+                        "まだ何も作っていません。"
+                        + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
+                    )
+                else:
+                    # C-1906: English list request with nothing made. Examples
+                    # rather than the kind list, evergreen like C-1904's help reply.
+                    answer = (
+                        "You haven't made anything yet. Ask me to create "
+                        "something - for example, \"make a racing game\"."
+                    )
+            elif japanese:
                 lines = "、".join(
                     f"{artifact.name}（{artifact.modified}）" for artifact in shown
                 )
@@ -1117,6 +1136,18 @@ class SidraService:
                        else "新しい順に: ")
                     + lines
                     + "。ファイルは /v1/artifacts から取得できます。"
+                )
+            else:
+                # C-1906: English listing, same facts as the Japanese one.
+                lines = ", ".join(
+                    f"{artifact.name} ({artifact.modified})" for artifact in shown
+                )
+                answer = (
+                    f"You've made {len(made)} file(s) so far. "
+                    + (f"Most recent {len(shown)}: " if len(made) > len(shown)
+                       else "Newest first: ")
+                    + lines
+                    + ". Fetch them from /v1/artifacts."
                 )
             return {
                 "answer": answer,
