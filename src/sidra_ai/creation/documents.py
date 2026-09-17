@@ -92,6 +92,26 @@ _DOC_FORMAT_SUFFIX = re.compile(
     re.IGNORECASE,
 )
 
+#: C-1937: the same gate for English. The words were already in the pattern
+#: above - it is the LOOKBEHIND that is Japanese, so 「write a report in
+#: Word」 named a format nobody read and the 「Word 形式では作れない」
+#: disclosure (C-1834) never fired for it; the deck showed its PowerPoint
+#: notice instead, naming a format the operator had not asked for.
+#:
+#: 「in / as / to」 is the instrumental, the same role 「…をWordで」 plays,
+#: and it is what tells a format apart from a subject: 「a report about
+#: Word」 and 「how to use Word」 stay unread, exactly as 「Wordの使い方」
+#: does on the Japanese side.
+#:
+#: Deliberately NOT the adjectival 「make a pdf report」. The Japanese gate
+#: does not read 「PDFのレポートを作って」 either (measured: ""), so this is
+#: the two gates being equally narrow rather than one language being worse
+#: served - and widening it is a change to both, not to this one.
+_DOC_FORMAT_ENGLISH = re.compile(
+    r"\b(?:in|as|to|into)\s+(ワード|エクセル|word|excel|pdf|docx|xlsx)\b",
+    re.IGNORECASE,
+)
+
 #: The requested-format word mapped to the name shown to the operator. C-1834:
 #: the document generator only ever writes Markdown, so a request that names a
 #: format it cannot produce is told so - the document twin of the deck's pptx
@@ -124,7 +144,14 @@ def requested_format(request: str) -> str:
     head = drop_size_phrases(head)
     head = re.sub(r"[をのはがにで]+$", "", head.strip()).strip()
     match = _DOC_FORMAT_SUFFIX.search(head)
-    return _FORMAT_LABEL.get(match.group(0).lower(), "") if match else ""
+    if match:
+        return _FORMAT_LABEL.get(match.group(0).lower(), "")
+    # C-1937: and the English instrumental. Read from the whole request
+    # rather than the head, because the head split is on Japanese making
+    # verbs - an English request never loses a tail to it, so there is
+    # nothing gained by looking at less of it.
+    english = _DOC_FORMAT_ENGLISH.search(request)
+    return _FORMAT_LABEL.get(english.group(1).lower(), "") if english else ""
 
 #: A length the request asks the report to run to, sitting in front of the
 #: subject: 「3ページのレポート」「2000字のレポート」「5枚の売上のレポート」. C-1822:

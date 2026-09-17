@@ -15087,8 +15087,14 @@ def measure_creation(c: Collector) -> None:
     # operator. Silence is checked too - a caveat that fires with nothing to
     # report is what C-1823 says stops being read, so 「a 3d model」 and 「a
     # gif of the 90s」 must stay quiet.
+    # C-1937 added the fifth parser of the same family, the requested FORMAT.
+    # Its words were English already - the LOOKBEHIND was Japanese - so
+    # 「write a report in Word」 named a format nobody read, C-1834's
+    # disclosure never fired, and the deck answered by naming PowerPoint, a
+    # format the operator had not asked for.
     from sidra_ai.evals.english_amount_is_heard import (
         AMOUNTS as _AMOUNT_ROWS,
+        FORMAT_CASES as _AMOUNT_FORMATS,
         evaluate_english_amount_is_heard,
     )
 
@@ -15098,7 +15104,8 @@ def measure_creation(c: Collector) -> None:
         "英語で数を頼んだら、その数が聞かれている（C-1934）",
         float(_amount.checks_passed) if _amount.passed else 0.0,
         detail=(
-            f"**{len(_AMOUNT_ROWS)} 種の単位＋スライド枚数**を日英で"
+            f"**{len(_AMOUNT_ROWS)} 種の単位＋スライド枚数＋"
+            f"形式 {len(_AMOUNT_FORMATS)} 通り**を日英で"
             "**実際に生成して返事を読んだ**（parser ではなく現物——"
             "**数を読めても注記が黙っていれば操作者には何も変わらない**）——"
             + "、".join(_amount.readings[:3])
@@ -15113,7 +15120,12 @@ def measure_creation(c: Collector) -> None:
             "（だから **bare の「5s」形はわざと入れていない**）。"
             "**直す前**: **英語 0/11・日本語 4/4**。"
             "**「make a 5 second gif」は 0.8 秒のループを渡されて一言も言われず**、"
-            "**「5秒のGIF」は「長さは指定できません」と言われていた**"
+            "**「5秒のGIF」は「長さは指定できません」と言われていた**。"
+            "**C-1937 の形式も同じ族**——"
+            "**「write a report in Word」は形式が読まれず**、"
+            "**Word が欲しかった人が黙って Markdown を渡され**、"
+            "**deck は頼まれてもいない PowerPoint の名前を出していた**。"
+            "**語表は最初から英語**で、**日本語の助詞の後読みが門だった**"
             if _amount.passed
             else "; ".join(_amount.failures[:4])
         ),

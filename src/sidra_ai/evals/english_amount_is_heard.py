@@ -1,4 +1,4 @@
-"""When an English request names an amount, is the amount heard?
+"""When an English request names an amount or a format, is it heard?
 
 The product is honest about amounts it cannot honour. 「30フレームのGIFを
 作って」 is told 「依頼は 30 フレームでしたが…フレーム数は指定できません」
@@ -27,6 +27,14 @@ Four directions:
       checked: 「make a 3d model」 is not three of anything, and 「make a
       gif of the 90s」 is not ninety seconds. That second one is why the
       bare 「5s」 form was deliberately left out.
+
+C-1937 added the fifth parser of the same family, the requested FORMAT.
+Its words were already English - it was the lookbehind that was Japanese -
+so 「write a report in Word」 named a format nobody read, C-1834's
+disclosure never fired, and the deck answered by naming PowerPoint, a
+format the operator had not asked for. Its rows sit in the same tables,
+including the silent side: 「a report about Word」 is a subject, not a
+format, exactly as 「Wordの使い方」 is on the Japanese side.
 """
 
 from __future__ import annotations
@@ -72,22 +80,36 @@ DECK_CASE = (
 )
 DECK_CASE_JA = ("5枚のスライドを作って", "枚数は指定できません")
 
+#: C-1937: the format, in both languages and on both surfaces that carry a
+#: format notice. The deck row is the one that was actively misleading -
+#: with the format unread it named PowerPoint, which nobody had asked for.
+FORMAT_CASES: tuple[tuple[str, str, str], ...] = (
+    ("document", "write a report about an owl in Word", "Word cannot be produced"),
+    ("document", "レポートをWordで作って", "なお Word 形式では作れないため"),
+    ("deck", "make a deck about an owl as pdf", "PDF cannot be produced"),
+    ("deck", "スライドをPDFで作って", "なお PDF 形式では作れないため"),
+)
+
 #: Requests that name no amount. Nothing may be said about one.
 NO_AMOUNT: tuple[tuple[str, str], ...] = (
     ("gif", "make a gif of an owl"),
     ("model3d", "make a model of an owl"),
+    ("document", "write a report about an owl"),
 )
 
 #: Shapes that contain a digit but name no amount. Each must stay silent.
 NOT_AMOUNTS: tuple[tuple[str, str], ...] = (
     ("model3d", "make a 3d model of an owl"),
     ("gif", "make a gif of the 90s"),
+    # C-1937: a format named as the SUBJECT is not a format request.
+    ("document", "write a report about Word"),
 )
 
 _BUILDERS = {
     "gif": ("sidra_ai.creation.gif_job", "build_gif_generator"),
     "model3d": ("sidra_ai.creation.model3d_job", "build_model3d_generator"),
     "deck": ("sidra_ai.creation.deck_job", "build_deck_generator"),
+    "document": ("sidra_ai.creation.document_job", "build_document_generator"),
 }
 
 _KIND_OF = {
@@ -124,6 +146,11 @@ def _say(kind: str, request: str) -> str:
 _ALL_CAVEATS = (
     "cannot be set",
     "指定できません",
+    # C-1937: the format notices count as "something was claimed about an
+    # amount the operator named", so a request that names none must not
+    # produce one of these either.
+    "cannot be produced",
+    "形式では作れないため",
 )
 
 
@@ -175,6 +202,46 @@ def evaluate_english_amount_is_heard() -> EnglishAmountResult:
             )
         else:
             checks += 1
+
+    # ...and the silent table has to hold a format named as a SUBJECT.
+    # Sabotage D5 deleted that row and dropped the in/as/to gate together,
+    # and the sheet stayed clean: the row is what makes the gate's job
+    # visible, so it cannot be removable without a word (the same hole
+    # C-1896 D4, C-1920 D3 and C-1928 D3 each had).
+    if not any("about Word" in request for _kind, request in NOT_AMOUNTS):
+        failures.append(
+            "the silent table holds no format named as a subject - without one, "
+            "a gate that reads every 「Word」 as a format request passes"
+        )
+    else:
+        checks += 1
+
+    # C-1937: and the format table has to hold both languages on both
+    # surfaces, or "the format is heard" is proven for whichever half
+    # somebody happened to widen - which is exactly the state this item
+    # found (the words were English already; the gate was not).
+    format_pairs = {(kind, "en" if request.isascii() else "ja")
+                    for kind, request, _want in FORMAT_CASES}
+    if format_pairs != {("document", "en"), ("document", "ja"),
+                        ("deck", "en"), ("deck", "ja")}:
+        failures.append(
+            f"the format rows cover {sorted(format_pairs)} - both languages on "
+            "both surfaces that carry a format notice"
+        )
+    else:
+        checks += 1
+
+    # C-1937: the format, read from the reply the operator gets
+    for kind, request, want in FORMAT_CASES:
+        said = _say(kind, request)
+        if want not in said:
+            failures.append(
+                f"{kind}「{request}」: the format was not heard - wanted "
+                f"「{want}」 in: ...{said[-90:]}"
+            )
+        else:
+            checks += 1
+        readings.append(f"format「{request}」→ 注記あり")
 
     # (c) and (d): silence where there is nothing to report
     for kind, request in NO_AMOUNT + NOT_AMOUNTS:
