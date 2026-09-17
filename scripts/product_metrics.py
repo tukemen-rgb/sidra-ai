@@ -189,6 +189,25 @@ def measure_usability(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1925: `sidra-quarantine show/release <bad id>` printed its not-found
+    # error with spurious outer quotes because EntryNotFoundError subclasses
+    # KeyError (whose __str__ wraps the message in repr), unlike every other
+    # error in the tool. A plain __str__ renders it cleanly.
+    from sidra_ai.evals.quarantine_not_found_error_reads_cleanly import (
+        evaluate_quarantine_not_found_error_reads_cleanly,
+    )
+
+    q_err = evaluate_quarantine_not_found_error_reads_cleanly()
+    c.add(
+        "quarantine_not_found_error_reads_cleanly",
+        "sidra-quarantine の not-found エラーを余分な引用符なしで表示する（他エラーと揃える）",
+        10.0 * q_err.checks_passed / q_err.checks_total,
+        detail=f"{q_err.checks_passed}/{q_err.checks_total} checks; "
+               "src/sidra_ai/evals/quarantine_not_found_error_reads_cleanly.py"
+               + ("" if q_err.passed else "; " + "; ".join(q_err.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # 2b. Is the index still there after a restart?
     #
     # Exercised by building a service, writing one document, and building a

@@ -46,7 +46,17 @@ class NotReleasableError(RuntimeError):
 
 
 class EntryNotFoundError(KeyError):
-    """Raised when no quarantine entry matches the given id."""
+    """Raised when no quarantine entry matches the given id.
+
+    Subclasses ``KeyError`` so an ``except KeyError`` caller still catches it,
+    but ``KeyError.__str__`` wraps its message in ``repr`` - which made
+    ``print(str(exc))`` in the CLI show 「"no quarantine entry matching 'x'"」
+    with spurious quotes, unlike every other error in the tool (C-1925). Render
+    the message plainly instead.
+    """
+
+    def __str__(self) -> str:
+        return str(self.args[0]) if self.args else ""
 
 
 def entry_id(record: dict[str, Any]) -> str:
