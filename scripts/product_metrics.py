@@ -14398,6 +14398,50 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and whether that title is made of whole words ------------------
+    #
+    # `drop_english_frame` turns 「make a picture of the sea」 into 「sea」, and
+    # five generators route an English request's title through it. Its
+    # article pattern carried no word boundary, and alternation is
+    # leftmost-first, so 「an」 matched the `a` branch and left its 「n」:
+    # 「draw an abstract picture」 was titled 「n abstract picture」. A subject
+    # merely STARTING with a or an lost its first letter too - 「make
+    # abstract art」 became 「bstract art」, 「generate anime wallpaper」 became
+    # 「nime wallpaper」.
+    #
+    # It hid because a mangled title still looks like a title: the page
+    # renders, validates and scores the same. C-1907 and C-1908 then put
+    # that string into the canvas's fallback content and the live region,
+    # where a screen reader reads it out.
+    from sidra_ai.evals.english_frame_keeps_whole_words import (
+        CASES as _EFW_CASES,
+        evaluate_english_frame_keeps_whole_words,
+    )
+
+    _efw = evaluate_english_frame_keeps_whole_words()
+    c.add(
+        "creation_english_frame_keeps_whole_words",
+        "英語依頼の題名が、語の途中から始まらない（C-1913）",
+        float(_efw.checks_passed) if _efw.passed else 0.0,
+        detail=(
+            f"**{len(_EFW_CASES)} 通りの英語の言い回し**を共有語彙の枠外しに通し、"
+            "**出てきた語がぜんぶ依頼に在った語かどうか**を見た——"
+            + "、".join(_efw.readings[:4])
+            + " ほか。"
+            "**両方向**: 語を切らないこと、**そして枠（動詞と冠詞）はちゃんと落ちること**"
+            "——何もしない実装は前者を完璧に満たすので、後者が要る。"
+            "**直す前**: 「draw an abstract picture」→「n abstract picture」、"
+            "「make abstract art」→**「bstract art」**、"
+            "「generate anime wallpaper」→**「nime wallpaper」**。"
+            "**題名が壊れても題名の形はしている**ので、"
+            "描画も検証も点数も素通しだった——"
+            "**C-1907/C-1908 でこの文字列が読み上げに載ったことで、初めて「声に出すと分かる」誤りになった**"
+            if _efw.passed
+            else "; ".join(_efw.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had

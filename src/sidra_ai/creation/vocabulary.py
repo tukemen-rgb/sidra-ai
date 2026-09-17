@@ -274,7 +274,20 @@ _EN_HEAD = re.compile(
     r"^(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
     r"(?:(?:let\s*'?s\s+)?(?:make|create|build|generate|design|produce|draw|write|model)"
     r"|give\s+me|gimme|(?:i|we)\s*(?:'?d\s*|\s+would\s+)like|(?:i|we)\s+(?:want|need))"
-    r"\s+(?:me\s+)?(?:a|an|the|some)?\s*",
+    # The article has to be a whole word (C-1913). `(?:a|an|the|some)?`
+    # with no boundary is leftmost-first, so 「an」 matched the `a` branch and
+    # left its 「n」 behind - 「draw an abstract picture」 was titled 「n
+    # abstract picture」 - and any subject merely STARTING with a/an lost its
+    # first letter: 「make abstract art」 became 「bstract art」 and 「generate
+    # anime wallpaper」 became 「nime wallpaper」. Requiring the space after
+    # the article fixes both at once, and 「make art of the sea」 still keeps
+    # its 「art」 because no article is there to take.
+    # ...or the end of the string: callers strip their own kind word
+    # first, so 「make a model」 reaches this as 「make a」 and the article
+    # is the last thing there. Requiring a space after it left the 「a」
+    # standing and titled the page 「a」 (caught by the 3D and title
+    # judges, which is what they are for).
+    r"\s+(?:me\s+)?(?:(?:an|a|the|some)(?:\s+|$))?",
     re.IGNORECASE,
 )
 

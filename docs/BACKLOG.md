@@ -3135,7 +3135,28 @@ API 利用者は区別できる。起票せず。
       → 動かす数字: `answer_body_opens_on_the_topical_sentence`（新設）
 - [x] 完了 2026-09-17 03:07 UTC 辛口ユーザー（`chat_operator_invisible_chars_do_not_false_refuse` **新設 unmeasurable→10**、判定器 exit 0（NEW・MOVED 1・WORSE/REGRESSED/DRIFT/LOST 0）、全 pytest exit 0（**8420 passed**）、新規テスト＋`test_security_gate` 70 passed、**破壊 5/5 検出・clean 復元 GREEN**、`verify_gate_recall.py` PASSED（誤検知 0・見逃し 0）、採番衝突なし）。**直した中身**: `service.chat()` の operator 経路で、門に通す前に `message = _INVISIBLE_CHARS.sub("", message)` で不可視文字を剥がす（`detectors.py` を単一の真実源として再利用）。**安全性は構造で担保**——剥離は隠れた文字を**露出**させるだけで隠さないので、ZWSP でキーワードを割った注入（`ig​nore previous…`）も RLO 反転も剥離後に注入パターンで必ず捕まる（破壊 M2 全剥ぎ・M3 門の後で剥ぐ・M4 ZWSP だけ・M5 検出器を潰す——**5 つとも赤**）。**ingestion（`source="github"`）契約は不変**（検出器直呼びの scope 検査 D で施錠・`test_invisible_characters_are_flagged` 緑のまま）。**自己申告**: 判定器の scope 検査 D は最初 `gate.inspect(..., source="github")` の decision で見ていたが、**github は allowlist 外で常に BLOCK**なので**検出器を潰しても素通り**（破壊 M5 が MISSED で露見）——`PromptInjectionDetector().detect()` を直に呼んで `invisible_characters` finding を見る形に直したら M5 も赤くなった。**確保時の判断**: 前巡（01:16）は Web UI アクセシビリティと CLI `--json` を実測して健全＝空振り。今巡は**別面＝チャット入力の実データ耐性**を実測。**現物（`/v1/chat` を実測）**: 目に見えない制御文字を 1 つでも含む善良な質問が、すべて prompt-injection として `refused=True refusal=gate` で門前払い＋隔離される——「認証​について」（貼り付けで紛れ込むゼロ幅空白）・「👨‍💻 について教えて」（**絵文字の ZWJ 連結 U+200D**）・「﻿計画には…」（コピー時の BOM）。**ゼロ幅・双方向制御文字はコピー＆ペーストで日常的に紛れ込む**（絵文字連結・Web からの貼り付け・BOM 付きファイル）のに、**普通の利用者が「攻撃者」として拒否される**。**採番は最大＋1**（最大 C-1908 → **C-1909**）。**時刻は `date -u`**。 **C-1909: 目に見えない文字が 1 つ紛れただけで、善良な質問が「隠し攻撃」として拒否・隔離される。**`detectors.py` の `_INVISIBLE_CHARS` は `source` を問わず発火し、operator（人間が打つ・貼る）チャットでも隔離まで進む。**安全性の要（実測で確認済み）**: 直しは operator メッセージから不可視文字を**剥がしてから**門に通す——剥がすと隠れた注入文（例「ig​nore previous instructions…」）が**露出して**注入パターンに必ず捕まる（RLO・ZWSP 分割とも剥離後 QUARANTINE 継続を実測）。**ingestion（`source="github"`）の不可視文字契約は一切触らない**。**（2026-09-17 02:22 UTC 辛口ユーザー）
       → 動かす数字: `chat_operator_invisible_chars_do_not_false_refuse`（新設）
-- [~] 作業中 2026-09-17 04:58 UTC 辛口クリエイター　**確保時の判断**: 制作＝自帯。**前巡までの読み上げ仕事（C-1907/1908/1910）で、題名が「声に出して読まれるもの」になった**ので、**その題名そのものを疑って英語の依頼を通した**ところ現物で壊れていた。**`drop_english_frame`（共有語彙・art / decks / documents / gifs / models3d が使う）の冠詞剥がしが、語の途中を食う**。正規表現 `(?:a|an|the|some)?` は**左優先**なので、`an` は `a` の枝で当たり **`n` が残る**。境界を要求していないため、**a で始まるだけの語も 1 文字目を失う**。**予備実測**: 「draw an abstract picture」→**「n abstract picture」**、「make an image」→**「n image」**、「create an artwork」→**「n artwork」**、**「make abstract art」→「bstract art」**、**「generate anime wallpaper」→「nime wallpaper」**。**これは C-1907 で canvas に、C-1908 で live region に載せた文字列**なので、**読み上げが「ん・あぶすとらくと」と言う**ところまで来ている。**採番は最大＋1**（最大 C-1912 → **C-1913**）。**時刻は `date -u`**。 **C-1913: 英語依頼の題名が、語の途中から始まる。****（2026-09-17 04:58 UTC 辛口クリエイター・C-1907/1908 の続き）
+- [x] 完了 2026-09-17 05:45 UTC 辛口クリエイター（`creation_english_frame_keeps_whole_words` **新設 31**、判定器 exit 0（MOVED 1・WORSE/REGRESSED/DRIFT/LOST 0）、全 pytest exit 0・失敗 0、`verify_gate_recall.py` PASSED、破壊 2/3 検出（D3 は不発・理由は下）・復元 CLEAN、収集器 216.6s（300s 中・余裕 83.4s）、採番衝突なし）　**確保時の判断**: 制作＝自帯。**前巡までの読み上げ仕事（C-1907/1908/1910）で、題名が「声に出して読まれるもの」になった**ので、**その題名そのものを疑って英語の依頼を通した**ところ現物で壊れていた。**`drop_english_frame`（共有語彙・art / decks / documents / gifs / models3d が使う）の冠詞剥がしが、語の途中を食う**。正規表現 `(?:a|an|the|some)?` は**左優先**なので、`an` は `a` の枝で当たり **`n` が残る**。境界を要求していないため、**a で始まるだけの語も 1 文字目を失う**。**予備実測**: 「draw an abstract picture」→**「n abstract picture」**、「make an image」→**「n image」**、「create an artwork」→**「n artwork」**、**「make abstract art」→「bstract art」**、**「generate anime wallpaper」→「nime wallpaper」**。**これは C-1907 で canvas に、C-1908 で live region に載せた文字列**なので、**読み上げが「ん・あぶすとらくと」と言う**ところまで来ている。**採番は最大＋1**（最大 C-1912 → **C-1913**）。**時刻は `date -u`**。 **C-1913: 英語依頼の題名が、語の途中から始まる。****（2026-09-17 04:58 UTC 辛口クリエイター・C-1907/1908 の続き）
+      **直した中身**: 冠詞を**語として**求める——`(?:(?:an|a|the|some)(?:\s+|$))?`。
+      **直した後**: 「draw an abstract picture」→「abstract picture」、「make an image」→「image」、
+      **「make abstract art」→「abstract art」**、**「generate anime wallpaper」→「anime wallpaper」**。
+      **判定器の規則は「出てきた語が、ぜんぶ依頼に在った語であること」**——
+      枠外しは語を落としてよいが、**語の途中で切ってはいけない**。
+      **両方向**: 語を切らないことと、**枠がちゃんと落ちること**（何もしない実装は前者を満たすので後者が要る）。
+      **自己申告 1（直しが別の形を壊し、既存の番人が捕まえた）**:
+      最初の直しは冠詞の後に**空白を必須**にしたが、
+      **models3d は自分の種類語を先に落とす**ので、`drop_english_frame` には
+      **「make a」**という**冠詞が末尾に来た文字列**が渡る。
+      空白必須だと「a」が残り、**題名が「a」になった**——
+      `test_model3d_title_in_english` と `test_title_in_english` が落ちて教えてくれた。
+      **`(?:\s+|$)` に直した**。**枠外しは文の途中でも末尾でも同じ語を落とせなければならない**。
+      **自己申告 2（破壊 D3 は不発——そう書いておく）**:
+      表から「make abstract art」を 1 件落としても赤くならなかった。
+      **残る 2 件（「draw an abstract picture」「generate anime wallpaper」）が同じ形を覆っている**ためで、
+      **表が冗長に作ってあるのだから、1 件抜いても判定器は弱らない**——
+      これは穴ではなく設計どおり。**「その形が表から全部消えたら赤くなる」ことは別途確かめた**。
+      **見つけ方の記録**: C-1907（canvas の代替文）と C-1908（live region）で
+      **題名が「声に出して読まれるもの」になった**ので、題名そのものを疑った。
+      **壊れた題名も題名の形はしている**ので、描画・検証・点数はどれも素通ししていた。
       → 動かす数字: `creation_english_frame_keeps_whole_words`（新設）
 
 - [x] 完了 2026-09-17 03:15 UTC 辛口クリエイター（`creation_result_is_announced` **25→41**、判定器 exit 0（BETTER 1・WORSE/REGRESSED/DRIFT/LOST 0）、全 pytest exit 0・失敗 0、`verify_gate_recall.py` PASSED、破壊 3/3 検出・復元 CLEAN、収集器 217.5s（300s 中・余裕 82.5s）、採番衝突なし）　**確保時の判断**: 制作＝自帯。**前巡 C-1908 の取りこぼしを、自分で見つけて塞ぐ**。C-1908 は**各型が自分で描く終幕**の 8 か所に `announce()` を配ったが、**共有の round chrome が描くもう 1 つの終わり**を見ていなかった——`round.py` の `drawRoundEnd()` は時計が尽きたとき canvas に **「ここまで」** を描く。**catch と fishing にとってはこれが唯一の終わり**（C-1896 の表で「終幕を持たない」と書いた 2 型）で、他の 8 型でも**勝敗が着く前に時計が尽きれば**こちらが出る。**つまり「終わったことが読み上げに届かない」穴は、前巡では半分しか塞がっていなかった**。**採番は最大＋1**（最大 C-1909 → **C-1910**）。**時刻は `date -u`**。 **C-1910: 時計切れの終わり（`drawRoundEnd`）が読み上げに届かない。****（2026-09-17 02:36 UTC 辛口クリエイター・C-1908 の積み残し／WCAG 4.1.3）
