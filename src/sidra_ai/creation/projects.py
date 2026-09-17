@@ -472,7 +472,9 @@ def scaffold_project(
     # The same admission, in the log's language. Computed separately rather
     # than reused: `fallback` goes into the Japanese design documents, and a
     # document does not change language in the middle of itself.
-    log_fallback = (
+    # C-1942: the same sentence is now needed by every document that follows
+    # the request's language, not only the log, so the name says what it is.
+    translated_fallback = (
         fallback
         if in_japanese
         else genre_fallback_note(
@@ -492,9 +494,28 @@ def scaffold_project(
 
     for stage in stages:
         if stage in SKELETONS:
-            (root / STAGE_FILES[stage]).write_text(
-                SKELETONS[stage](title, evidence, plan, fallback), encoding="utf-8"
-            )
+            if stage is Stage.STRUCTURE:
+                # C-1942: the one design document whose text this repo owns
+                # end to end - its rows are story.py's own prose plus the
+                # control *keys*. `scenario` and `features` read the template
+                # registry's Japanese (how_to_play, the control meanings, the
+                # parameter labels) and stay Japanese until it has English,
+                # because a frame in one language over rows in another is the
+                # half-translated document this loop has refused five times.
+                #
+                # Named here rather than kept in a table of "stages that can
+                # do English": a table would hold a row per stage still
+                # waiting, and a row is exactly what nobody deletes.
+                written = story.structure(
+                    title,
+                    evidence,
+                    plan,
+                    translated_fallback,
+                    in_japanese=in_japanese,
+                )
+            else:
+                written = SKELETONS[stage](title, evidence, plan, fallback)
+            (root / STAGE_FILES[stage]).write_text(written, encoding="utf-8")
         elif stage is Stage.ASSETS:
             # Seeded from the request, so regenerating a project gives the
             # same art its own documents already describe.
@@ -532,7 +553,8 @@ def scaffold_project(
         elif stage is Stage.LOG:
             (root / STAGE_FILES[stage]).write_text(
                 _log_skeleton(
-                    title, stages, evidence, log_fallback, in_japanese=in_japanese
+                    title, stages, evidence, translated_fallback,
+                    in_japanese=in_japanese,
                 ),
                 encoding="utf-8",
             )

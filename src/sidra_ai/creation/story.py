@@ -126,7 +126,58 @@ PARAMETERS: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
-def screens(plan: "ProductionPlan") -> tuple[tuple[str, str, str], ...]:
+#: The same key, written for a reader of English (C-1942).
+#:
+#: Keyed by the key string itself rather than by template, because the same
+#: key appears in up to four templates and a per-template copy would be four
+#: places to forget. What it is NOT is a second table of controls: the
+#: *meaning* column stays where it is, and the check below makes a missing
+#: entry impossible to ship rather than something a reader notices later - a
+#: copied table is the one that goes stale (C-1848, C-1850).
+#:
+#: The arrow and letter keys are the same glyphs in both languages and are
+#: listed anyway: leaving them out would make "not in the table" mean two
+#: different things.
+KEY_EN: dict[str, str] = {
+    "SPACE": "SPACE",
+    "R": "R",
+    "← →": "← →",
+    "↑ ↓": "↑ ↓",
+    "← ↑ → ↓": "← ↑ → ↓",
+    "クリック / タップ": "click / tap",
+    "マウス移動 / ドラッグ": "mouse move / drag",
+    "矢印 / WASD": "Arrows / WASD",
+    "SPACE / タップ": "SPACE / tap",
+    "SPACE / 長押し": "SPACE (hold)",
+    "SPACE 連打": "SPACE (mash)",
+    "SPACE / 長押し / タップ": "SPACE / hold / tap",
+    "R / タップ": "R / tap",
+    "↑ / SPACE / タップ": "↑ / SPACE / tap",
+}
+
+#: Derived from ``CONTROLS`` rather than counted by hand: a template added
+#: with a key nobody translated raises here, at import, instead of shipping a
+#: Japanese key inside an English document.
+_MISSING_KEY_EN = sorted(
+    {key for rows in CONTROLS.values() for key, _does in rows} - set(KEY_EN)
+)
+if _MISSING_KEY_EN:  # pragma: no cover - the whole point is that it never runs
+    raise RuntimeError(
+        f"story.KEY_EN has no English for {_MISSING_KEY_EN}; "
+        "every key in CONTROLS needs one before a document can be written "
+        "in English"
+    )
+
+
+def english_key(key: str) -> str:
+    """One control key, for a document written in English."""
+
+    return KEY_EN[key]
+
+
+def screens(
+    plan: "ProductionPlan", *, in_japanese: bool = True
+) -> tuple[tuple[str, str, str], ...]:
     """The flow the template actually implements, with its real inputs named.
 
     A screen list naming screens the page does not have would be the same lie
@@ -146,36 +197,72 @@ def screens(plan: "ProductionPlan") -> tuple[tuple[str, str, str], ...]:
 
     from sidra_ai.creation import attract, recap, startscreen
 
-    keys = " / ".join(key for key, _ in CONTROLS.get(plan.template, ())) or "（未定義）"
+    bound = [key for key, _does in CONTROLS.get(plan.template, ())]
+    if in_japanese:
+        keys = " / ".join(bound) or "（未定義）"
+    else:
+        # The key itself is translated too (C-1942): 「SPACE / タップ」 inside
+        # an English sentence is the one-word-of-another-language case §37 is
+        # about, and here there is no reason for it - the page binds a tap,
+        # and "tap" is the word for it.
+        keys = " / ".join(english_key(key) for key in bound) or "(undefined)"
     rows: list[tuple[str, str, str]] = []
 
     briefing = startscreen.BRIEFINGS.get(plan.template, ())
-    if briefing:
+    if briefing and in_japanese:
         rows.append((
             "開始（ブリーフィング）",
             "狙いと操作を書いた " + str(len(briefing)) + " 行と、開始待ちの案内",
             "キー入力かタップで開始（この操作で音も有効になる）",
         ))
-    rows.append(
-        ("プレイ", "canvas と現在のスコア表示、操作の説明行", f"入力は {keys}")
-    )
+    elif briefing:
+        rows.append((
+            "Start (briefing)",
+            f"{len(briefing)} lines saying what to aim for and how to play, "
+            "and the prompt that waits for you",
+            "any key or a tap starts it (that same input is what enables sound)",
+        ))
+    if in_japanese:
+        rows.append(
+            ("プレイ", "canvas と現在のスコア表示、操作の説明行", f"入力は {keys}")
+        )
+    else:
+        rows.append((
+            "Play",
+            "the canvas, the running score, and the line that names the controls",
+            f"input is {keys}",
+        ))
     if plan.template in recap.LOSS_WIRED:
         rows.append((
             "結果表示（負け）",
             "スコアと、負けた原因を数えた帯（0 回の原因は出さない）",
             "R / タップでもう一度",
+        ) if in_japanese else (
+            "Result (loss)",
+            "the score, and a strip counting what actually beat you "
+            "(a cause with a count of 0 is not shown)",
+            "R / tap to play again",
         ))
     else:
         rows.append((
             "結果表示",
             "スコアと失敗数がプレイ中の画面に出続ける（負けで終わる状態はこの型には無い）",
             "リロードでやり直し",
+        ) if in_japanese else (
+            "Result",
+            "the score and the miss count stay on the playing screen "
+            "(this kind has no state that ends in a loss)",
+            "reload to start over",
         ))
     if plan.template in attract.ATTRACT_TEMPLATES:
         rows.append((
             "アトラクト（放置デモ）",
             "誰も触っていない間、ページが自分で動いて見せる",
             "入力があれば開始画面に戻る",
+        ) if in_japanese else (
+            "Attract (idle demo)",
+            "while nobody is touching it, the page plays itself to show what it is",
+            "any input returns to the start screen",
         ))
     return tuple(rows)
 
@@ -214,9 +301,13 @@ def plan_for(request: str) -> ProductionPlan:
     return ProductionPlan(template, difficulty, speed, band)
 
 
-def _sources(evidence: tuple[str, ...]) -> str:
+def _sources(evidence: tuple[str, ...], in_japanese: bool = True) -> str:
     if not evidence:
-        return "- （このステージに使える索引の根拠は見つかりませんでした）"
+        return (
+            "- （このステージに使える索引の根拠は見つかりませんでした）"
+            if in_japanese
+            else "- (no indexed source was found for this stage)"
+        )
     # Source labels are the path of an indexed Issue/PR body (EXTERNAL trust):
     # escape them so HTML in a label is displayed, not executed, when the .md is
     # opened in a Markdown renderer that permits inline HTML (C-1486, the projects
@@ -225,7 +316,12 @@ def _sources(evidence: tuple[str, ...]) -> str:
 
 
 def _header(
-    title: str, stage: str, evidence: tuple[str, ...], fallback: str = ""
+    title: str,
+    stage: str,
+    evidence: tuple[str, ...],
+    fallback: str = "",
+    *,
+    in_japanese: bool = True,
 ) -> str:
     # The title comes from the request; escape it in the heading for the same
     # reason (C-1486). The stored .title stays raw for the chat summary.
@@ -235,13 +331,34 @@ def _header(
     # to admit the swap - not only production-log.md (C-1605). The wording is the
     # single source used by the log, the game page (C-1788) and the chat summary
     # (C-1285); a buildable genre passes "" and draws no note.
-    swap = f"> ⚠️ {escape(fallback, quote=False)}\n\n" if fallback else ""
+    #
+    # C-1942: ``in_japanese`` is the language of the *document*, and only
+    # ``structure`` passes anything but the default. The other two are filled
+    # from the template registry, which holds how_to_play and the control
+    # meanings in Japanese alone, so an English frame around them would be
+    # the half-translated document this loop has refused five times.
+    # .strip() on the fallback because its English form carries a leading
+    # space - it is written to be appended after a chat sentence, and here it
+    # opens a quoted line. Byte-identical for the Japanese one.
+    swap = f"> ⚠️ {escape(fallback.strip(), quote=False)}\n\n" if fallback else ""
+    if in_japanese:
+        provenance = (
+            "> SIDRA AI が生成。**数値と操作は同じディレクトリの game.html が"
+            "実際に使うもの**で、文章ではなく生成器から引いています。"
+        )
+        sources_heading = "## 根拠にした索引"
+    else:
+        provenance = (
+            "> Generated by SIDRA AI. **The numbers and the controls are the "
+            "ones game.html in this same directory actually uses** - they are "
+            "read off the generator, not written up beside it."
+        )
+        sources_heading = "## Sources indexed"
     return (
         f"# {escape(title, quote=False)} — {stage}\n\n"
-        "> SIDRA AI が生成。**数値と操作は同じディレクトリの game.html が"
-        "実際に使うもの**で、文章ではなく生成器から引いています。\n\n"
+        f"{provenance}\n\n"
         f"{swap}"
-        f"## 根拠にした索引\n\n{_sources(evidence)}\n"
+        f"{sources_heading}\n\n{_sources(evidence, in_japanese)}\n"
     )
 
 
@@ -283,15 +400,35 @@ def scenario(
 
 
 def structure(
-    title: str, evidence: tuple[str, ...], plan: ProductionPlan, fallback: str = ""
+    title: str,
+    evidence: tuple[str, ...],
+    plan: ProductionPlan,
+    fallback: str = "",
+    *,
+    in_japanese: bool = True,
 ) -> str:
+    """The screen list, in the language the request was written in.
+
+    C-1942. This is the first of the three design documents to follow the
+    request's language, and it is first because of what fills it: its rows
+    are this module's own prose plus the **keys** ``CONTROLS`` binds - not
+    the meanings beside them, not ``how_to_play``, not the parameter labels.
+    Those are Japanese product data, which is why ``scenario`` and
+    ``features`` are still written in Japanese whatever the request said. A
+    document does not change language in the middle of itself, so they wait
+    for the registry rather than get an English frame over Japanese rows.
+    """
+
+    flow = screens(plan, in_japanese=in_japanese)
     rows = "\n".join(
-        f"| {name} | {shows} | {advance} |" for name, shows, advance in screens(plan)
+        f"| {name} | {shows} | {advance} |" for name, shows, advance in flow
     )
-    return _header(title, "構成", evidence, fallback) + f"""
+    arrow = " → ".join(name for name, _shows, _advance in flow)
+    if in_japanese:
+        return _header(title, "構成", evidence, fallback) + f"""
 ## 画面フロー
 
-{" → ".join(name for name, _shows, _advance in screens(plan))}
+{arrow}
 
 実装に無い画面をここに書けば、この文書は仕様ではなく願望になります。
 **逆も同じで、ある画面を無いと書けば、読んだ人は既にある物を作り直します。**
@@ -308,6 +445,33 @@ def structure(
 
 - 開始画面での難易度選択（難易度は依頼の言葉で決まり、画面からは選べません）
 - 通しの進行（面の連なり・セーブ）
+"""
+    return _header(
+        title, "Structure", evidence, fallback, in_japanese=False
+    ) + f"""
+## Screen flow
+
+{arrow}
+
+A screen written here that the build does not have turns this document from
+a specification into a wish.
+**The reverse costs the same: call an existing screen missing and whoever
+reads this will build a second one.**
+The order above and the table below are assembled from the modules that
+implement those screens - add a screen and it appears here, remove one and
+it disappears from here too.
+
+## Each screen
+
+| Screen | What is on it | How you move on |
+|---|---|---|
+{rows}
+
+## Not there yet (add it to the build and to this list together)
+
+- choosing the difficulty on the start screen (the difficulty comes from the
+  words of the request; the screen cannot set it)
+- progression across a session (levels in sequence, saving)
 """
 
 
