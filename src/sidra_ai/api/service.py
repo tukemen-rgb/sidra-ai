@@ -1074,7 +1074,14 @@ class SidraService:
         # rather than the schema because every caller deserves the same
         # answer, and because widening a validation contract is a bigger
         # decision than fixing a sentence.
-        if not message.strip():
+        # C-1927: also catch a message with no content at all - only
+        # punctuation, symbols or emoji ("...", "？？？", "🎮"). It slipped past
+        # ``message.strip()``, reached retrieval, matched nothing, and got the
+        # no-evidence wall that asks for a repository to be ingested - the wrong
+        # answer to no question. ``str.isalnum`` is true for CJK letters and
+        # digits, so 「犬」「8080」「OAuth2」 keep a content character and are
+        # untouched. Injections carry words (alnum) and still reach the gate.
+        if not message.strip() or not any(char.isalnum() for char in message):
             return {
                 "answer": (
                     "質問が空のようです。何について調べますか。"
@@ -1082,7 +1089,7 @@ class SidraService:
                 ),
                 "refused": True,
                 "refusal": "empty",
-                "reason": "the message was empty or whitespace only",
+                "reason": "the message had no content (empty, whitespace, or symbols only)",
                 "citations": [],
             }
 

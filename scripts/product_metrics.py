@@ -3002,6 +3002,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1927: a message with no content character - only punctuation, symbols
+    # or emoji ("...", "？？？", "🎮") - slipped past the whitespace-only empty
+    # check and got the no-evidence wall (ingest a repository) instead of the
+    # ask-back. The empty check now catches any message with no alphanumeric/CJK
+    # content; real content (犬/8080/OAuth2) is untouched.
+    from sidra_ai.evals.chat_contentless_message_asks_back import (
+        evaluate_chat_contentless_message_asks_back,
+    )
+
+    contentless = evaluate_chat_contentless_message_asks_back()
+    c.add(
+        "chat_contentless_message_asks_back",
+        "記号・絵文字だけの中身のないメッセージを、索引の壁でなく聞き返しに送る",
+        10.0 * contentless.checks_passed / contentless.checks_total,
+        detail=f"{contentless.checks_passed}/{contentless.checks_total} checks; "
+               "src/sidra_ai/evals/chat_contentless_message_asks_back.py"
+               + ("" if contentless.passed
+                  else "; " + "; ".join(contentless.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1883: the browser twin of the CLI's C-1627. The page renders DATA with
     # textContent (no markup) but a browser still acts on bidi/control chars; the
     # gate lets isolates (U+2066-2069), C1 and ESC reach the excerpt. The page now
