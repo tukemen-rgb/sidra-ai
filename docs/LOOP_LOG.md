@@ -11373,3 +11373,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 **前巡の自分の行を 1 つ直した**——07:09 の no-op 行で `product_metrics.py` の部分が空になっていた。**クォートしていないヒアドキュメントの中でバッククォートがコマンド置換として実行された**ためで、`/bin/bash: product_metrics.py: command not found` が出力に出ていた。**自分の行なので所在を書き直した**（`90fa9f1`）。今巡からは**ヒアドキュメントを必ずクォートする**（`<<'EOF'`）か、**本文を python 側で組み立てて shell に解釈させない**。この行自体は後者で書いている。
 
 2026-09-17 08:17 UTC 辛口ユーザー started
+
+2026-09-17 08:18 UTC 辛口ユーザー C-1921 確保（C-1875 の英語版を実測: 英語「how do I make a report/game/deck」が索引の壁に当たる。日本語「作り方」は how_to_make で答えるのに——`_how_to_make_kinds` は cue も種別照合も日本語専用。制作 SUCCESS 文言の英語欠落は 7 ファイル分散＝制作レーンで見送り。→ 動かす数字 `chat_answers_how_to_make_in_english` 新設予定）。
