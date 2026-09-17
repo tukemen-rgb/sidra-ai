@@ -11364,3 +11364,16 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 
 2026-09-17 07:20 UTC 辛口ユーザー C-1919 確保（非会話面を複数実測: 状態系/retrieve/analyze/秘密PII 隔離すべて健全。正直フロアの低情報語 today 漏れは形態素ギャップと絡み最小安全に直せず見送り。取った現物: 英語の作れない形式の制作依頼「make an excel spreadsheet」等に日本語で断る＝rule 6 違反。→ 動かす数字 `chat_english_unsupported_creation_declined_in_english` 新設予定）。
 2026-09-17 07:22 UTC 進捗監視 前進あり（**C-1914 完了 07:07**「a line may not claim a time it has not reached」・05:06 確保→**2 時間 1 分**。**受け取って自分で確かめた**: `MARGIN_MINUTES` が **30→1**、`board_times_do_not_run_ahead` が 4/4、`tests/test_board_times_do_not_run_ahead.py` **6 本 exit 0**。**私が禁じ手に書いた 4 点がそのままテスト名になっている**——`test_the_margin_is_not_taken_from_the_lines_it_judges`（閾値を嘘の分布から取らない）・`test_a_short_history_is_unmeasurable_not_zero`（浅い clone で 0 と言わない）・`test_the_hidden_minute_is_still_read_as_a_lower_bound`（`13:4x` は下限読みのまま）・`test_the_refusal_says_what_would_pass`（落ちたとき何をすれば通るか言う）。**証拠が 1 分後に出た**: ループA の次の開始 commit の題が `docs: ループA 開始を記録（時刻は書く瞬間に date -u で捕った）`——**門を締めたその手で、自分の書き方を直している**。**この行自身が新しい門で裁かれる**（余裕 1 分）。なお C-1918 は 32 分・生きている。ループA は C-1624 で no-op（前提未決 **7 日 1 時間**）。起票はしない（厳守事項 7）。
+
+2026-09-17 07:51 UTC 進捗監視 前進あり（**C-1918 完了 07:29**〔日本語のページの中の英語に `lang="en"` の印・§37 / SC 3.1.2〕、**C-1920 確保 07:36**〔印の無い英語が deck と model3d に残っている——同型掃きの続き〕、C-1919 は 29 分・生きている）。**締めた門の効きを実測した**（起票者の後始末）: 余裕 30→1 になった **07:07 以降に 3 車線が足した 11 本のスタンプ行、超過 0 本**——**門を 30 倍厳しくしても誰も詰まっていない**。つまり **30 分の余裕は最初から誰も必要としておらず、ただ嘘を通していただけ**だった、というのが実地で確かめられた形。起票はしない（厳守事項 7）。
+
+2026-09-17 08:02 UTC 辛口ユーザー C-1919 完了（`chat_english_unsupported_creation_declined_in_english` 新設 unmeasurable→10、判定器 exit 0〔NEW・MOVED 1・後退 0〕、全 pytest exit 0〔8505 passed / 15 skipped〕、破壊 5/5 検出・clean 復元 GREEN、採番衝突なし）。**非会話の別面を複数実測**（状態系/retrieve/analyze/秘密PII 隔離すべて健全）。**深掘りして見送った 1 件**: 正直フロアの英語低情報語「today/now」漏れは、同じ語が複数形不一致（deployments≠Deployment）の正規質問を"たまたま"接地させてもいて、落とすと正規質問が誤 abstain する——形態素ギャップと絡み最小・安全に直せず（実測で確認）。**取った現物**: 英語の作れない形式の制作依頼「make an excel spreadsheet」「build me a mobile app」「make a video of a cat」が日本語で断られていた（rule 6 違反）。**直し**: `service.py` の UNKNOWN 断りを言語分岐＋`_KIND_LABELS_EN` 新設。日本語断りとメタデータは不変。**C-1902/1904/1906/1915 の rule 6 系の続き**。**学び**: 「見送り」も現物で確かめてから——today 漏れは一見単純な honesty バグだが、直すと別のギャップ（形態素）に隠れていた"偶然の接地"を奪って正規質問を壊す。**「直せる」と決める前に、その語が今支えているものを実測する**。
+
+2026-09-17 08:08 UTC ループA started
+2026-09-17 08:09 UTC ループA no-op（**キューが空——取れる項目 1 件 C-1624 は前提未決**。板 864 項目・不整合なし・確保 1 件（C-1920 32 分）。前提は現物で再確認: `docs/BACKLOG.md:15262` の E 節「要判断: `hard` は「無策では勝てない」を約束するのか。」は **`- [ ]` のまま**〔起票 2026-09-10 05:22・**7 日 2 時間**・`python3` で差を取った〕。**キューを埋めるための作業は作らない**。C-1920 は 32 分で線を越えているが**初回の観測**なので奪わない（基準は既述・次巡で 2 回目）。
+
+**前巡の自分の行を 1 つ直した**——07:09 の no-op 行で `product_metrics.py` の部分が空になっていた。**クォートしていないヒアドキュメントの中でバッククォートがコマンド置換として実行された**ためで、`/bin/bash: product_metrics.py: command not found` が出力に出ていた。**自分の行なので所在を書き直した**（`90fa9f1`）。今巡からは**ヒアドキュメントを必ずクォートする**（`<<'EOF'`）か、**本文を python 側で組み立てて shell に解釈させない**。この行自体は後者で書いている。
+
+2026-09-17 08:17 UTC 辛口ユーザー started
+
+2026-09-17 08:18 UTC 辛口ユーザー C-1921 確保（C-1875 の英語版を実測: 英語「how do I make a report/game/deck」が索引の壁に当たる。日本語「作り方」は how_to_make で答えるのに——`_how_to_make_kinds` は cue も種別照合も日本語専用。制作 SUCCESS 文言の英語欠落は 7 ファイル分散＝制作レーンで見送り。→ 動かす数字 `chat_answers_how_to_make_in_english` 新設予定）。

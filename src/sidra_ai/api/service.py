@@ -113,6 +113,20 @@ _KIND_LABELS: dict[str, str] = {
     "project": "ゲーム制作一式",
 }
 
+#: C-1919: English kind labels, for declining an unsupported creation request in
+#: the request's language (rule 6). Same keys as ``_KIND_LABELS`` so a generator
+#: added or removed in the router changes both lists; a missing key falls back to
+#: the router's own value, exactly as the Japanese path does.
+_KIND_LABELS_EN: dict[str, str] = {
+    "game": "a game",
+    "deck": "slides",
+    "document": "a report",
+    "model3d": "a 3D model",
+    "gif": "a GIF",
+    "art": "art",
+    "project": "a game-production bundle",
+}
+
 
 #: Latin interrogatives that ``subject_terms`` keeps (they are Latin words) but
 #: which name no topic - 「why is that?」 is an elaboration of the previous turn,
@@ -1674,14 +1688,23 @@ class SidraService:
             # honesty a game-genre decline already gives, and what
             # CreationKind.UNKNOWN's contract promises. Buildable game genres
             # route (strong) and never reach here.
-            offered = [
-                _KIND_LABELS.get(kind, kind)
-                for kind in self.creation_router.registered_kinds()
-            ]
-            summary = (
-                "制作のご依頼と受け取りましたが、この形式は作れません。"
-                + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
-            ).strip()
+            registered = self.creation_router.registered_kinds()
+            offered = [_KIND_LABELS.get(kind, kind) for kind in registered]
+            # C-1919: decline in the request's language (rule 6). The Japanese
+            # answer is unchanged; an English request now gets an English decline
+            # with English kind labels instead of the Japanese sentence. The
+            # `offered` metadata below stays the Japanese labels, unchanged.
+            if _reply_in_japanese(message):
+                summary = (
+                    "制作のご依頼と受け取りましたが、この形式は作れません。"
+                    + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
+                ).strip()
+            else:
+                offered_en = [_KIND_LABELS_EN.get(kind, kind) for kind in registered]
+                summary = (
+                    "I took this as a creation request, but I can't make that format. "
+                    + (f"What I can make: {', '.join(offered_en)}." if offered_en else "")
+                ).strip()
             guarded_summary = self.output_guard.scan(summary)
             creation_metadata["outcome"] = {
                 "kind": intent.kind.value,
