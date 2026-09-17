@@ -14511,6 +14511,56 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and which of those words are not in the page's language ---------
+    #
+    # §37. Every page declares `<html lang="ja">`, which is SC 3.1.1
+    # (Level A). SC 3.1.2 Language of Parts (Level AA) wants the language of
+    # each PHRASE to be determinable too, so a synthesizer can reach for the
+    # right pronunciation - the standard's own stated reason.
+    #
+    # That stopped being theoretical: C-1913 and C-1916 made an English
+    # request produce a genuinely English title, and C-1907 put the title
+    # into the canvas's fallback content - which is precisely what a screen
+    # reader is handed. A Japanese page was giving a Japanese voice an
+    # unmarked English word three or four times over.
+    #
+    # Read off the finished page (C-1640). `<title>` is excluded because it
+    # is text-only and cannot carry an inner mark; §37 records that as the
+    # specification's limit rather than something to work around.
+    from sidra_ai.evals.english_title_is_marked_english import (
+        ENGLISH_CASES as _ETM_EN,
+        JAPANESE_CASES as _ETM_JA,
+        evaluate_english_title_is_marked_english,
+    )
+
+    _etm = evaluate_english_title_is_marked_english()
+    c.add(
+        "creation_english_title_is_marked_english",
+        "日本語のページの中の英語に、英語だという印が付いている（C-1918・§37）",
+        float(_etm.checks_passed) if _etm.passed else 0.0,
+        detail=(
+            f"**英語の依頼 {len(_ETM_EN)} 件・日本語の依頼 {len(_ETM_JA)} 件**を"
+            "**実際に生成してページを読んだ**——"
+            + "、".join(_etm.readings[:4])
+            + "。"
+            "**4 つ訊く**: (a) 題名が**表示される場所すべて**で `lang=\"en\"` を持つ"
+            "（`<title>` は**テキストのみで印を置けない**ので除外・§37 に限界として記録）、"
+            "(b) **日本語の依頼のページには印が 1 つも無い**"
+            "——全部に印を付ける実装は読み手に何も伝えず、残りを誤った声で読ませる、"
+            "(c) **印が日本語を飲み込んでいない**"
+            "——正直note は操作者の語を引用した日本語の文なので、"
+            "**行ごと印を付ける**のが分かりやすい誤答で、しかも (a) は満たしてしまう、"
+            "(d) **ページ自身は `lang=\"ja\"` のまま**"
+            "——文書ごと英語にすれば (a) は通るが、今度は 3.1.1 を壊す。"
+            "**直す前**: 「make a game about an octopus」のページに `octopus` が"
+            "**印無しで 4 か所**（`<title>`・`<h1>`・正直note・canvas 代替内容）、"
+            "「make art of an owl」に `owl` が **2 か所**"
+            if _etm.passed
+            else "; ".join(_etm.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had

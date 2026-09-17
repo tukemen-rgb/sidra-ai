@@ -23,6 +23,7 @@ through to the default template or, worse, to an answer about documents.
 from __future__ import annotations
 
 import re
+from html import escape
 
 from sidra_ai.creation.adventure import ADVENTURE_WORDS
 from sidra_ai.creation.duel import DUEL_WORDS
@@ -412,12 +413,58 @@ def labels_for(templates) -> tuple[str, ...]:
     return tuple(out)
 
 
+#: C-1918 (§37): the scripts that decide whether a title is English. Kana,
+#: kanji, the prolonged-sound mark and the iteration mark - one of these and
+#: the text belongs to the page's own language, whatever Latin letters sit
+#: beside it (「タイミング釣り」, 「3D モデル」).
+_JAPANESE_SCRIPT = re.compile(r"[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff\u3005\u30fc]")
+_LATIN_LETTER = re.compile(r"[A-Za-z]")
+
+
+def is_english_text(text: str) -> bool:
+    """Is this string a phrase in English, sitting in a Japanese page?
+
+    SC 3.1.2 Language of Parts (Level AA) asks for the language of each
+    passage to be programmatically determinable, so a speech synthesizer can
+    reach for the right pronunciation (§37). Every SIDRA page declares
+    `lang="ja"`, and since C-1913/C-1916 an English request really does
+    produce an English title - 「owl」, 「octopus」 - which then rides into
+    the heading, the honesty note and the canvas's fallback content
+    (C-1907), where a screen reader says it aloud in a Japanese voice.
+
+    The test is deliberately one-sided: Latin letters AND no Japanese
+    script at all. A title with any kana or kanji in it is the page's own
+    language even when it carries a Latin word, and marking that 「en」
+    would hand the reader the wrong voice for the rest of the line - the
+    opposite of the fix. So a mixed title stays unmarked, which is the
+    standard's own position (a word that has become part of the vernacular
+    of the surrounding text is exempt).
+    """
+
+    return bool(_LATIN_LETTER.search(text)) and not _JAPANESE_SCRIPT.search(text)
+
+
+def marked_english(text: str) -> str:
+    """``text``, escaped for HTML and wrapped in `lang="en"` when it is English.
+
+    `lang` is a global attribute and nesting overrides, so a span inside a
+    `lang="ja"` document switches just that subtree (MDN, §37). Japanese
+    text comes back escaped and otherwise untouched, so a page built from a
+    Japanese request is byte-identical to what it was before C-1918.
+    """
+
+    out = escape(text)
+    return f'<span lang="en">{out}</span>' if is_english_text(text) else out
+
+
 __all__ = [
     "ENGLISH_REQUEST_ADVERBS",
     "CATCH_WORDS",
     "REQUEST_ADVERBS",
     "SIZE_UNITS",
     "drop_english_frame",
+    "is_english_text",
+    "marked_english",
     "drop_request_adverbs",
     "drop_size_phrases",
     "FISHING_WORDS",

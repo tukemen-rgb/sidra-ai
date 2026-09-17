@@ -56,6 +56,8 @@ from sidra_ai.creation.recap import preamble_for as recap_preamble_for
 from sidra_ai.creation.intent import fold_kana
 from sidra_ai.creation.vocabulary import (
     ARTIFACT_NOUNS,
+    is_english_text,
+    marked_english,
     ENGLISH_REQUEST_ADVERBS,
     REQUEST_ADVERBS,
     CATCH_WORDS,
@@ -242,12 +244,20 @@ class GeneratedGame:
         # bearing and neither field can reach into the other's element.
         # Each of the three places the copy is *displayed*, replaced through
         # the element that holds it - never as loose text over the page.
+        # C-1918: the heading and the canvas fallback carry the title in its
+        # MARKED form (`<span lang="en">…</span>` when it is English), so the
+        # anchors have to be built the same way the page was - `escape` alone
+        # would match neither and the overlay would silently keep the old
+        # wording. `<title>` is text-only and stays unmarked, so it keeps the
+        # plain form. This is the same regression `test_game_copy_overlay`
+        # caught for C-1907, one layer down.
         was_title, was_tag = escape(self.title), escape(self.tagline)
         now_title, now_tag = escape(new_title), escape(new_tagline)
+        was_marked, now_marked = marked_english(self.title), marked_english(new_title)
         html = self.html
         for before, after in (
             (f"<title>{was_title}</title>", f"<title>{now_title}</title>"),
-            (f"<h1>{was_title}</h1>", f"<h1>{now_title}</h1>"),
+            (f"<h1>{was_marked}</h1>", f"<h1>{now_marked}</h1>"),
             (f'<p class="tag">{was_tag}</p>', f'<p class="tag">{now_tag}</p>'),
             # The canvas's fallback content is a fourth place the copy is
             # carried - not shown, but read aloud (C-1907). Leaving it
@@ -257,8 +267,8 @@ class GeneratedGame:
             # joins the two fields, so like the three above it cannot reach
             # into loose text.
             (
-                f'height="320">{was_title}——{was_tag} ',
-                f'height="320">{now_title}——{now_tag} ',
+                f'height="320">{was_marked}——{was_tag} ',
+                f'height="320">{now_marked}——{now_tag} ',
             ),
         ):
             html = html.replace(before, after)
@@ -1698,6 +1708,30 @@ def genre_fallback_note(message: str, template: str, title: str) -> str:
     return ""
 
 
+def _note_html(note: str, title: str) -> str:
+    """The honesty note, with only its quoted subject marked as English.
+
+    The note is one Japanese sentence that quotes the operator's own words -
+    「「octopus」の題材を描く型はまだ無いため…」. Marking the whole line
+    `lang="en"` would hand a screen reader an English voice for the Japanese
+    around it, so the mark goes on the quoted word alone, anchored on the
+    corner brackets that hold it (C-1918, §37 / SC 3.1.2).
+
+    Done on the escaped text, and only when the quoted word IS the title -
+    the note also quotes genre names and the default title, which are the
+    page's own language and must not be touched. Everything else comes back
+    exactly as `escape(note)` would give it.
+    """
+
+    out = escape(note)
+    if not is_english_text(title):
+        return out
+    quoted = f"「{escape(title)}」"
+    if quoted not in out:
+        return out
+    return out.replace(quoted, f"「{marked_english(title)}」", 1)
+
+
 #: Removed only where they touch an end of the title - see
 #: ``undepicted_subject``. 「の」 is here and is exactly why the removal has
 #: to be anchored: taken from the middle it eats the one inside 「もの」.
@@ -1958,11 +1992,11 @@ a{{color:{t["accent"]}}}
  border-radius:{t["radius_tight"]};cursor:pointer}}
 </style></head>
 <body><main>
-<h1>{escape(title)}</h1>
+<h1>{marked_english(title)}</h1>
 <p class="tag">{escape(tagline)}</p>
-{f'<p class="tag">{escape(note)}</p>' if note else ""}
+{f'<p class="tag">{_note_html(note, title)}</p>' if note else ""}
 <div class="stagewrap" id="{FULL_WRAP_ID}">
-<canvas id="stage" width="720" height="320">{escape(title)}——{escape(tagline)} 遊び方: {escape(how)}</canvas>
+<canvas id="stage" width="720" height="320">{marked_english(title)}——{escape(tagline)} 遊び方: {escape(how)}</canvas>
 <button class="fullbtn" id="{FULL_BUTTON_ID}" type="button">{escape(FULL_LABEL)}</button>
 </div>
 <p class="rotatehint" id="{ROTATE_ID}">{escape(ROTATE_TEXT)}</p>

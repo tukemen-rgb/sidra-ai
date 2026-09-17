@@ -32,6 +32,7 @@ from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.vocabulary import (
+    marked_english,
     drop_english_frame,
     drop_request_adverbs,
 )
@@ -223,8 +224,8 @@ _PAGE = """<!doctype html>
 </style>
 </head>
 <body>
-<canvas id="c" width="640" height="400">{title}——{shape}がゆっくり動く抽象画（seed {seed}）。</canvas>
-<p>{title} — seed {seed}</p>
+<canvas id="c" width="640" height="400">{title_marked}——{shape}がゆっくり動く抽象画（seed {seed}）。</canvas>
+<p>{title_marked} — seed {seed}</p>
 {note}
 <script>
 "use strict";
@@ -460,6 +461,14 @@ def generate_art(
         )
     html = _PAGE.format(
         title=escape(title),
+        # C-1918 (§37 / SC 3.1.2): an English request now really does give an
+        # English title (C-1913, C-1916), and this page declares `lang="ja"`.
+        # The two places the title is DISPLAYED - the canvas's fallback
+        # content, which is what a screen reader is handed (§36), and the
+        # caption below it - carry it marked. `<title>` is text-only, so it
+        # cannot hold the mark and keeps the page's default language; that
+        # limit is recorded in §37 rather than worked around.
+        title_marked=marked_english(title),
         bg=BG,
         surface=SURFACE,
         cyan=CYAN,
