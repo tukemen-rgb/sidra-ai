@@ -151,6 +151,33 @@ def _title_from(request: str, fallback: str) -> str:
 Mesh = tuple[list[tuple[float, float, float]], list[tuple[int, int, int, int]]]
 
 
+def _has_boundary(mesh: Mesh) -> bool:
+    """Is this mesh an open surface rather than a closed solid?
+
+    C-1924. The preview culls back faces, which is right for a closed
+    solid - the half turned away is the inside, and drawing it would let
+    the viewer see through the fish. An open sheet has no inside to hide:
+    the terrain is a 9x9 heightfield, and culling deleted it. Measured
+    over a full turn, it drew 0 to 17 of its 128 faces, median 5, and was
+    **completely blank at 27 of 120 angles** - a fifth of the turn showing
+    nothing at all.
+
+    Asked of the geometry rather than of the shape's name, so a shape
+    added later is classified without anyone remembering to list it: a
+    closed surface has every edge shared by exactly two triangles, an open
+    one has edges used once. Measured on the three that exist - boat 0
+    boundary edges, fish 0 (one edge is shared by four faces at a pinch,
+    which is still closed), terrain 32, being the perimeter of its grid.
+    """
+
+    used: dict[tuple[int, int], int] = {}
+    for i, j, k, _material in mesh[1]:
+        for a, b in ((i, j), (j, k), (k, i)):
+            edge = (a, b) if a < b else (b, a)
+            used[edge] = used.get(edge, 0) + 1
+    return any(count == 1 for count in used.values())
+
+
 def _lathe(profile: list[tuple[float, float, float]], sides: int, material: int) -> Mesh:
     """Sweep elliptical cross-sections along the x axis.
 
@@ -393,6 +420,7 @@ def _preview_html(
     count_caveat: str = "",
 ) -> str:
     vertices, faces = mesh
+    two_sided = "true" if _has_boundary(mesh) else "false"
     verts_js = ",".join(f"[{x:.4f},{y:.4f},{z:.4f}]" for x, y, z in vertices)
     faces_js = ",".join(f"[{i},{j},{k},{m}]" for i, j, k, m in faces)
     sources = "".join(f"<li>{escape(line)}</li>" for line in evidence)
@@ -441,6 +469,7 @@ ul{{margin:0;padding-left:1.2em}}
 var VERTS=[{verts_js}];
 var FACES=[{faces_js}];
 var COLORS=[[46,230,255],[10,15,28],[255,92,200]];
+var TWOSIDED={two_sided};
 var canvas=document.getElementById("c");
 var ctx=canvas.getContext("2d");
 var reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -467,7 +496,10 @@ function render(angle){{
     var face=FACES[order[o][0]];
     var a=pts[face[0]],b=pts[face[1]],c=pts[face[2]];
     var cross=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
-    if(cross<=0)continue;
+    /* C-1924: a closed solid hides its inside, an open sheet has none to
+       hide. TWOSIDED is asked of the geometry, not of the shape's name. */
+    if(!TWOSIDED&&cross<=0)continue;
+    if(TWOSIDED&&cross===0)continue;
     var depth=order[o][1];
     var shade=Math.max(0.35,Math.min(1,1.45-depth/3.4));
     var col=COLORS[face[3]];

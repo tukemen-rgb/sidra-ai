@@ -14679,6 +14679,55 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- and whether that preview shows the model at all (C-1924) --------
+    #
+    # §4 is the readable-screen minimum, and its judges measure text
+    # contrast (C-1329) and the pad's non-text contrast. Nobody had asked
+    # the plainer question underneath: is anything drawn?
+    #
+    # It was not. The renderer culls back faces - right for a closed solid,
+    # whose far half is the inside - but the terrain is a 9x9 heightfield,
+    # an open sheet with no inside to hide. Culled, it drew 0 to 17 of its
+    # 128 faces (median 5) and was blank at 27 of 120 angles: more than a
+    # fifth of every turn showing nothing. The .obj the operator downloads
+    # was correct all along; only the picture of it was broken.
+    #
+    # Driven through a whole revolution, counting the faces really painted,
+    # and open-versus-closed decided HERE from the .obj's own edges - not
+    # from a list of names and not by asking the page, which carries a flag
+    # about itself that a mislabelling page would otherwise hide behind.
+    from sidra_ai.evals.model3d_preview_shows_the_model import (
+        STEPS as _SHOW_STEPS,
+        evaluate_model3d_preview_shows_the_model,
+    )
+
+    _show = evaluate_model3d_preview_shows_the_model()
+    c.add(
+        "creation_model3d_preview_shows_the_model",
+        "3D プレビューが、一周どの角度でも中身を映す（C-1924・§4）",
+        float(_show.checks_passed) if _show.passed else 0.0,
+        detail=(
+            f"**1 周 {_SHOW_STEPS} 角度**で実際に描かれた面を数えた——"
+            + "、".join(_show.readings[:3])
+            + "。"
+            "**4 方向**: (a) **どの角度でも空白でない**、"
+            "(b) **開いた面は全部見せる**（隠すべき裏が無いから）、"
+            "(c) **閉じた立体は内側を隠したまま**"
+            "——カリングを一律に切れば (a)(b) は通るが、**立体が透けて見える**、"
+            "(d) **開／閉は判定器がダウンロード物の `.obj` の稜線から決める**"
+            "——ページ自身の `TWOSIDED` を鵜呑みにすると、"
+            "**自分を偽ったページが「どちらの規則で測られるか」を選べてしまう**"
+            "（破壊 D2 が実際にそれで閉じた立体の規則を素通りした・C-1640）。"
+            "**直す前**: terrain は 128 面中 **0〜17 面・中央値 5**、"
+            "**空白 27/120＝一周の 22.5%**。"
+            "**直した後**: 128 面中 **128 面・空白 0**、"
+            "**boat と fish の数字は 1 つも動かない**（閉じた立体のカリングは外していない）"
+            if _show.passed
+            else "; ".join(_show.failures[:4])
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had
