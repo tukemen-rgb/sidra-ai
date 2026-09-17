@@ -1650,6 +1650,27 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1915: the English twin of C-1847. "delete the game"/"delete it"/"remove
+    # the last game" fell through to RAG and returned an unrelated indexed doc,
+    # while 「消して」 got the honest delete_unsupported refusal. An English delete
+    # pattern (twin of the Japanese one) plus a language-branched reply (rule 6)
+    # give the same honest answer in the request's language.
+    from sidra_ai.evals.chat_english_delete_says_it_cannot import (
+        evaluate_chat_english_delete_says_it_cannot,
+    )
+
+    en_delete = evaluate_chat_english_delete_says_it_cannot()
+    c.add(
+        "chat_english_delete_says_it_cannot",
+        "英語の削除依頼（delete the game 等）にも「削除は用意していない・何も消していない」と英語で言う",
+        10.0 * en_delete.checks_passed / en_delete.checks_total,
+        detail=f"{en_delete.checks_passed}/{en_delete.checks_total} checks; "
+               "src/sidra_ai/evals/chat_english_delete_says_it_cannot.py"
+               + ("" if en_delete.passed
+                  else "; " + "; ".join(en_delete.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1848: structure.md said 「現状の game.html は単一画面です。タイトル画面も
     # リザルト画面も無く」 and listed both under 「まだ無いもの」, while all ten
     # templates have a briefing gate (C-1033), a result strip and an attract

@@ -1108,17 +1108,28 @@ class SidraService:
         # true: nothing was deleted, the files are where they are, and removing
         # them is the operator's to do.
         if asks_to_delete(message):
-            return {
-                "answer": (
+            # C-1915: answer in the request's language (rule 6). C-1847 shipped
+            # only the Japanese message, but the English delete requests this
+            # now recognises must not get a Japanese refusal. The folder, not the
+            # absolute path: this sentence ends up in chat logs and screenshots,
+            # and the reader already knows where their own data directory is (the
+            # CLI prints each generated file's path when it writes one, C-1610).
+            if _reply_in_japanese(message):
+                answer = (
                     "削除は用意していません。何も消していません。"
-                    # The folder, not the absolute path: this sentence ends up
-                    # in chat logs and screenshots, and the reader already
-                    # knows where their own data directory is (the CLI prints
-                    # each generated file's path when it writes one, C-1610).
                     "作ったファイルはデータ保存先の artifacts/ にあるので、"
                     "不要なものはそこで削除してください。"
                     "作り直したいときは、作ったときの依頼をもう一度送ってください。"
-                ),
+                )
+            else:
+                answer = (
+                    "Deletion isn't available, and nothing was deleted. "
+                    "Your files are in the artifacts/ folder of the data "
+                    "directory - remove anything you don't want there. To "
+                    "recreate one, send the original request again."
+                )
+            return {
+                "answer": answer,
                 "refused": True,
                 "refusal": "delete_unsupported",
                 "reason": "deletion is not offered; nothing was removed",
