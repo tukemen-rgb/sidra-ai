@@ -44,6 +44,10 @@ BUTTON_ID = "fullscreen"
 
 #: What the button says, in each of its two states.
 LABEL_ENTER = "全画面にする"
+#: The same label for a page written in English (C-1956). The button
+#: inside the page keeps the Japanese one for now: it is swapped by the
+#: script at runtime and that path is the canvas-text item, not this one.
+LABEL_ENTER_EN = "Go full screen"
 LABEL_EXIT = "全画面をやめる"
 
 #: Tried once fullscreen is entered, ignored when it fails - which is every
@@ -155,6 +159,7 @@ __all__ = [
     "BUTTON_ID",
     "FULLSCREEN_PREAMBLE",
     "LABEL_ENTER",
+    "LABEL_ENTER_EN",
     "LABEL_EXIT",
     "LOCK_TO",
     "PREAMBLE_NAMES",

@@ -15224,6 +15224,51 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the game page's frame, in the language asked ----------------------
+    #
+    # C-1956, the fourth page of the family (deck C-1951, art C-1952, 3D
+    # preview C-1953). C-1938 put the game's summary into the language of
+    # the request and C-1944 gave the registry an English how_to_play; the
+    # page stayed Japanese.
+    #
+    # The frame only, and the split is measured: of 3,076 lines, 184 carry
+    # Japanese and 174 of those are comments inside <script> - this repo's
+    # design notes, which no reader sees. Eight lines are what a reader
+    # meets. What the canvas DRAWS (the HUD, the briefing's three lines per
+    # template, the losing strip) is C-1945-scale product copy and is its
+    # own item.
+    from sidra_ai.evals.game_frame_matches_the_language_asked import (
+        evaluate_game_frame_matches_the_language_asked,
+    )
+
+    _gameframe = evaluate_game_frame_matches_the_language_asked()
+    c.add(
+        "creation_game_frame_matches_the_language_asked",
+        "ゲームのページの枠が、訊かれた言語で書かれている（C-1956）",
+        float(_gameframe.sides_right),
+        detail=(
+            f"**日英それぞれでゲームを実際に作り、返事ではなくページの枠を読んだ**"
+            f"——**{_gameframe.sides_right}/{_gameframe.sides_total}**"
+            f"（日本語側は{'保たれている' if _gameframe.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_gameframe.failures[:2])
+               if _gameframe.failures
+               else "**実測**: " + " / ".join(_gameframe.readings))
+            + "。**枠だけを測る理由を数字で置く**: **3,076 行中 184 行が日本語で、"
+            "そのうち 174 行は `<script>` の中のコメント**——**この repo の設計メモで、"
+            "ページを読む人には見えない**。**残り 8 行が読む人の見るもの**"
+            "（副題・題材の断り・canvas の代替文・全画面ボタン・横向きの案内・遊び方・"
+            "スマホの案内・footer）。"
+            "**canvas が描く文字（HUD の「得点」・開始画面のブリーフィング 3 行 × 10 型・"
+            "負けの帯）は C-1945 と同じ規模の製品コピーで、別項目**。"
+            "**検査**: 日本語 0 行（題は除く）、**`<html lang>` が中身と一致**、"
+            "**枠がまだ枠である**（canvas・代替文・遊び方・副題・footer が残っている）、"
+            "**日本語側は門**。**新しい表はほとんど作っていない**——"
+            "**遊び方は `how_to_play_en`（C-1944）、題材の断りは `genre_fallback_note`、"
+            "ジャンル名は `english_label_for`（C-1930）**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- is a number written as a word heard at all ------------------------
     #
     # C-1955. Everything C-1934/C-1935/C-1954 did about counts was about

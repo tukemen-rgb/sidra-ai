@@ -31,6 +31,13 @@ Four things, because each of the plausible wrong fixes passes the others:
   (c) nothing inside a `lang="en"` span is Japanese. The honesty note is
       one Japanese sentence quoting the operator's word, so marking the
       whole line is the obvious wrong fix - and it satisfies (a).
+  (a') and none of (a) applies when the page is itself English: SC 3.1.2
+      asks for the language of a passage that DIFFERS from the page's, so
+      an English title on an English page needs no mark (C-1956). Three of
+      this file's checks have now been generalised for the same reason -
+      each was written when every page was Japanese, and each read a
+      regression where the product had improved.
+
   (d) the page declares a language, and the declaration is true: it may
       say English only if its own text - everything but the operator's own
       title - really is English. (a) is trivially satisfiable by flipping
@@ -220,8 +227,21 @@ def evaluate_english_title_is_marked_english() -> MarkedEnglishResult:
         marked = _SPAN_EN.findall(shown)
         mine = [m for m in marked if m == title]
 
+        # A page that is itself English needs no mark on an English title:
+        # SC 3.1.2 asks for the language of a PASSAGE THAT DIFFERS from the
+        # page's, and here nothing differs. C-1956 made the game page the
+        # fourth to follow the request's language, and its English caveat
+        # quotes the title with curly quotes rather than 「」, so the mark
+        # did not land and this eval read a regression where the product had
+        # improved. Third time an assumption in this file outlived the
+        # product (C-1951 fixed check (d), C-1952 the substring search); the
+        # assumption each time was "every page is Japanese".
+        english_page = page_language == "en"
+
         # (a) the title is marked everywhere it is displayed
-        if len(mine) < places:
+        if english_page:
+            checks += 1
+        elif len(mine) < places:
             failures.append(
                 f"{surface}「{request}」: 「{title}」 is marked in {len(mine)} "
                 f"displayed place(s), wanted {places}"
@@ -232,7 +252,9 @@ def evaluate_english_title_is_marked_english() -> MarkedEnglishResult:
         # ...and nowhere is it displayed unmarked. Blank out the marked spans
         # first; whatever is left is an occurrence with no mark on it.
         bare = _SPAN_EN.sub("", shown)
-        if _appears_bare(title, bare):
+        if english_page:
+            checks += 1
+        elif _appears_bare(title, bare):
             failures.append(
                 f"{surface}「{request}」: 「{title}」 is still displayed "
                 "somewhere without a lang mark"

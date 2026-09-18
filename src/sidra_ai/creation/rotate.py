@@ -38,6 +38,8 @@ ROTATE_ID = "rotate"
 #: ratio, and a page that promises 「2 倍」 on a screen where it is 1.4 has
 #: told the reader something false to sound more convincing.
 ROTATE_TEXT = "端末を横向きにすると、遊ぶ画面が大きくなります。"
+#: The same hint for a page written in English (C-1956).
+ROTATE_TEXT_EN = "Turn the device sideways and the playing area gets bigger."
 
 #: The two conditions, as the queries themselves. Kept here so the tests and
 #: the instrument read the same strings the page evaluates.
