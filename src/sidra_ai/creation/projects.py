@@ -413,13 +413,6 @@ parameters only.
 #: :mod:`sidra_ai.creation.story` for why they are derived rather than
 #: invented. The ``_*_skeleton`` functions above are kept as the shape these
 #: replaced; nothing calls them any more.
-#: The stages whose writer takes ``in_japanese``. Named as the ones that
-#: CAN, never as the ones that cannot: a list of what is still missing is a
-#: list whose last row nobody deletes (C-1942). This one grows until it holds
-#: every stage, and at that point it is the branch itself that goes - the
-#: call becomes unconditional and this name has nothing left to say.
-_WRITES_IN_THE_REQUESTS_LANGUAGE = frozenset({Stage.SCENARIO, Stage.STRUCTURE})
-
 SKELETONS = {
     Stage.SCENARIO: story.scenario,
     Stage.STRUCTURE: story.structure,
@@ -464,32 +457,18 @@ def scaffold_project(
     # Computed once from the shared source (genre_fallback_note) so the design
     # docs, the production log and the chat summary all say the same thing, and
     # only when a game was actually built - the sentence speaks of game.html.
-    fallback = genre_fallback_note(
-        request, plan.template if Stage.GAME in stages else "", title
-    )
-    # C-1940: the production log follows the language of the request, by the
-    # same rule every reply surface follows (``_reply_in_japanese``, the
-    # product's own SYSTEM_PROMPT rule 6). The three design documents do not
-    # yet, and that is deliberate: their rows come from the template registry,
-    # which holds 操作 labels, パラメータ names and how_to_play in Japanese
-    # alone, so an English frame around them is the half-translated document
-    # this loop has refused three times. One finished file beats four
-    # half-finished ones.
+    # C-1940..C-1945: every file of the production set follows the language of
+    # the request, by the same rule every reply surface follows
+    # (``_reply_in_japanese``, the product's own SYSTEM_PROMPT rule 6). It is
+    # decided once here rather than per document, because the four files
+    # describe one production and a set that changed language halfway through
+    # itself would be worse than one that never tried.
     in_japanese = _reply_in_japanese(request)
-    # The same admission, in the log's language. Computed separately rather
-    # than reused: `fallback` goes into the Japanese design documents, and a
-    # document does not change language in the middle of itself.
-    # C-1942: the same sentence is now needed by every document that follows
-    # the request's language, not only the log, so the name says what it is.
-    translated_fallback = (
-        fallback
-        if in_japanese
-        else genre_fallback_note(
-            request,
-            plan.template if Stage.GAME in stages else "",
-            title,
-            in_japanese=False,
-        )
+    translated_fallback = genre_fallback_note(
+        request,
+        plan.template if Stage.GAME in stages else "",
+        title,
+        in_japanese=in_japanese,
     )
     # Filled by the assets stage and read by the game stage. Empty when the
     # request asked for a game without assets, which is a supported shape:
@@ -501,23 +480,21 @@ def scaffold_project(
 
     for stage in stages:
         if stage in SKELETONS:
-            if stage in _WRITES_IN_THE_REQUESTS_LANGUAGE:
-                # C-1942, C-1944: the writers whose text the registry can
-                # supply in the language asked for. `features` is not one of
-                # them yet - it reads the control meanings and the parameter
-                # labels, which the registry holds in Japanese alone, and a
-                # frame in one language over rows in another is the
-                # half-translated document this loop has refused six times.
-                written = SKELETONS[stage](
+            # C-1945: all three design documents now follow the request's
+            # language, so the set that named which of them could - and the
+            # branch around it - are gone, exactly as C-1944 said they would
+            # be. What is left is one call that passes the language, like
+            # every other reply surface in C-1918..C-1944.
+            (root / STAGE_FILES[stage]).write_text(
+                SKELETONS[stage](
                     title,
                     evidence,
                     plan,
                     translated_fallback,
                     in_japanese=in_japanese,
-                )
-            else:
-                written = SKELETONS[stage](title, evidence, plan, fallback)
-            (root / STAGE_FILES[stage]).write_text(written, encoding="utf-8")
+                ),
+                encoding="utf-8",
+            )
         elif stage is Stage.ASSETS:
             # Seeded from the request, so regenerating a project gives the
             # same art its own documents already describe.

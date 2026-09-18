@@ -23,6 +23,7 @@ is what makes the whole path measurable on a container that has no weights.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from html import escape
 
@@ -173,6 +174,157 @@ def english_key(key: str) -> str:
     """One control key, for a document written in English."""
 
     return KEY_EN[key]
+
+
+#: The control *meanings* in English (C-1945), keyed by the Japanese they
+#: translate. Keyed by the string rather than by (template, index) for the
+#: same reason ``KEY_EN`` is: an index is a place, and a row inserted above
+#: it silently moves every meaning down one. Two templates that already say
+#: the same thing share one entry, which is why 「同上…」 appears once.
+DOES_EN: dict[str, str] = {
+    "仕掛けを合わせる": "time the strike",
+    "同上（ポインタでも同じ操作）": "the same (a pointer does it too)",
+    "受け皿を動かす": "move the tray",
+    "勇者を動かす": "move the hero",
+    "剣を振る（草を刈る・敵を倒す・調べる）":
+        "swing the sword (cut grass, beat enemies, examine things)",
+    "やられた後にやり直す": "start over after you go down",
+    "チャージして、離すとビーム発射": "charge, and release to fire the beam",
+    "レーンを移動してかわす": "change lanes to dodge",
+    "押し合いで押し返す": "push back when the beams meet",
+    "自機を左右に動かす": "move your ship left and right",
+    "連射する": "keep firing",
+    "撃墜された後にやり直す": "start over after you are shot down",
+    "カーソルを動かす": "move the cursor",
+    "同じ色のかたまりを消す（2 個以上）":
+        "clear a block of the same colour (two or more)",
+    "盤面をやり直す": "start the board over",
+    "多脚戦車を歩かせる（地割れから離れる）":
+        "walk the walker (away from the fissure)",
+    "撃つ。脚を撃ち抜くと頭が下りてくる":
+        "shoot. Break a leg and the head comes down",
+    "退いた後にやり直す": "start over after you fall back",
+    "玉を左右に寄せる（ゲートの中央へ）":
+        "steer the marble left and right (toward the middle of the gate)",
+    "転倒やゴールのあとにやり直す": "start over after a topple or the goal",
+    "ハンドルを切る（車を左右へ）": "steer (the car left and right)",
+    "ゴール後や事故のあとに走り直す": "run it again after the finish or a crash",
+    "走る": "run",
+    "ジャンプ。押す長さで高さが変わる":
+        "jump. How long you hold it sets the height",
+    "コースをはじめからやり直す": "start the course over from the beginning",
+}
+
+#: The two difficulty numbers' names, in English (C-1945).
+PARAM_LABEL_EN: dict[str, str] = {
+    "マーカー速度": "marker speed",
+    "当たり帯の幅": "width of the hit band",
+    "落下間隔": "drop interval",
+    "受け皿の幅": "tray width",
+    "敵の速さ": "enemy speed",
+    "敵の数": "number of enemies",
+    "相手のチャージ速度": "the opponent's charge speed",
+    "相手の思考間隔": "the opponent's thinking interval",
+    "降下速度": "descent speed",
+    "波の間隔": "wave interval",
+    "色の数": "number of colours",
+    "盤面の幅": "board width",
+    "地割れの開く速さ": "how fast the fissure opens",
+    "脚の耐久": "leg endurance",
+    "転がる速さ": "rolling speed",
+    "ゲートの広さ": "gate width",
+    "走行速度": "driving speed",
+    "障害物の間隔": "obstacle interval",
+    "隙間の倍率": "gap multiplier",
+    "足場の数": "number of platforms",
+}
+
+#: What each number means, in English (C-1945). Without this the table prints
+#: two bare floats and calls itself a specification - in either language.
+PARAM_WHY_EN: dict[str, str] = {
+    "1 フレームあたりの移動量。大きいほど速い":
+        "how far it moves per frame. Bigger is faster",
+    "帯の割合。小さいほど狭い":
+        "the band as a share of the track. Smaller is narrower",
+    "何フレームごとに 1 個落ちるか。小さいほど密":
+        "how many frames between drops. Smaller is denser",
+    "画面幅に対する割合。小さいほど狭い":
+        "a share of the screen width. Smaller is narrower",
+    "洞窟に出る敵の数。祭壇はこれより 1 少ない":
+        "how many enemies are in the cave. The altar has one fewer",
+    "倍率。大きいほど太いビームが早く来る":
+        "a multiplier. Bigger means a thicker beam arrives sooner",
+    "何フレームごとに動きを決めるか。小さいほど賢い":
+        "how many frames between its decisions. Smaller is smarter",
+    "1 フレームあたりの落下量。大きいほど早く迫る":
+        "how far it falls per frame. Bigger closes in sooner",
+    "何フレームごとに 1 波来るか。小さいほど密":
+        "how many frames between waves. Smaller is denser",
+    "盤面に出る色数。多いほどかたまりが小さくなる":
+        "how many colours are on the board. More makes the blocks smaller",
+    "横のマス数。広いほど手が長く続く":
+        "how many cells across. Wider keeps the moves going longer",
+    "1 フレームあたりの拡がり。大きいほど逃げる猶予が短い":
+        "how far it spreads per frame. Bigger leaves less time to get clear",
+    "1 周期で脚に必要な命中数。多いほど頭が下りるまで長い":
+        "hits a leg needs in one cycle. More means longer before the head "
+        "comes down",
+    "1 フレームあたりの前進量。大きいほどゲートの判断が速くなる":
+        "how far it rolls per frame. Bigger means deciding the gate sooner",
+    "通過と見なす左右の幅。狭いほど寄せが正確でないと抜けない":
+        "how wide a pass counts. Narrower needs a more accurate line",
+    "1 フレームあたりの前進量。大きいほど 1 周が速く、操作も忙しい":
+        "how far it moves per frame. Bigger makes a lap quicker and the "
+        "steering busier",
+    "コース距離いくつごとに置くか。小さいほど密":
+        "how much course distance between them. Smaller is denser",
+    "足場の間の距離に掛かる係数。大きいほど跳びが際どい":
+        "a factor on the distance between platforms. Bigger makes the jumps "
+        "tighter",
+    "コースの長さ。多いほどゴールが遠い":
+        "how long the course is. More puts the goal further away",
+}
+
+#: Derived from the registries, never counted by hand (C-1942's rule, third
+#: time): every meaning, every parameter name and every explanation that
+#: ``CONTROLS`` and ``PARAMETERS`` actually contain must have English, or the
+#: module refuses to import. A template added with one new row is a loud
+#: failure at start-up rather than one Japanese cell inside an English table.
+_MISSING_EN = sorted(
+    ({does for rows in CONTROLS.values() for _k, does in rows} - set(DOES_EN))
+    | ({label for rows in PARAMETERS.values() for label, _w in rows}
+       - set(PARAM_LABEL_EN))
+    | ({why for rows in PARAMETERS.values() for _l, why in rows}
+       - set(PARAM_WHY_EN))
+)
+if _MISSING_EN:  # pragma: no cover - the whole point is that it never runs
+    raise RuntimeError(
+        f"story has no English for {_MISSING_EN}; every row of CONTROLS and "
+        "PARAMETERS needs one before a document can be written in English"
+    )
+
+#: A row that is *present* but still Japanese (C-1945). Measured, not
+#: imagined: the judge for these documents generates one production, and one
+#: production is one template - so nine of the ten templates' rows are never
+#: read by it at all. A Japanese sentence left in platformer's column would
+#: ship and the number would not move. The registry is the only place that
+#: sees every row, so the registry is where this is checked.
+_JAPANESE_SCRIPT = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
+_NOT_ENGLISH = sorted(
+    value
+    for table in (KEY_EN, DOES_EN, PARAM_LABEL_EN, PARAM_WHY_EN)
+    for value in table.values()
+    if _JAPANESE_SCRIPT.search(value)
+) + sorted(
+    spec.how_to_play_en
+    for spec in TEMPLATES.values()
+    if _JAPANESE_SCRIPT.search(spec.how_to_play_en)
+)
+if _NOT_ENGLISH:  # pragma: no cover - the whole point is that it never runs
+    raise RuntimeError(
+        f"story's English columns still carry Japanese: {_NOT_ENGLISH}; "
+        "a document written in English would print them unchanged"
+    )
 
 
 def screens(
@@ -522,31 +674,57 @@ it disappears from here too.
 
 
 def features(
-    title: str, evidence: tuple[str, ...], plan: ProductionPlan, fallback: str = ""
+    title: str,
+    evidence: tuple[str, ...],
+    plan: ProductionPlan,
+    fallback: str = "",
+    *,
+    in_japanese: bool = True,
 ) -> str:
-    """The specification that is actually true of the shipped page."""
+    """The specification that is actually true of the shipped page.
 
-    controls = "\n".join(f"| {key} | {does} |" for key, does in plan.controls) or (
-        f"| {BLANK} | {BLANK} |"
-    )
+    C-1945: the last of the three design documents to follow the request's
+    language, and the last because of how much of it comes from the
+    registry - twenty-six control meanings and twenty parameter rows, against
+    C-1942's fourteen keys and C-1944's ten how_to_play lines. Every one of
+    them is a statement of what a key does or what a number is, which is why
+    they could be translated at all; an opinion or a piece of wording with a
+    feel to it could not have been.
+    """
+
+    blank = BLANK if in_japanese else BLANK_EN
+    if in_japanese:
+        controls = "\n".join(f"| {key} | {does} |" for key, does in plan.controls)
+    else:
+        controls = "\n".join(
+            f"| {english_key(key)} | {DOES_EN[does]} |" for key, does in plan.controls
+        )
+    controls = controls or f"| {blank} | {blank} |"
     names = plan.parameters
     levels = _DIFFICULTY[plan.template]
     if names:
         rows = "\n".join(
-            f"| {label} | {levels['easy'][index]} | {levels['normal'][index]} "
+            f"| {label if in_japanese else PARAM_LABEL_EN[label]} "
+            f"| {levels['easy'][index]} | {levels['normal'][index]} "
             f"| {levels['hard'][index]} |"
             for index, (label, _why) in enumerate(names)
         )
-        legend = "\n".join(f"- **{label}**: {why}" for label, why in names)
+        legend = "\n".join(
+            f"- **{label}**: {why}"
+            if in_japanese
+            else f"- **{PARAM_LABEL_EN[label]}**: {PARAM_WHY_EN[why]}"
+            for label, why in names
+        )
     else:
-        rows = f"| {BLANK} | {BLANK} | {BLANK} | {BLANK} |"
-        legend = f"- {BLANK}"
-    scoring = (
-        "帯の中で合わせたら 得点 +1、濃い中央で合わせたら会心で +2。外したら記録のみ。失敗しても終了しません。"
-        if plan.template == "fishing"
-        else "受けられたら 受け +1、こぼしたら こぼし +1。どちらも画面に出続けます。"
-    )
-    return _header(title, "機能設定", evidence, fallback) + f"""
+        rows = f"| {blank} | {blank} | {blank} | {blank} |"
+        legend = f"- {blank}"
+    if in_japanese:
+        scoring = (
+            "帯の中で合わせたら 得点 +1、濃い中央で合わせたら会心で +2。外したら記録のみ。失敗しても終了しません。"
+            if plan.template == "fishing"
+            else "受けられたら 受け +1、こぼしたら こぼし +1。どちらも画面に出続けます。"
+        )
+        return _header(title, "機能設定", evidence, fallback) + f"""
 ## 操作
 
 | 入力 | 動作 |
@@ -568,6 +746,38 @@ def features(
 
 {legend}
 """
+    scoring = (
+        "Time it inside the band and the score goes up 1; time it on the darker "
+        "middle and it is a perfect, worth 2. A miss is only recorded. Missing "
+        "does not end the run."
+        if plan.template == "fishing"
+        else "A catch adds 1 to caught, a drop adds 1 to dropped. Both stay on "
+        "the screen."
+    )
+    return _header(
+        title, "Features and settings", evidence, fallback, in_japanese=False
+    ) + f"""
+## Controls
+
+| Input | What it does |
+|---|---|
+{controls}
+
+## Scoring
+
+{scoring}
+
+## Difficulty parameters
+
+This request was generated at **{plan.difficulty}** (speed={plan.speed} / band={plan.band}).
+The values in the table are the numbers `sidra_ai.creation.games` actually uses.
+
+| Name | easy | normal | hard |
+|---|---|---|---|
+{rows}
+
+{legend}
+"""
 
 
 def with_prose(document: str, prose: str) -> str:
@@ -580,11 +790,17 @@ def with_prose(document: str, prose: str) -> str:
     text = prose.strip()
     if not text:
         return document
-    return document.replace(
+    # Both markers, because C-1944 gave `scenario` an English form and this
+    # replacement is matched on the exact sentence. Written as the list of
+    # markers `scenario` can emit rather than a guess about the document's
+    # language: the overlay either finds its own marker or changes nothing.
+    for marker in (
         f"{BLANK}（生成器は物語を作りません。上の「遊びの芯」に合う筋を書いてください）",
-        text,
-        1,
-    )
+        f"{BLANK_EN} (the generator does not write stories. Write a plot that fits the\ncore above.)",
+    ):
+        if marker in document:
+            return document.replace(marker, text, 1)
+    return document
 
 
 __all__ = [
