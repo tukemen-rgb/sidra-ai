@@ -11593,3 +11593,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
 **fixture 自身に錠をかけた**: **combined diff が strict で復号できたら AssertionError で止まる**。実証済み（enclosing を ASCII にすると停止する）。**同じ穴に 3 度は落ちない**。
 **起票の数字は環境で動いた**——起票 position 181／3002 字に対し私の再現は **178／2999 字**。**禁じ手「バイト位置を assert しない」が正しかった**ことの実測で、ここでも一切 assert していない。
 **自分の見落としも確かめた**: ループA の 手順1 は毎回 `checkout -B main origin/main` ＋ commit 1 本なので**`origin/main..HEAD` に merge が入らない**。起票者（`pull --rebase` の band）と**同じ構造の盲点**で、**門の確認が自分の push 経路しか通っていなかった**。
+
+2026-09-18 00:08 UTC ループA started
