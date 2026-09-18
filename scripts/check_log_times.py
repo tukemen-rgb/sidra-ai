@@ -276,7 +276,24 @@ def census(limit: int = 400) -> dict | None:
 
 
 def main() -> int:
-    problems, notes = check()
+    # C-1943. A gate that dies has to say it died. Before this, an exception
+    # anywhere in ``check()`` left a traceback and Python's exit 1 - the same
+    # exit code, and to check_before_push.sh the same red, as "this push is
+    # refused". That is exactly why the merge-decode crash lived on main for a
+    # day: every lane read "REFUSED" and went looking at their own log lines.
+    #
+    # Exit 2 for "could not check", matching check_numbers_upstream.py and
+    # check_eval_scratch.py, which already use 2 for a scan that read nothing.
+    # Still non-zero, so the gate stays closed - what changes is that the
+    # reader can tell a verdict from a breakdown.
+    try:
+        problems, notes = check()
+    except Exception as broke:  # noqa: BLE001 - the whole point is to catch any
+        print("COULD NOT CHECK: 時刻の門が自分で落ちた（拒否ではない）")
+        print(f"  - {type(broke).__name__}: {broke}")
+        print("  これは「行が嘘をついている」という判定ではない。門が判定に到達していない。")
+        print("  push を止めるのは意図どおりだが、直す先はログ行ではなく門のほう。")
+        return 2
     for note in notes:
         print(f"NOTE: {note}")
     if problems:

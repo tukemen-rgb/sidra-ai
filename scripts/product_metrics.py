@@ -34362,6 +34362,53 @@ def measure_runtime(c: Collector) -> None:
     # first: an honest line's lead is never positive. Measured, 369 of 444
     # added lines lead by nothing. The margin was taken from the violation
     # and used to decide how much of it to allow.
+    # C-1943. The same gate, and a hole the C-1914 work left: it read git
+    # with strict decoding, so a merge's combined diff - whose `@@@` header
+    # truncates the enclosing line BY BYTES - cut a Japanese log line
+    # mid-character and the script died with a traceback instead of checking
+    # anything. check_before_push.sh saw only red, so for a day every push
+    # that followed a concurrent merge was "refused" for an invisible reason.
+    from sidra_ai.evals.gate_checks_after_a_merge import (
+        evaluate_gate_checks_after_a_merge,
+    )
+
+    _merge_gate = evaluate_gate_checks_after_a_merge()
+    c.add(
+        "gate_checks_after_a_merge",
+        "merge を挟んだ push でも、時刻の門が検査を返すか",
+        float(_merge_gate.checks_passed),
+        unit="/4",
+        detail=(
+            "; ".join(_merge_gate.failures)
+            if _merge_gate.failures
+            else "**実測で確かめた 4 点**——(A) **merge を含む範囲でも門が判定を返す**（traceback ではない）、"
+            "(B) **同じ状況で 19 分先を名乗る行はやはり落ちる**（復号を緩めて検査を盲にしていない）、"
+            "(C) **merge を挟まない経路は挙動が変わらない**、"
+            "(D) **門が自分で落ちたときは `COULD NOT CHECK` と exit 2 で言う**"
+            "——**拒否（exit 1）と故障を同じ顔で出したことが、この欠陥が 1 日見つからなかった理由**。"
+            "**直し（`errors=\"replace\"`）は既に main に在り、これは錠**。"
+            "**錠を 2 度も空振りさせた**——最初の fixture は **merge が競合したまま完了しておらず**"
+            "（`UU` のまま・merge commit 0 件）、2 つ目は **Japanese を置いたが ASCII の filler のほうが変更に近く**、"
+            "git がそちらを funcname に選んだ。**どちらも復号バグを完全に戻した状態で 4/4 を出した**。"
+            "**実際の失敗 merge `22eebaae` のヘッダを読んで組み直した**: "
+            "`@@@ … @@@ unmeasurable→1 のみ・他は不変…` ——**名指される行は ASCII 語で始まり**（だから git が選ぶ）"
+            "**日本語へ続く**ので、**約 40 バイトの切り詰めが文字の途中に落ちる**。"
+            "**filler は実ログと同じく数字で始める**（git に選ばせない）。"
+            "**fixture 自身に錠をかけた**——**combined diff が strict で復号できてしまったら AssertionError で止まる**ので、"
+            "**「何も試していない」状態で緑にはならない**（実証: enclosing を ASCII にすると 4/4 ではなく停止する）。"
+            "**破壊 4 方向・1 probe 1 プロセス・無変異の対照つき**: "
+            "D1〔`errors=\"replace\"` を外す＝当の欠陥〕**2/4**〔(A)(B)〕・"
+            "D2〔復号は通るが追加行を judge しない〕**3/4**〔(B)〕・"
+            "D3〔故障を拒否と同じ顔に戻す〕**3/4**〔(D)〕・"
+            "D4〔fixture の enclosing を ASCII にして欠陥も戻す〕**停止**〔錠が空振りを拒む〕・無変異 **4/4**。"
+            "**自分の見落としも確かめた**: ループA の 手順1 は毎回 `checkout -B main origin/main` のあと commit 1 本なので、"
+            "**`origin/main..HEAD` に merge が入らない**。起票者の自己申告（`pull --rebase` の band だから踏まなかった）と"
+            "**同じ構造の盲点**で、**門の確認が自分の push 経路しか通っていなかった**。"
+        ),
+        direction="up",
+        kind=OUTCOME,
+    )
+
     from check_log_times import census as _time_census
     from sidra_ai.evals.board_times_do_not_run_ahead import (
         evaluate_board_times_do_not_run_ahead,
