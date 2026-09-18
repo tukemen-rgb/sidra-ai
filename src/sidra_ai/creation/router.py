@@ -128,11 +128,11 @@ class CreationRouter:
                 details={"registered_kinds": list(self.registered_kinds())},
             )
         outcome = generator(message, intent, list(facts or []))
-        self._record(outcome, facts)
+        self._record(outcome, facts, message)
         return outcome
 
     def _record(
-        self, outcome: CreationOutcome, facts: list[Fact] | None
+        self, outcome: CreationOutcome, facts: list[Fact] | None, message: str = ""
     ) -> None:
         """Append one line saying what was just made, or do nothing.
 
@@ -154,10 +154,20 @@ class CreationRouter:
         if not outcome.artifact_path:
             return
         details = dict(outcome.details)
+        # C-1947: the record follows the language of the request, by the same
+        # rule every other surface follows. The production log has done this
+        # since C-1940; this is the common path - six generators - and it was
+        # still writing Japanese to somebody who asked in English.
+        # Imported here, not at module scope: `sidra_ai.creation.__init__`
+        # imports this module and `models.echo` imports `creation.evidence`,
+        # so a top-level import closes the circle and nothing loads at all.
+        from sidra_ai.models.echo import _reply_in_japanese
+
+        in_japanese = _reply_in_japanese(message)
         parameters: dict[str, object] = {"kind": outcome.kind.value}
         title = str(details.get("title") or "").strip()
         if title:
-            parameters["題"] = title
+            parameters["題" if in_japanese else "title"] = title
         # The generator's own parameters, the same ones the production log
         # carries. Values that are lists or dicts say nothing to a reader here.
         for key in ("template", "difficulty", "pattern", "motif", "shape", "outline", "seed"):
@@ -174,6 +184,7 @@ class CreationRouter:
                 # it never holds request content.
                 evidence=[fact.source for fact in (facts or []) if fact.source],
                 parameters=parameters,
+                in_japanese=in_japanese,
             )
         except OSError:
             return

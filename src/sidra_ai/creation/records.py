@@ -290,6 +290,20 @@ _STANDALONE_HEADER = (
     "（取得した文書の本文や、依頼の文そのものは書きません）。\n"
 )
 
+#: The same opening for a log a reader of English opens (C-1947). The
+#: production log followed the request's language in C-1940; this one did
+#: not, and this one is the common path - six generators go through it,
+#: against the one that scaffolds a whole production. Somebody who asks
+#: 「make a gif of an owl」 in English gets the gif and, beside it, a
+#: Japanese file explaining what the folder is.
+_STANDALONE_HEADER_EN = (
+    "# Record of what was generated\n\n"
+    "A record of the artifacts SIDRA AI made on their own. It carries the "
+    "file name, the time, the title, the source labels used as evidence and "
+    "the parameters - and nothing else (never the text of an indexed "
+    "document, and never the wording of the request).\n"
+)
+
 
 def append_standalone_record(
     data_dir: str | Path,
@@ -298,6 +312,7 @@ def append_standalone_record(
     evidence: list[str],
     parameters: dict[str, object],
     now: datetime | None = None,
+    in_japanese: bool = True,
 ) -> Path:
     """Add one record for an artifact that was made on its own.
 
@@ -320,20 +335,39 @@ def append_standalone_record(
 
     log_path = Path(data_dir) / STANDALONE_LOG_NAME
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    line = format_record(made=made, evidence=evidence, parameters=parameters, now=now)
+    line = format_record(
+        made=made,
+        evidence=evidence,
+        parameters=parameters,
+        now=now,
+        in_japanese=in_japanese,
+    )
 
     # Creating the file is inside the lock too (C-1862): two threads finding
     # it missing at once both wrote the header, and the second one wrote it
     # over whatever the first had already recorded.
     with _APPEND_LOCK:
         if not log_path.is_file():
-            _write_whole_file(log_path, _STANDALONE_HEADER)
+            _write_whole_file(
+                log_path,
+                _STANDALONE_HEADER if in_japanese else _STANDALONE_HEADER_EN,
+            )
 
         text = log_path.read_text(encoding="utf-8")
-        if RECORDS_HEADING in text:
+        # C-1947, the same rule the production log follows (C-1940): the
+        # heading the file already carries wins. One log collects every
+        # artifact this data directory ever made, so a request in the other
+        # language must add its line to the section that is there rather
+        # than open a second one further down.
+        heading = RECORDS_HEADING if in_japanese else RECORDS_HEADING_EN
+        for candidate in (RECORDS_HEADING, RECORDS_HEADING_EN):
+            if candidate in text:
+                heading = candidate
+                break
+        if heading in text:
             text = text.rstrip("\n") + "\n" + line + "\n"
         else:
-            text = text.rstrip("\n") + f"\n\n{RECORDS_HEADING}\n\n{line}\n"
+            text = text.rstrip("\n") + f"\n\n{heading}\n\n{line}\n"
         _write_whole_file(log_path, text)
     return log_path
 

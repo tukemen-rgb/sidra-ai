@@ -15224,6 +15224,48 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the record beside a single artifact, in the language asked -------
+    #
+    # C-1947. C-1940 put the production log into the language of the request
+    # and left this one alone because it sits outside the production
+    # directory - and this one is the common path. Six generators reach it
+    # through router._record; the scaffolder reaches the other. Ask
+    # 「make a gif of an owl」 and the gif arrives beside a file that opens
+    # 「# 生成の記録」.
+    #
+    # The kinds come from CreationKind, never from a list here: C-1938 is
+    # where a hand-written list of kinds left PROJECT unmeasured. A kind that
+    # cannot be asked for in English FAILS and says so - it is not skipped
+    # and not dropped from the denominator.
+    from sidra_ai.evals.standalone_record_matches_the_language_asked import (
+        evaluate_standalone_record_matches_the_language_asked,
+    )
+
+    _srec = evaluate_standalone_record_matches_the_language_asked()
+    c.add(
+        "creation_standalone_record_matches_the_language_asked",
+        "単体で作った成果物の記録が、訊かれた言語で書かれている（C-1947）",
+        float(_srec.kinds_in_the_right_language),
+        detail=(
+            f"**7 種すべてで実際に作らせ、残った `creation-log.md` を読んだ**"
+            f"——**{_srec.kinds_in_the_right_language}/{_srec.kinds_total} が"
+            f"依頼の言語で書かれている**"
+            f"（日本語側は{'保たれている' if _srec.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_srec.failures[:3])
+               if _srec.failures
+               else "**どの種類も依頼の言語に従っている**")
+            + "。**規則は制作一式と同じ 3 つ**（C-1941）: **英語の依頼で日本語 0 行**・"
+            "**ファイルが今も記録である**（見出しと記録行がある）・**日本語側は門**。"
+            "**英語で頼めない種類は「落ちる」**——**飛ばさない・分母から外さない**。"
+            "**実測で 2 つ出た**: **`art` は英語で届かない**"
+            "（**「draw a picture of an owl」「draw an owl」「paint an owl」ほか 6 通りが"
+            "すべて `unknown`**）、**`project` は英語だと `game` に行く**。"
+            "**この loop は C-1930／C-1932 で art レーンの返事を英語にした**——"
+            "**英語では入れないレーンの返事を**。**数はそこを隠さないために 7 が分母**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- does the spec's scoring section describe THIS game ---------------
     #
     # C-1946. features.md opens with 「数値と操作は同じディレクトリの
