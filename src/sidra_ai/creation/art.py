@@ -209,7 +209,7 @@ def subject_of(request: str) -> str:
 
 #: Shared page shell. The script differs per pattern; the rules do not.
 _PAGE = """<!doctype html>
-<html lang="ja">
+<html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -224,7 +224,7 @@ _PAGE = """<!doctype html>
 </style>
 </head>
 <body>
-<canvas id="c" width="640" height="400">{title_marked}——{shape}がゆっくり動く抽象画（seed {seed}）。</canvas>
+<canvas id="c" width="640" height="400">{title_marked}{caption_join}{shape}{caption_tail}</canvas>
 <p>{title_marked} — seed {seed}</p>
 {note}
 <script>
@@ -392,6 +392,26 @@ _BODIES = {"flow": _FLOW_BODY, "orbits": _ORBITS_BODY}
 #: One word for what each pattern draws, used in the canvas's fallback
 #: content so a reader who cannot see it is told what is there.
 _SHAPE_WORDS = {"flow": "流れる線", "orbits": "回る粒"}
+#: The same word for a page written in English (C-1952). Beside the Japanese
+#: it translates, not in another file: two dictionaries a maintainer has to
+#: remember to edit together is the drift C-1848 warned about.
+_SHAPE_WORDS_EN = {"flow": "lines that flow", "orbits": "particles that orbit"}
+
+#: Derived from the bodies, never counted by hand: a pattern added without an
+#: English shape word raises at import rather than printing a Japanese phrase
+#: inside an English page. The second check is C-1945's - a word that is
+#: present but still Japanese is invisible to a count that only asks whether
+#: the key exists.
+_MISSING_SHAPE_EN = sorted(set(_SHAPE_WORDS) - set(_SHAPE_WORDS_EN))
+_UNTRANSLATED_SHAPE_EN = sorted(
+    word for word in _SHAPE_WORDS_EN.values()
+    if re.search(r"[぀-ゟ゠-ヿ一-鿿]", word)
+)
+if _MISSING_SHAPE_EN or _UNTRANSLATED_SHAPE_EN:  # pragma: no cover
+    raise RuntimeError(
+        f"art._SHAPE_WORDS_EN has no English for {_MISSING_SHAPE_EN} and "
+        f"still carries Japanese in {_UNTRANSLATED_SHAPE_EN}"
+    )
 
 
 def generate_art(
@@ -422,9 +442,19 @@ def generate_art(
     # it is the silent artifact C-1281/C-1283 fixed for the report and the 3D
     # preview. Disclose it on the page too, under the caption. No note when a
     # pattern was named; no digit, so validate_art has nothing to catch.
+    # C-1952: the page follows the language of the request, like the reply
+    # already does (C-1932). The pattern's own key IS its English name, for
+    # the reason that item gave: C-1619 kept the internal word out of a
+    # Japanese reply, and in English the key is simply the right word.
+    from sidra_ai.models.echo import _reply_in_japanese
+
+    in_japanese = _reply_in_japanese(request)
+    pattern_names = (
+        PATTERN_LABELS if in_japanese else {key: key for key in PATTERN_LABELS}
+    )
     note = ""
     if not named:
-        choices = " / ".join(PATTERN_LABELS.values())
+        choices = " / ".join(pattern_names.values())
         # C-1801: the chat summary says 「依頼にパターン名が無かったので…」, but the
         # page note used 「依頼「{題}」に合うパターン名が無かった」. For a bare
         # 「アートを作って」 the quoted 「アート」 is the medium itself, so the
@@ -432,9 +462,17 @@ def generate_art(
         # missing", while the chat (not forwarded) framed it honestly. Use the same
         # subjectless framing here so the page and the summary agree.
         note = (
-            f'<p class="note">依頼にパターン名が'
-            f"無かったため、既定の「{PATTERN_LABELS[DEFAULT_PATTERN]}」で"
-            f"描いています。指定できるパターン: {choices}。</p>"
+            (
+                f'<p class="note">依頼にパターン名が'
+                f"無かったため、既定の「{pattern_names[DEFAULT_PATTERN]}」で"
+                f"描いています。指定できるパターン: {choices}。</p>"
+            )
+            if in_japanese
+            else (
+                '<p class="note">The request named no pattern, so it is drawn '
+                f"with the default “{pattern_names[DEFAULT_PATTERN]}”. "
+                f"The patterns you can ask for are {choices}.</p>"
+            )
         )
     # C-1786: the request named a colour, but the palette is fixed to the brand
     # (cyan on magenta), so 「青い海」 was drawn in that palette, not blue. The
@@ -444,8 +482,16 @@ def generate_art(
     # default here. Disclose it on the page too, alongside the pattern note.
     if names_color(request):
         note += (
-            '<p class="note">依頼にあった色は今の配色に反映していません。'
-            "アートはブランド固定の配色（シアン×マゼンタ）で描いています。</p>"
+            (
+                '<p class="note">依頼にあった色は今の配色に反映していません。'
+                "アートはブランド固定の配色（シアン×マゼンタ）で描いています。</p>"
+            )
+            if in_japanese
+            else (
+                '<p class="note">The colour in the request is not used. The '
+                "art is drawn in the fixed brand palette (cyan and "
+                "magenta).</p>"
+            )
         )
     # C-1806: the same reasoning one step further. The page is titled with the
     # asker's own words - 「猫」 - and draws a flow field, so the title promises
@@ -456,8 +502,16 @@ def generate_art(
     # is a fragment of the request rather than a phrase worth repeating.
     if subject_of(request):
         note += (
-            '<p class="note">依頼にあった題材は描いていません。'
-            f"アートは抽象の模様（{' / '.join(PATTERN_LABELS.values())}）です。</p>"
+            (
+                '<p class="note">依頼にあった題材は描いていません。'
+                f"アートは抽象の模様（{' / '.join(pattern_names.values())}）です。</p>"
+            )
+            if in_japanese
+            else (
+                '<p class="note">The subject in the request is not drawn. The '
+                f"art is an abstract pattern ({' / '.join(pattern_names.values())})"
+                ".</p>"
+            )
         )
     html = _PAGE.format(
         title=escape(title),
@@ -478,7 +532,16 @@ def generate_art(
         # What the picture is, in a word, for the canvas's fallback content
         # (§36 事実 2's "descriptive identification"). Named per pattern so
         # the sentence describes THIS page rather than art in general.
-        shape=_SHAPE_WORDS[chosen],
+        shape=_SHAPE_WORDS[chosen] if in_japanese else _SHAPE_WORDS_EN[chosen],
+        lang="ja" if in_japanese else "en",
+        # The one sentence the canvas hands a screen reader (§36), and the
+        # caption under it. Both say the same thing, in the page's language.
+        caption_join="——" if in_japanese else " — ",
+        caption_tail=(
+            f"がゆっくり動く抽象画（seed {actual_seed}）。"
+            if in_japanese
+            else f" moving slowly, an abstract picture (seed {actual_seed})."
+        ),
     )
     return GeneratedArt(
         title=title,

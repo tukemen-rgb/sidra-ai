@@ -15224,6 +15224,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the art page, in the language asked -------------------------------
+    #
+    # C-1952, the second page C-1951 named. C-1932 put the art summary into
+    # the language of the request and left the HTML Japanese: the canvas
+    # fallback (§36's descriptive identification, which is what a screen
+    # reader is handed) and all three honesty notes - default pattern
+    # (C-1284), ignored colour (C-1786), undrawn subject (C-1806). Those
+    # notes exist so the page admits what it did not do; an admission the
+    # reader cannot read is not one.
+    #
+    # Its own number rather than a wider one: folding this into the deck's
+    # metric would read as 2 -> 4 while the deck side improved by nothing.
+    # They merge when game, model3d and gif follow.
+    from sidra_ai.evals.art_page_matches_the_language_asked import (
+        evaluate_art_page_matches_the_language_asked,
+    )
+
+    _artpage = evaluate_art_page_matches_the_language_asked()
+    c.add(
+        "creation_art_page_matches_the_language_asked",
+        "アートのページが、訊かれた言語で書かれている（C-1952）",
+        float(_artpage.sides_right),
+        detail=(
+            f"**日英それぞれでアートを実際に作り、返事ではなくページの HTML を読んだ**"
+            f"——**{_artpage.sides_right}/{_artpage.sides_total}**"
+            f"（日本語側は{'保たれている' if _artpage.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_artpage.failures[:2])
+               if _artpage.failures
+               else "**実測**: " + " / ".join(_artpage.readings))
+            + "。**依頼は 3 つの注記を全部引き当てるもの**"
+            "（**パターン名なし・色を名指し・描けない題材**）——"
+            "**「英語にする」を「消す」で済ませられないように**（C-1941 の規則 3 と同じ考え）。"
+            "**検査**: 日本語 0 行（題は除く・C-1929）、**`<html lang>` が中身と一致**、"
+            "**canvas の代替文が残っている**（§36——**読み上げに渡る唯一の文**）、"
+            "**注記が 3 つとも出ている**、**日本語側は門**。"
+            "**パターンの英語名は鍵そのもの**（`flow` / `orbits`）——**第 2 の表は作っていない**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the deck page, in the language asked ------------------------------
     #
     # C-1951. C-1935 put the deck's summary into the language of the request

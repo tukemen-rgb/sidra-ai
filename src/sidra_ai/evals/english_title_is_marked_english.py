@@ -137,6 +137,25 @@ def _displayed(html: str) -> str:
 _JAPANESE_TEXT = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
 
 
+def _appears_bare(title: str, bare: str) -> bool:
+    """Is the title itself there, rather than three letters of a word?
+
+    An English title is matched on word boundaries (C-1952). 「owl」 is inside
+    "sl-owl-y", and the art page's English description of a flow field says
+    "lines that flow moving slowly" - so a plain substring search reported a
+    title displayed without its mark when no title was displayed at all. A
+    check that cries wolf is the noise C-1480 kept bare "art" out of the cue
+    list to avoid.
+
+    A Japanese title stays a substring search: the language has no word
+    boundaries to anchor on, and 「猫」 inside 「猫のゲーム」 is the title.
+    """
+
+    if title.isascii():
+        return bool(re.search(rf"(?<![A-Za-z0-9]){re.escape(title)}(?![A-Za-z0-9])", bare))
+    return title in bare
+
+
 def _without_title(shown: str, title: str) -> str:
     """The displayed text minus the operator's own words.
 
@@ -213,7 +232,7 @@ def evaluate_english_title_is_marked_english() -> MarkedEnglishResult:
         # ...and nowhere is it displayed unmarked. Blank out the marked spans
         # first; whatever is left is an occurrence with no mark on it.
         bare = _SPAN_EN.sub("", shown)
-        if title in bare:
+        if _appears_bare(title, bare):
             failures.append(
                 f"{surface}「{request}」: 「{title}」 is still displayed "
                 "somewhere without a lang mark"
