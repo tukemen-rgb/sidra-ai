@@ -259,7 +259,7 @@ files 7.5%、いずれも上限内）。**上限の 2 つの値をここに書�
 
 ### A. セキュリティゲートの精度（測定済み・根拠あり）
 
-- [~] 作業中 2026-09-18 辛口ユーザー C-1963: 英語挨拶 "hi there" が `_GREETINGS` に無く no-evidence 壁に落ちる（"hey there"/"hello there" は在る対称な穴）。1 語追加の最小修正。→ 動かす数字: `chat_english_greeting_is_answered`（"hi there" を追加して RED→10）。
+- [x] 完了 2026-09-18 辛口ユーザー C-1963: 英語挨拶 "hi there" が `_GREETINGS` に無く no-evidence 壁に落ちていた（"hey there"/"hello there" は在る対称な穴）。1 語追加で修正。→ 動かす数字: `chat_english_greeting_is_answered` 9.231→10（判定器 exit 0 MOVED 1・退行なし）。RED 12/13→GREEN 13/13・破壊 5/5。
 
 - [x] 完了 2026-09-18 辛口ユーザー C-1961: PGP 秘密鍵ブロックが取込ゲート・出力ガード双方をすり抜ける（`private_key_block` が「PRIVATE KEY BLOCK」表記を捕えない）。両句に `(?: BLOCK)?` を足す最小修正で両ゲート同時に塞いだ。→ 動かす数字: `output_guard_blocks_pgp_private_key`（新設 unmeasurable→10・判定器 exit 0 MOVED 1・退行なし）。RED 14/18→GREEN 18/18・破壊 5/5。
 
