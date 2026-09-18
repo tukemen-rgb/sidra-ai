@@ -1,6 +1,6 @@
 """Does a Japanese page tell the screen reader which words are English?
 
-Every SIDRA page declares `<html lang="ja">`, which satisfies SC 3.1.1
+Every SIDRA page declares its language on `<html>`, which satisfies SC 3.1.1
 Language of Page (Level A). SC 3.1.2 Language of Parts (Level AA) asks for
 more: the language of each passage or phrase has to be programmatically
 determinable, so a speech synthesizer can reach for the right accent and
@@ -31,8 +31,14 @@ Four things, because each of the plausible wrong fixes passes the others:
   (c) nothing inside a `lang="en"` span is Japanese. The honesty note is
       one Japanese sentence quoting the operator's word, so marking the
       whole line is the obvious wrong fix - and it satisfies (a).
-  (d) the page still declares `lang="ja"`. (a) is trivially satisfiable by
-      flipping the document to English and breaking 3.1.1 instead.
+  (d) the page declares a language, and the declaration is true: it may
+      say English only if its own text - everything but the operator's own
+      title - really is English. (a) is trivially satisfiable by flipping
+      the document to English and breaking 3.1.1 instead, and that cheat is
+      what this catches. It used to be written as "still `lang="ja"`",
+      which was the same thing only while every page was Japanese; C-1951
+      made the deck page follow the request, and the narrower wording would
+      have called a correctly English page a regression.
   (e) and where a surface lets a model overlay the wording afterwards
       (`with_copy`), the heading still follows the new title. Marking the
       heading makes that overlay's anchor fragile - it has to be built in
@@ -126,6 +132,21 @@ def _displayed(html: str) -> str:
     return _TITLE_EL.sub("", _SCRIPTISH.sub("", html))
 
 
+#: Japanese script, for deciding whether a page that claims another language
+#: is telling the truth about its own text.
+_JAPANESE_TEXT = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
+
+
+def _without_title(shown: str, title: str) -> str:
+    """The displayed text minus the operator's own words.
+
+    A title is whatever the operator typed and may be in any language
+    (C-1929); it is the one thing on the page this product does not choose.
+    """
+
+    return shown.replace(title, " ")
+
+
 def evaluate_english_title_is_marked_english() -> MarkedEnglishResult:
     failures: list[str] = []
     readings: list[str] = []
@@ -149,12 +170,30 @@ def evaluate_english_title_is_marked_english() -> MarkedEnglishResult:
         html = _render(surface, request)
         shown = _displayed(html)
 
-        # (d) the document's own language is still declared, and still ja
+        # (d) the document declares a language, and the declaration is true.
+        #
+        # This check used to say "and it is still ja", against the cheat of
+        # satisfying (a) by flipping the document to English while leaving
+        # Japanese text on it - 3.1.1 broken instead of 3.1.2 served. The
+        # cheat is still caught, but the rule is now the one that was meant:
+        # a page may say English only if its own text (everything but the
+        # operator's title) really is. C-1951 made that reachable - the deck
+        # page follows the language of the request now - and this check
+        # would have called a correctly English page a regression.
         tag = _HTML_TAG.search(html)
-        if not tag or 'lang="ja"' not in tag.group(0):
+        declared = re.search(r'\blang="([a-z-]+)"', tag.group(0)) if tag else None
+        page_language = declared.group(1) if declared else ""
+        if not page_language:
             failures.append(
-                f"{surface}「{request}」: the document no longer declares "
-                f"lang=\"ja\" ({tag.group(0) if tag else 'no <html> tag'})"
+                f"{surface}「{request}」: the document declares no language "
+                f"({tag.group(0) if tag else 'no <html> tag'})"
+            )
+        elif page_language == "ja":
+            checks += 1
+        elif _JAPANESE_TEXT.search(_without_title(shown, title)):
+            failures.append(
+                f"{surface}「{request}」: the document says lang=\"{page_language}\" "
+                "while its own text is still Japanese"
             )
         else:
             checks += 1

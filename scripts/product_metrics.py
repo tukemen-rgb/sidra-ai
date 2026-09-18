@@ -15224,6 +15224,42 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the deck page, in the language asked ------------------------------
+    #
+    # C-1951. C-1935 put the deck's summary into the language of the request
+    # and left the page it points at Japanese, so 「make a slide deck about
+    # owls」 answered in English about a file headed 課題 / 解決 /
+    # 根拠となる数字 / 次の一歩, with 〔社長が埋める欄〕 in every slot and a
+    # Japanese footer. The operator's own title was the only English on it.
+    # The gap C-1939 named for the production set, one directory out.
+    from sidra_ai.evals.deck_page_matches_the_language_asked import (
+        evaluate_deck_page_matches_the_language_asked,
+    )
+
+    _deckpage = evaluate_deck_page_matches_the_language_asked()
+    c.add(
+        "creation_deck_page_matches_the_language_asked",
+        "スライドのページが、訊かれた言語で書かれている（C-1951）",
+        float(_deckpage.sides_right),
+        detail=(
+            f"**日英それぞれでスライドを実際に作り、返事ではなくページの HTML を読んだ**"
+            f"——**{_deckpage.sides_right}/{_deckpage.sides_total}**"
+            f"（日本語側は{'保たれている' if _deckpage.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_deckpage.failures[:2])
+               if _deckpage.failures
+               else "**実測**: " + " / ".join(_deckpage.readings))
+            + "。**検査**: **英語の依頼のページに日本語が 0 行**"
+            "（**題は操作者の語なので `<title>` と `<h1>` を外して数える**・C-1929）、"
+            "**`<html lang>` が中身と一致**（WCAG 3.1.1——**常に ja と言うページは、"
+            "見出しが英語になった瞬間から嘘になる**）、**それでも deck の形をしている**"
+            "（題・節の数だけの見出し・footer）、**日本語側は門**（見出し・空欄の印・footer の文言が残っている）。"
+            "**節名は鍵のまま**——`SECTION_CUES` は「課題」で手がかり語を引くので、"
+            "**訳したのは読む人が見る見出しだけ**（`SECTION_LABELS_EN`）。"
+            "**足し忘れと「足したが日本語のまま」の両方を import 時に検査**する（C-1945 と同じ 2 段）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- can a keyboard user see where they are ---------------------------
     #
     # C-1950, §39. The generated page carried no focus rule at all: no

@@ -98,6 +98,56 @@ OUTLINES: dict[str, DeckOutline] = {
 }
 
 
+#: The section names written for a reader of English (C-1951).
+#:
+#: The Japanese name stays the KEY - ``SECTION_CUES`` looks up 「課題」 to find
+#: the words that put a fact on that slide, and ``Slide.title`` carries it
+#: from ``build_slides`` to the renderer. Only the heading a reader sees is
+#: translated, at the one place it is printed. Splitting the key from the
+#: label here rather than making a second outline is the same rule the
+#: control keys follow (C-1942): one registry, two columns.
+SECTION_LABELS_EN: dict[str, str] = {
+    "課題": "The problem",
+    "解決": "The answer",
+    "根拠となる数字": "The numbers behind it",
+    "次の一歩": "The next step",
+    "いま出来ること": "What works today",
+    "測った数字": "What was measured",
+    "残っていること": "What is left",
+    "判断が要る点": "What needs a decision",
+}
+
+#: Derived from the outlines, never counted by hand: a section added to an
+#: outline without an English label raises at import instead of printing a
+#: Japanese heading inside an English deck. The second check is the one
+#: C-1945 learned to add - a label that is present but still Japanese is
+#: invisible to every count that only asks whether the key exists.
+_JAPANESE_SCRIPT = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
+_MISSING_SECTION_EN = sorted(
+    {section for spec in OUTLINES.values() for section in spec.sections}
+    - set(SECTION_LABELS_EN)
+)
+_UNTRANSLATED_SECTION_EN = sorted(
+    label for label in SECTION_LABELS_EN.values() if _JAPANESE_SCRIPT.search(label)
+)
+if _MISSING_SECTION_EN or _UNTRANSLATED_SECTION_EN:  # pragma: no cover
+    raise RuntimeError(
+        f"decks.SECTION_LABELS_EN has no English for {_MISSING_SECTION_EN} "
+        f"and still carries Japanese in {_UNTRANSLATED_SECTION_EN}"
+    )
+
+#: The same blank marker in an English deck. Still a marker, not an empty
+#: cell: the whole point is that something goes here and the generator will
+#: not invent it.
+BLANK_EN = "[for the owner to fill in]"
+
+
+def section_label(section: str, *, in_japanese: bool = True) -> str:
+    """The heading a reader sees for this section."""
+
+    return section if in_japanese else SECTION_LABELS_EN[section]
+
+
 @dataclass(frozen=True)
 class GeneratedDeck:
     outline: str
@@ -535,18 +585,36 @@ def _render(
     count_caveat: str = "",
     title_number_unsourced: bool = False,
     subject_missing: bool = False,
+    in_japanese: bool = True,
 ) -> str:
+    """C-1951: the page follows the language of the request, like the reply.
+
+    C-1935 put the deck's *summary* into the language asked for. The page it
+    points at stayed Japanese, so 「make a slide deck about owls」 returned an
+    English sentence about a file whose every heading, blank marker, source
+    line and footer was Japanese - the operator's own title was the one
+    English word in it. That is the gap C-1939 named for the production set,
+    still open one directory out.
+    """
+
     t = theme.tokens
+    blank = BLANK if in_japanese else BLANK_EN
     # C-1478: a fact whose text matched no section's cue was left out of every
     # slide - the right conservative call - but silently, so the deck read as
     # the whole picture. Disclosed here the way the report discloses its
     # set-aside evidence (C-1281): that some evidence did not fit, no figure.
-    omitted_note = (
-        "どのスライドにも当てはまらなかった根拠は載せていません"
-        "（見出しに沿う内容だけを配置しています）。"
-        if omitted
-        else ""
-    )
+    if not omitted:
+        omitted_note = ""
+    elif in_japanese:
+        omitted_note = (
+            "どのスライドにも当てはまらなかった根拠は載せていません"
+            "（見出しに沿う内容だけを配置しています）。"
+        )
+    else:
+        omitted_note = (
+            "Evidence that fitted no slide is not shown here (only material "
+            "that answers a heading is placed under it)."
+        )
     # C-1793: when the request named a structure the deck cannot build (SWOT,
     # タイムライン…) it fell back to a standard outline under the asked-for
     # title. Disclosed on the artifact itself the way the game page discloses a
@@ -564,12 +632,24 @@ def _render(
     # every number was. Scope that promise to the body and name the gap, the way
     # the report does for the same case (C-1772). A clean title keeps the
     # original blanket assurance.
-    number_scope = "本文の数字は" if title_number_unsourced else "数字は"
-    title_caveat = (
-        "タイトルの数値は索引した根拠では確認できていません。"
-        if title_number_unsourced
-        else ""
-    )
+    if in_japanese:
+        number_scope = "本文の数字は" if title_number_unsourced else "数字は"
+        title_caveat = (
+            "タイトルの数値は索引した根拠では確認できていません。"
+            if title_number_unsourced
+            else ""
+        )
+    else:
+        number_scope = (
+            "The numbers in the body are "
+            if title_number_unsourced
+            else "The numbers are "
+        )
+        title_caveat = (
+            "The figure in the title is not confirmed by any indexed source."
+            if title_number_unsourced
+            else ""
+        )
     # C-1846: a fact matching a slide's section cue is placed on that slide even
     # when it does not mention the deck's subject, so the deck reads as backed by
     # its subject when it is not - the deck twin of the report's C-1532. Say it
@@ -577,28 +657,68 @@ def _render(
     # slides must meet the caveat first, the same reason the report puts it in the
     # 概要. The facts are still shown below (C-1403); this is the sentence beside
     # them. Empty when a placed fact does mention the subject, or none was placed.
-    subject_banner = (
-        f"<p class='subject-miss'>⚠️ 索引した資料に「{escape(title)}」に触れているものは"
-        "ありませんでした。各スライドの内容は検索が返した資料そのままで、"
-        "主題との重なりは確認できていません。"
-        "主題についての根拠として読まないでください。</p>"
-        if subject_missing
-        else ""
-    )
+    if not subject_missing:
+        subject_banner = ""
+    elif in_japanese:
+        subject_banner = (
+            f"<p class='subject-miss'>⚠️ 索引した資料に「{escape(title)}」に触れているものは"
+            "ありませんでした。各スライドの内容は検索が返した資料そのままで、"
+            "主題との重なりは確認できていません。"
+            "主題についての根拠として読まないでください。</p>"
+        )
+    else:
+        subject_banner = (
+            f"<p class='subject-miss'>⚠️ Nothing in the indexed material "
+            f"mentions {marked_english(title)}. Each slide carries what the "
+            "search returned, and the overlap with the subject has not been "
+            "checked. Do not read this as evidence about the subject.</p>"
+        )
+    if in_japanese:
+        footer_body = (
+            f"{fallback_note}{count_note}SIDRA AI が生成。{number_scope}"
+            "索引した文書から引いたものだけを載せ、\n"
+            f"根拠が無い欄は {escape(blank)} のまま残しています（推測で埋めません）。"
+            f"{title_caveat}{omitted_note}"
+        )
+    else:
+        footer_body = (
+            f"{fallback_note}{count_note}Generated by SIDRA AI. {number_scope}"
+            "only the ones taken from an indexed document, and\n"
+            f"a slot with no evidence is left as {escape(blank)} "
+            "(nothing is filled in by guesswork). "
+            f"{title_caveat}{omitted_note}"
+        )
     blocks = []
     for index, slide in enumerate(slides, start=1):
-        bullets = "".join(f"<li>{escape(b)}</li>" for b in slide.bullets)
-        sources = (
-            "<p class='src'>出典: " + escape(" / ".join(slide.sources)) + "</p>"
-            if slide.sources
-            else "<p class='src blank'>出典なし - この欄は埋まっていません</p>"
+        # The blank marker is put on the slide by `build_slides`, which has no
+        # language to work from - it is the one word on a bullet this module
+        # wrote rather than took from a retrieved fact, so it is swapped for
+        # the reader's here (C-1951). Retrieved text is never touched.
+        bullets = "".join(
+            f"<li>{escape(b if in_japanese else b.replace(BLANK, blank))}</li>"
+            for b in slide.bullets
         )
+        if slide.sources:
+            label = "出典: " if in_japanese else "Sources: "
+            sources = f"<p class='src'>{label}" + escape(" / ".join(slide.sources)) + "</p>"
+        else:
+            sources = (
+                "<p class='src blank'>出典なし - この欄は埋まっていません</p>"
+                if in_japanese
+                else "<p class='src blank'>No source - this slide is not "
+                "filled in</p>"
+            )
+        heading = section_label(slide.title, in_japanese=in_japanese)
         blocks.append(
             f"<section class='slide'><p class='no'>{index}/{len(slides)}</p>"
-            f"<h2>{escape(slide.title)}</h2><ul>{bullets}</ul>{sources}</section>"
+            f"<h2>{escape(heading)}</h2><ul>{bullets}</ul>{sources}</section>"
         )
+    # C-1951, WCAG 3.1.1 (§37 cites it for the inline case): the page says
+    # which language it is in, and it says the truth. A page that always
+    # claimed Japanese would start lying the moment the headings became
+    # English.
     return f"""<!doctype html>
-<html lang="ja"><head><meta charset="utf-8">
+<html lang="{"ja" if in_japanese else "en"}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)}</title>
 <style>
@@ -630,8 +750,7 @@ footer{{margin-top:24px;border-top:1px solid {t["border"]};padding-top:14px;
 <h1>{marked_english(title)}</h1>
 {subject_banner}
 {"".join(blocks)}
-<footer>{fallback_note}{count_note}SIDRA AI が生成。{number_scope}索引した文書から引いたものだけを載せ、
-根拠が無い欄は {escape(BLANK)} のまま残しています（推測で埋めません）。{title_caveat}{omitted_note}</footer>
+<footer>{footer_body}</footer>
 </main></body></html>
 """
 
@@ -648,6 +767,14 @@ def generate_deck(
     the deck still renders, entirely in blanks, which is an honest artifact.
     """
 
+    # C-1951: one decision for the whole artifact, taken where the request
+    # is, by the product's own rule. Imported here rather than at module
+    # scope: `creation.__init__` pulls this module in and `models.echo`
+    # imports `creation.evidence`, so a top-level import closes the circle
+    # (the same reason `router` does it this way).
+    from sidra_ai.models.echo import _reply_in_japanese
+
+    in_japanese = _reply_in_japanese(request)
     key = outline or choose_outline(request)
     if key not in OUTLINES:
         raise KeyError(f"unknown deck outline: {key!r}")
@@ -656,10 +783,10 @@ def generate_deck(
     slides, used = build_slides(spec, provided)
     omitted = any(fact not in used for fact in provided)
     title = _title_from(request, spec.default_title)
-    fallback = outline_fallback_note(request, key)
+    fallback = outline_fallback_note(request, key, in_japanese=in_japanese)
     # C-1821: read off the slides actually built, never a literal - an outline
     # that grows a section must not leave this sentence behind.
-    count_caveat = slide_count_note(request, len(slides))
+    count_caveat = slide_count_note(request, len(slides), in_japanese=in_japanese)
     # C-1799: a figure in the cover title that no retrieved fact carries is an
     # unsourced number, exactly as the report checks its own title (C-1772). The
     # same source label + text is the evidence a slide could have cited.
@@ -678,8 +805,16 @@ def generate_deck(
         count_caveat=count_caveat,
         title_number_unsourced=title_number_unsourced,
         subject_missing=subject_missing,
+        in_japanese=in_japanese,
     )
-    unfilled = tuple(slide.title for slide in slides if slide.blanks)
+    # The summary names the slides that are still blank, so it names them the
+    # way the page does (C-1951): an English reply pointing at 「課題」 would
+    # send the reader looking for a heading that is not on the page.
+    unfilled = tuple(
+        section_label(slide.title, in_japanese=in_japanese)
+        for slide in slides
+        if slide.blanks
+    )
     return GeneratedDeck(key, title, slides, html, unfilled)
 
 
