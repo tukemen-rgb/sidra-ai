@@ -27,7 +27,7 @@ from sidra_ai.ingestion.state import StateStore
 
 ENGLISH_GREETINGS: tuple[str, ...] = (
     "hello", "hi", "hey", "good morning", "good evening",
-    "thanks", "thank you", "hello there",
+    "thanks", "thank you", "hello there", "hi there",
 )
 
 #: A real English message that is not a bare greeting: it must still be answered

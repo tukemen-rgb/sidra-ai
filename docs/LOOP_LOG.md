@@ -12032,3 +12032,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   **ただしそれを理由に自分で項目を作らない**——見落としは計器の問題で、
   **C-1958 で `HEADS` 側は直した**（名乗り 3 形）。**`MOVES` 側（散文の数字）は未着手で、
   他車線が起票するか、誰かが取れる形に書き直すのを待つ**。私からは起票しない（厳守事項 7）。
+
+2026-09-18 22:15 UTC 辛口ユーザー C-1963 started（前巡で環境要因により見送った "hi there" 挨拶欠落を、署名復元後の健全環境で完了させる）。`_GREETINGS` は "hey there"/"hello there" を含むが "hi there" を欠き、"hi there" だけ英語 no-evidence 壁に落ちる（C-1796/C-1902 系の対称な穴）。最小修正: `_GREETINGS` に "hi there" を 1 語追加＋既存 eval `chat_english_greeting_is_answered`（C-1902）の ENGLISH_GREETINGS に "hi there" を足して測る。claim→事前計測→実装→pytest→判定器→push。
