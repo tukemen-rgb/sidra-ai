@@ -2523,6 +2523,21 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    from sidra_ai.evals.output_guard_blocks_pgp_private_key import (
+        evaluate_output_guard_blocks_pgp_private_key,
+    )
+
+    pgp = evaluate_output_guard_blocks_pgp_private_key()
+    c.add(
+        "output_guard_blocks_pgp_private_key",
+        "PGP 秘密鍵ブロックが取込ゲート・出力ガード双方で捕まる（PRIVATE KEY BLOCK 表記も PEM 鍵と同様に検知）",
+        10.0 * pgp.checks_passed / pgp.checks_total,
+        detail=f"{pgp.checks_passed}/{pgp.checks_total} checks; "
+               "src/sidra_ai/evals/output_guard_blocks_pgp_private_key.py"
+               + ("" if pgp.passed else "; " + "; ".join(pgp.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1872: the guardian above checks synthetic payloads for a fixed code list,
     # so six conversational refusals the service added after C-1811 (delete /
     # list / feature-question / panel-setting / revision content and kind) fell to
