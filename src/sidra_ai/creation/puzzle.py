@@ -58,6 +58,13 @@ PUZZLE_HOW = (
     "大きいかたまりほど高得点。R でやり直し、M で消音。"
 )
 
+#: The same instructions in English (C-1944).
+PUZZLE_HOW_EN = (
+    "Move the cursor with ← ↑ → ↓, clear a block of the same colour with "
+    "SPACE (two or more). The bigger the block, the higher the score. "
+    "R starts over, M mutes."
+)
+
 PUZZLE_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const COLOURS=SPEED_TOKEN,COLS=BAND_TOKEN,SEED=SEED_TOKEN;

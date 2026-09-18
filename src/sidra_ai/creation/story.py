@@ -267,6 +267,10 @@ def screens(
     return tuple(rows)
 
 BLANK = "〔運用者が埋める〕"
+#: The same marker in an English document (C-1944). Kept a marker, not
+#: an empty cell: a blank cell reads as "nothing goes here", and the
+#: whole point is that something does and the generator will not invent it.
+BLANK_EN = "[for the operator to fill in]"
 
 
 @dataclass(frozen=True)
@@ -363,17 +367,32 @@ def _header(
 
 
 def scenario(
-    title: str, evidence: tuple[str, ...], plan: ProductionPlan, fallback: str = ""
+    title: str,
+    evidence: tuple[str, ...],
+    plan: ProductionPlan,
+    fallback: str = "",
+    *,
+    in_japanese: bool = True,
 ) -> str:
     """The one stage that stays mostly blank, and says so.
 
     An あらすじ is a claim about what the game is about. Generating one would
     hand the owner invented intent in the place they are least likely to
     check it - so the blanks are labelled instead.
+
+    C-1944: written in the language of the request. The only thing this
+    document reads from the template registry is ``how_to_play``, and the
+    registry now carries it in both languages (``how_to_play_en``, a required
+    field, so a template cannot exist without one). ``features`` is still
+    Japanese whatever the request said: it reads the control meanings and the
+    parameter labels, which the registry holds in Japanese alone, and a frame
+    in one language over rows in another is the half-translated document this
+    loop has refused six times.
     """
 
     spec = TEMPLATES[plan.template]
-    return _header(title, "脚本", evidence, fallback) + f"""
+    if in_japanese:
+        return _header(title, "脚本", evidence, fallback) + f"""
 ## 遊びの芯（テンプレートが決めている部分）
 
 {spec.how_to_play}
@@ -396,6 +415,33 @@ def scenario(
 1. 開始 — 操作の説明行が出た状態でプレイが始まる
 2. 反復 — {"帯に合わせる試行を繰り返す" if plan.template == "fishing" else "落ちてくるものを受け続ける"}
 3. 区切り — スコアと失敗数が画面に出続ける（明示的な終了画面は現状なし）
+"""
+    fishing = plan.template == "fishing"
+    return _header(title, "Scenario", evidence, fallback, in_japanese=False) + f"""
+## The core of the play (the part the template decides)
+
+{spec.how_to_play_en}
+
+That line is read off the generator's implementation. The story is written on
+top of those controls, not around them.
+
+## Synopsis
+
+{BLANK_EN} (the generator does not write stories. Write a plot that fits the
+core above.)
+
+## Who and what is in it
+
+| Name | Role | Note on the look |
+|---|---|---|
+| The lead | what the player moves | {BLANK_EN} |
+| The target | {"what you time against (the middle of the band)" if fishing else "what falls"} | {BLANK_EN} |
+
+## Scenes
+
+1. Start — play begins with the line that names the controls already on screen
+2. Repeat — {"time one try against the band, again and again" if fishing else "keep catching what falls"}
+3. Break — the score and the miss count stay on screen (there is no explicit end screen today)
 """
 
 

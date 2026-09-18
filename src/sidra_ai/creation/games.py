@@ -38,6 +38,7 @@ from pathlib import Path
 from sidra_ai.creation.adventure import (
     ADVENTURE_DIFFICULTY,
     ADVENTURE_HOW,
+    ADVENTURE_HOW_EN,
     ADVENTURE_SCRIPT,
     ADVENTURE_TITLE,
     ADVENTURE_WORDS,
@@ -76,6 +77,7 @@ from sidra_ai.creation.remap import preamble_for as remap_preamble_for
 from sidra_ai.creation.marble import (
     GATE_BASE as MARBLE_GATE_BASE,
     MARBLE_HOW,
+    MARBLE_HOW_EN,
     MARBLE_SCRIPT,
     MARBLE_TITLE,
     MARBLE_WORDS,
@@ -108,6 +110,7 @@ from sidra_ai.creation.fullscreen import (
 from sidra_ai.creation.puzzle import (
     PUZZLE_DIFFICULTY,
     PUZZLE_HOW,
+    PUZZLE_HOW_EN,
     PUZZLE_SCRIPT,
     PUZZLE_TITLE,
     PUZZLE_WORDS,
@@ -115,6 +118,7 @@ from sidra_ai.creation.puzzle import (
 from sidra_ai.creation.shooter import (
     SHOOTER_DIFFICULTY,
     SHOOTER_HOW,
+    SHOOTER_HOW_EN,
     SHOOTER_SCRIPT,
     SHOOTER_TITLE,
     SHOOTER_WORDS,
@@ -122,6 +126,7 @@ from sidra_ai.creation.shooter import (
 from sidra_ai.creation.kaiju import (
     KAIJU_DIFFICULTY,
     KAIJU_HOW,
+    KAIJU_HOW_EN,
     KAIJU_SCRIPT,
     KAIJU_TITLE,
     KAIJU_WORDS,
@@ -129,6 +134,7 @@ from sidra_ai.creation.kaiju import (
 from sidra_ai.creation.racing import (
     RACING_DIFFICULTY,
     RACING_HOW,
+    RACING_HOW_EN,
     RACING_LAPS,
     RACING_SCRIPT,
     RACING_TITLE,
@@ -137,6 +143,7 @@ from sidra_ai.creation.racing import (
 from sidra_ai.creation.platformer import (
     PLATFORMER_DIFFICULTY,
     PLATFORMER_HOW,
+    PLATFORMER_HOW_EN,
     PLATFORMER_SCRIPT,
     PLATFORMER_TITLE,
     PLATFORMER_WORDS,
@@ -151,6 +158,7 @@ from sidra_ai.creation.tuning import TUNE_PREAMBLE, panel_schema
 from sidra_ai.creation.duel import (
     DUEL_DIFFICULTY,
     DUEL_HOW,
+    DUEL_HOW_EN,
     DUEL_SCRIPT,
     DUEL_TITLE,
     DUEL_WORDS,
@@ -180,6 +188,17 @@ class GameTemplate:
     key: str
     default_title: str
     how_to_play: str
+    #: The same instructions for a reader of English (C-1944). Required, with
+    #: no default, and the only place a ``GameTemplate`` is constructed is the
+    #: ten entries of ``TEMPLATES`` below - so a template added without
+    #: English cannot ship a Japanese sentence into an English document; it
+    #: fails to be built at all. One step past C-1942's import-time check on
+    #: the control keys: there the module refused, here the type does.
+    #:
+    #: It says the same thing, not a looser thing. These are statements of
+    #: what the keys do, and a document that softened them would be
+    #: describing a different game from the one in the same directory.
+    how_to_play_en: str
     #: Called with the resolved difficulty; returns the game's JavaScript.
     script: str
 
@@ -918,60 +937,70 @@ TEMPLATES: dict[str, GameTemplate] = {
         "fishing",
         "タイミング釣り",
         "動くマーカーが帯の中にある間に SPACE かクリック。",
+        "Press SPACE or click while the moving marker is inside the band.",
         _FISHING,
     ),
     "catch": GameTemplate(
         "catch",
         "落ちものキャッチ",
         "落ちてくるものを受け皿で拾う。← → かマウスで動かす。",
+        "Catch what falls in the tray. Move it with ← → or the mouse.",
         _CATCH,
     ),
     "adventure": GameTemplate(
         "adventure",
         ADVENTURE_TITLE,
         ADVENTURE_HOW,
+        ADVENTURE_HOW_EN,
         ADVENTURE_SCRIPT,
     ),
     "duel": GameTemplate(
         "duel",
         DUEL_TITLE,
         DUEL_HOW,
+        DUEL_HOW_EN,
         DUEL_SCRIPT,
     ),
     "shooter": GameTemplate(
         "shooter",
         SHOOTER_TITLE,
         SHOOTER_HOW,
+        SHOOTER_HOW_EN,
         SHOOTER_SCRIPT,
     ),
     "puzzle": GameTemplate(
         "puzzle",
         PUZZLE_TITLE,
         PUZZLE_HOW,
+        PUZZLE_HOW_EN,
         PUZZLE_SCRIPT,
     ),
     "kaiju": GameTemplate(
         "kaiju",
         KAIJU_TITLE,
         KAIJU_HOW,
+        KAIJU_HOW_EN,
         KAIJU_SCRIPT,
     ),
     "racing": GameTemplate(
         "racing",
         RACING_TITLE,
         RACING_HOW,
+        RACING_HOW_EN,
         RACING_SCRIPT,
     ),
     "marble": GameTemplate(
         "marble",
         MARBLE_TITLE,
         MARBLE_HOW,
+        MARBLE_HOW_EN,
         MARBLE_SCRIPT,
     ),
     "platformer": GameTemplate(
         "platformer",
         PLATFORMER_TITLE,
         PLATFORMER_HOW,
+        PLATFORMER_HOW_EN,
         PLATFORMER_SCRIPT,
     ),
 }

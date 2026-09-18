@@ -68,6 +68,14 @@ KAIJU_HOW = (
     "R でやり直し、M で消音。"
 )
 
+#: The same instructions in English (C-1944).
+KAIJU_HOW_EN = (
+    "Walk with ← →, shoot with SPACE. Break a leg and the head comes down "
+    "- that is the only weak point. A line running along the ground means "
+    "a fissure is about to open; get clear before it does. Bring it down in "
+    "three cycles. R starts over, M mutes."
+)
+
 #: 60fps × 2.1s. The measured combat cut length, used as the attack interval.
 KAIJU_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');

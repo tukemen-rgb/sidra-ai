@@ -55,6 +55,13 @@ SHOOTER_HOW = (
     "ぶつかると 1 倍に戻る。3 回ぶつかると終わり。R でやり直し、M で消音。"
 )
 
+#: The same instructions in English (C-1944).
+SHOOTER_HOW_EN = (
+    "Move with ← →, hold SPACE to keep firing. Shoot the waves down. The "
+    "multiplier climbs the longer you keep hitting and drops back to 1x when "
+    "you collide. Three collisions end the run. R starts over, M mutes."
+)
+
 SHOOTER_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const FALL=SPEED_TOKEN,WAVE=BAND_TOKEN,SEED=SEED_TOKEN;

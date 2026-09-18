@@ -83,6 +83,13 @@ PLATFORMER_HOW = (
     "R でやり直し、M で消音。"
 )
 
+#: The same instructions in English (C-1944).
+PLATFORMER_HOW_EN = (
+    "Run with ← →, jump with ↑ or SPACE. How long you hold it sets the "
+    "height. Cross the platforms to the flag at the end. Five gems light a "
+    "lantern, and a fall puts you back at it. R starts over, M mutes."
+)
+
 #: The whole game. Rendered into the shared page shell; the audio, juice,
 #: scene and pad preambles are prepended by ``generate_game`` like every
 #: template. No ``combat(...)`` call anywhere in this script, on purpose.

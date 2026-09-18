@@ -413,6 +413,13 @@ parameters only.
 #: :mod:`sidra_ai.creation.story` for why they are derived rather than
 #: invented. The ``_*_skeleton`` functions above are kept as the shape these
 #: replaced; nothing calls them any more.
+#: The stages whose writer takes ``in_japanese``. Named as the ones that
+#: CAN, never as the ones that cannot: a list of what is still missing is a
+#: list whose last row nobody deletes (C-1942). This one grows until it holds
+#: every stage, and at that point it is the branch itself that goes - the
+#: call becomes unconditional and this name has nothing left to say.
+_WRITES_IN_THE_REQUESTS_LANGUAGE = frozenset({Stage.SCENARIO, Stage.STRUCTURE})
+
 SKELETONS = {
     Stage.SCENARIO: story.scenario,
     Stage.STRUCTURE: story.structure,
@@ -494,19 +501,14 @@ def scaffold_project(
 
     for stage in stages:
         if stage in SKELETONS:
-            if stage is Stage.STRUCTURE:
-                # C-1942: the one design document whose text this repo owns
-                # end to end - its rows are story.py's own prose plus the
-                # control *keys*. `scenario` and `features` read the template
-                # registry's Japanese (how_to_play, the control meanings, the
-                # parameter labels) and stay Japanese until it has English,
-                # because a frame in one language over rows in another is the
-                # half-translated document this loop has refused five times.
-                #
-                # Named here rather than kept in a table of "stages that can
-                # do English": a table would hold a row per stage still
-                # waiting, and a row is exactly what nobody deletes.
-                written = story.structure(
+            if stage in _WRITES_IN_THE_REQUESTS_LANGUAGE:
+                # C-1942, C-1944: the writers whose text the registry can
+                # supply in the language asked for. `features` is not one of
+                # them yet - it reads the control meanings and the parameter
+                # labels, which the registry holds in Japanese alone, and a
+                # frame in one language over rows in another is the
+                # half-translated document this loop has refused six times.
+                written = SKELETONS[stage](
                     title,
                     evidence,
                     plan,

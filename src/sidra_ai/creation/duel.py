@@ -56,6 +56,13 @@ DUEL_HOW = (
     "ビーム同士がぶつかったら SPACE 連打で押し返す。先に 3 発当てた方の勝ち。M で消音。"
 )
 
+#: The same instructions in English (C-1944).
+DUEL_HOW_EN = (
+    "Charge with SPACE or a long press, release to fire the beam. Change "
+    "lanes with ↑↓. When two beams meet, mash SPACE to push back. First to "
+    "land 3 hits wins. M mutes."
+)
+
 #: Where 「押しっぱなしにしない」 applies (§29, C-1729). The charge is a
 #: held key - keydown to hold, keyup to fire - and this template is the
 #: only one that reads the latch. The panel used to offer the switch on

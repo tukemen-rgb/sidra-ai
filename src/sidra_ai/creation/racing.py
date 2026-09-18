@@ -89,6 +89,13 @@ RACING_HOW = (
     "周回ごとのタイムが残る。R でやり直し、M で消音。"
 )
 
+#: The same instructions in English (C-1944).
+RACING_HOW_EN = (
+    "Steer with ← →. Leaving the course or hitting an obstacle slows you "
+    "down (you never come to a stop). Easy finishes in 2 laps, normal in 3, "
+    "hard in 4, and every lap time is kept. R starts over, M mutes."
+)
+
 RACING_SCRIPT = """
 const cv=document.getElementById('stage'),cx=cv.getContext('2d');
 const PACE=SPEED_TOKEN,GAP=BAND_TOKEN,SEED=SEED_TOKEN;

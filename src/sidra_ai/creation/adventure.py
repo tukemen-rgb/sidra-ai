@@ -76,6 +76,14 @@ ADVENTURE_HOW = (
     "祭壇の宝箱を開ける。やられたら R でやり直し。M で消音。"
 )
 
+#: The same instructions in English (C-1944), kept beside the Japanese
+#: they translate so the two cannot drift apart in separate files.
+ADVENTURE_HOW_EN = (
+    "Move with the arrow keys or WASD, swing the sword with SPACE or a tap. "
+    "Cut the grass, take the key from the enemy in the cave, and open the "
+    "chest at the altar. R starts over after you go down. M mutes."
+)
+
 #: The whole game. Rendered into the shared page shell; ``sprite()`` and the
 #: animation preamble are prepended by ``generate_game`` like every template.
 ADVENTURE_SCRIPT = """

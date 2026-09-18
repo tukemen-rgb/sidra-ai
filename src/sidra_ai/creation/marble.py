@@ -42,6 +42,12 @@ import json
 MARBLE_TITLE = "転がる玉のコース"
 MARBLE_HOW = "← → で玉を寄せる。ゲートを抜けると加点、ブロックに当たると転倒。"
 
+#: The same instructions in English (C-1944).
+MARBLE_HOW_EN = (
+    "Steer the marble with ← →. Passing through a gate scores; hitting a "
+    "block topples it."
+)
+
 #: Words that should land here. 3D is the one people type; the rest are
 #: what they call the thing when they do not.
 MARBLE_WORDS: tuple[str, ...] = (
