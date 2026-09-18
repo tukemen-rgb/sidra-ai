@@ -91,6 +91,24 @@ ROUND_SCORE: dict[str, tuple[str, str]] = {
     "shooter": ("score+grazeFacts().paid", "得点"),
 }
 
+#: The same labels in English, beside the Japanese rather than in a module
+#: of their own (C-1959). Every key here has to be a key there, and no
+#: value may still carry Japanese - both are checked at import, because a
+#: label that fell back would put one Japanese word in an English HUD and
+#: nothing else would notice.
+ROUND_SCORE_EN: dict[str, str] = {
+    "adventure": "gems",
+    "catch": "score",
+    "duel": "damage dealt",
+    "fishing": "score",
+    "kaiju": "score",
+    "marble": "score",
+    "platformer": "gems",
+    "puzzle": "score",
+    "racing": "laps done",
+    "shooter": "score",
+}
+
 #: The second key, for the four templates whose score has a ceiling.
 #:
 #: C-1124: a race is scored by laps completed and there are three of them,
@@ -111,6 +129,30 @@ ROUND_TIE: dict[str, tuple[str, str, str]] = {
     "kaiju": ("me.hp", "more", "残り体力"),
     "adventure": ("hero.hp", "more", "残り体力"),
 }
+
+#: The tiebreak labels in English, beside the Japanese for the same reason
+#: ``ROUND_SCORE_EN`` is (C-1959).
+ROUND_TIE_EN: dict[str, str] = {
+    "racing": "total time",
+    "duel": "health left",
+    "kaiju": "health left",
+    "adventure": "health left",
+}
+
+_MISSING_LABEL_EN = sorted(set(ROUND_SCORE) - set(ROUND_SCORE_EN))
+_MISSING_TIE_EN = sorted(set(ROUND_TIE) - set(ROUND_TIE_EN))
+_LABEL_NOT_ENGLISH = sorted(
+    key
+    for key, value in list(ROUND_SCORE_EN.items()) + list(ROUND_TIE_EN.items())
+    if re.search(r"[぀-ゟ゠-ヿ一-鿿]", value)
+)
+
+if _MISSING_LABEL_EN or _MISSING_TIE_EN or _LABEL_NOT_ENGLISH:  # pragma: no cover
+    raise RuntimeError(
+        f"round.py has no English label for {_MISSING_LABEL_EN}, no English "
+        f"tiebreak for {_MISSING_TIE_EN}, and Japanese still in "
+        f"{_LABEL_NOT_ENGLISH}"
+    )
 
 
 #: Names the preamble introduces, held to by a test like the other
@@ -313,7 +355,7 @@ function drawRoundClock(){if(!RCV||!roundClockDue())return;
      not that anybody is losing. */
   c.fillStyle=urgent?'MAGENTA_TOKEN':'INK_TOKEN';
   c.textAlign='right';c.font=hudPx(15)+'px ui-monospace,monospace';
-  c.fillText('のこり '+roundLeft(),W-16,box[1]+21);
+  c.fillText(CW.time_left+' '+roundLeft(),W-16,box[1]+21);
   c.textAlign='left';c.restore()}
 function roundClockFacts(){return {due:roundClockDue(),left:roundLeft(),
   remain:roundRemainMs(),urgent:roundRemainMs()<=ROUND_URGENT_MS,
@@ -348,16 +390,16 @@ function drawRoundEnd(){if(!RCV)return;
      template gets when time runs out before the game concludes. Said, not
      the 「もう一度」 below it - the invitation is chrome, and announcing it
      would say the same outcome twice (the lesson adventure taught). */
-  try{announce('ここまで。')}catch(e){}
+  try{announce(CW.time_up_said)}catch(e){}
   const c=RCV.getContext('2d'),W=RCV.width,H=RCV.height;
   c.save();c.fillStyle='SCRIM_TOKEN'+'cc';c.fillRect(0,H/2-52,W,104);
   c.fillStyle='INK_TOKEN';c.textAlign='center';
-  c.font=hudPx(22)+'px ui-monospace,monospace';c.fillText('ここまで',W/2,H/2-10);
+  c.font=hudPx(22)+'px ui-monospace,monospace';c.fillText(CW.time_up,W/2,H/2-10);
   /* The verdict lands at once; the ask waits out the quiet beat with the
      rest of the chrome (§6 観察 8, C-1382). R itself works throughout. */
   if(ROUND_END_FRAMES>ROUND_HOLD){
     c.font=hudPx(13)+'px ui-monospace,monospace';
-    c.fillText('R / タップでもう一度',W/2,H/2+22)}
+    c.fillText(CW.again,W/2,H/2+22)}
   c.textAlign='left';c.restore()}
 /* The clock only ever fires over a game that had *not* finished, so there
    is no end screen to preserve: re-running the page is the whole restart,
@@ -622,26 +664,26 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   let left='';
   if(ROUND_FINAL!==null){
     left=ROUND_LABEL+' '+ROUND_FINAL;
-    if(roundCheer()){left+=' / 自己ベスト更新'}
+    if(roundCheer()){left+=' / '+CW.best_new}
     else if(ROUND_BEST!==null&&ROUND_FINAL===ROUND_BEST&&ROUND_TIE_BETTER
       &&ROUND_TIE_BEST!==null){
       /* The score is maxed out, so 「あと 1」 would be a target nobody can
          reach. What is left to beat is the second key (C-1124). */
-      left+=' / '+ROUND_TIE_LABEL+' '+ROUND_TIE+'（自己ベスト '+ROUND_TIE_BEST+'）'}
-    else if(ROUND_BEST!==null){left+=' / 自己ベスト '+ROUND_BEST
-      +'（あと '+(ROUND_BEST-ROUND_FINAL+1)+'）'}}
+      left+=' / '+ROUND_TIE_LABEL+' '+ROUND_TIE+CW.best_open+ROUND_TIE_BEST+CW.best_close}
+    else if(ROUND_BEST!==null){left+=' / '+CW.best+' '+ROUND_BEST
+      +CW.to_go_open+(ROUND_BEST-ROUND_FINAL+1)+CW.to_go_close}}
   /* Whose board this was. Only when the switch is on: a line that always
      said 今日の挑戦 would make the shared attempt meaningless. */
   let mark='';
-  try{if(dailyBoard()){mark='今日の挑戦 '+dailyStamp();
+  try{if(dailyBoard()){mark=CW.daily+' '+dailyStamp();
     /* Only once it is a run of days. On the first one 「1 日目」 would be
        a streak of one, which is just today with a number on it - the same
        reason the runs row waits for a second run (C-1432). */
-    const days=dailyStreak();if(days>1){mark+='（'+days+' 日目）'}
+    const days=dailyStreak();if(days>1){mark+=CW.day_open+days+CW.day_close}
     mark+='   '}}catch(e){}
   /* The copy key is offered only where there is something to copy. */
-  let right='R / タップでもう一度';
-  try{if(shareReady()){right+='   C / 結果をコピー'}}catch(e){}
+  let right=CW.again;
+  try{if(shareReady()){right+='   '+CW.copy}}catch(e){}
   /* What happened on top, what to do next underneath. */
   if(mark||left){c.fillText(mark+left,W/2,H-32)}
   c.fillText(right,W/2,H-12);
@@ -660,11 +702,11 @@ function drawResultStrip(){if(!RCV)return;roundBank();
   let runs=[];try{runs=roundLog()}catch(e){}
   if(runs.length>1){c.save();c.font=hudPx(13)+'px ui-monospace,monospace';
     c.textAlign='left';c.globalAlpha=0.72;
-    c.fillText('直近 '+runs.join(' / '),16,H-42);c.restore()}
+    c.fillText(CW.recent+' '+runs.join(' / '),16,H-42);c.restore()}
   let news=null;try{news=skinNews()}catch(e){}
   if(news){c.fillStyle='SCRIM_TOKEN'+'e6';c.fillRect(0,H-82,W,30);
     c.fillStyle=TUNE_ACCENT;
-    c.fillText('新しい見た目「'+news+'」が開きました',W/2,H-62)}
+    c.fillText(CW.unlock_open+news+CW.unlock_close,W/2,H-62)}
   c.textAlign='left';c.restore()}
 function roundFacts(){return {ms:ROUND_MS,done:ROUND_DONE,reason:ROUND_REASON,
   tie:roundTieFacts(),
@@ -883,11 +925,19 @@ ROUND_SHIELD_FRAMES = 24
 ROUND_CLOCK_BOX = (96, 44, 88, 30)
 
 
-def preamble_for(template: str) -> str:
-    """The clock and the result strip, told about one template."""
+def preamble_for(template: str, *, in_japanese: bool = True) -> str:
+    """The clock and the result strip, told about one template.
+
+    ``in_japanese`` picks the column of the two labels this preamble owns
+    (C-1959). The words it shares with every other module arrive through
+    ``CW``, which ``games.py`` writes once at the top of the page.
+    """
 
     expression, label = ROUND_SCORE.get(template, ("null", "得点"))
     tie_expression, better, tie_label = ROUND_TIE.get(template, ("null", "", ""))
+    if not in_japanese:
+        label = ROUND_SCORE_EN.get(template, "score")
+        tie_label = ROUND_TIE_EN.get(template, "") if tie_label else ""
     return (
         ROUND_PREAMBLE.replace(
             "ROUND_LIVE_TOKEN", json.dumps(list(ROUND_LIVE.get(template, ())))
@@ -1087,8 +1137,8 @@ const atEnd = roundFacts();
 /* The shared strip's own marker: only it says 自己ベスト. A template's
    verdict screen may carry its own retry line - that is the verdict, and
    the claim leaves it immediate; the quiet is about the shared chrome. */
-const strip = (line) => line.indexOf('自己ベスト') >= 0;
-const ask = (line) => line.indexOf('もう一度') >= 0;
+const strip = (line) => line.indexOf(CW.best) >= 0;
+const ask = (line) => line.indexOf(CW.again) >= 0;
 /* Just inside the quiet: no chrome, but the bank already closed. */
 roundText.length = 0;
 roundRun(10);

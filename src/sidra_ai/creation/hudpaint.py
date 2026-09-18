@@ -202,4 +202,40 @@ def textsize_probe(script: str, *, css_w: int = 720) -> str:
     )
 
 
-__all__ = ["PAINT_PROBE", "paint_probe", "TEXTSIZE_PROBE", "textsize_probe"]
+#: The same recording context, asked a different question (C-1959): not
+#: what colour the HUD was painted in, but WHICH WORDS the canvas drew.
+#: Built by patching ``PAINT_PROBE`` rather than by copying it, and each
+#: patch is asserted, so a change to the probe above breaks this loudly
+#: instead of quietly recording nothing.
+_TEXT_RECORD = (
+    "fillText: function(txt, x, y){ paintOps.push({ t: 't', txt: String(txt) }) },"
+)
+_TEXT_KEEP = "const due = queued; queued = [];"
+
+
+def text_probe(script: str, *, frames: int = 5000) -> str:
+    """The page's own script, wrapped so every drawn word is reported.
+
+    Every frame's text is kept rather than only the last one's, because a
+    word that is on screen for one second of a whole go still has to be in
+    the language the request was in.
+    """
+
+    old_fill = (
+        "fillText: function(txt, x, y){ paintOps.push({ t: 't', s: String(this.fillStyle),\n"
+        "    a: Number(this.globalAlpha), x: Number(x), y: Number(y) }) },"
+    )
+    probe = PAINT_PROBE
+    for old, new in (
+        (old_fill, _TEXT_RECORD),
+        ("const due = queued; queued = []; paintOps = [];", _TEXT_KEEP),
+        ("run(90);", f"run({int(frames)});"),
+    ):
+        if old not in probe:  # pragma: no cover - guard on PAINT_PROBE drift
+            raise RuntimeError(f"hudpaint.PAINT_PROBE no longer carries {old[:40]!r}")
+        probe = probe.replace(old, new)
+    return probe.replace("SCRIPT_PLACEHOLDER", script)
+
+
+__all__ = ["PAINT_PROBE", "paint_probe", "TEXTSIZE_PROBE", "textsize_probe",
+           "text_probe"]

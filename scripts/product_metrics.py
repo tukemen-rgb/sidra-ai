@@ -15262,6 +15262,43 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- what the canvas draws, in the language asked ----------------------
+    #
+    # C-1959. The frame (C-1956) and the start screen (C-1957) follow the
+    # request; the canvas - the part a player looks at for the whole go -
+    # kept drawing Japanese. Measured before it was written: one go of
+    # catch draws eight distinct shapes, seven carrying Japanese, and five
+    # of those come from the shared round module, so most of the surface
+    # is shared with the other nine templates.
+    #
+    # Read off the running page, never off the table: the page is played to
+    # the end on a recording context and every fillText is written down.
+    from sidra_ai.evals.catch_canvas_matches_the_language_asked import (
+        evaluate_catch_canvas_matches_the_language_asked,
+    )
+
+    _canvas = evaluate_catch_canvas_matches_the_language_asked()
+    c.add(
+        "creation_catch_canvas_matches_the_language_asked",
+        "canvas に描かれる文字が、訊かれた言語で書かれている（catch・C-1959）",
+        float(_canvas.sides_right),
+        detail=(
+            f"**日英それぞれで catch のゲームを実際に作り、1 局を最後まで走らせて、"
+            f"canvas が描いた文字を全部書き取った**——**{_canvas.sides_right}/{_canvas.sides_total}**"
+            f"（日本語側は{'保たれている' if _canvas.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_canvas.failures[:2])
+               if _canvas.failures
+               else "**実測**: " + " / ".join(_canvas.readings))
+            + "。**検査**: 英語のページが描いた文字に日本語 0 文字、"
+            "**HUD の 3 語がまだ出ていること**（**「訳す」を「描かない」で済ませられないように**）、"
+            "**日本語側は門**。**表ではなくページから読む**——**`CANVAS_WORDS` を読む判定器は、"
+            "ページが `CW` を 1 度も呼ばなくても通ってしまう**。"
+            "**1 局で 8 種のうち 5 種は `round.py` の共有の文字**なので、**この 1 型を直すと"
+            "残り 9 型は各 2〜4 種になる**（**それぞれ別項目**）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the game page's frame, in the language asked ----------------------
     #
     # C-1956, the fourth page of the family (deck C-1951, art C-1952, 3D

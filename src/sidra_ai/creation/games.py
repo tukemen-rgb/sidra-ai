@@ -152,6 +152,7 @@ from sidra_ai.creation.platformer import (
 )
 from sidra_ai.creation.touchpad import PAD_PREAMBLE, pad_active_declaration
 from sidra_ai.creation.daily import preamble_for as daily_preamble
+from sidra_ai.creation.canvaswords import words_js
 from sidra_ai.creation.round import preamble_for as round_preamble_for
 from sidra_ai.creation.parts import PARTS_PREAMBLE
 from sidra_ai.creation.share import preamble_for as share_preamble_for
@@ -599,8 +600,8 @@ function step(rt){
   cx.fillStyle=HUD_INK;cx.font=hudPx(16)+'px ui-monospace,monospace';
   /* The multiplier is on screen at x1 as much as at x4, and the raw
      count stays beside the points so 「得点」 cannot be mistaken for it. */
-  cx.fillText('得点 '+score+' '+comboLabel()+' / 受け '+caught+' / こぼし '+missed,40,14+hudBand(16,4));
-  cx.fillText('← → またはマウスで動かす',40,h-44+hudPx(16));
+  cx.fillText(CW.score+' '+score+' '+comboLabel()+' / '+CW.caught+' '+caught+' / '+CW.missed+' '+missed,40,14+hudBand(16,4));
+  cx.fillText(CW.move_hint,40,h-44+hudPx(16));
   requestAnimationFrame(step)}
 step();
 """
@@ -2245,7 +2246,11 @@ def generate_game(
             # Before even the remap wrapper: the scroll guard rides the
             # native addEventListener, so the page never scrolls under the
             # game whatever later wrappers do to key events (C-1215).
-            _SCROLL_GUARD
+            # The words the canvas draws (C-1959). First of all, so every
+            # preamble and the template body can name CW instead of
+            # carrying a Japanese literal of its own.
+            words_js(in_japanese=in_japanese)
+            + _SCROLL_GUARD
             # First of everything else: the key re-assignment (§4, C-1305)
             # wraps addEventListener, so it must exist before any preamble
             # or template registers a handler - otherwise a remapped key
@@ -2291,7 +2296,7 @@ def generate_game(
             # result strip can call it. Its expressions name the template's
             # own counters, which exist by the time the strip is drawn.
             + recap_preamble_for(key)
-            + round_preamble_for(key)
+            + round_preamble_for(key, in_japanese=in_japanese)
             # After the round: the line it writes is about a round that is
             # over, and it reads the clock's own verdict to know (C-1110).
             + share_preamble_for(key)

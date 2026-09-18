@@ -18,7 +18,13 @@ at once, out of every template the registry has:
 
 1. The sentence names what the page names. Each term of
    ``scoring_terms`` has to appear in the template's own ``script`` - the
-   body the page runs, not a note beside it (C-1640).
+   body the page runs, not a note beside it (C-1640) - **or** the body has
+   to name the row of ``CANVAS_WORDS`` that carries it. Since C-1959 the
+   words the canvas draws are injected once at the top of the page as
+   ``CW`` instead of being written into each template, so a template that
+   draws ``CW.caught`` draws 「受け」 just as surely as one with the literal
+   in it. Checking the table alone would loosen this - every template would
+   inherit every word - so it is the KEY THE TEMPLATE NAMES that counts.
 2. The terms are actually in the Japanese sentence. A term list that
    drifted away from the sentence would let check 1 pass over words no
    reader ever sees. The **English** sentence is not checked term by
@@ -56,6 +62,7 @@ class ScoringResult:
 
 
 def evaluate_features_scoring_matches_the_page() -> ScoringResult:
+    from sidra_ai.creation.canvaswords import CANVAS_WORDS
     from sidra_ai.creation.games import TEMPLATES
     from sidra_ai.creation.story import ProductionPlan, features, plan_for
 
@@ -68,10 +75,15 @@ def evaluate_features_scoring_matches_the_page() -> ScoringResult:
     for key in sorted(TEMPLATES):
         spec = TEMPLATES[key]
         page = spec.script
+        # The words this template draws through the shared table: the row's
+        # Japanese, for every row whose key its own body names (C-1959).
+        through_table = {
+            pair[0] for key, pair in CANVAS_WORDS.items() if f"CW.{key}" in page
+        }
         problems: list[str] = []
 
         for term in spec.scoring_terms:
-            if term not in page:
+            if term not in page and term not in through_table:
                 problems.append(f"「{term}」 is not in the page it describes")
             if term not in spec.scoring:
                 problems.append(f"「{term}」 is claimed but not in the sentence")
