@@ -177,6 +177,23 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "プロジェクト",
         "ゲーム制作",
         "制作一式",
+        # C-1949: the English side of this lane had no cue at all - the last
+        # of the family C-1480 (English art), C-1804 (Japanese depiction) and
+        # C-1948 (English depiction) worked through. Measured 2026-09-18:
+        # 「make a whole production set about an owl」 was `unknown`,
+        # 「make an owl game from the planning stage」 and 「make a full
+        # production for an owl game」 were `game`. No English wording
+        # reached the production set.
+        #
+        # "project" is here because 「プロジェクト」 is - the Japanese cue is
+        # the English word, and leaving the English one out was the
+        # asymmetry, not a safeguard. It matches as a whole word (see
+        # `_english_cue`), so projector, projection and projected do not.
+        "project",
+        "production set",
+        "whole production",
+        "full production",
+        "from planning",
         # Single-stage requests route here too, and `projects.requested_stages`
         # narrows to the one stage. Routing them to a "scenario generator"
         # instead would put the same file in two places depending on how the
@@ -478,43 +495,86 @@ def named_artifact_kind(message: str) -> CreationKind | None:
     return found[0] if found else None
 
 
-#: English words for a picture that lose to every other kind's cue, wherever
-#: that cue sits (C-1948).
-#:
-#: "Latest wins" reads a Japanese noun phrase correctly - the head noun comes
-#: last, so 「ゲームの資料」 is a document. English modifies the other way
-#: round: 「a slide deck with pictures of owls」 puts the deck first and the
-#: picture last, so the same rule handed the deck to the art lane. Measured
-#: when these five words were added: 「make a gif of a picture frame」,
-#: 「make a game where you draw pictures」, 「make a slide deck with pictures
-#: of owls」 and 「write a report about image processing」 all became art.
-#:
-#: Rather than change a rule that is right for the language it was written
-#: for, these five are marked weak: they name what this generator makes, but
-#: any other kind named anywhere in the message wins. 「draw a picture of an
-#: owl」 has no other cue, so it still reaches the art lane. The Japanese
-#: 「絵」 and 「イラスト」 are NOT weak - they are already resolved correctly
-#: by position (C-1804 measured 絵柄のGIF, 絵を描くゲーム, 絵本のスライド).
-_WEAK_ART_EN: frozenset[str] = frozenset(
-    {"picture", "illustration", "image", "drawing", "painting"}
-)
+#: Japanese script, used to decide which end of the phrase the head noun is
+#: at. Punctuation is left out: it is the script of the words that matters.
+_HAS_JAPANESE = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
+
+
+def _cue_position(text: str, word: str, *, japanese: bool) -> int:
+    """Where ``word`` sits in ``text``, or -1.
+
+    An English cue has to match as a whole word, plural included. Without
+    that, "project" is inside projector, projection and projected, and
+    "image" inside a dozen more - the reason C-1480 kept bare "art" out of
+    the cue list entirely. Matching on the boundary is the same protection
+    without giving up the word people actually write (C-1949).
+
+    Japanese is matched as a plain substring, as it always was: it has no
+    word boundaries to anchor on, and the compounds that contain a cue
+    (絵柄・絵本・浮世絵) are resolved by position instead (C-1804).
+    """
+
+    needle = fold_kana(word.casefold())
+    if japanese or not needle.isascii():
+        return text.rfind(needle)
+    found = -1
+    for match in re.finditer(rf"\b{re.escape(needle)}s?\b", text):
+        found = match.start()
+    return found
+
+
+def _english_head_is_the_later(
+    index: int, word: str, best: tuple[int, CreationKind, str]
+) -> bool:
+    """Does the later of two English cues carry the meaning?
+
+    English is not head-first or head-last; it is both, and which one
+    depends on what sits between the two nouns (C-1949). Across a
+    preposition the FIRST is the head - 「a gif of a picture frame」 is a
+    gif, 「a slide deck with pictures of owls」 is a deck, 「a full
+    production for an owl game」 is a production. Inside a compound, where
+    the nouns are adjacent, the LAST is the head - 「a game project」 is a
+    project, 「a 3d model」 is a model.
+
+    So: the later cue wins only when it begins where the earlier one ends,
+    give or take the space between them.
+    """
+
+    first, second = ((best[0], best[2]), (index, word))
+    if index < best[0]:
+        first, second = ((index, word), (best[0], best[2]))
+    compound = second[0] - (first[0] + len(first[1])) <= 1
+    later_is_the_candidate = index > best[0]
+    return later_is_the_candidate == compound
 
 
 def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
-    """Return the artifact whose keyword sits latest in the message.
+    """Return the artifact whose keyword sits at the head of the phrase.
 
-    Latest wins because the head noun of a Japanese noun phrase comes last:
-    "ゲームの資料を作って" is a document about a game, not a game.
+    **Which end that is depends on the language, and this is the whole of
+    C-1949's second half.** A Japanese noun phrase puts its head noun last -
+    「ゲームの資料を作って」 is a document about a game - so the latest cue
+    wins. English puts it first: 「a slide deck with pictures of owls」 is a
+    deck, 「a gif of a picture frame」 is a gif, 「a full production for an
+    owl game」 is a production. Read from the same end, English says the
+    opposite of what it means.
 
-    Except for the weak English picture words above, which lose to any other
-    kind wherever it sits - English puts its head noun first (C-1948).
+    C-1948 met this from one side and patched it from one side: the five
+    English picture words were marked "weak" so that any other kind beat
+    them wherever it sat. That kept those four requests in their lanes, but
+    it was a rule about five words, not about English - and the moment this
+    item added English cues for the production set, the same thing happened
+    again to 「make a full production for an owl game」. So the patch is
+    gone and the rule is chosen by the script of the message instead.
+    **Every Japanese request is byte-identical: the old direction is the
+    Japanese direction.**
     """
 
+    japanese = bool(_HAS_JAPANESE.search(text))
     best: tuple[int, CreationKind, str] | None = None
-    weak: tuple[int, CreationKind, str] | None = None
     for kind, words in _ARTIFACTS.items():
         for word in words:
-            index = text.rfind(fold_kana(word.casefold()))
+            index = _cue_position(text, word, japanese=japanese)
             if index < 0:
                 continue
             # Latest position wins (the head noun comes last). On a tie the
@@ -524,15 +584,23 @@ def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
             # request (C-1479). Japanese avoided it because its 「モデル」 cue sits
             # after 「3d」 and already won by position; English has no such
             # trailing cue. A later game word (「3Dゲーム」) still wins by position.
-            if word in _WEAK_ART_EN:
-                # Kept aside, and used only if nothing else matched at all.
-                if weak is None or index > weak[0]:
-                    weak = (index, kind, word)
-                continue
-            if best is None or index > best[0] or (index == best[0] and len(word) > len(best[2])):
+            if best is None:
                 best = (index, kind, word)
-    if best is None:
-        best = weak
+                continue
+            if index == best[0]:
+                # On a tie the longer, more specific cue wins: GAME_WORDS
+                # carries "3d" and MODEL3D carries "3d model", both starting
+                # at the same index in an English 「make a 3D model」, so dict
+                # order alone built a game for a 3D-model request (C-1479).
+                if len(word) > len(best[2]):
+                    best = (index, kind, word)
+                continue
+            if japanese:
+                if index > best[0]:
+                    best = (index, kind, word)
+                continue
+            if _english_head_is_the_later(index, word, best):
+                best = (index, kind, word)
     if best is None:
         return None
     return best[1], best[2]

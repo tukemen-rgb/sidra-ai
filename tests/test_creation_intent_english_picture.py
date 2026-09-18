@@ -69,3 +69,36 @@ CASES: tuple[tuple[str, str], ...] = (
 @pytest.mark.parametrize(("request_text", "expected"), CASES)
 def test_the_request_reaches_the_lane_it_names(request_text: str, expected: str) -> None:
     assert detect_creation_intent(request_text).kind.value == expected
+
+
+#: C-1949. The production-set lane had no English cue at all, and adding one
+#: showed that C-1948's "weak words" had been a patch on one symptom: English
+#: is head-first across a preposition and head-last inside a compound, so
+#: 「a full production for an owl game」 is a production and 「a game project」
+#: is a project. The positional rule now picks its direction from the script
+#: of the message, and the compound case from the gap between the two cues.
+PROJECT_CASES: tuple[tuple[str, str], ...] = (
+    ("make a project for an owl game", "project"),
+    ("make a game project about an owl", "project"),
+    ("make a whole production set about an owl", "project"),
+    ("make a full production for an owl game", "project"),
+    # 「プロジェクト」 is the Japanese cue, so the English word is not a
+    # special case - but its substrings must not drag anything in.
+    ("make a chart about projections", "unknown"),
+    ("write a report about projected revenue", "document"),
+    ("make a slide deck about the projector", "deck"),
+    # and the Japanese side is untouched: 「企画」 alone is still not a
+    # production set (C-1504), and position still decides.
+    ("プロジェクトを作って", "project"),
+    ("ふくろうのゲームを企画から作って", "project"),
+    ("ゲームの企画を作って", "game"),
+    ("企画からゲームを作って", "game"),
+    ("プロジェクトのGIFを作って", "gif"),
+)
+
+
+@pytest.mark.parametrize(("request_text", "expected"), PROJECT_CASES)
+def test_the_production_set_lane_reads_both_languages(
+    request_text: str, expected: str
+) -> None:
+    assert detect_creation_intent(request_text).kind.value == expected
