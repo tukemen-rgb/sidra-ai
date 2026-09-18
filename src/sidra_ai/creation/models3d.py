@@ -26,6 +26,7 @@ from random import Random
 from sidra_ai.creation.art import names_color
 from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.vocabulary import (
+    digits_for_spelled,
     marked_english,
     drop_english_frame,
     drop_request_adverbs,
@@ -404,7 +405,9 @@ MADE_PER_REQUEST = 1
 def requested_count(request: str) -> int | None:
     """How many models the request asked for, or None when it named no count."""
 
-    for match in _MODEL_COUNT.finditer(request):
+    # C-1955: spelled numbers become digits first; the unit rule below
+    # is unchanged, so 「一式」 -> 「1式」 still matches nothing.
+    for match in _MODEL_COUNT.finditer(digits_for_spelled(request)):
         found = int(next(group for group in match.groups() if group))
         if found > 0:
             return found

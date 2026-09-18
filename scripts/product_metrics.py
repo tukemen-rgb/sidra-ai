@@ -15224,6 +15224,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- is a number written as a word heard at all ------------------------
+    #
+    # C-1955. Everything C-1934/C-1935/C-1954 did about counts was about
+    # digits. Measured: a number written as a word was heard by NEITHER
+    # language - 「三つの 3D モデルを作って」, 「五枚のスライドを作って」,
+    # 「三十フレームの GIF を作って」 and their English twins all returned no
+    # count, while reaching their lane. The asker gets a different number
+    # than they wrote, and is told nothing - in the primary language too.
+    #
+    # C-1954's entry said the siblings did not read spelled numbers either,
+    # so it was "not an English gap". True, and not a reason to stop.
+    from sidra_ai.evals.spelled_count_reaches_the_note import (
+        evaluate_spelled_count_reaches_the_note,
+    )
+
+    _spelled = evaluate_spelled_count_reaches_the_note()
+    c.add(
+        "creation_spelled_count_reaches_the_note",
+        "言葉で書いた数が、断りの文まで届く（C-1955）",
+        float(_spelled.pairs_heard),
+        detail=(
+            f"**3 レーン × 2 言語の 6 通りを、製品の経路にそのまま流した**"
+            f"——**{_spelled.pairs_heard}/{_spelled.pairs_total} が数を聞いて断りを出す**。"
+            + ("**内訳**: " + "; ".join(_spelled.failures[:2])
+               if _spelled.failures
+               else "**実測**: " + " / ".join(_spelled.readings))
+            + "。**直す前は 0/6**（**両言語とも 1 つも聞こえていなかった**）。"
+            "**読み替えの表は 1 つ**（`vocabulary.SPELLED_NUMBERS`）で、"
+            "**3 つの parser がそれを通してから各自の単位語の規則に渡す**"
+            "——**単位語の規則は 1 文字も変えていない**ので、"
+            "**「一式」は「1式」になって何にも一致しない**。"
+            "**読まない範囲も書いた**: **「二十三」「twenty-three」のような合成と 50 超は読まない**"
+            "（**gifs が「2.5 秒は両言語とも読まない」と書いているのと同じ形**）。"
+            "**検査は断りの文が読み手に届くことと、その文が「頼まれた数」を名乗ること**の両方"
+            "——**後者が無いと、表から 1 行落ちても「三十」が「三」+「十」=310 と読まれ、"
+            "別の数の断りが出て 6/6 のまま通る**（**破壊 R3 で実測**・**この形は 6 回目**）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- does a count named in English reach the admission -----------------
     #
     # C-1954. Three generators cannot make the number asked for and each

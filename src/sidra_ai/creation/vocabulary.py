@@ -504,3 +504,57 @@ __all__ = [
     "GENRES",
     "labels_for",
 ]
+
+#: Numbers people write as words, and the digit each one stands for (C-1955).
+#:
+#: **Neither language heard these.** Measured 2026-09-18 against the three
+#: parsers that read a count - 「三つの 3D モデルを作って」,
+#: 「3D モデルを三つ作って」, 「五枚のスライドを作って」,
+#: 「三十フレームの GIF を作って」 and their English twins
+#: (「make three 3d models」, 「make a five slide deck」,
+#: 「make a thirty frame gif」) all returned None. The requests reach their
+#: lane, so what the asker gets is a different number with nothing said
+#: about it - in the product's primary language as much as in English.
+#:
+#: **What is deliberately not here**: compounds. 「二十三」 and
+#: "twenty-three" are not read, and neither is any number above fifty. The
+#: limit is written down rather than discovered, the way ``gifs`` records
+#: that 「2.5 秒」 is read by neither language. A request outside the range
+#: is treated exactly as it is today - no count found - which is the same
+#: silence, not a new one.
+SPELLED_NUMBERS: dict[str, int] = {
+    # Japanese, the plain forms that sit in front of a counter word.
+    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+    "十五": 15, "二十": 20, "三十": 30,
+    # English.
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+    "twelve": 12, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+}
+
+#: Longest first, so 「十五」 is read as 15 rather than as 「十」 followed by
+#: 「五」, and "thirty" is not read as "three" with letters left over.
+_SPELLED_PATTERN = re.compile(
+    "|".join(
+        rf"(?<![A-Za-z]){re.escape(word)}(?![A-Za-z])" if word.isascii()
+        else re.escape(word)
+        for word in sorted(SPELLED_NUMBERS, key=len, reverse=True)
+    ),
+    re.IGNORECASE,
+)
+
+
+def digits_for_spelled(text: str) -> str:
+    """The request with spelled numbers written as digits.
+
+    Used **before** each lane's own count pattern, never instead of it: the
+    unit word is still what makes a number a count, so 「一式」 becomes
+    「1式」 and matches nothing, and "one of them" becomes "1 of them" and
+    matches nothing. This function only decides how a number is spelled; the
+    three parsers keep deciding what counts as a count.
+    """
+
+    return _SPELLED_PATTERN.sub(
+        lambda match: str(SPELLED_NUMBERS[match.group(0).casefold()]), text
+    )

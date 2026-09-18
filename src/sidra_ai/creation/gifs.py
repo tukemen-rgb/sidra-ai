@@ -35,6 +35,7 @@ from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.vocabulary import (
+    digits_for_spelled,
     drop_english_frame,
     drop_request_adverbs,
     drop_size_phrases,
@@ -75,7 +76,8 @@ _SECONDS = re.compile(
 def requested_frames(request: str) -> int | None:
     """How many frames the request asked for, or None when it named none."""
 
-    for match in _FRAME_COUNT.finditer(request):
+    # C-1955: spelled numbers become digits first.
+    for match in _FRAME_COUNT.finditer(digits_for_spelled(request)):
         # Whichever branch matched - the Japanese unit or the English one.
         found = int(next(group for group in match.groups() if group))
         if found > 0:
@@ -86,7 +88,9 @@ def requested_frames(request: str) -> int | None:
 def requested_seconds(request: str) -> int | None:
     """How many seconds the request asked for, or None when it named none."""
 
-    for match in _SECONDS.finditer(request):
+    # C-1955: the same reading for seconds - 「五秒の GIF」 and
+    # 「a five second gif」 name a length as much as 「5秒」 does.
+    for match in _SECONDS.finditer(digits_for_spelled(request)):
         found = int(next(group for group in match.groups() if group))
         if found > 0:
             return found

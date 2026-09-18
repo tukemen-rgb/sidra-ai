@@ -30,6 +30,7 @@ from pathlib import Path
 
 from sidra_ai.creation.artifact_paths import unique_path
 from sidra_ai.creation.vocabulary import (
+    digits_for_spelled,
     marked_english,
     drop_english_frame,
     drop_request_adverbs,
@@ -284,7 +285,8 @@ _SLIDE_COUNT = re.compile(
 def requested_slide_count(request: str) -> int | None:
     """How many slides the request asked for, or None when it named no size."""
 
-    for match in _SLIDE_COUNT.finditer(request):
+    # C-1955: spelled numbers become digits first.
+    for match in _SLIDE_COUNT.finditer(digits_for_spelled(request)):
         found = int(next(group for group in match.groups() if group))
         if found > 0:
             return found
