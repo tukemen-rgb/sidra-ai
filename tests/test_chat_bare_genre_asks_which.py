@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from sidra_ai.api.app import create_app  # noqa: E402
 from sidra_ai.creation.intent import detect_creation_intent  # noqa: E402
+from sidra_ai.models.echo import _reply_in_japanese
 
 NO_EVIDENCE = "十分な根拠がありません"
 
@@ -53,9 +54,20 @@ def test_a_bare_genre_is_asked_about_rather_than_guessed(
     # reworded without this becoming a spelling test - but 「それとも」 is
     # load-bearing: without it the same two verbs could appear in a sentence
     # that had already picked one.
-    assert "作り" in body["answer"], "the answer must offer to build it"
-    assert "探し" in body["answer"], "the answer must offer to search for it"
-    assert "それとも" in body["answer"], "the answer must not pick one of them"
+    #
+    # C-1537: the same guard, in whichever language the ask-back now speaks.
+    # Before, every English case here asserted Japanese words, so the three
+    # English parameters were pinning the defect rather than the contract: an
+    # English asker got a Japanese ask-back and this test called it right. The
+    # expectation is read off the *message*, not off the answer - reading it
+    # off the answer would make the check agree with whatever came back.
+    if _reply_in_japanese(message):
+        build, search, disjunction = "作り", "探し", "それとも"
+    else:
+        build, search, disjunction = "make", "search", " or "
+    assert build in body["answer"], "the answer must offer to build it"
+    assert search in body["answer"], "the answer must offer to search for it"
+    assert disjunction in body["answer"], "the answer must not pick one of them"
     assert body["creation"]["outcome"]["asked_back"] is True
 
 

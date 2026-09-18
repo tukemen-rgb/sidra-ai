@@ -15387,6 +15387,57 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the three ask-backs, in the language asked ------------------------
+    #
+    # C-1537, from the outside critic's thirteenth review. Eleven of fourteen
+    # faces of an English request were already English; the three that were
+    # not are the ask-backs, and they are the entrances that were added after
+    # rule 6 was taught (C-1515 / C-1527 / C-1530).
+    #
+    # **The filing's own number was wrong, and measuring said so.** Only two
+    # of the three were defects. ``empty`` has no language in it to match, and
+    # answering a message with no language in Japanese is deliberate: this
+    # product's readers are Japanese and the English branch would hand them
+    # 「Run POST /v1/github/analyze」 (C-1248). So the honest target is 11 ->
+    # 13 of fourteen, not 11 -> 14. That third face is scored here anyway, to
+    # pin the default - otherwise the next pass at "make the ask-backs
+    # English" takes it and undoes C-1248 while closing C-1537.
+    from sidra_ai.evals.ask_back_matches_the_language_asked import (
+        evaluate_ask_back_matches_the_language_asked,
+    )
+
+    _askback = evaluate_ask_back_matches_the_language_asked()
+    c.add(
+        "ask_back_matches_the_language_asked",
+        "聞き返し 3 種が、訊かれた言語で返る（C-1537）",
+        float(_askback.sides_right),
+        detail=(
+            f"**実 `SidraService` を呼んで返事そのものを読んだ**"
+            f"——**{_askback.sides_right}/{_askback.sides_total}**"
+            f"（日本語側は{'保たれている' if _askback.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_askback.failures[:2])
+               if _askback.failures
+               else "**実測**: " + " / ".join(_askback.readings))
+            + "。**起票の数字は実測で外れた**——起票は「3 面とも日本語のまま」と書くが、"
+            "**`empty` は合わせるべき言語が入力に無い**。**言語の無い入力を日本語で返すのは"
+            "意図した既定**（C-1248——英語枝は日本語の読者に "
+            "「Run POST /v1/github/analyze」 を渡す）。**よって正直な目標は 11→13** であって "
+            "11→14 ではない。**それでも 3 面目を数に入れている**のは、"
+            "**外すとこの既定が無防備になり、次に「聞き返しを英語化する」人がそこを取って"
+            "C-1537 を閉じながら C-1248 を壊す**から。**日本語側は門**"
+            "（壊れたら 0——英語を日本語で買うのは前進ではない）。"
+            "**破壊 5 方向・1 probe 1 プロセス・無変異の対照つき**: "
+            "D1〔ambiguous が言語を無視〕**2/3**・D2〔unnamed が無視〕**2/3**・"
+            "D3〔英語の列挙だけ消す＝翻訳を削除で済ませる〕**2/3**・"
+            "D4〔日本語側を壊して英語を買う〕**0/3**・D5〔`empty` を英語化＝C-1248 を戻す〕**2/3**・"
+            "無変異 **3/3**。**D3 は最初の版を素通りした**——"
+            "**検査が本文ではなく `creation.outcome.offered`（日本語ラベル・文より先に組まれる）"
+            "を読んでいた**ので、**英語の列挙を丸ごと消しても 3/3 が出た**。"
+            "**落ちない検査は検査ではない**ので、数える先を返事の本文に変えた。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the deck page, in the language asked ------------------------------
     #
     # C-1951. C-1935 put the deck's summary into the language of the request

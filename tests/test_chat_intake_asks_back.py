@@ -36,6 +36,16 @@ from fastapi.testclient import TestClient
 
 from sidra_ai.api.app import create_app
 from sidra_ai.creation.intent import detect_creation_intent
+from sidra_ai.api.service import _KIND_LABELS, _KIND_LABELS_EN
+from sidra_ai.models.echo import _reply_in_japanese
+
+#: The two label tables share the router's kind keys, so one is the other's
+#: translation; built here rather than duplicated as a third table.
+_EN_FOR_JA = {
+    _KIND_LABELS[kind]: _KIND_LABELS_EN[kind]
+    for kind in _KIND_LABELS
+    if kind in _KIND_LABELS_EN
+}
 
 NO_EVIDENCE = "十分な根拠がありません"
 
@@ -115,9 +125,23 @@ def test_a_want_with_no_subject_is_answered_with_what_can_be_made(
     assert body["creation"]["outcome"]["asked_back"] is True
     # The point of the answer is the list: without it this is the boilerplate
     # with better manners.
+    #
+    # C-1537: the metadata keeps the Japanese labels (it always has), so the
+    # list is checked in the language the sentence is actually written in.
+    # Before, the three English parameters asserted Japanese labels and passed,
+    # which is what a Japanese ask-back to an English asker looks like from
+    # here - the test was pinning the defect. Still the same guard: the reply
+    # must name every kind it offers, whichever language it names them in.
     offered = body["creation"]["outcome"]["offered"]
     assert offered, "nothing was offered to choose from"
-    assert all(label in body["answer"] for label in offered)
+    if _reply_in_japanese(message):
+        expected = offered
+    else:
+        expected = [_EN_FOR_JA[label] for label in offered]
+    assert all(label in body["answer"] for label in expected), (
+        body["answer"],
+        expected,
+    )
 
 
 # ------------------------------------------------------- the other direction

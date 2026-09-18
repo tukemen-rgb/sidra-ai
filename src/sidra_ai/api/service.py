@@ -1676,10 +1676,28 @@ class SidraService:
                 _KIND_LABELS.get(kind, kind)
                 for kind in self.creation_router.registered_kinds()
             ]
-            asked_back = (
-                "何をお作りしましょうか。"
-                + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
-            ).strip()
+            # C-1537: answer in the request's language (rule 6), the way the
+            # help branch (C-1904), the how-to branch (C-1921) and the
+            # unsupported-kind decline (C-1919) already do. The ask-backs were
+            # added later (C-1515/C-1527/C-1530) than the English replies were
+            # taught, so they never received the rule - 「surprise me」 got a
+            # Japanese ask-back from a product that had just answered the same
+            # person in English. `offered` below stays the Japanese labels,
+            # unchanged, exactly as the three sites above leave their metadata.
+            if _reply_in_japanese(message):
+                asked_back = (
+                    "何をお作りしましょうか。"
+                    + (f"いま作れるのは {'・'.join(offered)} です。" if offered else "")
+                ).strip()
+            else:
+                offered_en = [
+                    _KIND_LABELS_EN.get(kind, kind)
+                    for kind in self.creation_router.registered_kinds()
+                ]
+                asked_back = (
+                    "What would you like me to make? "
+                    + (f"What I can make: {', '.join(offered_en)}." if offered_en else "")
+                ).strip()
             guarded_ask = self.output_guard.scan(asked_back)
             creation_metadata["outcome"] = {
                 "kind": intent.kind.value,
@@ -1713,11 +1731,26 @@ class SidraService:
                 _KIND_LABELS.get(kind, kind)
                 for kind in self.creation_router.registered_kinds()
             ]
-            asked_back = (
-                f"「{query.strip()}」は、お作りしますか、それとも"
-                "リポジトリから探しますか。"
-                + (f"作る場合、いま作れるのは {'・'.join(offered)} です。" if offered else "")
-            ).strip()
+            # C-1537: same rule as the unnamed branch above - the request's
+            # language decides. The quoted subject is the operator's own text
+            # either way, so only the sentence around it changes.
+            if _reply_in_japanese(message):
+                asked_back = (
+                    f"「{query.strip()}」は、お作りしますか、それとも"
+                    "リポジトリから探しますか。"
+                    + (f"作る場合、いま作れるのは {'・'.join(offered)} です。" if offered else "")
+                ).strip()
+            else:
+                offered_en = [
+                    _KIND_LABELS_EN.get(kind, kind)
+                    for kind in self.creation_router.registered_kinds()
+                ]
+                asked_back = (
+                    f"Would you like me to make \u201c{query.strip()}\u201d, or "
+                    "search the repositories for it? "
+                    + (f"If making it, what I can make: {', '.join(offered_en)}."
+                       if offered_en else "")
+                ).strip()
             guarded_ask = self.output_guard.scan(asked_back)
             creation_metadata["outcome"] = {
                 "kind": intent.kind.value,
