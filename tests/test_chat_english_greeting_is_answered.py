@@ -32,7 +32,7 @@ def service(tmp_path) -> SidraService:
 def test_eval_passes():
     result = evaluate_chat_english_greeting_is_answered()
     assert result.failures == ()
-    assert result.checks_passed == result.checks_total == 12
+    assert result.checks_passed == result.checks_total == 13
 
 
 @pytest.mark.parametrize("greeting", ENGLISH_GREETINGS)

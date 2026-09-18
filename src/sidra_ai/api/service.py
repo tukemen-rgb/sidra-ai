@@ -200,7 +200,7 @@ _GREETINGS = frozenset({
     "どうもありがとう", "おつかれ", "おつかれさま", "お疲れ", "お疲れさま", "お疲れ様",
     "お疲れ様です", "おつかれさまです",
     # C-1902: English greetings and thanks (whole-message, casefolded).
-    "hello", "hi", "hey", "hey there", "hello there", "hiya", "howdy",
+    "hello", "hi", "hey", "hey there", "hello there", "hi there", "hiya", "howdy",
     "good morning", "good afternoon", "good evening",
     "thanks", "thank you", "thankyou", "thx", "thank you very much",
     "many thanks", "cheers", "greetings",
