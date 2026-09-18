@@ -1495,3 +1495,31 @@ URL は 2026-09-17 に実際に開いて確認。
 - SIDRA での反映先: C-1926（判定器 `creation_gif_motion_stays_within_the_exemption`。
   **動きを止める手段を足す／画布を広げる／一覧にプレビューを出す**のは
   いずれも生成物の仕様変更なので、**必要になったときに起票する**）
+
+## 39. キーボードの焦点は「見えている」だけでは足りない——誰が描いているかで話が変わる（外部調査 2026-09-18・辛口クリエイターループ）
+
+- 出典: https://www.w3.org/WAI/WCAG21/Understanding/focus-visible.html （2026-09-18 確認）
+- 事実 1: **SC 2.4.7 Focus Visible は Level AA**。規範文は
+  「Any keyboard operable user interface has a mode of operation where the
+  keyboard focus indicator is visible.」——**「ある操作モードで見えていること」**であって、
+  常時表示までは求めない（だから `:focus-visible` のような「キーボード時だけ出す」実装が許される）。
+  解説は**指標が非テキストなので SC 1.4.11 の対象**にもなると明記している。
+- 出典: https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html （2026-09-18 確認）
+- 事実 2: **SC 2.4.13 Focus Appearance は Level AAA**。指標は
+  **(1) 控えの「2 CSS ピクセル分の外周」と同じ面積以上**、
+  **(2) 焦点あり／なしの同じ画素の間で 3:1 以上**。
+- 事実 3: **2.4.13 には免除がある**——「指標が UA の決めたもので作者が調整できない場合」と、
+  **「作者が指標も指標の背景色も変えていない場合」**。
+  **つまり「何も書かない」ことは仕様上は逃げ道として認められている**。
+- 学び: **だから「何も書かない」を選ぶかどうかは、逃げ道かどうかではなく、実際に何が見えるかで決まる**。
+  SIDRA の生成ページは `:focus` も `:focus-visible` も 1 つも持っていなかった。
+  **実測（2026-09-18・headless Chromium・既定テーマ）**: 控えに焦点を当てて計算値を読むと
+  **`outline-style: auto` / `outline-color: rgb(16,16,16)`**、控えの背景は **`rgb(12,19,34)`**——
+  **計算値では 1.03:1**。**`auto` の実際の塗りは UA が二色で描くことがあるので、
+  計算値＝見え方とは限らない**。**確かなのは「ページからは読めない」ということ**で、
+  **4 テーマのうち 3 つが暗い製品で、それを engine 任せにするのは賭け**。
+  **読める形にするほうが安い**: テーマの `accent` は既に 3:1 の床を持っており、
+  **控えの背景 `raised` に対して実測 12.26 / 6.55 / 13.41 / 9.55**（gameyard / paper / terminal / dusk）。
+- SIDRA での反映先: C-1950（`:focus-visible` を外殻に 1 つ・2px + offset・`accent`。
+  `CONTRAST_FLOORS` に `(accent, raised, 3.0)` を追加。
+  判定器 `creation_focus_ring_is_visible` が **4 テーマすべて**を実ブラウザで測る）

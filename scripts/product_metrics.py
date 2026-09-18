@@ -15224,6 +15224,45 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- can a keyboard user see where they are ---------------------------
+    #
+    # C-1950, §39. The generated page carried no focus rule at all: no
+    # :focus, no :focus-visible, anywhere in the shell. WCAG 2.4.7 (AA) wants
+    # a mode where the indicator is visible, and 2.4.13 wants it to be the
+    # area of a 2px perimeter and to differ from the unfocused state by 3:1 -
+    # with an exemption written precisely for pages that leave it to the user
+    # agent, which is where this one was. Measured through headless Chromium
+    # before the fix: outline-style auto, outline-color rgb(16,16,16), on a
+    # control whose background is rgb(12,19,34).
+    #
+    # Four themes are measured, not one. The first draft of the eval asked
+    # for each theme by its own word alone, `select_theme` wants a theme cue
+    # as well, every page came back gameyard and all four rows reported the
+    # same 12.26 - the shape C-1945 caught one item earlier, caught again.
+    from sidra_ai.evals.focus_ring_is_visible import evaluate_focus_ring_is_visible
+
+    _focus = evaluate_focus_ring_is_visible()
+    c.add(
+        "creation_focus_ring_is_visible",
+        "キーボードの焦点が見える（§39 / WCAG 2.4.7・2.4.13）",
+        float(_focus.themes_with_a_visible_ring),
+        detail=(
+            f"**4 テーマそれぞれでページを実際に作り、実ブラウザで控えに焦点を当てて"
+            f"計算値を読んだ**——**{_focus.themes_with_a_visible_ring}/{_focus.themes_total} が"
+            "見える指標を持っている**。"
+            + ("**内訳**: " + "; ".join(_focus.failures[:3])
+               if _focus.failures
+               else "**実測**: " + " / ".join(_focus.readings))
+            + "。**検査は 4 つ**: **ページ自身が outline を描いている**"
+            "（`auto`＝engine 任せは数えない——**描かれているかもしれないが、ページからは読めない**）、"
+            "**2px 以上**（2.4.13 の外周）、**offset がある**（控えの枠の上に重ねない）、"
+            "**控えの背景に対して 3:1 以上**。"
+            "**直す前の実測**: `outline-style: auto` / `rgb(16,16,16)` / 背景 `rgb(12,19,34)`＝**1.03:1**。"
+            "**測れないときは 0 と `measured=False`**——**ブラウザが無い環境で緑を作らない**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the record beside a single artifact, in the language asked -------
     #
     # C-1947. C-1940 put the production log into the language of the request

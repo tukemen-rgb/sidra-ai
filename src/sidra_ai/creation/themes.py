@@ -81,6 +81,14 @@ CONTRAST_FLOORS: tuple[tuple[str, str, float], ...] = (
     ("muted", "surface", 4.5),
     ("accent", "surface", 3.0),
     ("alert", "surface", 3.0),
+    # C-1950 (§39): the accent is also the keyboard focus ring, and a ring is
+    # drawn around a control, whose background is `raised` - not `surface`.
+    # Measured when the ring went in: 12.26 / 6.55 / 13.41 / 9.55 on gameyard,
+    # paper, terminal and dusk. The floor is here so that a palette change
+    # cannot quietly take the ring below the 3:1 that WCAG 1.4.11 asks of a
+    # non-text indicator; the eval measures the page, this measures the paint
+    # box it is mixed from.
+    ("accent", "raised", 3.0),
 )
 
 

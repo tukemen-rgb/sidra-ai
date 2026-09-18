@@ -2097,6 +2097,21 @@ a{{color:{t["accent"]}}}
 .fullbtn{{display:none;margin:8px 0 0;font-size:13px;padding:6px 12px;
  color:{t["text"]};background:{t["raised"]};border:1px solid {t["border"]};
  border-radius:{t["radius_tight"]};cursor:pointer}}
+/* C-1950 (§39, WCAG 2.4.7 AA / 2.4.13). Until this rule existed the page
+   declared nothing about focus at all, so what a keyboard user saw was
+   whatever the engine chose - and 2.4.13's own exemption is written for
+   exactly that state ("the focus indicator ... is not modified by the
+   author"). Three of the four themes are dark, and the computed ring under
+   headless Chromium read rgb(16,16,16) against a rgb(12,19,34) control:
+   1.03:1. Measured, not assumed.
+   The accent is the token the theme suite already holds to 3:1, and it
+   measures 12.26 / 6.55 / 13.41 / 9.55 against `raised` on gameyard, paper,
+   terminal and dusk - so the ring is above the floor on every one.
+   2px + an offset, because 2.4.13 asks for at least the area of a 2px
+   perimeter of the control. :focus-visible, not :focus, so a mouse click
+   does not draw it - the browsers' own heuristic for "this is a keyboard
+   user" is better than any this page could write. */
+:focus-visible{{outline:2px solid {t["accent"]};outline-offset:2px}}
 </style></head>
 <body><main>
 <h1>{marked_english(title)}</h1>
