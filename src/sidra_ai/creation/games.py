@@ -199,6 +199,22 @@ class GameTemplate:
     #: what the keys do, and a document that softened them would be
     #: describing a different game from the one in the same directory.
     how_to_play_en: str
+    #: What this template actually counts, and in which words (C-1946).
+    #: Required, like ``how_to_play_en``: until this existed the design
+    #: document's scoring section was one ``if template == "fishing"``, so
+    #: **nine of the ten templates were told they count 「受け」 and
+    #: 「こぼし」** - racing, which counts laps and times, included. The
+    #: document opens by claiming its numbers are the ones ``game.html``
+    #: really uses, which makes that the worst kind of wrong.
+    scoring: str
+    scoring_en: str
+    #: The words ``scoring`` points at, which have to be in **this
+    #: template's own script**. A sentence beside the code can drift from
+    #: it; these terms are what
+    #: ``sidra_ai.evals.features_scoring_matches_the_page`` checks against
+    #: the page, in both directions - every term appears in the sentence,
+    #: and every term appears in the page.
+    scoring_terms: tuple[str, ...]
     #: Called with the resolved difficulty; returns the game's JavaScript.
     script: str
 
@@ -938,6 +954,11 @@ TEMPLATES: dict[str, GameTemplate] = {
         "タイミング釣り",
         "動くマーカーが帯の中にある間に SPACE かクリック。",
         "Press SPACE or click while the moving marker is inside the band.",
+        "帯の中で合わせたら 得点 +1、濃い中央で合わせたら会心で +2。外したら記録のみ。失敗しても終了しません。",
+        "Time it inside the band and the score goes up 1; time it on "
+        "the darker middle and it is a perfect, worth 2. A miss is only "
+        "recorded, and missing does not end the run.",
+        ("得点", "会心"),
         _FISHING,
     ),
     "catch": GameTemplate(
@@ -945,6 +966,10 @@ TEMPLATES: dict[str, GameTemplate] = {
         "落ちものキャッチ",
         "落ちてくるものを受け皿で拾う。← → かマウスで動かす。",
         "Catch what falls in the tray. Move it with ← → or the mouse.",
+        "受けられたら 受け +1、こぼしたら こぼし +1。どちらも画面に出続けます。",
+        "A catch adds 1 to caught, a drop adds 1 to dropped. Both "
+        "counts stay on the screen.",
+        ("受け", "こぼし"),
         _CATCH,
     ),
     "adventure": GameTemplate(
@@ -952,6 +977,11 @@ TEMPLATES: dict[str, GameTemplate] = {
         ADVENTURE_TITLE,
         ADVENTURE_HOW,
         ADVENTURE_HOW_EN,
+        "点数はありません。数えるのは拾った宝石で、祠に 3 個渡すごとに最大ハートが 1 増えます。",
+        "There is no score. What is counted is the gems you pick up, "
+        "and every three handed to the shrine raise your maximum hearts "
+        "by one.",
+        ("宝石", "祠"),
         ADVENTURE_SCRIPT,
     ),
     "duel": GameTemplate(
@@ -959,6 +989,10 @@ TEMPLATES: dict[str, GameTemplate] = {
         DUEL_TITLE,
         DUEL_HOW,
         DUEL_HOW_EN,
+        "点数はありません。先に 3 発当てたほうの勝ちで、押し合いに負けると相手の 1 発になります。",
+        "There is no score. First to land three hits wins, and losing "
+        "the push when two beams meet hands the opponent one of them.",
+        ("押し合い", "相手"),
         DUEL_SCRIPT,
     ),
     "shooter": GameTemplate(
@@ -966,6 +1000,11 @@ TEMPLATES: dict[str, GameTemplate] = {
         SHOOTER_TITLE,
         SHOOTER_HOW,
         SHOOTER_HOW_EN,
+        "撃墜ごとに 得点 が入り、続けて落とすほど倍率が上がります。ぶつかると 1 倍に戻り、第 N 波の N も画面に出ます。",
+        "Every kill adds to the score, and the multiplier climbs the "
+        "longer you keep hitting. A collision puts it back to 1x. The "
+        "number of the wave you are on is on screen too.",
+        ("得点", "撃墜", "波"),
         SHOOTER_SCRIPT,
     ),
     "puzzle": GameTemplate(
@@ -973,6 +1012,11 @@ TEMPLATES: dict[str, GameTemplate] = {
         PUZZLE_TITLE,
         PUZZLE_HOW,
         PUZZLE_HOW_EN,
+        "消したかたまりの大きさで 得点 が入り、連鎖で倍率が上がります。つちの残り数も画面に出ます。",
+        "The score comes from the size of the block you clear, and the "
+        "multiplier climbs with each chain. How many hammers you have "
+        "left is on screen too.",
+        ("得点", "つち"),
         PUZZLE_SCRIPT,
     ),
     "kaiju": GameTemplate(
@@ -980,6 +1024,10 @@ TEMPLATES: dict[str, GameTemplate] = {
         KAIJU_TITLE,
         KAIJU_HOW,
         KAIJU_HOW_EN,
+        "点数はありません。画面が数えるのは周期で、3 周期のうちに仕留めれば勝ちです。",
+        "There is no score. What the screen counts is the cycle; bring "
+        "it down within three of them and you win.",
+        ("周期",),
         KAIJU_SCRIPT,
     ),
     "racing": GameTemplate(
@@ -987,6 +1035,10 @@ TEMPLATES: dict[str, GameTemplate] = {
         RACING_TITLE,
         RACING_HOW,
         RACING_HOW_EN,
+        "点数ではなくタイムです。LAP ごとのタイムが残り、ゴールで TOTAL が出ます。",
+        "Not a score - times. Each LAP keeps its own time, and the "
+        "finish prints the TOTAL.",
+        ("LAP", "TOTAL"),
         RACING_SCRIPT,
     ),
     "marble": GameTemplate(
@@ -994,6 +1046,11 @@ TEMPLATES: dict[str, GameTemplate] = {
         MARBLE_TITLE,
         MARBLE_HOW,
         MARBLE_HOW_EN,
+        "ゲートを抜けるたびに スコア が入り、続けて抜けるほど倍率が上がります。抜けた数も画面に出ます。",
+        "Every gate you pass adds to the score, and the multiplier "
+        "climbs the longer you keep passing them. How many you have "
+        "passed is on screen too.",
+        ("スコア", "ゲート"),
         MARBLE_SCRIPT,
     ),
     "platformer": GameTemplate(
@@ -1001,6 +1058,10 @@ TEMPLATES: dict[str, GameTemplate] = {
         PLATFORMER_TITLE,
         PLATFORMER_HOW,
         PLATFORMER_HOW_EN,
+        "点数はありません。数えるのは宝石で、5 個で灯籠が点き、落ちてもそこから再開します。",
+        "There is no score. What is counted is the gems; five of them "
+        "light a lantern, and a fall puts you back at it.",
+        ("宝石", "灯籠"),
         PLATFORMER_SCRIPT,
     ),
 }

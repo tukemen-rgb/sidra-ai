@@ -15224,6 +15224,54 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- does the spec's scoring section describe THIS game ---------------
+    #
+    # C-1946. features.md opens with 「数値と操作は同じディレクトリの
+    # game.html が実際に使うもの」 and then printed one of two sentences,
+    # chosen by `template == "fishing"`. So nine templates out of ten were
+    # told they count 「受け」 and 「こぼし」 - racing, which counts LAP and
+    # TOTAL, among them. A document that says nothing is empty; this one
+    # made a claim about the file beside it, having promised it would not
+    # be wrong, and was.
+    #
+    # Ten templates are measured, not one. C-1945 found the other way round:
+    # the language judge generates a single production, so nine templates'
+    # rows never reached it and a Japanese row left behind moved no number.
+    # A defect that lives per template is counted per template.
+    from sidra_ai.evals.features_scoring_matches_the_page import (
+        evaluate_features_scoring_matches_the_page,
+    )
+
+    _scoring = evaluate_features_scoring_matches_the_page()
+    c.add(
+        "creation_features_scoring_matches_the_page",
+        "仕様書のスコア節が、その型のページが実際に数えるものを書いている（C-1946）",
+        float(_scoring.templates_that_describe_themselves),
+        detail=(
+            f"**10 型すべてについて、仕様書のスコア文と型自身の script を突き合わせた**"
+            f"——**{_scoring.templates_that_describe_themselves}/"
+            f"{_scoring.templates_total} が自分のページのことを書いている**。"
+            + ("**内訳**: " + "; ".join(_scoring.failures[:3])
+               if _scoring.failures
+               else "**どの型も他の型の数え方を借りていない**")
+            + "。**検査は 3 つ同時**: (1) **文が名乗る語が、その型の `script` の中に実在する**"
+            "（ページが走らせる本体で、脇に置いた覚え書きではない・C-1640）、"
+            "(2) **語が日本語の文に入っている**（語だけが直って文が古びるのを防ぐ）"
+            "——**英語の文は語では検査しない**: **ページの HUD は日本語を出す**ので、"
+            "**英語の文書に「得点」を入れさせると、それは "
+            "`creation_project_files_match_the_language_asked` が数える訳し残しそのもの**"
+            "（**実測**: この項目の初稿はそれを要求して**あの数を 4→3 に落とした**）。"
+            "**代わりに英語側は「他の型と一字一句同じでないこと」**——"
+            "**元の欠陥を語ではなく規則で言い直したもの**、"
+            "(3) **他の型の語を借りていない**——**これが元の欠陥を規則にしたもの**で、"
+            "**racing は「受け」と言えない**（**「受け」は catch の語で、racing のページに"
+            "そんなものは無い**）。"
+            "**旧実装は 2/10 相当**——`if template == \"fishing\"` の 2 分岐なので、"
+            "**自分の文を持っていたのは fishing と catch だけ**だった。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- what the canvas tells a reader who cannot see it ----------------
     #
     # §28, §29 and §30 settled hearing, movement and memory; nobody had

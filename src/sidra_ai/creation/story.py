@@ -718,12 +718,11 @@ def features(
     else:
         rows = f"| {blank} | {blank} | {blank} | {blank} |"
         legend = f"- {blank}"
+    # C-1946: read off the template, not guessed from one `if`. The guess
+    # said 「受け」「こぼし」 to nine templates out of ten, racing included.
+    spec = TEMPLATES[plan.template]
     if in_japanese:
-        scoring = (
-            "帯の中で合わせたら 得点 +1、濃い中央で合わせたら会心で +2。外したら記録のみ。失敗しても終了しません。"
-            if plan.template == "fishing"
-            else "受けられたら 受け +1、こぼしたら こぼし +1。どちらも画面に出続けます。"
-        )
+        scoring = spec.scoring
         return _header(title, "機能設定", evidence, fallback) + f"""
 ## 操作
 
@@ -746,14 +745,7 @@ def features(
 
 {legend}
 """
-    scoring = (
-        "Time it inside the band and the score goes up 1; time it on the darker "
-        "middle and it is a perfect, worth 2. A miss is only recorded. Missing "
-        "does not end the run."
-        if plan.template == "fishing"
-        else "A catch adds 1 to caught, a drop adds 1 to dropped. Both stay on "
-        "the screen."
-    )
+    scoring = spec.scoring_en
     return _header(
         title, "Features and settings", evidence, fallback, in_japanese=False
     ) + f"""
