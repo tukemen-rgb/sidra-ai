@@ -15224,6 +15224,48 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the 3D preview, in the language asked -----------------------------
+    #
+    # C-1953, the third page of the family (deck C-1951, art C-1952). C-1930
+    # and C-1932 put this generator's summary into the language of the
+    # request; the preview stayed Japanese - the shape-default note, the
+    # colour note, the canvas fallback a screen reader is handed (§36), and
+    # the note about keeping the .obj and .mtl together.
+    #
+    # Two corrections this item carries, both measured:
+    #  * gif has NO page (the artifact is the .gif), so C-1952's "three left"
+    #    was two.
+    #  * the count is heard in Japanese and not in English - 「3 つ」 draws the
+    #    admission, "make 3 3d models" draws nothing - so the note check here
+    #    is parity with the Japanese page rather than a literal 3. Its own
+    #    item; not smuggled in.
+    from sidra_ai.evals.model3d_page_matches_the_language_asked import (
+        evaluate_model3d_page_matches_the_language_asked,
+    )
+
+    _m3dpage = evaluate_model3d_page_matches_the_language_asked()
+    c.add(
+        "creation_model3d_page_matches_the_language_asked",
+        "3D プレビューのページが、訊かれた言語で書かれている（C-1953）",
+        float(_m3dpage.sides_right),
+        detail=(
+            f"**日英それぞれで 3D モデルを実際に作り、返事ではなくプレビューの HTML を読んだ**"
+            f"——**{_m3dpage.sides_right}/{_m3dpage.sides_total}**"
+            f"（日本語側は{'保たれている' if _m3dpage.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_m3dpage.failures[:2])
+               if _m3dpage.failures
+               else "**実測**: " + " / ".join(_m3dpage.readings))
+            + "。**検査**: 日本語 0 行（題は除く・C-1929）、**`<html lang>` が中身と一致**、"
+            "**canvas の代替文が残っている**（§36）、"
+            "**注記の数が日本語側と一致**（**「訳す」を「消す」で済ませられないように**）。"
+            "**形状の英語名は鍵そのもの**（`fish` / `boat` / `terrain`）——**第 2 の表は作っていない**。"
+            "**この巡で見つけて直していない欠陥**: **数が英語で聞こえない**"
+            "——**「3 つ」は注記を出すが「make 3 3d models」は何も出さない**"
+            "（**英語の依頼者は 3 つ頼んで 1 つ受け取り、そのことを告げられない**）。**別項目**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the art page, in the language asked -------------------------------
     #
     # C-1952, the second page C-1951 named. C-1932 put the art summary into

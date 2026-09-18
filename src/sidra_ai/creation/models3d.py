@@ -438,7 +438,18 @@ def _preview_html(
     shape_note: str = "",
     color_note: str = "",
     count_caveat: str = "",
+    in_japanese: bool = True,
 ) -> str:
+    """C-1953: the preview page follows the language of the request.
+
+    C-1930 and C-1932 put this generator's *summary* into the language
+    asked for. The page the summary points at stayed Japanese, so an
+    English request returned an English sentence about a preview whose
+    fallback shape note, canvas description and usage note were Japanese -
+    the operator's own title the only English on it. The third page of the
+    same family (deck C-1951, art C-1952).
+    """
+
     vertices, faces = mesh
     two_sided = "true" if _has_boundary(mesh) else "false"
     verts_js = ",".join(f"[{x:.4f},{y:.4f},{z:.4f}]" for x, y, z in vertices)
@@ -462,8 +473,30 @@ def _preview_html(
     count_html = (
         f'<p id="count-note">{escape(count_caveat)}</p>' if count_caveat else ""
     )
+    # The one sentence the canvas hands a screen reader (§36), and the note
+    # under it that says how to open the saved files. Both in the page's
+    # language (C-1953).
+    if in_japanese:
+        canvas_text = f"{marked_english(title)}の 3D プレビュー——自動で回る立体の絵。"
+        usage_note = (
+            "ドラッグ不要・自動回転（reduced-motion 設定では静止します）。\n"
+            ".obj は Windows の 3D ビューアーで開けます（色は隣に保存された .mtl "
+            "から付くので、.obj と .mtl を一緒に置いてください）。"
+        )
+    else:
+        canvas_text = (
+            f"A 3D preview of {marked_english(title)} - a solid that turns by "
+            "itself."
+        )
+        usage_note = (
+            "No dragging needed; it turns on its own (it stays still under a "
+            "reduced-motion setting).\n"
+            "The .obj opens in the Windows 3D viewer (its colour comes from "
+            "the .mtl saved beside it, so keep the .obj and the .mtl "
+            "together)."
+        )
     return f"""<!doctype html>
-<html lang="ja"><head><meta charset="utf-8">
+<html lang="{"ja" if in_japanese else "en"}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)} - SIDRA 3D preview</title>
 <style>
@@ -480,9 +513,8 @@ ul{{margin:0;padding-left:1.2em}}
 {note_html}
 {color_html}
 {count_html}
-<canvas id="c" width="640" height="480">{marked_english(title)}の 3D プレビュー——自動で回る立体の絵。</canvas>
-<small id="note">ドラッグ不要・自動回転（reduced-motion 設定では静止します）。
-.obj は Windows の 3D ビューアーで開けます（色は隣に保存された .mtl から付くので、.obj と .mtl を一緒に置いてください）。</small>
+<canvas id="c" width="640" height="480">{canvas_text}</canvas>
+<small id="note">{usage_note}</small>
 <ul>{sources}</ul>
 <script>
 "use strict";
@@ -575,9 +607,22 @@ def generate_model3d(
     # C-1283: disclose the fish default on the preview page itself, not only in
     # the chat summary, whenever the request named no shape (C-1267's honesty,
     # carried into the persisted artifact as C-1281 required of the report).
+    # C-1953: one decision for the whole page, taken from the request by the
+    # product's own rule. Imported in the function for the reason `router`
+    # and `decks` do it - `creation.__init__` pulls this module in and
+    # `models.echo` imports `creation.evidence`.
+    from sidra_ai.models.echo import _reply_in_japanese
+
+    in_japanese = _reply_in_japanese(request)
     shape_note = ""
     if not named:
-        choices = " / ".join(_SHAPE_TITLES.values())
+        # C-1953: in English a shape's own key IS its English name
+        # (fish / boat / terrain), the rule C-1930 set for the reply. No
+        # second table.
+        shape_names = (
+            _SHAPE_TITLES if in_japanese else {key: key for key in _SHAPE_TITLES}
+        )
+        choices = " / ".join(shape_names.values())
         # C-1805: the note bracket-quoted `title`, but for a bare request the
         # title falls back to the default shape's own name (「魚」), so the note
         # read 「依頼「魚」…既定の「魚」」 - self-contradictory, and attributing a 魚
@@ -586,9 +631,17 @@ def generate_model3d(
         # in the title and <h1>, so a named request loses nothing. (Sibling of
         # C-1801, the art note's identical bracket quote.)
         shape_note = (
-            f"依頼に合う形状が無かったため、"
-            f"既定の「{_SHAPE_TITLES[DEFAULT_SHAPE]}」で表示しています。"
-            f"作れる形状: {choices}。"
+            (
+                f"依頼に合う形状が無かったため、"
+                f"既定の「{shape_names[DEFAULT_SHAPE]}」で表示しています。"
+                f"作れる形状: {choices}。"
+            )
+            if in_japanese
+            else (
+                "No shape in the request could be built, so it is shown as "
+                f"the default “{shape_names[DEFAULT_SHAPE]}”. "
+                f"The shapes that can be built are {choices}."
+            )
         )
     # C-1818. A request that names a colour (「赤い魚」) is titled with it over a
     # fixed-palette mesh that is not that colour. The chat summary (model3d_job,
@@ -597,11 +650,17 @@ def generate_model3d(
     # C-1805 closed for the shape default and C-1784 for the .mtl colour. Disclose
     # it on the page too. Empty when the request names no colour, so a plain
     # request keeps its clean preview.
-    color_note = (
-        "依頼にあった色は今の配色に反映していません。固定の配色で表示しています。"
-        if names_color(request)
-        else ""
-    )
+    if not names_color(request):
+        color_note = ""
+    elif in_japanese:
+        color_note = (
+            "依頼にあった色は今の配色に反映していません。固定の配色で表示しています。"
+        )
+    else:
+        color_note = (
+            "The colour in the request is not used. It is shown in the fixed "
+            "palette."
+        )
     return GeneratedModel3D(
         shape=chosen,
         title=title,
@@ -609,7 +668,13 @@ def generate_model3d(
         obj_text=_obj_text(mesh),
         mtl_text=_mtl_text(),
         preview_html=_preview_html(
-            title, mesh, trail, shape_note, color_note, count_note(request)
+            title,
+            mesh,
+            trail,
+            shape_note,
+            color_note,
+            count_note(request, in_japanese=in_japanese),
+            in_japanese=in_japanese,
         ),
         vertex_count=len(mesh[0]),
         face_count=len(mesh[1]),
