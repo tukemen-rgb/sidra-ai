@@ -95,7 +95,7 @@ from sidra_ai.creation.scene import (
     SHOOTER_PALETTE,
     SCENE_PREAMBLE,
 )
-from sidra_ai.creation.startscreen import BRIEFINGS, GATE_PREAMBLE
+from sidra_ai.creation.startscreen import BRIEFINGS, BRIEFINGS_EN, GATE_PREAMBLE
 from sidra_ai.creation.rotate import (
     ROTATE_ID,
     ROTATE_TEXT,
@@ -1763,7 +1763,10 @@ def template_depicts(template: str, word: str) -> bool:
     if not template or not word:
         return False
     entry = TEMPLATES.get(template)
-    said = " ".join(BRIEFINGS.get(template, ()))
+    # C-1957: both tables. A word the English start screen names is depicted
+    # on the page as much as one the Japanese screen names, and this note
+    # exists not to accuse the page falsely.
+    said = " ".join(BRIEFINGS.get(template, ()) + BRIEFINGS_EN.get(template, ()))
     if entry is not None:
         said = f"{said} {entry.how_to_play} {entry.default_title}"
     if word in said:
@@ -2196,6 +2199,15 @@ def generate_game(
     make an artifact unbuildable.
     """
 
+    # C-1956/C-1957: one language decision for the whole artifact, taken
+    # before the script chain runs - the start screen's lines are injected
+    # into that chain, so the decision has to exist by then. Imported in the
+    # function because `creation.__init__` imports this module and
+    # `models.echo` imports `creation.evidence`.
+    from sidra_ai.models.echo import _reply_in_japanese
+
+    in_japanese = _reply_in_japanese(request)
+
     key = template or choose_template(request)
     if key not in TEMPLATES:
         raise KeyError(f"unknown game template: {key!r}")
@@ -2419,9 +2431,16 @@ def generate_game(
             # LAPS_TOKEN inside a briefing is filled from the same table the
             # racing script's own LAPS comes from (C-1625), after the script
             # chain's own LAPS_TOKEN pass has already run.
-            json.dumps(list(BRIEFINGS.get(key, ())), ensure_ascii=False).replace(
-                "LAPS_TOKEN", str(RACING_LAPS.get(difficulty, 3))
-            ),
+            # C-1957: the three lines a player reads before pressing
+            # anything, in the language of the request - the page's frame
+            # has followed it since C-1956 and the screen drawn on the
+            # canvas had not.
+            json.dumps(
+                list(
+                    (BRIEFINGS if in_japanese else BRIEFINGS_EN).get(key, ())
+                ),
+                ensure_ascii=False,
+            ).replace("LAPS_TOKEN", str(RACING_LAPS.get(difficulty, 3))),
         )
     )
     # The pad draws only the buttons this page reads (C-1244). Computed on the
@@ -2437,8 +2456,6 @@ def generate_game(
     # this module and `models.echo` imports `creation.evidence`, so a
     # top-level import closes the circle (the same reason `router`, `decks`
     # and `models3d` do it this way).
-    from sidra_ai.models.echo import _reply_in_japanese
-
     genre_label = next((label for label, tkey, _words in GENRES if tkey == key), key)
     # C-1956: the subtitle in the page's language. The genre's English name
     # is its own routing word (C-1930's `english_label_for`), not a new
@@ -2482,7 +2499,6 @@ def generate_game(
     # C-1956: one decision for the page's frame, from the request, by the
     # product's own rule - the fourth page to follow it (deck C-1951, art
     # C-1952, 3D preview C-1953).
-    in_japanese = _reply_in_japanese(request)
     fallback_note = genre_fallback_note(
         request, key, asked_title, in_japanese=in_japanese
     )

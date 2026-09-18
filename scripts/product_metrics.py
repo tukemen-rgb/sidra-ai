@@ -15224,6 +15224,44 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the start screen's three lines, in the language asked -------------
+    #
+    # C-1957. The briefing is what a player reads before pressing anything
+    # (C-1033): what to aim for, which keys, what is in the way. C-1956 put
+    # the page's frame into the language of the request and the screen drawn
+    # on the canvas stayed Japanese.
+    #
+    # Read out of the finished page (the GBRIEF array in the injected
+    # script), never from the table: a judge that read BRIEFINGS_EN would
+    # pass while the injection still sent the Japanese one - the shape
+    # C-1954 was caught by.
+    from sidra_ai.evals.briefing_matches_the_language_asked import (
+        evaluate_briefing_matches_the_language_asked,
+    )
+
+    _brief = evaluate_briefing_matches_the_language_asked()
+    c.add(
+        "creation_briefing_matches_the_language_asked",
+        "開始画面の 3 行が、訊かれた言語で書かれている（C-1957）",
+        float(_brief.sides_right),
+        detail=(
+            f"**日英それぞれでゲームを実際に作り、注入されたページから開始画面の"
+            f"3 行を取り出して読んだ**——**{_brief.sides_right}/{_brief.sides_total}**"
+            f"（日本語側は{'保たれている' if _brief.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_brief.failures[:2])
+               if _brief.failures
+               else "**実測**: " + " / ".join(_brief.readings))
+            + "。**検査**: 日本語 0 文字、**3 行あること**（**「訳す」を「消す」で"
+            "済ませられないように**）、**周回数が実際に埋まっていること**"
+            "（**`LAPS_TOKEN` のまま出れば日本語より悪い**）、**日本語側は門**。"
+            "**表ではなくページから読む**——**`BRIEFINGS_EN` を直接読む判定器は、"
+            "注入が日本語のままでも通ってしまう**（C-1954 で踏んだ形）。"
+            "**canvas が描く文字の残り**（HUD の「得点」は 10 個の template module に散り、"
+            "負けの帯は JS の中で数字と文字列を継ぎ足す）**は別項目**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the game page's frame, in the language asked ----------------------
     #
     # C-1956, the fourth page of the family (deck C-1951, art C-1952, 3D

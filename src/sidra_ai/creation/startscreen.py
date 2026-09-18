@@ -24,6 +24,8 @@ re-scheduling itself, exactly as the hitstop does.
 
 from __future__ import annotations
 
+import re
+
 from sidra_ai.creation.probekit import seed_store
 
 import json
@@ -120,6 +122,93 @@ BRIEFINGS: dict[str, tuple[str, str, str]] = {
         "底なしの隙間。落ちても灯籠まで戻るだけ",
     ),
 }
+
+
+#: The same three lines for a start screen written in English (C-1957).
+#:
+#: These are the first thing a player reads, and until this item they were
+#: Japanese whatever language the request was in - the page's frame followed
+#: the request from C-1956, and the screen drawn on the canvas did not.
+#:
+#: Kept beside the Japanese they translate rather than in another module:
+#: two tables in two files is the drift C-1848 keeps naming. The racing
+#: line carries ``LAPS_TOKEN`` in both languages because the lap count is
+#: the product's number, filled from ``RACING_LAPS`` after this table is
+#: read - not something either table decides.
+BRIEFINGS_EN: dict[str, tuple[str, str, str]] = {
+    "fishing": (
+        "Time it inside the band to score; the darker middle is a perfect, worth 2",
+        "SPACE / tap to time it",
+        "The band is narrow and the marker never rests",
+    ),
+    "catch": (
+        "Catch everything that falls, in the tray",
+        "← → / mouse to move the tray",
+        "The falling never stops, and a drop does not come back",
+    ),
+    "adventure": (
+        "Find the key and reach the chest",
+        "Arrows / WASD to walk, SPACE to strike",
+        "Enemies that wander, and rocks and grass in the way",
+    ),
+    "duel": (
+        "Charge, fire, and take the opponent's health down first",
+        "Hold SPACE to charge, release to fire, ↑ ↓ to dodge",
+        "The opponent is a quick-draw or a charger (the screen says which)",
+    ),
+    "shooter": (
+        "Shoot down every wave that comes",
+        "← → to move, SPACE to keep firing",
+        "The waves speed up. Three collisions end it",
+    ),
+    "puzzle": (
+        "Clear blocks of one colour and tidy the board",
+        "← ↑ → ↓ to move the cursor, SPACE to clear",
+        "Fewer than two cannot be cleared. It ends when no move is left",
+    ),
+    "kaiju": (
+        "Break a leg, hit the head that comes down. Three cycles to finish it",
+        "← → to walk, SPACE to shoot",
+        "The beast's blow, and the fissure that runs (the line is the warning)",
+    ),
+    "racing": (
+        "Follow the course for LAPS_TOKEN laps and keep the time",
+        "← → to steer",
+        "Obstacles on the road and the ground off it. Both slow you (there is no retiring)",
+    ),
+    "marble": (
+        "Roll to the end of the course, through the gates on the way",
+        "← → to steer the marble",
+        "Blocks across the course. Hit one and it topples",
+    ),
+    "platformer": (
+        "Cross the platforms and carry the light to the flag",
+        "← → to run, ↑ / SPACE to jump (hold it to go higher)",
+        "Bottomless gaps. A fall only sends you back to the lantern",
+    ),
+}
+
+#: Derived from the Japanese table, never counted by hand: a template added
+#: with a briefing and no English raises at import instead of drawing three
+#: Japanese lines onto an English start screen. The second check is the one
+#: C-1945 learned - a line that is present but still Japanese is invisible
+#: to a count that only asks whether the key exists.
+_MISSING_BRIEF_EN = sorted(set(BRIEFINGS) - set(BRIEFINGS_EN))
+_SHORT_BRIEF_EN = sorted(
+    key for key, lines in BRIEFINGS_EN.items() if len(lines) != len(BRIEFINGS[key])
+)
+_UNTRANSLATED_BRIEF_EN = sorted(
+    line
+    for lines in BRIEFINGS_EN.values()
+    for line in lines
+    if re.search(r"[぀-ゟ゠-ヿ一-鿿]", line)
+)
+if _MISSING_BRIEF_EN or _SHORT_BRIEF_EN or _UNTRANSLATED_BRIEF_EN:  # pragma: no cover
+    raise RuntimeError(
+        f"startscreen.BRIEFINGS_EN has no English for {_MISSING_BRIEF_EN}, "
+        f"the wrong number of lines for {_SHORT_BRIEF_EN}, and still carries "
+        f"Japanese in {_UNTRANSLATED_BRIEF_EN}"
+    )
 
 GATE_PREAMBLE = """
 /* --- start screen and pause (installed first: its overlay draws last) --- */
