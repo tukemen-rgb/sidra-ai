@@ -326,7 +326,7 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
    Kept off the edges so the band always fits on the line. */
 const SPOT=0.25+rand()*0.5;
 let pos=0,dir=1,score=0,hits=0,crits=0,casts=0,flash=0,
-  msg='SPACE / クリックで合わせる';
+  msg=CW.fishing_hint;
 /* The catch flash fades on the clock, not on the frame count (C-1892).
    `flash-=0.04` was 0.20s of veil on a 60Hz screen and 0.08s on a
    144Hz one, because the subtraction lived in draw() and draw() runs
@@ -429,7 +429,7 @@ function draw(){const w=cv.width,h=cv.height,now=performance.now();const fstep=f
   cx.fillRect(32,14,400,hudBand(16,10));cx.fillRect(32,h-44,430,hudBand(16,10));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(16)+'px ui-monospace,monospace';
   cx.fillText(msg,40,h-44+hudPx(16));
-  cx.fillText('得点 '+score+' / 釣果 '+hits+'/'+casts+' / 会心 '+crits
+  cx.fillText(CW.score+' '+score+' / '+CW.catches+' '+hits+'/'+casts+' / '+CW.crit+' '+crits
     +' / '+comboLabel(),40,14+hudBand(16,4))}
 function fishFacts(){return {pos:pos,spot:SPOT,band:BAND,score:score,
   hits:hits,crits:crits,crit:CRIT,
@@ -461,17 +461,17 @@ function cast(){
        scales with the risk that was taken, not just with success. */
     if(Math.abs(pos-SPOT)<=(BAND/2)*CRIT){crits++;
       score+=scorePop(cv.width/2,cv.height/2,pay+FISH_CRIT);
-      if(flashGate())flash=1;msg='ど真ん中。会心。';sfx('gem',1,mx);
+      if(flashGate())flash=1;msg=CW.bullseye;sfx('gem',1,mx);
       /* 18, not 22 (C-1717): the perfect catch shakes 6 against the
          failure beat's 14 and holds 3 against its 7, and then threw more
          particles than losing the round. The dials now agree. */
       shake(6);hitstop(3);burst(cv.width/2,cv.height/2,18,'ACCENT_JUICE')}
     else{score+=scorePop(cv.width/2,cv.height/2,pay);
-      if(flashGate())flash=1;msg='かかった。';sfx('catch',1,mx);
+      if(flashGate())flash=1;msg=CW.hooked;sfx('catch',1,mx);
       shake(4);hitstop(2);burst(cv.width/2,cv.height/2,14,'ACCENT_JUICE')}}
   /* Only a cast can break the run (C-1426). The sweep between casts is
      what the game asks a player to wait through, so it costs nothing. */
-  else{comboMiss();msg='逃げられた。';sfx('clash',1,mx);shake(1.5)}}
+  else{comboMiss();msg=CW.got_away;sfx('clash',1,mx);shake(1.5)}}
 addEventListener('keydown',e=>{if(keyInForm(e))return;
   if(e.code==='Space'){e.preventDefault();cast()}});
 cv.addEventListener('pointerdown',cast);
@@ -2295,7 +2295,7 @@ def generate_game(
             # Why a go ended (C-1409), defined before the round so the
             # result strip can call it. Its expressions name the template's
             # own counters, which exist by the time the strip is drawn.
-            + recap_preamble_for(key)
+            + recap_preamble_for(key, in_japanese=in_japanese)
             + round_preamble_for(key, in_japanese=in_japanese)
             # After the round: the line it writes is about a round that is
             # over, and it reads the clock's own verdict to know (C-1110).

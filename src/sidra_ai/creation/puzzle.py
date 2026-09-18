@@ -260,17 +260,17 @@ function draw(now){
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(OX-8,10,336,hudBand(13,9));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
-  cx.fillText('得点 '+score+' '+comboLabel()+'  つち ×'+hammers,OX,10+hudBand(13,3));
+  cx.fillText(CW.score+' '+score+' '+comboLabel()+'  '+CW.hammers+' ×'+hammers,OX,10+hudBand(13,3));
   const left=group(cur.x,cur.y).length;
-  cx.fillText(left>1?('このかたまり '+left+' 個'):'ここは消せない',OX+120,10+hudBand(13,3));
+  cx.fillText(left>1?(CW.clump_open+left+CW.n_things):CW.cant_clear,OX+120,10+hudBand(13,3));
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';
     cx.fillRect(0,0,cv.width,cv.height);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    const a=cleared?'全部消えた。':'もう消せる手がない。';announce(a);
+    const a=cleared?CW.all_cleared:CW.no_moves;announce(a);
     cx.fillText(a,cv.width/2,cv.height/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
-    const b='得点 '+score+(((typeof roundAskReady!=='function'||roundAskReady()))?' / SPACE か R でもう一度':'');
+    const b=CW.score+' '+score+(((typeof roundAskReady!=='function'||roundAskReady()))?CW.again_space_r:'');
     cx.fillText(b,cv.width/2,cv.height/2+18);cx.textAlign='left'}}
 /* Only the settling is the world here (§26, C-1608); the picture is
    drawn every callback either way. */

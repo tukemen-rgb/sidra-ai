@@ -16,6 +16,7 @@ import subprocess
 import pytest
 
 from sidra_ai.creation import generate_game
+from sidra_ai.creation.canvaswords import said_lines
 from sidra_ai.creation.adventure import say_probe as adventure_say
 from sidra_ai.creation.platformer import say_probe as platformer_say
 
@@ -26,7 +27,7 @@ _FLOORS = {"adventure": 140, "platformer": 150}
 def _drive(template: str) -> tuple[dict, str, str]:
     html = generate_game("ゲームを作って", template=template).html
     script = re.search(r"<script>(.*?)</script>", html, re.S).group(1)
-    lits = re.findall(r"say\('([^']+)'\)", script)
+    lits = said_lines(script)
     short, long = min(lits, key=len), max(lits, key=len)
     run = subprocess.run(
         ["node", "-"],

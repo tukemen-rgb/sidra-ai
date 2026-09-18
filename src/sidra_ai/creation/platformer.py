@@ -212,7 +212,7 @@ function reset(){rs=(SEED>>>0)||1;build();state='play';respawns=0;TRAIL=[];
   /* Start ON the aim, not at zero: a run that opens by sliding the world
      into place would read as a glitch. */
   cam=camAim();
-  say('足場を渡って、旗まで。')}
+  say(CW.reach_the_flag)}
 /* Long enough to READ (§4 増築, C-1395): 15 frames a character = the
    4 chars/second subtitle standard; the old 150 stays as the floor. */
 /* ...and kept, so the pause screen can hand it back after the timer has
@@ -323,15 +323,15 @@ function step(rt){const now=performance.now();
            not a pickup, so it rings the powerUp voice (§2, C-1346). */
         me.cpX=lamp.x;me.cpY=lamp.y;sfx('powerup',1,(lamp.x-cam)/W);
         burst(lamp.x,lamp.y-18,16,'ALERT_JUICE');
-        say('灯籠がともった。落ちてもここから。')}
-      else if(msgT<=0){say('灯籠は宝石 '+LAMP_COST+' 個で点く（いま '+me.gems+' 個）。')}}
+        say(CW.lamp_lit)}
+      else if(msgT<=0){say(CW.lamp_cost_open+LAMP_COST+CW.lamp_cost_mid+me.gems+CW.lamp_cost_close)}}
     if(Math.abs(flag.x-me.x)<16&&me.y>flag.y-30&&me.y<=flag.y+2){
       state='goal';winBeat(flag.x,flag.y-30)}
     /* Falling costs a walk back, never the run: respawn at the last lit
        lantern (or the start), no game over. */
     if(me.y>H+40){respawns++;me.x=me.cpX;me.y=me.cpY-6;me.vy=0;me.coyote=0;
       sfx('hurt',1,(me.x-cam)/W);shake(4);hitstop(4);
-      say(lamp.lit?'灯籠まで戻された。':'足場のはじめに戻された。')}
+      say(lamp.lit?CW.back_to_lamp:CW.back_to_start)}
     /* The trail of the run that set the record (§11, C-1330): the course
        x is the progress, the height is what is remembered there. Sampled
        after the physics has settled the frame, so a respawn records the
@@ -440,17 +440,17 @@ function draw(now){
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(34,4,330,hudBand(13,9));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
-  cx.fillText('宝石 '+me.gems+' / '+LAMP_COST+(lamp.lit?'  灯籠 点':'')
-    +'  落下 '+respawns,40,4+hudBand(13,3));
+  cx.fillText(CW.gems+' '+me.gems+' / '+LAMP_COST+(lamp.lit?CW.lamp_on:'')
+    +'  '+CW.falls+' '+respawns,40,4+hudBand(13,3));
   if(msgT>0){msgT--;cx.fillStyle='SCRIM_TOKEN'+'d9';cx.fillRect(20,H-34,W-40,26);
     cx.fillStyle='INK_TOKEN';cx.fillText(msg,30,H-16)}
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    const a='灯りは旗までとどいた。';announce(a);
+    const a=CW.light_reached;announce(a);
     cx.fillText(a,W/2,H/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
-    const b='宝石 '+me.gems+' 個 / 落下 '+respawns+' 回'+(((typeof roundAskReady!=='function'||roundAskReady()))?' / R かタップでもう一度':'');
+    const b=CW.gems+' '+me.gems+CW.n_things+' / '+CW.falls+' '+respawns+CW.n_times+(((typeof roundAskReady!=='function'||roundAskReady()))?CW.again_r_tap:'');
     cx.fillText(b,W/2,H/2+18);cx.textAlign='left'}}
 function platFacts(){return{x:me.x,y:me.y,vy:me.vy,ground:me.ground,
   squash:me.sq,

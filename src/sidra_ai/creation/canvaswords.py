@@ -60,17 +60,77 @@ CANVAS_WORDS: dict[str, tuple[str, str]] = {
     "recent": ("直近", "recent"),
     "unlock_open": ("新しい見た目「", "a new look, "),
     "unlock_close": ("」が開きました", ", is open"),
+    # --- fishing (C-1960) ---
+    "fishing_hint": ("SPACE / クリックで合わせる", "SPACE / click to time it"),
+    "catches": ("釣果", "catches"),
+    "crit": ("会心", "perfect"),
+    "bullseye": ("ど真ん中。会心。", "Dead centre. Perfect."),
+    "hooked": ("かかった。", "Hooked."),
+    "got_away": ("逃げられた。", "It got away."),
+    # --- puzzle (C-1960) ---
+    "hammers": ("つち", "hammers"),
+    "clump_open": ("このかたまり ", "this clump: "),
+    "cant_clear": ("ここは消せない", "this one cannot be cleared"),
+    "all_cleared": ("全部消えた。", "All cleared."),
+    "no_moves": ("もう消せる手がない。", "No moves left."),
+    "again_space_r": (" / SPACE か R でもう一度", " / SPACE or R to play again"),
+    # --- platformer (C-1960) ---
+    "gems": ("宝石", "gems"),
+    "falls": ("落下", "falls"),
+    "lamp_on": ("  灯籠 点", "  lantern lit"),
+    "reach_the_flag": ("足場を渡って、旗まで。", "Cross the platforms to the flag."),
+    "lamp_lit": ("灯籠がともった。落ちてもここから。",
+                 "The lantern is lit. A fall puts you back here now."),
+    "lamp_cost_open": ("灯籠は宝石 ", "the lantern lights for "),
+    "lamp_cost_mid": (" 個で点く（いま ", " gems (you have "),
+    "lamp_cost_close": (" 個）。", ")."),
+    "back_to_lamp": ("灯籠まで戻された。", "Back to the lantern."),
+    "back_to_start": ("足場のはじめに戻された。", "Back to the first platform."),
+    "light_reached": ("灯りは旗までとどいた。", "The light reached the flag."),
+    "again_r_tap": (" / R かタップでもう一度", " / R or tap to play again"),
+    # --- marble (C-1960) ---
+    "score_kana": ("スコア", "score"),
+    "gates": ("ゲート", "gates"),
+    "distance": ("距離", "distance"),
+    "hit_block": ("ブロックに当たった。", "You hit a block."),
+    "course_done": ("コースを走り切った。", "You finished the course."),
+    # --- kaiju (C-1960) ---
+    "cycles": ("周期", "cycles"),
+    "legs": ("脚", "legs"),
+    "kaiju_silent": ("巨獣、沈黙。", "The kaiju falls silent."),
+    "squad_back": ("部隊は退いた。", "The squad pulled back."),
+    "again_key": ("R でもう一度", "R to play again"),
+    # --- the counters English does not say (C-1960) ---
+    #
+    # 「個」 and 「回」 count things a number already counts in English, so
+    # their English column is deliberately empty. An empty value is a
+    # mistake everywhere else, so every row that means to be empty is
+    # named in EMPTY_IN_ENGLISH below and the guard checks the two agree.
+    "n_things": (" 個", ""),
+    "n_times": (" 回", ""),
 }
 
 _JAPANESE = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
 
-_EMPTY = sorted(k for k, v in CANVAS_WORDS.items() if not v[0] or not v[1])
-_UNTRANSLATED = sorted(k for k, v in CANVAS_WORDS.items() if _JAPANESE.search(v[1]))
+#: The rows whose English is meant to be empty: Japanese counters that a
+#: number says by itself in English. Declared rather than allowed, so a row
+#: that simply never got its English still raises.
+EMPTY_IN_ENGLISH = frozenset({"n_things", "n_times"})
 
-if _EMPTY or _UNTRANSLATED:  # pragma: no cover - import-time guard
+_EMPTY = sorted(
+    k for k, v in CANVAS_WORDS.items()
+    if not v[0] or (not v[1] and k not in EMPTY_IN_ENGLISH)
+)
+_UNTRANSLATED = sorted(k for k, v in CANVAS_WORDS.items() if _JAPANESE.search(v[1]))
+_DECLARED_BUT_FILLED = sorted(
+    k for k in EMPTY_IN_ENGLISH if k not in CANVAS_WORDS or CANVAS_WORDS[k][1]
+)
+
+if _EMPTY or _UNTRANSLATED or _DECLARED_BUT_FILLED:  # pragma: no cover
     raise RuntimeError(
-        f"canvaswords.CANVAS_WORDS has empty rows {_EMPTY} and still carries "
-        f"Japanese in the English column of {_UNTRANSLATED}"
+        f"canvaswords.CANVAS_WORDS has empty rows {_EMPTY}, still carries "
+        f"Japanese in the English column of {_UNTRANSLATED}, and declares "
+        f"{_DECLARED_BUT_FILLED} empty while they are not"
     )
 
 
@@ -81,4 +141,32 @@ def words_js(*, in_japanese: bool = True) -> str:
     return "const CW=" + json.dumps(column, ensure_ascii=False) + ";\n"
 
 
-__all__ = ["CANVAS_WORDS", "words_js"]
+_SAY_LITERAL = re.compile(r"say\('([^']+)'\)")
+_SAY_WORD = re.compile(r"say\(CW\.(\w+)\)")
+
+
+def said_lines(script: str, *, in_japanese: bool = True) -> list[str]:
+    """Every whole line the page's ``say()`` can put on screen.
+
+    Before C-1960 a reader could find these by looking for ``say('...')``
+    in the page, and two test files did exactly that. Now a template says
+    ``say(CW.lamp_lit)`` instead, so the same question has to be asked of
+    the table as well - otherwise a template that still speaks looks mute,
+    which is how a reading-speed test can pass by measuring nothing.
+
+    Composed calls (a ternary, or a sentence built around a number) are
+    left out here exactly as they were left out before: this returns the
+    lines that are one whole string, which is what the callers measure.
+    """
+
+    column = 0 if in_japanese else 1
+    lines = list(_SAY_LITERAL.findall(script))
+    lines += [
+        CANVAS_WORDS[key][column]
+        for key in _SAY_WORD.findall(script)
+        if key in CANVAS_WORDS
+    ]
+    return lines
+
+
+__all__ = ["CANVAS_WORDS", "EMPTY_IN_ENGLISH", "said_lines", "words_js"]

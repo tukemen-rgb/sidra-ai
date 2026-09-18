@@ -13409,12 +13409,19 @@ def measure_creation(c: Collector) -> None:
         ("adventure", _av_say, 140),
         ("platformer", _pf_say, 150),
     ):
+        from sidra_ai.creation.canvaswords import said_lines as _cw_said_lines
+
         _sy_page = generate_game("ゲームを作って", template=_sy_key).html
         _sy_m = _scene_re.search(r"<script>(.*?)</script>", _sy_page, _scene_re.S)
         if _sy_m is None:
             say_gaps.append(f"{_sy_key}: no script")
             continue
-        _sy_lits = _scene_re.findall(r"say\('([^']+)'\)", _sy_m.group(1))
+        # Through the table as well as the literals (C-1960): a template
+        # that says say(CW.lamp_lit) speaks just as much as one with the
+        # string in it, and reading only literals made platformer look
+        # mute - which would have dropped it out of this measurement
+        # while the number itself held still.
+        _sy_lits = _cw_said_lines(_sy_m.group(1))
         if not _sy_lits:
             say_gaps.append(f"{_sy_key}: no say literals to read")
             continue
@@ -13495,15 +13502,13 @@ def measure_creation(c: Collector) -> None:
     _rr_keys = tuple(sorted(_RR_TEMPLATES))
 
     def _rr_one(key: str):
+        from sidra_ai.creation.canvaswords import said_lines as _cw_said_lines
+
         page = generate_game("ゲームを作って", template=key).html
         m = _scene_re.search(r"<script>(.*?)</script>", page, _scene_re.S)
         if m is None:
             return key, None, "no script"
-        lits = sorted(
-            set(_scene_re.findall(r"say\('([^']+)'\)", m.group(1))),
-            key=len,
-            reverse=True,
-        )
+        lits = sorted(set(_cw_said_lines(m.group(1))), key=len, reverse=True)
         if not lits:
             # Not a failure: eight of the ten templates never speak, and a
             # metric that counted them as broken would be counting silence.
@@ -15295,6 +15300,41 @@ def measure_creation(c: Collector) -> None:
             "ページが `CW` を 1 度も呼ばなくても通ってしまう**。"
             "**1 局で 8 種のうち 5 種は `round.py` の共有の文字**なので、**この 1 型を直すと"
             "残り 9 型は各 2〜4 種になる**（**それぞれ別項目**）。"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- how many templates draw in the language asked ---------------------
+    #
+    # C-1960, after C-1959 did the shared words and catch. The pair judge
+    # above watches both directions on one template; this one counts the
+    # templates, so what is left is a number rather than a note.
+    #
+    # All ten are counted, not the finished ones: a number that can only
+    # count what is done cannot show a gap. The ten requests are each
+    # measured to land on the template they name - C-1960 found that no
+    # English phrasing reached marble at all, so a translated marble page
+    # would have been unreachable.
+    from sidra_ai.evals.canvas_matches_the_language_asked import (
+        evaluate_canvas_matches_the_language_asked,
+    )
+
+    _canvas_all = evaluate_canvas_matches_the_language_asked()
+    c.add(
+        "creation_canvas_matches_the_language_asked",
+        "英語で頼んだとき canvas に日本語を描かない型の数（C-1960）",
+        float(_canvas_all.templates_in_the_language_asked),
+        detail=(
+            f"**10 型すべてを英語で作り、1 局ずつ最後まで走らせて canvas が描いた文字を読んだ**"
+            f"——**{_canvas_all.templates_in_the_language_asked}/{_canvas_all.templates_total}**。"
+            + ("**まだ日本語を描く型**: " + "; ".join(_canvas_all.failures)
+               if _canvas_all.failures
+               else "**全型が依頼の言語で描いている**")
+            + "。**済んだ型だけを数えない**——**それは下がれない数**。"
+            "**依頼が別の型に着地したら失敗として数える**"
+            "（**C-1960 の実測**: **`make a marble game` は fishing に着地していた**"
+            "——**訳しても英語では辿り着けないページになるところだった**）。"
+            "**表ではなくページから読む**（C-1640）。"
         ),
         kind=OUTCOME,
     )

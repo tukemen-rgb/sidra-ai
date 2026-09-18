@@ -50,7 +50,19 @@ MARBLE_HOW_EN = (
 
 #: Words that should land here. 3D is the one people type; the rest are
 #: what they call the thing when they do not.
+#:
+#: The English ones were added by C-1960, which measured that NO English
+#: request reached this template at all - "make a marble game" landed on
+#: fishing, and so did every rolling-ball phrasing. Translating a page
+#: nobody could ask for in English would have been work no player could
+#: see. "marble" and "rolling" are the two words the page is about; the
+#: bare word "ball" is deliberately NOT here, because a catching game is
+#: full of balls and it would take those requests away from catch.
 MARBLE_WORDS: tuple[str, ...] = (
+    "marble",
+    "rolling ball",
+    "ball rolling",
+    "roll the ball",
     "3d",
     "３ｄ",
     "立体",
@@ -224,9 +236,9 @@ function step(rt){
              a block, which ends the go outright. A gate missed is what a
              player can do wrong and keep playing. */
           else{comboMiss()}}
-        else if(Math.abs(o.x-ball.x)<24){state='over';over='ブロックに当たった。';
+        else if(Math.abs(o.x-ball.x)<24){state='over';over=CW.hit_block;
           comboMiss();failBeat(W/2,H*0.6)}}});
-    if(things.every(o=>o.done)){state='over';over='コースを走り切った。';
+    if(things.every(o=>o.done)){state='over';over=CW.course_done;
       winBeat(W/2,H*0.5)}}
   /* The rolling voice (§25, C-1381): the same engine channel the racer
      sings through, fed the corridor's own pace - each act rolls faster
@@ -334,13 +346,13 @@ function step(rt){
   cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
   cx.fillRect(32,12,330,hudBand(13,11));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
-  cx.fillText('スコア '+score+' '+comboLabel()+'  ゲート '+gates
-    +'  距離 '+Math.round(ball.z),40,12+hudBand(13,5));
+  cx.fillText(CW.score_kana+' '+score+' '+comboLabel()+'  '+CW.gates+' '+gates
+    +'  '+CW.distance+' '+Math.round(ball.z),40,12+hudBand(13,5));
   if(state!=='roll'){cx.fillStyle='SCRIM_TOKEN'+'cc';cx.fillRect(0,H/2-40,W,80);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';announce(over);cx.fillText(over,W/2,H/2-6);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
-    if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('R / タップでもう一度',W/2,H/2+24)}cx.textAlign='left'}
+    if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText(CW.again,W/2,H/2+24)}cx.textAlign='left'}
   requestAnimationFrame(step)}
 /* Read back off the running page: where the run is, which act the sky is
    in, and the next thing ahead, so a probe can roll the course by hand. */

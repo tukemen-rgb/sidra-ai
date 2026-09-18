@@ -49,7 +49,7 @@ LOSS_WIRED: dict[str, dict] = {
     # The marble already writes its own reason down when it stops. Reading
     # that is better than deciding a second time and risking two answers.
     "marble": {
-        "lost": "state==='over'&&over!=='コースを走り切った。'",
+        "lost": "state==='over'&&over!==CW.course_done",
         "causes": [("1", "over+'ゲートを '+score+' 点ぶん抜けたところだった'")],
     },
     # Falls are counted because the checkpoint needs them. A run that never
@@ -198,15 +198,75 @@ _CAUSE = """  try{const n=Number(COUNT_TOKEN);
 """
 
 
-def preamble_for(template: str) -> str:
-    """The rule, told this template's own counters - or told there are none."""
+#: The same lines in English, beside the Japanese rather than in a module
+#: of their own (C-1959's shape). One entry per cause, in the order the
+#: causes are written above, and the expressions name the same counters.
+#:
+#: Sentence-shaped rather than word-shaped on purpose: 「被弾 3 回」 and
+#: "hit 3 times" do not have the same pieces in the same order, so a word
+#: table cannot build both. What is shared is the counter, not the phrasing.
+LOSS_WIRED_EN: dict[str, list[str]] = {
+    "puzzle": [
+        "'the hammer opened '+n+' tiles and it was still not enough"
+        " - clearing a big group earns one'",
+        "'it ended with '+n+' loose tiles - it jams once no two colours touch'",
+    ],
+    "platformer": [
+        "'you fell '+n+' times - each one restarts you at the last platform'",
+    ],
+    "marble": [
+        "over+'you were '+score+' gate points from the end'",
+    ],
+    "kaiju": [
+        "'the head needed '+n+' more hits - it only drops right after a leg goes'",
+    ],
+}
+
+#: The wired templates whose reason line is NOT translated yet, named on
+#: purpose. Without this a template could quietly keep drawing its Japanese
+#: line on an English page and nothing would say so (C-1960). The same
+#: shape as ``LOSS_UNWIRED``: a gap that is written down is a gap that can
+#: be closed.
+RECAP_UNTRANSLATED: dict[str, str] = {
+    "adventure": "its lines are narration, which is a separate item",
+    "duel": "C-1960 took five templates; duel, racing and shooter are next",
+    "racing": "C-1960 took five templates; duel, racing and shooter are next",
+    "shooter": "C-1960 took five templates; duel, racing and shooter are next",
+}
+
+_RECAP_BOTH = sorted(set(LOSS_WIRED_EN) & set(RECAP_UNTRANSLATED))
+_RECAP_NEITHER = sorted(set(LOSS_WIRED) - set(LOSS_WIRED_EN) - set(RECAP_UNTRANSLATED))
+_RECAP_STRANGER = sorted((set(LOSS_WIRED_EN) | set(RECAP_UNTRANSLATED)) - set(LOSS_WIRED))
+_RECAP_SHORT = sorted(
+    key for key, lines in LOSS_WIRED_EN.items()
+    if len(lines) != len(LOSS_WIRED[key]["causes"])
+)
+
+if _RECAP_BOTH or _RECAP_NEITHER or _RECAP_STRANGER or _RECAP_SHORT:  # pragma: no cover
+    raise RuntimeError(
+        f"recap.py has {_RECAP_BOTH} both translated and excused, {_RECAP_NEITHER} "
+        f"neither, {_RECAP_STRANGER} named but not wired, and the wrong number "
+        f"of English lines for {_RECAP_SHORT}"
+    )
+
+
+def preamble_for(template: str, *, in_japanese: bool = True) -> str:
+    """The rule, told this template's own counters - or told there are none.
+
+    ``in_japanese`` picks the column (C-1960). A template that has no
+    English line keeps its Japanese one: that is a gap, and it is named in
+    ``RECAP_UNTRANSLATED`` rather than left to be discovered on a page.
+    """
 
     spec = LOSS_WIRED.get(template)
     if not spec:
         return _UNWIRED_PREAMBLE
+    english = LOSS_WIRED_EN.get(template) if not in_japanese else None
     causes = "".join(
-        _CAUSE.replace("COUNT_TOKEN", count).replace("LINE_TOKEN", line)
-        for count, line in spec["causes"]
+        _CAUSE.replace("COUNT_TOKEN", count).replace(
+            "LINE_TOKEN", english[index] if english else line
+        )
+        for index, (count, line) in enumerate(spec["causes"])
     )
     return _WIRED_PREAMBLE.replace("RECAP_LOST_TOKEN", spec["lost"]).replace(
         "RECAP_CAUSES_TOKEN", causes.rstrip("\n")

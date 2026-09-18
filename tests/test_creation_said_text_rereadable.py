@@ -34,6 +34,7 @@ import subprocess
 import pytest
 
 from sidra_ai.creation import generate_game
+from sidra_ai.creation.canvaswords import said_lines
 from sidra_ai.creation.games import TEMPLATES
 from sidra_ai.creation.startscreen import PREAMBLE_NAMES, reread_probe_source
 
@@ -53,9 +54,11 @@ def _script(template: str) -> str:
 
 
 def _literals(script: str) -> list[str]:
-    return sorted(
-        set(re.findall(r"say\('([^']+)'\)", script)), key=len, reverse=True
-    )
+    # Through the table as well as the literals: since C-1960 a template
+    # says say(CW.lamp_lit), and a census that only saw literals would
+    # report a speaking template as mute (which is how this file's
+    # measurements would quietly become measurements of nothing).
+    return sorted(set(said_lines(script)), key=len, reverse=True)
 
 
 def _probe(script: str) -> dict:
