@@ -15224,6 +15224,47 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- does a count named in English reach the admission -----------------
+    #
+    # C-1954. Three generators cannot make the number asked for and each
+    # says so; C-1934/C-1935 taught those admissions English. One of the
+    # three was taught a phrasing the product never receives: measured,
+    # 「make 3 models of an owl」 counts 3 and routes to `unknown`, while
+    # 「make 3 3d models of an owl」 routes to `model3d` and counted nothing,
+    # because 「3d」 sits between the number and the noun. The branch matched
+    # exactly the requests that do not arrive - the part was right and the
+    # product was not (C-1640).
+    #
+    # Measured end to end, through the intent parser and the generator, for
+    # all three lanes. Calling the parser directly is how this went unseen.
+    from sidra_ai.evals.english_count_reaches_the_note import (
+        evaluate_english_count_reaches_the_note,
+    )
+
+    _encount = evaluate_english_count_reaches_the_note()
+    c.add(
+        "creation_english_count_reaches_the_note",
+        "英語で名指した数が、断りの文まで届く（C-1954）",
+        float(_encount.lanes_heard),
+        detail=(
+            f"**3 つのレーン（model3d・gif・deck）で、英語の依頼を製品の経路にそのまま流した**"
+            f"——**{_encount.lanes_heard}/{_encount.lanes_total} が数を聞いて断りを出す**"
+            f"（日本語側は{'保たれている' if _encount.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_encount.failures[:2])
+               if _encount.failures
+               else "**実測**: " + " / ".join(_encount.readings))
+            + "。**旧実装なら 2/3**（**枝を戻して実測**）——"
+            "**`model3d` の英語の枝は「レーンに届かない言い方」だけに一致していた**。"
+            "**検査は数字ではなく断りの文そのもの**——**初稿は数字を探していて、"
+            "`3D`・seed・寸法だらけのページでは常に当たり、枝を戻しても 3/3 のままだった**"
+            "（**自分の破壊が自分の判定器の穴を出した・2 日で 2 度目**）。"
+            "**断りの文は生成器自身の builder から取る**（**判定器に写しを置かない**・C-1848）。"
+            "**綴りの数字（three）は取らない**——**兄弟も取っていない**"
+            "（`make a five slide deck`／`make a thirty frame gif` ともに None）。**別項目**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the 3D preview, in the language asked -----------------------------
     #
     # C-1953, the third page of the family (deck C-1951, art C-1952). C-1930

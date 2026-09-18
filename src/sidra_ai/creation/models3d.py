@@ -373,9 +373,26 @@ def _mtl_text() -> str:
 #: a bare 「make 3」 names no unit, and 「make a 3d model」 must not be read
 #: as three of anything (the digit is glued to the 「d」, which the
 #: boundaries below keep out).
+#: C-1954: and the kind word between the number and the noun.
+#:
+#: The English branch above was written in C-1934 and measured then - in
+#: isolation. In the product it never fired once, because every English
+#: phrasing that REACHES this lane puts 「3d」 between the two:
+#: `detect_creation_intent` reads 「make 3 models of an owl」 and
+#: 「make 3 meshes of an owl」 as `unknown`, and 「make 3 3d models of an
+#: owl」, 「make 3 3D models」 and 「make three 3d models」 as `model3d`.
+#: So the branch matched exactly the requests that never arrive. Measured
+#: 2026-09-18 by running the intent parser and this one side by side; the
+#: family is C-1640's - the part was fixed and the product was not.
+#:
+#: 「make a 3d model」 must still name no count, which is what the
+#: lookbehind is for: the digit in 「3d」 is preceded by a letter or is the
+#: start of the kind word, never a free number. The optional kind word is
+#: written out rather than made a general gap, so 「3 of the 5 models」
+#: keeps naming 3.
 _MODEL_COUNT = re.compile(
     r"(\d{1,3})\s*(?:個|つ|体|匹|台|点)"
-    r"|(?<![A-Za-z0-9])(\d{1,3})[\s-]*(?:models?|meshes|mesh)\b",
+    r"|(?<![A-Za-z0-9])(\d{1,3})[\s-]*(?:3[\s-]?d[\s-]+)?(?:models?|meshes|mesh)\b",
     re.IGNORECASE,
 )
 
