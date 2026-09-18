@@ -47,6 +47,55 @@ HEADING = re.compile(r"^- \[( |x|~|記録)\] ")
 # Records quote other C numbers freely, so only the bold-and-colon form -
 # the way a title is written - counts as heading one.
 HEADS = re.compile(r"\*\*(C-\d+)[:：]")
+#: C-1958. The same number, introduced by a label instead of standing first in
+#: the bold run: 「- [ ] **要判断: C-1957: …**」. E-section items are written this
+#: way and ``HEADS`` never saw them, so the number they claim was invisible to
+#: the collision check - and a real collision was sitting in main (two items
+#: both heading C-1957) while the board printed 「不整合なし」.
+#:
+#: Anchored to the checkbox on purpose. The obvious repair - letting the number
+#: be found anywhere in the line - is the one the filing forbids, and measuring
+#: says why: searched loosely over today's board it changes an id that was
+#: already right (a line that quotes another item's number before naming its
+#: own). Anchoring makes the guarantee structural rather than lucky: this runs
+#: only where ``HEADS`` found nothing, so no number it already reads can move.
+#:
+#: The label is bounded (no asterisk, no colon, at most 12 characters) so it
+#: matches a short word like 「要判断」 and not a sentence that happens to end in
+#: a colon. The E section is not being told how to write its lines - the
+#: instrument is being taught to read the way they are already written.
+NUMBERED_HEAD_AFTER_LABEL = re.compile(
+    r"^- \[.\] \*\*[^*\n:：]{1,12}[:：]\s*(C-\d+)[:：]"
+)
+
+#: C-1958, the third form, found live while this was being written: 「- [~]
+#: 作業中 2026-09-18 辛口ユーザー C-1961: …」 - a claim that names its number
+#: with no bold run at all. One item on the board is written this way and the
+#: board was printing it as 「L262」, having no number for it.
+#:
+#: Anchored like the one above, and refusing an asterisk anywhere before the
+#: number: a citation inside prose is bolded on this board, so barring bold is
+#: what keeps this from reading references. Measured before adding it - it
+#: picks up that one line and contradicts none of the 775 numbers already read.
+NUMBERED_HEAD_PLAIN = re.compile(r"^- \[.\] [^*\n]{0,60}?(C-\d+)[:：]")
+
+
+def head_number(line: str) -> str | None:
+    """The number an item line claims as its own, or None.
+
+    Three forms, tried in the order that keeps the earlier ones' answers
+    fixed: the number standing first in a bold run (「**C-1451: …」), the
+    number introduced by one short label (「**要判断: C-1957: …」), and the
+    number named with no bold run at all (「作業中 … 辛口ユーザー C-1961: …」).
+    """
+    direct = HEADS.search(line)
+    if direct:
+        return direct.group(1)
+    labelled = NUMBERED_HEAD_AFTER_LABEL.match(line)
+    if labelled:
+        return labelled.group(1)
+    plain = NUMBERED_HEAD_PLAIN.match(line)
+    return plain.group(1) if plain else None
 # A record appended under an item, as its own indented paragraph.
 RECORD = re.compile(r"^\s+\*\*(記録|結果)[ 　]")
 # The stamp a record and its item's completion both carry: the same hand
@@ -71,7 +120,19 @@ FINISHED = ("x", "記録")
 # in LOOP_LOG.md and OUTCOMES.md and by comments in games.py / projects.py,
 # so renumbering either would falsify somebody's finished record. It is
 # listed rather than tolerated silently: any *other* repeat still fails.
-KNOWN_COLLISIONS = {"C-1011"}
+#
+# C-1957 was spent twice on 2026-09-18, an hour apart, because this instrument
+# could not see the second one: the E-section filing 「- [ ] **要判断: C-1957:
+# …**」 (14:20) was invisible to ``HEADS``, so the next lane took the number it
+# thought was free (15:44) and finished it at 17:12. Its owner settled it in
+# the completion line at docs/BACKLOG.md - 「確保行の見出しは押した後に書き換え
+# ない規則（見出し＝項目の同一性）」 - and named the two of them
+# 「C-1957(開始画面)」 and 「C-1957(要判断・sidra-ask)」. One side is now a
+# finished record, so this is C-1011's case exactly: renumbering either would
+# falsify somebody's record. Listed here because that decision is theirs, not
+# because the repeat is acceptable in general - any *other* repeat still fails,
+# and this one is printed on every run rather than hidden.
+KNOWN_COLLISIONS = {"C-1011", "C-1957"}
 
 
 #: C-1728: a claim line left behind by a renumbering. When a claim's number
@@ -175,12 +236,11 @@ def read_items(text: str) -> list[dict]:
             section = heading.group(1).strip()
         head = HEADING.match(line)
         if head:
-            number_match = HEADS.search(line)
             items.append(
                 {
                     "line": number,
                     "box": head.group(1),
-                    "id": number_match.group(1) if number_match else None,
+                    "id": head_number(line),
                     "text": line,
                     "body": [],
                     "section": section,
@@ -282,6 +342,46 @@ def _misplaced_records(items: list[dict]) -> list[str]:
     return problems
 
 
+def _collision_sites(
+    items: list[dict], *, accepted: bool = False
+) -> list[tuple[str, int, int]]:
+    """Numbers that head more than one item: (number, first, repeat).
+
+    ``accepted`` picks which side of ``KNOWN_COLLISIONS`` to return - the
+    repeats that must fail, or the ones a decision has already settled.
+    """
+    seen: dict[str, int] = {}
+    out: list[tuple[str, int, int]] = []
+    for item in items:
+        if item["id"] is None:
+            # Items older than the numbering scheme. They are titled, not
+            # numbered, so there is nothing to collide.
+            continue
+        first = seen.get(item["id"])
+        if first is not None and (item["id"] in KNOWN_COLLISIONS) == accepted:
+            out.append((item["id"], first, item["line"]))
+        seen.setdefault(item["id"], item["line"])
+    return out
+
+
+def accepted_collisions(text: str) -> list[str]:
+    """The settled repeats, in the words ``check`` would use for a live one.
+
+    C-1958: ``KNOWN_COLLISIONS`` says of itself that it is 「listed rather
+    than tolerated silently」, and until now the listing was a name in this
+    file that nothing printed. A reader of the board could not tell an
+    accepted repeat from one that had never been noticed - which is the
+    state C-1957 was found in. Printed on the way through, and never a
+    refusal: a decision that two items keep one number is not a defect.
+    """
+    return [
+        f"L{line}: {number} also heads the item at L{first} - "
+        "one number, two items, accepted (renumbering either would falsify "
+        "a finished record; see KNOWN_COLLISIONS)"
+        for number, first, line in _collision_sites(read_items(text), accepted=True)
+    ]
+
+
 def check(text: str, previous: str | None = None) -> list[str]:
     """The invariants, in the order the repairs found them.
 
@@ -291,20 +391,12 @@ def check(text: str, previous: str | None = None) -> list[str]:
     items = read_items(text)
     problems: list[str] = []
 
-    seen: dict[str, int] = {}
-    for item in items:
-        if item["id"] is None:
-            # Items older than the numbering scheme. They are titled, not
-            # numbered, so there is nothing to collide.
-            continue
-        first = seen.get(item["id"])
-        if first is not None and item["id"] not in KNOWN_COLLISIONS:
-            problems.append(
-                f"L{item['line']}: {item['id']} already heads the item at "
-                f"L{first} - one number, two items (a block pasted twice, or "
-                f"a claim that did not replace the line it claimed)"
-            )
-        seen.setdefault(item["id"], item["line"])
+    for number, first, line in _collision_sites(items):
+        problems.append(
+            f"L{line}: {number} already heads the item at "
+            f"L{first} - one number, two items (a block pasted twice, or "
+            f"a claim that did not replace the line it claimed)"
+        )
 
     problems.extend(_misplaced_records(items))
 
@@ -553,12 +645,17 @@ def claims_report(text: str, board: Path, now: int | None = None) -> list[str]:
 def main(argv: list[str]) -> int:
     board = Path(argv[1]) if len(argv) > 1 else BOARD
     text = board.read_text(encoding="utf-8")
-    problems = check(text, _previous_board(board))
+    previous = _previous_board(board)
+    problems = check(text, previous)
     items = read_items(text)
     numbered = sum(1 for item in items if item["id"])
     # The claim report prints either way: it is what the board says, not a
     # verdict on it, and a reader chasing an inconsistency wants it most.
     claims = claims_report(text, board) + takeable_report(items)
+    # C-1958: printed before the verdict, in both branches, because it is the
+    # one thing here that nothing else will say and nobody is refused over.
+    for line in accepted_collisions(text):
+        print(f"  NOTE (拒否しない・決着済みの重複): {line}")
     if problems:
         print(f"{board}: {len(problems)} 件の不整合")
         for problem in problems:

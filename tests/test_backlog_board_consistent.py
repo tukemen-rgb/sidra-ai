@@ -312,11 +312,21 @@ def test_the_metric_label_is_read_across_a_line_wrap():
 # --- the one collision that predates the check -------------------------
 
 
-def test_the_known_collision_is_exactly_one_and_is_real():
-    assert board.KNOWN_COLLISIONS == {"C-1011"}
+def test_every_known_collision_is_listed_and_is_real():
+    # C-1958: the list has a second entry now, and the half of this test that
+    # mattered is the second half - an exception must not outlive what it
+    # excused. That half is stronger here than it was: it runs over every
+    # entry rather than over the one that existed when it was written. The
+    # first half still pins the set, so the list cannot grow without a reader
+    # deciding it should.
+    assert board.KNOWN_COLLISIONS == {"C-1011", "C-1957"}
     text = (ROOT / "docs" / "BACKLOG.md").read_text(encoding="utf-8")
     heads = [item["id"] for item in board.read_items(text) if item["id"]]
-    assert heads.count("C-1011") == 2, "the exception outlived what it excused"
+    for number in board.KNOWN_COLLISIONS:
+        assert heads.count(number) == 2, (
+            f"{number} is excused and no longer collides - "
+            "the exception outlived what it excused"
+        )
 
 
 def test_a_second_collision_still_fails():
