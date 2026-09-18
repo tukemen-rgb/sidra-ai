@@ -83,7 +83,12 @@ def evaluate_features_scoring_matches_the_page() -> ScoringResult:
         problems: list[str] = []
 
         for term in spec.scoring_terms:
-            if term not in page and term not in through_table:
+            # A term can be PART of a row - duel's 「相手」 is drawn through
+            # CW.opponent, whose Japanese is 「相手: 」 - so this asks whether
+            # any row the template names carries the term, not whether one
+            # equals it (C-1962).
+            drawn_through = any(term in word for word in through_table)
+            if term not in page and not drawn_through:
                 problems.append(f"「{term}」 is not in the page it describes")
             if term not in spec.scoring:
                 problems.append(f"「{term}」 is claimed but not in the sentence")

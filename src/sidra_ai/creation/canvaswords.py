@@ -108,6 +108,36 @@ CANVAS_WORDS: dict[str, tuple[str, str]] = {
     # named in EMPTY_IN_ENGLISH below and the guard checks the two agree.
     "n_things": (" 個", ""),
     "n_times": (" 回", ""),
+    # --- duel (C-1962) ---
+    "duel_won": ("勝利。ひかりが押し切った。", "You win. The light broke through."),
+    "duel_lost": ("敗北。ひかりが押し切られた。", "You lose. The light was pushed back."),
+    "misfire_open": ("暴発。", "Misfire. "),
+    "misfire_close": (" 秒動けない", "s before you can move"),
+    "they_misfired": ("相手が暴発した", "they misfired"),
+    "opponent": ("相手: ", "opponent: "),
+    "style_quick": ("早撃ち型", "the quick draw"),
+    "style_charge": ("溜め型", "the slow charge"),
+    "pushing": ("押し合い。SPACE 連打で押し返す。", "A push. Mash SPACE to push back."),
+    "again_space": ("SPACE / タップでもう一度", "SPACE / tap to play again"),
+    # --- racing (C-1962) ---
+    "on_road": ("走行", "on the road"),
+    "off_road": ("コース外", "off the road"),
+    "goal": ("ゴール。", "Finished."),
+    "near_miss": ("  ニアミス ", "  near misses "),
+    # --- shooter (C-1962) ---
+    # Named "nth_wave" rather than "wave": the page reads it as
+    # ``CW.wave_open``, and the audio judge looks for ".wav" in the page to
+    # catch a template that references a sound file. C-1962 measured that
+    # collision - creation_game_audio dropped 10 -> 9 with the reason
+    # "shooter: references an audio file" and no audio file anywhere.
+    "nth_wave_open": ("  第 ", "  wave "),
+    "nth_wave_close": (" 波", ""),
+    "kills": ("撃墜", "kills"),
+    "graze": ("かすり", "grazes"),
+    "shot_down_open": ("撃墜 ", "you shot down "),
+    "shot_down_mid": (" 機・得点 ", " of them, for "),
+    "shot_down_close": ("。", " points."),
+    "again_space_r_tap": ("SPACE か R、タップでもう一度", "SPACE, R or a tap to play again"),
 }
 
 _JAPANESE = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
@@ -115,7 +145,7 @@ _JAPANESE = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
 #: The rows whose English is meant to be empty: Japanese counters that a
 #: number says by itself in English. Declared rather than allowed, so a row
 #: that simply never got its English still raises.
-EMPTY_IN_ENGLISH = frozenset({"n_things", "n_times"})
+EMPTY_IN_ENGLISH = frozenset({"n_things", "n_times", "nth_wave_close"})
 
 _EMPTY = sorted(
     k for k, v in CANVAS_WORDS.items()

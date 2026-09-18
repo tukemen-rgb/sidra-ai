@@ -285,15 +285,15 @@ function draw(now){
   const gz=grazeFacts();
   /* The multiplier is drawn at x1 as much as at x4, and the raw count
      stays beside the points so 「得点」 and 「撃墜」 cannot be confused. */
-  cx.fillText('得点 '+score+' '+comboLabel()+'  第 '+wave+' 波',W-200,6+hudPx(13));
-  cx.fillText('撃墜 '+kills,W-200,6+hudPx(13)+2*HSB);
-  cx.fillText('かすり '+gz.paid+'  '+'・'.repeat(gz.run)+'－'.repeat(gz.need-gz.run),W-170,6+hudPx(13)+HSB);
+  cx.fillText(CW.score+' '+score+' '+comboLabel()+CW.nth_wave_open+wave+CW.nth_wave_close,W-200,6+hudPx(13));
+  cx.fillText(CW.kills+' '+kills,W-200,6+hudPx(13)+2*HSB);
+  cx.fillText(CW.graze+' '+gz.paid+'  '+'・'.repeat(gz.run)+'－'.repeat(gz.need-gz.run),W-170,6+hudPx(13)+HSB);
   if(state==='over'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    const a='撃墜 '+kills+' 機・得点 '+score+'。';announce(a);cx.fillText(a,W/2,H/2-8);
+    const a=CW.shot_down_open+kills+CW.shot_down_mid+score+CW.shot_down_close;announce(a);cx.fillText(a,W/2,H/2-8);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
-    if((typeof roundAskReady!=='function'||roundAskReady())){const b='SPACE か R、タップでもう一度';cx.fillText(b,W/2,H/2+18)}cx.textAlign='left'}}
+    if((typeof roundAskReady!=='function'||roundAskReady())){const b=CW.again_space_r_tap;cx.fillText(b,W/2,H/2+18)}cx.textAlign='left'}}
 /* Read back off the running page rather than grepped for: the act the sky
    is in, and the nearest incoming hull, so a probe can dodge like a hand. */
 function shooterFacts(){const incoming=[];

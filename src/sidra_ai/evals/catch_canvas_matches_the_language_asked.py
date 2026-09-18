@@ -36,7 +36,12 @@ from dataclasses import dataclass
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.hudpaint import text_probe
 
+#: Japanese script, minus the two marks that carry no language: 「・」
+#: (U+30FB) and 「－」 (U+FF0D), which shooter draws as a gauge of dots
+#: and dashes rather than as words (C-1962 measured that gauge and
+#: left it alone - a meter is not a sentence).
 _JAPANESE = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
+_NOT_LANGUAGE = str.maketrans("", "", "・－")
 _SCRIPT = re.compile(r"<script>(.*?)</script>", re.S)
 _NUMBER = re.compile(r"[0-9０-９]+")
 
@@ -94,7 +99,10 @@ def evaluate_catch_canvas_matches_the_language_asked() -> CanvasResult:
     elif template != "catch":
         failures.append(f"English: the request made a {template}, not a catch game")
     else:
-        japanese_left = [shape for shape in english if _JAPANESE.search(shape)]
+        japanese_left = [
+            shape for shape in english
+            if _JAPANESE.search(shape.translate(_NOT_LANGUAGE))
+        ]
         hud = [
             CANVAS_WORDS[key][1]
             for key in _HUD_KEYS
@@ -116,7 +124,10 @@ def evaluate_catch_canvas_matches_the_language_asked() -> CanvasResult:
     if japanese is None:
         failures.append(f"Japanese: {why}")
     else:
-        drew = [shape for shape in japanese if _JAPANESE.search(shape)]
+        drew = [
+            shape for shape in japanese
+            if _JAPANESE.search(shape.translate(_NOT_LANGUAGE))
+        ]
         if not drew:
             failures.append("Japanese: the canvas drew no Japanese at all")
         else:

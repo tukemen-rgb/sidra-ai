@@ -31,7 +31,12 @@ from dataclasses import dataclass
 from sidra_ai.creation.games import generate_game
 from sidra_ai.creation.hudpaint import text_probe
 
+#: Japanese script, minus the two marks that carry no language: 「・」
+#: (U+30FB) and 「－」 (U+FF0D), which shooter draws as a gauge of dots
+#: and dashes rather than as words (C-1962 measured that gauge and
+#: left it alone - a meter is not a sentence).
 _JAPANESE = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")
+_NOT_LANGUAGE = str.maketrans("", "", "・－")
 _SCRIPT = re.compile(r"<script>(.*?)</script>", re.S)
 _NUMBER = re.compile(r"[0-9０-９]+")
 
@@ -78,7 +83,7 @@ def _one(key: str) -> tuple[str, str]:
         return key, f"the page did not run: {run.stderr.strip()[-100:]}"
     data = json.loads(run.stdout.strip().splitlines()[-1])
     shapes = sorted({_NUMBER.sub("N", op["txt"]) for op in data["ops"] if op.get("t") == "t"})
-    left = [shape for shape in shapes if _JAPANESE.search(shape)]
+    left = [shape for shape in shapes if _JAPANESE.search(shape.translate(_NOT_LANGUAGE))]
     if left:
         return key, f"{len(left)} of {len(shapes)} shapes still Japanese ({left[0]})"
     return key, ""

@@ -250,12 +250,12 @@ function hit(who){who.hp--;if(flashGate())flash=1;
   if(!REDUCED){who.sq=0.7}
   shake(10);hitstop(5);burst(who.x,LANES[who.lane],18,'ALERT_JUICE');
   if(who.hp<=0){state='end';
-    if(who===e){winner='勝利。ひかりが押し切った。';winBeat(EX,LANES[e.lane])}
+    if(who===e){winner=CW.duel_won;winBeat(EX,LANES[e.lane])}
     /* The verdict only (§6 観察 8, C-1637): the invitation is the
        gated line below, which waits out the quiet. This one used to say
        「もう一度」 itself, so the ask arrived on the ending's first frame
        while every other template held it. */
-    else{winner='敗北。ひかりが押し切られた。';failBeat(PX,LANES[p.lane])}}}
+    else{winner=CW.duel_lost;failBeat(PX,LANES[p.lane])}}}
 function step(rt){const now=performance.now();
   /* The world advances on real time, not on this display's refresh
      rate (§26, C-1608 — the gate C-1607 built and racing proved).
@@ -378,9 +378,9 @@ function draw(now){
     if(p.charge>=100){const left=Math.max(0,OVER_LIMIT-p.over);
       cx.fillStyle='ALERT_JUICE';cx.fillRect(18,36,left*100/OVER_LIMIT,2)}}
   if(p.stun>0){cx.fillStyle='ALERT_JUICE';cx.font=hudPx(13)+'px ui-monospace,monospace';
-    cx.fillText('暴発。'+Math.ceil(p.stun/60)+' 秒動けない',16,50)}
+    cx.fillText(CW.misfire_open+Math.ceil(p.stun/60)+CW.misfire_close,16,50)}
   if(e.stun>0){cx.fillStyle='ALERT_JUICE';cx.font=hudPx(13)+'px ui-monospace,monospace';
-    cx.fillText('相手が暴発した',cv.width-140,50)}
+    cx.fillText(CW.they_misfired,cv.width-140,50)}
   /* Who you are fighting, said out loud: the counter-play to a quick draw
      is the opposite of the counter-play to a charger, and a player who
      cannot tell which one they got is guessing rather than deciding. */
@@ -391,13 +391,13 @@ function draw(now){
      the DEFAULT ink misused, so it sailed through). The theme's own
      ink, on the plate, like every other word (C-1334). */
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
-  cx.fillText('相手: '+(CPU_STYLE==='quick'?'早撃ち型':'溜め型'),cv.width/2-40,6+hudBand(13,1))
+  cx.fillText(CW.opponent+(CPU_STYLE==='quick'?CW.style_quick:CW.style_charge),cv.width/2-40,6+hudBand(13,1))
   cx.fillStyle='INK_TOKEN';cx.font=hudPx(13)+'px ui-monospace,monospace';
   if(p.beam>0&&e.beam>0&&p.beamLane===e.beamLane){
     cx.globalAlpha=HUD_A;cx.fillStyle=HUD_PLATE;
     cx.fillRect(cv.width/2-116,30,232,hudBand(13,5));cx.globalAlpha=1;
     cx.fillStyle=HUD_INK;
-    cx.fillText('押し合い。SPACE 連打で押し返す。',cv.width/2-110,30+hudBand(13,1))
+    cx.fillText(CW.pushing,cv.width/2-110,30+hudBand(13,1))
     /* The push was only legible as the meeting point drifting, which is the
        thing you are already too busy to watch. A bar says how close the
        next hit is, and which way. */
@@ -413,7 +413,7 @@ function draw(now){
     cx.font=hudPx(20)+'px ui-monospace,monospace';
     announce(winner);cx.fillText(winner,cv.width/2,cv.height/2-6);
     cx.font=hudPx(13)+'px ui-monospace,monospace';
-    if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText('SPACE / タップでもう一度',cv.width/2,cv.height/2+20)}cx.textAlign='left'}}
+    if((typeof roundAskReady!=='function'||roundAskReady())){cx.fillText(CW.again_space,cv.width/2,cv.height/2+20)}cx.textAlign='left'}}
 reset();step();
 """
 

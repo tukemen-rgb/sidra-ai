@@ -220,6 +220,17 @@ LOSS_WIRED_EN: dict[str, list[str]] = {
     "kaiju": [
         "'the head needed '+n+' more hits - it only drops right after a leg goes'",
     ],
+    # C-1962
+    "duel": [
+        "'the beam hit you '+n+' times - you were in its lane the moment it fired'",
+        "'you lost '+n+' pushes - the mashing never reached the charge'",
+    ],
+    "racing": [
+        "'you were '+n+' laps short - every obstacle you touch slows you down'",
+    ],
+    "shooter": [
+        "'you were hit '+n+' times - you held out to wave '+wave",
+    ],
 }
 
 #: The wired templates whose reason line is NOT translated yet, named on
@@ -229,9 +240,6 @@ LOSS_WIRED_EN: dict[str, list[str]] = {
 #: be closed.
 RECAP_UNTRANSLATED: dict[str, str] = {
     "adventure": "its lines are narration, which is a separate item",
-    "duel": "C-1960 took five templates; duel, racing and shooter are next",
-    "racing": "C-1960 took five templates; duel, racing and shooter are next",
-    "shooter": "C-1960 took five templates; duel, racing and shooter are next",
 }
 
 _RECAP_BOTH = sorted(set(LOSS_WIRED_EN) & set(RECAP_UNTRANSLATED))
@@ -241,12 +249,24 @@ _RECAP_SHORT = sorted(
     key for key, lines in LOSS_WIRED_EN.items()
     if len(lines) != len(LOSS_WIRED[key]["causes"])
 )
+#: An apostrophe inside a single-quoted JavaScript string ends the string,
+#: and the page then fails to parse at all. C-1962 shipped "the light's
+#: charge" into a line and the whole duel page stopped running - the judge
+#: caught it, but an odd number of quotes is cheap to refuse here.
+_RECAP_UNBALANCED = sorted(
+    key for key, lines in LOSS_WIRED_EN.items()
+    if any(line.count("'") % 2 for line in lines)
+)
 
-if _RECAP_BOTH or _RECAP_NEITHER or _RECAP_STRANGER or _RECAP_SHORT:  # pragma: no cover
+if (
+    _RECAP_BOTH or _RECAP_NEITHER or _RECAP_STRANGER
+    or _RECAP_SHORT or _RECAP_UNBALANCED
+):  # pragma: no cover
     raise RuntimeError(
         f"recap.py has {_RECAP_BOTH} both translated and excused, {_RECAP_NEITHER} "
-        f"neither, {_RECAP_STRANGER} named but not wired, and the wrong number "
-        f"of English lines for {_RECAP_SHORT}"
+        f"neither, {_RECAP_STRANGER} named but not wired, the wrong number "
+        f"of English lines for {_RECAP_SHORT}, and an odd number of quotes in "
+        f"{_RECAP_UNBALANCED}"
     )
 
 

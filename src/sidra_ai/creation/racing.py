@@ -357,21 +357,21 @@ function draw(){
   cx.fillRect(6,4,262,hudBand(13,9));cx.fillRect(W-178,4,132,hudBand(13,25));cx.globalAlpha=1;
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
   cx.fillText('LAP '+Math.min(lap,LAPS)+'/'+LAPS+'  '+(lapT/60).toFixed(1)+'s'+
-    (slips>0?'  ニアミス '+slips:''),12,4+hudBand(13,2));
+    (slips>0?CW.near_miss+slips:''),12,4+hudBand(13,2));
   cx.strokeStyle='BORDER_TOKEN';cx.strokeRect(W-172,10,120,10);
   cx.fillStyle='CYAN_TOKEN';cx.fillRect(W-172,10,120*Math.min(1,spd/PACE),10);
   cx.fillStyle=HUD_INK;
-  cx.fillText(onRoad()?'走行':'コース外',W-172,4+hudBand(13,17));
+  cx.fillText(onRoad()?CW.on_road:CW.off_road,W-172,4+hudBand(13,17));
   if(state==='goal'){cx.fillStyle='SCRIM_TOKEN'+'d0';cx.fillRect(0,0,W,H);
     cx.fillStyle='INK_TOKEN';cx.textAlign='center';
     cx.font=hudPx(20)+'px ui-monospace,monospace';
-    const a='ゴール。';announce(a);cx.fillText(a,W/2,H/2-52);cx.textAlign='left';
+    const a=CW.goal;announce(a);cx.fillText(a,W/2,H/2-52);cx.textAlign='left';
     cx.font=hudPx(13)+'px ui-monospace,monospace';
     let y=H/2-24,total=0;
     times.forEach((f,i)=>{total+=f;
       cx.fillText('LAP '+(i+1)+'  '+(f/60).toFixed(2)+'s',W/2-70,y);y+=18});
     cx.fillText('TOTAL '+(total/60).toFixed(2)+'s',W/2-70,y);
-    if((typeof roundAskReady!=='function'||roundAskReady())){const b='R でもう一度';
+    if((typeof roundAskReady!=='function'||roundAskReady())){const b=CW.again_key;
       cx.textAlign='center';cx.fillText(b,W/2,y+26);cx.textAlign='left'}}}
 reset();step();
 """
