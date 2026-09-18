@@ -22,13 +22,19 @@ Three rules, the same ones the production set is held to (C-1941):
 3. The Japanese side is a GUARD, not part of the count: ask in Japanese and
    the log must still be Japanese. If it is not, the count is zero.
 
-**A kind that cannot be asked for in English fails, and says why.** It is
-not skipped and it is not left out of the denominator - measured while this
-was being written, ``art`` and ``project`` are unreachable in English:
-「draw a picture of an owl」, 「draw an owl」, 「paint an owl」 and three more
-phrasings all return ``CreationKind.UNKNOWN`` or route to ``GAME``. A judge
-that quietly dropped them would report a full marks for a product two of
-whose seven lanes an English speaker cannot enter.
+**A kind the request never reaches fails, and says why.** It is not skipped
+and it is not left out of the denominator. Measured while this was written,
+「draw a picture of an owl」 returned ``CreationKind.UNKNOWN`` and
+「make a game project about an owl」 routed to ``GAME``.
+
+The first was fixed in C-1948, and the wording here was corrected with it:
+this eval first said those lanes "cannot be asked for in English at all",
+and that was **too strong**. 「make artwork of an owl」, 「make a wallpaper」,
+「make abstract art」, 「make generative art」 and 「make digital art」 all
+reached the art lane the whole time (C-1480 put them there). What was true
+is narrower and worth saying exactly: **the ordinary English words for a
+picture** did not reach it. A judge that overstates its finding is a judge
+whose next reader has to re-measure everything it said.
 """
 
 from __future__ import annotations
@@ -79,7 +85,7 @@ def _log_for(request: str, expected_kind: str) -> tuple[str | None, str]:
     if intent.kind.value != expected_kind:
         return None, (
             f"「{request}」 is read as {intent.kind.value}, not {expected_kind}"
-            " - this lane cannot be asked for in this language at all"
+            " - this wording does not reach the lane"
         )
     router = build_default_router(data_dir=str(directory))
     outcome = router.route(request, intent)

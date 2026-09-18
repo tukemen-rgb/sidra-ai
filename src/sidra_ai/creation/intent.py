@@ -115,6 +115,15 @@ _MAKE_VERBS_EN: tuple[str, ...] = (
     "generate",
     "write",
     "draft",
+    # C-1948: the Japanese side has had 描く since the beginning - 「絵を描いて」
+    # is how anyone asks for a picture - and English had no verb for it at
+    # all, so 「draw an owl」 was not even read as a request to make
+    # something. The pattern is anchored on \b, so withdraw, drawn, drawer
+    # and painter do not match.
+    "draw",
+    "paint",
+    "sketch",
+    "illustrate",
 )
 
 #: Endings that turn the whole message back into a question even when a
@@ -310,6 +319,29 @@ _ARTIFACTS: dict[CreationKind, tuple[str, ...]] = {
         "wallpaper",
         "abstract art",
         "digital art",
+        # C-1948, and the mirror of C-1804 one more turn. That item found the
+        # Japanese side reachable only by 「アート」 and added the ordinary
+        # words 「絵」「イラスト」. English was left in exactly the state
+        # Japanese had been in: "artwork", "wallpaper", "abstract art",
+        # "generative art" and "digital art" all route here - measured - and
+        # the words an English speaker actually writes did not. Measured
+        # 2026-09-18 through `detect_creation_intent`: 「draw a picture of an
+        # owl」, 「draw an owl」, 「paint an owl」, 「make an image of an owl」,
+        # 「make an owl illustration」 and 「make a drawing of an owl」 were all
+        # `unknown` - six phrasings of the one thing this generator makes.
+        #
+        # Bare "art" still stays out (it hides in chart, part, smart and
+        # article - C-1480's judgement, kept). These five are whole words
+        # that do not hide inside unrelated ones, and the latest-match rule
+        # keeps the requests that belong elsewhere: 「make a gif of a picture
+        # frame」 → GIF, 「make a slide deck with pictures of owls」 → DECK,
+        # 「make a game where you draw pictures」 → GAME, 「write a report
+        # about image processing」 → DOCUMENT. All four measured.
+        "picture",
+        "illustration",
+        "image",
+        "drawing",
+        "painting",
     ),
 }
 
@@ -446,14 +478,40 @@ def named_artifact_kind(message: str) -> CreationKind | None:
     return found[0] if found else None
 
 
+#: English words for a picture that lose to every other kind's cue, wherever
+#: that cue sits (C-1948).
+#:
+#: "Latest wins" reads a Japanese noun phrase correctly - the head noun comes
+#: last, so 「ゲームの資料」 is a document. English modifies the other way
+#: round: 「a slide deck with pictures of owls」 puts the deck first and the
+#: picture last, so the same rule handed the deck to the art lane. Measured
+#: when these five words were added: 「make a gif of a picture frame」,
+#: 「make a game where you draw pictures」, 「make a slide deck with pictures
+#: of owls」 and 「write a report about image processing」 all became art.
+#:
+#: Rather than change a rule that is right for the language it was written
+#: for, these five are marked weak: they name what this generator makes, but
+#: any other kind named anywhere in the message wins. 「draw a picture of an
+#: owl」 has no other cue, so it still reaches the art lane. The Japanese
+#: 「絵」 and 「イラスト」 are NOT weak - they are already resolved correctly
+#: by position (C-1804 measured 絵柄のGIF, 絵を描くゲーム, 絵本のスライド).
+_WEAK_ART_EN: frozenset[str] = frozenset(
+    {"picture", "illustration", "image", "drawing", "painting"}
+)
+
+
 def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
     """Return the artifact whose keyword sits latest in the message.
 
     Latest wins because the head noun of a Japanese noun phrase comes last:
     "ゲームの資料を作って" is a document about a game, not a game.
+
+    Except for the weak English picture words above, which lose to any other
+    kind wherever it sits - English puts its head noun first (C-1948).
     """
 
     best: tuple[int, CreationKind, str] | None = None
+    weak: tuple[int, CreationKind, str] | None = None
     for kind, words in _ARTIFACTS.items():
         for word in words:
             index = text.rfind(fold_kana(word.casefold()))
@@ -466,8 +524,15 @@ def _find_artifact(text: str) -> tuple[CreationKind, str] | None:
             # request (C-1479). Japanese avoided it because its 「モデル」 cue sits
             # after 「3d」 and already won by position; English has no such
             # trailing cue. A later game word (「3Dゲーム」) still wins by position.
+            if word in _WEAK_ART_EN:
+                # Kept aside, and used only if nothing else matched at all.
+                if weak is None or index > weak[0]:
+                    weak = (index, kind, word)
+                continue
             if best is None or index > best[0] or (index == best[0] and len(word) > len(best[2])):
                 best = (index, kind, word)
+    if best is None:
+        best = weak
     if best is None:
         return None
     return best[1], best[2]

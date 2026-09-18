@@ -6,11 +6,29 @@ the English 「make a wallpaper」「make abstract art」「make digital art」 
 UNKNOWN and were declined - so an English speaker could not reach the abstract
 art SIDRA does make with the natural English words for it.
 
-The fix adds "wallpaper", "abstract art", "digital art" to ART's cues. A request
-for a depiction - an illustration, a drawing, a picture - is left to decline in
-both languages, because the generator makes abstract art, not a likeness (this
-is deliberate, not a gap). Bare "art" stays out: it is a substring of chart,
-part, smart, article, and would misroute those.
+The fix adds "wallpaper", "abstract art", "digital art" to ART's cues. Bare
+"art" stays out: it is a substring of chart, part, smart, article, and would
+misroute those.
+
+**C-1948 corrected the other half of this file.** It used to say a depiction
+- an illustration, a drawing, a picture - "is left to decline in both
+languages, because the generator makes abstract art, not a likeness", and it
+checked that on the English side only. That stopped being true at C-1804,
+which added 「絵」 and 「イラスト」 to the Japanese cues: measured 2026-09-18,
+「絵を作って」 and 「イラストを作って」 both route to ART. So this file spent
+two items asserting a principle its own product had abandoned, and the
+checks could not see it because none of them looked at the Japanese side of
+that principle.
+
+What the product actually does with a depiction request, measured through
+the real router: it makes the abstract art and **says so** - 「依頼にあった
+題材は描いていません。アートは抽象の模様（フロー / 軌道）です」 and, in
+English, "The subject in the request is not drawn. The art is an abstract
+pattern". 「make artwork of an owl」 has always done that. The decline was
+never the product's answer to a named subject; it was only what the ordinary
+English words happened to get. The two checks below are now parity checks -
+English and Japanese must read the same request the same way - which is what
+this file is named for.
 
 The checks read ``detect_creation_intent`` directly.
 """
@@ -54,10 +72,18 @@ def evaluate_creation_english_art_parity() -> EnglishArtParityResult:
     add(_kind("アートを作って") == "art", "Japanese アート regressed")
     add(_kind("make generative art") == "art", "English generative art regressed")
 
-    # A depiction is still declined in both languages - ART is abstract, not a
-    # likeness. These must NOT route to ART (they stay UNKNOWN).
-    add(_kind("make an illustration") != "art", "illustration wrongly routed to art")
-    add(_kind("make a drawing") != "art", "drawing wrongly routed to art")
+    # A depiction word reads the same in both languages (C-1948). Written as
+    # a comparison rather than as "== art" on purpose: if one side is ever
+    # decided to decline these, the other has to be decided with it, and this
+    # check is what makes that impossible to do by halves.
+    add(
+        _kind("make an illustration") == _kind("イラストを作って"),
+        "「make an illustration」 and 「イラストを作って」 are read differently",
+    )
+    add(
+        _kind("make a drawing") == _kind("絵を作って"),
+        "「make a drawing」 and 「絵を作って」 are read differently",
+    )
 
     # Bare "art" substrings must not drag unrelated requests into ART.
     add(_kind("make a chart") != "art", "chart wrongly routed to art")
