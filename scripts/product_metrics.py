@@ -2523,6 +2523,21 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    from sidra_ai.evals.output_guard_blocks_pgp_private_key import (
+        evaluate_output_guard_blocks_pgp_private_key,
+    )
+
+    pgp = evaluate_output_guard_blocks_pgp_private_key()
+    c.add(
+        "output_guard_blocks_pgp_private_key",
+        "PGP 秘密鍵ブロックが取込ゲート・出力ガード双方で捕まる（PRIVATE KEY BLOCK 表記も PEM 鍵と同様に検知）",
+        10.0 * pgp.checks_passed / pgp.checks_total,
+        detail=f"{pgp.checks_passed}/{pgp.checks_total} checks; "
+               "src/sidra_ai/evals/output_guard_blocks_pgp_private_key.py"
+               + ("" if pgp.passed else "; " + "; ".join(pgp.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1872: the guardian above checks synthetic payloads for a fixed code list,
     # so six conversational refusals the service added after C-1811 (delete /
     # list / feature-question / panel-setting / revision content and kind) fell to
@@ -15543,6 +15558,70 @@ def measure_creation(c: Collector) -> None:
             "**canvas の代替文が残っている**（§36——**読み上げに渡る唯一の文**）、"
             "**注記が 3 つとも出ている**、**日本語側は門**。"
             "**パターンの英語名は鍵そのもの**（`flow` / `orbits`）——**第 2 の表は作っていない**。"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- the board sees every number an item claims -------------------------
+    #
+    # C-1958. ``HEADS`` read a number only where it stood first inside a bold
+    # run, so 「- [ ] **要判断: C-1957: …」 claimed a number the instrument could
+    # not see. An hour later the next lane took C-1957 believing it free, and
+    # finished it - two items, one number, while the board printed 「不整合なし」.
+    #
+    # The repair is anchored, not loosened. Measured on the real board: reading
+    # the number anywhere in the line changes an id that was already right, and
+    # the filing's author reports hitting that themselves. Running the labelled
+    # form only where the first found nothing makes "no existing id moves"
+    # structural rather than lucky.
+    #
+    # The repeat itself is staying, by its owner's decision written into their
+    # completion line: a claim's headline is the item's identity and is not
+    # rewritten after it is pushed, and one side is now a finished record. So
+    # it is recorded in ``KNOWN_COLLISIONS`` - C-1011's case exactly - and, new
+    # here, *printed*. That list said of itself it was 「listed rather than
+    # tolerated silently」 while being listed only in source, which is the same
+    # blindness one level up.
+    from sidra_ai.evals.board_sees_every_numbered_head import (
+        evaluate_board_sees_every_numbered_head,
+    )
+
+    _heads = evaluate_board_sees_every_numbered_head()
+    c.add(
+        "board_sees_every_numbered_head",
+        "板の計器が、項目が名乗る番号を全部読む（C-1958）",
+        float(_heads.sides_right),
+        detail=(
+            f"**実 `check_backlog_board.py` を読み込んで、ここで組んだ板に対して走らせた**"
+            f"——**{_heads.sides_right}/{_heads.sides_total}**。"
+            + ("**内訳**: " + "; ".join(_heads.failures[:2])
+               if _heads.failures
+               else "**実測**: " + " / ".join(_heads.readings))
+            + "。**生きている板に錠を掛けていない**——C-1957 の 2 行は**持ち主が残すと決めた**もので、"
+            "**その番号を pin した検査は決定が変われば間違った理由で色が変わる**。"
+            "生きている板は**読み**として出すだけ。"
+            "**形は 3 つあった**——`**C-1451:`、`**要判断: C-1957:`、そして**太字が一切無い**`作業中 … 辛口ユーザー C-1961:`。**3 つ目はこれを書いている最中に生きた板で見つけた**（板はその確保を **「L262」** と印字していた＝番号が無い扱い）。""**先に測った**（実板・2026-09-18）: `C-nnnn:` を含む太字の前置きは"
+            "**空 797・「要判断: 」4・散文の断片 2**。**形は 1 つしか無い**ので、"
+            "**緩めるのではなく読む**。**緩めた場合も測った**——"
+            "**行内のどこでも拾う版は、既に正しかった id を 1 件書き換える**"
+            "（起票者自身が踏んだ誤り）。**錨を打つと「既存の id は動かない」が"
+            "構造的な保証になる**（第 1 形が何も見つけなかった行でしか走らない）ので、"
+            "**(4) は覚えた件数ではなく、旧式で読み直した結果と突き合わせて測る**"
+            "——件数なら、読み手が下で変わっても通り続ける。"
+            "**5 面目は決着の扱い**: **誰かが決めた重複は名指しで報告し拒まない・"
+            "誰も決めていない重複は今も拒む**。**両方向**——片方だけなら"
+            "「全部受け入れる計器」か「何も受け入れない計器」が満点を取る。"
+            "**`KNOWN_COLLISIONS` は「黙って見逃すのではなく列挙する」と自称しながら、"
+            "列挙先がソースだけで何も印字していなかった**——**1 段上の同じ盲目**なので、"
+            "**毎回印字するようにした**（C-1011 も今日から見える）。"
+            "**破壊 6 方向・1 probe 1 プロセス・無変異の対照つき**: "
+            "D1〔名乗り形を読まない＝当の欠陥〕**2/5**・D2〔`HEADS` を行内どこでもに緩める〕**2/5**・""D7〔太字無しの形を読まない〕**4/5**・D8〔太字無しの形が参照まで拾う〕**4/5**・"
+            "D3〔名乗り形を無錨で探す〕**4/5**・D4〔衝突の報告が番号を名指さない〕**3/5**・"
+            "D5〔決着済みでも拒む〕**4/5**・D6〔決着済みを印字しない〕**4/5**・無変異 **5/5**。"
+            "**D3 は最初の版を素通りした**——事例がどれも自分の番号を持っていて、"
+            "**第 1 形が先に当たるので緩めた側が一度も走らなかった**。"
+            "**番号を名乗らない行が引用しているとき**にだけ緩い読みが答える（そして間違える）ので、"
+            "その行を足した。**落ちない検査は検査ではない**。"
         ),
         kind=OUTCOME,
     )

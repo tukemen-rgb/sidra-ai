@@ -114,8 +114,12 @@ _SECRET_PATTERNS: tuple[_Pattern, ...] = (
     _Pattern(
         "private_key_block",
         re.compile(
-            r"-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----.*?-----END(?: [A-Z]+)? "
-            r"PRIVATE KEY-----",
+            # PGP announces a private key as "PRIVATE KEY BLOCK"; the optional
+            # " BLOCK" catches it alongside the "PRIVATE KEY" PEM forms
+            # (RSA/OPENSSH/EC/DSA), so the one shared SecretDetector closes the
+            # hole on both the ingestion gate and the output guard (C-1961).
+            r"-----BEGIN(?: [A-Z]+)? PRIVATE KEY(?: BLOCK)?-----.*?"
+            r"-----END(?: [A-Z]+)? PRIVATE KEY(?: BLOCK)?-----",
             re.DOTALL,
         ),
         "PEM private key block",
