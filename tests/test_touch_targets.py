@@ -48,3 +48,40 @@ def test_min_height_does_not_leak_to_desktop():
     style = without_coarse.split("</style>")[0]
     over = [int(px) for px in re.findall(r"min-height:\s*(\d+)px", style) if int(px) > 24]
     assert over == [], over
+
+
+def test_every_template_meets_the_size_floor_in_both_languages() -> None:
+    """§40's floor across all twenty pages, not the two the collector reads.
+
+    C-1969. ``creation_targets_meet_the_size_floor`` measures catch in two
+    languages because a browser run a page is not free and the collector
+    already sits near its advisory line. The panels come from one shell, so
+    the other nine templates should follow - "should" being the word this
+    test exists to replace. Measured once by hand at 502 targets across 20
+    pages with none under the floor; held here so it stays that way.
+    """
+
+    import pytest
+
+    from sidra_ai.evals.drawn_text_stays_on_the_canvas import (
+        ENGLISH_ASKS,
+        JAPANESE_ASKS,
+    )
+    from sidra_ai.evals.targets_meet_the_size_floor import CHROME, _measure, _under
+
+    import pathlib
+
+    if not pathlib.Path(CHROME).exists():  # pragma: no cover - environment guard
+        pytest.skip("no browser to measure with")
+
+    under: list[str] = []
+    counted = 0
+    for asks in (ENGLISH_ASKS, JAPANESE_ASKS):
+        for key, ask in sorted(asks.items()):
+            items = _measure(generate_game(ask).html)
+            assert items, f"{key}: nothing measured"
+            counted += len(items)
+            small, _bad = _under(items)
+            under += [f"{key}: {name}" for name in small]
+    assert under == [], under
+    assert counted > 400, counted

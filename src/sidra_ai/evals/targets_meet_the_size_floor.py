@@ -11,6 +11,20 @@ that block the panel's own controls were what the browser gave them: 13x13
 checkboxes, 129x16 sliders, a 63x19 select, 146x21 buttons - measured, not
 guessed.
 
+**Measured with the drawers open** (C-1969). The panels are ``<details>``
+and they start closed; Chromium hides a closed one with
+``content-visibility: hidden``, which still answers
+``getBoundingClientRect()`` with a box while refusing ``focus()``. So the
+first version of this eval measured boxes nobody was looking at. The
+numbers happened to be the same once the panels were opened - luck, not
+method - and the probe now opens them first.
+
+**Touchable is not enough: it has to be reachable.** A 24px control that
+cannot take focus is 24px of nothing to a keyboard. The probe focuses each
+one and reports whether it landed. Disabled controls are excluded on
+purpose: the locked colours in the looks panel are not operable yet, and
+that is what ``disabled`` is for.
+
 **Measured in a real browser.** Two cycles running (C-1966, C-1967) the
 defect was in a probe that did not model what a browser does, so this one
 does not model anything: it opens the generated page in headless Chromium
@@ -19,8 +33,8 @@ element, and reports what the box really was. No driver is needed - the
 page writes its own measurements into ``document.title`` and ``--dump-dom``
 brings them back.
 
-**What this counts.** TARGETS that are at least 24 x 24, over both
-pages - not pages that pass the standard.
+**What this counts.** TARGETS that are at least 24 x 24 AND that a
+keyboard can reach, over both pages - not pages that pass the standard.
 
 That is stricter than SC 2.5.8, on purpose, and the difference was
 measured: before C-1968 the English page had 16 targets under the floor
@@ -69,19 +83,27 @@ _TITLE = re.compile(r"<title>MEASURED(.*?)</title>", re.S)
 _MEASURE = """
 <script>
 addEventListener('load', function(){
+  /* Open every drawer first: a closed <details> keeps its boxes but
+     refuses focus, so measuring it measures a state nobody is in. */
+  setTimeout(function(){
+    document.querySelectorAll('details').forEach(function(d){ d.open = true });
+  }, 200);
   setTimeout(function(){
     const out = [];
     document.querySelectorAll('button, a[href], input, select, summary, [role=button]')
       .forEach(function(el){
         const r = el.getBoundingClientRect();
         if (r.width === 0 && r.height === 0) { return }
+        let focusable = false;
+        try { el.focus(); focusable = (document.activeElement === el) } catch (e) {}
         out.push({tag: el.tagName, type: el.type || '',
                   t: (el.textContent || '').slice(0, 16),
                   w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10,
-                  x: Math.round(r.x * 10) / 10, y: Math.round(r.y * 10) / 10});
+                  x: Math.round(r.x * 10) / 10, y: Math.round(r.y * 10) / 10,
+                  disabled: !!el.disabled, focusable: focusable});
       });
     document.title = 'MEASURED' + JSON.stringify(out);
-  }, 800);
+  }, 900);
 });
 </script>
 """
@@ -92,6 +114,7 @@ class TargetSizeResult:
     targets_at_the_floor: int
     targets_total: int
     strict_violations: int = 0
+    unreachable: int = 0
     failures: tuple[str, ...] = ()
     readings: tuple[str, ...] = ()
 
@@ -108,7 +131,7 @@ def _measure(html: str) -> list[dict] | None:
                 "--headless=new",
                 "--no-sandbox",
                 "--disable-gpu",
-                "--virtual-time-budget=4000",
+                            "--virtual-time-budget=6000",
                 f"--window-size={WINDOW[0]},{WINDOW[1]}",
                 "--dump-dom",
                 f"file://{page}",
@@ -155,6 +178,7 @@ def evaluate_targets_meet_the_size_floor() -> TargetSizeResult:
     at_floor = 0
     total = 0
     strict = 0
+    unreachable = 0
 
     for label, ask in ASKS.items():
         items = _measure(generate_game(ask).html)
@@ -166,8 +190,35 @@ def evaluate_targets_meet_the_size_floor() -> TargetSizeResult:
             continue
         small, bad = _under(items)
         total += len(items)
-        at_floor += len(items) - len(small)
         strict += len(bad)
+        cannot = [
+            item for item in items
+            if not item.get("disabled") and not item.get("focusable")
+        ]
+        unreachable += len(cannot)
+        # A target counts when it meets the floor AND a keyboard can get to
+        # it (C-1969). Size alone was a number that did not move when the
+        # probe measured a closed drawer - 15 controls out of reach and the
+        # count unchanged. Disabled controls are not "out of reach": they
+        # are not operable on purpose.
+        names_small = set(small)
+        counted = 0
+        for item in items:
+            name = (
+                f"{item['tag'].lower()}/{item['type'] or '-'} "
+                f"{item['w']}x{item['h']} {item['t'].strip()[:18]!r}"
+            )
+            if name in names_small:
+                continue
+            if not item.get("disabled") and not item.get("focusable"):
+                continue
+            counted += 1
+        at_floor += counted
+        if cannot:
+            failures.append(
+                f"{label}: {len(cannot)} control(s) a keyboard cannot reach "
+                f"({cannot[0]['tag'].lower()} {cannot[0]['t'].strip()[:18]!r})"
+            )
         if small:
             failures.append(
                 f"{label}: {len(small)} of {len(items)} under {FLOOR:.0f}px "
@@ -175,13 +226,14 @@ def evaluate_targets_meet_the_size_floor() -> TargetSizeResult:
             )
         readings.append(
             f"{label} {len(items) - len(small)}/{len(items)} at the floor, "
-            f"{len(bad)} strict violations"
+            f"{len(bad)} strict violations, {len(cannot)} unreachable"
         )
 
     return TargetSizeResult(
         targets_at_the_floor=at_floor,
         targets_total=total,
         strict_violations=strict,
+        unreachable=unreachable,
         failures=tuple(failures),
         readings=tuple(readings),
     )

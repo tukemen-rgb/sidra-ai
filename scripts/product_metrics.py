@@ -15376,13 +15376,14 @@ def measure_creation(c: Collector) -> None:
     _targets = evaluate_targets_meet_the_size_floor()
     c.add(
         "creation_targets_meet_the_size_floor",
-        "24×24 CSS px の床を満たす押せる場所の数（日英 2 ページ・§40・C-1968）",
+        "24×24 CSS px の床を満たし、キーボードで触れる押せる場所の数（日英 2 ページ・§40・C-1968/C-1969）",
         float(_targets.targets_at_the_floor),
         detail=(
             f"**生成したページを実ブラウザ（headless Chromium・390×844）で開き、"
             f"押せるもの全部の `getBoundingClientRect()` を読んだ**"
             f"——**{_targets.targets_at_the_floor}/{_targets.targets_total}**"
-            f"（**規格として厳密に落ちるのは {_targets.strict_violations} 件**）。"
+            f"（**規格として厳密に落ちるのは {_targets.strict_violations} 件**・"
+            f"**キーボードで触れないものは {_targets.unreachable} 件**）。"
             + ("**足りない**: " + "; ".join(_targets.failures[:2])
                if _targets.failures
                else "**実測**: " + " / ".join(_targets.readings))
@@ -15394,6 +15395,13 @@ def measure_creation(c: Collector) -> None:
             "**製品は大きさの方を持つ**。**規格の読みも detail に残す**。"
             "**指の床（44/48px）は C-1712 から `@media (pointer:coarse)` にある**——"
             "**今回の床はマウスにも効く基底**。"
+            "**パネル（`details`）を開けてから測る**（C-1969）"
+            "——**閉じた引き出しは箱だけ返して `focus()` を拒む**ので、"
+            "**閉じたまま測ると人が見ていない状態を測ることになる**。"
+            "**24px あっても触れなければ意味がない**ので、**`focus()` が通ることも数える**"
+            "（**`disabled` は除く**——**未解放の色は操作できないのが正しい**）。"
+            "**10 型 × 日英の 20 ページ（502 個）は `tests/test_touch_targets.py` で留める**"
+            "——**ブラウザ 20 回は収集器の助言線を越える**。"
         ),
         kind=OUTCOME,
     )
