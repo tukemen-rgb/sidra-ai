@@ -15359,6 +15359,40 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the OS's "reduce motion" really reaches the page -------------------
+    #
+    # C-1972. Every probe in this repo replaces matchMedia - games.py has
+    # three, juice.py three more - which is right for a probe that wants
+    # both states on demand, and blind to whether the page asks the browser
+    # the right question at all.
+    #
+    # Measured: with the query mistyped to '(prefer-reduced-motion: reduce)',
+    # all eight motion and juice numbers stayed exactly where they were and
+    # only this one moved.
+    from sidra_ai.evals.reduced_motion_reaches_the_page import (
+        evaluate_reduced_motion_reaches_the_page,
+    )
+
+    _rm = evaluate_reduced_motion_reaches_the_page()
+    c.add(
+        "creation_reduced_motion_reaches_the_page",
+        "OS の「動きを減らす」がページまで届いている（実ブラウザ・C-1972）",
+        float(_rm.checks_passed),
+        detail=(
+            f"**同じページを実ブラウザで 2 回開いた**——**旗なしと "
+            f"`--force-prefers-reduced-motion` あり**"
+            f"——**{_rm.checks_passed}/{_rm.checks_total}**"
+            + ("。**届いていない**: " + "; ".join(_rm.failures[:2])
+               if _rm.failures
+               else "。**実測**: " + " / ".join(_rm.readings))
+            + "。**読むのは 2 つ**: **ブラウザの答え（`matchMedia(...).matches`）**と、"
+            "**ページがそれから決めた `REDUCED`**。**両方が、旗なしで false・旗ありで true** であること。"
+            "**差し替えでは見えない場所**——**この repo の probe は `matchMedia` を必ず差し替える**ので、"
+            "**問い合わせ文字列を打ち間違えても既存の数字は 1 つも動かない**（**実測で確認**）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page survives the reader's own text spacing --------------------
     #
     # C-1971, §42 (WCAG 2.2 SC 1.4.12): line height 1.5, paragraph spacing
