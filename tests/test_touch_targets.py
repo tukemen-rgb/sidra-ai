@@ -31,9 +31,20 @@ def test_coarse_pointer_button_rule_present_in_every_template():
 
 
 def test_min_height_does_not_leak_to_desktop():
+    """The FINGER's floor stays in the query; the 24px one is allowed.
+
+    C-1968 narrowed this. WCAG 2.2 SC 2.5.8 (§40) asks for 24 x 24 CSS px
+    on any pointer - a mouse included - and the shell now carries that as
+    a base floor, measured in a real browser by
+    ``creation_targets_meet_the_size_floor``. What this still pins is the
+    thing C-1219 actually meant: a 48px button must not reach the desktop
+    panel it was asked not to inflate.
+    """
+
     html = generate_game("魚を釣るゲーム").html
     without_coarse = re.sub(
         r"@media\s*\(pointer:coarse\)\s*\{[^@]*?\}\}", "", html, flags=re.DOTALL
     )
     style = without_coarse.split("</style>")[0]
-    assert "min-height" not in style
+    over = [int(px) for px in re.findall(r"min-height:\s*(\d+)px", style) if int(px) > 24]
+    assert over == [], over

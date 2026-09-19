@@ -63,13 +63,31 @@ def evaluate_touch_targets() -> TouchTargetsResult:
     else:
         failures.append("button min-height is below the 48dp knowledge-base minimum")
 
-    # It must not leak into the unconditional CSS - a desktop min-height
-    # would inflate the compact panel the harsh review did not complain about.
+    # The FINGER's floor must not leak into the unconditional CSS - a
+    # desktop button 48px tall would inflate the compact panel this item
+    # was asked not to inflate.
+    #
+    # Narrowed by C-1968 (§40): what must not leak is 48, not every floor.
+    # WCAG 2.2 SC 2.5.8 asks for 24 x 24 on ANY pointer, a mouse included,
+    # so the shell now carries a 24px base floor and the 44/48 rules stay
+    # inside the query. The old check read "no min-height at all outside",
+    # which was stricter than its own reason - and it was a string search,
+    # where the thing it protects is a rendered box. The box is measured in
+    # a real browser by creation_targets_meet_the_size_floor.
     outside = re.sub(_COARSE_BLOCK.pattern, "", html, flags=re.DOTALL)
-    if "min-height" not in re.sub(r"<script.*?</script>", "", outside, flags=re.DOTALL):
+    outside = re.sub(r"<script.*?</script>", "", outside, flags=re.DOTALL)
+    leaked = [
+        found
+        for found in re.findall(r"min-height:\s*(\d+)px", outside)
+        if int(found) > 24
+    ]
+    if not leaked:
         checks += 1
     else:
-        failures.append("a button min-height applies outside the coarse-pointer query")
+        failures.append(
+            f"a min-height above the 24px floor applies outside the "
+            f"coarse-pointer query: {leaked[0]}px"
+        )
 
     return TouchTargetsResult(
         passed=not failures, checks_passed=checks, checks_total=4,

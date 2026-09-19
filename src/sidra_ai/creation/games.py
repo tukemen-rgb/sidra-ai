@@ -2069,6 +2069,18 @@ canvas{{display:block;width:100%;height:auto;background:{t["surface"]};
  * costs. Not none - a finger that starts a scroll on a button should still
  * scroll the page. */
 button{{touch-action:manipulation}}
+/* The floor every pointer gets (§40, C-1968). WCAG 2.2 SC 2.5.8 asks for
+ * 24 x 24 CSS px on a POINTER target - not only a finger, which the
+ * coarse-pointer block below has held to 44/48 since C-1712. Measured in
+ * a real browser at 390px with a fine pointer: the panel's checkboxes
+ * were 13 x 13, its sliders 129 x 16, the difficulty select 63 x 19 and
+ * the remap buttons 146 x 21. The UA-control exception does not cover
+ * them, because the panel sets the font size those boxes grow from.
+ * The coarse rules still win where they apply: they are larger. */
+button,select,summary,input[type=range],input[type=color],
+input[type=number],input[type=text]{{min-height:24px}}
+input[type=checkbox]{{width:24px;height:24px}}
+summary{{line-height:24px}}
 .how{{margin:18px 0 0;padding:14px 16px;background:{t["raised"]};
  border-radius:{t["radius_tight"]};font-family:ui-monospace,SFMono-Regular,monospace;
  font-size:13px;color:{t["code"]}}}

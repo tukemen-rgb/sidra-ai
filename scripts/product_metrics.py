@@ -15359,6 +15359,45 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- every pointer target meets §40's floor -----------------------------
+    #
+    # C-1968, §40 (WCAG 2.2 SC 2.5.8): a pointer target is 24 x 24 CSS px,
+    # unless a 24px circle centred on it touches nothing else. The page has
+    # held a FINGER to 44/48px since C-1712; a mouse is a pointer too, and
+    # outside that media block the panel's controls were whatever the
+    # browser gave them - 13x13 checkboxes, 129x16 sliders, 146x21 buttons.
+    #
+    # Measured in a real browser, not modelled: two cycles running the
+    # defect was in a probe that did not model what a browser does.
+    from sidra_ai.evals.targets_meet_the_size_floor import (
+        evaluate_targets_meet_the_size_floor,
+    )
+
+    _targets = evaluate_targets_meet_the_size_floor()
+    c.add(
+        "creation_targets_meet_the_size_floor",
+        "24×24 CSS px の床を満たす押せる場所の数（日英 2 ページ・§40・C-1968）",
+        float(_targets.targets_at_the_floor),
+        detail=(
+            f"**生成したページを実ブラウザ（headless Chromium・390×844）で開き、"
+            f"押せるもの全部の `getBoundingClientRect()` を読んだ**"
+            f"——**{_targets.targets_at_the_floor}/{_targets.targets_total}**"
+            f"（**規格として厳密に落ちるのは {_targets.strict_violations} 件**）。"
+            + ("**足りない**: " + "; ".join(_targets.failures[:2])
+               if _targets.failures
+               else "**実測**: " + " / ".join(_targets.readings))
+            + "。**数えるのは「ページ」ではなく「対象」**——"
+            "**§40 の Spacing 免除は、行の位置がたまたま離れていることに寄りかかる**"
+            "（**実測: 直す前は英語 16・日本語 11 が床未満だったが、"
+            "免除に落ちるのは各ページ 1 件だけ**）。"
+            "**ラベルが伸びれば、操作が 1 つ増えれば、その間隔は消える**ので、"
+            "**製品は大きさの方を持つ**。**規格の読みも detail に残す**。"
+            "**指の床（44/48px）は C-1712 から `@media (pointer:coarse)` にある**——"
+            "**今回の床はマウスにも効く基底**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- §24's type floor, on the pages we now ship in English -------------
     #
     # C-1967. §24's checks have always run on Japanese requests, so six
