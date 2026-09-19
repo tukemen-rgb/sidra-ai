@@ -15394,6 +15394,45 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the synthesised voices really sound in a real browser -------------
+    #
+    # C-1974, §2. Nine judges read this page's sound and all nine drive a
+    # hand-written AudioContext, which accepts whatever it is given. A real
+    # browser refuses an oscillator type Web Audio does not have, a ramp
+    # from zero, a periodic wave that is too short - and the page wraps
+    # every voice in try/catch because a machine with no audio device is not
+    # a bug, so a refused voice vanishes silently.
+    #
+    # Measured: with the pulse voices written as osc.type='pulse' (which the
+    # stand-in records and a real browser throws on), every existing audio
+    # number stayed where it was and only this one moved.
+    from sidra_ai.evals.sfx_sounds_in_a_real_browser import (
+        evaluate_sfx_sounds_in_a_real_browser,
+    )
+
+    _sfx_real = evaluate_sfx_sounds_in_a_real_browser()
+    c.add(
+        "creation_sfx_sounds_in_a_real_browser",
+        "効果音が実ブラウザで本当に鳴り出す（偽の AudioContext ではなく実物・C-1974）",
+        float(_sfx_real.voices_that_sound),
+        detail=(
+            f"**実ブラウザで 1 ページ開き、声を 1 つずつ鳴らした**"
+            f"——**{_sfx_real.voices_that_sound}/{_sfx_real.voices_total}**"
+            + ("。**鳴らなかった**: " + "; ".join(_sfx_real.failures[:2])
+               if _sfx_real.failures
+               else "。**実測**: " + " / ".join(_sfx_real.readings))
+            + "。**数えるのは 17 声**: **`SFX_TABLE` の 15 音**（**ページ自身の `sfx()` を通す**）、"
+            "**持続するエンジン音**、**先に予約する BGM**——"
+            "**本物の `OscillatorNode`／`AudioBufferSourceNode` が `start()` まで届いたか**。"
+            "**差し替えでは見えない場所**——**音の判定器 9 本はすべて手書きの `AudioContext` を相手にしており**、"
+            "**実ブラウザが拒むものを偽物は受け取る**。**ページは `sfx()` を `try{}catch(e){}` で包んでいる**ので、"
+            "**拒まれた声は警告も赤い数字も出さずに消える**。"
+            "**測れないこと**: **最初のひと押しで鳴り始めるところ**——"
+            "**合成イベントはユーザー操作として数えられず、旗なしでは文脈が `suspended` のまま**（**driver 待ち**）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the OS's "reduce motion" really reaches the page -------------------
     #
     # C-1972. Every probe in this repo replaces matchMedia - games.py has
