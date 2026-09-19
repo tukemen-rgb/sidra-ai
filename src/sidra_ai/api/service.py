@@ -416,6 +416,38 @@ _MADE_IT_CUES: tuple[str, ...] = ("作って", "作成", "つくって", "生成
 _QUOTE_LIMIT = 60
 
 
+def _coerce_history_turn(entry: object) -> tuple[str, str] | None:
+    """Normalize one replayed history entry to a ``(question, answer)`` pair.
+
+    C-1981. ``chat``'s docstring promises "a client can put anything at all in
+    ``history``", and the screening loop exists to neutralize hostile *content*
+    - but ``for question, answer in history`` still raised on hostile *structure*
+    (a wrong-arity tuple, a bare string, ``None``, ``(None, None)``), and a
+    two-character string silently unpacked into ``('h', 'i')``. Screen the shape
+    here so the loop only ever sees a real pair.
+
+    A str/bytes entry is not a turn (it is iterable, which is the trap), and an
+    entry that is not a two-item sequence carries no usable turn, so both are
+    dropped. Each side is coerced to text (``None`` -> ``""``); the empty string
+    the gate reads as ALLOW, so a dropped or blanked side cannot smuggle content
+    past the screen - the security property is unchanged, only the crash is gone.
+    """
+
+    if isinstance(entry, (str, bytes)):
+        return None
+    try:
+        items = list(entry)  # type: ignore[call-overload]
+    except TypeError:
+        return None
+    if len(items) != 2:
+        return None
+    question, answer = items
+    return (
+        "" if question is None else str(question),
+        "" if answer is None else str(answer),
+    )
+
+
 def last_creation_request(
     history: "list[tuple[str, str]]", label: str
 ) -> str | None:
@@ -1331,9 +1363,15 @@ class SidraService:
 
         # Replayed turns are screened before anything else looks at them. An
         # operator can paste a secret into a follow-up as easily as into a
-        # first question, and a client can put anything at all in `history`.
+        # first question, and a client can put anything at all in `history` -
+        # including a malformed shape, which _coerce_history_turn drops rather
+        # than letting the unpacking below raise (C-1981).
         screened_history: list[tuple[str, str]] = []
-        for question, answer in history or ():
+        for entry in history or ():
+            pair = _coerce_history_turn(entry)
+            if pair is None:
+                continue
+            question, answer = pair
             turn: list[str] = []
             for side in (question, answer):
                 # Injection-tolerant, secret/PII-strict, and non-recording; see

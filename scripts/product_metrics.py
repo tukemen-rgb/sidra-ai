@@ -3597,6 +3597,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1981: SidraService.chat promised "a client can put anything at all in
+    # history" but its screening loop raised on a malformed shape (wrong-arity
+    # tuple, bare string, None). It now normalizes each entry to a (str, str)
+    # pair before screening, so a direct (embedding) caller gets a screened
+    # answer instead of a crash, and the security screen is unchanged.
+    from sidra_ai.evals.chat_history_survives_malformed_shapes import (
+        evaluate_chat_history_survives_malformed_shapes,
+    )
+
+    history_shape = evaluate_chat_history_survives_malformed_shapes()
+    c.add(
+        "chat_history_survives_malformed_shapes",
+        "壊れた形の会話履歴でも落ちず選別する（組み込み API の頑健性・安全screen不変）",
+        10.0 * history_shape.checks_passed / history_shape.checks_total,
+        detail=f"{history_shape.checks_passed}/{history_shape.checks_total} checks; "
+               "src/sidra_ai/evals/chat_history_survives_malformed_shapes.py"
+               + ("" if history_shape.passed else "; " + "; ".join(history_shape.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1761: /health cannot name the model (unauthenticated), so echo running in
     # place of a staged reviewed model was invisible at runtime - the banner and
     # preflight warn but /v1/index, the authenticated status surface, stayed
