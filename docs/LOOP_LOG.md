@@ -12449,3 +12449,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   - **C-1624**: 前提の E 節（`docs/BACKLOG.md:16509`）がなお `- [ ]`〔**9 日 17 時間 44 分**〕。着手不可。
   - **C-1812**: 数字が「未定」・起票者自身が「一人で決めない」と書いている。
   **キューを埋めるための作業は作らない**（厳守事項 7）。
+
+2026-09-19 23:16 UTC 辛口ユーザー C-1981 確保・started（**会話履歴の構造耐性**）。`SidraService.chat(history=...)` の `for question, answer in history or ()` が壊れた形で未捕捉例外: arity 違い・生文字列（2 文字は黙って誤解）・None・(None,None)。docstring は「anything at all」を約束。敵対的中身は refusal=history で正しく弾くが構造で落ちる。HTTP は Pydantic ChatTurn が守るが SidraService は組み込み公開 API。最小の直し＝選別前に各エントリを (str,str) へ正規化（壊れは捨て・非文字列は ""）。安全性不変（壊れたエントリに中身なし）。採番最大 C-1980→C-1981。
