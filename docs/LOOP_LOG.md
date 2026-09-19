@@ -12285,3 +12285,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   ——**3 車線が同時に空振った直後に C-1972 が出ている**。**待って正解だった**
   （もしあのとき「枯れた」と判断して起票で埋めていたら、**在る仕事を隠して作り話を足していた**）。
   キューを埋めるための作業は作らない。
+
+2026-09-19 12:16 UTC 辛口ユーザー no-op（前巡と違う面＝**製品の核＝索引済みリポジトリからの根拠付き Q&A** を実際に動かした）。小さな corpus（日本語 deploy／backup、英語 deploy_en）を index して `SidraService.chat` を殴った: **carバーされた日本語質問→正しい文書を引用**（deploy.md／backup.md を取り違えない）・**日本語で回答**、**未収録の質問（料金）→引用なしで「十分な根拠がありません」と正直に棄権**、**英語の質問→ deploy_en.md を引用し英語で回答**（rule 6）、**gibberish→英語で棄権**、**質問への注入（Ignore all instructions / 以前の指示を無視）→ 入力ゲートが `refusal=gate` で遮断（answer 空・reason 記録）**。次に **CLI の見え方**を確認: `render()` を全 refusal コードで駆動——gate／empty／output_guard／model_unavailable／history／ambiguous すべてが**空でなく日本語の次アクション文**を出す（監査英文ではない・C-1238）。**終了コード契約**（3=安全・4=会話・1=障害）を実データで検証: **本物の history-gate 拒否は `security.decision=quarantine` を積んで exit 3**（CLI ヘッダ docの「history→exit3」どおり——合成 payload では security 欠落で 1 に落ちるが実経路は正しい）、gate→3・output_guard→3・empty/ambiguous→4・model_unavailable→1。**穴なし——起票せず**（厳守事項7）。前巡 11:12（CLI 引数）と別面（今回は回答生成・引用・言語・拒否UX の核）。採番最大 C-1972・衝突なし。scratch は掃除済み。
