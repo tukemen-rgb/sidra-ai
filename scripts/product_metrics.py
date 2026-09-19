@@ -12832,6 +12832,7 @@ def measure_creation(c: Collector) -> None:
                     return None
                 keep = out.setdefault(name, dict(box))
                 keep["longest"] = max(keep["longest"], box["longest"])
+                keep["widest"] = max(keep.get("widest", 0), box.get("widest", 0))
         return out
 
     def _ts2_one(_ts2_key):
@@ -12866,11 +12867,15 @@ def measure_creation(c: Collector) -> None:
             )
             return gaps, None
         # ...and raising the type must not push a line off the canvas.
-        # Monospace, so a full-width character is one em wide.
+        # Measured, not counted (C-1967, §35): a full-width character is
+        # one em, an ASCII one about 0.6 em in monospace, so the count
+        # that served while every page was Japanese reads 40% too wide on
+        # an English one. The probe reports the measured width beside the
+        # count; only the width decides.
         _ts2_over = [
-            f"{v['longest']}字×{v['px']:.1f}px"
+            f"{v['longest']}字×{v['px']:.1f}px（実測 {v.get('widest', 0):.0f}px）"
             for v in _ts2_box.values()
-            if v["longest"] * v["px"] > 720
+            if v.get("widest", v["longest"] * v["px"]) > 720
         ]
         if _ts2_over:
             gaps.append(f"{_ts2_key}@360: 行が画布からはみ出す（{_ts2_over[0]}）")
@@ -15350,6 +15355,40 @@ def measure_creation(c: Collector) -> None:
             "（**C-1960 の実測**: **`make a marble game` は fishing に着地していた**"
             "——**訳しても英語では辿り着けないページになるところだった**）。"
             "**表ではなくページから読む**（C-1640）。"
+        ),
+        kind=OUTCOME,
+    )
+
+    # --- §24's type floor, on the pages we now ship in English -------------
+    #
+    # C-1967. §24's checks have always run on Japanese requests, so six
+    # cycles of putting the screen into English produced pages nothing
+    # measured for type size. They could not be pointed at the existing
+    # check either: it asked "characters x px", which reads 40% too wide
+    # in ASCII and reported every English page off the canvas.
+    #
+    # A NEW number rather than more pages under the old one: widening a
+    # metric's scale lets one side improve by nothing while the number
+    # rises (C-1939).
+    from sidra_ai.evals.type_floor_holds_in_english import (
+        evaluate_type_floor_holds_in_english,
+    )
+
+    _typefloor = evaluate_type_floor_holds_in_english()
+    c.add(
+        "creation_type_floor_holds_in_english",
+        "英語のページが §24 の字の床を満たしている型（360 CSS px・C-1967）",
+        float(_typefloor.templates_ok),
+        detail=(
+            f"**英語で頼んだ 10 型を、最も狭い画面（360 CSS px）で測った**"
+            f"——**{_typefloor.templates_ok}/{_typefloor.templates_total}**。"
+            + ("**満たしていない**: " + "; ".join(_typefloor.failures[:2])
+               if _typefloor.failures else "**3 つとも満たしている**")
+            + "。**検査は §24 のものと同じ 3 つ**: **実効サイズが床（11px）以上**、"
+            "**行が画布より広くない**、**語の箱が画面の上下に収まっている**。"
+            "**幅は測る**（C-1967）——**文字数 × px では ASCII が 4 割過大になり、"
+            "英語のページは 10 型とも誤報になる**（`43字×22px`＝946 に対し実測 568）。"
+            "**既存の日本語側の数字に英語を足して尺を広げない**——**片側だけ良くなっても上がる数字にはしない**。"
         ),
         kind=OUTCOME,
     )

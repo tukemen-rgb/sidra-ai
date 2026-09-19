@@ -148,9 +148,16 @@ function sizes(list){
     const px = Number(m[1]);
     const key = px.toFixed(2);
     if (!out[key]) { out[key] = { px: px, effective: px * CSS_W / 720, n: 0, longest: 0,
-      top: Infinity, bottom: -Infinity } }
+      widest: 0, top: Infinity, bottom: -Infinity } }
     out[key].n++;
     out[key].longest = Math.max(out[key].longest, w.text.length);
+    /* The width a reader actually gets (C-1967, §35). ``longest`` counts
+       characters, which is one em each in Japanese and about 0.6 em in
+       ASCII monospace - so a line of English reads 40% wider than it is,
+       and a judge built on the count cries wolf on every English page.
+       Kept BESIDE the count rather than in place of it: the count still
+       says how many characters were drawn. */
+    out[key].widest = Math.max(out[key].widest || 0, drawnWidth(w.text, px));
     /* The box a word occupies. 'middle' centres it; everything else here
        draws on the alphabetic baseline, where a monospace cap reaches
        about 0.8em up and a descender about 0.2em down. */
@@ -170,7 +177,7 @@ function spans(list){
   list.forEach(function(w){
     const m = /^([0-9.]+)px/.exec(w.font); if (!m) { return }
     const px = Number(m[1]);
-    const wide = w.text.length * px;
+    const wide = drawnWidth(w.text, px);
     const left = w.align === 'center' ? w.x - wide / 2
       : (w.align === 'right' ? w.x - wide : w.x);
     const up = w.base === 'middle' ? px * 0.5 : px * 0.8;
@@ -196,7 +203,11 @@ def textsize_probe(script: str, *, css_w: int = 720) -> str:
     from sidra_ai.creation import probekeys
 
     return probekeys.with_probe_keys(
-        TEXTSIZE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        # The width model rides in front of the probe (C-1967): the probe
+        # asks how wide a drawn word is, and the answer depends on which
+        # script it is written in.
+        TEXT_WIDTH_JS
+        + TEXTSIZE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
             "CSS_W_PLACEHOLDER", str(int(css_w))
         )
     )
