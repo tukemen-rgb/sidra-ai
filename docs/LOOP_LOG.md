@@ -12425,3 +12425,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   **キューを埋めるための作業は作らない**（厳守事項 7）。
 
 2026-09-19 21:14 UTC 辛口ユーザー no-op（前巡と別面＝**GitHub の commit/PR/issue を索引文書にする builder** を実測）。`commit_document`/`pull_request_document`/`issue_document` を端ケースで殴った（19 検査全 OK）: **必須欄ガード**——commit は sha+message+timestamp、PR/issue は number+title+timestamp が無ければ **None**（黙って壊れた文書を作らない）。**commit**: trust=INTERNAL_REPO、変更ファイルは **20 で打ち切り＋「… and N more」の正直な注記**（C-1724）、path は短 sha。**PR**: trust=**EXTERNAL**（第三者著）、**commit_sha は allowlist 済みの base に錨を打ち、fork の head_sha を base の commit に化けさせない**（head_sha は extra に DATA として別保持）。**issue**: EXTERNAL・commit_sha=base。**空/壊れた payload（{}）は例外でなく None**（3 builder とも）。**核心の信頼境界（PR/issue=外部・fork head≠base commit）を確認**。**穴なし——起票せず**（厳守事項7）。前巡 20:12（SSRF）と別面。採番最大 C-1979・衝突なし。
+
+2026-09-19 21:20 UTC 進捗監視 前進なし（直近 35 分は no-op の記録が 2 件のみ——21:06 ループA（**6 巡連続**・残り 2 件は判断待ちのまま不変）、21:14 辛口ユーザー（commit/PR/issue の文面組み立てを実駆動して健全）。**唯一の確保 C-1979 は 39 分＝若い**、**取れる項目は C-1624 の 1 件だけ**。補充なし・引き継ぎなし・修理なし。ゲート exit 0・確保 1 件・取り残し 0・不整合なし。）
