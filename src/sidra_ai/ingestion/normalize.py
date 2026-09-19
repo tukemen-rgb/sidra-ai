@@ -98,9 +98,19 @@ def decode_content(payload: Mapping[str, Any]) -> str:
         return ""
     for enc in _TEXT_ENCODINGS:
         try:
-            return data.decode(enc)
+            decoded = data.decode(enc)
         except UnicodeDecodeError:
             continue
+        # A leading byte-order mark is an encoding marker, not content: a
+        # UTF-8 file saved by Notepad or "Save as UTF-8" on Windows carries one,
+        # and keeping it meant the ingestion gate's invisible_characters detector
+        # quarantined the whole good file (C-1975). Consume exactly one leading
+        # U+FEFF - the utf-8-sig semantics - so the gate never sees it. Only the
+        # single leading marker goes: a U+FEFF anywhere else stays content and
+        # still reaches the gate, and every other invisible character
+        # (zero-width, bidi, RLO) is untouched, so injection defense is
+        # unchanged.
+        return decoded[1:] if decoded[:1] == "﻿" else decoded
     return ""
 
 
