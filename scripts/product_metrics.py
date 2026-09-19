@@ -15968,6 +15968,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the CLI, not calling a conversation a refusal ---------------------
+    #
+    # C-1538, from the outside critic's fourteenth review - the first to run
+    # the CLI at all. ``ask_cli``'s docstring separates exit 3 ("refused for
+    # safety") from exit 4 ("answered conversationally ... nothing failed"),
+    # and three items built that separation (C-1811 / C-1872 / C-1931). The
+    # printed first line never followed: ``render`` opens with 「回答を拒否し
+    # た。」 for every refused payload, so a greeting and each ask-back
+    # announce a refusal to the one reader who cannot see the exit code.
+    # C-1879 saw it for one code (``artifact_list``) and special-cased that
+    # one; the other eight kept saying it.
+    from sidra_ai.evals.cli_conversational_reply_is_not_called_a_refusal import (
+        evaluate_cli_conversational_reply_is_not_called_a_refusal,
+    )
+
+    _cliword = evaluate_cli_conversational_reply_is_not_called_a_refusal()
+    c.add(
+        "cli_conversational_reply_is_not_called_a_refusal",
+        "CLI が「会話として答えた」応答を拒否と名乗らない（C-1538）",
+        float(_cliword.codes_right),
+        detail=(
+            f"**実 `SidraService.chat` の応答を実 `ask_cli.render()` に通し、"
+            f"印字そのものを読んだ**——**{_cliword.codes_right}/"
+            f"{_cliword.codes_total}**（安全の断りは"
+            f"{'「拒否した」のまま' if _cliword.gate_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_cliword.failures[:3])
+               if _cliword.failures
+               else "**実測**: " + " / ".join(_cliword.readings[:4]))
+            + "。**出口コードは正しい——文言だけが遅れている**: 会話コードはすべて "
+            "exit 4 を返し、`gate` は 3 を返す。困るのは**出口コードを見ない読み手"
+            "（人間）だけ**で、聞き返しがエラーとして読まれる。"
+            "**次手の文も同時に数える**——「拒否した」を消して黙るのは前進ではない"
+            "（各コードの次手の語が消えたらその面は数えない）。"
+            "**`gate` は門**（「拒否した」と言わなくなったら全体が 0——"
+            "この eval を通す一番安い方法は一行目を無条件に消すことなので、"
+            "そこを塞いでいる）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the deck page, in the language asked ------------------------------
     #
     # C-1951. C-1935 put the deck's summary into the language of the request
