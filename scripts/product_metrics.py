@@ -15414,6 +15414,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the climax is the brightest thing on the screen, in real pixels ---
+    #
+    # C-1978, §7 観察 6 with §43's step. creation_scene_palettes and
+    # creation_scene_hue_names_the_place read sceneFacts() - the colours the
+    # page hands to fillStyle. Tiles, sky, HUD and scrims land on top of
+    # those colours, so the ledger can keep a promise the screen does not.
+    #
+    # Measured: puzzle's ledger claimed x2.38 into its last act while the
+    # painted picture rose +0.131 log - under the 0.15 step clinical
+    # practice counts as one increment of contrast - because the gems cover
+    # the board and the scene colour only showed at the edges.
+    from sidra_ai.evals.climax_is_the_brightest_on_screen import (
+        FRAMES,
+        evaluate_climax_is_the_brightest_on_screen,
+    )
+
+    _climax = evaluate_climax_is_the_brightest_on_screen()
+    c.add(
+        "creation_climax_is_the_brightest_on_screen",
+        "山場が画面でいちばん明るい（帳簿ではなく実画素・C-1978）",
+        float(_climax.templates_whose_climax_reads),
+        detail=(
+            f"**実ブラウザで 10 型を開き、本物のループを {FRAMES} フレーム回してから"
+            f"画素を読んだ**——**{_climax.templates_whose_climax_reads}/"
+            f"{_climax.templates_total}**"
+            + ("。**届いていない**: " + "; ".join(_climax.failures[:2])
+               if _climax.failures
+               else "。**実測**: " + " / ".join(_climax.readings[:4]))
+            + "。**基準は §43**: **コントラストの「一段」は 0.15 log 単位**"
+            "（**Pelli–Robson が三つ組ごとに 1/√2 ずつ下げる刻み**）——"
+            "**山場が直前の最大より一段上でなければ、山場として立たない**。"
+            "**帳簿では見えない場所**——**既存の場面判定器は `sceneFacts()` が返す"
+            "「fillStyle に渡す色」を読む**ので、**盤面や空や HUD が上に乗って"
+            "約束を薄めても 1 つも動かない**（**実測で確認**）。"
+            "**道具**: **`requestAnimationFrame` を横取りして本物のループを進め**、"
+            "**`setScene` を幕に固定し**、**動きを減らした状態で 1 幕 5 標本の中央値**を取る。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the synthesised voices really sound in a real browser -------------
     #
     # C-1974, §2. Nine judges read this page's sound and all nine drive a

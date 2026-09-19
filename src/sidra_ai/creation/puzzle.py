@@ -250,6 +250,17 @@ function draw(now){
        count, so the board is readable without telling them apart by hue. */
     cx.fillStyle='#05070f88';
     for(let i=0;i<=v;i++){cx.fillRect(px+4+i*5,py+CELL-7,3,3)}}}
+  /* Brightness is a resource kept for the last act (§7 観察 6), and on this
+     board that promise was only ever true in the ledger: the gems cover most
+     of the canvas, so the scene colour showed at the edges and the climax
+     rose by +0.131 log - under §43's 0.15 step, which is what clinical
+     practice counts as one increment of contrast (C-1978, measured in real
+     pixels). The early acts are held under a dusk of the scene's own colour
+     so the last act is the board at full strength. Painted over the gems and
+     under the HUD: the plate and its ink keep their own contrast. */
+  const DUSK=[0.28,0.14,0][SCENE]||0;
+  if(DUSK>0){cx.globalAlpha=DUSK;cx.fillStyle=scenePaint('SURFACE_TOKEN');
+    cx.fillRect(0,0,cv.width,cv.height);cx.globalAlpha=1}
   const pulse=REDUCED?0:FRAME(2,6,now);
   /* The cursor is a component, not decoration: it inherits the theme's
      ink like the text does (C-1131 themed the words but not this stroke,
