@@ -1589,3 +1589,25 @@ URL は 2026-09-17 に実際に開いて確認。
   **ブラウザの文字ズームとは別物**になる。**driver が要る**ので、**未測定として残す**。
 - SIDRA での反映先: C-1971（判定器 `creation_text_spacing_survives` を置く。
   §41 の 20 ページ掃き出しは `tests/test_touch_targets.py` の隣に留める）。
+
+## 43. 明るさの「ひと段」は測れる大きさで決まっている（外部調査 2026-09-19・辛口クリエイターループ）
+
+- 出典: https://aes.amegroups.org/article/view/7081/html （Annals of Eye Science,
+  "Psychophysics in the ophthalmological practice—II. Contrast sensitivity"・2026-09-19 確認）／
+  https://en.wikipedia.org/wiki/Just-noticeable_difference （2026-09-19 確認）
+- 事実 1: **コントラスト閾（contrast threshold）は「輝度の just noticeable difference (jnd)」
+  そのものとして定義される**。コントラスト感度はその逆数。
+- 事実 2: **Weber コントラスト =(L−L_back)/L_back**。Snellen の視標は Weber コントラスト
+  **≥90%** を保つ、と同文献。
+- 事実 3: **Pelli–Robson チャートは三つ組ごとにコントラストを 1/√2、すなわち 0.15 log 単位
+  ずつ下げる**——臨床がコントラストの**「一段」として扱う刻みが 0.15 log 単位（×1.41）**。
+- 事実 4: Weber の法則（JND は基準量に比例）は**明るさにも近似的に成り立つ**とされるが、
+  Wikipedia は明るさの係数を数字で挙げていない（音の 1 dB などは挙げる）。**数字は
+  「見える／見えない」の断定ではなく、刻みの基準として使う**。
+- 学び: §7 観察 6 の「クライマックスに最大明度を予約する」は、**帳簿（fillStyle に渡す色）
+  ではなく実際の画素**で測らないと守られたか分からない。そして**段差が 0.15 log 単位
+  （×1.41）に満たなければ、山場は一段として立たない**。SIDRA の実測（実ブラウザ・
+  10 型・動きを減らした状態・1 幕あたり 5 標本の中央値）: **8 型は +0.30〜+0.61 log**、
+  **marble +0.222 log**、**puzzle は +0.131 log で刻みに届かない**——盤面の宝石色が
+  画面の大半を占め、場面の色は縁にしか出ないため。
+- SIDRA での反映先: C-1978（実画素で測る判定器を置き、puzzle の山場を一段に戻す）
