@@ -138,6 +138,75 @@ CANVAS_WORDS: dict[str, tuple[str, str]] = {
     "shot_down_mid": (" 機・得点 ", " of them, for "),
     "shot_down_close": ("。", " points."),
     "again_space_r_tap": ("SPACE か R、タップでもう一度", "SPACE, R or a tap to play again"),
+    # --- adventure (C-1964) ---
+    #
+    # The narration. Facts about what just happened and what is needed
+    # next, which is why it can be translated at all: nothing here is a
+    # turn of phrase somebody chose for its sound.
+    "hero_wakes": ("ぼうしの勇者、めざめる。", "The hero in the hat wakes."),
+    "found_gem": ("草のかげに宝石があった。", "A gem was hidden in the grass."),
+    "chest_locked": ("鍵がかかっている。洞窟の敵が持っているらしい。",
+                     "It is locked. The cave's enemy seems to hold the key."),
+    "guard_alive": ("番人が生きている限り、宝箱は開かない。",
+                    "The chest will not open while the guardian lives."),
+    "tablet_hint": ("「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」",
+                    "\"The enemy in the east cave guards the key. The altar's "
+                    "treasure is yours to find.\""),
+    "shrine_full": ("祠は満ち足りている。ハートはもう増えない。",
+                    "The shrine is content. No more hearts to give."),
+    "shrine_took": ("祠が宝石を受け取った。ハートが増えた。",
+                    "The shrine took the gems. One more heart."),
+    "shrine_wants_open": ("祠は宝石を 3 個ほしがっている（いま ",
+                          "the shrine wants 3 gems (you have "),
+    "gems_now_close": (" 個）。", ")"),
+    "path_opened": ("わき道が開いた。", "A side path opened."),
+    "path_cost_open": ("宝石 2 個で開きそうだ（いま ",
+                       "2 gems would open it (you have "),
+    "stone_open": ("石碑「", "the stone reads: \""),
+    "stone_close": (" の順に、洞窟の印を叩け」",
+                    " - strike the cave's marks in that order\""),
+    "guard_fell": ("番人は崩れ落ちた。祭壇が静まりかえる。",
+                   "The guardian falls. The altar goes quiet."),
+    "guard_faster": ("番人の足が速くなった。", "The guardian moves faster now."),
+    "marks_quiet": ("印はもう静かだ。", "The marks are quiet now."),
+    "seal_broke_key": ("封が解けて、鍵が転がり出た。",
+                       "The seal breaks and a key rolls out."),
+    "seal_broke": ("封が解けた。", "The seal breaks."),
+    "mark_rang_open": ("印が低く鳴った（", "the mark rings low ("),
+    "mark_rang_close": ("）。", ")"),
+    "marks_wrong": ("印は沈黙した。順が違う。",
+                    "The marks fall silent. That was the wrong order."),
+    "found_charm": ("護符を見つけた。一度だけ身代わりになる。",
+                    "You found a charm. It will take one hit for you."),
+    "got_key": ("鍵を手に入れた。", "You have the key."),
+    "charm_broke": ("護符が砕けて、身代わりになった。",
+                    "The charm shattered and took the hit."),
+    "ouch": ("いたい。", "That hurt."),
+    "heavy_hit": ("重い一撃。", "A heavy hit."),
+    "monument": ("碑", "stone"),
+    "has_key": ("  鍵あり", "  key"),
+    "has_charm": ("  護符", "  charm"),
+    "adventure_win": ("宝箱をあけた。冒険の勝利。",
+                      "The chest is open. The adventure is won."),
+    "adventure_over": ("ちからつきた。", "Your strength gave out."),
+    "charm_label_open": (" / 護符 ", " / charm "),
+    "charm_yes": ("あり", "yes"),
+    "charm_no": ("なし", "no"),
+    "again_r_tap_retry": ("R か タップでやり直す", "R or tap to try again"),
+    "again_r_tap_more": (" / R か タップでもう一度", " / R or tap to play again"),
+    # --- adventure's three cave marks (C-1964) ---
+    #
+    # Drawn one glyph to a tile, so the English column is a symbol rather
+    # than a word: "moon" does not fit where 「月」 fits, and the mark has
+    # to stay readable at tile size. The stone names them in the same
+    # glyphs, so the order a player reads is the order they strike.
+    "mark_moon": ("月", "☾"),
+    "mark_star": ("星", "★"),
+    "mark_sun": ("日", "☀"),
+    # --- adventure's three rooms (C-1964) ---
+    "room_forest": ("森のはずれ", "the forest edge"),
+    "room_cave": ("ひかり苔の洞窟", "the glowmoss cave"),
+    "room_altar": ("風の祭壇", "the altar of wind"),
 }
 
 _JAPANESE = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")

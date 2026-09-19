@@ -109,12 +109,12 @@ let rs=(SEED>>>0)||1;function rand(){rs=(rs*48271)%2147483647;return rs/21474836
    does not move by one rand() call. */
 let ks=((SEED^1234567)>>>0)||1;
 function krand(){ks=(ks*48271)%2147483647;return ks/2147483647}
-const KMARKS=['月','星','日'];
+const KMARKS=[CW.mark_moon,CW.mark_star,CW.mark_sun];
 const KORDER=(()=>{const o=[0,1,2];for(let i=2;i>0;i--){
   const j=Math.floor(krand()*(i+1));const t=o[i];o[i]=o[j];o[j]=t}return o})();
 let kprog=0,ksolved=false;
 function knowFacts(){return {progress:kprog,solved:ksolved}}
-const NAMES=['森のはずれ','ひかり苔の洞窟','風の祭壇'];
+const NAMES=[CW.room_forest,CW.room_cave,CW.room_altar];
 let rooms=[],enemies=[],room=0,msg='',msgT=0,guard=null;
 let hero={x:0,y:0,dir:2,hp:3,gems:0,key:false,swing:0,inv:0,sq:1};
 let state='play';let keyDrop=null;let FIRSTCUT=true;let PITY=0;
@@ -179,7 +179,7 @@ function reset(){rs=(SEED>>>0)||1;build();room=0;keyDrop=null;state='play';FIRST
   kprog=0;ksolved=false;hurtRoam=0;hurtGuard=0;
   hero={x:OX+2*TILE,y:OY+4*TILE,dir:2,hp:3,maxhp:3,gems:0,key:false,
     charm:false,swing:0,inv:0,sq:1};
-  say('ぼうしの勇者、めざめる。')}
+  say(CW.hero_wakes)}
 /* Long enough to READ (§4 増築, C-1395): the Japanese subtitle standard
    is 4 characters per second, and a flat 140 frames pushed the 22-char
    door hint out at 9.4/s. Fifteen frames a character IS 4/s at 60fps;
@@ -231,16 +231,16 @@ function swing(){if(state!=='play')return;
          worst case at 1+4=5 gems: the shrine's 3 with the door's 2 to
          spare, while the expected run feels the same odds as before. */
       if(FIRSTCUT||PITY>=2||rand()<0.34){FIRSTCUT=false;PITY=0;
-        hero.gems++;say('草のかげに宝石があった。');
+        hero.gems++;say(CW.found_gem);
       sfx('gem',1,(OX+tx*TILE+TILE/2)/cv.width);
         burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,14,'ALERT_JUICE')}
       else{PITY++}}
     /* The boss stands behind the boss key (§3): the key alone is only half
        the lock while the guardian is on its feet. */
-    if(t===7){if(!hero.key){say('鍵がかかっている。洞窟の敵が持っているらしい。');sfx('clash')}
-      else if(guard&&guard.alive){say('番人が生きている限り、宝箱は開かない。');sfx('clash')}
+    if(t===7){if(!hero.key){say(CW.chest_locked);sfx('clash')}
+      else if(guard&&guard.alive){say(CW.guard_alive);sfx('clash')}
       else{state='win';winBeat(hero.x,hero.y)}}
-    if(t===8){say('「東の洞窟の敵が鍵を守っている。祭壇の宝を頼む。」');sfx('step')}
+    if(t===8){say(CW.tablet_hint);sfx('step')}
     /* The sink (§5): gems were a tap with no outlet, so cutting grass paid
        in a number. Three of them buy a heart, which is what makes the
        grass worth cutting. */
@@ -252,21 +252,21 @@ function swing(){if(state!=='play')return;
          the optional door costs two, so a player could be talked out of
          the branch by a success sound. A sink that returns nothing is
          not a sink. */
-      if(hero.maxhp>=HP_CAP){say('祠は満ち足りている。ハートはもう増えない。');sfx('clash')}
+      if(hero.maxhp>=HP_CAP){say(CW.shrine_full);sfx('clash')}
       else if(hero.gems>=3){hero.gems-=3;hero.maxhp=hero.maxhp+1;
         /* A bigger heart is a power, not a pickup (§2, C-1346). */
-        hero.hp=hero.maxhp;say('祠が宝石を受け取った。ハートが増えた。');sfx('powerup');
+        hero.hp=hero.maxhp;say(CW.shrine_took);sfx('powerup');
         burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,18,'ALERT_JUICE')}
-      else{say('祠は宝石を 3 個ほしがっている（いま '+hero.gems+' 個）。');sfx('clash')}}
+      else{say(CW.shrine_wants_open+hero.gems+CW.gems_now_close);sfx('clash')}}
     /* The optional door (§3): the run is winnable without ever opening it. */
     if(t===10){if(hero.gems>=2){hero.gems-=2;rooms[room][ty][tx]=0;
-        say('わき道が開いた。');sfx('key')}
-      else{say('宝石 2 個で開きそうだ（いま '+hero.gems+' 個）。');sfx('clash')}}
+        say(CW.path_opened);sfx('key')}
+      else{say(CW.path_cost_open+hero.gems+CW.gems_now_close);sfx('clash')}}
     /* The knowledge key (§3, C-1340): the stone SAYS the order - the
        knowledge lives in the world, not in a facts function - and the
        marks answer to it. */
-    if(t===12){say('石碑「'+KORDER.map(i=>KMARKS[i]).join('→')+
-      ' の順に、洞窟の印を叩け」');sfx('step')}
+    if(t===12){say(CW.stone_open+KORDER.map(i=>KMARKS[i]).join('→')+
+      CW.stone_close);sfx('step')}
     if(t===13||t===14||t===15){knock(t-13,tx,ty)}}
   enemies[room].forEach(en=>{if(!en.alive)return;
     if(Math.hypot(en.x-fx,en.y-fy)<22){en.alive=false;sfx('hurt',1,en.x/cv.width);
@@ -290,24 +290,24 @@ function swing(){if(state!=='play')return;
          out-threw even the WIN beat's 26. Brought into line with the two
          dials that were already stating the order; nothing else moves. */
       burst(guard.x,guard.y,18,'ALERT_JUICE');
-      say('番人は崩れ落ちた。祭壇が静まりかえる。')}
-    else if(guard.hp===3){say('番人の足が速くなった。');sfx('charge')}}}
+      say(CW.guard_fell)}
+    else if(guard.hp===3){say(CW.guard_faster);sfx('charge')}}}
 /* One knock on one mark. The right next mark advances the seal; a wrong
    one resets it (the struck mark still counts as a first step when it IS
    the first - a player re-starting the phrase should not need a dead
    knock). Solving with the key already loose or held breaks the seal and
    nothing else: two keys would be a dungeon with a spare under the mat. */
 function knock(mark,tx,ty){if(state!=='play')return;
-  if(ksolved){say('印はもう静かだ。');sfx('step');return}
+  if(ksolved){say(CW.marks_quiet);sfx('step');return}
   if(KORDER[kprog]===mark){kprog++;sfx('step');
     burst(OX+tx*TILE+TILE/2,OY+ty*TILE+TILE/2,8,'ACCENT_JUICE');
     if(kprog>=3){ksolved=true;sfx('powerup');
       if(!hero.key&&!keyDrop){keyDrop={x:hero.x,y:hero.y};
-        say('封が解けて、鍵が転がり出た。')}
-      else{say('封が解けた。')}}
-    else{say('印が低く鳴った（'+kprog+'/3）。')}}
+        say(CW.seal_broke_key)}
+      else{say(CW.seal_broke)}}
+    else{say(CW.mark_rang_open+kprog+'/3'+CW.mark_rang_close)}}
   else{kprog=(KORDER[0]===mark)?1:0;
-    say('印は沈黙した。順が違う。');sfx('clash')}}
+    say(CW.marks_wrong);sfx('clash')}}
 /* One shove, and it obeys the walls (§1 の hitstop/knockback の対, C-1643).
    Every other mover on this page asks solid() before it assigns - the hero
    (below), the roamers, the guardian. The two knockbacks did not: they
@@ -352,12 +352,12 @@ function moveHero(){
   if(t===11){rooms[room][Math.floor((hero.y-OY)/TILE)][Math.floor((hero.x-OX)/TILE)]=0;
     hero.charm=true;hero.hp=hero.maxhp;
     /* The charm is a one-time life - a power's voice, not a lock's. */
-    say('護符を見つけた。一度だけ身代わりになる。');sfx('powerup');
+    say(CW.found_charm);sfx('powerup');
     /* 16, not 20 (C-1717): a pickup with no shake and no hold at all was
        throwing exactly as many particles as losing the round. */
     burst(hero.x,hero.y,16,'ALERT_JUICE')}
   if(keyDrop&&room===1&&Math.hypot(hero.x-keyDrop.x,hero.y-keyDrop.y)<20){
-    hero.key=true;keyDrop=null;say('鍵を手に入れた。');sfx('key')}}
+    hero.key=true;keyDrop=null;say(CW.got_key);sfx('key')}}
 /* The talisman finally guards (§3, C-1323): one fatal hit is taken by
    the charm instead - it shatters, the hero stands at 1, and the mercy
    frames outlast a normal hit's. Once only: a shield that reforms would
@@ -365,7 +365,7 @@ function moveHero(){
 function charmSave(){if(!hero.charm)return false;
   hero.charm=false;hero.hp=1;hero.inv=90;
   sfx('clash');shake(8);burst(hero.x,hero.y,18,'ACCENT_JUICE');
-  say('護符が砕けて、身代わりになった。');return true}
+  say(CW.charm_broke);return true}
 function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
   const d=Math.hypot(hero.x-en.x,hero.y-en.y);
   /* Exactly on top of the hero is d===0, and dividing by it makes this
@@ -394,7 +394,7 @@ function moveEnemies(){enemies[room].forEach(en=>{if(!en.alive)return;en.t--;
     if(kd>0.001){shove((hero.x-en.x)/kd*kr,(hero.y-en.y)/kd*kr)}
     else{const ed=Math.hypot(en.dx,en.dy)||1;shove(en.dx/ed*kr,en.dy/ed*kr)}
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
-    else{say('いたい。')}}})}
+    else{say(CW.ouch)}}})}
 /* The guardian's turn (§6): a slow stride whose weight is the step, a held
    wind-up - the flash beat - then a charge that ends in dust. Phase 2 is
    the same grammar faster. speed/wind are read off guardFacts by the probe
@@ -438,7 +438,7 @@ function moveGuard(){if(room!==2||!guard||!guard.alive)return;
     const kg=shoveAmount('guard');
     shove((hero.x-guard.x)/gd*kg,(hero.y-guard.y)/gd*kg);
     if(hero.hp<=0){if(!charmSave()){state='over';failBeat(hero.x,hero.y)}}
-    else{say('重い一撃。')}}}
+    else{say(CW.heavy_hit)}}}
 function hurtFacts(){return {roam:hurtRoam,guard:hurtGuard,
   total:hurtRoam+hurtGuard,hp:hero.hp,state:state,sq:hero.sq}}
 function guardFacts(){return guard?{alive:guard.alive,hp:guard.hp,max:guard.max,
@@ -503,7 +503,7 @@ function drawTile(t,x,y,now){
   if(t===12){cx.fillStyle='RAISED_TOKEN';cx.fillRect(x+5,y+3,TILE-10,TILE-6);
     cx.fillStyle='#00000055';cx.fillRect(x+5,y+TILE-7,TILE-10,4);
     cx.fillStyle='INK_TOKEN';cx.font=hudPx(13)+'px ui-monospace,monospace';
-    cx.fillText('碑',x+9,y+19)}
+    cx.fillText(CW.monument,x+9,y+19)}
   if(t===13||t===14||t===15){cx.fillStyle='RAISED_TOKEN';
     cx.fillRect(x+4,y+6,TILE-8,TILE-10);
     cx.fillStyle='#ffffff2e';cx.fillRect(x+4,y+6,TILE-8,3);
@@ -611,15 +611,15 @@ function draw(now){
     cx.strokeRect(OX+i*18+0.5,2.5,13,9)}
   for(let i=0;i<hero.hp;i++){cx.fillRect(OX+i*18,2,14,10)}
   cx.fillStyle=HUD_INK;cx.font=hudPx(13)+'px ui-monospace,monospace';
-  cx.fillText('宝石 '+hero.gems+(hero.key?'  鍵あり':'')+(hero.charm?'  護符':''),
+  cx.fillText(CW.gems+' '+hero.gems+(hero.key?CW.has_key:'')+(hero.charm?CW.has_charm:''),
     OX+70,hudBand(13,-2));
   cx.fillText(NAMES[room],cv.width-OX-150,hudBand(13,-2));
   if(msgT>0){msgT--;cx.fillStyle='SCRIM_TOKEN'+'d9';
     cx.fillRect(OX,cv.height-34,GW*TILE,26);cx.fillStyle='INK_TOKEN';
     cx.fillText(msg,OX+10,cv.height-16)}
-  if(state==='win'){shade('宝箱をあけた。冒険の勝利。',
-    '宝石 '+hero.gems+' 個 / 護符 '+(hero.charm?'あり':'なし')+(((typeof roundAskReady!=='function'||roundAskReady()))?' / R か タップでもう一度':''))}
-  if(state==='over'){shade('ちからつきた。','R か タップでやり直す')}}
+  if(state==='win'){shade(CW.adventure_win,
+    CW.gems+' '+hero.gems+CW.n_things+CW.charm_label_open+(hero.charm?CW.charm_yes:CW.charm_no)+(((typeof roundAskReady!=='function'||roundAskReady()))?CW.again_r_tap_more:''))}
+  if(state==='over'){shade(CW.adventure_over,CW.again_r_tap_retry)}}
 function glow(x,y,r,now){const g=cx.createRadialGradient(x,y,4,x,y,r);
   g.addColorStop(0,'#f5d89a55');g.addColorStop(1,'#00000000');
   cx.fillStyle=g;cx.fillRect(x-r,y-r,r*2,r*2)}
@@ -1943,7 +1943,11 @@ function strike(r, tx, ty){ room = r;
 const sign = findTile(0, 12);
 strike(0, sign[0], sign[1]);
 const signMsg = msg;
-const names = (signMsg.match(/「(.+) の順に/) || [null, ''])[1].split('→');
+/* Sliced with the page's own words rather than a Japanese regex: since
+   C-1964 the stone speaks whichever language was asked for, and a probe
+   that only knew 「の順に」 would report silence on an English page. */
+const names = signMsg.split(CW.stone_open).pop()
+  .split(CW.stone_close)[0].split('→');
 const order = names.map(n => KMARKS.indexOf(n));
 /* A stone that does not speak is a finding, not a crash: report what it
    said and stop, so the judge can name the silence. */

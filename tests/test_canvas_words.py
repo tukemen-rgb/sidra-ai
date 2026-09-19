@@ -92,3 +92,49 @@ def test_english_requests_reach_every_template() -> None:
 
     for key, ask in TEMPLATE_ASKS.items():
         assert choose_template(ask) == key, f"{ask!r} does not reach {key}"
+
+
+def test_adventure_marks_and_rooms_are_in_the_language_asked() -> None:
+    """What one unattended go never reaches, read off the page anyway.
+
+    C-1964's judge plays a go and reads what the canvas drew, which is the
+    right question - but an untouched hero never leaves the first room, so
+    the cave marks and the other two room names are never painted in that
+    run. Reverting them to kanji was measured and the judge stayed at
+    10/10: a sabotage that does not go red is evidence about the judge, so
+    the gap is pinned here instead of being left to look covered.
+
+    This is still the page rather than the table: the script is run and its
+    own ``KMARKS`` and ``NAMES`` are read back out of it.
+    """
+
+    import json
+    import re
+    import shutil
+    import subprocess
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        return
+
+    from sidra_ai.creation.hudpaint import text_probe
+
+    def marks(ask: str) -> dict:
+        page = generate_game(ask).html
+        script = re.search(r"<script>(.*?)</script>", page, re.S).group(1)
+        probe = text_probe(script).replace(
+            "console.log(JSON.stringify({ hud: hudFacts(), ops: paintOps }));",
+            "console.log(JSON.stringify({ marks: KMARKS, rooms: NAMES }));",
+        )
+        run = subprocess.run(
+            ["node", "-"], input=probe, capture_output=True, text=True, timeout=600
+        )
+        assert run.returncode == 0, run.stderr[-400:]
+        return json.loads(run.stdout.strip().splitlines()[-1])
+
+    english = marks("make an adventure game about an owl")
+    for word in english["marks"] + english["rooms"]:
+        assert not JAPANESE.search(word), f"the English page still draws {word!r}"
+
+    japanese = marks("ふくろうの冒険ゲームを作って")
+    assert japanese["marks"] == ["月", "星", "日"]
+    assert any(JAPANESE.search(word) for word in japanese["rooms"])

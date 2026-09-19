@@ -231,6 +231,11 @@ LOSS_WIRED_EN: dict[str, list[str]] = {
     "shooter": [
         "'you were hit '+n+' times - you held out to wave '+wave",
     ],
+    # C-1964
+    "adventure": [
+        "'the roaming monsters got you '+n+' times - they follow once you are close'",
+        "'the guardian landed '+n+' blows - each one comes after its charging light'",
+    ],
 }
 
 #: The wired templates whose reason line is NOT translated yet, named on
@@ -238,9 +243,10 @@ LOSS_WIRED_EN: dict[str, list[str]] = {
 #: line on an English page and nothing would say so (C-1960). The same
 #: shape as ``LOSS_UNWIRED``: a gap that is written down is a gap that can
 #: be closed.
-RECAP_UNTRANSLATED: dict[str, str] = {
-    "adventure": "its lines are narration, which is a separate item",
-}
+#: Empty since C-1964 - every wired template's reason line is translated.
+#: The list stays because the next template to be wired will need it, and a
+#: list that exists is a list somebody remembers to fill in.
+RECAP_UNTRANSLATED: dict[str, str] = {}
 
 _RECAP_BOTH = sorted(set(LOSS_WIRED_EN) & set(RECAP_UNTRANSLATED))
 _RECAP_NEITHER = sorted(set(LOSS_WIRED) - set(LOSS_WIRED_EN) - set(RECAP_UNTRANSLATED))
