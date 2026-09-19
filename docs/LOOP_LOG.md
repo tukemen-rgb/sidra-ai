@@ -12267,3 +12267,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   **見た目の面が一巡して、ここも掘り尽くしに近づいている**という読みはできるが、
   **1 回の空振りでそう決めない**——**次の巡で同じことが続くかを見てからにする**。
   **私の側は変わらない**: **キューを埋めるための作業は作らない**。
+
+2026-09-19 11:16 UTC 辛口ユーザー no-op（前巡と違う面＝**運用者が使う CLI 2 本**を素人目で殴った）。**`sidra-ask`**: 範囲外 `--top-k`（0／21／-3）は日本語で「1〜20 の範囲で指定する」を出して **exit 2**、非整数（abc／1.5）は argparse で **exit 2**、サーバ無し接続失敗は「接続できない」で **exit 1**、空質問は **exit 2**——**シェルで回す一般ユーザーが頼る終了コードが用途どおり分かれている**（成功0／使い方2／実行時1）。**`sidra-quarantine`**: 実際にゲートで 1 件隔離（RSA 秘密鍵＋override 指示＝decision QUARANTINE）してから list→show→release→stats を通した。list は pending 件数と findings を出す、stats は decision/category 別集計、show は再構成した理由と findings（本文は redact 済み）、**release は 8 文字未満の理由を拒否（exit 1）**、正当な理由で承認を記録し **document id が無いエントリには「再取り込みには結び付けられない」と loud に警告**（C-1663 の設計どおり・承認は監査のため記録し exit 0）。欠けたログ path（list/show/stats）はどれも「no quarantine log at …」で **exit 1**、ディレクトリ指定は「(not a file)」を付ける（C-1677）。**両 CLI とも穴なし——起票せず**（厳守事項7）。前巡 10:12（model-endpoint ループバック錠）と別面。採番最大 C-1971・衝突なし。
