@@ -113,7 +113,7 @@ def test_this_tree_passes_its_own_check():
 
 
 def test_the_gate_survives_a_hunk_header_cut_mid_character() -> None:
-    """C-1976: git cuts a combined diff's context line to a byte length.
+    """C-1977: git cuts a combined diff's context line to a byte length.
 
     A merge commit's ``@@@`` header carries the enclosing line as context,
     trimmed by bytes, which lands inside a multi-byte character. The gate

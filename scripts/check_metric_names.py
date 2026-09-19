@@ -71,7 +71,7 @@ NOT_EVIDENCE = frozenset({"docs/BACKLOG.md", "docs/LOOP_LOG.md"})
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
-    #: C-1976: a combined diff's hunk header carries a line of context -
+    #: C-1977: a combined diff's hunk header carries a line of context -
     #: ``@@@ ... @@@ API 利用者は区別できる。`` - and git cuts it to a byte
     #: length, which lands in the middle of a multi-byte character. The
     #: gate then died reading its own input, on a merge commit, with a

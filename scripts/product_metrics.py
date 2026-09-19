@@ -3577,6 +3577,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1975: a UTF-8-with-BOM file (the Windows/Notepad default) was quarantined
+    # whole at ingest because the leading U+FEFF tripped the invisible_characters
+    # detector; the same content without the BOM was allowed. decode_content now
+    # consumes a single leading BOM (utf-8-sig semantics), so a good file is
+    # indexed while every in-content invisible char still reaches the gate.
+    from sidra_ai.evals.ingestion_strips_utf8_bom import (
+        evaluate_ingestion_strips_utf8_bom,
+    )
+
+    strip_bom = evaluate_ingestion_strips_utf8_bom()
+    c.add(
+        "ingestion_strips_utf8_bom",
+        "UTF-8 BOM 付きの善良なファイルを索引から落とさない（先頭 BOM だけ消費・注入防御は不変）",
+        10.0 * strip_bom.checks_passed / strip_bom.checks_total,
+        detail=f"{strip_bom.checks_passed}/{strip_bom.checks_total} checks; "
+               "src/sidra_ai/evals/ingestion_strips_utf8_bom.py"
+               + ("" if strip_bom.passed else "; " + "; ".join(strip_bom.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1761: /health cannot name the model (unauthenticated), so echo running in
     # place of a staged reviewed model was invisible at runtime - the banner and
     # preflight warn but /v1/index, the authenticated status surface, stayed
