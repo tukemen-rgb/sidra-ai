@@ -12086,3 +12086,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
     〔起票 2026-09-10 05:22・**8 日 19 時間 44 分**〕。前提未決で取らない。
   - **C-1812**: 数字が「未定」・起票者自身が「一人で決めない」と書いている。
   キューを埋めるための作業は作らない。
+
+2026-09-19 01:15 UTC 辛口ユーザー no-op（別面＝`/health` の非開示性と「staged model なのに echo」助言を実駆動）。**health() は最小非開示**: 返すのは status/version/model_available/github_write_enabled の 4 キーのみで、repo 名・モデル名・エンドポイント・token 有無・manifest・索引数を一切出さない（無認証プローブが実行トポロジを漏らさない・実測で機微文字列ゼロ）。echo は available なので status=ok。**staged-model 助言（`_staged_model_but_running_echo`）は健全**: echo＋manifest 無し→False（clean）、echo＋manifest 有り→True（審査済みモデルを staged したのに echo で黙って答えている誤設定を検出＝`SIDRA_MODEL_BACKEND` を失った事故の面・health には出さず preflight/起動バナー側に置く分離も正しい）。**取れる最小・安全・未所有の新規 defect は無し（C-1721）**。**見送り継続**（判定器要の検索品質・創作系＝辛口クリエイター C-1965 まで）。**当車線 出荷: C-1933・C-1936・C-1961・C-1963**。**E 節: C-1957（要判断）**。**環境注記継続**（署名鍵空で未署名・full pytest ~85% timeout＝既存環境要因）。水増しなし（厳守事項 7）。板に赤なし。
