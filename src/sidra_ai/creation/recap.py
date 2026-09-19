@@ -215,7 +215,12 @@ LOSS_WIRED_EN: dict[str, list[str]] = {
         "'you fell '+n+' times - each one restarts you at the last platform'",
     ],
     "marble": [
-        "over+'you were '+score+' gate points from the end'",
+        # The space matters: ``over`` is a whole sentence, and the Japanese
+        # one ends in 「。」 so the two read as one line without it. The
+        # English 'You hit a block.' does not (C-1966 measured
+        # "You hit a block.you were 5 gate points from the end" on the
+        # real page).
+        "over+' you were '+score+' gate points from the end'",
     ],
     "kaiju": [
         "'the head needed '+n+' more hits - it only drops right after a leg goes'",

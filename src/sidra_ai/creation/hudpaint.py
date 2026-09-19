@@ -237,5 +237,107 @@ def text_probe(script: str, *, frames: int = 5000) -> str:
     return probe.replace("SCRIPT_PLACEHOLDER", script)
 
 
-__all__ = ["PAINT_PROBE", "paint_probe", "TEXTSIZE_PROBE", "textsize_probe",
-           "text_probe"]
+#: How wide a drawn string really is (C-1966, §35). The probe above models
+#: a drawn word as ``text.length * px``: one em a character. That is right
+#: for Japanese, where a glyph IS one em, and wrong for English by about
+#: 40%, because an ASCII glyph in ``ui-monospace`` advances about 0.6 em.
+#:
+#: Measured rather than assumed: the same string that fits a plate in
+#: Japanese can run off the canvas once translated, which is exactly what
+#: C-1966 found after six cycles of translating the screen.
+_FULL_WIDTH = "[぀-ゟ゠-ヿ一-鿿！-｠　]"
+
+TEXT_WIDTH_JS = """
+const FULL_WIDTH=/FULL_WIDTH_TOKEN/;
+function drawnWidth(text, px){
+  let w = 0;
+  for (const ch of String(text)) { w += FULL_WIDTH.test(ch) ? px : px * 0.6 }
+  return w;
+}
+function drawnLeft(x, width, align){
+  return align === 'center' ? x - width / 2 : (align === 'right' ? x - width : x);
+}
+""".replace("FULL_WIDTH_TOKEN", _FULL_WIDTH)
+
+
+def drawn_width(text: str, px: float) -> float:
+    """The Python side of the same model, for a judge that reads a string."""
+
+    import re as _re
+
+    wide = _re.compile(_FULL_WIDTH)
+    return sum(px if wide.match(ch) else px * 0.6 for ch in text)
+
+
+#: The same page, run on a context that keeps the drawing state a position
+#: depends on: ``textAlign``, ``font``, and the ``save``/``restore`` stack
+#: around them (C-1966).
+#:
+#: Measured the hard way. ``PAINT_PROBE`` swallows both - a centre
+#: alignment set inside one ``save()`` block leaks into every later draw,
+#: and a judge reading positions off it reports words halfway off the
+#: screen that are nowhere near an edge. C-1966 filed a defect on that
+#: reading before the state was modelled; with the stack in place, twenty
+#: pages draw nothing outside the canvas.
+STATE_PROBE = KEY_EVENT_JS + """
+const nothing = new Proxy(function(){}, {
+  get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing, set: () => true });
+const handlers = {};
+globalThis.matchMedia = () => ({ matches: false });
+globalThis.performance = { now: () => 0 };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) };
+globalThis.Image = function(){ return nothing };
+globalThis.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
+/* The drawing state a text position depends on, with the save/restore
+   stack a real canvas keeps. Without the stack, a centre alignment set
+   inside one save() block leaks into every later draw and every position
+   read back is wrong (C-1966 measured that the hard way). */
+let ops = [];
+const TRACKED = ['fillStyle', 'globalAlpha', 'textAlign', 'textBaseline', 'font'];
+const drawState = { fillStyle: '', globalAlpha: 1, textAlign: 'left',
+  textBaseline: 'alphabetic', font: '10px sans-serif' };
+const stack = [];
+const ctx = new Proxy({
+  save(){ stack.push(Object.assign({}, drawState)) },
+  restore(){ const s = stack.pop(); if (s) Object.assign(drawState, s) },
+  fillText: function(txt, x, y){ ops.push({ txt: String(txt), x: Number(x), y: Number(y),
+    align: drawState.textAlign, font: drawState.font }) },
+}, {
+  get: (t, k) => (k in t ? t[k] : (TRACKED.indexOf(k) >= 0 ? drawState[k]
+    : (k === Symbol.toPrimitive ? () => 0 : nothing))),
+  set: (t, k, v) => { if (TRACKED.indexOf(k) >= 0) { drawState[k] = v } return true },
+});
+globalThis.document = { readyState: 'complete',
+  createElement: () => nothing, querySelector: () => null,
+  getElementById: () => ({ width: 720, height: 320, style: {},
+    addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn) },
+    getBoundingClientRect: () => ({left:0, top:0, width:720, height:320}),
+    getContext: () => ctx }) };
+let queued = [];
+globalThis.requestAnimationFrame = (fn) => { queued.push(fn); return queued.length };
+SCRIPT_PLACEHOLDER
+let F = 0;
+function run(n){ for (let i = 0; i < n && queued.length; i++) {
+  const due = queued; queued = [];
+  for (const fn of due) { fn((F++) * 16) } } }
+function key(k){ const e = probeKey(k);
+  (handlers.keydown || []).forEach(fn => fn(e));
+  (handlers.keyup || []).forEach(fn => fn(e)); }
+key(' ');
+run(600);
+console.log(JSON.stringify({ ops: ops }));
+"""
+
+
+def state_probe(script: str, *, frames: int = 600) -> str:
+    """The page's own script, wrapped so each drawn word's box can be read."""
+
+    return STATE_PROBE.replace("SCRIPT_PLACEHOLDER", script).replace(
+        "run(600);", f"run({int(frames)});"
+    )
+
+
+__all__ = ["PAINT_PROBE", "paint_probe", "STATE_PROBE", "state_probe",
+           "TEXTSIZE_PROBE", "textsize_probe",
+           "TEXT_WIDTH_JS", "drawn_width", "text_probe"]

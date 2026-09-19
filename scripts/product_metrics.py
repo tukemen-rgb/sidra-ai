@@ -15354,6 +15354,47 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- every drawn word stays on the canvas ------------------------------
+    #
+    # C-1966, §35: width is measured, not counted - an ASCII glyph in
+    # monospace advances about 0.6 em where a Japanese one is 1 em, so the
+    # character count that serves one language is 40% wrong for the other.
+    # After six cycles of translating the screen, the question a
+    # translation raises last is whether the longer line still fits.
+    #
+    # A GUARD: it starts full and can only fall. It exists because the next
+    # translation is the one that pushes a line off the screen, and because
+    # nothing else in the collector would notice.
+    #
+    # What it cannot see is named in tests/test_drawn_text_width.py: a
+    # reason line is drawn only on a loss, and an unattended run does not
+    # lose every template. That gap was measured, not assumed - a longer
+    # line went in and this number stayed at 20/20.
+    from sidra_ai.evals.drawn_text_stays_on_the_canvas import (
+        evaluate_drawn_text_stays_on_the_canvas,
+    )
+
+    _oncanvas = evaluate_drawn_text_stays_on_the_canvas()
+    c.add(
+        "creation_drawn_text_stays_on_the_canvas",
+        "描かれた文字が canvas の中に収まっている型（日英 20 ページ・C-1966）",
+        float(_oncanvas.pages_inside),
+        detail=(
+            f"**10 型 × 日英の 20 ページを走らせ、描かれた文字 1 つずつについて"
+            f"右端と左端を計算した**——**{_oncanvas.pages_inside}/{_oncanvas.pages_total}**"
+            f"（**{_oncanvas.readings[0] if _oncanvas.readings else ''}**）。"
+            + ("**はみ出している**: " + "; ".join(_oncanvas.failures[:2])
+               if _oncanvas.failures else "**1 つもはみ出していない**")
+            + "。**幅は数えるのではなく測る**（§35）——**ASCII は monospace で約 0.6em、"
+            "日本語は 1em**。**位置は `textAlign` に依存し、`textAlign` は `save`/`restore` の中に居る**ので、"
+            "**その stack を持つ probe で読む**（**持たない probe は中央揃えが後の描画に漏れて、"
+            "端から遠い語を「画面の外」と報告する**——**C-1966 はその読みで一度起票した**）。"
+            "**これは門の数字**——**満点から始まり、下がることしかない**。"
+            "**1 局で描かれない行**（負けの理由文）**は `tests/test_drawn_text_width.py` に留めてある**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the panels under the canvas, in the language asked ----------------
     #
     # C-1965. Between the HTML frame (C-1956) and the canvas
