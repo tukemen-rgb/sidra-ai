@@ -113,9 +113,9 @@ function adaptPanel(){
   if(!host||!host.appendChild)return null;
   const p=document.createElement('p');p.id='adapt';
   p.style.cssText='margin:8px 0 0;font-size:13px;opacity:0.8';
-  p.textContent=adaptManual()?'今の調整: 手動（自分で設定した値）'
-    :(adaptEasing()?('今の調整: 1 段やさしく（'+adaptStreak()+' 連敗のため。勝てば戻ります）')
-    :'今の調整: 標準');
+  p.textContent=adaptManual()?CW.now_manual
+    :(adaptEasing()?(CW.now_eased_open+adaptStreak()+CW.now_eased_close)
+    :CW.now_standard);
   host.appendChild(p);return p}
 function adaptFacts(){return {streak:adaptStreak(),eased:ADAPT_EASED,easing:adaptEasing(),
   manual:adaptManual(),after:ADAPT_AFTER,steps:ADAPT_STEPS}}

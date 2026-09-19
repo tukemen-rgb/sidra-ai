@@ -42,6 +42,7 @@ from __future__ import annotations
 from sidra_ai.creation.probekit import seed_store
 
 import json
+import re
 
 
 #: What the panel calls this row, in one place (C-1880). The revision
@@ -77,6 +78,7 @@ AXIS_LABELS: dict[str, tuple[str, str]] = {
 #: Fallback for a template nobody has written a label for yet. Vague, but
 #: honest - and the schema still carries the real numbers.
 _DEFAULT_LABELS = ("速さ", "広さ")
+_DEFAULT_LABELS_EN = ("speed", "width")
 
 
 def _axis(values: tuple[float, ...]) -> dict:
@@ -113,6 +115,68 @@ def _clamp_axis(value: float, values: tuple[float, ...]) -> float:
 VIEWER_SETTING_KEYS: tuple[str, ...] = ("volume", "music", "haptic", "motion")
 
 
+
+#: The panel's labels in English, beside the Japanese (C-1965). The axis
+#: labels are per template, the rest are shared; both live here because
+#: this is where their Japanese lives, and a label whose English sat in
+#: another module could drift from the row it names.
+AXIS_LABELS_EN: dict[str, tuple[str, str]] = {
+    "fishing": ("marker speed", "hit window"),
+    "catch": ("drop interval", "tray width"),
+    "adventure": ("enemy speed", "enemy count"),
+    "duel": ("CPU charge speed", "CPU decision interval"),
+    "shooter": ("descent speed", "spawn interval"),
+    "puzzle": ("colour count", "board width"),
+    "kaiju": ("shell opening speed", "leg endurance"),
+    "marble": ("rolling speed", "gate width"),
+    "racing": ("base pace", "smallest obstacle gap"),
+    "platformer": ("platform spacing", "platform count"),
+}
+
+#: The labels that are the same on every template.
+PANEL_LABELS_EN: dict[str, str] = {
+    "難度": "difficulty",
+    "差し色": "accent colour",
+    "今日の挑戦": "today's challenge",
+    "音量": "volume",
+    "音楽の音量": "music volume",
+    "自己ベストのゴースト": "ghost of your best",
+    "振動": "vibration",
+    "動きを減らす": "reduce motion",
+    "押しっぱなしにしない": "no holding a key",
+    BRIEF_LABEL: "show the briefing every time",
+}
+
+_MISSING_AXIS_EN = sorted(set(AXIS_LABELS) - set(AXIS_LABELS_EN))
+_PANEL_NOT_ENGLISH = sorted(
+    key for key, value in
+    list(PANEL_LABELS_EN.items())
+    + [(k, v) for k, pair in AXIS_LABELS_EN.items() for v in pair]
+    if re.search(r"[぀-ゟ゠-ヿ一-鿿]", value)
+)
+
+if _MISSING_AXIS_EN or _PANEL_NOT_ENGLISH:  # pragma: no cover
+    raise RuntimeError(
+        f"tuning.py has no English axis labels for {_MISSING_AXIS_EN} and "
+        f"still carries Japanese in {_PANEL_NOT_ENGLISH}"
+    )
+
+
+def english_label(label: str) -> str:
+    """The English for one panel label, or the label itself if it is a name.
+
+    Raises for a Japanese label nobody translated: a panel that silently
+    kept one Japanese row would be exactly the half-translated page this
+    loop has refused since C-1945.
+    """
+
+    if label in PANEL_LABELS_EN:
+        return PANEL_LABELS_EN[label]
+    if re.search(r"[぀-ゟ゠-ヿ一-鿿]", label):
+        raise RuntimeError(f"tuning.py has no English for the label {label!r}")
+    return label
+
+
 def panel_schema(
     template: str,
     ladder: dict[str, tuple[float, float]],
@@ -120,6 +184,7 @@ def panel_schema(
     difficulty: str,
     accent: str,
     overrides: dict | None = None,
+    in_japanese: bool = True,
 ) -> dict:
     """The JSON schema of one page's adjustable parameters.
 
@@ -130,7 +195,11 @@ def panel_schema(
 
     speeds = tuple(pair[0] for pair in ladder.values())
     bands = tuple(pair[1] for pair in ladder.values())
-    names = AXIS_LABELS.get(template, _DEFAULT_LABELS)
+    names = (
+        AXIS_LABELS.get(template, _DEFAULT_LABELS)
+        if in_japanese
+        else AXIS_LABELS_EN.get(template, _DEFAULT_LABELS_EN)
+    )
     chosen = difficulty if difficulty in ladder else "normal"
     speed, band = ladder[chosen]
     # C-1117: a sentence can turn any of these, and what it turns is the
@@ -154,7 +223,7 @@ def panel_schema(
     daily_default = bool(given.get("daily", False))
     ghost_default = bool(given.get("ghost", True))
     brief_default = bool(given.get("brief", False))
-    return {
+    spec = {
         "template": template,
         "fields": [
             {
@@ -250,6 +319,14 @@ def panel_schema(
             ),
         ],
     }
+    if not in_japanese:
+        # Every label in the panel, through one lookup that REFUSES an
+        # untranslated Japanese label rather than letting it through
+        # (C-1965). The axis names were already chosen by language above.
+        for field in spec["fields"]:
+            field["label"] = english_label(field["label"])
+    return spec
+
 
 
 #: Names the preamble introduces, held to by a test like the other
@@ -444,7 +521,7 @@ function tunePanel(){
   box.style.cssText='margin:18px 0 0;padding:10px 14px;border:1px solid BORDER_TOKEN;'
     +'border-radius:6px;font-size:13px';
   const sum=document.createElement('summary');
-  sum.textContent='調整（'+STORAGE_NOTE_TOKEN+'）';
+  sum.textContent=CW.tuning_panel+CW.note_open+CW.storage_note+CW.note_close;
   sum.style.cssText='cursor:pointer';box.appendChild(sum);
   const values=tuneValues();
   TUNE_SPEC.fields.forEach(function(f){box.appendChild(tuneControl(f,values[f.key]))});
@@ -458,14 +535,14 @@ function tunePanel(){
        colour (§8 事実 6) has not touched the picker, and blaming 「選んだ
        差し色」 tells them to go looking at a control they never used. */
     note.textContent=(ACCENT_SOURCE==='skin'
-        ? '着ている色は'
-        : '選んだ差し色は')
-      +'背景に対し '+moved.was.toFixed(2)
-      +':1 でした。文字が読めなくなるので '+moved.floor.toFixed(1)
-      +':1 を満たす近い明るさ（'+moved.to+'）で描いています。';
+        ? CW.contrast_worn
+        : CW.contrast_chosen)
+      +CW.contrast_measured+moved.was.toFixed(2)
+      +CW.contrast_floor+moved.floor.toFixed(1)
+      +CW.contrast_drawn+moved.to+CW.contrast_close;
     box.appendChild(note)}
   const reset=document.createElement('button');reset.type='button';
-  reset.textContent='既定に戻す';
+  reset.textContent=CW.tuning_reset;
   reset.setAttribute('data-tune-reset','1');
   reset.addEventListener('click',tuneReset);box.appendChild(reset);
   host.appendChild(box);return box}

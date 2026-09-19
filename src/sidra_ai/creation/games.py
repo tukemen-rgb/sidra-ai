@@ -2231,6 +2231,7 @@ def generate_game(
         difficulty=difficulty,
         accent=theme.tokens["accent"],
         overrides=panel,
+        in_japanese=in_japanese,
     )
     fields = {f["key"]: f for f in schema["fields"]}
     band = fields["band"]["default"]
@@ -2255,7 +2256,7 @@ def generate_game(
             # wraps addEventListener, so it must exist before any preamble
             # or template registers a handler - otherwise a remapped key
             # would reach some listeners in the old spelling.
-            + remap_preamble_for(key, spec.script)
+            + remap_preamble_for(key, spec.script, in_japanese=in_japanese)
             # Right on top of the remap wrapper, before anything registers
             # a keyup: focus loss releases held keys (§22, C-1373). It
             # hears keys in the spelling remap already translated, so its
@@ -2265,7 +2266,7 @@ def generate_game(
             # The skins before the panel: TUNE_ACCENT is resolved through
             # skinAccent, so the colour a template paints with is the one
             # the player earned unless they picked one by hand (C-1109).
-            + skin_preamble_for(key)
+            + skin_preamble_for(key, in_japanese=in_japanese)
             # Then the panel: every preamble after it, and every template,
             # paints with TUNE_ACCENT and reads its numbers through tuneNum.
             + TUNE_PREAMBLE
@@ -2299,7 +2300,7 @@ def generate_game(
             + round_preamble_for(key, in_japanese=in_japanese)
             # After the round: the line it writes is about a round that is
             # over, and it reads the clock's own verdict to know (C-1110).
-            + share_preamble_for(key)
+            + share_preamble_for(key, in_japanese=in_japanese)
             # The past self (C-1401): reads the panel switch, banked by the
             # round clock, drawn by whichever template has a course.
             + ghost_preamble_for(key)

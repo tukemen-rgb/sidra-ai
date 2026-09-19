@@ -15354,6 +15354,41 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the panels under the canvas, in the language asked ----------------
+    #
+    # C-1965. Between the HTML frame (C-1956) and the canvas
+    # (C-1959..C-1964) sit the controls a player touches: the keys, the
+    # looks, the tuning, the copy button, the note about the difficulty
+    # easing itself. They are built by the page's own JavaScript, so
+    # neither of the other two judges ever saw them.
+    #
+    # Built rather than grepped: the page runs on a recording document and
+    # the tree it assembles is walked afterwards. A judge that searched the
+    # script for textContent= would pass on a panel that is never built.
+    from sidra_ai.evals.panels_match_the_language_asked import (
+        evaluate_panels_match_the_language_asked,
+    )
+
+    _panels = evaluate_panels_match_the_language_asked()
+    c.add(
+        "creation_panels_match_the_language_asked",
+        "canvas の下のパネルが、訊かれた言語で書かれている（C-1965）",
+        float(_panels.sides_right),
+        detail=(
+            f"**日英それぞれでゲームを作り、ページ自身にパネルを組ませて、"
+            f"組み上がった DOM の文字を全部読んだ**——**{_panels.sides_right}/{_panels.sides_total}**"
+            f"（日本語側は{'保たれている' if _panels.japanese_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_panels.failures[:2])
+               if _panels.failures
+               else "**実測**: " + " / ".join(_panels.readings))
+            + "。**検査**: 英語のパネルに日本語 0 文字、**パネルの数と文字の数が日本語側より"
+            "少なくないこと**（**「訳す」を「組まない」で済ませられないように**）、**日本語側は門**。"
+            "**`textContent=` を grep する判定器にはしない**——**組まれなかったパネルも通ってしまう**。"
+            "**`share` の行は特別**——**あれはページの中ではなく、遊んだ人が外に貼り付ける文**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the game page's frame, in the language asked ----------------------
     #
     # C-1956, the fourth page of the family (deck C-1951, art C-1952, 3D
@@ -21073,19 +21108,47 @@ def measure_creation(c: Collector) -> None:
         STORAGE_OVERCLAIM as _keep_overclaim,
     )
 
+    # Counted off the panels the page BUILDS, not off the HTML (C-1965).
+    # Until then both panels carried their own copy of the sentence, so
+    # counting it twice in the file was the same question; they now read
+    # the one row in CANVAS_WORDS, and the file says it once however many
+    # panels say it. What has to be true is that two panels say it.
+    import json as _keep_json
+    import re as _keep_re
+    import subprocess as _keep_run
+
+    from sidra_ai.creation.paneltext import panel_probe as _keep_probe
+
+    def _keep_said(key: str) -> tuple[str, int, bool]:
+        page = _tune_generate("ゲームを作って", template=key).html
+        found = _keep_re.search(r"<script>(.*?)</script>", page, _keep_re.S)
+        if found is None:  # pragma: no cover - the page always has one
+            return key, 0, False
+        run = _keep_run.run(
+            ["node", "-"], input=_keep_probe(found.group(1)),
+            capture_output=True, text=True, timeout=600,
+        )
+        if run.returncode != 0:
+            return key, -1, _keep_overclaim in page
+        texts = _keep_json.loads(run.stdout.strip().splitlines()[-1])["texts"]
+        return key, sum(1 for t in texts if _keep_note in t), _keep_overclaim in page
+
     keep_gaps: list[str] = []
     keep_ok: list[str] = []
-    for key in sorted(_tune_templates):
-        page = _tune_generate("ゲームを作って", template=key).html
+    _keep_keys = sorted(_tune_templates)
+    for key, said, overclaims in in_parallel(
+        [(lambda k=k: _keep_said(k)) for k in _keep_keys]
+    ):
+        if said < 0:
+            keep_gaps.append(f"{key}: パネルを組むところでページが落ちた")
+            continue
         # Both panels - the tuning panel and the key remap - say where a
         # setting lives, and one honest sentence beside one assertion is
         # not honesty.
-        if page.count(_keep_note) < 2:
-            keep_gaps.append(
-                f"{key}: 消えうることを言っているのが {page.count(_keep_note)} か所"
-            )
+        if said < 2:
+            keep_gaps.append(f"{key}: 消えうることを言っているパネルが {said} 枚")
             continue
-        if _keep_overclaim in page:
+        if overclaims:
             keep_gaps.append(f"{key}: 「{_keep_overclaim}」がまだ残っている")
             continue
         keep_ok.append(key)

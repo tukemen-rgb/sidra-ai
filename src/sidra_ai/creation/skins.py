@@ -32,6 +32,7 @@ from __future__ import annotations
 from sidra_ai.creation.probekit import seed_store
 
 import json
+import re
 
 #: One mashed-out round, in that template's own score. Measured by mashing
 #: each generated page for a full 60-second round and reading
@@ -110,6 +111,28 @@ SKIN_COLOURS: tuple[tuple[str, str, str | None], ...] = (
     ("verdant", "苔むす", "#7bd88f"),
 )
 
+#: The same names in English, beside the Japanese (C-1965). Names rather
+#: than translations of a word: 「残り火」 is what the colour is, and
+#: "embers" is what it is in English.
+SKIN_NAMES_EN: dict[str, str] = {
+    "base": "the first colour",
+    "ember": "embers",
+    "frost": "frost",
+    "verdant": "mossy",
+}
+
+_MISSING_SKIN_EN = sorted({ident for ident, _, _ in SKIN_COLOURS} - set(SKIN_NAMES_EN))
+_SKIN_NOT_ENGLISH = sorted(
+    ident for ident, name in SKIN_NAMES_EN.items()
+    if re.search(r"[぀-ゟ゠-ヿ一-鿿]", name)
+)
+
+if _MISSING_SKIN_EN or _SKIN_NOT_ENGLISH:  # pragma: no cover
+    raise RuntimeError(
+        f"skins.py has no English name for {_MISSING_SKIN_EN} and still carries "
+        f"Japanese in {_SKIN_NOT_ENGLISH}"
+    )
+
 #: Names the preamble introduces, held to by a test like the other
 #: preambles': a template that happened to define ``skinAccent`` would
 #: break only in the generated page.
@@ -126,13 +149,21 @@ PREAMBLE_NAMES: tuple[str, ...] = (
 )
 
 
-def skin_spec(template: str) -> dict:
+def skin_spec(template: str, *, in_japanese: bool = True) -> dict:
     """The catalogue this page ships, priced in this template's own score."""
 
+    def name(ident: str, label: str) -> str:
+        return label if in_japanese else SKIN_NAMES_EN[ident]
+
     unit = SKIN_UNIT.get(template, 1)
-    skins = [{"id": SKIN_COLOURS[0][0], "label": SKIN_COLOURS[0][1], "accent": None, "at": 0}]
+    skins = [{
+        "id": SKIN_COLOURS[0][0],
+        "label": name(SKIN_COLOURS[0][0], SKIN_COLOURS[0][1]),
+        "accent": None, "at": 0,
+    }]
     for (ident, label, accent), step in zip(SKIN_COLOURS[1:], SKIN_STEPS):
-        skins.append({"id": ident, "label": label, "accent": accent, "at": unit * step})
+        skins.append({"id": ident, "label": name(ident, label),
+                      "accent": accent, "at": unit * step})
     return {"template": template, "unit": unit, "skins": skins}
 
 
@@ -187,10 +218,10 @@ function skinPanel(){
   box.style.cssText='margin:12px 0 0;padding:10px 14px;border:1px solid BORDER_TOKEN;'
     +'border-radius:6px;font-size:13px';
   const sum=document.createElement('summary');
-  sum.textContent='見た目（累計 '+skinTotal()+'）';
+  sum.textContent=CW.looks_panel_open+skinTotal()+CW.looks_panel_close;
   sum.style.cssText='cursor:pointer';box.appendChild(sum);
   const note=document.createElement('p');
-  note.textContent='遊んだぶんだけ色が増えます。強さは変わりません。';
+  note.textContent=CW.looks_note;
   note.style.cssText='margin:6px 0;opacity:0.75';box.appendChild(note);
   const chosen=skinChosen(),open=skinUnlocked();
   SKIN_SPEC.skins.forEach(function(k){
@@ -198,7 +229,7 @@ function skinPanel(){
     const b=document.createElement('button');b.type='button';
     b.setAttribute('data-skin',k.id);
     b.textContent=earned?(k.label+(k.id===chosen.id?' ✓':''))
-      :(k.label+'（あと '+(k.at-skinTotal())+'）');
+      :(k.label+CW.looks_to_go_open+(k.at-skinTotal())+CW.looks_to_go_close);
     if(!earned){b.disabled=true}
     b.style.cssText='margin:2px 6px 2px 0;padding:4px 10px;border-radius:4px;'
       +'border:1px solid BORDER_TOKEN;cursor:'+(earned?'pointer':'default');
@@ -240,11 +271,12 @@ def canonical_colour(value: str) -> str:
     return text
 
 
-def preamble_for(template: str) -> str:
+def preamble_for(template: str, *, in_japanese: bool = True) -> str:
     """The catalogue, priced for one template."""
 
     return SKIN_PREAMBLE.replace(
-        "SKIN_SPEC_TOKEN", json.dumps(skin_spec(template), ensure_ascii=False)
+        "SKIN_SPEC_TOKEN",
+        json.dumps(skin_spec(template, in_japanese=in_japanese), ensure_ascii=False),
     )
 
 

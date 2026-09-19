@@ -39,10 +39,36 @@ def test_the_shared_sentence_does_not_assert_what_it_cannot() -> None:
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
 def test_both_panels_say_it_can_be_cleared(template: str) -> None:
-    """Two panels name a storage location: 調整 and キー設定."""
+    """Two panels name a storage location: 調整 and キー設定.
+
+    Read off the panels the page actually builds (C-1965). Counting the
+    sentence in the HTML worked while each panel carried its own copy of
+    it; both now read the one row in ``CANVAS_WORDS``, so the literal
+    appears once however many panels say it. What has to be true is not
+    "the string is in the file twice" but "two panels say it", and that is
+    what this now asks.
+    """
+
+    import json
+    import re
+    import shutil
+    import subprocess
+
+    if shutil.which("node") is None:  # pragma: no cover - environment guard
+        pytest.skip("node is unavailable")
+
+    from sidra_ai.creation.paneltext import panel_probe
 
     page = generate_game("ゲームを作って", template=template).html
-    assert page.count(STORAGE_NOTE) >= 2, page.count(STORAGE_NOTE)
+    script = re.search(r"<script>(.*?)</script>", page, re.S).group(1)
+    run = subprocess.run(
+        ["node", "-"], input=panel_probe(script),
+        capture_output=True, text=True, timeout=600,
+    )
+    assert run.returncode == 0, run.stderr[-400:]
+    said = [t for t in json.loads(run.stdout.strip().splitlines()[-1])["texts"]
+            if STORAGE_NOTE in t]
+    assert len(said) >= 2, said
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))

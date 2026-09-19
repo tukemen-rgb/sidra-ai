@@ -1,4 +1,9 @@
-"""The words the canvas draws, in both languages, in one table (C-1959).
+"""The words the page says, in both languages, in one table (C-1959).
+
+Named for the canvas because that is where it started; C-1965 widened it
+to the panels under the canvas, which are built by the page's own
+JavaScript. One table, one injection and one set of guards was worth more
+than a second mechanism with the same shape.
 
 C-1956 put the page's frame into the language of the request and C-1957 the
 start screen's three lines. What a player looks at for the whole of a go -
@@ -31,6 +36,8 @@ from __future__ import annotations
 
 import json
 import re
+
+from sidra_ai.creation.together import STORAGE_NOTE
 
 #: ``key: (Japanese, English)``. Order is the order a player meets them:
 #: the HUD row, then the clock, then the end of a go, then the strip.
@@ -207,6 +214,55 @@ CANVAS_WORDS: dict[str, tuple[str, str]] = {
     "room_forest": ("森のはずれ", "the forest edge"),
     "room_cave": ("ひかり苔の洞窟", "the glowmoss cave"),
     "room_altar": ("風の祭壇", "the altar of wind"),
+    # --- the panels under the canvas (C-1965) ---
+    #
+    # Built by the page at load time, so they are neither the HTML frame
+    # (C-1956) nor the canvas (C-1959..C-1964). They are what a player
+    # touches: the keys, the looks, the tuning, the copy button.
+    "keys_panel": ("キー設定", "Keys"),
+    "keys_default": ("既定のまま", "unchanged"),
+    "keys_assigned": ("割り当て: ", "set to: "),
+    "keys_press": ("キーを押して変更", "press a key to change"),
+    "keys_waiting": ("どれかキーを押してください…", "press any key..."),
+    "keys_reset": ("キーを既定に戻す", "reset the keys"),
+    "looks_panel_open": ("見た目（累計 ", "Looks (played "),
+    "looks_panel_close": ("）", ")"),
+    "looks_note": ("遊んだぶんだけ色が増えます。強さは変わりません。",
+                   "Play more, unlock more colours. None of them change the game."),
+    "looks_to_go_open": ("（あと ", " ("),
+    "looks_to_go_close": ("）", " to go)"),
+    "tuning_panel": ("調整", "Settings"),
+    "tuning_reset": ("既定に戻す", "reset"),
+    "contrast_worn": ("着ている色は", "the colour worn is "),
+    "contrast_chosen": ("選んだ差し色は", "the accent chosen is "),
+    "contrast_measured": ("背景に対し ", " against the background, "),
+    "contrast_floor": (":1 でした。文字が読めなくなるので ",
+                       ":1. Text would stop being readable, so it is drawn at a "
+                       "near lightness that meets "),
+    "contrast_drawn": (":1 を満たす近い明るさ（", ":1 ("),
+    "contrast_close": ("）で描いています。", ")."),
+    "copy_result": ("結果をコピー", "copy the result"),
+    "copied": ("コピーしました", "copied"),
+    "now_manual": ("今の調整: 手動（自分で設定した値）",
+                   "Now: your own settings"),
+    "now_eased_open": ("今の調整: 1 段やさしく（", "Now: one step easier ("),
+    "now_eased_close": (" 連敗のため。勝てば戻ります）",
+                        " losses in a row; a win puts it back)"),
+    "now_standard": ("今の調整: 標準", "Now: standard"),
+    # The Japanese is imported, not typed again: C-1342 gave that sentence
+    # one home and a copy here would be a second one (its own test caught
+    # exactly that when C-1965 first wrote it out).
+    "storage_note": (STORAGE_NOTE, "kept on this device (a browser may clear it)"),
+    "note_open": ("（", " ("),
+    "note_close": ("）", ")"),
+    # --- the line a player pastes somewhere else (C-1965) ---
+    #
+    # This one leaves the page, so the language it is written in is the
+    # language of wherever it lands.
+    "todays": ("今日の", "today's "),
+    "auto_eased": ("難度自動緩和", "difficulty eased automatically"),
+    "mark_join": ("・", ", "),
+    "personal_best": (" 自己ベスト", " personal best"),
 }
 
 _JAPANESE = re.compile(r"[぀-ゟ゠-ヿ一-鿿]")

@@ -72,13 +72,24 @@ SHARE_MAX = 10
 SHARE_TYPICAL = 5
 
 
-def share_spec(template: str) -> dict:
-    """What one page needs to write its own line."""
+def share_spec(template: str, *, in_japanese: bool = True) -> dict:
+    """What one page needs to write its own line.
+
+    The genre's English comes from ``vocabulary.english_label_for`` rather
+    than from a second table here (C-1930, C-1965): the page already has a
+    place where a template's English name lives.
+    """
+
+    from sidra_ai.creation.vocabulary import english_label_for
 
     unit = SKIN_UNIT.get(template, 1)
     return {
         "template": template,
-        "name": SHARE_NAME.get(template, "ゲーム"),
+        "name": (
+            SHARE_NAME.get(template, "ゲーム")
+            if in_japanese
+            else english_label_for(template)
+        ),
         "emoji": SHARE_EMOJI.get(template, "⭐"),
         # One emoji per this much score, so a mashed-out round fills about
         # half the row. Never zero: a template whose round scores 1 would
@@ -186,7 +197,7 @@ function shareText(){
      the board is the one this page opens with - see shareTuned. The
      request-derived seed is the opposite and never appears. */
   let head=SHARE_SPEC.name;
-  try{if(dailyBoard()){head='今日の'+SHARE_SPEC.name+' '+dailyStamp();
+  try{if(dailyBoard()){head=CW.todays+SHARE_SPEC.name+' '+dailyStamp();
     const marks=shareTuned();
     /* The other runtime source of a diverged daily board (C-1777): adapt's
        auto-ease (three losses buy one easier rung, C-1402). It is not a
@@ -196,13 +207,13 @@ function shareText(){
        ADAPT_EASED (set when adaptSpeed stepped the speed down at load, and
        still true after the win that clears the streak), so a run played on
        the eased board is not pasted as the standard daily. */
-    try{if(typeof adaptFacts==='function'&&adaptFacts().eased)marks.push('難度自動緩和')}catch(e){}
-    if(marks.length)head+='（'+marks.join('・')+'）'}}catch(e){}
+    try{if(typeof adaptFacts==='function'&&adaptFacts().eased)marks.push(CW.auto_eased)}catch(e){}
+    if(marks.length)head+=CW.note_open+marks.join(CW.mark_join)+CW.note_close}}catch(e){}
   const bar=shareBar(score);
   let line=head+(bar?(' '+bar):'')+' '+ROUND_LABEL+' '+score;
   /* Only when there is something to have been best at: a first run that
      scored nothing is not a record, whatever the comparison says. */
-  try{if(ROUND_RECORD&&score>0){line+=' 自己ベスト'}}catch(e){}
+  try{if(ROUND_RECORD&&score>0){line+=CW.personal_best}}catch(e){}
   return line}
 /* The clipboard, and nothing else. No share sheet, no link, no request. */
 function shareWrite(text){
@@ -219,7 +230,7 @@ function shareWrite(text){
 function shareCopy(){const text=shareText();
   if(text===null)return null;
   SHARE_LAST=text;SHARE_COPIES++;shareWrite(text);
-  if(SHARE_BUTTON){SHARE_BUTTON.textContent='コピーしました'}
+  if(SHARE_BUTTON){SHARE_BUTTON.textContent=CW.copied}
   return text}
 addEventListener('keydown',function(e){
   if((e.key==='c'||e.key==='C')&&shareReady()){shareCopy()}});
@@ -229,7 +240,7 @@ function sharePanel(){
   if(!host||!host.appendChild)return null;
   const b=document.createElement('button');b.type='button';
   b.setAttribute('data-share','copy');
-  b.textContent='結果をコピー';
+  b.textContent=CW.copy_result;
   b.style.cssText='margin:12px 0 0;padding:6px 14px;border-radius:4px;font-size:13px;'
     +'border:1px solid BORDER_TOKEN;cursor:pointer';
   b.addEventListener('click',shareCopy);
@@ -245,11 +256,12 @@ if(typeof document!=='undefined'&&document.addEventListener&&document.readyState
 """
 
 
-def preamble_for(template: str) -> str:
+def preamble_for(template: str, *, in_japanese: bool = True) -> str:
     """The line, told what this template counts and calls itself."""
 
     return SHARE_PREAMBLE.replace(
-        "SHARE_SPEC_TOKEN", json.dumps(share_spec(template), ensure_ascii=False)
+        "SHARE_SPEC_TOKEN",
+        json.dumps(share_spec(template, in_japanese=in_japanese), ensure_ascii=False),
     )
 
 

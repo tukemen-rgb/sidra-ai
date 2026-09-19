@@ -25,10 +25,14 @@ import subprocess
 from dataclasses import dataclass
 
 from sidra_ai.creation.adapt import preamble_for
+from sidra_ai.creation.canvaswords import CANVAS_WORDS, words_js
 
 _STEPS = (1.0, 2.0, 3.0)  # author's ladder, easy first
-_EASE = "やさしく"
-_STANDARD = "今の調整: 標準"
+#: Taken from the page's own table rather than typed again here (C-1965):
+#: the panel says what ``CANVAS_WORDS`` says, so a reworded line moves both
+#: at once instead of leaving this eval measuring a sentence nobody writes.
+_EASE = CANVAS_WORDS["now_eased_open"][0].split(": ")[-1].split("（")[0]
+_STANDARD = CANVAS_WORDS["now_standard"][0]
 
 _HARNESS = """
 let captured=null;
@@ -39,6 +43,7 @@ globalThis.document={readyState:'loading',addEventListener:(t,fn)=>{handlers[t]=
   createElement:()=>({textContent:'',style:{}}),
   querySelector:()=>({appendChild:(x)=>{captured=x}}),
   body:{appendChild:(x)=>{captured=x}}};
+WORDS
 PREAMBLE
 localStorage.setItem(ADAPT_KEY, String(STREAK));
 const speedOut = adaptSpeed(ADAPT_BASE);
@@ -50,8 +55,13 @@ console.log(JSON.stringify({easing:easing, speedOut:speedOut, base:ADAPT_BASE,
 
 
 def _probe(base: float, streak: int) -> dict:
-    src = _HARNESS.replace("PREAMBLE", preamble_for("t", _STEPS, base)).replace(
-        "STREAK", str(int(streak))
+    # The page gives every preamble the word table at the top; a probe that
+    # runs one preamble alone has to give it the same thing, or it measures
+    # a page that could not exist (C-1965).
+    src = (
+        _HARNESS.replace("WORDS", words_js())
+        .replace("PREAMBLE", preamble_for("t", _STEPS, base))
+        .replace("STREAK", str(int(streak)))
     )
     run = subprocess.run(
         ["node", "-"], input=src, capture_output=True, text=True, timeout=120

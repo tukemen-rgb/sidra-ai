@@ -32,6 +32,7 @@ otherwise.
 from __future__ import annotations
 
 import json
+import re
 
 from sidra_ai.creation.probekeys import KEY_EVENT_JS
 from sidra_ai.creation.touchpad import keys_read
@@ -60,6 +61,34 @@ KEY_LABELS: dict[str, str] = {
     "r": "R（やり直し）",
     "p": "P",
 }
+
+#: The same labels in English, beside the Japanese (C-1965). Every key here
+#: has to be a key there, and no value may still carry Japanese - both are
+#: checked at import, because a label that fell back would leave one
+#: Japanese row in an English form and nothing else would notice.
+KEY_LABELS_EN: dict[str, str] = {
+    "ArrowLeft": "← (left)",
+    "ArrowRight": "→ (right)",
+    "ArrowUp": "↑ (up)",
+    "ArrowDown": "↓ (down)",
+    " ": "SPACE (action)",
+    "a": "A",
+    "d": "D",
+    "r": "R (restart)",
+    "p": "P",
+}
+
+_MISSING_KEY_LABEL_EN = sorted(set(KEY_LABELS) - set(KEY_LABELS_EN))
+_KEY_LABEL_NOT_ENGLISH = sorted(
+    key for key, value in KEY_LABELS_EN.items()
+    if re.search(r"[぀-ゟ゠-ヿ一-鿿]", value)
+)
+
+if _MISSING_KEY_LABEL_EN or _KEY_LABEL_NOT_ENGLISH:  # pragma: no cover
+    raise RuntimeError(
+        f"remap.py has no English label for {_MISSING_KEY_LABEL_EN} and still "
+        f"carries Japanese in {_KEY_LABEL_NOT_ENGLISH}"
+    )
 
 REMAP_PREAMBLE = """
 /* --- key re-assignment (game-design-notes.md §4): installed before any
@@ -139,7 +168,7 @@ function remapPanel(){
   box.style.cssText='margin:12px 0 0;padding:10px 14px;border:1px solid BORDER_TOKEN;'
     +'border-radius:6px;font-size:13px';
   const sum=document.createElement('summary');
-  sum.textContent='キー設定（'+STORAGE_NOTE_TOKEN+'）';
+  sum.textContent=CW.keys_panel+CW.note_open+CW.storage_note+CW.note_close;
   sum.style.cssText='cursor:pointer';box.appendChild(sum);
   REMAP_ACTIONS.forEach(function(action){
     const row=document.createElement('div');
@@ -150,18 +179,18 @@ function remapPanel(){
     const now=document.createElement('span');
     function said(){const extra=Object.keys(REMAP).filter(function(k){
         return REMAP[k]===action});
-      now.textContent=extra.length?('割り当て: '+extra.join(', ')):'既定のまま'}
+      now.textContent=extra.length?(CW.keys_assigned+extra.join(', ')):CW.keys_default}
     said();row.appendChild(now);
     const btn=document.createElement('button');btn.type='button';
-    btn.textContent='キーを押して変更';
+    btn.textContent=CW.keys_press;
     btn.setAttribute('data-remap',action===' '?'space':action);
     btn.addEventListener('click',function(){
-      btn.textContent='どれかキーを押してください…';
+      btn.textContent=CW.keys_waiting;
       REMAP_WAIT={target:action,done:function(){
-        btn.textContent='キーを押して変更';said()}}});
+        btn.textContent=CW.keys_press;said()}}});
     row.appendChild(btn);box.appendChild(row);REMAP_ROWS++});
   const reset=document.createElement('button');reset.type='button';
-  reset.textContent='キーを既定に戻す';
+  reset.textContent=CW.keys_reset;
   reset.setAttribute('data-remap-reset','1');
   reset.addEventListener('click',function(){remapReset();
     box.querySelectorAll&&box.querySelectorAll('span');});
@@ -178,7 +207,7 @@ function remapFacts(){return {template:REMAP_NAME,actions:REMAP_ACTIONS.slice(),
 _ORDER: tuple[str, ...] = ("ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " ", "r")
 
 
-def preamble_for(template: str, script: str) -> str:
+def preamble_for(template: str, script: str, *, in_japanese: bool = True) -> str:
     """The remap preamble for one template.
 
     The re-assignable actions are exactly the keys the template's own
@@ -188,7 +217,8 @@ def preamble_for(template: str, script: str) -> str:
 
     read = keys_read(script)
     actions = [k for k in _ORDER if k in read] + sorted(read - set(_ORDER))
-    labels = {k: KEY_LABELS.get(k, k) for k in actions}
+    table = KEY_LABELS if in_japanese else KEY_LABELS_EN
+    labels = {k: table.get(k, k) for k in actions}
     return (
         REMAP_PREAMBLE.replace("REMAP_NAME_INPUT", json.dumps(template))
         .replace("REMAP_ACTIONS_INPUT", json.dumps(actions))
