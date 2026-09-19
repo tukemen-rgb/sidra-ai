@@ -15359,6 +15359,41 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the artifact remembers, and stops remembering when words change ----
+    #
+    # C-1973. A game is a file somebody opens: the start screen is shown
+    # once (C-1111) and skipped next time, which only works if
+    # localStorage really works from file://. What is stored is a
+    # fingerprint of the lines that were read (C-1738), so a briefing in
+    # another language (C-1957) is news exactly once more.
+    #
+    # Measured in one Chromium profile across three opens. Every probe in
+    # this repo stubs localStorage, so this boundary had never been read.
+    from sidra_ai.evals.gate_memory_survives_a_reopen import (
+        evaluate_gate_memory_survives_a_reopen,
+    )
+
+    _gatemem = evaluate_gate_memory_survives_a_reopen()
+    c.add(
+        "creation_gate_memory_survives_a_reopen",
+        "成果物が覚えていて、言葉が変われば忘れる（実ブラウザ・C-1973）",
+        float(_gatemem.checks_passed),
+        detail=(
+            f"**同じ profile で 3 回開いた**"
+            f"——**{_gatemem.checks_passed}/{_gatemem.checks_total}**"
+            + ("。**欠けている**: " + "; ".join(_gatemem.failures[:2])
+               if _gatemem.failures
+               else "。**実測**: " + " / ".join(_gatemem.readings))
+            + "。**検査 3 つ**: **初回は開始画面が出て指紋が書かれる**、"
+            "**開き直すと飛ばす**、**もう一方の言語では飛ばさない**"
+            "（**読んだことのない 3 行だから**——C-1738 の指紋が C-1957 の英語にも効いている）。"
+            "**`file://` で測る**——**成果物はファイルとして開くページ**であり、"
+            "**この repo の probe は全部 `localStorage` を差し替えている**ので、"
+            "**ページとブラウザの境界は今まで一度も読まれていなかった**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the OS's "reduce motion" really reaches the page -------------------
     #
     # C-1972. Every probe in this repo replaces matchMedia - games.py has
