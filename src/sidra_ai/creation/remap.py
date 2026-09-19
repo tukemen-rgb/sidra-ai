@@ -172,7 +172,14 @@ function remapPanel(){
   sum.style.cssText='cursor:pointer';box.appendChild(sum);
   REMAP_ACTIONS.forEach(function(action){
     const row=document.createElement('div');
-    row.style.cssText='display:flex;gap:10px;align-items:center;margin:6px 0';
+    /* Wraps rather than runs off (§41, C-1970). At 320 CSS px the English
+       row - a key's name, what it is set to, and a button that says
+       'press a key to change' - was 12px wider than the page, and
+       SC 1.4.10 asks for no second direction to scroll in. The
+       Japanese row fits, which is why nothing saw this until the
+       page learned English. */
+    row.style.cssText='display:flex;gap:10px;align-items:center;margin:6px 0;'
+      +'flex-wrap:wrap';
     const name=document.createElement('span');
     name.textContent=REMAP_LABELS[action]||action;
     name.style.cssText='min-width:10em';row.appendChild(name);

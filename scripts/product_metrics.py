@@ -15359,6 +15359,36 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the page fits 320 CSS px -----------------------------------------
+    #
+    # C-1970, §41 (WCAG 2.2 SC 1.4.10 Reflow): no second direction to
+    # scroll at 320 CSS px. The board is excepted content; the panel of
+    # controls under it is not.
+    #
+    # Measured in a 320px iframe, not a 320px window: headless Chromium
+    # will not open a window under ~500px, so --window-size=320 reports a
+    # 485px page and a clean result that means nothing.
+    from sidra_ai.evals.page_reflows_at_320px import evaluate_page_reflows_at_320px
+
+    _reflow = evaluate_page_reflows_at_320px()
+    c.add(
+        "creation_page_reflows_at_320px",
+        "320 CSS px で横に流れないページ（日英・§41・C-1970）",
+        float(_reflow.pages_that_fit),
+        detail=(
+            f"**320px の枠にページを入れ、パネルを開けてから `scrollWidth` を読んだ**"
+            f"——**{_reflow.pages_that_fit}/{_reflow.pages_total}**"
+            + ("。**流れている**: " + "; ".join(_reflow.failures[:2])
+               if _reflow.failures
+               else "。**実測**: " + " / ".join(_reflow.readings))
+            + "。**見つけた欠陥は訳が作ったもの**——**英語の「キー設定」の行"
+            "（`press a key to change`）が 12px はみ出し、日本語の行は収まっていた**。"
+            "**盤面は §41 の免除に入るが、その下のパネルは入らない**。"
+            "**窓を狭めるのではなく狭い枠に入れて測る**——**ヘッドレスの窓は 500px より狭くならない**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- every pointer target meets §40's floor -----------------------------
     #
     # C-1968, §40 (WCAG 2.2 SC 2.5.8): a pointer target is 24 x 24 CSS px,
