@@ -110,3 +110,18 @@ def test_this_tree_passes_its_own_check():
         [sys.executable, str(CHECK)], cwd=ROOT, capture_output=True, text=True
     )
     assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_the_gate_survives_a_hunk_header_cut_mid_character() -> None:
+    """C-1976: git cuts a combined diff's context line to a byte length.
+
+    A merge commit's ``@@@`` header carries the enclosing line as context,
+    trimmed by bytes, which lands inside a multi-byte character. The gate
+    read its own input as strict UTF-8 and died with a traceback instead
+    of a verdict - on a push it was otherwise willing to pass. The broken
+    bytes are never in a line this script reads: only ``+`` lines count.
+    """
+    module = _load()
+    seen = module._git("show", "--format=%x41%xe6%x97", "--quiet", "HEAD")
+    assert seen.returncode == 0, seen.stderr
+    assert "�" in seen.stdout or seen.stdout.startswith("A"), repr(seen.stdout[:20])

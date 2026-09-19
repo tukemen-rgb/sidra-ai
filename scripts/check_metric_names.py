@@ -71,7 +71,15 @@ NOT_EVIDENCE = frozenset({"docs/BACKLOG.md", "docs/LOOP_LOG.md"})
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=True)
+    #: C-1976: a combined diff's hunk header carries a line of context -
+    #: ``@@@ ... @@@ API 利用者は区別できる。`` - and git cuts it to a byte
+    #: length, which lands in the middle of a multi-byte character. The
+    #: gate then died reading its own input, on a merge commit, with a
+    #: traceback instead of a verdict. The bytes that break are never in a
+    #: line this file reads: ``_added_lines`` keeps only ``+`` lines.
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, errors="replace"
+    )
 
 
 def _added_lines(diff: str) -> list[str]:
