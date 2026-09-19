@@ -15414,6 +15414,44 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the hit reaches the screen, and leaves when asked ----------------
+    #
+    # C-1979, §1. The juice judges read the page's own counts -
+    # shakeAmount(), particleCount(), flashFacts(). The shake is a CSS
+    # transform on the stage element and the grains are painted after the
+    # template's own draw, so a count can be right while the screen is
+    # still - or while the stage sits permanently off its frame.
+    #
+    # C-1972 measured the switch arriving; this measures the motion
+    # stopping, and that stopping the motion does not stop the game.
+    from sidra_ai.evals.juice_reaches_the_screen import (
+        evaluate_juice_reaches_the_screen,
+    )
+
+    _juice_real = evaluate_juice_reaches_the_screen()
+    c.add(
+        "creation_juice_reaches_the_screen",
+        "打撃が画面に届き、動きを減らせば消える（要素の位置と実画素・C-1979）",
+        float(_juice_real.checks_passed),
+        detail=(
+            f"**実ブラウザで 2 回開いた**——**旗なしと `--force-prefers-reduced-motion`**"
+            f"——**{_juice_real.checks_passed}/{_juice_real.checks_total}**"
+            + ("。**届いていない**: " + "; ".join(_juice_real.failures[:2])
+               if _juice_real.failures
+               else "。**実測**: " + " / ".join(_juice_real.readings))
+            + "。**読むのは 8 点**: **揺らすと stage 要素が実際に動く**（`getBoundingClientRect`）、"
+            "**収まったら元の位置に正確に戻る**、**粒が画素を塗る**（**撒いた点の 80×80 の箱**）、"
+            "**粒が止む**、**動きを減らすと揺れ 0・粒 0**、**それでも世界は進む**"
+            "（**動きを減らすのは装飾であって停止ではない**）、**要素は動かないまま**。"
+            "**数では見えない場所**——**揺れは CSS transform、粒は draw の後**なので、"
+            "**`shakeAmount()` と `particleCount()` が正しいまま画面が静止していても、既存の数字は動かない**。"
+            "**計器の注意**: **フレームは手で回す**——**回さずに撮ると「何も起きていない」と誤読する**"
+            "（**下調べで実際に踏んだ**）。**揺れは開始前の静かな画面で測る**——"
+            "**本番中の catch はこぼすたび `shake(5)` を呼び直す**（**実測 162 フレーム後も 0.584**）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the climax is the brightest thing on the screen, in real pixels ---
     #
     # C-1978, §7 観察 6 with §43's step. creation_scene_palettes and
