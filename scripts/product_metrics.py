@@ -15414,6 +15414,44 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the creature does not fit the frame -------------------------------
+    #
+    # C-1980, §6 観察 1. creation_whole_body_is_rare holds the "only once"
+    # half of that observation - a recording context finds no frame of the
+    # fight where torso, shoulder and head are drawn together. The other
+    # half is unheld: a leg three pixels wide would also never show a whole
+    # body. This reads the painted frame instead.
+    #
+    # The creature is the raw theme colour; the city behind it is the same
+    # colour through the scene transform. Matched exactly, all four themes
+    # read 8.8-8.9% creature, 112 edge pixels, 0.3% player, 30x.
+    from sidra_ai.evals.the_giant_does_not_fit_the_frame import (
+        SCALE,
+        evaluate_the_giant_does_not_fit_the_frame,
+    )
+
+    _giant = evaluate_the_giant_does_not_fit_the_frame()
+    c.add(
+        "creation_the_giant_does_not_fit_the_frame",
+        "怪獣が枠に収まらず、小さい存在と並ぶ（実際の塗り・4 テーマ・C-1980）",
+        float(_giant.checks_passed),
+        detail=(
+            f"**実ブラウザで 4 テーマの戦闘フレームを読んだ**"
+            f"——**{_giant.checks_passed}/{_giant.checks_total}**"
+            + ("。**足りない**: " + "; ".join(_giant.failures[:2])
+               if _giant.failures
+               else "。**実測**: " + " / ".join(_giant.readings))
+            + f"。**1 テーマ 3 点**: **怪獣の塗りが枠の縁に触れる**（**＝見切れている**）、"
+            "**小さい存在（操作キャラ）が同じフレームに居る**、"
+            f"**怪獣がその小さい存在を一桁（{SCALE:.0f} 倍）以上上回る**。"
+            "**帳簿では見えない場所**——**`creation_whole_body_is_rare` は「胴・肩・頭が揃わない」ことしか言えない**ので、"
+            "**脚が 3 画素でも通る**。**色の見分け**: **怪獣は生のテーマ色、ビルは同じ色の場面変換**——"
+            "**許容 ±6 で数えると紙テーマだけ街まで数えて 30.7% になった**ので、**完全一致で数える**（**4 テーマが 8.8〜8.9% で揃う**）。"
+            "**§6 は大きさの数字を持たない**ので、**一桁という閾値はこちらで選んだ数字**（**実測 30 倍**）——**pytest に錠**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the hit reaches the screen, and leaves when asked ----------------
     #
     # C-1979, §1. The juice judges read the page's own counts -
