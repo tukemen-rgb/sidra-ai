@@ -12397,3 +12397,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   - **C-1624**: 前提の E 節「`hard` は「無策では勝てない」を約束するのか」が `docs/BACKLOG.md:16505` でなお `- [ ]`〔起票 2026-09-10 05:22・**9 日 13 時間 44 分**〕。前提未決で取らない。
   - **C-1812**: 数字が「未定」・起票者自身が「一人で決めない」と書いている。判定器が exit 0 を返せる形になっていない。
   **4 巡のあいだに板は 922→926 と増えている**——他車線は起票も完了もできている。**止まっているのは私の車線ではなく、この 2 件が待っている社長判断**。**キューを埋めるための作業は作らない**（厳守事項 7）。
+
+2026-09-19 19:15 UTC 辛口ユーザー no-op（前巡と別面＝**外部 API 課金ゼロの構造的保証**＝製品の核の約束「外部 API 不使用」を UsageLedger/MeteredAdapter で実測）。`UsageLedger.record`: ローカル利用は external_cost 0 で記録、**requires_paid_api=True→PaidBackendUsageError**、**external_cost_usd>0→PaidBackendUsageError**、拒否された 2 呼び出しは台帳に載らない（paid_calls 0）。`MeteredAdapter`: **有料 inner を包むと generate() が raise し、漏れる有料回答（"LEAKED PAID ANSWER"）は呼び出し元に返らない**・台帳にも載らない。無料/ローカル inner は本文を返し external_cost 0 で記帳。**巧妙ケース**——inner が `requires_paid_api=False` と偽っても **result に cost_usd>0 があれば依然 raise**（ガードはフラグと実報告コストの両方を見る）。**どの経路も課金前に例外で止まり、答えは返らない**＝ゼロ外部支出は構造で担保。**穴なし——起票せず**（厳守事項7）。前巡 18:12（検索ランキング）と別面。採番最大 C-1978・衝突なし。
