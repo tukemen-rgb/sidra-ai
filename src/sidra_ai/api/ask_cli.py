@@ -335,7 +335,24 @@ def render(payload: dict[str, Any], base_url: str = "") -> int:
             print(listing)
             _report_stripped(clean)
             return _refusal_exit_code(payload)
-        print("回答を拒否した。")
+        # C-1538: this line is true of a safety refusal and false of everything
+        # else that lands here. The docstring above already separates them -
+        # exit 3 is "refused for safety", exit 4 is "answered conversationally
+        # ... but nothing failed" - and C-1811 / C-1872 / C-1931 made the exit
+        # codes say so. The sentence did not follow: a greeting, a help
+        # question, an empty question and each of the three ask-backs all
+        # opened by announcing a refusal to the one reader who never sees an
+        # exit code. C-1879 saw this for `artifact_list` and gave that one code
+        # an exception above; keying on the exit code instead generalizes it
+        # and needs no second table. An outage (exit 1) is not a refusal
+        # either, and its own message already opens with 「回答を出せなかった。」
+        # - so it was saying both at once.
+        #
+        # Each message below is a whole sentence that stands without this line
+        # (「挨拶を受け取った。」「質問が空である。」), which is why dropping
+        # it leaves the reader with the next step rather than with nothing.
+        if _refusal_exit_code(payload) == 3:
+            print("回答を拒否した。")
         # The API reason is the gate's English audit text ("prompt-injection
         # patterns detected; …"); a terminal user reads Japanese and needs a
         # next step, not the audit trail (C-1238). The full English reason is
