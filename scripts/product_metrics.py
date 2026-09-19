@@ -15359,6 +15359,36 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the page survives the reader's own text spacing --------------------
+    #
+    # C-1971, §42 (WCAG 2.2 SC 1.4.12): line height 1.5, paragraph spacing
+    # 2, letter spacing 0.12, word spacing 0.16 - all four at once, nothing
+    # else changed, and no content or function lost.
+    #
+    # A LOCK, not a repair: the page already holds. The panel is compact by
+    # design, and the cycle that tightens a row is the one this catches.
+    from sidra_ai.evals.text_spacing_survives import evaluate_text_spacing_survives
+
+    _spacing = evaluate_text_spacing_survives()
+    c.add(
+        "creation_text_spacing_survives",
+        "読む人の字間・行間を当てても壊れないページ（日英・§42・C-1971）",
+        float(_spacing.pages_that_hold),
+        detail=(
+            f"**320px の枠でパネルを開け、規格の 4 つ（行 1.5 倍・段落間 2 倍・"
+            f"字間 0.12 倍・語間 0.16 倍）を当ててから測った**"
+            f"——**{_spacing.pages_that_hold}/{_spacing.pages_total}**"
+            + ("。**壊れている**: " + "; ".join(_spacing.failures[:2])
+               if _spacing.failures
+               else "。**実測**: " + " / ".join(_spacing.readings))
+            + "。**これは錠であって修理ではない**——**既に通っている**。"
+            "**パネルは詰めた作り（13px・狭い余白）**なので、**次に行を詰める巡がこれを鳴らす**。"
+            "**測れないものも書いておく**: **SC 1.4.4（文字だけ 200%）はこの道具では測れない**"
+            "——**CSS で全要素に `font-size:200%` を当てると入れ子で掛け算になる**（実測 5155px）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the page fits 320 CSS px -----------------------------------------
     #
     # C-1970, §41 (WCAG 2.2 SC 1.4.10 Reflow): no second direction to

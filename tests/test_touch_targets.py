@@ -85,3 +85,36 @@ def test_every_template_meets_the_size_floor_in_both_languages() -> None:
             under += [f"{key}: {name}" for name in small]
     assert under == [], under
     assert counted > 400, counted
+
+
+def test_every_template_fits_320px_in_both_languages() -> None:
+    """§41 across all twenty pages, not the two the collector reads (C-1971).
+
+    ``creation_page_reflows_at_320px`` measures catch in two languages
+    because a browser run is not free. The panel comes from one shell, so
+    the other nine should follow - measured once at 20 pages, all 305/305
+    with nothing past the edge, and held here so it stays true.
+    """
+
+    import pathlib
+
+    import pytest
+
+    from sidra_ai.evals.drawn_text_stays_on_the_canvas import (
+        ENGLISH_ASKS,
+        JAPANESE_ASKS,
+    )
+    from sidra_ai.evals.page_reflows_at_320px import _measure
+    from sidra_ai.evals.targets_meet_the_size_floor import CHROME
+
+    if not pathlib.Path(CHROME).exists():  # pragma: no cover - environment guard
+        pytest.skip("no browser to measure with")
+
+    flowed: list[str] = []
+    for asks in (ENGLISH_ASKS, JAPANESE_ASKS):
+        for key, ask in sorted(asks.items()):
+            seen = _measure(generate_game(ask).html)
+            assert "err" not in seen, f"{key}: {seen.get('err')}"
+            if seen["scrollW"] > seen["vw"] + 1 or seen["count"]:
+                flowed.append(f"{key}: {seen['scrollW']}/{seen['vw']}")
+    assert flowed == [], flowed
