@@ -143,7 +143,7 @@ PREAMBLE_NAMES: tuple[str, ...] = (
 SHARE_PREAMBLE = """
 /* --- the line you can paste (§8 事実 7) ------------------------------- */
 const SHARE_SPEC=SHARE_SPEC_TOKEN;
-let SHARE_LAST=null,SHARE_COPIES=0,SHARE_BUTTON=null;
+let SHARE_LAST=null,SHARE_COPIES=0,SHARE_BUTTON=null,SHARE_PROVED=false;
 /* A round is worth sharing once it is over - by the clock or by the
    template's own ending. Before that there is no result to talk about. */
 function shareReady(){try{return (ROUND_DONE||roundEnded())&&shareScore()!==null}
@@ -215,22 +215,36 @@ function shareText(){
      scored nothing is not a record, whatever the comparison says. */
   try{if(ROUND_RECORD&&score>0){line+=CW.personal_best}}catch(e){}
   return line}
-/* The clipboard, and nothing else. No share sheet, no link, no request. */
+/* The clipboard, and nothing else. No share sheet, no link, no request.
+   Saying so is not doing it (C-1988): measured in a real browser, with
+   the page opened as a local file, `writeText`'s promise neither resolved
+   nor rejected - a synthetic press is not user activation - and the old
+   trick
+   returned false, while the button said 「コピーしました」 anyway. A share
+   that lies about having copied is worse than one that says it could not:
+   the player pastes nothing and does not know why. So both ways are
+   tried - the same line going in twice is still one line - and the button
+   only speaks when one of them has answered. */
+function shareSaidCopied(){if(SHARE_BUTTON){SHARE_BUTTON.textContent=CW.copied}
+  SHARE_PROVED=true}
 function shareWrite(text){
+  let proved=false;
   try{if(typeof navigator!=='undefined'&&navigator&&navigator.clipboard
     &&typeof navigator.clipboard.writeText==='function'){
-      navigator.clipboard.writeText(text);return true}}catch(e){}
+      const p=navigator.clipboard.writeText(text);
+      /* A promise is an answer only once it has answered. */
+      if(p&&typeof p.then==='function'){p.then(shareSaidCopied,function(){})}
+      else{proved=true}}}catch(e){}
   try{const box=document.createElement('textarea');box.value=text;
     document.body.appendChild(box);
     if(box.select){box.select()}
-    if(document.execCommand){document.execCommand('copy')}
-    if(box.remove){box.remove()}
-    return true}catch(e){}
-  return false}
+    if(document.execCommand&&document.execCommand('copy')){proved=true}
+    if(box.remove){box.remove()}}catch(e){}
+  if(proved){shareSaidCopied()}
+  return proved}
 function shareCopy(){const text=shareText();
   if(text===null)return null;
   SHARE_LAST=text;SHARE_COPIES++;shareWrite(text);
-  if(SHARE_BUTTON){SHARE_BUTTON.textContent=CW.copied}
   return text}
 addEventListener('keydown',function(e){
   if((e.key==='c'||e.key==='C')&&shareReady()){shareCopy()}});
@@ -247,7 +261,7 @@ function sharePanel(){
   SHARE_BUTTON=b;host.appendChild(b);return b}
 /* What the judge reads back after pressing the page's own button. */
 function shareFacts(){return {template:SHARE_SPEC.template,ready:shareReady(),
-  text:shareText(),last:SHARE_LAST,copies:SHARE_COPIES,
+  text:shareText(),last:SHARE_LAST,copies:SHARE_COPIES,proved:SHARE_PROVED,
   score:shareScore(),bar:shareBar(shareScore()),
   emoji:SHARE_SPEC.emoji,per:SHARE_SPEC.per,max:SHARE_SPEC.max}}
 if(typeof document!=='undefined'&&document.addEventListener&&document.readyState==='loading'){

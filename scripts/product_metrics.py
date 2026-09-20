@@ -15454,6 +15454,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- "copied" is a claim, and a claim needs proof ----------------------
+    #
+    # C-1988, §8 事実 7, and the last of the three substitution blind spots
+    # (storage C-1973, sound C-1974). Every share judge drives a node probe
+    # where navigator.clipboard.writeText is an empty function, so "it
+    # copied" is true by construction.
+    #
+    # Measured in a real browser: the promise neither resolved nor rejected
+    # (a synthetic press is not user activation) and execCommand('copy')
+    # returned false - while the button said 「コピーしました」. The page now
+    # tries both ways and speaks only when one of them answers.
+    #
+    # FRAMES is deliberately not imported here: measure_creation already
+    # binds that name (C-1978), and C-1983's UnboundLocalError was the same
+    # mistake in the other direction.
+    from sidra_ai.evals.share_says_copied_only_with_proof import (
+        evaluate_share_says_copied_only_with_proof,
+    )
+
+    _share_proof = evaluate_share_says_copied_only_with_proof()
+    c.add(
+        "creation_share_says_copied_only_with_proof",
+        "「コピーしました」は証拠のあるときだけ言う（実ブラウザ・C-1988）",
+        float(_share_proof.checks_passed),
+        detail=(
+            f"**実ブラウザで 1 局を最後まで走らせ、C を 1 回押した**"
+            f"——**{_share_proof.checks_passed}/{_share_proof.checks_total}**"
+            + ("。**証拠と言葉が合っていない**: " + "; ".join(_share_proof.failures[:2])
+               if _share_proof.failures
+               else "。**実測**: " + " / ".join(_share_proof.readings))
+            + "。**読むのは 4 点**: **クリップボードに頼んだ**、**古い手（textarea＋`execCommand`）も試した**、"
+            "**どちらも答えていない場では「コピーしました」と言わない**、**写す文は `shareFacts()` の文と同じ**。"
+            "**差し替えでは見えない場所**——**共有の判定器は全部 node で `writeText` を空関数にしている**ので、"
+            "**「コピーした」が構造的に真になる**。**直したこと**: **約束は答えてから信じる**、"
+            "**両方の道を試す**（**同じ 1 行が 2 回入っても 1 行**）、**ボタンは 1 か所からしか喋らない**。"
+            "**測れない半分も書く**: **本物の指で押せば約束は解決する**——**その道は driver が要る**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the HUD's ink, read where it landed -------------------------------
     #
     # C-1986, §4 / WCAG 1.4.3. creation_hud_contrast blends the declared
