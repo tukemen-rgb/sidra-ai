@@ -3134,6 +3134,26 @@ def measure_answer_quality(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # C-1987: formatBytes rounded the scaled value but did not carry the unit, so
+    # a size just under a power of 1024 (1048064 B = 1023.5 KB) read as "1024 KB"
+    # instead of "1.0 MB", and a byte under a GB read "1024 MB". The helper now
+    # promotes when the rounded value reaches 1024. Runs the page's own
+    # formatBytes in node over the boundary and over ordinary sizes.
+    from sidra_ai.evals.ui_artifact_size_carries_at_unit_boundary import (
+        evaluate_ui_artifact_size_carries_at_unit_boundary,
+    )
+
+    ui_carry = evaluate_ui_artifact_size_carries_at_unit_boundary()
+    c.add(
+        "ui_artifact_size_carries_at_unit_boundary",
+        "サイズ表示が丸めで 1024 に達したとき単位を繰り上げる（1024 KB を出さない）",
+        10.0 * ui_carry.checks_passed / ui_carry.checks_total,
+        detail=f"{ui_carry.checks_passed}/{ui_carry.checks_total} checks; "
+               "src/sidra_ai/evals/ui_artifact_size_carries_at_unit_boundary.py"
+               + ("" if ui_carry.passed else "; " + "; ".join(ui_carry.failures[:4])),
+        kind=OUTCOME,
+    )
+
     # C-1703: the excerpt cap could cut a [REDACTED:...] placeholder in half,
     # showing a meaningless [REDACT fragment - visible to users since C-1689/1691
     # put the excerpt on screen. The excerpt now drops a placeholder whole rather

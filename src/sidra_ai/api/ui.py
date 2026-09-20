@@ -431,6 +431,14 @@ ASK_PAGE = """<!doctype html>
     // One decimal below 10 (2.3 MB), whole at or above it (107 KB): short and
     // still telling two nearby sizes apart.
     var shown = (value < 10) ? value.toFixed(1) : String(Math.round(value));
+    // Rounding a whole number can reach 1024: 1048064 B is 1023.5 KB, which the
+    // loop leaves in KB (1023.5 < 1024) and Math.round turns into "1024 KB" - a
+    // unit that should have carried. Promote once when there is a larger unit,
+    // so it reads "1.0 MB", not "1024 KB" (and "1.0 GB", not "1024 MB"). C-1987.
+    if (Number(shown) >= 1024 && unit < units.length - 1) {
+      value /= 1024; unit++;
+      shown = (value < 10) ? value.toFixed(1) : String(Math.round(value));
+    }
     return shown + " " + units[unit];
   }
 
