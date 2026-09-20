@@ -15434,6 +15434,44 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the HUD's ink, read where it landed -------------------------------
+    #
+    # C-1986, §4 / WCAG 1.4.3. creation_hud_contrast blends the declared
+    # ink, plate and alpha in Python; creation_hud_painted checks a
+    # recording context saw them painted. Neither sees the composited
+    # frame, where anything drawn after the HUD - grains, a flash, the pad,
+    # a scrim - lands on the same pixels without touching a declaration.
+    #
+    # The backdrop is the median of the pixels within six of an ink pixel.
+    # Not a worst case: a letter's edge is anti-aliased into its plate, and
+    # a 90th percentile read 1.5:1 on three of four templates - the glyph,
+    # not the plate.
+    from sidra_ai.evals.hud_text_reads_on_the_screen import (
+        evaluate_hud_text_reads_on_the_screen,
+    )
+
+    _hud_read = evaluate_hud_text_reads_on_the_screen()
+    c.add(
+        "creation_hud_text_reads_on_the_screen",
+        "HUD の文字が乗った画素で 4.5:1 を保つ（合成後の画面・C-1986）",
+        float(_hud_read.templates_that_read),
+        detail=(
+            f"**実ブラウザで 4 型を動かしてから、合成後の画素を読んだ**"
+            f"——**{_hud_read.templates_that_read}/{_hud_read.templates_total}**"
+            + ("。**読めない**: " + "; ".join(_hud_read.failures[:2])
+               if _hud_read.failures
+               else "。**実測**: " + " / ".join(_hud_read.readings))
+            + "。**読み方**: **`hudFacts().ink` の色で塗られた画素を集め**、"
+            "**その各画素の左右 6px にある「文字でない画素」の輝度の中央値**を地色として、"
+            "**WCAG の比を出す**。**申告では見えない場所**——"
+            "**`creation_hud_contrast` は申告値を Python で α 合成する**ので、"
+            "**HUD の上に後から粒や閃光やパッドが乗っても 1 も動かない**。"
+            "**最悪値は採らない**——**文字の縁は地色に溶けている**ので、"
+            "**90 パーセンタイルは 3/4 の型で 1.5:1 を返した**（**それは縁であって板ではない**）。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the optional door, as the screen has it ---------------------------
     #
     # C-1985, §3. Four judges watch adventure's locks and all four read the
