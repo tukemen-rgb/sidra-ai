@@ -2,8 +2,8 @@
 
 C-1695. ``plain_text`` flattens Markdown decoration, but had no case for a fenced
 code block. ``_MD_CODE`` matches only an inline single-backtick span, so a triple
-backtick fence lost one backtick per side and left ``\`\``` artifacts (```` ```bash
-… ``` ```` became ``\`\`bash … \`\```), and a ``~~~`` fence survived whole. That
+backtick fence lost one backtick per side and left ``\\`\\``` artifacts (```` ```bash
+… ``` ```` became ``\\`\\`bash … \\`\\```), and a ``~~~`` fence survived whole. That
 flattening feeds the chat answer's facts, the echo backend and generated
 documents, so any indexed README with a code block put stray fence marks into the
 answer a reader sees. ``plain_text`` now removes fence-delimiter lines while

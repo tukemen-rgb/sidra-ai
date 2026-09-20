@@ -90,7 +90,7 @@ let DRAWN = [], FONT = '';
 const rec = new Proxy(function(){}, {
   get:(t,k)=>{
     if(k==='font') return FONT;
-    if(k==='fillText') return (text)=>{ const m=/^\s*([0-9.]+)px/.exec(FONT);
+    if(k==='fillText') return (text)=>{ const m=/^\\s*([0-9.]+)px/.exec(FONT);
       DRAWN.push({t:String(text), px: m?parseFloat(m[1]):0}) };
     if(k===Symbol.toPrimitive) return ()=>0; return nothing },
   set:(t,k,v)=>{ if(k==='font') FONT=String(v); return true }, apply:()=>nothing });
