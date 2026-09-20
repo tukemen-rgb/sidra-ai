@@ -15434,6 +15434,42 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the optional door, as the screen has it ---------------------------
+    #
+    # C-1985, §3. Four judges watch adventure's locks and all four read the
+    # world array in a node probe. To a player a lock is a door drawn on the
+    # screen and "it opened" is paint that went away.
+    #
+    # The cave is lit by moving glows, so two squares never look alike
+    # (measured: 1.0 different). The square is therefore compared with
+    # itself: paying moved 0.608 of it, a refused swing 0.048, and sixty
+    # frames of drift 0.117.
+    from sidra_ai.evals.the_optional_door_is_on_the_screen import (
+        evaluate_the_optional_door_is_on_the_screen,
+    )
+
+    _door_paint = evaluate_the_optional_door_is_on_the_screen()
+    c.add(
+        "creation_the_optional_door_is_on_the_screen",
+        "任意の扉が画面で開き、払えなければ開かない（塗り・C-1985）",
+        float(_door_paint.checks_passed),
+        detail=(
+            f"**実ブラウザで任意の扉を 2 通り叩き、奥の報酬まで取った**"
+            f"——**{_door_paint.checks_passed}/{_door_paint.checks_total}**"
+            + ("。**成り立っていない**: " + "; ".join(_door_paint.failures[:2])
+               if _door_paint.failures
+               else "。**実測**: " + " / ".join(_door_paint.readings))
+            + "。**読むのは 4 点**: **宝石 2 個で扉のマスの塗りが変わる**（**道が開く**）、"
+            "**1 個では変わらず宝石も減らない**（**hard の側**）、**60 フレーム後も開いたまま**、"
+            "**奥の護符は拾える**（**§3 の任意報酬が絵として在り、取ると画面から消える**）。"
+            "**帳簿では見えない場所**——**既存 4 本は世界の配列と旗を node で読む**ので、"
+            "**配列だけ変わって絵が変わらない頁でも緑のまま**。"
+            "**同じマスを前後で比べる**——**洞窟は動く灯りで照らされており、別々のマス同士は"
+            "灯りの差で 1.0 違う**（**実測**）ので、**比べてよいのは同じ場所の前と後だけ**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the shrine pays in hearts the screen actually shows ---------------
     #
     # C-1984, §5. creation_gem_sink, creation_sink_affordable and
