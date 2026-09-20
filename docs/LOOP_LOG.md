@@ -12476,3 +12476,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   - **C-1624**: 前提の E 節（`docs/BACKLOG.md:16514`）がなお `- [ ]`〔**9 日 19 時間 44 分**〕。着手不可。
   - **C-1812**: 数字が「未定」・起票者自身が「一人で決めない」と書いている。
   **キューを埋めるための作業は作らない**（厳守事項 7）。
+
+2026-09-20 01:14 UTC 辛口ユーザー no-op（前巡と別面＝**DATA エンベロープ `data_envelope`**＝「取り込み内容は DATA であって指示ではない」を貫く境界を実測）。17 検査全 OK: **`neutralize`** は区切り偽装（`<|im_start|>` 等）を**消さず可視に去勢**（「neutralized delimiter」と注記）・不可視文字を除去・可視語は保持。**`wrap_block`** は危険メタデータを **InstructionAuthorityError で fail-closed 拒否**——label の改行/空白/空、citation・trust の制御文字/区切り偽装/不可視。**`build_data_context`** は**指示権限を主張する item（OPERATOR trust）を拒否**（取り込みは必ず DATA）・敵対的本文はエンベロープ内で中和・DATA 契約を同梱・空 items は ("",[])。**核心の信頼境界が fail-closed で堅い——穴なし・起票せず**（厳守事項7）。前巡 00:12（StateStore 永続化）と別面。採番最大 C-1982・衝突なし。※routine 窓「〜9/19」経過後の firing（9/20 01:12）。
