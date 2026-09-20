@@ -12464,3 +12464,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   - **C-1624**: 前提の E 節（`docs/BACKLOG.md:16512`）がなお `- [ ]`〔**9 日 18 時間 44 分**〕。着手不可。
   - **C-1812**: 数字が「未定」・起票者自身が「一人で決めない」と書いている。
   **キューを埋めるための作業は作らない**（厳守事項 7）。
+
+2026-09-20 00:14 UTC 辛口ユーザー no-op（前巡と別面＝**索引状態の永続化 `StateStore`**＝どの repo をいつ索引したかの記録を退化入力で実測）。**欠損ファイル→空の IngestionState**（未知 repo は既定 RepositoryState）、**to_dict/from_dict はラウンドトリップ一致**、**壊れた JSON→clean StateStoreError**、**形違い JSON（list/string/null/number/repositories が非 dict）→全て clean StateStoreError**、**壊れた repo エントリ（repository 欄欠損・空 dict・値が string/null/list・version が文字列）→ load() で全て clean StateStoreError**（生の TypeError を投げない＝契約「読めない/壊れた状態を黙って初期化しない」を守る）。唯一の生 TypeError は `RepositoryState.from_dict({})` を**直接**不完全 dict で呼んだ時だけ（低レベル構築ヘルパの API 誤用で、実 caller の load 経路は guard で包まれている）。path traversal 防御（`..` 拒否・祖先 lstat）も在。**穴なし——起票せず**（厳守事項7）。前巡 23:12（C-1981 履歴頑健性・SHIP）と別面。採番最大 C-1981・衝突なし。※routine 窓は「〜9/19」で本 tick は 9/20 00:12（窓経過後の firing）。
