@@ -16373,6 +16373,45 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the terminal's scrubber against the gate's own list ---------------
+    #
+    # C-1539, from the outside critic's fifteenth review. ``ask_cli`` says why
+    # it keeps its own list: "security/detectors.py flags these on the way in;
+    # this removes them on the way out, because the gate can be widened and a
+    # terminal cannot." The relation that has to hold is one-directional - the
+    # terminal's set contains the gate's - and it had broken in the direction
+    # that matters: the gate flags U+2060-U+2064 and the CLI did not strip
+    # them, so a word joiner reached the terminal in the answer, the citation
+    # reference, the excerpt and the source url, with neither the removal note
+    # nor the --json warning saying anything.
+    from sidra_ai.evals.cli_strips_what_the_gate_calls_hidden import (
+        evaluate_cli_strips_what_the_gate_calls_hidden,
+    )
+
+    _hidden = evaluate_cli_strips_what_the_gate_calls_hidden()
+    c.add(
+        "cli_strips_what_the_gate_calls_hidden",
+        "端末側が、門の言う隠蔽文字を残らず始末する（C-1539）",
+        float(_hidden.codepoints_right),
+        detail=(
+            f"**実 `render()` と実 `main(--json)` を運転して数えた**——"
+            f"**{_hidden.codepoints_right}/{_hidden.codepoints_total}**"
+            f"（門は{'保たれている' if _hidden.guards_held else '**動いた**'}）。"
+            + ("**内訳**: " + "; ".join(_hidden.failures[:3])
+               if _hidden.failures
+               else "**実測**: 門の挙げる文字は 1 つ残らず、印字 4 面から消え・"
+                    "除去が報告され・`--json` でも警告される")
+            + "。**必要な集合は `_INVISIBLE_CHARS` から読み出している**"
+            "（書き写していない）——**表を 2 つ書き写したことが当の乖離**なので、"
+            "**門を広げればこの数字が下がり、端末が追いつくまで戻らない**。"
+            "**3 面を同時に見る**: 印字 4 面（答え・引用の参照・抜粋・出典 URL）から消えること、"
+            "**黙って消さないこと**（`_report_stripped`）、`--json` が警告すること。"
+            "**門**: CLI が門より多く剥がしている分離子 U+2066–2069 が剥がれなくなったら 0。"
+            "**普通の文が変わっても 0**——「ASCII 以外を全部消す」で満点を買えないようにしている。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the CLI, not calling a conversation a refusal ---------------------
     #
     # C-1538, from the outside critic's fourteenth review - the first to run

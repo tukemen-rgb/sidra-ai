@@ -81,6 +81,22 @@ _STRIPPED_CODEPOINTS = frozenset(
     + list(range(0x80, 0xA0))
     + list(range(0x200B, 0x2010))
     + list(range(0x202A, 0x202F))
+    # C-1539: the word joiner and the invisible math operators. The gate's own
+    # ``_INVISIBLE_CHARS`` calls these "zero-width/bidi control characters used
+    # to hide payloads" and this list did not carry them, so U+2060 reached the
+    # terminal in all four printed fields - answer, citation reference, excerpt
+    # and source url - with neither the removal note nor the --json warning
+    # saying anything, because both count against this same set. A reference
+    # reading `tukemen-rgb/sidra-ai` with a word joiner inside it is the harm
+    # the docstring above names for bidi, arriving by another character.
+    #
+    # The relation is one-directional: this set contains the gate's. U+2066-2069
+    # below are stripped although the gate does not flag them, which is the
+    # correct side to err on - "the gate can be widened and a terminal cannot".
+    # ``cli_strips_what_the_gate_calls_hidden`` reads the required half out of
+    # ``_INVISIBLE_CHARS`` rather than copying it, so the next widening of the
+    # gate shows up as a number instead of as a second silent gap.
+    + list(range(0x2060, 0x2065))
     + list(range(0x2066, 0x206A))
     + [0xFEFF]
 )

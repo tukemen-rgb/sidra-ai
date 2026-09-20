@@ -3048,6 +3048,50 @@ SidraService.chat（echo）と node ハーネス（streak_probe_source）で確�
       破壊 2 通り（裸形の参照を外す→裸形 9 件が落ちる／`search` に緩める→
       目的語つき 6 件が落ちる）で**逆向きに**落ちることを確認。
 
+##### 第15回（2026-09-20 11:00 UTC・プレイヤー 9/10・プロ 9/10）の起票
+
+第14回から 152 コミット。予告どおり CLI の残り（`--json`・`--repository`／`--top-k`・
+出力のエスケープ除去）を運転した。**旗は全部健全**——`--top-k 0/999`・`--timeout -1`・
+裸の `host:port`・未許可リポジトリ・大小違いの重複は**すべて exit 2 で knob を名指す**、
+トークンを設定したうえで `--url https://evil.example.com` を指すと**送信前に中止**する。
+**壊れていたのは 2 つ目の約束の側**（「答えは描画であって実行ではない」）。
+
+- [x] 完了 2026-09-20 12:0x UTC 辛口コメンテーター第15回（`cli_strips_what_the_gate_calls_hidden` **新設 11→16（16/16）**、判定器 **exit 0**（BETTER 1・MOVED 1・WORSE/REGRESSED/LOST/DRIFT 0）、全 pytest **exit 0**、`verify_gate_recall.py` **PASSED**（MUST CATCH の MISS 0・誤検知 0）、**破壊 5 方向すべて検出・無変異の対照 16/16**、採番衝突なし）　**直した中身**: `_STRIPPED_CODEPOINTS` に `list(range(0x2060, 0x2065))` を 1 行足しただけ。**表を 1 つにまとめる案は採らなかった**——CLI から `security.detectors` を import すると端末ツールが検出器一式を引き込むため。**かわりに包含関係を計器側で固定した**: eval は必要な集合を `_INVISIBLE_CHARS` から**読み出す**（書き写さない）ので、**門を広げればこの数字が下がり、端末が追いつくまで戻らない**＝次の乖離は測って分かる。**3 面を同時に数えている**: 印字 4 面（答え・引用の参照・抜粋・出典 URL）から消えること、**黙って消さないこと**、`--json` が警告すること。**破壊 5 方向**: D1〔足した行を消す＝当の欠陥〕**11/16**・D2〔U+2060 だけ足す〕**12/16**・D3〔分離子 U+2066–2069 を落とす＝門より緩くする〕**0**・D4〔除去の報告をやめる＝黙って消す〕**0**・D5〔ASCII 以外を全部消して満点を買いに行く〕**0**（普通の文の門が捕まえた）。**私の検査の穴を対照が先に見つけた**: 最初の版は stdout しか読んでおらず、**`_report_stripped` が stderr に書く**ため、**すでに正しく剥がしている 11 文字まで「黙って消した」と誤判定した**（起票前の実測の話であり、実装の話ではない）。両ストリームを読むよう直した。**既存テストは 1 件も赤にならなかった**——`_STRIPPED_CODEPOINTS` の**中身**を pin した検査は無く、あるのは「この表にあるものが消える」側だけだった（＝表の**欠け**は誰にも測られていなかった）。**`check_answerable_regression.py` は走らせていない**: 変更は端末への印字経路のみで、retrieval・chunking・tokenizer・gate のいずれにも触れていない（`detectors.py` は**未変更**・`verify_gate_recall.py` PASSED で門側は確認済み）。**基準は編集済みの木で取った**（計器と eval を足さなければ基準に当該数字が存在しないため）。**`ask_cli.py` 自体は基準取得時点で未変更**であり、11→16 の 11 は直す前の実測である。 **C-1539: 端末側の除去表が、取り込み側の門が「隠蔽文字」と呼ぶ 5 文字を取りこぼす。**〔中〕
+      → 動かす数字: `cli_strips_what_the_gate_calls_hidden`（**門が挙げる 16 文字のうち
+      端末側で始末できている数 11 → 16**・CLI だけが剥がす分離子 U+2066–2069 は門）
+
+      **実測**（実 `ask_cli.render()` と実 `ask_cli.main(--json)`）:
+
+      - `PromptInjectionDetector._INVISIBLE_CHARS`（`security/detectors.py`）が
+        「zero-width/bidi control characters used to hide payloads」と呼ぶのは
+        **U+200B–200F・U+202A–202E・U+2060–2064・U+FEFF の 16 文字**。
+      - `ask_cli._STRIPPED_CODEPOINTS` が持つのは C0／DEL／C1・U+200B–200F・
+        U+202A–202E・**U+2066–2069**・U+FEFF。
+        **U+2060–U+2064（WORD JOINER と不可視演算子 4 種）が入っていない**。
+      - その結果 U+2060 は **印字される 4 面すべて**——答え本文・引用の参照・抜粋・
+        出典 URL——**を素通りする**。実測: `[1] tukemen-rgb/sidra⁠-ai docs/AUTH.md`
+        （`sidra` と `-ai` の間に U+2060。表示は普通の `tukemen-rgb/sidra-ai` と同じ）。
+      - **`_report_stripped` は何も言わない**（除去数 0）。
+      - **`--json` の警告も出ない**（同じ表を数えているため）。
+        対照の U+200B では「注意: 生の応答に端末制御文字 1 個が含まれる」が出る。
+
+      **なぜこれが欠陥か**: ファイル自身が「`security/detectors.py` flags these on the
+      way in; this removes them on the way out, **because the gate can be widened and a
+      terminal cannot**」と書いている。**満たすべき関係は一方向の包含**
+      （端末側 ⊇ 門側）であり、U+2066–2069 を門より多く剥がしているのは正しい。
+      **逆向きの穴だけが defect**。害は引用の**参照の偽装**——
+      別リポジトリ名が同じに見える。docstring が bidi について名指している
+      「one repository's name read as another's」と同じ害を、別の文字で受ける。
+
+      **直し方**: `_STRIPPED_CODEPOINTS` に `list(range(0x2060, 0x2065))` を足す。
+      **表を 2 つ持つのをやめる案は採らない**（CLI から `security.detectors` を import すると
+      端末ツールが検出器一式を引き込む）。かわりに**包含関係そのものを計器で固定**し、
+      門を広げたら数字が下がるようにする＝**次の乖離は測って分かる**。
+
+      **門**: U+2066–2069 が剥がれなくなったら 0。
+      **普通の文（日本語・ラテン・URL）が変化したら 0**——
+      「ASCII 以外を全部消す」で 16 を買えないようにする。
+
 ##### 第14回（2026-09-19 11:00 UTC・プレイヤー 9/10・プロ 9/10）の起票
 
 第13回から。**社長帰国日**。予告どおり「仕分けの A 群がどう決まり、実装にどう降りたか」を
