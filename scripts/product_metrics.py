@@ -15434,6 +15434,43 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- the shrine pays in hearts the screen actually shows ---------------
+    #
+    # C-1984, §5. creation_gem_sink, creation_sink_affordable and
+    # creation_sink_returns_value all read the books in a node probe -
+    # hero.maxhp, hero.gems. The hearts are fillRects in the HUD, so a page
+    # whose numbers rose while its row stayed put would have taken three
+    # gems and shown nothing, with every one of those judges still green.
+    #
+    # Driven in a real browser: the shrine answers a sword, so the probe
+    # finds the tile, stands the hero beside it and swings once.
+    from sidra_ai.evals.the_shrine_pays_in_hearts import (
+        HEART,
+        evaluate_the_shrine_pays_in_hearts,
+    )
+
+    _shrine_paint = evaluate_the_shrine_pays_in_hearts()
+    c.add(
+        "creation_the_shrine_pays_in_hearts",
+        "祠の返礼が画面のハートとして増える（帳簿ではなく塗り・C-1984）",
+        float(_shrine_paint.checks_passed),
+        detail=(
+            f"**実ブラウザで祠を 3 通り叩いた**"
+            f"——**{_shrine_paint.checks_passed}/{_shrine_paint.checks_total}**"
+            + ("。**受け取れていない**: " + "; ".join(_shrine_paint.failures[:2])
+               if _shrine_paint.failures
+               else "。**実測**: " + " / ".join(_shrine_paint.readings))
+            + f"。**読むのは 4 点**: **宝石 3 個で HUD のハートが 1 個ぶん（{HEART}px）増える**、"
+            "**2 個では 1 画素も増えない**、**上限では増えず宝石も取られない**"
+            "（**C-1674 の「返らないシンクはシンクではない」を画面でも**）、"
+            "**増えた塗りは 60 フレーム後も残る**。"
+            "**帳簿では見えない場所**——**既存の 3 本は `hero.maxhp`／`hero.gems` を読む**ので、"
+            "**数字だけ増えて描画が増えない頁でも 1 つも動かない**。"
+            "**ハートはテーマの alert 色**、**HUD の帯だけを数える**ので盤面の同色と混ざらない。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- nothing leaves the page, as the browser itself records it ---------
     #
     # C-1983, §9. creation_page_is_self_contained tests this behaviourally
