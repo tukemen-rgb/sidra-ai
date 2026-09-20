@@ -15434,6 +15434,45 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- one thumb reaches the buttons it can see --------------------------
+    #
+    # C-1982, §8 事実 5/8. creation_one_thumb_play, creation_pad_painted and
+    # creation_touch_playable all ask padButtons() where the buttons are and
+    # press exactly there: the table checked against itself. A thumb presses
+    # the screen, and padAt() divides client coordinates back into canvas
+    # space with getBoundingClientRect(); a wrong division parts what is
+    # drawn from what is pressable, and no existing number moves.
+    #
+    # Driven with touch pointers only - no key event anywhere - and read in
+    # pixels: the right button sits at x=283 of a 720px canvas and takes
+    # catch's tray from 379 to 683, so "followed the finger" cannot pass.
+    from sidra_ai.evals.one_thumb_reaches_the_buttons import (
+        evaluate_one_thumb_reaches_the_buttons,
+    )
+
+    _thumb = evaluate_one_thumb_reaches_the_buttons()
+    c.add(
+        "creation_one_thumb_reaches_the_buttons",
+        "片手の指が見えているボタンを押して動かせる（実座標と実画素・C-1982）",
+        float(_thumb.checks_passed),
+        detail=(
+            f"**実ブラウザで 2 型を指だけで動かした**（**`pointerType:'touch'` のみ・キーは 1 つも作らない**）"
+            f"——**{_thumb.checks_passed}/{_thumb.checks_total}**"
+            + ("。**届いていない**: " + "; ".join(_thumb.failures[:2])
+               if _thumb.failures
+               else "。**実測**: " + " / ".join(_thumb.readings))
+            + "。**1 型 4 点**: **1 回触ると始まる**、**ボタンの矩形に実際の塗りがある**"
+            "（**押す場所が見えている**）、**「右」を押すと自機が右へ動く**"
+            "——**ボタンは画面の左寄り（720 中 283）**なので**「指に吸い寄せられただけ」と区別できる**、"
+            "**指を離すと押しっぱなしが解けて止まる**。"
+            "**表では見えない場所**——**既存の 3 つはページの表（`padButtons()`）を読んでそこを叩く**ので、"
+            "**`padAt()` の client→canvas 割り戻しが狂っても 1 つも動かない**。"
+            "**測れなかったこと**: **幅 320px の版面**——**窓を狭めても版面は 447px のまま**"
+            "（**C-1970 の床**）なので、**幅の話は iframe の手が要る**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- the creature does not fit the frame -------------------------------
     #
     # C-1980, §6 観察 1. creation_whole_body_is_rare holds the "only once"
