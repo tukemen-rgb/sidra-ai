@@ -303,24 +303,25 @@ def create_app(
         "/",
         include_in_schema=False,
         response_class=HTMLResponse,
-        dependencies=guarded,
+        dependencies=[Depends(health_rate_limit)],
     )
     def ask_page() -> Any:
-        """Serve the one-page asking UI.
+        """Serve the one-page asking UI - the shell only, unauthenticated.
 
-        It sits behind ``guarded`` like every other private route rather than
-        next to ``/health``. That is the conservative choice and it has a
-        cost worth naming: with a token configured, a browser cannot load
-        this page by navigation, because navigation cannot carry an
-        ``Authorization`` header. The page therefore works as a browser UI in
-        the default posture (loopback, no token) and needs a header-capable
-        client otherwise. Serving the shell unauthenticated would fix that,
-        but it widens the unauthenticated surface, which is not a call this
-        route should make on its own.
+        Until 2026-09-20 this sat behind ``guarded`` like every private route.
+        The cost was real and the owner hit it on the first phone attempt:
+        with a token configured, a browser cannot load the page by navigation,
+        because navigation cannot carry an ``Authorization`` header, so the
+        phone showed a 401 JSON body and no form at all. The owner decided
+        (BACKLOG E section, "7B") to serve the shell next to ``/health``.
 
-        No index data passes through here. The page is a constant, and the
-        answer it shows is fetched by the browser from ``/v1/chat``, across
-        the same auth and rate-limit boundary as any other client.
+        What that does and does not open: the response is a constant string
+        with no index data, no repository names and no configuration in it -
+        the same class of surface as ``/health``, and bounded by the same
+        health rate limit. Everything the page shows is fetched by the
+        browser from ``/v1/chat`` and the other ``/v1`` routes, which keep the
+        bearer requirement; the token the operator types into the page goes
+        into that header and nowhere else.
         """
 
         return HTMLResponse(ASK_PAGE)

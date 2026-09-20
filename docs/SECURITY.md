@@ -154,6 +154,11 @@ stable offline-guessing oracle.
   availability, and the constant GitHub-write-disabled flag. It does not expose
   repository names, model names/endpoints, token-presence flags, index details,
   or backend exception diagnostics.
+- `GET /` (the asking page) is unauthenticated since 2026-09-20 (owner's
+  decision, BACKLOG E section "7B"): it is a constant HTML shell with no index
+  data, repository names or configuration in it, bounded by the health rate
+  limit. Everything it displays is fetched from `/v1/chat` and the other `/v1`
+  routes, which keep the bearer requirement.
 - `/v1/retrieve`, `/v1/chat`, and `/v1/github/analyze` record metadata-only
   local audit events. Raw operator text, model output, authorization headers,
   tokens, retrieved content, and gate finding evidence are excluded from the

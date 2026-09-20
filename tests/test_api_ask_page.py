@@ -6,7 +6,8 @@ anyone noticing:
 
 * an asset moved to a CDN - the page still renders, and the button does
   nothing on the loopback-only machine it was written for;
-* the auth boundary quietly opening, because a page felt harmless;
+* the auth boundary moving off the API along with the page (the shell is
+  open by the owner's decision; what it talks to is not);
 * CORS appearing, because a browser complained once;
 * a retrieved document reaching the operator's browser as markup rather than
   as text.
@@ -78,22 +79,35 @@ def test_the_page_fetches_nothing_off_this_host() -> None:
     assert external == []
 
 
-def test_the_page_needs_the_bearer_token_when_one_is_configured(
+def test_the_shell_loads_without_a_token_but_the_api_still_needs_one(
     service: SidraService, settings: Settings, monkeypatch
 ) -> None:
-    """The page is not a hole in the auth boundary.
+    """The page is a constant shell; the auth boundary is on the API.
 
-    It carries no index data, but "harmless enough to serve openly" is the
-    step that turns one exception into a habit. It crosses the same boundary
-    as ``/v1/index``.
+    Owner's decision 2026-09-20 ("7B"): with a token configured, a phone on
+    the LAN could not open the page at all - navigation carries no
+    ``Authorization`` header, so it got a 401 body and no form. The shell is
+    now served like ``/health``. What must not move with it is the boundary
+    itself: the routes the page talks to keep requiring the bearer token, and
+    the page carries nothing worth protecting.
     """
 
     monkeypatch.setenv("SIDRA_API_TOKEN", "configured-token")
     api = TestClient(create_app(service, settings))
 
-    assert api.get("/").status_code == 401
+    page = api.get("/")
+    assert page.status_code == 200
+    assert "<form" in page.text
+    # Nothing configuration- or index-shaped rides along with the shell.
+    assert "configured-token" not in page.text
+    assert page.text == ASK_PAGE
+
+    # The API behind the page still needs the token.
+    assert api.post("/v1/chat", json={"message": "x"}).status_code == 401
+    assert api.get("/v1/index").status_code == 401
+    assert api.get("/openapi.json").status_code == 401
     assert (
-        api.get("/", headers={"Authorization": "Bearer configured-token"}).status_code
+        api.get("/v1/index", headers={"Authorization": "Bearer configured-token"}).status_code
         == 200
     )
 
