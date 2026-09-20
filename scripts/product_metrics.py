@@ -15434,6 +15434,46 @@ def measure_creation(c: Collector) -> None:
         kind=OUTCOME,
     )
 
+    # --- nothing leaves the page, as the browser itself records it ---------
+    #
+    # C-1983, §9. creation_page_is_self_contained tests this behaviourally
+    # in node: fetch/XHR/WebSocket/EventSource/sendBeacon replaced with
+    # throwing stubs, ten templates running 600 frames. node has no DOM, so
+    # the paths a browser walks by itself - <img src>, a CSS url(), a web
+    # font, /favicon.ico - pass none of those stubs, and a spelling scan for
+    # "://" cannot see a relative request.
+    #
+    # Read from Chromium's own --log-net-log while each page is opened and
+    # played. The browser has errands of its own (measured: four, on a blank
+    # page, with every quieting flag set), so the reading is a difference
+    # against a control page that only paints.
+    from sidra_ai.evals.nothing_leaves_the_page import (
+        evaluate_nothing_leaves_the_page,
+    )
+
+    _no_net = evaluate_nothing_leaves_the_page()
+    c.add(
+        "creation_nothing_leaves_the_page",
+        "本物のブラウザの通信記録で外部送信ゼロ（10 型・C-1983）",
+        float(_no_net.templates_that_say_nothing),
+        detail=(
+            f"**Chromium 自身の通信記録を読んだ**（`--log-net-log`）"
+            f"——**{_no_net.templates_that_say_nothing}/{_no_net.templates_total}**"
+            + ("。**話しかけた**: " + "; ".join(_no_net.failures[:2])
+               if _no_net.failures
+               else "。**実測**: " + " / ".join(_no_net.readings))
+            + "。**対照つきで読む**——**ブラウザは自分の用事でベンダーに話しかける**"
+            "（**静める旗を全部立てても、空のページで 4 本**）ので、"
+            "**「canvas を 1 つ塗るだけのページ」を床とし、製品ページがそれを 1 本でも超えたら落とす**。"
+            "**開いたページ自身の `file://` は除き、それ以外の `file://` は数える**"
+            "（**相対で何かを取りに行った跡**）。**`data:` は通信ではない**ので数えない（favicon は data: URI）。"
+            "**ページは開くだけでなく動かす**（**rAF を横取りして 200 フレーム＋指で 1 回**）。"
+            "**差し替えでは見えない場所**——**node の probe には DOM が無い**ので、"
+            "**`<img src>`・CSS の `url(...)`・フォント・favicon は差し替えた API を 1 つも通らない**。"
+        ),
+        kind=OUTCOME,
+    )
+
     # --- one thumb reaches the buttons it can see --------------------------
     #
     # C-1982, §8 事実 5/8. creation_one_thumb_play, creation_pad_painted and
