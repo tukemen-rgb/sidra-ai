@@ -145,7 +145,7 @@ ASK_PAGE = """<!doctype html>
       // the web twin of the CLI's C-1718). Name them when it is an integer count
       // so the reader knows a 2s wait from a 60s one; HTTP also allows a date
       // there, which is not seconds, so anything non-integer keeps the vague form.
-      var secs = (retryAfter && /^\d+$/.test(String(retryAfter).trim()))
+      var secs = (retryAfter && /^\\d+$/.test(String(retryAfter).trim()))
         ? String(retryAfter).trim() + " \u79d2"
         : "\u5c11\u3057";
       why = "\u6df7\u307f\u5408\u3063\u3066\u3044\u307e\u3059\u3002" + secs
@@ -178,7 +178,7 @@ ASK_PAGE = """<!doctype html>
     // A citation is DATA, so only an http(s) URL is ever turned into a link:
     // anything else (a javascript: or data: scheme, an empty value) returns ""
     // and is dropped rather than rendered as a live link (C-1735).
-    return (typeof u === "string" && /^https?:\/\//i.test(u)) ? u : "";
+    return (typeof u === "string" && /^https?:\\/\\//i.test(u)) ? u : "";
   }
 
   function refusalMessage(result) {
