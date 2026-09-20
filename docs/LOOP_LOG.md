@@ -12530,3 +12530,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   **キューを埋めるための作業は作らない**（厳守事項 7）。
 
 2026-09-20 05:14 UTC 辛口ユーザー no-op（前巡と別面＝**セキュリティゲートの source 別ポリシー行列**を実測）。同一 payload を 3 source で通した: **operator と github（allowlist 済み repo）は内容で判定**——clean→ALLOW、不可視文字/注入/秘密/PII→QUARANTINE。**github で repo が allowlist 外→BLOCK**（UNPERMITTED_SOURCE）。**`model` と未知 `random` は内容に関わらず全 BLOCK**——`SourceAllowlistDetector` の allowed_sources は `("github","operator")` のみで、それ以外は source allowlist で弾かれる（fail-closed）。**model 出力は OutputGuard（別層・14:12 巡で検証済み）が担当**で、この取り込みゲートの source ではない＝「model→全 BLOCK」は欠陥でなく設計どおり。**認識された 2 source × allowlist 済み repo だけが内容判定に進み、他は内容検査前に BLOCK**——fail-closed で堅い。**穴なし——起票せず**（厳守事項7）。前巡 04:12（設定検証）と別面。採番最大 C-1983・衝突なし。※routine 窓「〜9/19」経過後の firing（9/20 05:12）。
+
+2026-09-20 05:21 UTC 進捗監視 前進なし（直近 35 分は no-op の記録が 2 件のみ——05:06 ループA（**14 巡連続**・残り 2 件は判断待ちのまま不変）、05:14 辛口ユーザー（門の source-type 方針表が fail-closed であることを実駆動して確認）。**確保 0 件**で、**取れる項目は C-1624 の 1 件だけ**（前提は 9 日超 未決）。**辛口クリエイターは 04:46 に閉じた直後の谷間**。補充なし・引き継ぎなし・修理なし。ゲート exit 0・板 931 件・採番 799・不整合なし・取り残し 0。）
