@@ -12528,3 +12528,5 @@ unmeasurable→1 のみ・他は不変）。新規テスト 8 件。
   - **C-1624**: 前提の E 節（`docs/BACKLOG.md:16516`）がなお `- [ ]`〔**9 日 23 時間 44 分**〕。着手不可。
   - **C-1812**: 数字が「未定」・起票者自身が「一人で決めない」と書いている。
   **キューを埋めるための作業は作らない**（厳守事項 7）。
+
+2026-09-20 05:14 UTC 辛口ユーザー no-op（前巡と別面＝**セキュリティゲートの source 別ポリシー行列**を実測）。同一 payload を 3 source で通した: **operator と github（allowlist 済み repo）は内容で判定**——clean→ALLOW、不可視文字/注入/秘密/PII→QUARANTINE。**github で repo が allowlist 外→BLOCK**（UNPERMITTED_SOURCE）。**`model` と未知 `random` は内容に関わらず全 BLOCK**——`SourceAllowlistDetector` の allowed_sources は `("github","operator")` のみで、それ以外は source allowlist で弾かれる（fail-closed）。**model 出力は OutputGuard（別層・14:12 巡で検証済み）が担当**で、この取り込みゲートの source ではない＝「model→全 BLOCK」は欠陥でなく設計どおり。**認識された 2 source × allowlist 済み repo だけが内容判定に進み、他は内容検査前に BLOCK**——fail-closed で堅い。**穴なし——起票せず**（厳守事項7）。前巡 04:12（設定検証）と別面。採番最大 C-1983・衝突なし。※routine 窓「〜9/19」経過後の firing（9/20 05:12）。
